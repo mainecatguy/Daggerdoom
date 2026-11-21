@@ -1,0 +1,8 @@
+UZDoom vendored source snapshot
+
+Upstream: https://github.com/UZDoom/UZDoom
+Version: 5.0.3
+Commit: 7910df7102033fd7754a317f3254f24101135926
+Tree: ce199b989dde776720434d4b837b5cecfb14c031
+
+UZDoom/ was imported unmodified at this commit. UZDoom's own license files remain in that directory.

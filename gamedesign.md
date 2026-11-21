@@ -1,0 +1,44 @@
+The basic design goal of this project is simple: "daggerfall, but oops we replaced all the monsters with slaughter map sized packs from doom, and that ebony mace that dropped got converted to an energy machinegun from the doom roguelike arsenal extended mod, and when NPCs get angry at you they behave like Doom NPCs."
+
+
+Short-Term Game Design Goals
+
+## Vertical Slice Target
+Play through one Daggerfall dungeon (e.g., Privateer's Hold) and one town, fast-traveling between them: fight Doom slaughter-map packs, loot and fire a converted DRLX weapon, talk to and provoke an NPC, complete one Daggerfall kill quest, save and reload mid-fight, and leave/re-enter the dungeon with dead enemies and dropped gear intact.
+
+
+
+## Long-term Game Deisgn Goals
+
+| Domain | Prevailing System | Game Design Rule |
+|---|---|---|
+| **World, Time & Weather** | **Daggerfall** | The calendar, seasons, regions, day/night cycle, weather, and fast travel govern the world. |
+| **Aesthetics & Tone** | **Daggerfall (world) + Doom (combat)** | Environments, architecture, skies, and props look like Daggerfall; weapons, monsters, gore, and combat effects look like Doom/DRLX. |
+| **World Persistence** | **Strict Full Persistence** | Every killed monster, corpse, dropped item, unlocked door, and world change stays permanent across revisits (except permitting vanilla Daggerfall's dungeon resets). |
+| **Combat & Weapons** | **Doom / DRLX** | Pure real-time FPS gunplay, projectiles, hitscans, ammo economy, and Doom Roguelike Extended Arsenal weapon modding. No Daggerfall dice-roll-to-hit combat. |
+| **Monsters & Encounters** | **Doom / DRLX** | All monsters are replaced by slaughter-map-sized Doom/DRLX packs that spill through available space and infight, scaled by Daggerfall's location difficulty and encounter tables. |
+| **NPCs, Dialogue & Quests** | **Daggerfall (peaceful) + Doom (hostile)** | Townsfolk, guilds, dialogue, and quests follow Daggerfall's rules. Once attacked or flagged hostile, NPCs fight as aggressive Doom bots, usually with powerful non-hitscan weapons. |
+| **Crime, Bounties & Guards** | **Daggerfall (rules) + Doom (enforcement)** | Daggerfall governs reputation, bounties, surrender, and court/jail; hostile guards pursue and fight like Doom bots. |
+| **Player Vitals & Death** | **Daggerfall** | Daggerfall's HP, attributes, resistances, fatigue, magicka, and death rules govern survival. DRLX passes base damage and damage type entities want to deal to daggerfall, and daggerfall applies its damage rules and is the final arbitrator of how much damage was dealt to an entity. All DRLX weapons have damage types. |
+| **Status Effects & Transformations** | **Daggerfall** | Poison, disease, paralysis, buffs, vampirism, and lycanthropy follow Daggerfall's rules and directly alter movement, vision, and survivability in Doom combat. |
+| **Movement & Traversal** | **Doom (feel) + Daggerfall (abilities)** | Doom's fast, responsive FPS movement is the baseline, modified by Daggerfall's encumbrance, swimming, climbing, levitation, and horses. |
+| **Magic & Spellcasting** | **Daggerfall (rules) + Doom (execution)** | Daggerfall's spellbooks, spellmaker, and magicka costs prevail, for spells that hit Daggerfall can spawn a projectile and specify a radius which it will ask  Doom to spawn, Doom will then report what the projectile hit. |
+| **Loot & Economy** | **Daggerfall (economy) + DRLX (gear)** | Daggerfall rolls loot tiers and runs the gold economy, shops, banks, wagons, and houses; combat drops translate into DRLX weapons, ammo, armor, and mod packs. |
+| **Interactive World & Locks** | **Daggerfall** | Lock ratings, lockpicking, door bashing, traps, and secret triggers follow Daggerfall's RPG checks. |
+| **Stealth & Detection** | **Doom (spatial) + Daggerfall (stats)** | Real line-of-sight, lighting, and gunfire noise alert monsters; Daggerfall's stealth skill adjusts detection thresholds and backstab damage. |
+| **Resting & Loitering** | **Daggerfall** | Resting advances time and restores vitals, blocked when Doom monsters are nearby and interrupted by Doom ambush packs. |
+| **Progression & Skill XP** | **Daggerfall** | Combat, spellcasting, and traversal drive Daggerfall's use-based skill leveling; DRLX progression remains gear-centric. |
+| **Audio & Music** | **Doom (music/combat) + Daggerfall (UI/NPCs)** | Doom supplies music and combat SFX; Daggerfall supplies UI sounds and NPC barks. |
+
+Handling multiple enemies:
+Enemy placements in Daggerfall are now encounters.
+Encounters produce multiple doom enemies, which we will call "mooks" because they don't receive the same attention as normal daggerfall entities by daggerfall engine in some ways.
+Mooks are generated from deterministic seeds so we always get the same set of mooks from the same entity data whenever we reconstruct it. Use perhaps the static part of their definitions as a fixed seed. 
+Then, we only need to track which mooks are dead for save/load in daggerfall (this is an expansion) and then tell doom on load "these are dead bodies".
+Doom then for all mooks places Doom enemies using a point buy system the user will define. Points are allocated based on encounter difficulty calculations.
+Death events for an NPC trigger when most of the mooks are dead. For consistency's sake, if the user kills all but 1-2 entities, we may have to flag the NPC is dead and allow that to not make those stragglers respawn.
+
+Other todos:
+DFU loot should persist no matter where it is dropped if possible.
+DFU area respawns should be delayed or made indefinite.
+We want maximal state persistence / "object permanence" in-engine.

@@ -3,3 +3,6 @@
 # Bracketed letters match either casing, for clients that are case-sensitive.
 /[Gg]ame[Rr]esources/**
 !/[Gg]ame[Rr]esources/.gitkeep
+
+# Unity-generated logs can contain local machine paths.
+/daggerfall-unity-master/[Ll]ogs/
