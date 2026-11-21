@@ -1,0 +1,4 @@
+# Copyrighted game resources (WADs, Daggerfall data, etc.) are never committed.
+# Keep the folder itself in source control so people know where to put them.
+/Gameresources/**
+!/Gameresources/.gitkeep
