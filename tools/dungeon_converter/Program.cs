@@ -30,7 +30,9 @@ static class Program
     static int cell = 16, minX, minY, width, height;
     static string debugRow;
     static V3 entranceMarker;
-    static int gapCells;
+    static int gapCells, skippedActions, stackedDoors;
+    static bool openActions;
+    static int routeStep = StepHeight;
     static List<Span>[] grid;
     static readonly List<Tri> tris = new List<Tri>();
     static readonly List<DoorInfo> doors = new List<DoorInfo>();
@@ -47,6 +49,8 @@ static class Program
             else if (args[a] == "--cell") cell = int.Parse(args[++a]);
             else if (args[a] == "--debug-row") debugRow = args[++a];
             else if (args[a] == "--no-walls") { }
+            else if (args[a] == "--open-actions") openActions = true;
+            else if (args[a] == "--route-step") routeStep = int.Parse(args[++a]); // diagnostic: models jumping or climbing
             else name = args[a];
         }
         if (name == null || outDir == null)
@@ -66,7 +70,8 @@ static class Program
         {
             var near = doors.OrderBy(d => Math.Abs(d.MinX - entrance.X) + Math.Abs(d.MinY - entrance.Y) + Math.Abs(d.MinZ - entrance.Z)).First();
             Console.WriteLine($"DOOR box x {near.MinX:F0}..{near.MaxX:F0} y {near.MinY:F0}..{near.MaxY:F0} z {near.MinZ:F0}..{near.MaxZ:F0}");
-            DumpAround(new V3((near.MinX + near.MaxX) / 2, (near.MinY + near.MaxY) / 2, near.MinZ + 20));
+            var parts = debugRow.Split(',');
+            DumpAround(parts.Length == 3 ? new V3(double.Parse(parts[0]), double.Parse(parts[1]), double.Parse(parts[2])) : entrance);
         }
         var nodes = BuildNodes(out var edges);
         int start = FindStart(nodes, entrance);
@@ -149,6 +154,8 @@ static class Program
                     var action = obj.Resources.ModelResource.ActionResource;
                     if (debugRow != null && (action.Flags != 0 || isDoor))
                         Console.WriteLine($"ACTION block={dungeonBlock.BlockName} model={id} desc={reference.Description} door={isDoor} flags={action.Flags} axis={action.Axis} dur={action.Duration} mag={action.Magnitude} next={action.NextObjectOffset} pos={obj.XPos + offset.X:F0},{obj.ZPos + offset.Z:F0},{-obj.YPos}");
+                    // Diagnostic: treat lifts, lids, and moving walls as already out of the way.
+                    if (openActions && !isDoor && action.Flags != 0) { skippedActions++; continue; }
                     AddModel(arch, id, obj, offset, isDoor, blockIndex);
                 }
             }
@@ -231,7 +238,7 @@ static class Program
         grid = new List<Span>[width * height];
         if (debugRow != null)
         {
-            int row = (int.Parse(debugRow) - minY) / cell;
+            int row = (int.Parse(debugRow.Split(',')[debugRow.Contains(',') ? 1 : 0]) - minY) / cell;
             string last = null;
             for (int i = 0; i < width; i++)
             {
@@ -480,8 +487,8 @@ static class Program
                     {
                         if (Math.Min(n.C, mid.C) - Math.Max(n.F, mid.F) < ActorHeight || Math.Min(m.C, mid.C) - Math.Max(m.F, mid.F) < ActorHeight) continue;
                         bool door = n.Door || m.Door || mid.Door;
-                        if (mid.F - n.F <= StepHeight && m.F - mid.F <= StepHeight) edges.Add((n.Id, m.Id, door));
-                        if (mid.F - m.F <= StepHeight && n.F - mid.F <= StepHeight) edges.Add((m.Id, n.Id, door));
+                        if (mid.F - n.F <= routeStep && m.F - mid.F <= routeStep) edges.Add((n.Id, m.Id, door));
+                        if (mid.F - m.F <= routeStep && n.F - mid.F <= routeStep) edges.Add((m.Id, n.Id, door));
                         break;
                     }
             }
@@ -574,7 +581,16 @@ static class Program
         }
 
         int doorControlBase = nextTag + 1000;
-        foreach (var d in doors) d.Control = doorControlBase + d.Id;
+        // A line has one special, so doors stacked in one column share a control id and open together.
+        var parent = Enumerable.Range(0, doors.Count).ToArray();
+        int Find(int x) { while (parent[x] != x) x = parent[x] = parent[parent[x]]; return x; }
+        foreach (var spans in sectorSpans)
+        {
+            var inSector = spans.Where(x => x.Door >= 0).Select(x => x.Door).Distinct().ToList();
+            for (int k = 1; k < inSector.Count; k++) parent[Find(inSector[k])] = Find(inSector[0]);
+        }
+        foreach (var d in doors) d.Control = doorControlBase + Find(d.Id);
+        stackedDoors = doors.Count(d => Find(d.Id) != d.Id);
         int Side(int sector, bool twoSided)
         {
             sideText.Append(twoSided
@@ -709,6 +725,50 @@ static class Program
         }
     }
 
+    // Checks test nodes against the raw triangles, at points that are not the grid's own ray positions.
+    static (int floorMiss, int ceilingMiss) VerifyAgainstSource(List<Node> nodes)
+    {
+        var index = new List<int>[width * height];
+        for (int t = 0; t < tris.Count; t++)
+        {
+            var x = tris[t];
+            if (Math.Abs(x.N.Z) < 0.5) continue;
+            int i0 = Math.Max(0, (int)Math.Floor((Math.Min(x.A.X, Math.Min(x.B.X, x.C.X)) - minX) / cell));
+            int i1 = Math.Min(width - 1, (int)Math.Floor((Math.Max(x.A.X, Math.Max(x.B.X, x.C.X)) - minX) / cell));
+            int j0 = Math.Max(0, (int)Math.Floor((Math.Min(x.A.Y, Math.Min(x.B.Y, x.C.Y)) - minY) / cell));
+            int j1 = Math.Min(height - 1, (int)Math.Floor((Math.Max(x.A.Y, Math.Max(x.B.Y, x.C.Y)) - minY) / cell));
+            for (int j = j0; j <= j1; j++)
+                for (int i = i0; i <= i1; i++)
+                    (index[Index(i, j)] ??= new List<int>()).Add(t);
+        }
+        bool Near(double px, double py, int z, bool up)
+        {
+            int i = (int)Math.Floor((px - minX) / cell), j = (int)Math.Floor((py - minY) / cell);
+            if (i < 0 || j < 0 || i >= width || j >= height || index[Index(i, j)] == null) return false;
+            foreach (int k in index[Index(i, j)])
+            {
+                var t = tris[k];
+                if (t.N.Z > 0 != up) continue;
+                double d = (t.B.Y - t.C.Y) * (t.A.X - t.C.X) + (t.C.X - t.B.X) * (t.A.Y - t.C.Y);
+                if (Math.Abs(d) < 1e-9) continue;
+                double u = ((t.B.Y - t.C.Y) * (px - t.C.X) + (t.C.X - t.B.X) * (py - t.C.Y)) / d;
+                double v = ((t.C.Y - t.A.Y) * (px - t.C.X) + (t.A.X - t.C.X) * (py - t.C.Y)) / d;
+                if (u < 0 || v < 0 || u + v > 1) continue;
+                if (Math.Abs(u * t.A.Z + v * t.B.Z + (1 - u - v) * t.C.Z - z) <= ZQuant + 2) return true;
+            }
+            return false;
+        }
+        int floorMiss = 0, ceilingMiss = 0;
+        var offsets = new[] { (3.0, 3.0), (-3.0, 3.0), (3.0, -3.0), (-3.0, -3.0), (13.0, 13.0), (-13.0, 13.0), (13.0, -13.0), (-13.0, -13.0) };
+        foreach (var n in nodes)
+        {
+            double x = minX + n.I * cell, y = minY + n.J * cell;
+            if (!offsets.Any(o => Near(x + o.Item1, y + o.Item2, n.F, true))) floorMiss++;
+            if (!offsets.Any(o => Near(x + o.Item1, y + o.Item2, n.C, false))) ceilingMiss++;
+        }
+        return (floorMiss, ceilingMiss);
+    }
+
     static void WriteStats(string path, string name, DFLocation location, List<Node> nodes, List<(int a, int b, bool door)> edges, int start, int walled,
         (int sectors, int lines, int controls, int doorsUsed, int doorLineConflicts) map)
     {
@@ -722,12 +782,12 @@ static class Program
         var text = new StringBuilder();
         text.AppendLine($"dungeon: {location.RegionName}/{location.Name}");
         text.AppendLine($"blocks: {location.Dungeon.Blocks.Length}");
-        text.AppendLine($"triangles: {tris.Count}");
+        text.AppendLine($"triangles: {tris.Count}; non-door action models removed by --open-actions: {skippedActions}");
         text.AppendLine($"grid: {width}x{height} cells of {cell} units");
         text.AppendLine($"open cells: {open}");
         text.AppendLine($"vertically stacked cells: {stacked} ({100.0 * stacked / Math.Max(1, open):F1}%), max layers {maxStack}");
         text.AppendLine($"spans removed by walls: {walled}, gap spans added: {gapCells}");
-        text.AppendLine($"door models: {doors.Count}, placed in map: {map.doorsUsed}, line conflicts: {map.doorLineConflicts}");
+        text.AppendLine($"door models: {doors.Count}, placed in map: {map.doorsUsed}, line conflicts: {map.doorLineConflicts}, sharing a control with a stacked door: {stackedDoors}");
         text.AppendLine($"sectors: {map.sectors}, control sectors: {map.controls}, lines: {map.lines}");
         text.AppendLine($"test nodes: {nodes.Count}, directed edges: {edges.Count}");
         text.AppendLine($"nodes reachable from entrance in source model: {seen.Count} ({100.0 * seen.Count / Math.Max(1, nodes.Count):F1}%)");
@@ -744,10 +804,38 @@ static class Program
                     if (visited.Add(next)) part.Add(next);
             parts.Add((part.Count, part.Min(p => nodes[p].F), part.Max(p => nodes[p].F), minX + n.I * cell, minY + n.J * cell, part.Contains(start)));
         }
+        var source = VerifyAgainstSource(nodes);
+        text.AppendLine($"nodes with no raw source floor near their height: {source.floorMiss} ({100.0 * source.floorMiss / nodes.Count:F2}%); no raw ceiling: {source.ceilingMiss} ({100.0 * source.ceilingMiss / nodes.Count:F2}%)");
         text.AppendLine($"entrance marker: {entranceMarker.X:F0},{entranceMarker.Y:F0},{entranceMarker.Z:F0}; start node floor {nodes[start].F}");
         text.AppendLine($"connected areas: {parts.Count}; largest:");
         foreach (var p in parts.OrderByDescending(p => p.size).Take(8))
             text.AppendLine($"  {p.size} nodes, floors {p.zMin}..{p.zMax}, near {p.x},{p.y}{(p.hasStart ? " (entrance)" : "")}");
+        // A door touching two separate areas is a connection the converter failed to make.
+        var areaOf = new Dictionary<int, int>();
+        foreach (var n in nodes)
+        {
+            if (areaOf.ContainsKey(n.Id)) continue;
+            var part = new List<int> { n.Id };
+            areaOf[n.Id] = n.Id;
+            for (int q = 0; q < part.Count; q++)
+                foreach (int next in undirected[part[q]])
+                    if (areaOf.TryAdd(next, n.Id)) part.Add(next);
+        }
+        var areaSize = areaOf.Values.GroupBy(v => v).ToDictionary(g => g.Key, g => g.Count());
+        int splitDoors = 0, doorsNoNodes = 0;
+        var splitText = new StringBuilder();
+        foreach (var d in doors)
+        {
+            var touching = nodes.Where(n => minX + n.I * cell >= d.MinX - 56 && minX + n.I * cell <= d.MaxX + 56 && minY + n.J * cell >= d.MinY - 56 && minY + n.J * cell <= d.MaxY + 56
+                && n.F >= d.MinZ - 32 && n.F <= d.MinZ + 32).Select(n => areaOf[n.Id]).Distinct().ToList();
+            if (touching.Count == 0) doorsNoNodes++;
+            if (touching.Count < 2) continue;
+            splitDoors++;
+            if (splitDoors <= 8)
+                splitText.AppendLine($"  door {d.Id} block {blockRects[d.Block].name} at {(d.MinX + d.MaxX) / 2:F0},{(d.MinY + d.MaxY) / 2:F0},z{d.MinZ:F0} joins areas of {string.Join("/", touching.Select(t => areaSize[t]))} nodes");
+        }
+        text.AppendLine($"doors touching two separate areas: {splitDoors} of {doors.Count}; doors with no walkable node beside them: {doorsNoNodes}");
+        text.Append(splitText);
         // For each cut-off area, the closest point to the entrance's area shows what separates them.
         var main = seen.Select(id => nodes[id]).ToLookup(n => (n.I / 8, n.J / 8));
         text.AppendLine("closest approach of cut-off nodes to the reachable area (same level):");
@@ -773,10 +861,10 @@ static class Program
                             if (d < best.d) best = (d, a, b);
                         }
             }
-            if (best.a != null) gaps.Add(best);
+            if (part.Count >= 100) gaps.Add(best.a != null ? best : (-part.Count, nodes[part[0]], nodes[part[0]]));
         }
-        foreach (var g in gaps.OrderBy(g => g.d).Take(12))
-            text.AppendLine($"  {g.d * cell} units: {minX + g.a.I * cell},{minY + g.a.J * cell},z{g.a.F} to {minX + g.b.I * cell},{minY + g.b.J * cell},z{g.b.F}");
+        foreach (var g in gaps.OrderBy(g => g.d).Take(14))
+            text.AppendLine($"  {(g.d < 0 ? $"no same-level neighbor, {-g.d} nodes" : $"{g.d * cell} units")}: {minX + g.a.I * cell},{minY + g.a.J * cell},z{g.a.F} to {minX + g.b.I * cell},{minY + g.b.J * cell},z{g.b.F}");
         File.WriteAllText(path, text.ToString());
     }
 }

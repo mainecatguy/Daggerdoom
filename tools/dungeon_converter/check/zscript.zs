@@ -27,7 +27,7 @@ class DFMapCheck : EventHandler
 	const SAMPLES = 8;
 	Array<int> nx, ny, nf, nc, ea, eb, ed, doorControl;
 	int start, phase, cursor, wait, test, closedBlocked, closedTotal;
-	int nodeFail, edgeFail, doorStuck, doorsUsed;
+	int nodeFail, edgeFail, doorStuck, doorsUsed, soundBleed, soundBlocked;
 	int walkOk, walkBad, fallOk, fallBad, slabOk, slabBad, ledgeOk, ledgeBad, shotOk, shotBad, slabShotOk, slabShotBad, chaseOk, chaseBad;
 	Array<int> falls, ledges, slabA, slabB, chaseFrom, chaseTo;
 	DFProbe probe;
@@ -168,6 +168,7 @@ class DFMapCheck : EventHandler
 			Console.Printf("DFCHK PLAYER walk_ok=%d walk_bad=%d fall_ok=%d fall_bad=%d", walkOk, walkBad, fallOk, fallBad);
 			Console.Printf("DFCHK COMBAT slab_sight_blocked=%d slab_sight_leak=%d ledge_sight=%d ledge_blind=%d shot_hit=%d shot_miss=%d slab_shot_blocked=%d slab_shot_leak=%d chase_closer=%d chase_failed=%d",
 				slabOk, slabBad, ledgeOk, ledgeBad, shotOk, shotBad, slabShotOk, slabShotBad, chaseOk, chaseBad);
+			Console.Printf("DFCHK SOUND through_slab=%d blocked_by_slab=%d", soundBleed, soundBlocked);
 			Console.Printf("DFCHK DONE");
 			phase = 12;
 			break;
@@ -241,6 +242,12 @@ class DFMapCheck : EventHandler
 			Place(shooter, slabB[i]);
 			if (shooter.CheckSight(pawn, SF_IGNOREVISIBILITY)) { slabBad++; Console.Printf("DFCHK SLABSIGHT %d %d", slabA[i], slabB[i]); }
 			else slabOk++;
+			// Noise is tracked per sector, so check whether it passes through the slab.
+			shooter.CurSector.SoundTarget = null;
+			pawn.SoundAlert(pawn);
+			if (shooter.CurSector.SoundTarget == pawn) soundBleed++;
+			else soundBlocked++;
+			shooter.CurSector.SoundTarget = null;
 		}
 		for (int i = 0; i < ledges.Size(); i++)
 		{
