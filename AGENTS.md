@@ -67,6 +67,8 @@ In an overnight run, report questions through the `questions` status field. The 
 - Never commit game data or files derived from it, including generated maps and textures.
 - Code changes go to the `integration` branch. Agents never push to or merge into `main`. Only the owner does that.
 - The project owner is one person on a limited budget. Avoid wasteful builds, broad searches, and unnecessary subagents.
+- The owner may be using the computer. When possible start programs minimized through: `python D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py --timeout <seconds> [--cwd <dir>] -- <program> <args>`. Add `-noactivate` to UZDoom's arguments to prevent focus stealing. UZDoom pauses in background so add `+i_pauseinbackground 0 +vid_activeinbackground 1 +vid_lowerinbackground 0` as well. Minimized frame rates are not necessarily real performance. Between 2AM and 7AM, consider this rule relaxed.
+
 
 ## Building
 

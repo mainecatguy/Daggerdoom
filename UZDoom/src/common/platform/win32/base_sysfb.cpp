@@ -53,6 +53,12 @@ EXTERN_CVAR(Int, vid_defheight)
 FARG(0, "Debug", "Resets window position.", "",
 	"Resets the window position to the top-left corner of the screen.");
 
+// DoomDaggerfall: -noactivate shows the game window without stealing focus (for unattended runs).
+FARG(noactivate, "Debug", "Do not take focus.", "",
+	"Shows the window without activating it, so it does not steal focus from other programs.");
+static bool NoActivateParm() { return Args && Args->CheckParm(FArg_noactivate); }
+static UINT NoActivateFlag() { return NoActivateParm() ? SWP_NOACTIVATE : 0; }
+
 CUSTOM_CVAR(Bool, vid_fsdwmhack, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG | CVAR_NOINITCALL)
 {
 	setmodeneeded = true;
@@ -208,7 +214,7 @@ void SystemBaseFrameBuffer::RestoreWindowedPos()
 		}
 		KeepWindowOnScreen(winx, winy, winw, winh, scrwidth, scrheight);
 	}
-	SetWindowPos(mainwindow.GetHandle(), nullptr, winx, winy, winw, winh, SWP_NOZORDER | SWP_FRAMECHANGED);
+	SetWindowPos(mainwindow.GetHandle(), nullptr, winx, winy, winw, winh, SWP_NOZORDER | SWP_FRAMECHANGED | NoActivateFlag());
 
 	if (win_maximized && !Args->CheckParm(FArg_0))
 		ShowWindow(mainwindow.GetHandle(), SW_MAXIMIZE);
@@ -254,8 +260,8 @@ void SystemBaseFrameBuffer::SetWindowSize(int w, int h)
 
 		if (!vid_fullscreen)
 		{
-			ShowWindow(mainwindow.GetHandle(), SW_SHOWNORMAL);
-			SetWindowPos(mainwindow.GetHandle(), nullptr, winx, winy, winw, winh, SWP_NOZORDER | SWP_FRAMECHANGED);
+			ShowWindow(mainwindow.GetHandle(), NoActivateParm() ? SW_SHOWNOACTIVATE : SW_SHOWNORMAL);
+			SetWindowPos(mainwindow.GetHandle(), nullptr, winx, winy, winw, winh, SWP_NOZORDER | SWP_FRAMECHANGED | NoActivateFlag());
 			win_maximized = false;
 			SetSize(GetClientWidth(), GetClientHeight());
 			SaveWindowedPos();
@@ -306,7 +312,7 @@ void SystemBaseFrameBuffer::PositionWindow(bool fullscreen, bool initialcall)
 		}
 	}
 
-	ShowWindow(mainwindow.GetHandle(), SW_SHOW);
+	ShowWindow(mainwindow.GetHandle(), NoActivateParm() ? SW_SHOWNA : SW_SHOW);
 
 	GetWindowRect(mainwindow.GetHandle(), &r);
 	style = WS_VISIBLE | WS_CLIPSIBLINGS;
@@ -334,7 +340,7 @@ void SystemBaseFrameBuffer::PositionWindow(bool fullscreen, bool initialcall)
 
 	if (fullscreen)
 	{
-		SetWindowPos(mainwindow.GetHandle(), 0, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+		SetWindowPos(mainwindow.GetHandle(), 0, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED | NoActivateFlag());
 		MoveWindow(mainwindow.GetHandle(), monRect.left, monRect.top, monRect.right-monRect.left, monRect.bottom-monRect.top, FALSE);
 		// And now, seriously, it IS in the right place. Promise.
 
@@ -387,10 +393,10 @@ SystemBaseFrameBuffer::~SystemBaseFrameBuffer()
 {
 	if (!m_Fullscreen) SaveWindowedPos();
 
-	ShowWindow (mainwindow.GetHandle(), SW_SHOW);
+	ShowWindow (mainwindow.GetHandle(), NoActivateParm() ? SW_SHOWNA : SW_SHOW);
 	SetWindowLong(mainwindow.GetHandle(), GWL_STYLE, WS_VISIBLE | WS_CLIPSIBLINGS | WS_OVERLAPPEDWINDOW);
 	SetWindowLong(mainwindow.GetHandle(), GWL_EXSTYLE, WS_EX_WINDOWEDGE);
-	SetWindowPos(mainwindow.GetHandle(), 0, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+	SetWindowPos(mainwindow.GetHandle(), 0, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED | NoActivateFlag());
 
 	static_cast<Win32BaseVideo *>(Video)->Shutdown();
 }
