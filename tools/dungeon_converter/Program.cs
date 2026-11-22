@@ -16,7 +16,7 @@ struct V3
     public static V3 operator +(V3 a, V3 b) => new V3(a.X + b.X, a.Y + b.Y, a.Z + b.Z);
 }
 
-struct Tri { public V3 A, B, C, N; }
+struct Tri { public V3 A, B, C, N; public uint Model; }
 class Span { public int F, C, Door = -1; }
 class DoorInfo { public int Id, Block; public double MinX, MaxX, MinY, MaxY, MinZ, MaxZ; public int Control, Height; }
 class Node { public int Id, I, J, F, C, Block; public bool Door; }
@@ -26,11 +26,14 @@ static class Program
     const int ExitDoorModel = 70300, RedBrickDoorModel = 72100, MinTapestry = 42500, MaxTapestry = 42571;
     const int EditorArchive = 199, EnterRecord = 8, StartRecord = 10, BlockSide = 2048;
     const int ActorRadius = 16, ActorHeight = 56, StepHeight = 24, ZQuant = 4, MinSpan = 24;
+    const int MaxStairRelax = 8;
+    const double WallNormalZ = 0.1;
 
     static int cell = 16, minX, minY, width, height;
-    static string debugRow;
+    static string debugRow, debugLine;
+    static List<(double z, bool up)>[] rawHits;
     static V3 entranceMarker;
-    static int gapCells, skippedActions, stackedDoors;
+    static int gapCells, skippedActions, stackedDoors, relaxedStairs;
     static bool openActions;
     static int routeStep = StepHeight;
     static List<Span>[] grid;
@@ -48,6 +51,8 @@ static class Program
             else if (args[a] == "--arena2") arena2 = args[++a];
             else if (args[a] == "--cell") cell = int.Parse(args[++a]);
             else if (args[a] == "--debug-row") debugRow = args[++a];
+            else if (args[a] == "--debug-line") debugLine = args[++a]; // x0,y0,x1,y1,z0,z1: raw hits, spans, and faces along a line
+            else if (args[a] == "--audit-points") a += 2;
             else if (args[a] == "--no-walls") { }
             else if (args[a] == "--open-actions") openActions = true;
             else if (args[a] == "--route-step") routeStep = int.Parse(args[++a]); // diagnostic: models jumping or climbing
@@ -63,9 +68,15 @@ static class Program
 
         V3 entrance = entranceMarker = LoadGeometry(arena2, location);
         BuildGrid();
+        DumpLine("grid");
         int walled = args.Contains("--no-walls") ? 0 : ApplyWalls();
+        DumpLine("walls");
+        relaxedStairs = RelaxStairs();
         gapCells = CloseGaps();
         ApplyDoors();
+        DumpLine("final");
+        int auditAt = Array.IndexOf(args, "--audit-points"); // <old points file> <leak output>: audit another version's links, then exit
+        if (auditAt >= 0) { AuditPointsFile(args[auditAt + 1], args[auditAt + 2]); return 0; }
         if (debugRow != null)
         {
             var near = doors.OrderBy(d => Math.Abs(d.MinX - entrance.X) + Math.Abs(d.MinY - entrance.Y) + Math.Abs(d.MinZ - entrance.Z)).First();
@@ -195,7 +206,7 @@ static class Program
                 if (length < 1e-6) continue;
                 normal = new V3(normal.X / length, normal.Y / length, normal.Z / length);
                 for (int i = 1; i + 1 < pts.Length; i++)
-                    tris.Add(new Tri { A = pts[0], B = pts[i], C = pts[i + 1], N = normal });
+                    tris.Add(new Tri { A = pts[0], B = pts[i], C = pts[i + 1], N = normal, Model = id });
             }
         if (door != null) doors.Add(door);
     }
@@ -217,7 +228,8 @@ static class Program
         var hits = new List<(double z, bool up)>[width * height];
         foreach (var t in tris)
         {
-            if (Math.Abs(t.N.Z) < 0.5) continue;
+            // Steep cave ceilings and floors are still surfaces. Only near-vertical faces are walls.
+            if (Math.Abs(t.N.Z) < WallNormalZ) continue;
             int i0 = Math.Max(0, (int)Math.Floor((Math.Min(t.A.X, Math.Min(t.B.X, t.C.X)) - minX) / cell));
             int i1 = Math.Min(width - 1, (int)Math.Floor((Math.Max(t.A.X, Math.Max(t.B.X, t.C.X)) - minX) / cell));
             int j0 = Math.Max(0, (int)Math.Floor((Math.Min(t.A.Y, Math.Min(t.B.Y, t.C.Y)) - minY) / cell));
@@ -235,6 +247,7 @@ static class Program
                     (hits[Index(i, j)] ??= new List<(double, bool)>()).Add((u * t.A.Z + v * t.B.Z + w * t.C.Z, t.N.Z > 0));
                 }
         }
+        rawHits = hits;
         grid = new List<Span>[width * height];
         if (debugRow != null)
         {
@@ -266,23 +279,50 @@ static class Program
         }
     }
 
-    // A wall crossing the line between two cell centers makes the cell behind it solid at that height.
+    // A wall crossing the line between two cell centers makes the cell behind it solid over the wall's
+    // own height range. Lintels and sills therefore shape an opening instead of closing it.
     static int ApplyWalls()
     {
-        var blocked = new HashSet<(int cell, int span)>();
+        var blocked = new Dictionary<(int cell, int span), List<(double lo, double hi)>>();
         foreach (var t in tris)
         {
-            if (Math.Abs(t.N.Z) >= 0.5) continue;
+            if (Math.Abs(t.N.Z) >= WallNormalZ) continue;
             if (Math.Abs(t.N.X) > 0.2) WallAxis(t, true, blocked);
             if (Math.Abs(t.N.Y) > 0.2) WallAxis(t, false, blocked);
         }
-        foreach (var group in blocked.GroupBy(b => b.cell))
-            foreach (var s in group.Select(b => b.span).OrderByDescending(s => s))
-                grid[group.Key].RemoveAt(s);
-        return blocked.Count;
+        int removed = 0;
+        foreach (var group in blocked.GroupBy(b => b.Key.cell))
+        {
+            var spans = grid[group.Key];
+            foreach (var entry in group.OrderByDescending(b => b.Key.span))
+            {
+                var span = spans[entry.Key.span];
+                spans.RemoveAt(entry.Key.span);
+                var pieces = SubtractWalls(span, entry.Value);
+                if (pieces.Count == 0) removed++;
+                spans.InsertRange(entry.Key.span, pieces);
+            }
+        }
+        return removed;
     }
 
-    static void WallAxis(Tri t, bool alongX, HashSet<(int, int)> blocked)
+    // Keeps the opening at the bottom of a span: a sill may raise its floor by one step and a lintel lowers
+    // its ceiling. A wall rising higher than a step is solid, because the space above it has no real floor.
+    static List<Span> SubtractWalls(Span span, List<(double lo, double hi)> walls)
+    {
+        double bottom = span.F, top = span.C;
+        foreach (var (lo, hi) in walls.OrderBy(w => w.lo))
+        {
+            if (lo > bottom + ZQuant) { top = lo; break; }
+            bottom = Math.Max(bottom, hi);
+        }
+        int f = Quant(bottom), c = Quant(Math.Min(top, span.C));
+        var pieces = new List<Span>();
+        if (f - span.F <= StepHeight && c - f >= ActorHeight) pieces.Add(new Span { F = f, C = c });
+        return pieces;
+    }
+
+    static void WallAxis(Tri t, bool alongX, Dictionary<(int, int), List<(double lo, double hi)>> blocked)
     {
         double A(V3 p) => alongX ? p.X : p.Y;
         double B(V3 p) => alongX ? p.Y : p.X;
@@ -320,8 +360,11 @@ static class Program
                 var spans = grid[index];
                 for (int s = 0; s < spans.Count; s++)
                 {
-                    double overlap = Math.Min(spans[s].C, Math.Max(z0, z1)) - Math.Max(spans[s].F, Math.Min(z0, z1));
-                    if (overlap > 8) blocked.Add((index, s));
+                    double wallLo = Math.Min(z0, z1), wallHi = Math.Max(z0, z1);
+                    double overlap = Math.Min(spans[s].C, wallHi) - Math.Max(spans[s].F, wallLo);
+                    if (overlap <= 8) continue;
+                    if (!blocked.TryGetValue((index, s), out var list)) blocked[(index, s)] = list = new List<(double, double)>();
+                    list.Add((wallLo, wallHi));
                 }
             }
         }
@@ -378,6 +421,83 @@ static class Program
         return false;
     }
 
+    // Stair treads can be shorter than a cell, so sampling may skip one and create a step too tall to climb.
+    // Lowers the upper floor slightly, only where a fine walk over the real surfaces proves the stair is climbable.
+    static int RelaxStairs()
+    {
+        BuildWallIndex();
+        var floorIndex = new List<int>[width * height];
+        for (int t = 0; t < tris.Count; t++)
+        {
+            var x = tris[t];
+            if (x.N.Z < WallNormalZ) continue;
+            int i0 = Math.Max(0, (int)Math.Floor((Math.Min(x.A.X, Math.Min(x.B.X, x.C.X)) - minX) / cell));
+            int i1 = Math.Min(width - 1, (int)Math.Floor((Math.Max(x.A.X, Math.Max(x.B.X, x.C.X)) - minX) / cell));
+            int j0 = Math.Max(0, (int)Math.Floor((Math.Min(x.A.Y, Math.Min(x.B.Y, x.C.Y)) - minY) / cell));
+            int j1 = Math.Min(height - 1, (int)Math.Floor((Math.Max(x.A.Y, Math.Max(x.B.Y, x.C.Y)) - minY) / cell));
+            for (int j = j0; j <= j1; j++)
+                for (int i = i0; i <= i1; i++)
+                    (floorIndex[Index(i, j)] ??= new List<int>()).Add(t);
+        }
+        bool Climbable(int i0, int j0, int i1, int j1, int low, int high)
+        {
+            const int Samples = 8;
+            double current = low;
+            for (int k = 1; k <= Samples; k++)
+            {
+                double px = minX + (i0 + 0.5 + (i1 - i0) * (double)k / Samples) * cell, py = minY + (j0 + 0.5 + (j1 - j0) * (double)k / Samples) * cell;
+                int ci = (int)Math.Floor((px - minX) / cell), cj = (int)Math.Floor((py - minY) / cell);
+                var list = ci >= 0 && cj >= 0 && ci < width && cj < height ? floorIndex[Index(ci, cj)] : null;
+                double? best = null;
+                if (list != null)
+                    foreach (int n in list)
+                    {
+                        var t = tris[n];
+                        double d = (t.B.Y - t.C.Y) * (t.A.X - t.C.X) + (t.C.X - t.B.X) * (t.A.Y - t.C.Y);
+                        if (Math.Abs(d) < 1e-9) continue;
+                        double u = ((t.B.Y - t.C.Y) * (px - t.C.X) + (t.C.X - t.B.X) * (py - t.C.Y)) / d;
+                        double v = ((t.C.Y - t.A.Y) * (px - t.C.X) + (t.A.X - t.C.X) * (py - t.C.Y)) / d;
+                        if (u < -1e-6 || v < -1e-6 || u + v > 1 + 1e-6) continue;
+                        double z = u * t.A.Z + v * t.B.Z + (1 - u - v) * t.C.Z;
+                        if (z >= current - MaxStairRelax && z <= current + StepHeight && (best == null || z > best)) best = z;
+                    }
+                if (best == null) return false;
+                current = best.Value;
+            }
+            return Math.Abs(current - high) <= MaxStairRelax && !WallBetween(i0, j0, i1, j1, high + 28);
+        }
+        var original = new Dictionary<Span, int>();
+        for (int pass = 0; pass < 4; pass++)
+        {
+            bool changed = false;
+            for (int j = 0; j < height; j++)
+                for (int i = 0; i < width; i++)
+                    foreach (var (di, dj) in new[] { (1, 0), (0, 1) })
+                    {
+                        int qi = i + di, qj = j + dj;
+                        if (qi >= width || qj >= height) continue;
+                        foreach (var s in grid[Index(i, j)])
+                            foreach (var t in grid[Index(qi, qj)])
+                            {
+                                bool sLow = s.F < t.F;
+                                Span low = sLow ? s : t, high = sLow ? t : s;
+                                int rise = high.F - low.F;
+                                if (rise <= StepHeight || rise > StepHeight + MaxStairRelax || Math.Min(s.C, t.C) - high.F < ActorHeight) continue;
+                                int target = low.F + StepHeight, first = original.TryGetValue(high, out int o) ? o : high.F;
+                                var highCell = grid[sLow ? Index(qi, qj) : Index(i, j)];
+                                if (first - target > MaxStairRelax || highCell.Any(x => x != high && x.C > target && x.F < high.F)) continue;
+                                bool climb = sLow ? Climbable(i, j, qi, qj, low.F, high.F) : Climbable(qi, qj, i, j, low.F, high.F);
+                                if (!climb) continue;
+                                original[high] = first;
+                                high.F = target;
+                                changed = true;
+                            }
+                    }
+            if (!changed) break;
+        }
+        return original.Count;
+    }
+
     // Room meshes stop short at door frames. Bridge gaps of up to 3 cells when no wall lies between the two sides.
     static int CloseGaps()
     {
@@ -427,6 +547,33 @@ static class Program
                         if (Math.Min(span.C, door.MaxZ) - Math.Max(span.F, door.MinZ) > 16 && span.Door < 0)
                             span.Door = door.Id;
         }
+    }
+
+    // Diagnostic: prints each cell along a line, and at the first stage the source faces near it.
+    static void DumpLine(string stage)
+    {
+        if (debugLine == null) return;
+        var v = debugLine.Split(',').Select(double.Parse).ToArray();
+        int steps = (int)(Math.Max(Math.Abs(v[2] - v[0]), Math.Abs(v[3] - v[1])) / cell);
+        Console.WriteLine($"LINE stage {stage}");
+        for (int k = 0; k <= steps; k++)
+        {
+            double x = v[0] + (v[2] - v[0]) * k / Math.Max(1, steps), y = v[1] + (v[3] - v[1]) * k / Math.Max(1, steps);
+            int i = (int)Math.Floor((x - minX) / cell), j = (int)Math.Floor((y - minY) / cell);
+            string raw = stage != "grid" || rawHits[Index(i, j)] == null ? "" : " raw " + string.Join(" ", rawHits[Index(i, j)].OrderBy(h => h.z).Select(h => $"{(h.up ? "U" : "D")}{h.z:F0}"));
+            Console.WriteLine($"LINE {minX + (i + 0.5) * cell},{minY + (j + 0.5) * cell}: {string.Join(" ", grid[Index(i, j)].Select(s => $"[{s.F},{s.C}{(s.Door >= 0 ? " door" : "")}]"))}{raw}");
+        }
+        if (stage != "grid") return;
+        double bx0 = Math.Min(v[0], v[2]) - 32, bx1 = Math.Max(v[0], v[2]) + 32, by0 = Math.Min(v[1], v[3]) - 32, by1 = Math.Max(v[1], v[3]) + 32;
+        foreach (var t in tris)
+        {
+            var p = new[] { t.A, t.B, t.C };
+            if (p.Max(q => q.X) < bx0 || p.Min(q => q.X) > bx1 || p.Max(q => q.Y) < by0 || p.Min(q => q.Y) > by1 || p.Max(q => q.Z) < v[4] || p.Min(q => q.Z) > v[5]) continue;
+            Console.WriteLine($"FACE m{t.Model} n({t.N.X:F2},{t.N.Y:F2},{t.N.Z:F2}) " + string.Join(" ", p.Select(q => $"({q.X:F0},{q.Y:F0},{q.Z:F0})")));
+        }
+        foreach (var d in doors)
+            if (d.MaxX >= bx0 && d.MinX <= bx1 && d.MaxY >= by0 && d.MinY <= by1 && d.MaxZ >= v[4] && d.MinZ <= v[5])
+                Console.WriteLine($"DOOR {d.Id} x {d.MinX:F0}..{d.MaxX:F0} y {d.MinY:F0}..{d.MaxY:F0} z {d.MinZ:F0}..{d.MaxZ:F0}");
     }
 
     // Debug view of the level at a point: '#' solid, '.' same floor, digits are floor/32 above it.
@@ -732,7 +879,7 @@ static class Program
         for (int t = 0; t < tris.Count; t++)
         {
             var x = tris[t];
-            if (Math.Abs(x.N.Z) < 0.5) continue;
+            if (Math.Abs(x.N.Z) < WallNormalZ) continue;
             int i0 = Math.Max(0, (int)Math.Floor((Math.Min(x.A.X, Math.Min(x.B.X, x.C.X)) - minX) / cell));
             int i1 = Math.Min(width - 1, (int)Math.Floor((Math.Max(x.A.X, Math.Max(x.B.X, x.C.X)) - minX) / cell));
             int j0 = Math.Max(0, (int)Math.Floor((Math.Min(x.A.Y, Math.Min(x.B.Y, x.C.Y)) - minY) / cell));
@@ -769,6 +916,53 @@ static class Program
         return (floorMiss, ceilingMiss);
     }
 
+    // Independent leak check: walks each test link at waist and head height against the raw faces and door boxes.
+    static (int wall, int door) AuditEdges(List<Node> nodes, List<(int a, int b, bool door)> edges, string leakPath = null)
+    {
+        int wallLeaks = 0, doorLeaks = 0;
+        var leakText = new StringBuilder();
+        var checkedPairs = new HashSet<(int, int)>();
+        foreach (var e in edges)
+        {
+            if (!checkedPairs.Add((Math.Min(e.a, e.b), Math.Max(e.a, e.b)))) continue;
+            Node n = nodes[e.a], m = nodes[e.b];
+            double px = minX + n.I * cell, py = minY + n.J * cell, qx = minX + m.I * cell, qy = minY + m.J * cell;
+            int floor = Math.Max(n.F, m.F), top = Math.Min(n.C, m.C);
+            var heights = new[] { floor + 28.0, Math.Min(floor + 50.0, top - 2.0) };
+            bool hit = false;
+            for (int j = Math.Max(0, Math.Min(n.J, m.J) - 1); j <= Math.Min(height - 1, Math.Max(n.J, m.J)) && !hit; j++)
+                for (int i = Math.Max(0, Math.Min(n.I, m.I) - 1); i <= Math.Min(width - 1, Math.Max(n.I, m.I)) && !hit; i++)
+                {
+                    var list = wallIndex[Index(i, j)];
+                    if (list == null) continue;
+                    foreach (int t in list)
+                        if (heights.Any(z => SegmentHits(new V3(px, py, z), new V3(qx, qy, z), tris[t]))) { hit = true; break; }
+                }
+            if (hit) { wallLeaks++; leakText.Append($"W {e.a} {e.b} {px} {py} {qx} {qy} {floor}\n"); }
+            if (!e.door && doors.Any(d => Math.Max(px, qx) >= d.MinX && Math.Min(px, qx) <= d.MaxX && Math.Max(py, qy) >= d.MinY && Math.Min(py, qy) <= d.MaxY
+                && heights.Any(z => z >= d.MinZ && z <= d.MaxZ))) { doorLeaks++; leakText.Append($"D {e.a} {e.b} {px} {py} {qx} {qy} {floor}\n"); }
+        }
+        if (leakPath != null) File.WriteAllText(leakPath, leakText.ToString());
+        return (wallLeaks, doorLeaks);
+    }
+
+    // Diagnostic: runs the leak audit on a points file from another converter version.
+    static void AuditPointsFile(string pointsPath, string leakPath)
+    {
+        var nodes = new List<Node>();
+        var edges = new List<(int a, int b, bool door)>();
+        foreach (var line in File.ReadLines(pointsPath))
+        {
+            var f = line.Split(' ');
+            if (f[0] == "N")
+                nodes.Add(new Node { Id = int.Parse(f[1]), I = (int.Parse(f[2]) - minX) / cell, J = (int.Parse(f[3]) - minY) / cell, F = int.Parse(f[4]), C = int.Parse(f[5]), Door = f[7] == "1" });
+            else if (f[0] == "E")
+                edges.Add((int.Parse(f[1]), int.Parse(f[2]), f[3] == "1"));
+        }
+        var result = AuditEdges(nodes, edges, leakPath);
+        Console.WriteLine($"AUDIT {pointsPath}: {edges.Count} directed links, wall crossings {result.wall}, untagged door crossings {result.door}");
+    }
+
     static void WriteStats(string path, string name, DFLocation location, List<Node> nodes, List<(int a, int b, bool door)> edges, int start, int walled,
         (int sectors, int lines, int controls, int doorsUsed, int doorLineConflicts) map)
     {
@@ -786,7 +980,7 @@ static class Program
         text.AppendLine($"grid: {width}x{height} cells of {cell} units");
         text.AppendLine($"open cells: {open}");
         text.AppendLine($"vertically stacked cells: {stacked} ({100.0 * stacked / Math.Max(1, open):F1}%), max layers {maxStack}");
-        text.AppendLine($"spans removed by walls: {walled}, gap spans added: {gapCells}");
+        text.AppendLine($"spans removed by walls: {walled}, gap spans added: {gapCells}, stair floors adjusted: {relaxedStairs}");
         text.AppendLine($"door models: {doors.Count}, placed in map: {map.doorsUsed}, line conflicts: {map.doorLineConflicts}, sharing a control with a stacked door: {stackedDoors}");
         text.AppendLine($"sectors: {map.sectors}, control sectors: {map.controls}, lines: {map.lines}");
         text.AppendLine($"test nodes: {nodes.Count}, directed edges: {edges.Count}");
@@ -806,6 +1000,8 @@ static class Program
         }
         var source = VerifyAgainstSource(nodes);
         text.AppendLine($"nodes with no raw source floor near their height: {source.floorMiss} ({100.0 * source.floorMiss / nodes.Count:F2}%); no raw ceiling: {source.ceilingMiss} ({100.0 * source.ceilingMiss / nodes.Count:F2}%)");
+        var audit = AuditEdges(nodes, edges, Path.ChangeExtension(path, null).Replace(".stats", "") + ".leaks.txt");
+        text.AppendLine($"walkable links crossing a raw wall at body height: {audit.wall}; crossing a door box without a door tag: {audit.door}");
         text.AppendLine($"entrance marker: {entranceMarker.X:F0},{entranceMarker.Y:F0},{entranceMarker.Z:F0}; start node floor {nodes[start].F}");
         text.AppendLine($"connected areas: {parts.Count}; largest:");
         foreach (var p in parts.OrderByDescending(p => p.size).Take(8))
