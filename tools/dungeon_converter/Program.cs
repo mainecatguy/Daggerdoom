@@ -17,7 +17,7 @@ struct V3
 }
 
 struct Tri { public V3 A, B, C, N; public uint Model; public int Instance; }
-class Span { public int F, C, Door = -1; }
+class Span { public int F, C, Door = -1, FP = -1, CP = -1; } // FP, CP: real sloped plane, or -1 for flat
 class DoorInfo
 {
     public int Id, Block; public double MinX, MaxX, MinY, MaxY, MinZ, MaxZ; public int Control, Height;
@@ -82,6 +82,7 @@ static partial class Program
             else if (args[a] == "--audit-points") a += 2;
             else if (args[a] == "--no-walls" || args[a] == "--export-mesh" || args[a] == "--no-ceiling-relief" || args[a] == "--door-dump") { }
             else if (args[a] == "--texture-table") a++; // used by --export-mesh: six archives, comma separated
+            else if (args[a] == "--grid-collision") gridCollision = true; // old axis-aligned boundaries and flat planes
             else if (args[a] == "--open-actions") openActions = true;            else if (args[a] == "--route-step") routeStep = int.Parse(args[++a]); // diagnostic: models jumping or climbing
             else name = args[a];
         }
@@ -106,6 +107,7 @@ static partial class Program
         gapCells = CloseGaps();
         if (!args.Contains("--no-ceiling-relief")) RelieveCeilings();
         ApplyDoors(); // these spans become sight blockers only
+        if (!gridCollision) AssignPlanes();
         if (args.Contains("--door-dump"))
         {
             foreach (var d in doors)
@@ -148,6 +150,7 @@ static partial class Program
         if (PlayerScale.DaggerfallBody) PlayerScale.WritePackage(outDir, slug);
         if (parityDir != null) return RunParity(parityDir, entrance);
         WriteStats(Path.Combine(outDir, slug + ".stats.txt"), name, location, nodes, edges, start, walled, mapStats);
+        File.AppendAllText(Path.Combine(outDir, slug + ".stats.txt"), fitReport);
         Console.WriteLine(File.ReadAllText(Path.Combine(outDir, slug + ".stats.txt")));
         return 0;
     }
@@ -830,7 +833,7 @@ static partial class Program
         return text.ToString();
     }
 
-    static string Signature(List<Span> spans) => string.Join("|", spans.Select(s => $"{s.F}:{s.C}:{s.Door}"));
+    static string Signature(List<Span> spans) => string.Join("|", spans.Select(s => $"{(s.FP >= 0 ? "p" + s.FP : s.F.ToString())}:{(s.CP >= 0 ? "p" + s.CP : s.C.ToString())}:{s.Door}"));
 
     static (int sectors, int lines, int controls, int doorsUsed) WriteMap(string path, Node start, string points)
     {
@@ -859,8 +862,13 @@ static partial class Program
             }
         }
 
-        var vertices = new Dictionary<(int, int), int>();
-        int Vertex(int x, int y) { if (!vertices.TryGetValue((x, y), out int v)) vertices[(x, y)] = v = vertices.Count; return v; }
+        var vertices = new Dictionary<(long, long), int>(); // eighths of a map unit
+        int Vertex(double x, double y)
+        {
+            var key = ((long)Math.Round(x * 8), (long)Math.Round(y * 8));
+            if (!vertices.TryGetValue(key, out int v)) vertices[key] = v = vertices.Count;
+            return v;
+        }
         var map = new StringBuilder("namespace = \"zdoom\";\n");
         var lineText = new StringBuilder();
         var sideText = new StringBuilder();
@@ -880,7 +888,7 @@ static partial class Program
                 if (!tagBySignature.TryGetValue(signature, out int tag)) tagBySignature[signature] = tag = nextTag++;
                 sectorTag[s] = tag;
             }
-            sectorText.Append($"sector {{ heightfloor = {spans[0].F}; heightceiling = {spans[^1].C}; texturefloor = \"FLOOR0_1\"; textureceiling = \"CEIL3_5\"; lightlevel = 176;{(sectorTag[s] > 0 ? $" id = {sectorTag[s]};" : "")} }}\n");
+            sectorText.Append($"sector {{ heightfloor = {spans[0].F}; heightceiling = {spans[^1].C}; texturefloor = \"FLOOR0_1\"; textureceiling = \"CEIL3_5\"; lightlevel = 176;{(sectorTag[s] > 0 ? $" id = {sectorTag[s]};" : "")}{PlaneText(spans[0].FP, false)}{PlaneText(spans[^1].CP, true)} }}\n");
         }
 
         int doorControlBase = nextTag + 1000;
@@ -892,7 +900,7 @@ static partial class Program
                 : $"sidedef {{ sector = {sector}; texturemiddle = \"STONE2\"; }}\n");
             return sides++;
         }
-        void Line(int x0, int y0, int x1, int y1, int front, int back)
+        void Line(double x0, double y0, double x1, double y1, int front, int back)
         {
             // Sector "front" is on the right when walking from v1 to v2.
             if (front < 0) { (x0, y0, x1, y1) = (x1, y1, x0, y0); (front, back) = (back, front); }
@@ -901,6 +909,7 @@ static partial class Program
             lineText.Append($"linedef {{ v1 = {v1}; v2 = {v2}; sidefront = {sf};{extra} }}\n");
             lines++;
         }
+        var runs = new List<(int x0, int y0, int x1, int y1, int front, int back)>();
 
         // Vertical boundaries, merged along their length.
         for (int i = 1; i < width; i++)
@@ -912,7 +921,7 @@ static partial class Program
                 bool edge = left != right;
                 if (runStart >= 0 && (!edge || left != runLeft || right != runRight))
                 {
-                    Line(minX + i * cell, minY + runStart * cell, minX + i * cell, minY + j * cell, runRight, runLeft);
+                    runs.Add((minX + i * cell, minY + runStart * cell, minX + i * cell, minY + j * cell, runRight, runLeft));
                     runStart = -1;
                 }
                 if (edge && runStart < 0) { runStart = j; runLeft = left; runRight = right; }
@@ -928,19 +937,43 @@ static partial class Program
                 bool edge = below != above;
                 if (runStart >= 0 && (!edge || below != runBelow || above != runAbove))
                 {
-                    Line(minX + i * cell, minY + j * cell, minX + runStart * cell, minY + j * cell, runAbove, runBelow);
+                    runs.Add((minX + i * cell, minY + j * cell, minX + runStart * cell, minY + j * cell, runAbove, runBelow));
                     runStart = -1;
                 }
                 if (edge && runStart < 0) { runStart = i; runBelow = below; runAbove = above; }
             }
         }
 
+        var emitted = new List<(double x0, double y0, double x1, double y1, List<(double lo, double hi)> heights)>();
+        if (gridCollision)
+        {
+            foreach (var r in runs)
+            {
+                Line(r.x0, r.y0, r.x1, r.y1, r.front, r.back);
+                emitted.Add((r.x0, r.y0, r.x1, r.y1, DifferingHeights(r.front >= 0 ? sectorSpans[r.front] : null, r.back >= 0 ? sectorSpans[r.back] : null)));
+            }
+        }
+        else
+        {
+            var cellCounts = new int[sectorSpans.Count];
+            foreach (int c in component) if (c >= 0) cellCounts[c]++;
+            foreach (var chain in RefitBoundaries(runs, sectorSpans, cellCounts))
+                for (int n = 0; n + 1 < chain.Fitted.Count; n++)
+                {
+                    var (_, ax, ay) = chain.Fitted[n];
+                    var (_, bx, by) = chain.Fitted[n + 1];
+                    Line(ax, ay, bx, by, chain.Front, chain.Back);
+                    emitted.Add((ax, ay, bx, by, chain.Heights));
+                }
+        }
+        MeasureFit(emitted);
+
         // Control sectors for solid slabs between stacked rooms, and for closed doors.
         int controls = 0, controlX = minX, controlY = minY - 64;
-        void Control(int floor, int ceiling, int targetTag, int id, int type = 1, int alpha = 255)
+        void Control(int floor, int ceiling, int targetTag, int id, int type = 1, int alpha = 255, int floorPlane = -1, int ceilingPlane = -1)
         {
             int s = sectors++;
-            sectorText.Append($"sector {{ heightfloor = {floor}; heightceiling = {ceiling}; texturefloor = \"FLOOR0_1\"; textureceiling = \"CEIL3_5\"; lightlevel = 176;{(id > 0 ? $" id = {id};" : "")} }}\n");
+            sectorText.Append($"sector {{ heightfloor = {floor}; heightceiling = {ceiling}; texturefloor = \"FLOOR0_1\"; textureceiling = \"CEIL3_5\"; lightlevel = 176;{(id > 0 ? $" id = {id};" : "")}{PlaneText(floorPlane, false)}{PlaneText(ceilingPlane, true)} }}\n");
             int x = controlX, y = controlY, size = 8;
             int[] v = { Vertex(x, y), Vertex(x, y + size), Vertex(x + size, y + size), Vertex(x + size, y) };
             for (int e = 0; e < 4; e++)
@@ -958,7 +991,7 @@ static partial class Program
         foreach (var (signature, tag) in tagBySignature)
         {
             var spans = sectorSpans[Array.IndexOf(sectorTag, tag)];
-            for (int s = 0; s + 1 < spans.Count; s++) Control(spans[s].C, spans[s + 1].F, tag, 0);
+            for (int s = 0; s + 1 < spans.Count; s++) Control(spans[s].C, spans[s + 1].F, tag, 0, floorPlane: spans[s].CP, ceilingPlane: spans[s + 1].FP);
             foreach (var span in spans.Where(x => x.Door >= 0))
             {
                 var door = doors[span.Door];
@@ -973,7 +1006,7 @@ static partial class Program
         }
 
         foreach (var pair in vertices.OrderBy(p => p.Value))
-            map.Append($"vertex {{ x = {pair.Key.Item1}.0; y = {pair.Key.Item2}.0; }}\n");
+            map.Append($"vertex {{ x = {(pair.Key.Item1 / 8.0).ToString("0.0##", CultureInfo.InvariantCulture)}; y = {(pair.Key.Item2 / 8.0).ToString("0.0##", CultureInfo.InvariantCulture)}; }}\n");
         map.Append(lineText).Append(sideText).Append(sectorText);
         map.Append($"thing {{ x = {minX + start.I * cell}.0; y = {minX * 0 + minY + start.J * cell}.0; height = {start.F - BaseFloor(start)}.0; angle = 0; type = 1; skill1 = true; skill2 = true; skill3 = true; skill4 = true; skill5 = true; single = true; }}\n");
 

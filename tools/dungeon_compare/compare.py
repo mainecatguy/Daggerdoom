@@ -63,12 +63,12 @@ def capture_daggerfall(views, out, eye, exe, timeout, dungeon="Privateer's Hold"
     return parse_probes(result, "PROBE")
 
 
-def capture_doom(views, out, eye, wad, timeout):
+def capture_doom(views, out, eye, wad, timeout, scale):
     lumps = os.path.join(out, "doom_views")
     os.makedirs(lumps, exist_ok=True)
     with open(os.path.join(lumps, "DFVIEWS"), "w", newline="\n") as f:
-        for v in views:
-            f.write(f"{v['id']} {v['x']} {v['y']} {v['floor'] + eye} {v['yaw']} {v['pitch']}\n")
+        for v in views:  # viewpoints are in Daggerfall units; the map is at world scale
+            f.write(f"{v['id']} {v['x'] * scale} {v['y'] * scale} {(v['floor'] + eye) * scale} {v['yaw']} {v['pitch']}\n")
     # Console waits only delay the rest of one command string, so each step is an alias that calls the next.
     with open(os.path.join(out, "doom_capture.cfg"), "w", newline="\n") as f:
         for i, v in enumerate(views):
@@ -189,6 +189,7 @@ def main():
     parser.add_argument("--dungeon", default="Privateer's Hold")
     parser.add_argument("--no-flood", action="store_true", help="capture views only")
     parser.add_argument("--uzdoom", help="UZDoom executable to use")
+    parser.add_argument("--world-scale", type=float, default=0.75, help="scale the map was converted at")
     args = parser.parse_args()
     if args.uzdoom:
         global UZDOOM
@@ -203,7 +204,9 @@ def main():
     df = parse_probes(os.path.join(out, "df_probes.txt"), "PROBE") if args.skip_df else \
         capture_daggerfall(views, out, args.eye, os.path.abspath(args.exe), args.timeout, args.dungeon, not args.no_flood)
     doom = parse_probes(os.path.join(out, "log-doomcap.txt"), "DFPROBE") if args.skip_doom else \
-        capture_doom(views, out, args.eye, os.path.abspath(args.map), args.timeout)
+        capture_doom(views, out, args.eye, os.path.abspath(args.map), args.timeout, args.world_scale)
+    # Probes are compared in Daggerfall units. A negative distance means the ray hit nothing.
+    doom = {k: [d / args.world_scale if d >= 0 else d for d in p] for k, p in doom.items()}
 
     cards, failures = [], 0
     with open(os.path.join(out, "probes.csv"), "w", newline="") as f:

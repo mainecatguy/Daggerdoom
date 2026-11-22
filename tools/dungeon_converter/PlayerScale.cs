@@ -6,8 +6,8 @@ using System.IO.Compression;
 
 static class PlayerScale
 {
-    // Owner decision pending. 1.0 means 1 Daggerfall unit = 1 Doom unit. Override with --world-scale.
-    public static double DoomUnitsPerDaggerfallUnit = 1.0;
+    // Owner decision: converted maps default to 75% scale. 1.0 would mean 1 Daggerfall unit = 1 Doom unit. Override with --world-scale.
+    public static double DoomUnitsPerDaggerfallUnit = 0.75;
 
     // Daggerfall Unity's player in Daggerfall units (PlayerAdvanced.prefab, PlayerHeightChanger.cs; 1 m = 40 units).
     const double DfHeight = 72, DfEyeBelowTop = 3.6, DfCrouchHeight = 36, DfRadius = 14, DfStep = 20;

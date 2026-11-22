@@ -27,7 +27,7 @@ Open `<out>\compare\index.html` to review. Daggerfall is on the left and UZDoom 
 ## Movement parity and bullet check
 
 ```powershell
-python tools/dungeon_compare/parity.py "Privateer's Hold" --out <out> [--baseline] [--unity-flood <df_flood_walk.txt>] [--world-scale 1.0]
+python tools/dungeon_compare/parity.py "Privateer's Hold" --out <out> [--baseline] [--unity-flood <df_flood_walk.txt>] [--world-scale 0.75]
 python tools/dungeon_compare/player_check.py --map <out>\privateershold.wad --player <out>\privateershold_player.pk3 --out <out>\player
 ```
 
@@ -46,6 +46,8 @@ One viewpoint per line: `id | kind | x y floor yaw pitch | note`. The first view
 | Up | `-Y` | `y = -Y * 0.025` | `z = -Y` |
 | Facing | | Unity yaw `= 90 - angle`, clockwise from north | Doom `angle`, counterclockwise from east |
 | Pitch | | positive looks down | positive looks down |
+
+The table shows scale 1. The converter now defaults to `--world-scale 0.75`, which multiplies the Doom `x`, `y`, and `z` by 0.75. Viewpoint files stay in Daggerfall units; `compare.py` and `mesh_compare.py` take `--world-scale` (default 0.75), and `probes.csv` reports distances in Daggerfall units.
 
 Block offsets of 2048 units are already part of `X` and `Z`. The dungeon root was at Unity (0, 0, 0) in the capture.
 

@@ -513,7 +513,11 @@ static partial class Program
         var chosen = worst.OrderByDescending(w => w.size).GroupBy(w => (w.kind, w.cls)).SelectMany(g => g.Take(3)).OrderByDescending(w => w.size).Take(16).ToList();
         int index = 0;
         foreach (var w in chosen)
-            views.Append(FormattableString.Invariant($"w{++index:D2} | {w.kind} | {Math.Floor(w.at.X / 16) * 16 + 8} {Math.Floor(w.at.Y / 16) * 16 + 8} {w.at.Z:F0} 0 10 | {w.mode}, {w.cls}, {w.size} cells\n"));
+        {
+            // View files are in Daggerfall units at every world scale; compare.py applies the scale.
+            double s = PlayerScale.DoomUnitsPerDaggerfallUnit;
+            views.Append(FormattableString.Invariant($"w{++index:D2} | {w.kind} | {Math.Floor(w.at.X / s / 16) * 16 + 8} {Math.Floor(w.at.Y / s / 16) * 16 + 8} {w.at.Z / s:F0} 0 10 | {w.mode}, {w.cls}, {w.size} cells\n"));
+        }
         File.WriteAllText(Path.Combine(dir, "worst_views.txt"), views.ToString());
         Console.Write(views);
 
