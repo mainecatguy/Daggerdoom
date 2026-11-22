@@ -6,10 +6,12 @@ Stops on: verified, blocked, budget, time, or round limit.
 
 Run:        .\scripts\overnight\run.ps1
 Hard goal:  .\scripts\overnight\run.ps1 -Model opus
+From chat:  .\scripts\overnight\run.ps1 -ContinueSession <session-id>
 Push too:   .\scripts\overnight\run.ps1 -Push
 #>
 param(
     [string]$GoalFile,
+    [guid]$ContinueSession,
     [string]$Model = 'sonnet',
     [int]$Hours = 8,
     [int]$MaxRounds = 12,
@@ -149,6 +151,9 @@ $QuestionsFile = Join-Path $Repo 'work\questions.md'
 $OpenQuestions = if (Test-Path $QuestionsFile) { [IO.File]::ReadAllText($QuestionsFile) } else { 'None.' }
 $VerifierPrompt = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'verifier.md'))
 $FirstPrompt = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'agent.md')).Replace('{{GOAL}}', $Goal).Replace('{{NOTES}}', "work/notes/$Stamp.md").Replace('{{QUESTIONS}}', $OpenQuestions)
+if ($ContinueSession) {
+    $FirstPrompt = "You are continuing from the planning conversation above, now as an unattended run in a separate checkout on branch $Branch. Use the decisions from that conversation, and use paths relative to the current directory.`n`n$FirstPrompt"
+}
 $ContinuePrompt = 'Continue working toward the goal. Check your notes and git log if you need to reorient.'
 
 # --- Main loop: run the same session until a stop condition ---
@@ -164,7 +169,8 @@ try {
         if ($remaining -le 0) { $result = 'budget'; $outcome = "Stopped at the `$$MaxUsd budget."; break }
         $round++
         $tag = Join-Path $Logs "round-$round"
-        $resume = if ($started) { "--resume $session" } else { "--session-id $session" }
+        # Forking leaves the owner's planning chat untouched.
+        $resume = if ($started) { "--resume $session" } elseif ($ContinueSession) { "--resume $ContinueSession --fork-session" } else { "--session-id $session" }
         $budget = $remaining.ToString('0.####', [Globalization.CultureInfo]::InvariantCulture)
         Write-Output "[round $round] $Model, `$$budget left"
         $line = ("$ClaudePrefix -p --setting-sources project --model $Model --permission-mode acceptEdits --settings `"$Settings`" $resume --max-turns $MaxTurnsPerRound --max-budget-usd $budget --output-format json $(Get-SchemaArg $AgentSchema)").Trim()
@@ -174,6 +180,7 @@ try {
         # total_cost_usd is cumulative across resumes of one session.
         $r = Read-Result "$tag.log"
         if ($r) {
+            if ($r.session_id) { $session = $r.session_id }
             $SessionUsd = [double]$r.total_cost_usd
             $Turns += [int]$r.num_turns
             $Denials += @($r.permission_denials).Count
