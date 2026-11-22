@@ -21,12 +21,21 @@ namespace DaggerfallWorkshop.Game
         const int GameSceneIndex = 1;
         const int SettleFrames = 30;
         const float ProbeRange = 4096f;
+        const float FloodCell = 16f;
+        const float FloodStartLift = 8f;
+        const float FloodJumpRise = 48f;
+        const float FloodClearance = 20f; // body check starts above the feet, so ramps and steps do not count as obstacles
+        const float FloodKnee = 30f;
+        const float FloodBodyFit = 0.9f;
+        const int FloodLimit = 400000;
 
         struct View { public string Id; public float X, Y, Z, Yaw, Pitch; }
 
         string dungeonName, outDir, daggerfallPath;
         int width = 960, height = 720;
         float verticalFov = 73.74f;
+        bool hasFlood;
+        float floodX, floodY, floodFloor;
         readonly List<View> views = new List<View>();
         readonly StringBuilder results = new StringBuilder();
 
@@ -60,6 +69,7 @@ namespace DaggerfallWorkshop.Game
                     case "daggerfall": daggerfallPath = p[1]; break;
                     case "size": width = int.Parse(p[1]); height = int.Parse(p[2]); break;
                     case "vfov": verticalFov = Number(p[1]); break;
+                    case "flood": hasFlood = true; floodX = Number(p[1]); floodY = Number(p[2]); floodFloor = Number(p[3]); break;
                     case "view":
                         views.Add(new View { Id = p[1], X = Number(p[2]), Y = Number(p[3]), Z = Number(p[4]), Yaw = Number(p[5]), Pitch = Number(p[6]) });
                         break;
@@ -151,7 +161,98 @@ namespace DaggerfallWorkshop.Game
                 SavePng(camera, Path.Combine(outDir, view.Id + ".df.png"));
                 results.Append(Probe(view.Id, eye));
             }
+
+            if (hasFlood)
+            {
+                // Doors count as passable because the player can open them. Other moving objects stay at their start position.
+                foreach (DaggerfallActionDoor door in dungeon.GetComponentsInChildren<DaggerfallActionDoor>(true))
+                    foreach (Collider collider in door.GetComponentsInChildren<Collider>(true))
+                        collider.enabled = false;
+                Physics.SyncTransforms();
+                CharacterController controller = player.GetComponent<CharacterController>();
+                float walkRise = Mathf.Max(controller.stepOffset / MeshReader.GlobalScale, FloodCell);
+                results.AppendFormat(CultureInfo.InvariantCulture, "FLOODBODY radius {0:F1} height {1:F1} step {2:F1} slope {3:F0} walkrise {4:F1}\n",
+                    controller.radius / MeshReader.GlobalScale, controller.height / MeshReader.GlobalScale,
+                    controller.stepOffset / MeshReader.GlobalScale, controller.slopeLimit, walkRise);
+                float radius = controller.radius, bodyHeight = controller.height;
+                yield return Flood(root, "walk", walkRise, radius, bodyHeight);
+                yield return Flood(root, "jump", FloodJumpRise, radius, bodyHeight);
+            }
             Finish("DONE", 0);
+        }
+
+        // Walks Daggerfall's real collision from the flood start, on a grid, and writes every standing position reached.
+        IEnumerator Flood(Transform root, string name, float maxRise, float radius, float bodyHeight)
+        {
+            float scale = MeshReader.GlobalScale;
+            var seen = new HashSet<long>();
+            var open = new Queue<Vector3>();
+            var lines = new StringBuilder();
+            Vector3 first;
+            if (!FloorBelow(root.TransformPoint(new Vector3(floodX, floodFloor + FloodStartLift, floodY) * scale), out first))
+            {
+                results.Append("FLOOD " + name + " no floor at start\n");
+                yield break;
+            }
+            seen.Add(Key(root, first));
+            open.Enqueue(first);
+            Vector3[] steps = { root.right, root.forward, -root.right, -root.forward };
+            int visited = 0;
+            while (open.Count > 0 && visited < FloodLimit)
+            {
+                Vector3 at = open.Dequeue();
+                visited++;
+                Vector3 local = root.InverseTransformPoint(at) / scale;
+                lines.AppendFormat(CultureInfo.InvariantCulture, "{0:F0} {1:F0} {2:F0}\n", local.x, local.z, local.y);
+                foreach (Vector3 step in steps)
+                {
+                    Vector3 next = at + step * FloodCell * scale;
+                    // Search for the floor from under any ceiling, so a low room cannot land on the level above it.
+                    float lift = (maxRise + 1f) * scale;
+                    RaycastHit roof;
+                    if (Physics.Raycast(next + Vector3.up * 2f * scale, Vector3.up, out roof, lift, ~0, QueryTriggerInteraction.Ignore))
+                        lift = roof.distance + 1.5f * scale;
+                    Vector3 from = next + Vector3.up * lift;
+                    Vector3 floor;
+                    if (!FloorBelow(from, out floor) || !seen.Add(Key(root, floor)))
+                        continue;
+                    Vector3 knee = Vector3.up * FloodKnee * scale;
+                    bool blocked = Physics.Linecast(at + knee, floor + knee, ~0, QueryTriggerInteraction.Ignore)
+                        || Physics.CheckCapsule(floor + Vector3.up * (radius + FloodClearance * scale),
+                            floor + Vector3.up * Mathf.Max(radius + FloodClearance * scale, bodyHeight - radius),
+                            radius * FloodBodyFit, ~0, QueryTriggerInteraction.Ignore);
+                    if (blocked)
+                        seen.Remove(Key(root, floor));
+                    else
+                        open.Enqueue(floor);
+                }
+                if (visited % 4000 == 0)
+                    yield return null;
+            }
+            File.WriteAllText(Path.Combine(outDir, "df_flood_" + name + ".txt"), lines.ToString());
+            results.AppendFormat(CultureInfo.InvariantCulture, "FLOOD {0} maxrise {1:F1} visited {2}{3}\n", name, maxRise, visited,
+                open.Count > 0 ? " LIMIT REACHED" : "");
+        }
+
+        static bool FloorBelow(Vector3 from, out Vector3 floor)
+        {
+            RaycastHit hit;
+            if (Physics.Raycast(from, Vector3.down, out hit, ProbeRange * MeshReader.GlobalScale, ~0, QueryTriggerInteraction.Ignore))
+            {
+                floor = hit.point;
+                return true;
+            }
+            floor = from;
+            return false;
+        }
+
+        static long Key(Transform root, Vector3 world)
+        {
+            Vector3 local = root.InverseTransformPoint(world) / MeshReader.GlobalScale;
+            long x = Mathf.RoundToInt(local.x / FloodCell) + 4096;
+            long y = Mathf.RoundToInt(local.z / FloodCell) + 4096;
+            long z = Mathf.RoundToInt(local.y / 4f) + 4096;
+            return (x << 26) | (y << 13) | z;
         }
 
         static IEnumerator WaitFrames(int count)
