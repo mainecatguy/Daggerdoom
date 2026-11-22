@@ -20,6 +20,7 @@ struct Tri { public V3 A, B, C, N; public uint Model; }
 class Span { public int F, C, Door = -1; }
 class DoorInfo { public int Id, Block; public double MinX, MaxX, MinY, MaxY, MinZ, MaxZ; public int Control, Height; }
 class Node { public int Id, I, J, F, C, Block; public bool Door; }
+class HangingCut { public bool AlongX; public int A, B, Behind; public double Position, Lo, Hi; public (int cell, int span) Key; }
 
 static class Program
 {
@@ -38,6 +39,7 @@ static class Program
     static int routeStep = StepHeight;
     static List<Span>[] grid;
     static readonly List<Tri> tris = new List<Tri>();
+    static readonly List<HangingCut> hanging = new List<HangingCut>();
     static readonly List<DoorInfo> doors = new List<DoorInfo>();
     static readonly List<(string name, int x, int y)> blockRects = new List<(string, int, int)>();
 
@@ -290,6 +292,7 @@ static class Program
             if (Math.Abs(t.N.X) > 0.2) WallAxis(t, true, blocked);
             if (Math.Abs(t.N.Y) > 0.2) WallAxis(t, false, blocked);
         }
+        ThinHangingWalls(blocked);
         int removed = 0;
         foreach (var group in blocked.GroupBy(b => b.Key.cell))
         {
@@ -304,6 +307,29 @@ static class Program
             }
         }
         return removed;
+    }
+
+    // A thin beam or lintel has faces on both sides of one cell boundary, which would lower the ceiling of
+    // both cells. It only needs to occupy the cell nearer its middle. Walls reaching the floor are not affected.
+    static void ThinHangingWalls(Dictionary<(int cell, int span), List<(double lo, double hi)>> blocked)
+    {
+        foreach (var pair in hanging.GroupBy(h => (h.AlongX, h.A, h.B)))
+        {
+            var cuts = pair.ToList();
+            int origin = pair.Key.AlongX ? minX : minY;
+            double lowCenter = origin + (pair.Key.A + 0.5) * cell, highCenter = lowCenter + cell;
+            foreach (var cut in cuts)
+            {
+                var other = cuts.FirstOrDefault(o => o.Behind != cut.Behind && Math.Min(o.Hi, cut.Hi) - Math.Max(o.Lo, cut.Lo) > 8);
+                if (other == null) continue;
+                double middle = (cut.Position + other.Position) / 2;
+                int keep = middle - lowCenter <= highCenter - middle ? pair.Key.A : pair.Key.A + 1;
+                if (cut.Behind == keep || !blocked.TryGetValue(cut.Key, out var list)) continue;
+                list.Remove((cut.Lo, cut.Hi));
+                if (list.Count == 0) blocked.Remove(cut.Key);
+            }
+        }
+        hanging.Clear();
     }
 
     // Keeps the opening at the bottom of a span: a sill may raise its floor by one step and a lintel lowers
@@ -365,6 +391,8 @@ static class Program
                     if (overlap <= 8) continue;
                     if (!blocked.TryGetValue((index, s), out var list)) blocked[(index, s)] = list = new List<(double, double)>();
                     list.Add((wallLo, wallHi));
+                    if (wallLo > spans[s].F + StepHeight)
+                        hanging.Add(new HangingCut { AlongX = alongX, A = a, B = b, Behind = behind, Position = (lo + hi) / 2, Lo = wallLo, Hi = wallHi, Key = (index, s) });
                 }
             }
         }
