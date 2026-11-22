@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Read", "Glob", "Grep", "Edit", "Write",
+      "PowerShell(git status*)", "PowerShell(git diff*)", "PowerShell(git log*)", "PowerShell(git show*)", "PowerShell(git add*)", "PowerShell(git commit*)",
+      "PowerShell(cmake *)", "PowerShell(ctest *)", "PowerShell(dotnet *)", "PowerShell(msbuild *)", "PowerShell(Unity.exe *)", "PowerShell(Start-Process Unity.exe *)", "PowerShell(uzdoom.exe *)",
+      "Bash(git status*)", "Bash(git diff*)", "Bash(git log*)", "Bash(git show*)", "Bash(git add*)", "Bash(git commit*)",
+      "Bash(cmake *)", "Bash(ctest *)", "Bash(dotnet *)", "Bash(msbuild *)", "Bash(Unity.exe *)", "Bash(uzdoom.exe *)"
+    ],
+    "deny": [
+      "Edit(AGENTS.md)", "Edit(CLAUDE.md)", "Edit(.claude/**)", "Edit(.github/**)", "Edit(scripts/overnight/**)", "Edit(.gitignore)", "Edit(GameResources/**)", "NotebookEdit",
+      "PowerShell(git push*)", "PowerShell(git merge*)", "PowerShell(git rebase*)", "PowerShell(git reset*)", "PowerShell(git checkout*)", "PowerShell(git switch*)", "PowerShell(git branch*)", "PowerShell(git worktree*)", "PowerShell(git config*)", "PowerShell(git remote*)", "PowerShell(git update-ref*)", "PowerShell(git credential*)", "PowerShell(git -c*)", "PowerShell(git -C*)", "PowerShell(gh *)",
+      "Bash(git push*)", "Bash(git merge*)", "Bash(git rebase*)", "Bash(git reset*)", "Bash(git checkout*)", "Bash(git switch*)", "Bash(git branch*)", "Bash(git worktree*)", "Bash(git config*)", "Bash(git remote*)", "Bash(git update-ref*)", "Bash(git credential*)", "Bash(git -c*)", "Bash(git -C*)", "Bash(gh *)"
+    ]
+  }
+}

@@ -6,3 +6,7 @@
 
 # Unity-generated logs can contain local machine paths.
 /daggerfall-unity-master/[Ll]ogs/
+
+# The current overnight goal is local.
+/work/goal.md
+/work/questions.md

@@ -1,0 +1,12 @@
+[
+  { "id": "uz-cpp-standard", "prompt": "What C++ standard does the main UZDoom executable build with? Check its top-level CMake file, not bundled libraries. Answer with the number only.", "expect": "^\\D*20\\D*$" },
+  { "id": "uz-max-players", "prompt": "What is the value of MAXPLAYERS in UZDoom? Answer with the number only.", "expect": "^\\D*64\\D*$" },
+  { "id": "uz-norun-exit", "prompt": "What special value does UZDoom return internally when started with -norun? Answer with the number only.", "expect": "^\\D*1337\\D*$" },
+  { "id": "uz-event-file", "prompt": "Which ZScript file in UZDoom declares the virtual WorldThingDamaged event handler? Answer with the file name only.", "expect": "(?i)\\bevents\\.zs\\b" },
+  { "id": "df-arch3d-file", "prompt": "Which Daggerfall data archive does the Daggerfall Unity class Arch3dFile read? Answer with the file name only.", "expect": "(?i)\\bARCH3D\\.BSA\\b" },
+  { "id": "df-maps-class", "prompt": "Which Daggerfall Unity API class reads MAPS.BSA? Answer with the class name only.", "expect": "\\bMapsFile\\b" },
+  { "id": "df-rmb-tiles", "prompt": "How many ground tiles span one side of an RMB block in Daggerfall Unity? Answer with the number only.", "expect": "^\\D*16\\D*$" },
+  { "id": "df-rdb-side", "prompt": "In Daggerfall Unity's RDBLayout, RDBSide is a raw value multiplied by MeshReader.GlobalScale. What is the raw value? Answer with the number only.", "expect": "^\\D*2048(\\.0+)?\\D*$" },
+  { "id": "df-rmb-side", "prompt": "In Daggerfall Unity's RMBLayout, RMBSide is a raw value multiplied by MeshReader.GlobalScale. What is the raw value? Answer with the number only.", "expect": "^\\D*4096(\\.0+)?\\D*$" },
+  { "id": "df-world-size", "prompt": "What are MaxMapPixelX and MaxMapPixelY in Daggerfall Unity's MapsFile? Answer as XxY.", "expect": "1000\\D+500" }
+]
