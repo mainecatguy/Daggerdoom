@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <WarningLevel>0</WarningLevel>
+    <NoWarn>$(NoWarn);CS0168;CS0219;CS0414;CS0649;CS0169;CS0162;SYSLIB0011</NoWarn>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <DfuApi>..\..\daggerfall-unity-master\Assets\Scripts\API\</DfuApi>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="*.cs" />
+    <!-- Daggerfall Unity's own readers, compiled unchanged. -->
+    <Compile Include="$(DfuApi)Arch3dFile.cs;$(DfuApi)Arch3dPatch.cs;$(DfuApi)BlocksFile.cs;$(DfuApi)BsaFile.cs;$(DfuApi)DFLocation.cs;$(DfuApi)DFMesh.cs;$(DfuApi)DFPosition.cs;$(DfuApi)DFRandom.cs;$(DfuApi)DFRegion.cs;$(DfuApi)DFSize.cs;$(DfuApi)FaceUVTool.cs;$(DfuApi)FileProxy.cs;$(DfuApi)MapsFile.cs;$(DfuApi)PakFile.cs;$(DfuApi)PatchList.cs;$(DfuApi)Vector3.cs" LinkBase="DfuApi" />
+  </ItemGroup>
+  <!-- DFBlock.cs is compiled from a copy without its JSON modding code. -->
+  <Target Name="StripDfBlock" BeforeTargets="CoreCompile">
+    <Exec Command="python &quot;$(MSBuildProjectDirectory)\strip_dfblock.py&quot; &quot;$(MSBuildProjectDirectory)\$(DfuApi)DFBlock.cs&quot; &quot;$(IntermediateOutputPath)DFBlock.stripped.cs&quot;" />
+    <ItemGroup>
+      <Compile Include="$(IntermediateOutputPath)DFBlock.stripped.cs" />
+    </ItemGroup>
+  </Target>
+</Project>
