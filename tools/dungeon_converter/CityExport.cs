@@ -329,15 +329,18 @@ static partial class Program
                 return files[a] = f;
             }
 
+            static readonly HashSet<int> ClimateSets = new HashSet<int> { 2, 7, 9, 10, 12, 13, 14, 15, 17, 18, 26, 27, 29, 30, 35, 36, 38, 39, 42, 43, 58, 59, 61, 62, 64, 65, 69, 70, 79, 80, 82, 83, 74,
+                11, 16, 19, 20, 22, 23, 24, 25, 28, 37, 40, 41, 44, 45, 47, 48, 60, 63, 66, 68 };
+
             // ClimateSwaps.ApplyClimate for summer.
             int Swap(int archive, int record)
             {
                 if (archive % 100 == 74 && record == 3) return archive;
                 if (archive >= 500 || archive is 75 or 76 or 77 or 79 or 80 or 82 or 83) return archive;
                 int set = archive % 100;
-                if (!Enum.IsDefined(typeof(DFLocation.ClimateTextureSet), set)) return archive;
+                // Same whitelist as ClimateSwaps.GetClimateTextureInfo; other sets (wagon 88, hedges, planks, furniture) never swap.
+                if (!ClimateSets.Contains(set)) return archive;
                 string setName = ((DFLocation.ClimateTextureSet)set).ToString();
-                if (!setName.StartsWith("Exterior_") && !setName.StartsWith("Interior_")) return archive;
                 if (location.Climate.ClimateType == DFLocation.ClimateBaseType.Swamp && setName == "Interior_MarbleFloors") return archive;
                 return (int)location.Climate.ClimateType + set;
             }
