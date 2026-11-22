@@ -53,11 +53,13 @@ EXTERN_CVAR(Int, vid_defheight)
 FARG(0, "Debug", "Resets window position.", "",
 	"Resets the window position to the top-left corner of the screen.");
 
-// DoomDaggerfall: -noactivate shows the game window without stealing focus (for unattended runs).
-FARG(noactivate, "Debug", "Do not take focus.", "",
-	"Shows the window without activating it, so it does not steal focus from other programs.");
-static bool NoActivateParm() { return Args && Args->CheckParm(FArg_noactivate); }
+// DoomDaggerfall: -noactivate runs unattended: windowed, off-screen, and without taking focus.
+FARG(noactivate, "Debug", "Run unattended without taking focus.", "",
+	"Keeps a windowed game off-screen, does not activate it, and logs fatal errors instead of showing a dialog.");
+bool I_NoActivateParm() { return Args && Args->CheckParm(FArg_noactivate); }
+static bool NoActivateParm() { return I_NoActivateParm(); }
 static UINT NoActivateFlag() { return NoActivateParm() ? SWP_NOACTIVATE : 0; }
+static int OffScreenX() { return GetSystemMetrics(SM_XVIRTUALSCREEN) + GetSystemMetrics(SM_CXVIRTUALSCREEN) + 64; }
 
 CUSTOM_CVAR(Bool, vid_fsdwmhack, false, CVAR_ARCHIVE | CVAR_GLOBALCONFIG | CVAR_NOINITCALL)
 {
@@ -142,8 +144,8 @@ void SystemBaseFrameBuffer::KeepWindowOnScreen(int &winx, int &winy, int winw, i
 
 void SystemBaseFrameBuffer::SaveWindowedPos()
 {
-	// Don't save if we were run with the -0 option.
-	if (Args->CheckParm(FArg_0))
+	// Don't save if we were run with the -0 option, or the off-screen unattended position.
+	if (Args->CheckParm(FArg_0) || NoActivateParm())
 	{
 		return;
 	}
@@ -214,9 +216,14 @@ void SystemBaseFrameBuffer::RestoreWindowedPos()
 		}
 		KeepWindowOnScreen(winx, winy, winw, winh, scrwidth, scrheight);
 	}
+	if (NoActivateParm())
+	{
+		winx = OffScreenX();
+		winy = 0;
+	}
 	SetWindowPos(mainwindow.GetHandle(), nullptr, winx, winy, winw, winh, SWP_NOZORDER | SWP_FRAMECHANGED | NoActivateFlag());
 
-	if (win_maximized && !Args->CheckParm(FArg_0))
+	if (win_maximized && !Args->CheckParm(FArg_0) && !NoActivateParm())
 		ShowWindow(mainwindow.GetHandle(), SW_MAXIMIZE);
 }
 
@@ -257,8 +264,13 @@ void SystemBaseFrameBuffer::SetWindowSize(int w, int h)
 		{
 			KeepWindowOnScreen(winx, winy, winw, winh, scrwidth, scrheight);
 		}
+		if (NoActivateParm())
+		{
+			winx = OffScreenX();
+			winy = 0;
+		}
 
-		if (!vid_fullscreen)
+		if (!vid_fullscreen || NoActivateParm())
 		{
 			ShowWindow(mainwindow.GetHandle(), NoActivateParm() ? SW_SHOWNOACTIVATE : SW_SHOWNORMAL);
 			SetWindowPos(mainwindow.GetHandle(), nullptr, winx, winy, winw, winh, SWP_NOZORDER | SWP_FRAMECHANGED | NoActivateFlag());
@@ -291,6 +303,11 @@ void SystemBaseFrameBuffer::PositionWindow(bool fullscreen, bool initialcall)
 
 	RECT monRect = {};
 
+	if (NoActivateParm())
+	{
+		fullscreen = false;
+		SetWindowPos(mainwindow.GetHandle(), nullptr, OffScreenX(), 0, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+	}
 	if (!m_Fullscreen && fullscreen && !initialcall) SaveWindowedPos();
 	if (m_Monitor)
 	{

@@ -92,6 +92,7 @@ void DisplayCrashLog ();
 void DestroyCustomCursor();
 int GameMain();
 void SignalHandler(int signal);
+bool I_NoActivateParm();
 
 // PUBLIC FUNCTION PROTOTYPES ----------------------------------------------
 
@@ -411,7 +412,7 @@ int DoMain (HINSTANCE hInstance)
 				SetConsoleMode(stdinput, 0);
 				ReadConsole(stdinput, &bytes, 1, &bytes, NULL);
 			}
-			else if (StdOut == nullptr)
+			else if (StdOut == nullptr && !I_NoActivateParm())
 			{
 				mainwindow.ShowErrorPane("");
 			}
@@ -431,7 +432,7 @@ void I_ShowFatalError(const char *msg)
 		Printf("%s", CVMAbortException::stacktrace.GetChars());
 	}
 
-	if (!batchrun)
+	if (!batchrun && !I_NoActivateParm())
 	{
 		mainwindow.ShowErrorPane(msg);
 	}
