@@ -20,12 +20,13 @@ class TMHarness : EventHandler
 	Actor walker, flyer, proj;
 	Vector3 pg, wg, fg, mg;
 	bool hasP, hasW, hasF, hasM, spawned, projSpawned, wTarget, fTarget;
-	int lastShifts, cleanupAt, stuckTics;
+	int lastShifts, cleanupAt, stuckTics, lastShiftTic;
+	double prevSpeed, maxStep;
 	double walkerStart;
 
-	int cycles, pJump, pUnder, pStuck, pInterp, pZJump;
+	int cycles, pJump, pUnder, pStuck, pZJump;
 	int wJump, wUnder, wFloat, wLost, wMoved;
-	int fJump, fUnder, fLost, mJump, mUnder, mCrossed;
+	int fJump, fUnder, fUnderShift, fLost, mJump, mUnder, mCrossed;
 
 	ui int viewJumps, lastViewTic, reported;
 	ui bool hasView;
@@ -101,13 +102,18 @@ class TMHarness : EventHandler
 		if (hasP)
 		{
 			double step = (g.xy - pg.xy).Length();
-			if (step > STEP_LIMIT) pJump++;
+			if (step > prevSpeed + 1.0)
+			{
+				pJump++;
+				if (pJump <= 10) Console.Printf("TMPJUMP tic=%d step=%.3f prevSpeed=%.3f sinceShift=%d", level.maptime, step, prevSpeed, level.maptime - lastShiftTic);
+			}
+			maxStep = max(maxStep, step);
 			if (abs(g.z - pg.z) > 64) pZJump++;
 			stuckTics = step < 1 ? stuckTics + 1 : 0;
 			if (stuckTics == 35) pStuck++;
 		}
 		if (p.pos.z < p.floorz - 0.1) pUnder++;
-		if ((p.pos.xy - p.prev.xy).Length() > STEP_LIMIT) pInterp++;
+		prevSpeed = p.vel.xy.Length();
 		pg = g;
 		hasP = true;
 
@@ -118,7 +124,12 @@ class TMHarness : EventHandler
 		fJump += StepCheck(flyer, fg, hasF);
 		mJump += StepCheck(proj, mg, hasM);
 		wUnder += UnderCheck(walker);
-		fUnder += UnderCheck(flyer);
+		if (UnderCheck(flyer))
+		{
+			fUnder++;
+			if (level.maptime - lastShiftTic <= 2) fUnderShift++;
+			if (fUnder <= 10) Console.Printf("TMFUNDER tic=%d below=%.3f sinceShift=%d", level.maptime, flyer.floorz - flyer.pos.z, level.maptime - lastShiftTic);
+		}
 		mUnder += UnderCheck(proj);
 		hasW = walker != null;
 		hasF = flyer != null;
@@ -132,6 +143,7 @@ class TMHarness : EventHandler
 		if (shifted)
 		{
 			lastShifts = shifts;
+			lastShiftTic = level.maptime;
 			cycles++;
 			cleanupAt = level.maptime + 100;
 			if (walker) { walkerStart = GlobalX(walker); }
@@ -151,8 +163,8 @@ class TMHarness : EventHandler
 			spawned = false;
 			projSpawned = false;
 			cleanupAt = 0;
-			Console.Printf("TMSUM shifts=%d cycles=%d gx=%.3f pJump=%d pZJump=%d pUnder=%d pStuck=%d pInterp=%d wJump=%d wUnder=%d wFloat=%d wLost=%d wMoved=%d fJump=%d fUnder=%d fLost=%d mJump=%d mUnder=%d mCrossed=%d",
-				shifts, cycles, g.x, pJump, pZJump, pUnder, pStuck, pInterp, wJump, wUnder, wFloat, wLost, wMoved, fJump, fUnder, fLost, mJump, mUnder, mCrossed);
+			Console.Printf("TMSUM shifts=%d cycles=%d gx=%.3f pJump=%d pZJump=%d pUnder=%d pStuck=%d maxStep=%.2f wJump=%d wUnder=%d wFloat=%d wLost=%d wMoved=%d fJump=%d fUnder=%d fUnderAtShift=%d fLost=%d mJump=%d mUnder=%d mCrossed=%d",
+				shifts, cycles, g.x, pJump, pZJump, pUnder, pStuck, maxStep, wJump, wUnder, wFloat, wLost, wMoved, fJump, fUnder, fUnderShift, fLost, mJump, mUnder, mCrossed);
 		}
 	}
 
@@ -161,7 +173,7 @@ class TMHarness : EventHandler
 		if (level.MapName != "TREADM01" || level.maptime < 4) return;
 		Vector2 v = (e.ViewPos.x + OriginX() * TILE, e.ViewPos.y + OriginY() * TILE);
 		int t = level.maptime;
-		if (hasView && (v - lastView).Length() > 24.0 * (t - lastViewTic + 1))
+		if (hasView && (v - lastView).Length() > (players[0].mo.vel.xy.Length() * 1.25 + 8.0) * (t - lastViewTic + 1))
 		{
 			viewJumps++;
 			Console.Printf("TMVIEWJUMP tic=%d lastTic=%d dist=%.3f view=%.3f,%.3f last=%.3f,%.3f local=%.3f originx=%d frac=%.3f",
