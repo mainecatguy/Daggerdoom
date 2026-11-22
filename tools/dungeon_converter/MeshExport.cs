@@ -101,7 +101,8 @@ static partial class Program
                                 var n = Rotate(new V3(p.NX, -p.NY, p.NZ), rx, ry, rz);
                                 double length = Math.Sqrt(n.X * n.X + n.Y * n.Y + n.Z * n.Z);
                                 if (length < 1e-6) length = 1;
-                                v.Add((float)at.X); v.Add((float)at.Y); v.Add((float)at.Z);
+                                double scale = PlayerScale.DoomUnitsPerDaggerfallUnit;
+                                v.Add((float)(at.X * scale)); v.Add((float)(at.Y * scale)); v.Add((float)(at.Z * scale));
                                 v.Add((float)(p.U / w)); v.Add((float)(p.V / h));
                                 v.Add((float)(n.X / length)); v.Add((float)(n.Y / length)); v.Add((float)(n.Z / length));
                             }

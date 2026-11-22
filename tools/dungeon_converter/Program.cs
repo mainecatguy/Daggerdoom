@@ -53,10 +53,12 @@ static partial class Program
             if (args[a] == "--out") outDir = args[++a];
             else if (args[a] == "--arena2") arena2 = args[++a];
             else if (args[a] == "--cell") cell = int.Parse(args[++a]);
+            else if (args[a] == "--world-scale") PlayerScale.DoomUnitsPerDaggerfallUnit = double.Parse(args[++a], CultureInfo.InvariantCulture);
+            else if (args[a] == "--parity") parityDir = args[++a]; // writes the Doom test lump, or compares if doom_flood.txt exists there
             else if (args[a] == "--debug-row") debugRow = args[++a];
             else if (args[a] == "--debug-line") debugLine = args[++a]; // x0,y0,x1,y1,z0,z1: raw hits, spans, and faces along a line
             else if (args[a] == "--audit-points") a += 2;
-            else if (args[a] == "--no-walls" || args[a] == "--export-mesh") { }
+            else if (args[a] == "--no-walls" || args[a] == "--export-mesh" || args[a] == "--no-ceiling-relief") { }
             else if (args[a] == "--texture-table") a++; // used by --export-mesh: six archives, comma separated
             else if (args[a] == "--open-actions") openActions = true;
             else if (args[a] == "--route-step") routeStep = int.Parse(args[++a]); // diagnostic: models jumping or climbing
@@ -80,6 +82,7 @@ static partial class Program
         DumpLine("walls");
         relaxedStairs = RelaxStairs();
         gapCells = CloseGaps();
+        if (!args.Contains("--no-ceiling-relief")) RelieveCeilings();
         ApplyDoors();
         DumpLine("final");
         int auditAt = Array.IndexOf(args, "--audit-points"); // <old points file> <leak output>: audit another version's links, then exit
@@ -97,6 +100,8 @@ static partial class Program
         var points = WritePoints(nodes, edges, start);
         var mapStats = WriteMap(Path.Combine(outDir, slug + ".wad"), nodes[start], points);
         File.WriteAllText(Path.Combine(outDir, slug + ".points.txt"), points);
+        PlayerScale.WritePackage(outDir, slug);
+        if (parityDir != null) return RunParity(parityDir, entrance);
         WriteStats(Path.Combine(outDir, slug + ".stats.txt"), name, location, nodes, edges, start, walled, mapStats);
         Console.WriteLine(File.ReadAllText(Path.Combine(outDir, slug + ".stats.txt")));
         return 0;
@@ -132,7 +137,11 @@ static partial class Program
         return new V3(p.X * c - p.Y * s, p.X * s + p.Y * c, p.Z);
     }
 
-    static V3 ToDoom(V3 unity) => new V3(unity.X, unity.Z, unity.Y);
+    static V3 ToDoom(V3 unity)
+    {
+        double s = PlayerScale.DoomUnitsPerDaggerfallUnit;
+        return new V3(unity.X * s, unity.Z * s, unity.Y * s);
+    }
 
     static V3 LoadGeometry(string arena2, DFLocation location)
     {
@@ -145,7 +154,7 @@ static partial class Program
             blockIndex++;
             var block = blocks.GetBlock(dungeonBlock.BlockName);
             var offset = new V3(dungeonBlock.X * BlockSide, 0, dungeonBlock.Z * BlockSide);
-            blockRects.Add((dungeonBlock.BlockName, dungeonBlock.X * BlockSide, dungeonBlock.Z * BlockSide));
+            blockRects.Add((dungeonBlock.BlockName, (int)Math.Round(dungeonBlock.X * BlockSide * PlayerScale.DoomUnitsPerDaggerfallUnit), (int)Math.Round(dungeonBlock.Z * BlockSide * PlayerScale.DoomUnitsPerDaggerfallUnit)));
             if (block.RdbBlock.ObjectRootList == null) continue;
             foreach (var group in block.RdbBlock.ObjectRootList)
             {
@@ -206,6 +215,12 @@ static partial class Program
                         door.MinY = Math.Min(door.MinY, p.Y); door.MaxY = Math.Max(door.MaxY, p.Y);
                         door.MinZ = Math.Min(door.MinZ, p.Z); door.MaxZ = Math.Max(door.MaxZ, p.Z);
                     }
+                    var doorFirst = plane.Points[0];
+                    var doorNormal = ToDoom(Rotate(new V3(doorFirst.NX, -doorFirst.NY, doorFirst.NZ), rx, ry, rz));
+                    double doorLength = Math.Sqrt(doorNormal.X * doorNormal.X + doorNormal.Y * doorNormal.Y + doorNormal.Z * doorNormal.Z);
+                    if (doorLength > 1e-6)
+                        for (int i = 1; i + 1 < pts.Length; i++)
+                            doorMeshTris.Add(new Tri { A = pts[0], B = pts[i], C = pts[i + 1], N = new V3(doorNormal.X / doorLength, doorNormal.Y / doorLength, doorNormal.Z / doorLength), Model = id, Instance = instance });
                     continue;
                 }
                 var first = plane.Points[0];
@@ -723,8 +738,9 @@ static partial class Program
 
     static int BlockAt(int x, int y)
     {
+        int side = (int)Math.Round(BlockSide * PlayerScale.DoomUnitsPerDaggerfallUnit);
         for (int b = 0; b < blockRects.Count; b++)
-            if (x >= blockRects[b].x && x < blockRects[b].x + BlockSide && y >= blockRects[b].y && y < blockRects[b].y + BlockSide) return b;
+            if (x >= blockRects[b].x && x < blockRects[b].x + side && y >= blockRects[b].y && y < blockRects[b].y + side) return b;
         return -1;
     }
 
