@@ -10,3 +10,6 @@
 # The current overnight goal is local.
 /work/goal.md
 /work/questions.md
+
+__pycache__/
+*.pyc
