@@ -843,6 +843,16 @@ void R_ClearPastViewer (AActor *actor)
 	}
 }
 
+// [DoomDaggerfall] Keeps view interpolation continuous across a treadmill shift.
+void R_ShiftPastViewers(const DVector3 &delta)
+{
+	for (auto &view : PastViewers)
+	{
+		view.Old.Pos -= delta;
+		view.New.Pos -= delta;
+	}
+}
+
 //==========================================================================
 //
 // R_RebuildViewInterpolation

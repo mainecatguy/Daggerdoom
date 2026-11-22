@@ -33,6 +33,7 @@
 #include "g_game.h"
 #include "am_map.h"
 #include "i_interface.h"
+#include "playsim/dd_treadmill.h" // [DoomDaggerfall]
 
 extern gamestate_t wipegamestate;
 extern uint8_t globalfreeze, globalchangefreeze;
@@ -250,6 +251,8 @@ void P_Ticker (void)
 			ac->ClearInterpolation();
 			ac->ClearFOVInterpolation();
 		}
+
+		DDTreadmill_Tick(Level); // [DoomDaggerfall] no-op unless explicitly enabled
 
 		P_ThinkParticles(Level);	// [RH] make the particles think
 

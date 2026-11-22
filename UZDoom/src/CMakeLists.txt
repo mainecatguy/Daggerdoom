@@ -695,6 +695,7 @@ set( FASTMATH_SOURCES
 	rendering/hwrenderer/scene/hw_fakeflat.cpp
 	rendering/hwrenderer/scene/hw_decal.cpp
 	rendering/hwrenderer/scene/hw_drawinfo.cpp
+	rendering/hwrenderer/scene/hw_dfmesh.cpp # [DoomDaggerfall]
 	rendering/hwrenderer/scene/hw_drawlist.cpp
 	rendering/hwrenderer/scene/hw_clipper.cpp
 	rendering/hwrenderer/scene/hw_flats.cpp
@@ -830,6 +831,7 @@ set (PCH_SOURCES
 	p_states.cpp
 	playsim/p_things.cpp
 	p_tick.cpp
+	playsim/dd_treadmill.cpp # [DoomDaggerfall]
 	playsim/p_user.cpp
 	rendering/r_utility.cpp
 	rendering/r_sky.cpp

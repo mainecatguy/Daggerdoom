@@ -1,0 +1,20 @@
+# id | kind | x y floor yaw pitch | note
+# Map units: x = Daggerfall X, y = Daggerfall Z, floor = -Daggerfall Y. Yaw is Doom degrees (0 east, 90 north). Positive pitch looks down.
+# Positions sit at cell centers (8 mod 16), because probes along exact grid lines can slip between map lines.
+# The first viewpoint must be the entrance: the collision flood fill starts there.
+v01_entrance   | entrance    | 1144 504 1536 90 0    | converter start node
+v02_room       | room        | 1560 632 1024 180 0   | largest open room in the main block
+v03_corridor   | corridor    | 920 632 512 180 0     | long narrow run
+v04_door       | door        | 680 664 1792 0 0      | facing a door from the west
+v05_stairs     | stairs      | 1176 1272 768 0 -10   | looking up the largest measured rise
+v06_stack_low  | stacked     | 760 344 256 0 0       | lowest level of a five-level column
+v07_stack_high | stacked     | 760 344 1792 0 30     | top level of the same column, looking down
+v08_cut_north  | unreachable | 824 3096 512 180 0    | largest cut-off area, 826 nodes, block 4
+v09_cut_east   | unreachable | 2936 1688 700 270 0   | cut-off area, 544 nodes, block 3
+v10_cut_ne     | unreachable | 664 3800 1236 90 0    | cut-off area, 454 nodes, block 4, door-shaped opening ahead
+v11_cut_south  | unreachable | 472 -936 512 180 0    | cut-off area, 401 nodes, block 2
+v12_cut_dome   | unreachable | 504 1432 0 90 0       | cut-off area near the Enter marker, 114 nodes
+v13_cut_door   | door        | 616 3096 512 180 0    | close view of the door in the largest cut-off area
+v14_lost_ramp  | unreachable | 808 1912 724 180 0    | Daggerfall collision walks up this ramp into cut-off area 11
+v15_pit_drop   | pit         | 488 1448 512 270 60   | Daggerfall collision drops 512 units here into the campfire cave
+v16_cave_south | unreachable | 504 1432 0 270 0      | campfire cave looking south, where the two engines' probes disagree most

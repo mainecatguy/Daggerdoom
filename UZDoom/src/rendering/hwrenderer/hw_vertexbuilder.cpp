@@ -20,6 +20,7 @@
 #include "flatvertices.h"
 #include "earcut.hpp"
 #include "v_video.h"
+#include "playsim/dd_treadmill.h" // [DoomDaggerfall]
 
 //=============================================================================
 //
@@ -405,6 +406,7 @@ static void CreateIndexedFlatVertices(FFlatVertexBuffer* fvb, TArray<sector_t>& 
 
 static void UpdatePlaneVertices(FFlatVertexBuffer *fvb, sector_t* sec, int plane)
 {
+	DDTreadmillUploadScope ddTiming; // [DoomDaggerfall]
 	int startvt = sec->vboindex[plane];
 	int countvt = sec->vbocount[plane];
 	secplane_t& splane = sec->GetSecPlane(plane);
