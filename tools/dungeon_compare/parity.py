@@ -1,7 +1,7 @@
 """Two-way Daggerfall/Doom movement parity and bullet check for one converted dungeon.
 
 Usage: python tools/dungeon_compare/parity.py "Privateer's Hold" --out <dir outside the repo>
-           [--unity-flood <df_flood_walk.txt>] [--world-scale 1.0] [--uzdoom <exe>] [--timeout 180]
+           [--unity-flood <df_flood_walk.txt>] [--world-scale 1.0] [--daggerfall-player] [--uzdoom <exe>] [--timeout 180]
 
 Writes parity.csv, bullets.txt, worst_views.txt, and unity_validation.txt under <out>/parity.
 """
@@ -37,6 +37,7 @@ def main():
     parser.add_argument("--out", required=True)
     parser.add_argument("--unity-flood")
     parser.add_argument("--world-scale", type=float, default=1.0)
+    parser.add_argument("--daggerfall-player", action="store_true", help="test the opt-in Daggerfall-size body instead of stock Doom")
     parser.add_argument("--uzdoom", default=UZDOOM)
     parser.add_argument("--timeout", type=int, default=180)
     parser.add_argument("--cell", type=int, help="converter collision cell size")
@@ -48,6 +49,8 @@ def main():
         extra += ["--ceiling-relief", str(args.ceiling_relief)]
     if args.baseline:
         extra.append("--no-ceiling-relief")
+    if args.daggerfall_player:
+        extra.append("--daggerfall-player")
 
     out = os.path.abspath(args.out)
     if (os.path.normcase(out) + os.sep).startswith(os.path.normcase(REPO) + os.sep):
@@ -67,6 +70,7 @@ def main():
     if os.path.exists(log):
         os.remove(log)
     doom_started = time.time()
+    player = [os.path.join(out, slug + "_player.pk3")] if args.daggerfall_player else []
     # A private config keeps this launch windowed from the first frame, so it cannot interrupt the owner.
     with open(os.path.join(parity, "doom.ini"), "w", newline="\n") as f:
         f.write("[GlobalSettings]\nqueryiwad=false\nvid_fullscreen=false\nwin_maximized=false\n")
@@ -75,7 +79,7 @@ def main():
     startup.wShowWindow = SW_SHOWMINNOACTIVE
     # ZScript cannot quit the engine, so this stops the one process it started once the log reports completion.
     process = subprocess.Popen([args.uzdoom,
-                                "-iwad", IWAD, "-file", os.path.join(out, slug + ".wad"), os.path.join(out, slug + "_player.pk3"),
+                                "-iwad", IWAD, "-file", os.path.join(out, slug + ".wad"), *player,
                                 os.path.join(HERE, "parity_doom"), os.path.join(parity, "lumps"),
                                 "-config", os.path.join(parity, "doom.ini"), "-noactivate", "-nosound", "-nomonsters", "-skill", "3",
                                 "+vid_fullscreen", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0",

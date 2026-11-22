@@ -12,13 +12,17 @@ static class PlayerScale
     // Daggerfall Unity's player in Daggerfall units (PlayerAdvanced.prefab, PlayerHeightChanger.cs; 1 m = 40 units).
     const double DfHeight = 72, DfEyeBelowTop = 3.6, DfCrouchHeight = 36, DfRadius = 14, DfStep = 20;
 
+    // The default body has stock Doom height, eye, step, and crouch. --daggerfall-player opts in to the scaled Daggerfall body and its package.
+    public static bool DaggerfallBody;
+    const double DoomHeight = 56, DoomEye = 41, DoomStep = 24;
+
     static double S => DoomUnitsPerDaggerfallUnit;
-    public static double Height => DfHeight * S;
-    public static double EyeHeight => (DfHeight - DfEyeBelowTop) * S;
-    public static double CrouchHeight => DfCrouchHeight * S;
-    public static double CrouchEyeHeight => (DfCrouchHeight - DfEyeBelowTop) * S;
-    public static double Radius => DfRadius * S;
-    public static double Step => DfStep * S;
+    public static double Height => DaggerfallBody ? DfHeight * S : DoomHeight;
+    public static double EyeHeight => DaggerfallBody ? (DfHeight - DfEyeBelowTop) * S : DoomEye;
+    public static double CrouchHeight => DaggerfallBody ? DfCrouchHeight * S : DoomHeight / 2;
+    public static double CrouchEyeHeight => DaggerfallBody ? (DfCrouchHeight - DfEyeBelowTop) * S : DoomEye / 2;
+    public static double Radius => DfRadius * S; // Owner decision: width follows Daggerfall at world scale in both modes
+    public static double Step => DaggerfallBody ? DfStep * S : DoomStep;
 
     static string F(double v) => v.ToString("0.###", CultureInfo.InvariantCulture);
 

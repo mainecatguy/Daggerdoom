@@ -1,6 +1,7 @@
-"""Measures the real UZDoom player with the Daggerfall size package on a converted map, with it disabled, and on E1M1.
+"""Measures the real UZDoom player on a converted map and on E1M1. The default is stock Doom, with no player package.
 
-Usage: python tools/dungeon_compare/player_check.py --map <slug.wad> --player <slug_player.pk3> --out <dir outside the repo>
+Usage: python tools/dungeon_compare/player_check.py --map <slug.wad> [--player <slug_player.pk3>] --out <dir outside the repo>
+Pass --player to also check the opt-in Daggerfall size package, on and off.
 """
 import argparse
 import os
@@ -50,13 +51,15 @@ def run(name, iwad, files, level, extra, out):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--map", required=True)
-    parser.add_argument("--player", required=True)
+    parser.add_argument("--player")
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
     out = os.path.abspath(args.out)
-    run("daggerfall_on", "DOOM2.WAD", [args.map, args.player], "MAP01", [], out)
-    run("daggerfall_off", "DOOM2.WAD", [args.map, args.player], "MAP01", ["+df_playersize", "0"], out)
-    run("e1m1_package", "DOOM.WAD", [args.player], "E1M1", [], out)
+    run("stock_map", "DOOM2.WAD", [args.map], "MAP01", [], out)
+    if args.player:
+        run("daggerfall_on", "DOOM2.WAD", [args.map, args.player], "MAP01", [], out)
+        run("daggerfall_off", "DOOM2.WAD", [args.map, args.player], "MAP01", ["+df_playersize", "0"], out)
+        run("e1m1_package", "DOOM.WAD", [args.player], "E1M1", [], out)
     run("e1m1_plain", "DOOM.WAD", [], "E1M1", [], out)
 
 

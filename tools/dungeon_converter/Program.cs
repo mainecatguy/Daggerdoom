@@ -28,13 +28,16 @@ static partial class Program
     const int EditorArchive = 199, EnterRecord = 8, StartRecord = 10, BlockSide = 2048;
     const int ZQuant = 4;
     // Conversion thresholds, in Daggerfall units at scale 1. ApplyWorldScale derives them from PlayerScale.
-    static int ActorRadius = 16, ActorHeight = 56, StepHeight = 24, MinSpan = 24, MaxStairRelax = 8;
+    // KeepHeight keeps low spaces in the map (crouch routes); ActorHeight is what a standing body needs.
+    static int ActorRadius = 16, ActorHeight = 56, KeepHeight = 56, StepHeight = 24, MinSpan = 24, MaxStairRelax = 8;
 
     static void ApplyWorldScale(bool cellWasSet)
     {
         double s = PlayerScale.DoomUnitsPerDaggerfallUnit;
         int Scaled(int value) => Math.Max(1, (int)Math.Round(value * s));
-        ActorRadius = Scaled(ActorRadius); ActorHeight = Scaled(ActorHeight); StepHeight = Scaled(StepHeight);
+        KeepHeight = Scaled(KeepHeight); ActorRadius = Scaled(ActorRadius);
+        // Stock Doom height and step do not shrink with the world.
+        if (PlayerScale.DaggerfallBody) { ActorHeight = Scaled(ActorHeight); StepHeight = Scaled(StepHeight); }
         MinSpan = Scaled(MinSpan); MaxStairRelax = Scaled(MaxStairRelax);
         if (routeStep == 24) routeStep = StepHeight;
         if (!cellWasSet) cell = Scaled(cell);
@@ -66,6 +69,7 @@ static partial class Program
             else if (args[a] == "--cell") cell = int.Parse(args[++a]);
             else if (args[a] == "--ceiling-relief") MaxCeilingRelief = int.Parse(args[++a]);
             else if (args[a] == "--world-scale") PlayerScale.DoomUnitsPerDaggerfallUnit = double.Parse(args[++a], CultureInfo.InvariantCulture);
+            else if (args[a] == "--daggerfall-player") PlayerScale.DaggerfallBody = true; // opt-in: scaled Daggerfall body and <slug>_player.pk3
             else if (args[a] == "--parity") parityDir = args[++a]; // writes the Doom test lump, or compares if doom_flood.txt exists there
             else if (args[a] == "--debug-row") debugRow = args[++a];
             else if (args[a] == "--debug-line") debugLine = args[++a]; // x0,y0,x1,y1,z0,z1: raw hits, spans, and faces along a line
@@ -113,7 +117,7 @@ static partial class Program
         var points = WritePoints(nodes, edges, start);
         var mapStats = WriteMap(Path.Combine(outDir, slug + ".wad"), nodes[start], points);
         File.WriteAllText(Path.Combine(outDir, slug + ".points.txt"), points);
-        PlayerScale.WritePackage(outDir, slug);
+        if (PlayerScale.DaggerfallBody) PlayerScale.WritePackage(outDir, slug);
         if (parityDir != null) return RunParity(parityDir, entrance);
         WriteStats(Path.Combine(outDir, slug + ".stats.txt"), name, location, nodes, edges, start, walled, mapStats);
         Console.WriteLine(File.ReadAllText(Path.Combine(outDir, slug + ".stats.txt")));
@@ -422,7 +426,7 @@ static partial class Program
         }
         int f = Quant(bottom), c = Quant(Math.Min(top, span.C));
         var pieces = new List<Span>();
-        if (f - span.F <= StepHeight && c - f >= ActorHeight) pieces.Add(new Span { F = f, C = c });
+        if (f - span.F <= StepHeight && c - f >= KeepHeight) pieces.Add(new Span { F = f, C = c });
         return pieces;
     }
 
@@ -619,8 +623,8 @@ static partial class Program
                             int qi = i + di * gap, qj = j + dj * gap;
                             if (qi < 0 || qj < 0 || qi >= width || qj >= height) break;
                             int ti = i + di * (gap - 1), tj = j + dj * (gap - 1);
-                            if (grid[Index(ti, tj)].Any(x => Math.Min(x.C, s.C) - Math.Max(x.F, s.F) >= ActorHeight)) break;
-                            var t = grid[Index(qi, qj)].FirstOrDefault(x => Math.Min(x.C, s.C) - Math.Max(x.F, s.F) >= ActorHeight && Math.Abs(x.F - s.F) <= StepHeight);
+                            if (grid[Index(ti, tj)].Any(x => Math.Min(x.C, s.C) - Math.Max(x.F, s.F) >= KeepHeight)) break;
+                            var t = grid[Index(qi, qj)].FirstOrDefault(x => Math.Min(x.C, s.C) - Math.Max(x.F, s.F) >= KeepHeight && Math.Abs(x.F - s.F) <= StepHeight);
                             if (t == null) continue;
                             int f = Math.Max(s.F, t.F), c = Math.Min(s.C, t.C);
                             if (!WallBetween(i, j, qi, qj, f + 24) && !WallBetween(i, j, qi, qj, f + 48))
