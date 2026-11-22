@@ -36,6 +36,20 @@ Minimal Coordinated Save, Load, and Death: Even with only one synced system (e.g
 
 Suppressed DFU 3D Rendering: Proving DFU can disable its own 3D world rendering and entity physics (so you aren't paying to render and simulate two 3D worlds) while keeping its simulation loop and 2D UI overlay active.
 
+## World Scale and Player Size
+
+The Daggerfall world is at **75% scale** in Doom (owner decision, 2026-11-22): 1 Daggerfall unit = 0.75 Doom map units.
+
+| | Daggerfall units | Doom units at 75% |
+|---|---:|---:|
+| Terrain tile | 256 | 192 |
+| World map pixel | 32,768 | 24,576 |
+
+- The player stays stock Doom on Daggerfall maps: height 56, eye height 41, step height 24, with stock crouch, speed, weapons, and monsters.
+- The one exception is collision width, which matches Daggerfall's character at world scale: radius 10.5 (21 wide). Regular Doom maps keep radius 16.
+- The dungeon converter still defaults to scale 1.0, so generated maps must pass `--world-scale 0.75`.
+- So far this scale has been applied to dungeons. The terrain treadmill test predates it.
+
 
 ## Long-Term Direction:
 
