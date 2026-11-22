@@ -65,6 +65,8 @@ static partial class Program
 
         var batches = new Dictionary<(int archive, int record), List<float>>();
         int models = 0, missing = 0;
+        var doorModels = new Dictionary<uint, DoorModel>();
+        var doorPlacements = new List<string>();
         const double toRad = Math.PI / 180;
         foreach (var dungeonBlock in location.Dungeon.Blocks)
         {
@@ -77,7 +79,8 @@ static partial class Program
                 foreach (var obj in group.RdbObjects)
                 {
                     if (obj.Type != DFBlock.RdbResourceTypes.Model) continue;
-                    uint id = block.RdbBlock.ModelReferenceList[obj.Resources.ModelResource.ModelIndex].ModelIdNum;
+                    var reference = block.RdbBlock.ModelReferenceList[obj.Resources.ModelResource.ModelIndex];
+                    uint id = reference.ModelIdNum;
                     int recordIndex = arch.GetRecordIndex(id);
                     if (recordIndex < 0) { missing++; continue; }
                     models++;
@@ -86,6 +89,15 @@ static partial class Program
                     double ry = -obj.Resources.ModelResource.YRotation / BlocksFile.RotationDivisor * toRad;
                     double rz = -obj.Resources.ModelResource.ZRotation / BlocksFile.RotationDivisor * toRad;
                     var position = new V3(obj.XPos, -obj.YPos, obj.ZPos) + offset;
+                    if (IsActionDoorModel(id, reference.Description))
+                    {
+                        if (rx != 0 || rz != 0) throw new InvalidDataException($"door {id} is tilted; only yaw is supported");
+                        if (!doorModels.TryGetValue(id, out var doorModel))
+                            doorModels[id] = doorModel = BuildDoorModel(id, doorModels.Count, mesh, Archive, table, location);
+                        var pivot = ToDoom(position);
+                        doorPlacements.Add(FormattableString.Invariant($"{doorModel.Slot} {pivot.X:F3} {pivot.Y:F3} {pivot.Z:F3} {-ry / toRad:F3} {doorModel.X0:F3} {doorModel.X1:F3} {doorModel.Y0:F3} {doorModel.Y1:F3} {doorModel.Z0:F3} {doorModel.Z1:F3}"));
+                        continue;
+                    }
                     foreach (var sub in mesh.SubMeshes)
                     {
                         // UVs are normalized by the unswapped texture, as in MeshReader.LoadVertices.
@@ -153,6 +165,8 @@ static partial class Program
                 WriteTexturePng(s, image, file.Palette);
             }
         }
+        WriteDoorPackage(Path.Combine(outDir, slug + "_doors.pk3"), doorModels.Values.OrderBy(m => m.Slot).ToList(), doorPlacements, Archive);
+        Console.WriteLine($"doors: {doorPlacements.Count} placed, {doorModels.Count} models");
         Console.WriteLine($"mesh: {models} models ({missing} missing), {vertices / 3} triangles, {keys.Count} textures/batches ({badTextures} unreadable), {new FileInfo(path).Length / 1024} KiB -> {path}");
         return badTextures == 0 && missing == 0 ? 0 : 1;
     }

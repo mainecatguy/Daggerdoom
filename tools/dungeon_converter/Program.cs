@@ -18,7 +18,13 @@ struct V3
 
 struct Tri { public V3 A, B, C, N; public uint Model; public int Instance; }
 class Span { public int F, C, Door = -1; }
-class DoorInfo { public int Id, Block; public double MinX, MaxX, MinY, MaxY, MinZ, MaxZ; public int Control, Height; }
+class DoorInfo
+{
+    public int Id, Block; public double MinX, MaxX, MinY, MaxY, MinZ, MaxZ; public int Control, Height;
+    // Real placement. The pivot is the model origin, which is the hinge DaggerfallActionDoor rotates about.
+    public uint Model; public double PivotX, PivotY, PivotZ, RxDeg, RyDeg, RzDeg;
+    public double LocalMinX = 1e9, LocalMaxX = -1e9, LocalMinY = 1e9, LocalMaxY = -1e9, LocalMinZ = 1e9, LocalMaxZ = -1e9;
+}
 class Node { public int Id, I, J, F, C, Block; public bool Door; }
 class HangingCut { public bool AlongX; public int A, B, Behind; public double Position, Lo, Hi; public (int cell, int span) Key; }
 
@@ -48,7 +54,7 @@ static partial class Program
     static string debugRow, debugLine;
     static List<(double z, bool up)>[] rawHits;
     static V3 entranceMarker;
-    static int gapCells, skippedActions, stackedDoors, relaxedStairs, postCount, nextInstance;
+    static int gapCells, skippedActions, relaxedStairs, postCount, nextInstance;
     static readonly Dictionary<int, List<(double lo, double hi)>> postCells = new Dictionary<int, List<(double lo, double hi)>>();
     static bool openActions;
     static int routeStep = 24;
@@ -74,10 +80,9 @@ static partial class Program
             else if (args[a] == "--debug-row") debugRow = args[++a];
             else if (args[a] == "--debug-line") debugLine = args[++a]; // x0,y0,x1,y1,z0,z1: raw hits, spans, and faces along a line
             else if (args[a] == "--audit-points") a += 2;
-            else if (args[a] == "--no-walls" || args[a] == "--export-mesh" || args[a] == "--no-ceiling-relief") { }
+            else if (args[a] == "--no-walls" || args[a] == "--export-mesh" || args[a] == "--no-ceiling-relief" || args[a] == "--door-dump") { }
             else if (args[a] == "--texture-table") a++; // used by --export-mesh: six archives, comma separated
-            else if (args[a] == "--open-actions") openActions = true;
-            else if (args[a] == "--route-step") routeStep = int.Parse(args[++a]); // diagnostic: models jumping or climbing
+            else if (args[a] == "--open-actions") openActions = true;            else if (args[a] == "--route-step") routeStep = int.Parse(args[++a]); // diagnostic: models jumping or climbing
             else name = args[a];
         }
         if (name == null || outDir == null)
@@ -100,7 +105,30 @@ static partial class Program
         relaxedStairs = RelaxStairs();
         gapCells = CloseGaps();
         if (!args.Contains("--no-ceiling-relief")) RelieveCeilings();
-        ApplyDoors();
+        ApplyDoors(); // these spans become sight blockers only
+        if (args.Contains("--door-dump"))
+        {
+            foreach (var d in doors)
+                Console.WriteLine(FormattableString.Invariant($"DOORDUMP {d.Id} m{d.Model} b{d.Block} pivot {d.PivotX:F2},{d.PivotY:F2},{d.PivotZ:F2} rot {d.RxDeg:F1},{d.RyDeg:F1},{d.RzDeg:F1} local x {d.LocalMinX:F2}..{d.LocalMaxX:F2} y {d.LocalMinY:F2}..{d.LocalMaxY:F2} z {d.LocalMinZ:F2}..{d.LocalMaxZ:F2} world x {d.MinX:F1}..{d.MaxX:F1} y {d.MinY:F1}..{d.MaxY:F1} z {d.MinZ:F1}..{d.MaxZ:F1}"));
+            // Whether each side of a door has a dungeon block and source faces 24 units out from the panel.
+            double blockSide = BlockSide * PlayerScale.DoomUnitsPerDaggerfallUnit;
+            foreach (var d in doors)
+            {
+                double a = -d.RyDeg * Math.PI / 180, nx = -Math.Sin(a), ny = Math.Cos(a);
+                double cx = (d.MinX + d.MaxX) / 2, cy = (d.MinY + d.MaxY) / 2;
+                var sides = new[] { 1, -1 }.Select(s =>
+                {
+                    double x = cx + nx * s * 24, y = cy + ny * s * 24;
+                    bool inBlock = blockRects.Any(b => x >= b.Item2 && x < b.Item2 + blockSide && y >= b.Item3 && y < b.Item3 + blockSide);
+                    int faces = tris.Count(t => Math.Min(t.A.X, Math.Min(t.B.X, t.C.X)) <= x && Math.Max(t.A.X, Math.Max(t.B.X, t.C.X)) >= x
+                        && Math.Min(t.A.Y, Math.Min(t.B.Y, t.C.Y)) <= y && Math.Max(t.A.Y, Math.Max(t.B.Y, t.C.Y)) >= y
+                        && Math.Max(t.A.Z, Math.Max(t.B.Z, t.C.Z)) >= d.MinZ - 8 && Math.Min(t.A.Z, Math.Min(t.B.Z, t.C.Z)) <= d.MaxZ + 8);
+                    return $"block={(inBlock ? 1 : 0)},faces={faces}";
+                });
+                Console.WriteLine($"DOORSIDE {d.Id} {string.Join(" ", sides)}");
+            }
+            return 0;
+        }
         DumpLine("final");
         int auditAt = Array.IndexOf(args, "--audit-points"); // <old points file> <leak output>: audit another version's links, then exit
         if (auditAt >= 0) { AuditPointsFile(args[auditAt + 1], args[auditAt + 2]); return 0; }
@@ -219,13 +247,30 @@ static partial class Program
         double ry = -obj.Resources.ModelResource.YRotation / BlocksFile.RotationDivisor * toRad;
         double rz = -obj.Resources.ModelResource.ZRotation / BlocksFile.RotationDivisor * toRad;
         var position = new V3(obj.XPos, -obj.YPos, obj.ZPos) + offset;
-        DoorInfo door = isDoor ? new DoorInfo { Id = doors.Count, Block = block, MinX = 1e9, MinY = 1e9, MinZ = 1e9, MaxX = -1e9, MaxY = -1e9, MaxZ = -1e9 } : null;
+        DoorInfo door = null;
+        if (isDoor)
+        {
+            var pivot = ToDoom(position);
+            door = new DoorInfo
+            {
+                Id = doors.Count, Block = block, MinX = 1e9, MinY = 1e9, MinZ = 1e9, MaxX = -1e9, MaxY = -1e9, MaxZ = -1e9,
+                Model = id, PivotX = pivot.X, PivotY = pivot.Y, PivotZ = pivot.Z, RxDeg = rx / toRad, RyDeg = ry / toRad, RzDeg = rz / toRad,
+            };
+        }
         foreach (var sub in mesh.SubMeshes)
             foreach (var plane in sub.Planes)
             {
                 var pts = plane.Points.Select(p => ToDoom(Rotate(new V3(p.X, -p.Y, p.Z), rx, ry, rz) + position)).ToArray();
                 if (door != null)
                 {
+                    foreach (var q in plane.Points)
+                    {
+                        // Model space at Doom scale, before placement: x, Unity z (Doom y), height.
+                        var l = ToDoom(new V3(q.X, -q.Y, q.Z));
+                        door.LocalMinX = Math.Min(door.LocalMinX, l.X); door.LocalMaxX = Math.Max(door.LocalMaxX, l.X);
+                        door.LocalMinY = Math.Min(door.LocalMinY, l.Y); door.LocalMaxY = Math.Max(door.LocalMaxY, l.Y);
+                        door.LocalMinZ = Math.Min(door.LocalMinZ, l.Z); door.LocalMaxZ = Math.Max(door.LocalMaxZ, l.Z);
+                    }
                     foreach (var p in pts)
                     {
                         door.MinX = Math.Min(door.MinX, p.X); door.MaxX = Math.Max(door.MaxX, p.X);
@@ -787,7 +832,7 @@ static partial class Program
 
     static string Signature(List<Span> spans) => string.Join("|", spans.Select(s => $"{s.F}:{s.C}:{s.Door}"));
 
-    static (int sectors, int lines, int controls, int doorsUsed, int doorLineConflicts) WriteMap(string path, Node start, string points)
+    static (int sectors, int lines, int controls, int doorsUsed) WriteMap(string path, Node start, string points)
     {
         // Connected regions with the same vertical layout become one sector.
         var component = new int[width * height];
@@ -820,7 +865,7 @@ static partial class Program
         var lineText = new StringBuilder();
         var sideText = new StringBuilder();
         var sectorText = new StringBuilder();
-        int sides = 0, lines = 0, sectors = sectorSpans.Count, conflicts = 0;
+        int sides = 0, lines = 0, sectors = sectorSpans.Count;
 
         int nextTag = 1;
         var tagBySignature = new Dictionary<string, int>();
@@ -839,16 +884,7 @@ static partial class Program
         }
 
         int doorControlBase = nextTag + 1000;
-        // A line has one special, so doors stacked in one column share a control id and open together.
-        var parent = Enumerable.Range(0, doors.Count).ToArray();
-        int Find(int x) { while (parent[x] != x) x = parent[x] = parent[parent[x]]; return x; }
-        foreach (var spans in sectorSpans)
-        {
-            var inSector = spans.Where(x => x.Door >= 0).Select(x => x.Door).Distinct().ToList();
-            for (int k = 1; k < inSector.Count; k++) parent[Find(inSector[k])] = Find(inSector[0]);
-        }
-        foreach (var d in doors) d.Control = doorControlBase + Find(d.Id);
-        stackedDoors = doors.Count(d => Find(d.Id) != d.Id);
+        foreach (var d in doors) d.Control = doorControlBase + d.Id;
         int Side(int sector, bool twoSided)
         {
             sideText.Append(twoSided
@@ -856,21 +892,12 @@ static partial class Program
                 : $"sidedef {{ sector = {sector}; texturemiddle = \"STONE2\"; }}\n");
             return sides++;
         }
-        int DoorOf(int sector) { if (sector < 0) return -1; foreach (var x in sectorSpans[sector]) if (x.Door >= 0) return x.Door; return -1; }
         void Line(int x0, int y0, int x1, int y1, int front, int back)
         {
             // Sector "front" is on the right when walking from v1 to v2.
             if (front < 0) { (x0, y0, x1, y1) = (x1, y1, x0, y0); (front, back) = (back, front); }
             int v1 = Vertex(x0, y0), v2 = Vertex(x1, y1), sf = Side(front, back >= 0);
             string extra = back >= 0 ? $" sideback = {Side(back, true)}; twosided = true;" : " blocking = true;";
-            int doorA = DoorOf(front), doorB = DoorOf(back);
-            if (doorA >= 0 && doorB >= 0 && doorA != doorB) conflicts++;
-            int useDoor = doorA >= 0 ? doorA : doorB;
-            if (useDoor >= 0 && back >= 0)
-            {
-                var door = doors[useDoor];
-                extra += $" special = 254; arg0 = {door.Control}; arg1 = 32; playeruse = true;"; // Ceiling_LowerToFloor collapses the door slab
-            }
             lineText.Append($"linedef {{ v1 = {v1}; v2 = {v2}; sidefront = {sf};{extra} }}\n");
             lines++;
         }
@@ -910,7 +937,7 @@ static partial class Program
 
         // Control sectors for solid slabs between stacked rooms, and for closed doors.
         int controls = 0, controlX = minX, controlY = minY - 64;
-        void Control(int floor, int ceiling, int targetTag, int id)
+        void Control(int floor, int ceiling, int targetTag, int id, int type = 1, int alpha = 255)
         {
             int s = sectors++;
             sectorText.Append($"sector {{ heightfloor = {floor}; heightceiling = {ceiling}; texturefloor = \"FLOOR0_1\"; textureceiling = \"CEIL3_5\"; lightlevel = 176;{(id > 0 ? $" id = {id};" : "")} }}\n");
@@ -919,7 +946,7 @@ static partial class Program
             for (int e = 0; e < 4; e++)
             {
                 int side = Side(s, false);
-                string special = e == 0 ? $" special = 160; arg0 = {targetTag}; arg1 = 1; arg2 = 0; arg3 = 255;" : "";
+                string special = e == 0 ? $" special = 160; arg0 = {targetTag}; arg1 = {type}; arg2 = 0; arg3 = {alpha};" : "";
                 lineText.Append($"linedef {{ v1 = {v[e]}; v2 = {v[(e + 1) % 4]}; sidefront = {side}; blocking = true;{special} }}\n");
                 lines++;
             }
@@ -939,7 +966,8 @@ static partial class Program
                 door.Height = top - span.F;
                 // Each door may cover several layouts. Only the first control sector keeps the door id,
                 // so give the others the same id through a shared tag value.
-                Control(span.F, top, tag, door.Control);
+                // Type 3 (non-solid, shoot-through) + 16 (not see-through): blocks sight only. Collision is the door object.
+                Control(span.F, top, tag, door.Control, 19, 0);
                 usedDoors.Add(door.Id);
             }
         }
@@ -951,8 +979,9 @@ static partial class Program
 
         var doorList = new StringBuilder();
         foreach (var id in usedDoors) doorList.Append($"D {doors[id].Control} {doors[id].Height} {doors[id].Block}\n");
+        foreach (var d in doors) doorList.Append($"DC {d.Id} {d.Control}\n"); // door order matches DFDOORS
         WriteWad(path, map.ToString(), points + doorList);
-        return (sectorSpans.Count, lines, controls, usedDoors.Count, conflicts);
+        return (sectorSpans.Count, lines, controls, usedDoors.Count);
     }
 
     static int BaseFloor(Node n)
@@ -1075,7 +1104,7 @@ static partial class Program
     }
 
     static void WriteStats(string path, string name, DFLocation location, List<Node> nodes, List<(int a, int b, bool door)> edges, int start, int walled,
-        (int sectors, int lines, int controls, int doorsUsed, int doorLineConflicts) map)
+        (int sectors, int lines, int controls, int doorsUsed) map)
     {
         int open = grid.Count(g => g.Count > 0), stacked = grid.Count(g => g.Count > 1), maxStack = grid.Max(g => g.Count);
         var adjacency = edges.ToLookup(e => e.a, e => e.b);
@@ -1092,7 +1121,7 @@ static partial class Program
         text.AppendLine($"open cells: {open}");
         text.AppendLine($"vertically stacked cells: {stacked} ({100.0 * stacked / Math.Max(1, open):F1}%), max layers {maxStack}");
         text.AppendLine($"spans removed by walls: {walled}, gap spans added: {gapCells}, stair floors adjusted: {relaxedStairs}, solid posts: {postCount}");
-        text.AppendLine($"door models: {doors.Count}, placed in map: {map.doorsUsed}, line conflicts: {map.doorLineConflicts}, sharing a control with a stacked door: {stackedDoors}");
+        text.AppendLine($"door models: {doors.Count}, with a sight blocker in map: {map.doorsUsed}");
         text.AppendLine($"sectors: {map.sectors}, control sectors: {map.controls}, lines: {map.lines}");
         text.AppendLine($"test nodes: {nodes.Count}, directed edges: {edges.Count}");
         text.AppendLine($"nodes reachable from entrance in source model: {seen.Count} ({100.0 * seen.Count / Math.Max(1, nodes.Count):F1}%)");
