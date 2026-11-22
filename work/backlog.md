@@ -32,6 +32,51 @@ Test in this order on Privateer's Hold, stopping if a stage fails:
 
 **Status 2026-11-22:** stage 1 is the current task, with an F1 toggle between Daggerfall mesh view and Doom collider view. Compatibility for now is `DOOM.WAD` E1M1 only. DRLA is not in scope yet. The owner started this run directly, so later stages wait for review.
 
+## Next: Daggerfall player and collision parity (owner direction, 2026-11-22)
+
+Do this before sloped movement collision, so later collision work has a reliable test. The owner's play-test found that the Doom player is much too short, some ceilings block places Daggerfall allows, some doorways become solid, and conversion results feel unpredictable.
+
+**Source values to confirm at runtime** (`PlayerAdvanced.prefab`, `PlayerHeightChanger.cs`, 1 m = 40 Doom units):
+
+| | Daggerfall Unity | Doom default |
+|---|---:|---:|
+| Standing height | 1.8 m = 72 | 56 |
+| Eye height | 1.71 m = about 68 | 41 |
+| Crouch height | 0.9 m = 36 | 28 |
+| Radius | 0.35 m = 14, round capsule | 16, square box |
+| Step height | 0.5 m = 20 | 24 |
+
+1. **Measure both players.** Spawn a real player in DFU and in UZDoom, then record height, eye height, crouch height, radius, step height, and collision shape. Check whether race or settings change the DFU values.
+2. **Apply Daggerfall's player size on Daggerfall maps only.** Prefer a lightweight event handler in the generated package that adjusts the current player class, instead of replacing it, so mods keep working. Restore normal values on regular maps. Verify standing, crouching, view height, and `DOOM.WAD` E1M1.
+3. **Build a two-way movement parity test.** From seeded random legal positions plus the entrance, flood fill movement with the real DFU capsule and the real Doom player collision on the same grid. Report:
+   - **False walls:** Daggerfall can move there and Doom cannot.
+   - **False openings:** Doom can move there and Daggerfall cannot.
+   - Separate results for standing and crouching, doors open and closed, and ceilings, doorways, steps, and narrow gaps. Save the worst cases with coordinates and side-by-side images.
+4. **Fix the converter using that test.** Make ceiling and doorway handling use Daggerfall's player shape. Raise collision detail only where it measurably helps, such as doorways, lintels, and angled ceilings, because detail everywhere increases map size. Doorways must not become solid unless Daggerfall blocks them.
+5. **Run on Privateer's Hold, then Scourg Barrow.** Keep the test as a repeatable check for future converter changes.
+6. **Simple bullet check.** Fire a small seeded sample at random walls and measure whether Doom's impact lands on the visible Daggerfall surface. Keep this and the parity test short.
+
+**Status 2026-11-22:** player scale layer, parity test, bullet check, and first ceiling fix are on branch `agent/20261122-070408`, not yet on `integration`. That branch accidentally tracks two `__pycache__` files, which must be removed before merging. Large mismatches remain: Privateer's Hold has 1,947 standing false walls with doors open, and fewer than half of test shots land on the visible surface. The 87.5% demo is at `D:\dev\DoomDaggerfall-loop\review\scale-demo-875`. Its monster route check was inconclusive and should not be treated as proof that large monsters fit.
+
+Any new Unity capture build must restore tracked generated files before work is saved. The size of Doom monsters relative to the taller player remains an owner judgment after play-testing.
+
+## Next after parity: compromise scale demo (owner approved, 2026-11-22)
+
+When the parity run finishes and is reviewed, generate a playable Privateer's Hold demo with Doom monsters at Daggerfall's 42 enemy markers using:
+
+- World scale 87.5%, chosen over 90% because terrain tiles stay exactly 224 units.
+- Player height 60, eye height 56, step height 20, on Daggerfall maps only.
+- Player collision width must match Daggerfall's measured width at world scale. If the runtime radius is confirmed as 14, use 12.25 at 87.5% (24.5 wide). Doom's collision is a square box and Daggerfall's is a round capsule, so check doorways, corners, and diagonal gaps with the parity test.
+- Stock player speed, monsters, and regular Doom maps.
+
+Check that it loads, that the player and monsters fit through the main routes, and that `DOOM.WAD` E1M1 stays normal. This is a feel test for the owner, not a final scale decision.
+
+## Future: Daggerfall traversal limits on steep surfaces
+
+Doom currently lets the player walk up very steep hills and surfaces without limit. The player should be blocked, slide, or need Daggerfall's climbing wherever Daggerfall would require it. The main goal is removing unlimited surface climbing, not only adding a climbing move.
+
+When this task starts, research Daggerfall Unity's real behavior first: which surfaces the player can walk up, when they slide or get blocked, and when climbing starts, continues, or fails, including skill checks. Start with `FrictionMotor.cs`, `ClimbingMotor.cs`, and the player's slope limit. Then design the Doom behavior with the owner. Do not implement it before that research.
+
 ## Future: Locked doors with Daggerfall's requirements
 
 Doors that were locked in Daggerfall must have the same requirements in Doom. A door that required lockpicking or a key must still require it.

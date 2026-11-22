@@ -5,6 +5,7 @@ Exits with the program's exit code, or 124 if it timed out.
 """
 import argparse
 import ctypes
+import os
 import subprocess
 import sys
 import time
@@ -57,7 +58,10 @@ def main():
     startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
     startup.wShowWindow = SW_SHOWMINNOACTIVE
     previous = user32.GetForegroundWindow()
-    process = subprocess.Popen(argv[split + 1:], cwd=options.cwd, startupinfo=startup)
+    command = argv[split + 1:]
+    if os.path.basename(command[0]).lower() in ("uzdoom", "uzdoom.exe"):
+        command[1:1] = ["+vid_fullscreen", "0"]
+    process = subprocess.Popen(command, cwd=options.cwd, startupinfo=startup)
     print(f"quiet_run: pid {process.pid}", file=sys.stderr, flush=True)
 
     deadline = time.monotonic() + options.timeout if options.timeout else None
