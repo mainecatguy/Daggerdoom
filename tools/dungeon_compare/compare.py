@@ -43,13 +43,14 @@ def read_views(path):
     return views
 
 
-def capture_daggerfall(views, out, eye, exe, timeout):
+def capture_daggerfall(views, out, eye, exe, timeout, dungeon="Privateer's Hold", flood=True):
     job = os.path.join(out, "df_job.txt")
     with open(job, "w", encoding="utf-8", newline="\n") as f:
-        f.write(f"dungeon\tPrivateer's Hold\nout\t{out}\ndaggerfall\t{DAGGERFALL}\nsize\t{WIDTH}\t{HEIGHT}\nvfov\t{VERTICAL_FOV}\n")
+        f.write(f"dungeon\t{dungeon}\nout\t{out}\ndaggerfall\t{DAGGERFALL}\nsize\t{WIDTH}\t{HEIGHT}\nvfov\t{VERTICAL_FOV}\n")
         # The first viewpoint must be the entrance: the collision flood fill starts there.
         # The flood's position key rounds to even, so a start on a cell center (8 mod 16) merges neighboring cells.
-        f.write(f"flood\t{views[0]['x'] + 4}\t{views[0]['y'] + 4}\t{views[0]['floor']}\n")
+        if flood:
+            f.write(f"flood\t{views[0]['x'] + 4}\t{views[0]['y'] + 4}\t{views[0]['floor']}\n")
         for v in views:
             f.write(f"view\t{v['id']}\t{v['x']}\t{v['y']}\t{v['floor'] + eye}\t{v['yaw']}\t{v['pitch']}\n")
     result = os.path.join(out, "df_probes.txt")
@@ -185,7 +186,13 @@ def main():
     parser.add_argument("--timeout", type=int, default=300)
     parser.add_argument("--skip-df", action="store_true", help="reuse existing Daggerfall captures")
     parser.add_argument("--skip-doom", action="store_true", help="reuse existing UZDoom captures")
+    parser.add_argument("--dungeon", default="Privateer's Hold")
+    parser.add_argument("--no-flood", action="store_true", help="capture views only")
+    parser.add_argument("--uzdoom", help="UZDoom executable to use")
     args = parser.parse_args()
+    if args.uzdoom:
+        global UZDOOM
+        UZDOOM = args.uzdoom
 
     out = os.path.abspath(args.out)
     if (os.path.normcase(out) + os.sep).startswith(os.path.normcase(REPO) + os.sep):
@@ -194,7 +201,7 @@ def main():
     views = read_views(args.views)
 
     df = parse_probes(os.path.join(out, "df_probes.txt"), "PROBE") if args.skip_df else \
-        capture_daggerfall(views, out, args.eye, os.path.abspath(args.exe), args.timeout)
+        capture_daggerfall(views, out, args.eye, os.path.abspath(args.exe), args.timeout, args.dungeon, not args.no_flood)
     doom = parse_probes(os.path.join(out, "log-doomcap.txt"), "DFPROBE") if args.skip_doom else \
         capture_doom(views, out, args.eye, os.path.abspath(args.map), args.timeout)
 

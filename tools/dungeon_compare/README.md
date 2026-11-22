@@ -24,6 +24,15 @@ python tools/dungeon_compare/flood_report.py <out>\map\privateershold.points.txt
 
 Open `<out>\compare\index.html` to review. Daggerfall is on the left and UZDoom is on the right. `probes.csv` holds the distances. `--skip-df` and `--skip-doom` reuse an existing capture.
 
+## Movement parity and bullet check
+
+```powershell
+python tools/dungeon_compare/parity.py "Privateer's Hold" --out <out> [--baseline] [--unity-flood <df_flood_walk.txt>] [--world-scale 1.0]
+python tools/dungeon_compare/player_check.py --map <out>\privateershold.wad --player <out>\privateershold_player.pk3 --out <out>\player
+```
+
+Writes `parity.csv`, `bullets.txt`, `worst_views.txt`, and `frontier.txt` under `<out>\parity`. `--baseline` turns off the ceiling fix. Pass `worst_views.txt` to `compare.py` with `--no-flood` for side-by-side images.
+
 ## Viewpoint file
 
 One viewpoint per line: `id | kind | x y floor yaw pitch | note`. The first viewpoint must be the entrance, because the flood fill starts there. Use cell centers (8 mod 16), since probes along exact grid lines can slip between map lines.
