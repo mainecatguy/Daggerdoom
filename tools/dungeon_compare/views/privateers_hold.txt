@@ -1,0 +1,14 @@
+# id | kind | x y floor yaw pitch | note
+# Map units: x = Daggerfall X, y = Daggerfall Z, floor = -Daggerfall Y. Yaw is Doom degrees (0 east, 90 north). Positive pitch looks down.
+v01_entrance   | entrance    | 1136 496 1536 90 0    | converter start node
+v02_room       | room        | 1552 624 1024 180 0   | largest open room in the main block
+v03_corridor   | corridor    | 912 624 512 180 0     | long narrow run
+v04_door       | door        | 752 656 1792 0 0      | door-tagged node
+v05_stairs     | stairs      | 1264 1264 768 0 0     | largest measured rise
+v06_stack_low  | stacked     | 752 336 256 0 0       | lowest level of a five-level column
+v07_stack_high | stacked     | 752 336 1792 0 30     | top level of the same column, looking down
+v08_cut_north  | unreachable | 816 3088 512 180 0    | largest cut-off area, 826 nodes, block 4
+v09_cut_east   | unreachable | 2928 1680 700 270 0   | cut-off area, 544 nodes, block 3
+v10_cut_ne     | unreachable | 656 3792 1236 90 0    | cut-off area, 454 nodes, block 4
+v11_cut_south  | unreachable | 464 -944 512 180 0    | cut-off area, 401 nodes, block 2
+v12_cut_dome   | unreachable | 496 1424 0 90 0       | cut-off area near the Enter marker, 114 nodes
