@@ -87,6 +87,14 @@ Doors that were locked in Daggerfall must have the same requirements in Doom. A 
 - Verify with real locked, unlocked, lockpick, and key cases, including saving and reloading after a door is unlocked.
 - Depends on the swinging door work and the engine-sync contract. Any other way past a lock, such as bashing or magic, follows Daggerfall's rules unless the owner decides otherwise.
 
+## Future: Experiment with doors that swing in both directions
+
+Generated actor-based swinging doors, like those in Privateer's Hold, currently swing one way. Run an experiment on having them open in both directions. Do not start until the owner asks. The owner will judge the result by play-testing.
+
+## Future: True angled walls in movement collision
+
+The converter builds movement collision on a grid (12-unit cells at 75% scale), so angled Daggerfall walls become small stairsteps in the invisible collision. The owner wants these to be real straight lines at their true angle. Doom sectors support any angle. Check the effect on stacked rooms, sliver sectors, node building, swinging doors, and the player's square collision box against diagonal walls.
+
 ## 1. Dungeon conversion
 
 The engineering approach is open, including UZDoom's 3D floors and other multi-level features, portals, multiple levels, or a map extension. The owner expects teleporters not to work as the general solution, because a converter cannot reliably place them for cases like an open pit with doors on several levels.
