@@ -67,6 +67,9 @@ def main():
     if os.path.exists(log):
         os.remove(log)
     doom_started = time.time()
+    # A private config keeps this launch windowed from the first frame, so it cannot interrupt the owner.
+    with open(os.path.join(parity, "doom.ini"), "w", newline="\n") as f:
+        f.write("[GlobalSettings]\nqueryiwad=false\nvid_fullscreen=false\nwin_maximized=false\n")
     startup = subprocess.STARTUPINFO()
     startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
     startup.wShowWindow = SW_SHOWMINNOACTIVE

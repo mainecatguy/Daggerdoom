@@ -291,6 +291,8 @@ static partial class Program
                     under.Add(s);
                 }
             if (!covered) continue;
+            // Only the mismatch between neighboring cells is relieved. A cell too low on its own is a real low ceiling.
+            if (under.Any(s => s.C - s.F < h)) continue;
             int top = under.Max(s => s.F), target = (int)Math.Ceiling((top + h) / ZQuant) * ZQuant;
             if (under.Min(s => s.C) >= target || target - under.Min(s => s.C) > MaxCeilingRelief) continue;
             foreach (var s in under)

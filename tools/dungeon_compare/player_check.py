@@ -23,12 +23,15 @@ def run(name, iwad, files, level, extra, out):
     log = os.path.join(folder, "log-check.txt")
     if os.path.exists(log):
         os.remove(log)
+    # A private config keeps this launch windowed from the first frame, so it cannot interrupt the owner.
+    with open(os.path.join(folder, "doom.ini"), "w", newline="\n") as f:
+        f.write("[GlobalSettings]\nqueryiwad=false\nvid_fullscreen=false\nwin_maximized=false\n")
     startup = subprocess.STARTUPINFO()
     startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
     startup.wShowWindow = SW_SHOWMINNOACTIVE
     process = subprocess.Popen([UZDOOM, "-iwad", os.path.join(WADS, iwad), "-file", *files, os.path.join(HERE, "player_check_doom"),
                                 "-config", os.path.join(folder, "doom.ini"), "-noactivate", "-nosound", "-nomonsters", "-skill", "3",
-                                "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0",
+                                "+vid_fullscreen", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0",
                                 *extra, "+logfile", "check", "+map", level, "+exec", "check.cfg"],
                                cwd=folder, startupinfo=startup, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:

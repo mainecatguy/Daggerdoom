@@ -1,9 +1,8 @@
 # Daggerfall player size and collision parity results
 
-**Result: partly complete.** The player-size layer, scale value, parity test, and bullet check work. The converter fix halves standing false walls with doors open in Privateer's Hold. Two requirements are not fully met:
+**Result: complete except for one measurement.** The player-size layer, scale value, parity test, and bullet check work. The converter fix halves standing false walls with doors open in Privateer's Hold and opens no new collision space in either dungeon.
 
-1. **The fix adds 7 real false-opening positions in Scourg Barrow** (of 10,729 standing, doors open). Privateer's Hold has none.
-2. **Daggerfall's crouch height and eye height were not measured at runtime.** They come from source constants. Radius, standing height, step, and slope were read from the live controller.
+**Not met:** Daggerfall's crouch height and eye height were not measured at runtime. They come from source constants. Radius, standing height, step, and slope were read from the live controller. Measuring the rest needs one Unity build, and this session could not confirm that Unity is closed.
 
 No human has played these maps. Review images: `D:\dev\DoomDaggerfall-loop\review\collision-parity\worst_privateers\index.html` and `...\worst_scourg\index.html` (Daggerfall left, UZDoom right). Generated output, not committed.
 
@@ -36,13 +35,13 @@ Positions on a 16-unit grid, from the entrance plus 24 seeded random legal posit
 
 | Dungeon | Mode | False walls before | after | False openings before | after |
 |---|---|---:|---:|---:|---:|
-| Privateer's Hold | Standing, doors closed | 3,143 | 2,208 | 230 | 234 |
+| Privateer's Hold | Standing, doors closed | 3,143 | 2,209 | 230 | 234 |
 | | Crouching, doors closed | 2,603 | 2,603 | 262 | 262 |
-| | Standing, doors open | 3,871 | 1,938 | 331 | 374 |
+| | Standing, doors open | 3,871 | 1,947 | 331 | 374 |
 | | Crouching, doors open | 2,453 | 2,453 | 386 | 386 |
-| Scourg Barrow | Standing, doors closed | 7,642 | 5,985 | 11,380 | 11,381 |
+| Scourg Barrow | Standing, doors closed | 7,642 | 6,080 | 11,380 | 11,380 |
 | | Crouching, doors closed | 8,254 | 8,254 | 3,535 | 3,535 |
-| | Standing, doors open | 10,816 | 7,177 | 10,828 | 10,845 |
+| | Standing, doors open | 10,816 | 7,307 | 10,828 | 10,838 |
 | | Crouching, doors open | 9,741 | 9,741 | 11,343 | 11,343 |
 
 Each run's `parity.csv` splits these by ceiling, doorway, step, and narrow gap. "Narrow gap" is the catch-all, and it holds most mismatches.
@@ -50,7 +49,7 @@ Each run's `parity.csv` splits these by ceiling, doorway, step, and narrow gap. 
 **New standing false openings.** I asked UZDoom whether a standing body already fit at each new position on the unfixed map.
 
 - Privateer's Hold: 43 new positions, all 43 already fit. The fix only made them reachable.
-- Scourg Barrow: 17 new positions, 10 already fit. **7 did not.** They have 68 units of clearance, and the 4-unit ceiling raise lets a 72-unit body in.
+- Scourg Barrow: 10 new positions, all 10 already fit. An earlier version of the fix opened 7 real positions with 68 units of clearance. The final rule leaves a cell alone when it is too low by itself.
 
 **Trust in the Daggerfall side.** The offline flood matched the real Unity capture on Privateer's Hold, standing with doors open: 34,601 positions each, with 3 differing. Crouching, closed doors (modeled as the door's bounding box), and Scourg Barrow were not validated against Unity.
 
@@ -67,7 +66,7 @@ Fewer than half of Doom's impacts land on the visible surface. The worst shots a
 
 ## Converter changes
 
-- **Ceiling relief.** Doom's square body rests on the highest floor under it and is limited by the lowest ceiling over it. At the foot of stairs this left 68 units for a 72-unit body. Where a legal Daggerfall body stands, the collision ceiling now rises by at most 4 units. `--ceiling-relief <n>` changes the limit, and `--no-ceiling-relief` disables it.
+- **Ceiling relief.** Doom's square body rests on the highest floor under it and is limited by the lowest ceiling over it. At the foot of stairs this left 68 units for a 72-unit body. Where a legal Daggerfall body stands, and every cell under it is tall enough by itself, the collision ceiling rises by at most 4 units. `--ceiling-relief <n>` changes the limit, and `--no-ceiling-relief` disables it.
 - **Scale.** Geometry, block rectangles, mesh export, cell size, and thresholds derive from the one scale value.
 - Weapons, doors, slopes, monsters, and engine source were not changed.
 
@@ -80,11 +79,14 @@ Fewer than half of Doom's impacts land on the visible surface. The worst shots a
 
 ## Remaining mismatches
 
-1. The 7 new Scourg Barrow false openings above.
-2. Scourg Barrow's largest false opening covers 8,077 positions with doors closed (`w01`, near 1448, -4712, floor 512). It predates this work and I did not find its cause.
-3. Most remaining false walls are "narrow gap" cases along walls, where the 16-unit staircase and Doom's square body lose space.
-4. A 685-position false wall in Privateer's Hold near 1176, 3896, floor 512.
-5. Crouching did not improve. The ceiling fix only affects standing clearance.
+1. Scourg Barrow's largest false opening covers 8,077 positions with doors closed (`w01`, near 1448, -4712, floor 512). It predates this work and I did not find its cause.
+2. Most remaining false walls are "narrow gap" cases along walls, where the 16-unit staircase and Doom's square body lose space.
+3. A 685-position false wall in Privateer's Hold near 1176, 3896, floor 512.
+4. Crouching did not improve. The ceiling fix only affects standing clearance.
+
+## Launch safety
+
+An earlier version of `parity.py` could open UZDoom full screen and interrupted the owner. `parity.py` and `player_check.py` now write a windowed private config and pass `+vid_fullscreen 0`.
 
 ## Run times
 
