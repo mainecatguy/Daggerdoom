@@ -26,7 +26,7 @@ Standing with doors open, false openings rose from 817 to 1067 and false walls f
 
 Door test: real `+use`, then real `TryMove` with a 21-wide, 56-tall test body, all 58 door controls, from both sides of each door's main face.
 
-- Every tested door face is at least 48 wide, so none is too narrow for 21 wide.
+- The narrowest tested door face is 24 units, so none is narrower than the 21-wide body.
 - 46 of 58 doors pass in both directions.
 - 12 do not pass. Each stops at a solid wall at a block seam: (-1524,480,960) (-1524,1056,384) (-480,12,384) (12,-1056,960) (12,-480,384) (12,2016,960) (12,2592,384) (1056,-1524,384) (2592,12,384) (480,-1524,960) (-1056,12,960) (2016,12,960). For (-1056,12,960), the source geometry has no floor or ceiling behind the door, so it is a dead-end door there. The other 11 were not checked against the source.
 - **Use opens each door from only one side.** All 58 opened from the line's front side (+X or +Y) and none from the back. Door lines set `playeruse` but not `playeruseback`. This was not changed, per the scope instruction.
