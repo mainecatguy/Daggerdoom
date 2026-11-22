@@ -16,7 +16,7 @@ struct V3
     public static V3 operator +(V3 a, V3 b) => new V3(a.X + b.X, a.Y + b.Y, a.Z + b.Z);
 }
 
-struct Tri { public V3 A, B, C, N; public uint Model; }
+struct Tri { public V3 A, B, C, N; public uint Model; public int Instance; }
 class Span { public int F, C, Door = -1; }
 class DoorInfo { public int Id, Block; public double MinX, MaxX, MinY, MaxY, MinZ, MaxZ; public int Control, Height; }
 class Node { public int Id, I, J, F, C, Block; public bool Door; }
@@ -34,7 +34,8 @@ static class Program
     static string debugRow, debugLine;
     static List<(double z, bool up)>[] rawHits;
     static V3 entranceMarker;
-    static int gapCells, skippedActions, stackedDoors, relaxedStairs;
+    static int gapCells, skippedActions, stackedDoors, relaxedStairs, postCount, nextInstance;
+    static readonly Dictionary<int, List<(double lo, double hi)>> postCells = new Dictionary<int, List<(double lo, double hi)>>();
     static bool openActions;
     static int routeStep = StepHeight;
     static List<Span>[] grid;
@@ -72,6 +73,7 @@ static class Program
         BuildGrid();
         DumpLine("grid");
         int walled = args.Contains("--no-walls") ? 0 : ApplyWalls();
+        if (!args.Contains("--no-walls")) ApplyPosts();
         DumpLine("walls");
         relaxedStairs = RelaxStairs();
         gapCells = CloseGaps();
@@ -182,6 +184,7 @@ static class Program
         int record = arch.GetRecordIndex(id);
         if (record < 0) return;
         var mesh = arch.GetMesh(record);
+        int instance = nextInstance++;
         const double toRad = Math.PI / 180;
         double rx = -obj.Resources.ModelResource.XRotation / BlocksFile.RotationDivisor * toRad;
         double ry = -obj.Resources.ModelResource.YRotation / BlocksFile.RotationDivisor * toRad;
@@ -208,7 +211,7 @@ static class Program
                 if (length < 1e-6) continue;
                 normal = new V3(normal.X / length, normal.Y / length, normal.Z / length);
                 for (int i = 1; i + 1 < pts.Length; i++)
-                    tris.Add(new Tri { A = pts[0], B = pts[i], C = pts[i + 1], N = normal, Model = id });
+                    tris.Add(new Tri { A = pts[0], B = pts[i], C = pts[i + 1], N = normal, Model = id, Instance = instance });
             }
         if (door != null) doors.Add(door);
     }
@@ -308,6 +311,50 @@ static class Program
         }
         return removed;
     }
+
+    // Bars and posts can be thinner than a cell and miss every sample line. Each separate piece of a model
+    // with a footprint of at most one cell and at least waist height makes the cell at its center solid.
+    static void ApplyPosts()
+    {
+        foreach (var model in tris.GroupBy(t => t.Instance))
+        {
+            var parent = new Dictionary<(int, int, int), (int, int, int)>();
+            (int, int, int) Key(V3 p) => ((int)Math.Round(p.X), (int)Math.Round(p.Y), (int)Math.Round(p.Z));
+            (int, int, int) Find((int, int, int) x)
+            {
+                if (!parent.ContainsKey(x)) parent[x] = x;
+                while (!parent[x].Equals(x)) x = parent[x] = parent[parent[x]];
+                return x;
+            }
+            foreach (var t in model)
+            {
+                var a = Find(Key(t.A));
+                parent[Find(Key(t.B))] = a;
+                parent[Find(Key(t.C))] = a;
+            }
+            foreach (var piece in model.GroupBy(t => Find(Key(t.A))))
+            {
+                var p = piece.SelectMany(t => new[] { t.A, t.B, t.C }).ToList();
+                double x0 = p.Min(v => v.X), x1 = p.Max(v => v.X), y0 = p.Min(v => v.Y), y1 = p.Max(v => v.Y), lo = p.Min(v => v.Z), hi = p.Max(v => v.Z);
+                if (x1 - x0 > cell || y1 - y0 > cell || hi - lo < 40) continue;
+                int c = Index((int)Math.Floor(((x0 + x1) / 2 - minX) / cell), (int)Math.Floor(((y0 + y1) / 2 - minY) / cell));
+                postCount++;
+                if (!postCells.TryGetValue(c, out var list)) postCells[c] = list = new List<(double, double)>();
+                list.Add((lo, hi));
+                var spans = grid[c];
+                for (int s = spans.Count - 1; s >= 0; s--)
+                {
+                    if (Math.Min(spans[s].C, hi) - Math.Max(spans[s].F, lo) <= 8) continue;
+                    var kept = SubtractWalls(spans[s], new List<(double lo, double hi)> { (lo, hi) });
+                    spans.RemoveAt(s);
+                    spans.InsertRange(s, kept);
+                }
+            }
+        }
+    }
+
+    static bool PostBlocks(int c, int f, int top) =>
+        postCells.TryGetValue(c, out var list) && list.Any(w => Math.Min(top, w.hi) - Math.Max(f, w.lo) > 8);
 
     // A thin beam or lintel has faces on both sides of one cell boundary, which would lower the ceiling of
     // both cells. It only needs to occupy the cell nearer its middle. Walls reaching the floor are not affected.
@@ -549,7 +596,7 @@ static class Program
                                 for (int k = 1; k < gap; k++)
                                 {
                                     int m = Index(i + di * k, j + dj * k);
-                                    if (grid[m].All(x => x.C <= f || x.F >= c)) additions[(m, f, c)] = new Span { F = f, C = c };
+                                    if (grid[m].All(x => x.C <= f || x.F >= c) && !PostBlocks(m, f, c)) additions[(m, f, c)] = new Span { F = f, C = c };
                                 }
                             break;
                         }
@@ -1008,7 +1055,7 @@ static class Program
         text.AppendLine($"grid: {width}x{height} cells of {cell} units");
         text.AppendLine($"open cells: {open}");
         text.AppendLine($"vertically stacked cells: {stacked} ({100.0 * stacked / Math.Max(1, open):F1}%), max layers {maxStack}");
-        text.AppendLine($"spans removed by walls: {walled}, gap spans added: {gapCells}, stair floors adjusted: {relaxedStairs}");
+        text.AppendLine($"spans removed by walls: {walled}, gap spans added: {gapCells}, stair floors adjusted: {relaxedStairs}, solid posts: {postCount}");
         text.AppendLine($"door models: {doors.Count}, placed in map: {map.doorsUsed}, line conflicts: {map.doorLineConflicts}, sharing a control with a stacked door: {stackedDoors}");
         text.AppendLine($"sectors: {map.sectors}, control sectors: {map.controls}, lines: {map.lines}");
         text.AppendLine($"test nodes: {nodes.Count}, directed edges: {edges.Count}");

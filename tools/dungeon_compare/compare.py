@@ -48,7 +48,8 @@ def capture_daggerfall(views, out, eye, exe, timeout):
     with open(job, "w", encoding="utf-8", newline="\n") as f:
         f.write(f"dungeon\tPrivateer's Hold\nout\t{out}\ndaggerfall\t{DAGGERFALL}\nsize\t{WIDTH}\t{HEIGHT}\nvfov\t{VERTICAL_FOV}\n")
         # The first viewpoint must be the entrance: the collision flood fill starts there.
-        f.write(f"flood\t{views[0]['x']}\t{views[0]['y']}\t{views[0]['floor']}\n")
+        # The flood's position key rounds to even, so a start on a cell center (8 mod 16) merges neighboring cells.
+        f.write(f"flood\t{views[0]['x'] + 4}\t{views[0]['y'] + 4}\t{views[0]['floor']}\n")
         for v in views:
             f.write(f"view\t{v['id']}\t{v['x']}\t{v['y']}\t{v['floor'] + eye}\t{v['yaw']}\t{v['pitch']}\n")
     result = os.path.join(out, "df_probes.txt")
