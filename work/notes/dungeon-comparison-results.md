@@ -61,7 +61,7 @@ I did not diagnose the root cause of defects 1 and 2. Both look like the wall an
 For the other cut-off areas, the answer is **not proven**. A flood fill over Daggerfall's real collision, with doors open and a rise of up to 48 units per step, reached 90.9% of the converter's main area and none of those other areas. That is consistent with them being sealed, but it has three weaknesses:
 
 - It leaked through the floor at v15, so its collision is imperfect.
-- It did not find the v16 tunnel route on its own. It entered the cave through that leak.
+- It first entered the campfire cave through that leak, so it does not show that a player can walk the v16 tunnel from end to end.
 - Moving objects stay at their start position, so any route that depends on them is invisible. How they should work remains an open owner decision.
 
 Since the converter closed two real openings, the same defect may be hiding others. The next run should fix it and then re-measure reachability.
@@ -79,6 +79,11 @@ v10 also shows a door-shaped hole to empty space at the dungeon's edge in Dagger
 ## Isolation
 
 Daggerfall ran from a separately named portable build. Its settings, saves, and logs were written to the build's `PortableAppdata` folder. I did not launch the build without `-dfcapture`. The code returns immediately when the flag is absent.
+
+Two things remain unchecked or uncleaned:
+
+- My read-only query of the Windows registry was denied, so I did not directly confirm that the owner's Daggerfall Unity registry entries are unchanged. The separate product name is designed to keep them apart.
+- The Unity build modified five tracked files: three Addressables group assets, `addressables_content_state.bin`, and `ProjectSettings.asset`. My command to restore them was denied, so they are still modified in the worktree. They are not committed and should be discarded.
 
 ## Owner review list
 

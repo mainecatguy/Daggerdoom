@@ -48,6 +48,7 @@ Block offsets of 2048 units are already part of `X` and `Z`. The dungeon root wa
 
 ## Limits
 
+- `compare.py` currently requests Privateer's Hold by name, so another dungeon needs a small script change.
 - Lighting is deliberately flat in both engines, and the converted map uses placeholder textures. Compare shapes, not appearance.
 - A minimized UZDoom renders only 320x200, so it runs unminimized at an off-screen position without taking focus.
 - Probes are single rays. A ray can pass through a one-sided Daggerfall face, so confirm a mismatch in the image.
