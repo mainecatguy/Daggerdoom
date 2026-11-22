@@ -1,7 +1,7 @@
 """Two-way Daggerfall/Doom movement parity and bullet check for one converted dungeon.
 
 Usage: python tools/dungeon_compare/parity.py "Privateer's Hold" --out <dir outside the repo>
-           [--unity-flood <df_flood_walk.txt>] [--world-scale 1.0] [--daggerfall-player] [--uzdoom <exe>] [--timeout 180]
+           [--unity-flood <df_flood_walk.txt>] [--world-scale 0.75] [--daggerfall-player] [--uzdoom <exe>] [--timeout 180]
 
 Writes parity.csv, bullets.txt, worst_views.txt, and unity_validation.txt under <out>/parity.
 """
@@ -36,7 +36,7 @@ def main():
     parser.add_argument("dungeon")
     parser.add_argument("--out", required=True)
     parser.add_argument("--unity-flood")
-    parser.add_argument("--world-scale", type=float, default=1.0)
+    parser.add_argument("--world-scale", type=float, default=0.75)
     parser.add_argument("--daggerfall-player", action="store_true", help="test the opt-in Daggerfall-size body instead of stock Doom")
     parser.add_argument("--uzdoom", default=UZDOOM)
     parser.add_argument("--timeout", type=int, default=180)

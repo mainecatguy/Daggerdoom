@@ -269,12 +269,15 @@ def main():
     parser.add_argument("--width", type=int, default=960)
     parser.add_argument("--height", type=int, default=720)
     parser.add_argument("--timeout", type=int, default=240)
+    parser.add_argument("--world-scale", type=float, default=0.75, help="scale the map was converted at")
     args = parser.parse_args()
     out = os.path.abspath(args.out)
     if (os.path.normcase(out) + os.sep).startswith(os.path.normcase(REPO) + os.sep):
         sys.exit("--out must be outside the repository: captures are derived from game data")
     os.makedirs(out, exist_ok=True)
-    views = read_views(args.views)
+    # View files are in Daggerfall units; this tool only places cameras in the converted map.
+    views = [dict(v, x=v["x"] * args.world_scale, y=v["y"] * args.world_scale, floor=v["floor"] * args.world_scale)
+             for v in read_views(args.views)]
     if args.mode in ("views", "all"):
         run_views(args, views, out)
     if args.mode in ("sweep", "all"):
