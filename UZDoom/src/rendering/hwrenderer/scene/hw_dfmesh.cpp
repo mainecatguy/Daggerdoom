@@ -6,12 +6,15 @@
 // mesh and the Doom collider view. Collision and game logic are not touched.
 
 #include <algorithm>
+#include <limits.h>
 #include <string.h>
 #include <vector>
 
 #include "c_cvars.h"
 #include "c_dispatch.h"
 #include "d_event.h"
+#include "d_eventbase.h"
+#include "menustate.h"
 #include "doomstat.h"
 #include "filesystem.h"
 #include "g_levellocals.h"
@@ -43,6 +46,7 @@ namespace
 	bool benchOn;
 	uint64_t benchLast;
 	std::vector<double> benchFrames;
+	int benchMinTriangles = INT_MAX, benchMaxTriangles;
 
 	void Load(int lump)
 	{
@@ -129,11 +133,18 @@ void DFMesh_Draw(FRenderState &state)
 	state.EnableTextureMatrix(false);
 	state.SetRenderStyle(STYLE_Source);
 	state.AlphaFunc(Alpha_GEqual, 0.f);
+	int submitted = 0;
 	for (const Batch &batch : batches)
 	{
 		if (!batch.texture) continue;
 		state.SetMaterial(batch.texture, UF_Skin, 0, CLAMP_NONE, NO_TRANSLATION, -1);
 		state.Draw(DT_Triangles, batch.first, batch.count);
+		submitted += batch.count / 3;
+	}
+	if (benchOn)
+	{
+		benchMinTriangles = std::min(benchMinTriangles, submitted);
+		benchMaxTriangles = std::max(benchMaxTriangles, submitted);
 	}
 	state.SetCulling(Cull_None);
 	state.EnableFog(true);
@@ -156,6 +167,22 @@ bool DFMesh_Responder(event_t *ev)
 	return true;
 }
 
+// Test hooks: post a real F1 key press through the event queue, and report the resulting state.
+CCMD(dfmesh_pressf1)
+{
+	event_t ev = {};
+	ev.type = EV_KeyDown;
+	ev.data1 = KEY_F1;
+	D_PostEvent(&ev);
+	ev.type = EV_KeyUp;
+	D_PostEvent(&ev);
+}
+
+CCMD(dfmesh_status)
+{
+	Printf("DFSTATUS map=%s layer=%d view=%d menu=%d time=%d\n", primaryLevel->MapName.GetChars(), Active(primaryLevel), (int)*dfmesh_view, menuactive != MENU_Off, primaryLevel->maptime);
+}
+
 // dfmesh_bench 1 starts recording frame intervals. dfmesh_bench 0 stops and prints them.
 CCMD(dfmesh_bench)
 {
@@ -164,6 +191,8 @@ CCMD(dfmesh_bench)
 	{
 		benchFrames.clear();
 		benchLast = 0;
+		benchMinTriangles = INT_MAX;
+		benchMaxTriangles = 0;
 		benchOn = true;
 		return;
 	}
@@ -171,7 +200,7 @@ CCMD(dfmesh_bench)
 	if (benchFrames.empty()) { Printf("DFBENCH no frames\n"); return; }
 	std::sort(benchFrames.begin(), benchFrames.end());
 	size_t n = benchFrames.size();
-	Printf("DFBENCH view=%s frames=%zu median=%.2f p95=%.2f worst=%.2f triangles=%d batches=%zu res=%dx%d\n",
+	Printf("DFBENCH view=%s frames=%zu median=%.2f p95=%.2f worst=%.2f triangles=%d submitted_min=%d submitted_max=%d batches=%zu res=%dx%d\n",
 		dfmesh_view ? "mesh" : "collider", n, benchFrames[n / 2], benchFrames[std::min(n - 1, n * 95 / 100)], benchFrames[n - 1],
-		dfmesh_view ? triangles : 0, dfmesh_view ? batches.size() : 0, screen->GetWidth(), screen->GetHeight());
+		dfmesh_view ? triangles : 0, dfmesh_view ? benchMinTriangles : 0, benchMaxTriangles, dfmesh_view ? batches.size() : 0, screen->GetWidth(), screen->GetHeight());
 }

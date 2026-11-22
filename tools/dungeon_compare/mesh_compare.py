@@ -10,6 +10,7 @@ bench: runs the same camera path in both views and prints frame time median, 95t
 """
 import argparse
 import html
+import math
 import os
 import re
 import subprocess
@@ -23,19 +24,36 @@ EYE = 48
 SWEEP_STEPS = 16  # interpolated camera positions between consecutive viewpoints
 SPIKE_RATIO = 6.0  # a frame change this many times the local median is reported
 SPIKE_FLOOR = 12.0  # mean absolute difference per channel below which a change is never reported
+BLOCK_FLICKER = 15.0  # brightness (0-255) by which a grid block may differ from both neighboring frames
+BLOCK_JUMP = 60.0  # brightness change of a grid block between two frames that is reported for review
+FINE_VIEWS = ("v02", "v04", "v06", "v07", "v14", "v16")
 
 
 def sweep_path(views):
     """Interpolates between viewpoints that share a floor and are close, and turns in place at each viewpoint."""
     path = []
     for a, b in zip(views, views[1:]):
-        for yaw in range(0, 360, 30):
+        for yaw in range(0, 360, 15):
             path.append((a["x"], a["y"], a["floor"] + EYE, a["yaw"] + yaw, 0))
         if abs(a["floor"] - b["floor"]) <= 512 and abs(a["x"] - b["x"]) + abs(a["y"] - b["y"]) <= 1200:
             for s in range(1, SWEEP_STEPS):
                 t = s / SWEEP_STEPS
                 path.append((a["x"] + (b["x"] - a["x"]) * t, a["y"] + (b["y"] - a["y"]) * t,
                              a["floor"] + (b["floor"] - a["floor"]) * t + EYE, a["yaw"], 0))
+    return path
+
+
+def fine_path(views):
+    """Slow turns and walks in rooms, doorways, stacked areas, the ramp, and the cave, so a popped model stands out."""
+    path = []
+    for v in views:
+        if not v["id"].startswith(FINE_VIEWS):
+            continue
+        for turn in range(0, 91):
+            path.append((v["x"], v["y"], v["floor"] + EYE, v["yaw"] - 45 + turn, v["pitch"]))
+        c, s = math.cos(math.radians(v["yaw"])), math.sin(math.radians(v["yaw"]))
+        for step in range(1, 41):
+            path.append((v["x"] + c * step * 4, v["y"] + s * step * 4, v["floor"] + EYE, v["yaw"] + 45, v["pitch"]))
     return path
 
 
@@ -60,10 +78,10 @@ def launch(args, out, name, lines, cfg, timeout):
         process = subprocess.Popen([UZDOOM, "-iwad", IWAD, "-file", os.path.abspath(args.map), os.path.abspath(args.mesh),
                                     os.path.join(HERE, "doom"), lumps, "-config", ini, "-stdout", "-noactivate", "-nosound", "-nomonsters",
                                     "-skill", "3", "-width", str(args.width), "-height", str(args.height), "+vid_fullscreen", "0",
-                                    "+vid_scalefactor", "1", "+screenblocks", "12", "+crosshair", "0", "+screenshot_type", "png",
-                                    "+r_drawplayersprites", "0", "+vid_vsync", "0", "+vid_maxfps", "0", "+cl_capfps", "1",
+                                    "+vid_scalefactor", "1", "+screenblocks", "12", "+crosshair", "0", "+screenshot_type", "png", "+show_messages", "0",
+                                    "+r_drawplayersprites", "0", "+vid_vsync", "0", "+vid_maxfps", "0", "+cl_capfps", "0",
                                     "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0",
-                                    "+logfile", f"log-{name}.txt", "+map", "MAP01", "+exec", name + ".cfg"],
+                                    "+logfile", name, "+map", "MAP01", "+exec", name + ".cfg"],
                                    cwd=out, startupinfo=startup, stdout=console, stderr=subprocess.STDOUT)
         try:
             code = process.wait(timeout)
@@ -79,11 +97,17 @@ def shot(path):
     return path.replace("\\", "/")
 
 
-def difference(a, b):
+def difference(a, b, match_brightness=False):
+    """Mean absolute channel difference. match_brightness scales b to a's mean, because the engines are lit differently."""
+    gain = 1.0
+    if match_brightness:
+        sum_a = sum(sum(r[::4]) for r in a[::4])
+        sum_b = sum(sum(r[::4]) for r in b[::4])
+        gain = sum_a / max(sum_b, 1)
     total = count = 0
     for ra, rb in zip(a[::4], b[::4]):
         for i in range(0, len(ra), 12):
-            total += abs(ra[i] - rb[i]) + abs(ra[i + 1] - rb[i + 1]) + abs(ra[i + 2] - rb[i + 2])
+            total += abs(ra[i] - rb[i] * gain) + abs(ra[i + 1] - rb[i + 1] * gain) + abs(ra[i + 2] - rb[i + 2] * gain)
             count += 3
     return total / max(count, 1)
 
@@ -104,6 +128,24 @@ def black_share(rows):
             hits += row[i] < 4 and row[i + 1] < 4 and row[i + 2] < 4
             count += 1
     return hits / max(count, 1)
+
+
+def block_means(rows, columns=12, lines=9):
+    """Mean brightness of a coarse grid. Averaging removes the texture shimmer that hides a popped model."""
+    h, w = len(rows), len(rows[0]) // 3
+    totals, counts = [0] * (columns * lines), [0] * (columns * lines)
+    for y in range(0, h, 2):
+        row, line = rows[y], y * lines // h
+        for x in range(0, w, 2):
+            at = line * columns + x * columns // w
+            totals[at] += row[x * 3] + row[x * 3 + 1] + row[x * 3 + 2]
+            counts[at] += 3
+    return [t / max(c, 1) for t, c in zip(totals, counts)]
+
+
+def flicker_score(before, now, after):
+    """Largest block that differs from both neighbors by more than the neighbors differ from each other."""
+    return max(min(abs(n - b), abs(n - a)) - abs(b - a) for b, n, a in zip(before, now, after))
 
 
 def run_views(args, views, out):
@@ -135,7 +177,7 @@ def run_views(args, views, out):
         divider = b"\xff\xff\x00" * 4
         triple = os.path.join(out, v["id"] + ".triple.png")
         write_png(triple, w * 3 + 8, [a + divider + b + divider + c for a, b, c in zip(images[0][2], images[1][2], images[2][2])])
-        mesh_score, collider_score = difference(images[0][2], images[1][2]), difference(images[0][2], images[2][2])
+        mesh_score, collider_score = (difference(images[0][2], images[k][2], True) for k in (1, 2))
         rows.append((v["id"], mesh_score, collider_score, black_share(images[1][2])))
         cards.append(f"<h2>{html.escape(v['id'])}: {html.escape(v['note'])}</h2><p>Mean difference from Daggerfall: mesh {mesh_score:.1f}, "
                      f"collider {collider_score:.1f}. Empty (black) mesh pixels: {rows[-1][3] * 100:.1f}%</p>"
@@ -152,32 +194,52 @@ def run_views(args, views, out):
 def run_sweep(args, views, out):
     folder = os.path.join(out, "sweep")
     os.makedirs(folder, exist_ok=True)
-    path = sweep_path(views)
+    for old in os.listdir(folder):
+        if old.endswith(".png"):
+            os.remove(os.path.join(folder, old))
+    path = fine_path(views)
     cfg = ""
     for i in range(len(path)):
-        cfg += f'alias dfstep{i} "netevent dfview {i}; wait 3; screenshot \\"{shot(os.path.join(folder, f"{i:04d}.png"))}\\"; wait 3; dfstep{i + 1}"\n'
+        cfg += f'alias dfstep{i} "netevent dfview {i}; wait 2; screenshot \\"{shot(os.path.join(folder, f"{i:04d}.png"))}\\"; wait 2; dfstep{i + 1}"\n'
     cfg += f'alias dfstep{len(path)} "quit"\nalias dfgo "dfmesh_view 1; vid_setsize {args.width} {args.height}; wait 35; dfstep0"\nwait 105; dfgo\n'
     launch(args, out, "sweep", [(f"s{i}", *p) for i, p in enumerate(path)], cfg, args.timeout * 4)
-    frames, scores, holes = [], [], []
-    previous = None
+    def continuous(i):
+        # Deliberate jumps between viewpoints are not evidence of popping.
+        a, b = path[i - 1], path[i]
+        turn = abs((a[3] - b[3] + 180) % 360 - 180)
+        return abs(a[0] - b[0]) + abs(a[1] - b[1]) + abs(a[2] - b[2]) <= 160 and turn <= 15
+    images, holes, missing = {}, [], 0
     for i in range(len(path)):
         name = os.path.join(folder, f"{i:04d}.png")
         if not os.path.exists(name):
-            frames.append(None)
+            missing += 1
             continue
-        rows = read_png(name)[2]
-        holes.append((black_share(rows), i))
-        if previous is not None:
-            scores.append((difference(previous, rows), i))
-        previous = rows
-        frames.append(i)
-    values = sorted(s for s, _ in scores)
-    median = values[len(values) // 2] if values else 0
-    spikes = [(s, i) for s, i in scores if s > max(SPIKE_FLOOR, median * SPIKE_RATIO)]
-    missing = sum(f is None for f in frames)
-    print(f"sweep: {len(path)} steps, {missing} missing, median change {median:.2f}, spikes {len(spikes)}, worst black share {max(holes)[0] * 100:.1f}% at step {max(holes)[1]}")
-    for s, i in sorted(spikes, reverse=True)[:20]:
-        print(f"  step {i}: change {s:.1f} pose {path[i]}")
+        images[i] = read_png(name)[2]
+        holes.append((black_share(images[i]), i))
+    blocks = {i: block_means(rows) for i, rows in images.items()}
+    flickers, jumps = [], []
+    for i in range(1, len(path) - 1):
+        if all(k in blocks for k in (i - 1, i, i + 1)) and continuous(i) and continuous(i + 1):
+            flickers.append((flicker_score(blocks[i - 1], blocks[i], blocks[i + 1]), i))
+            jumps.append((max(abs(p - q) for p, q in zip(blocks[i - 1], blocks[i])), i))
+    flagged = [(s, i) for s, i in flickers if s > BLOCK_FLICKER]
+    lasting = [(s, i) for s, i in jumps if s > BLOCK_JUMP]
+    print(f"sweep: {len(path)} steps, {missing} missing, {len(flickers)} tested frames, one-frame flickers {len(flagged)} "
+          f"(largest {max(flickers)[0]:.1f}, limit {BLOCK_FLICKER}), sudden block changes {len(lasting)} "
+          f"(largest {max(jumps)[0]:.1f}, limit {BLOCK_JUMP}), worst black share {max(holes)[0] * 100:.1f}% at step {max(holes)[1]}")
+    # Positive control: black out a model-sized block (5% of the frame) in one frame.
+    caught = tried = 0
+    for _, i in flickers[::10]:
+        w, h = len(images[i][0]) // 3, len(images[i])
+        fake = [bytes(r[:(w * 2 // 5) * 3]) + b"\0" * ((w // 4) * 3) + bytes(r[((w * 2 // 5) + w // 4) * 3:])
+                if h * 2 // 5 <= y < h * 3 // 5 else r for y, r in enumerate(images[i])]
+        tried += 1
+        caught += flicker_score(blocks[i - 1], block_means(fake), blocks[i + 1]) > BLOCK_FLICKER
+    print(f"detector control: caught {caught} of {tried} injected one-frame disappearances")
+    for s, i in sorted(flagged, reverse=True)[:10]:
+        print(f"  flicker step {i}: score {s:.1f} pose {path[i]}")
+    for s, i in sorted(lasting, reverse=True)[:10]:
+        print(f"  sudden change step {i}: score {s:.1f} pose {path[i]}")
 
 
 def run_bench(args, views, out):

@@ -139,6 +139,9 @@ static partial class Program
                 foreach (float f in batches[k]) writer.Write(f);
             writer.Flush();
             using (var s = zip.CreateEntry("DFMESH", CompressionLevel.Fastest).Open()) { body.Position = 0; body.CopyTo(s); }
+            // Daggerfall has square pixels. Doom's default 1.2 vertical stretch would distort the real mesh.
+            using (var s = new StreamWriter(zip.CreateEntry("MAPINFO", CompressionLevel.Fastest).Open()))
+                s.Write($"map MAP01 \"{location.Name}\"\n{{\n\tpixelratio = 1.0\n}}\n");
 
             foreach (var k in keys)
             {
