@@ -166,6 +166,7 @@ double R_ClampVisibility(double vis);
 
 extern void R_FreePastViewers ();
 extern void R_ClearPastViewer (AActor *actor);
+extern void R_ShiftPastViewers (const DVector3 &delta); // [DoomDaggerfall]
 
 bool R_ShouldDrawSpriteShadow(AActor *thing);
 
