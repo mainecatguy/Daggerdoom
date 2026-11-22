@@ -107,7 +107,7 @@ function Test-Work([string]$Tag) {
     $stat = (RepoGit $Worktree diff --stat $Base HEAD) -join "`n"
     $prompt = $VerifierPrompt.Replace('{{GOAL}}', $Goal).Replace('{{COMMITS}}', ((RepoGit $Worktree log --oneline "${Base}..HEAD") -join "`n")).Replace('{{STAT}}', $stat).Replace('{{DIFF}}', $diff).Replace('{{CHECK}}', $checkTail)
     $budget = [Math]::Min($VerifierMaxUsd, $MaxUsd - (Get-Spent)).ToString('0.####', [Globalization.CultureInfo]::InvariantCulture)
-    $line = ("$ClaudePrefix -p --no-session-persistence --setting-sources project --model sonnet --tools Read,Grep,Glob --permission-mode dontAsk --allowedTools Read,Grep,Glob --max-turns 40 --max-budget-usd $budget --output-format json $(Get-SchemaArg $VerifierSchema)").Trim()
+    $line = ("$ClaudePrefix -p --no-session-persistence --setting-sources project --strict-mcp-config --model sonnet --tools Read,Grep,Glob --permission-mode dontAsk --allowedTools Read,Grep,Glob --max-turns 40 --max-budget-usd $budget --output-format json $(Get-SchemaArg $VerifierSchema)").Trim()
     $code = Invoke-Logged $ClaudeExe $line $prompt "$Tag-verifier.log"
     $result = Read-Result "$Tag-verifier.log"
     if ($result) { $script:VerifierUsd += [double]$result.total_cost_usd }
@@ -173,7 +173,7 @@ try {
         $resume = if ($started) { "--resume $session" } elseif ($ContinueSession) { "--resume $ContinueSession --fork-session" } else { "--session-id $session" }
         $budget = $remaining.ToString('0.####', [Globalization.CultureInfo]::InvariantCulture)
         Write-Output "[round $round] $Model, `$$budget left"
-        $line = ("$ClaudePrefix -p --setting-sources project --model $Model --permission-mode acceptEdits --settings `"$Settings`" $resume --max-turns $MaxTurnsPerRound --max-budget-usd $budget --output-format json $(Get-SchemaArg $AgentSchema)").Trim()
+        $line = ("$ClaudePrefix -p --setting-sources project --strict-mcp-config --model $Model --permission-mode acceptEdits --settings `"$Settings`" $resume --max-turns $MaxTurnsPerRound --max-budget-usd $budget --output-format json $(Get-SchemaArg $AgentSchema)").Trim()
         $code = Invoke-Logged $ClaudeExe $line $next "$tag.log"
         Save-Work
 

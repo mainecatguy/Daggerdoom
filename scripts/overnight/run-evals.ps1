@@ -60,7 +60,7 @@ while ($Queue.Count -or $Running.Count) {
         $log = Join-Path $Logs "$id-$($item.Model)-$($item.Task.id)-$($item.Attempt).json"
         [IO.File]::WriteAllText("$log.in", $item.Task.prompt)
         $budget = ([Math]::Min($TaskMaxUsd, $MaxUsd - $Spent)).ToString('0.####', [Globalization.CultureInfo]::InvariantCulture)
-        $line = ("$ClaudePrefix -p --no-session-persistence --setting-sources project --model $($item.Model) --tools Read,Grep,Glob --permission-mode dontAsk --allowedTools Read,Grep,Glob --max-turns 12 --max-budget-usd $budget --output-format json --json-schema `"$Schema`"").Trim()
+        $line = ("$ClaudePrefix -p --no-session-persistence --setting-sources project --strict-mcp-config --model $($item.Model) --tools Read,Grep,Glob --permission-mode dontAsk --allowedTools Read,Grep,Glob --max-turns 12 --max-budget-usd $budget --output-format json --json-schema `"$Schema`"").Trim()
         $p = Start-Process -FilePath $ClaudeExe -ArgumentList $line -WorkingDirectory $WorkDir -NoNewWindow -PassThru -RedirectStandardInput "$log.in" -RedirectStandardOutput $log -RedirectStandardError "$log.err"
         $null = $p.Handle
         [void]$Running.Add([pscustomobject]@{ Process = $p; Item = $item; Log = $log; Started = Get-Date })
