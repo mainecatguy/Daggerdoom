@@ -15,7 +15,7 @@
   <ItemGroup>
     <Compile Include="*.cs" />
     <!-- Daggerfall Unity's own readers, compiled unchanged. -->
-    <Compile Include="$(DfuApi)Arch3dFile.cs;$(DfuApi)Arch3dPatch.cs;$(DfuApi)BlocksFile.cs;$(DfuApi)BsaFile.cs;$(DfuApi)DFLocation.cs;$(DfuApi)DFMesh.cs;$(DfuApi)DFPosition.cs;$(DfuApi)DFRandom.cs;$(DfuApi)DFRegion.cs;$(DfuApi)DFSize.cs;$(DfuApi)FaceUVTool.cs;$(DfuApi)FileProxy.cs;$(DfuApi)MapsFile.cs;$(DfuApi)PakFile.cs;$(DfuApi)PatchList.cs;$(DfuApi)Vector3.cs" LinkBase="DfuApi" />
+    <Compile Include="$(DfuApi)Arch3dFile.cs;$(DfuApi)Arch3dPatch.cs;$(DfuApi)BaseImageFile.cs;$(DfuApi)BlocksFile.cs;$(DfuApi)BsaFile.cs;$(DfuApi)DFBitmap.cs;$(DfuApi)DFColor.cs;$(DfuApi)DFLocation.cs;$(DfuApi)DFPalette.cs;$(DfuApi)TextureFile.cs;$(DfuApi)DFMesh.cs;$(DfuApi)DFPosition.cs;$(DfuApi)DFRandom.cs;$(DfuApi)DFRegion.cs;$(DfuApi)DFSize.cs;$(DfuApi)FaceUVTool.cs;$(DfuApi)FileProxy.cs;$(DfuApi)MapsFile.cs;$(DfuApi)PakFile.cs;$(DfuApi)PatchList.cs;$(DfuApi)Vector3.cs" LinkBase="DfuApi" />
   </ItemGroup>
   <!-- DFBlock.cs is compiled from a copy without its JSON modding code. -->
   <Target Name="StripDfBlock" BeforeTargets="CoreCompile">

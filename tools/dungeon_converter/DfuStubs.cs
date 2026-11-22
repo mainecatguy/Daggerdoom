@@ -8,7 +8,29 @@ namespace UnityEngine
 {
     public class TextAsset { public byte[] bytes = null; }
     public static class Resources { public static T Load<T>(string name) where T : class => null; }
-    public struct Color32 { public byte r, g, b, a; public Color32(byte r, byte g, byte b, byte a) { this.r = r; this.g = g; this.b = b; this.a = a; } }
+    public struct Color32
+    {
+        public byte r, g, b, a;
+        public Color32(byte r, byte g, byte b, byte a) { this.r = r; this.g = g; this.b = b; this.a = a; }
+        public static Color32 Lerp(Color32 x, Color32 y, float t) => x;
+        public static implicit operator Color(Color32 c) => new Color(c.r / 255f, c.g / 255f, c.b / 255f, c.a / 255f);
+    }
+    // The image readers reference these only in color helpers that the mesh export does not call.
+    public struct Color
+    {
+        public float r, g, b, a;
+        public Color(float r, float g, float b, float a = 1f) { this.r = r; this.g = g; this.b = b; this.a = a; }
+        public static Color clear => new Color(0, 0, 0, 0);
+        public static Color white => new Color(1, 1, 1, 1);
+        public static void RGBToHSV(Color c, out float h, out float s, out float v) { h = s = 0; v = System.Math.Max(c.r, System.Math.Max(c.g, c.b)); }
+        public static Color Lerp(Color x, Color y, float t) => x;
+        public static implicit operator Color32(Color c) => new Color32((byte)(c.r * 255), (byte)(c.g * 255), (byte)(c.b * 255), (byte)(c.a * 255));
+    }
+    public static class Mathf
+    {
+        public static float Pow(float x, float y) => (float)System.Math.Pow(x, y);
+        public static float Clamp01(float x) => x < 0 ? 0 : x > 1 ? 1 : x;
+    }
     public static class Debug
     {
         public static void Log(object m) => System.Console.WriteLine(m);
@@ -25,7 +47,6 @@ namespace DaggerfallConnect.Arena2
 
 namespace DaggerfallWorkshop.Game { public class StubGameNamespace { } }
 namespace DaggerfallWorkshop.Game.Utility { public class NameHelper { public enum BankTypes { Breton } } }
-namespace DaggerfallConnect { public class DFBitmap { public int Width, Height, Stride; public byte[] Data; } }
 
 namespace DaggerfallWorkshop.Game.Questing
 {

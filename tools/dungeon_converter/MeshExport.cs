@@ -1,0 +1,202 @@
+// Exports a dungeon's real Daggerfall models, placement, textures, and UVs for UZDoom's opt-in mesh layer.
+// Output is <slug>_mesh.pk3: a DFMESH lump plus dfmesh/aAAArRR.png textures. It is derived from game data, so keep it outside the repo.
+//
+// DFMESH (little endian): "DFM1", char map[8], int textures, batches, vertices;
+//   char name[32] per texture; int texture, first, count per batch; float x, up, north, u, v, nx, nup, nnorth per vertex.
+// Positions are in the renderer's axis order (Doom x, height, Doom y). Triangles keep Daggerfall Unity's winding.
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.IO.Compression;
+using System.Linq;
+using System.Text;
+using DaggerfallConnect;
+using DaggerfallConnect.Arena2;
+using DaggerfallConnect.Utility;
+using DaggerfallWorkshop;
+
+static partial class Program
+{
+    // DungeonTextureTables.RandomTextureTableClassic with RandomDungeonTextures=0, the default setting.
+    static int[] ClassicTextureTable(DFLocation location)
+    {
+        byte[] indices = { 0, 0, 1, 4, 4, 0, 3, 3, 3, 0 };
+        byte[] climateIndices = { 0, 0, 0, 1, 2, 3, 4, 5, 5, 5 };
+        short[] archives = { 19, 119, 319, 419, 119 };
+        int climate = location.Climate.WorldClimate;
+        if (climate == (int)MapsFile.Climates.Ocean) climate = (int)MapsFile.Climates.Swamp;
+        int classic = climateIndices[climate - (int)MapsFile.Climates.Ocean];
+        int archiveIndex = indices[classic];
+        DFRandom.srand(location.Dungeon.RecordElement.Header.LocationId);
+        var table = new int[6];
+        for (int i = 0; i < 5; i++)
+        {
+            int offset = DFRandom.random_range_inclusive(0, 4);
+            if (offset == 2) offset = 4;
+            table[i] = archives[archiveIndex] + offset;
+        }
+        table[5] = (int)DFLocation.ClimateTextureSet.Interior_Sewer + 100 * indices[climate - (int)MapsFile.Climates.Desert];
+        return table;
+    }
+
+    // DungeonTextureTables.ApplyTextureTable.
+    static int SwapArchive(int archive, int[] table, DFLocation location) => archive switch
+    {
+        74 => archive + (int)location.Climate.ClimateType,
+        119 => table[0], 120 => table[1], 122 => table[2], 123 => table[3], 124 => table[4], 168 => table[5],
+        _ => archive,
+    };
+
+    static int ExportMesh(string arena2, DFLocation location, string outDir, string slug, string[] args)
+    {
+        int tableAt = Array.IndexOf(args, "--texture-table");
+        int[] table = tableAt >= 0 ? args[tableAt + 1].Split(',').Select(int.Parse).ToArray() : ClassicTextureTable(location);
+        Console.WriteLine($"climate {location.Climate.WorldClimate} base {location.Climate.ClimateType} texture table {string.Join(",", table)}");
+
+        var blocks = new BlocksFile(Path.Combine(arena2, "BLOCKS.BSA"), FileUsage.UseMemory, true);
+        var arch = new Arch3dFile(Path.Combine(arena2, "ARCH3D.BSA"), FileUsage.UseMemory, true);
+        var files = new Dictionary<int, TextureFile>();
+        TextureFile Archive(int a)
+        {
+            if (!files.TryGetValue(a, out var f))
+                files[a] = f = new TextureFile(Path.Combine(arena2, TextureFile.IndexToFileName(a)), FileUsage.UseMemory, true);
+            return f;
+        }
+
+        var batches = new Dictionary<(int archive, int record), List<float>>();
+        int models = 0, missing = 0;
+        const double toRad = Math.PI / 180;
+        foreach (var dungeonBlock in location.Dungeon.Blocks)
+        {
+            var block = blocks.GetBlock(dungeonBlock.BlockName);
+            var offset = new V3(dungeonBlock.X * BlockSide, 0, dungeonBlock.Z * BlockSide);
+            if (block.RdbBlock.ObjectRootList == null) continue;
+            foreach (var group in block.RdbBlock.ObjectRootList)
+            {
+                if (group.RdbObjects == null) continue;
+                foreach (var obj in group.RdbObjects)
+                {
+                    if (obj.Type != DFBlock.RdbResourceTypes.Model) continue;
+                    uint id = block.RdbBlock.ModelReferenceList[obj.Resources.ModelResource.ModelIndex].ModelIdNum;
+                    int recordIndex = arch.GetRecordIndex(id);
+                    if (recordIndex < 0) { missing++; continue; }
+                    models++;
+                    var mesh = arch.GetMesh(recordIndex);
+                    double rx = -obj.Resources.ModelResource.XRotation / BlocksFile.RotationDivisor * toRad;
+                    double ry = -obj.Resources.ModelResource.YRotation / BlocksFile.RotationDivisor * toRad;
+                    double rz = -obj.Resources.ModelResource.ZRotation / BlocksFile.RotationDivisor * toRad;
+                    var position = new V3(obj.XPos, -obj.YPos, obj.ZPos) + offset;
+                    foreach (var sub in mesh.SubMeshes)
+                    {
+                        // UVs are normalized by the unswapped texture, as in MeshReader.LoadVertices.
+                        var source = Archive(sub.TextureArchive);
+                        double w = source.GetWidth(sub.TextureRecord), h = source.GetHeight(sub.TextureRecord);
+                        var key = (SwapArchive(sub.TextureArchive, table, location), sub.TextureRecord);
+                        if (!batches.TryGetValue(key, out var v)) batches[key] = v = new List<float>();
+                        foreach (var plane in sub.Planes)
+                        {
+                            void Emit(DFMesh.DFPoint p)
+                            {
+                                var at = Rotate(new V3(p.X, -p.Y, p.Z), rx, ry, rz) + position;
+                                var n = Rotate(new V3(p.NX, -p.NY, p.NZ), rx, ry, rz);
+                                double length = Math.Sqrt(n.X * n.X + n.Y * n.Y + n.Z * n.Z);
+                                if (length < 1e-6) length = 1;
+                                v.Add((float)at.X); v.Add((float)at.Y); v.Add((float)at.Z);
+                                v.Add((float)(p.U / w)); v.Add((float)(p.V / h));
+                                v.Add((float)(n.X / length)); v.Add((float)(n.Y / length)); v.Add((float)(n.Z / length));
+                            }
+                            // Same fan and winding as MeshReader.LoadIndices.
+                            for (int i = 1; i + 1 < plane.Points.Length; i++)
+                            {
+                                Emit(plane.Points[0]); Emit(plane.Points[i + 1]); Emit(plane.Points[i]);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        var keys = batches.Keys.OrderBy(k => k.archive).ThenBy(k => k.record).ToList();
+        string path = Path.Combine(outDir, slug + "_mesh.pk3");
+        if (File.Exists(path)) File.Delete(path);
+        int vertices = 0, badTextures = 0;
+        using (var zip = ZipFile.Open(path, ZipArchiveMode.Create))
+        {
+            var body = new MemoryStream();
+            var writer = new BinaryWriter(body);
+            writer.Write(Encoding.ASCII.GetBytes("DFM1"));
+            writer.Write(Encoding.ASCII.GetBytes("MAP01\0\0\0"));
+            writer.Write(keys.Count); writer.Write(keys.Count); writer.Write(batches.Values.Sum(b => b.Count) / 8);
+            foreach (var k in keys)
+                writer.Write(Encoding.ASCII.GetBytes($"dfmesh/a{k.archive:D3}r{k.record:D2}.png".PadRight(32, '\0')));
+            for (int t = 0; t < keys.Count; t++)
+            {
+                int count = batches[keys[t]].Count / 8;
+                writer.Write(t); writer.Write(vertices); writer.Write(count);
+                vertices += count;
+            }
+            foreach (var k in keys)
+                foreach (float f in batches[k]) writer.Write(f);
+            writer.Flush();
+            using (var s = zip.CreateEntry("DFMESH", CompressionLevel.Fastest).Open()) { body.Position = 0; body.CopyTo(s); }
+
+            foreach (var k in keys)
+            {
+                var file = Archive(k.archive);
+                var image = k.record < file.RecordCount ? file.GetDFBitmap(k.record, 0) : null;
+                if (image?.Data == null || image.Width == 0) { badTextures++; Console.WriteLine($"missing texture {k.archive}:{k.record}"); continue; }
+                using var s = zip.CreateEntry($"dfmesh/a{k.archive:D3}r{k.record:D2}.png", CompressionLevel.Fastest).Open();
+                WriteTexturePng(s, image, file.Palette);
+            }
+        }
+        Console.WriteLine($"mesh: {models} models ({missing} missing), {vertices / 3} triangles, {keys.Count} textures/batches ({badTextures} unreadable), {new FileInfo(path).Length / 1024} KiB -> {path}");
+        return badTextures == 0 && missing == 0 ? 0 : 1;
+    }
+
+    static void WriteTexturePng(Stream output, DFBitmap image, DFPalette palette)
+    {
+        byte[] buffer = palette.PaletteBuffer;
+        int head = palette.HeaderLength, w = image.Width, h = image.Height;
+        var raw = new byte[(w * 3 + 1) * h];
+        for (int y = 0, at = 0; y < h; y++)
+        {
+            raw[at++] = 0;
+            for (int x = 0; x < w; x++)
+            {
+                int c = image.Data[y * w + x] * 3 + head;
+                raw[at++] = buffer[c]; raw[at++] = buffer[c + 1]; raw[at++] = buffer[c + 2];
+            }
+        }
+        var packed = new MemoryStream();
+        using (var z = new ZLibStream(packed, CompressionLevel.Fastest, true)) z.Write(raw, 0, raw.Length);
+        void Chunk(string kind, byte[] data)
+        {
+            var name = Encoding.ASCII.GetBytes(kind);
+            WriteBig(output, (uint)data.Length);
+            output.Write(name); output.Write(data);
+            WriteBig(output, Crc(name, data));
+        }
+        output.Write(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A });
+        var header = new byte[13];
+        header[0] = (byte)(w >> 24); header[1] = (byte)(w >> 16); header[2] = (byte)(w >> 8); header[3] = (byte)w;
+        header[4] = (byte)(h >> 24); header[5] = (byte)(h >> 16); header[6] = (byte)(h >> 8); header[7] = (byte)h;
+        header[8] = 8; header[9] = 2;
+        Chunk("IHDR", header);
+        Chunk("IDAT", packed.ToArray());
+        Chunk("IEND", new byte[0]);
+    }
+
+    static void WriteBig(Stream s, uint v) { s.WriteByte((byte)(v >> 24)); s.WriteByte((byte)(v >> 16)); s.WriteByte((byte)(v >> 8)); s.WriteByte((byte)v); }
+
+    static uint Crc(byte[] a, byte[] b)
+    {
+        uint crc = 0xffffffff;
+        foreach (var data in new[] { a, b })
+            foreach (byte x in data)
+            {
+                crc ^= x;
+                for (int k = 0; k < 8; k++) crc = (crc & 1) != 0 ? 0xedb88320 ^ (crc >> 1) : crc >> 1;
+            }
+        return ~crc;
+    }
+}

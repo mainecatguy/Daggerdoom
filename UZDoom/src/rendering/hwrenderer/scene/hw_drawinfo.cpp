@@ -39,6 +39,7 @@
 #include "texturemanager.h"
 #include "actorinlines.h"
 #include "g_levellocals.h"
+#include "hw_dfmesh.h" // [DoomDaggerfall]
 
 EXTERN_CVAR(Float, r_visibility)
 CVAR(Bool, gl_bandedswlight, false, CVAR_ARCHIVE)
@@ -544,17 +545,21 @@ void HWDrawInfo::RenderScene(FRenderState &state)
 
 	state.EnableTexture(gl_texture);
 	state.EnableBrightmap(true);
-	drawlists[GLDL_PLAINWALLS].DrawWalls(this, state, false);
-	drawlists[GLDL_PLAINFLATS].DrawFlats(this, state, false);
+	// [DoomDaggerfall] In mesh view the Daggerfall mesh replaces the map's walls, flats, and decals.
+	DFMesh_FrameTick(Level);
+	const bool dfMeshView = DFMesh_HideCollider(Level);
+	if (dfMeshView) DFMesh_Draw(state);
+	if (!dfMeshView) drawlists[GLDL_PLAINWALLS].DrawWalls(this, state, false);
+	if (!dfMeshView) drawlists[GLDL_PLAINFLATS].DrawFlats(this, state, false);
 
 
 	// Part 2: masked geometry. This is set up so that only pixels with alpha>gl_mask_threshold will show
 	state.AlphaFunc(Alpha_GEqual, gl_mask_threshold);
-	drawlists[GLDL_MASKEDWALLS].DrawWalls(this, state, false);
-	drawlists[GLDL_MASKEDFLATS].DrawFlats(this, state, false);
+	if (!dfMeshView) drawlists[GLDL_MASKEDWALLS].DrawWalls(this, state, false);
+	if (!dfMeshView) drawlists[GLDL_MASKEDFLATS].DrawFlats(this, state, false);
 
 	// Part 3: masked geometry with polygon offset. This list is empty most of the time so only waste time on it when in use.
-	if (drawlists[GLDL_MASKEDWALLSOFS].Size() > 0)
+	if (!dfMeshView && drawlists[GLDL_MASKEDWALLSOFS].Size() > 0)
 	{
 		state.SetDepthBias(-1, -128);
 		drawlists[GLDL_MASKEDWALLSOFS].DrawWalls(this, state, false);
@@ -569,7 +574,7 @@ void HWDrawInfo::RenderScene(FRenderState &state)
 
 	// Part 4: Draw decals (not a real pass)
 	state.SetDepthFunc(DF_LEqual);
-	DrawDecals(state, Decals[0]);
+	if (!dfMeshView) DrawDecals(state, Decals[0]); // [DoomDaggerfall] decals sit on the hidden collider
 
 	RenderAll.Unclock();
 }
