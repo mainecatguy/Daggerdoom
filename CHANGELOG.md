@@ -4,11 +4,20 @@ What is done on the project, newest first. Agents do not need to read this unles
 
 ## Current state
 
-- **Playable demo:** Privateer's Hold with Daggerfall visuals, Doom movement and combat, 42 Doom monsters, and swinging doors. Run `D:\dev\DoomDaggerfall-loop\review\door-demo\play.bat`.
-- **Branches:** the work below through swinging doors is on `integration` at `c1c103c`. `main` has not received the 2026-11-22 parity, scale, launch, or door work yet.
-- **Roughest spot:** movement collision is built on a grid, so angled walls and ceilings are jagged.
+- **Playable demo:** Privateer's Hold with Daggerfall visuals, Doom movement and combat, 42 Doom monsters, swinging doors, and angled collision. Run `D:\dev\DoomDaggerfall-loop\review\angled-demo\play.bat`.
+- **Branches:** the work below is on `integration` at `e997464`.
+- **Roughest spots:** some walls still bend where they stayed tied to the grid, and false walls and openings remain.
 
 ## 2026-11-22
+
+### Angled collision (`e997464`)
+- Generated sectors now follow Daggerfall's real wall edges and sloped planes where they fit, and fall back to the grid elsewhere.
+- On Privateer's Hold, test bullets landing on the visible surface rose from 106 to 142 of 200, and sectors fell from 4,975 to 3,036.
+- Some straight walls have small bends, and false walls and openings remain.
+- The owner play-tested it and called it a huge improvement.
+
+### Converter scale default (`77c48c5`)
+- The dungeon converter and comparison tools now default to 75% world scale.
 
 ### Swinging doors (`c1c103c`)
 - Doors are now separate objects that show the real Daggerfall model and swing on a hinge.

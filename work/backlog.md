@@ -95,6 +95,12 @@ Generated actor-based swinging doors, like those in Privateer's Hold, currently 
 
 The converter builds movement collision on a grid (12-unit cells at 75% scale), so angled Daggerfall walls become small stairsteps in the invisible collision. The owner wants these to be real straight lines at their true angle. Doom sectors support any angle. Check the effect on stacked rooms, sliver sectors, node building, swinging doors, and the player's square collision box against diagonal walls.
 
+## Future: Check the main quest dungeons
+
+Check that Daggerfall's main quest dungeons convert and can be completed. Do not start until the owner asks. Candidates named in outside feedback include Direnni Tower, Scourg Barrow, Castle Wayrest, Orsinium, and Mantellan Crux. Confirm the real list from the game's data.
+
+Tell the owner wherever a dungeon requires climbing or levitation to progress, with the dungeon and location. Climbing and levitation will eventually be in the game, and the owner wants to know when they are required.
+
 ## 1. Dungeon conversion
 
 The engineering approach is open, including UZDoom's 3D floors and other multi-level features, portals, multiple levels, or a map extension. The owner expects teleporters not to work as the general solution, because a converter cannot reliably place them for cases like an open pit with doors on several levels.
