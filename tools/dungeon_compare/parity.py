@@ -40,9 +40,12 @@ def main():
     parser.add_argument("--uzdoom", default=UZDOOM)
     parser.add_argument("--timeout", type=int, default=180)
     parser.add_argument("--cell", type=int, help="converter collision cell size")
+    parser.add_argument("--ceiling-relief", type=int, help="largest collision ceiling raise, in map units")
     parser.add_argument("--baseline", action="store_true", help="measure the converter without the ceiling relief fix")
     args = parser.parse_args()
     extra = ["--cell", str(args.cell)] if args.cell else []
+    if args.ceiling_relief is not None:
+        extra += ["--ceiling-relief", str(args.ceiling_relief)]
     if args.baseline:
         extra.append("--no-ceiling-relief")
 
@@ -72,7 +75,7 @@ def main():
                                 "-iwad", IWAD, "-file", os.path.join(out, slug + ".wad"), os.path.join(out, slug + "_player.pk3"),
                                 os.path.join(HERE, "parity_doom"), os.path.join(parity, "lumps"),
                                 "-config", os.path.join(parity, "doom.ini"), "-noactivate", "-nosound", "-nomonsters", "-skill", "3",
-                                "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0",
+                                "+vid_fullscreen", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0",
                                 "+logfile", "parity", "+map", "MAP01"],
                                cwd=parity, startupinfo=startup, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     finished = False

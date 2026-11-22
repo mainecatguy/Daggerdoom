@@ -10,19 +10,21 @@ class DFParityProbe : Actor
 
 class DFParity : EventHandler
 {
-	const ChecksPerTic = 6000;
+	const ChecksPerTic = 60000;
 	const DoorWait = 90;
-	const Cell = 16;
+	const Pitch = 8; // walking grid; results are reported on the shared 16-unit grid
 	const LineItems = 40;
+	const SubSteps = 2;
 
 	Array<double> seedX, seedY, seedZ, shotX, shotY, shotZ, shotAngle, shotPitch;
 	Array<int> doorIds;
+	Array<double> queryX, queryY, queryZ;
 	Array<double> queueX, queueY, queueZ;
 	Map<int, int> seen;
 	double radius, standHeight, crouchHeight, step, originX, originY, originZ;
 	DFParityProbe probe;
 	int stage, seedAt, queueAt, wait;
-	bool active;
+	bool active, shotsFired;
 	String pending;
 	int pendingCount;
 
@@ -47,6 +49,7 @@ class DFParity : EventHandler
 			else if (p[0] == "P") { seedX.Push(p[1].ToDouble()); seedY.Push(p[2].ToDouble()); seedZ.Push(p[3].ToDouble()); }
 			else if (p[0] == "T") { shotX.Push(p[1].ToDouble()); shotY.Push(p[2].ToDouble()); shotZ.Push(p[3].ToDouble()); shotAngle.Push(p[4].ToDouble()); shotPitch.Push(p[5].ToDouble()); }
 			else if (p[0] == "D") doorIds.Push(p[1].ToInt());
+			else if (p[0] == "Q") { queryX.Push(p[1].ToDouble()); queryY.Push(p[2].ToDouble()); queryZ.Push(p[3].ToDouble()); }
 		}
 		probe = DFParityProbe(Actor.Spawn("DFParityProbe", (originX, originY, originZ)));
 		probe.A_SetSize(radius, standHeight);
@@ -69,8 +72,8 @@ class DFParity : EventHandler
 
 	int KeyOf(double x, double y, double z)
 	{
-		int i = int((x - originX) / Cell), j = int((y - originY) / Cell), k = int((z - originZ) / 4);
-		return (i & 0x3FF) | ((j & 0x3FF) << 10) | ((k & 0x7FF) << 20);
+		int i = int((x - originX) / Pitch), j = int((y - originY) / Pitch), k = int((z - originZ) / 8);
+		return (i & 0x7FF) | ((j & 0x7FF) << 11) | ((k & 0x3FF) << 22);
 	}
 
 	void Emit(double x, double y, double z)
@@ -92,7 +95,7 @@ class DFParity : EventHandler
 		if (seen.CheckKey(key)) return;
 		seen.Insert(key, 1);
 		queueX.Push(x); queueY.Push(y); queueZ.Push(z);
-		Emit(x, y, z);
+		if (int(x - 12) % 16 == 0 && int(y - 12) % 16 == 0) Emit(x, y, z);
 	}
 
 	// Starts the next seed. A seed Doom cannot stand on is reported and skipped.
@@ -117,6 +120,7 @@ class DFParity : EventHandler
 	{
 		if (!active) return;
 		if (wait > 0) { wait--; return; }
+		if (!shotsFired) { shotsFired = true; FireShots(); AnswerQueries(); }
 		int budget = ChecksPerTic;
 		while (budget > 0)
 		{
@@ -134,11 +138,20 @@ class DFParity : EventHandler
 			static const int dy[] = { 0, 1, 0, -1, 1, -1, 1, -1 };
 			for (int d = 0; d < 8; d++)
 			{
-				FCheckPosition tm;
-				double nx = x + dx[d] * Cell, ny = y + dy[d] * Cell;
-				probe.SetOrigin((x, y, z), false);
-				budget--;
-				if (probe.CheckMove((nx, ny), PCM_DROPOFF | PCM_NOACTORS, tm)) Push(nx, ny, tm.floorz);
+				// Short moves, settling on the floor after each, as a walking player does. One long
+				// move would keep the body at the old height and falsely hit a lintel at the foot of a stair.
+				double cx = x, cy = y, cz = z;
+				bool ok = true;
+				for (int s = 1; s <= SubSteps; s++)
+				{
+					FCheckPosition tm;
+					double tx = x + dx[d] * Pitch * s / SubSteps, ty = y + dy[d] * Pitch * s / SubSteps;
+					probe.SetOrigin((cx, cy, cz), false);
+					budget--;
+					if (!probe.CheckMove((tx, ty), PCM_DROPOFF | PCM_NOACTORS, tm)) { ok = false; break; }
+					cx = tx; cy = ty; cz = tm.floorz;
+				}
+				if (ok) Push(cx, cy, cz);
 			}
 		}
 	}
@@ -153,7 +166,6 @@ class DFParity : EventHandler
 		}
 		if (stage >= 4)
 		{
-			FireShots();
 			active = false;
 			Console.Printf("DFPARITYDONE");
 			return false;
@@ -162,7 +174,20 @@ class DFParity : EventHandler
 		return true;
 	}
 
-	// Runs after the doors-open floods, so door slabs do not count as Doom hits.
+	// Runs before any door opens, because the visible Daggerfall mesh shows doors closed.
+	// Reports whether a standing body fits at each queried position, whether or not a flood can reach it.
+	void AnswerQueries()
+	{
+		probe.A_SetSize(radius, standHeight);
+		for (int n = 0; n < queryX.Size(); n++)
+		{
+			FCheckPosition tm;
+			probe.SetOrigin((queryX[n], queryY[n], queryZ[n]), false);
+			bool fits = probe.CheckPosition((queryX[n], queryY[n]), false, tm) && tm.ceilingz - tm.floorz >= standHeight;
+			Console.Printf("DFQ %d %.0f %.0f %.1f floor %.1f ceiling %.1f", fits ? 1 : 0, queryX[n], queryY[n], queryZ[n], tm.floorz, tm.ceilingz);
+		}
+	}
+
 	void FireShots()
 	{
 		for (int n = 0; n < shotX.Size(); n++)

@@ -268,7 +268,8 @@ static partial class Program
     // A square Doom body rests on the highest floor under it and is limited by the lowest ceiling over it. Beside stairs
     // this can leave less clearance than Daggerfall's rounded capsule needs. Where a legal Daggerfall body stands, raises
     // only the too-low collision ceilings, by at most MaxCeilingRelief. Walls and floors do not change.
-    const int MaxCeilingRelief = 16;
+    // 16 opened a real false opening under a 56-unit ceiling. 4 covers the rounded-capsule cases at the foot of stairs.
+    static int MaxCeilingRelief = 4;
 
     static int RelieveCeilings()
     {
@@ -333,7 +334,8 @@ static partial class Program
         double Snap(double v) => Math.Floor(v / ParityCell) * ParityCell + 12;
         IndexTris(tris);
         var rng = new Random(ParitySeed);
-        var seeds = new List<V3> { new V3(Snap(entrance.X), Snap(entrance.Y), entrance.Z) };
+        var entranceColumn = new V3(Snap(entrance.X), Snap(entrance.Y), entrance.Z + 8);
+        var seeds = new List<V3> { FloorBelow(entranceColumn, out var entranceFloor) ? entranceFloor : entranceColumn }; // the marker floats above the floor
         double x0 = tris.Min(t => Math.Min(t.A.X, Math.Min(t.B.X, t.C.X))), x1 = tris.Max(t => Math.Max(t.A.X, Math.Max(t.B.X, t.C.X)));
         double y0 = tris.Min(t => Math.Min(t.A.Y, Math.Min(t.B.Y, t.C.Y))), y1 = tris.Max(t => Math.Max(t.A.Y, Math.Max(t.B.Y, t.C.Y)));
         double z0 = tris.Min(t => Math.Min(t.A.Z, Math.Min(t.B.Z, t.C.Z))), z1 = tris.Max(t => Math.Max(t.A.Z, Math.Max(t.B.Z, t.C.Z)));
@@ -388,6 +390,8 @@ static partial class Program
             foreach (var s in shots) lump.Append(FormattableString.Invariant($"T {s.at.X:F1} {s.at.Y:F1} {s.at.Z:F1} {s.angle:F3} {s.pitch:F3}\n"));
             var controls = doors.Select(d => d.Control).Where(c => c > 0).Distinct();
             foreach (int c in controls) lump.Append($"D {c}\n");
+            string query = Path.Combine(dir, "query.txt"); // optional: asks Doom whether a standing body fits at these positions
+            if (File.Exists(query)) foreach (var line in File.ReadLines(query)) lump.Append("Q ").Append(line).Append('\n');
             Directory.CreateDirectory(Path.Combine(dir, "lumps"));
             File.WriteAllText(Path.Combine(dir, "lumps", "DFPARITY"), lump.ToString());
             Console.WriteLine($"Wrote test lump: {seeds.Count} seeds, {shots.Count} shots");
@@ -471,6 +475,7 @@ static partial class Program
                     frontierText.Append(FormattableString.Invariant($"  {v.X:F0},{v.Y:F0},{v.Z:F0} {Classify(v, body, false)} spans {string.Join(" ", grid[Index(ci, cj)].Select(s => $"[{s.F},{s.C}{(s.Door >= 0 ? " door" + s.Door : "")}]"))}\n"));
                 }
                 File.AppendAllText(Path.Combine(dir, "frontier.txt"), frontierText.ToString());
+                if (!entranceOnly) File.WriteAllLines(Path.Combine(dir, "false_openings_" + mode + ".txt"), falseOpenings.Select(v => FormattableString.Invariant($"{v.X:F0} {v.Y:F0} {v.Z:F1}")));
                 if (entranceOnly) continue;
                 foreach (var (kind, list) in new[] { ("false_wall", falseWalls), ("false_opening", falseOpenings) })
                 {

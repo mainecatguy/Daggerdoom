@@ -26,8 +26,19 @@ static partial class Program
 {
     const int ExitDoorModel = 70300, RedBrickDoorModel = 72100, MinTapestry = 42500, MaxTapestry = 42571;
     const int EditorArchive = 199, EnterRecord = 8, StartRecord = 10, BlockSide = 2048;
-    const int ActorRadius = 16, ActorHeight = 56, StepHeight = 24, ZQuant = 4, MinSpan = 24;
-    const int MaxStairRelax = 8;
+    const int ZQuant = 4;
+    // Conversion thresholds, in Daggerfall units at scale 1. ApplyWorldScale derives them from PlayerScale.
+    static int ActorRadius = 16, ActorHeight = 56, StepHeight = 24, MinSpan = 24, MaxStairRelax = 8;
+
+    static void ApplyWorldScale(bool cellWasSet)
+    {
+        double s = PlayerScale.DoomUnitsPerDaggerfallUnit;
+        int Scaled(int value) => Math.Max(1, (int)Math.Round(value * s));
+        ActorRadius = Scaled(ActorRadius); ActorHeight = Scaled(ActorHeight); StepHeight = Scaled(StepHeight);
+        MinSpan = Scaled(MinSpan); MaxStairRelax = Scaled(MaxStairRelax);
+        if (routeStep == 24) routeStep = StepHeight;
+        if (!cellWasSet) cell = Scaled(cell);
+    }
     const double WallNormalZ = 0.1;
 
     static int cell = 16, minX, minY, width, height;
@@ -37,7 +48,7 @@ static partial class Program
     static int gapCells, skippedActions, stackedDoors, relaxedStairs, postCount, nextInstance;
     static readonly Dictionary<int, List<(double lo, double hi)>> postCells = new Dictionary<int, List<(double lo, double hi)>>();
     static bool openActions;
-    static int routeStep = StepHeight;
+    static int routeStep = 24;
     static List<Span>[] grid;
     static readonly List<Tri> tris = new List<Tri>();
     static readonly List<HangingCut> hanging = new List<HangingCut>();
@@ -53,6 +64,7 @@ static partial class Program
             if (args[a] == "--out") outDir = args[++a];
             else if (args[a] == "--arena2") arena2 = args[++a];
             else if (args[a] == "--cell") cell = int.Parse(args[++a]);
+            else if (args[a] == "--ceiling-relief") MaxCeilingRelief = int.Parse(args[++a]);
             else if (args[a] == "--world-scale") PlayerScale.DoomUnitsPerDaggerfallUnit = double.Parse(args[++a], CultureInfo.InvariantCulture);
             else if (args[a] == "--parity") parityDir = args[++a]; // writes the Doom test lump, or compares if doom_flood.txt exists there
             else if (args[a] == "--debug-row") debugRow = args[++a];
@@ -69,6 +81,7 @@ static partial class Program
             Console.Error.WriteLine("usage: DungeonConverter \"<dungeon name>\" --out <dir> [--arena2 <dir>] [--cell 16]");
             return 2;
         }
+        ApplyWorldScale(args.Contains("--cell"));
         Directory.CreateDirectory(outDir);
         if (!FindDungeon(arena2, name, out DFLocation location)) { Console.Error.WriteLine("dungeon not found: " + name); return 1; }
         int meshAt = Array.IndexOf(args, "--export-mesh"); // writes <slug>_mesh.pk3 (real models, textures, UVs) and exits
