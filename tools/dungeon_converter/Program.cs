@@ -67,6 +67,7 @@ static partial class Program
     static int Main(string[] args)
     {
         CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
+        if (args.Contains("--city")) return City.Run(args); // cities have their own pipeline in CityExport.cs
         string name = null, outDir = null, arena2 = @"D:\dev\DoomDaggerfall\GameResources\DAGGER\ARENA2";
         for (int a = 0; a < args.Length; a++)
         {
