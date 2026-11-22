@@ -271,6 +271,7 @@ void AActor::Serialize(FSerializer &arc)
 		A("reactiontime", reactiontime)
 		A("threshold", threshold)
 		A("player", player)
+		A("ddrecordid", ddRecordId) // [DoomDaggerfall] written only when nonzero
 		A("spawnpoint", SpawnPoint)
 		A("spawnangle", SpawnAngle)
 		A("starthealth", StartHealth)
