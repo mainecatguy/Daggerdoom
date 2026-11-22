@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Read", "Glob", "Grep", "Edit", "Write",
+      "Read", "Glob", "Grep", "Edit", "Write", "WebSearch", "WebFetch",
+      "PowerShell(python *)", "PowerShell(py *)", "Bash(python *)", "Bash(py *)",
       "PowerShell(git status*)", "PowerShell(git diff*)", "PowerShell(git log*)", "PowerShell(git show*)", "PowerShell(git add*)", "PowerShell(git commit*)",
       "PowerShell(cmake *)", "PowerShell(ctest *)", "PowerShell(dotnet *)", "PowerShell(msbuild *)", "PowerShell(Unity.exe *)", "PowerShell(Start-Process Unity.exe *)", "PowerShell(uzdoom.exe *)",
       "Bash(git status*)", "Bash(git diff*)", "Bash(git log*)", "Bash(git show*)", "Bash(git add*)", "Bash(git commit*)",
