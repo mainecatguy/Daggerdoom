@@ -18,6 +18,18 @@ Check whether UZDoom's sky viewpoints or the existing static-mesh pass is the be
 
 Show a real town from outside its playable area and capture screenshots for the owner to judge.
 
+### Fast travel arrival
+
+**Waiting on:** the town stitching task and the fast travel menu in `work/todo.md`.
+
+Daggerfall owns travel cost, time, and destination. Doom reports the player's world position to Daggerfall, then loads the chosen town or overworld position and places the player where Daggerfall would.
+
+### Town gates follow day and night
+
+**Waiting on:** the engine sync, since Daggerfall owns time.
+
+Owner decision (2026-11-22): town gates should follow Daggerfall's day and night cycle.
+
 ### Overworld monsters outside the loaded window
 
 **Waiting on:** owner decision, on hold. See `work/questions.md`.
@@ -39,6 +51,49 @@ Tell the owner wherever a dungeon requires climbing or levitation to progress, w
 Climbing and levitation will eventually be in the game. Doom currently lets the player walk up very steep hills and surfaces without limit. The player should be blocked, slide, or need Daggerfall's climbing wherever Daggerfall would require it.
 
 When this starts, research Daggerfall Unity's real behavior first: which surfaces the player can walk up, when they slide or get blocked, and when climbing starts, continues, or fails, including skill checks. Start with `FrictionMotor.cs`, `ClimbingMotor.cs`, and the player's slope limit. Then design the Doom behavior with the owner.
+
+## Inventory
+
+### Doom weapon equipping and hotkeys
+
+**Waiting on:** showing a Daggerfall menu inside Doom, inventory translation, and the owner answers listed below.
+
+Doom will be the client, so this is not a Daggerfall-only feature. Daggerfall's inventory is shown through Doom by a cross-game overlay, and the hotkeys are Doom keybindings that act on that menu. Do this after the fast travel proof of concept.
+
+Keep Daggerfall's existing inventory. No inventory layout change is needed. Doom guns are drawn only by hotkey, never by equipping.
+
+**Design so far (owner, 2026-11-22):**
+
+- Hover over an item or spell and press 1 to 0. A popup shows five gray inventory-style squares: three for the plain key (overloading, so up to 3 things share it and pressing again cycles), one for Ctrl+key, one for Alt+key, each clearly labelled.
+- Clicking a square overwrites it. A small red x in its corner deletes the assignment. The assigned item's icon fills the square.
+- Hotkeys are references only. Hotkeying never removes anything from the inventory.
+- Using a hotkey draws the item, readies the spell, or prepares the item to be used. Using it immediately is acceptable at first.
+- The player starts with a Doom weapon already hotkeyed.
+- Using DFU's normal equip action on a Doom weapon does not equip or auto-assign it. It always shows: "Press # over an item to assign hotkeys. Equip doom weapons through their hotkey."
+- Assignments are stored in DFU's save data.
+
+**Open questions for the owner:**
+
+- Missing item: grey X overlay or delete? Claude's recommendation is an overlay that works again when the item returns, deleting only when the item is destroyed or consumed, with stacks tracked by item type.
+- Which items can be hotkeyed: only drawable, readyable or usable ones, or also armor and clothing?
+
+### Inventory translation
+
+**Waiting on:** the two-game launcher and message channel, and owner-approved translation rules.
+
+Translate between Daggerfall items and DRLA weapons, ammo, armor, and mods in both directions. Daggerfall stays the authority for inventory and loot rolls. Its drops become DRLA gear based on item tier and type, and Doom gear must be represented in Daggerfall's inventory, saves, shops, and containers. See `gamedesign.md` and `designgoals.md`.
+
+### Grid inventory (shelved by owner, 2026-11-22)
+
+**Waiting on:** the owner deciding to revisit it. The existing inventory stays for now.
+
+A Diablo-style grid replacing Daggerfall's inventory, chest, and trade item lists, matching Daggerfall's UI. Ideas so far:
+
+- Small but not tiny cells, around 8 Daggerfall UI units, with items at normal sprite size.
+- An item occupies every cell its non-transparent sprite pixels intersect. No rotation, a stack takes the space of one item, and gold stays outside the grid.
+- Keep Daggerfall's item collections underneath, with grid positions as a layer on top, and never lose items.
+- Start with unlimited scrolling, with weight as the only limit. A later limit could be around 4 pages for the player. Scripts and quests could still force items in past it, and containers stay unlimited.
+- Reference only, do not copy code: https://github.com/SinlessDevil/TetrisInventorySystem
 
 ## Collision and combat polish
 
@@ -77,3 +132,11 @@ Doors that were locked in Daggerfall must have the same requirements in Doom.
 **Waiting on:** owner request. The owner will judge the result by play-testing.
 
 Generated actor-based swinging doors currently swing one way. Run an experiment on having them open in both directions.
+
+## Late development polish
+
+### Sort out keybinds
+
+**Waiting on:** the late development and polish phase.
+
+Resolve keybind conflicts across Doom, Daggerfall, and DaggerDoom. For example, Doom binds Ctrl to fire and Alt to strafe by default, which conflicts with the planned Ctrl+number and Alt+number weapon hotkeys.

@@ -31,7 +31,7 @@ Two pillars must survive every decision:
 
 ## Work tracking
 
-- **Todo** is ready: approved by the owner, with no owner input or unfinished dependency needed. Automated loops take work only from `work/todo.md`.
+- **Todo** is ready: approved by the owner, needing no owner input, and depending only on finished work or earlier todo items. Automated loops take work only from `work/todo.md`.
 - **Backlog** is not ready. Never start backlog work unless the owner asks. New ideas and discovered work go here.
 - Only the owner approves moving an item from backlog to todo. If a todo item turns out to be blocked, move it to the backlog and say what it is waiting on.
 
