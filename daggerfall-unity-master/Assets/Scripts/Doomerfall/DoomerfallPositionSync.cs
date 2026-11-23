@@ -25,7 +25,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         const int TeleportPixels = 2; // Farther than this, streaming would have nothing loaded at the target.
         const int GameSceneIndex = 1;
         const int TestStartPixelX = 207, TestStartPixelY = 213;
+        const long TravelHoldNs = 30000000000;
 
+        bool travelHold;
+        int travelX, travelY;
+        long travelHoldUntilNs;
         DoomerfallBridge bridge;
         bool engaged, savedDisableAI, savedMotor, savedController, savedLook, savedActivate, savedWeapons;
         bool areaDirty, areaPending, verifyPending, noDraw, testWorldReady, testEnemySpawned, testImageTaken;
@@ -100,6 +104,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             player.MaxHealth = 100;
             player.SetHealth(100, true);
             player.GoldPieces = 5000; // Lets the travel menu test afford any trip.
+            if (player.SkillUses == null) // The blank test character has none, and travel's skill check reads them.
+                player.SkillUses = new short[DaggerfallSkills.Count];
             startHealth = player.CurrentHealth;
             testWorldReady = true;
             bridge.LogLine("sync test: entered the world, health " + startHealth);
@@ -168,6 +174,23 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return;
             }
 
+            // After a fast travel Daggerfall leads: Doom's old position must not pull the player back.
+            if (travelHold)
+            {
+                if (peer.mapPixelX == travelX && peer.mapPixelY == travelY)
+                {
+                    travelHold = false;
+                    bridge.LogLine(string.Format("travel: Doom reached pixel {0},{1}", travelX, travelY));
+                }
+                else if (nowNs < travelHoldUntilNs)
+                    return;
+                else
+                {
+                    travelHold = false;
+                    bridge.LogLine("error: Doom did not arrive after fast travel, following Doom's position");
+                }
+            }
+
             // Measured from the first time both games agree, so the initial load is not counted as drift.
             bool samePixel = world.MapPixelX == peer.mapPixelX && world.MapPixelY == peer.mapPixelY;
             if (aligned)
@@ -227,6 +250,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         // False means the world cannot take the position yet.
         internal bool ApplyForSave(ref DfbUzState peer)
         {
+            if (travelHold)
+                return false;
             GameManager game = GameManager.Instance;
             StreamingWorld world = game.StreamingWorld;
             bool known = peer.worldContext == WorldExterior ||
@@ -241,6 +266,20 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         }
 
         internal bool PositionSettled { get { return GameManager.Instance.StreamingWorld.DoomerfallPositionSettled; } }
+
+        // Daggerfall has moved the player itself. Holds until Doom reports the same map pixel.
+        internal void BeginTravelHold(int pixelX, int pixelY)
+        {
+            travelHold = true;
+            travelX = pixelX;
+            travelY = pixelY;
+            travelHoldUntilNs = DfbNative.dfb_now_ns() + TravelHoldNs;
+        }
+
+        internal void EndTravelHold()
+        {
+            travelHold = false;
+        }
 
         void Apply(GameManager game, StreamingWorld world, PlayerGPS gps, ref DfbUzState peer)
         {

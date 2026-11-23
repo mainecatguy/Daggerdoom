@@ -78,6 +78,7 @@ extern "C" {
 #define DFB_KIND_LOAD_DONE     17  /* UZ to DF; Doom restored its half, or could not; payload: dfb_save_done */
 #define DFB_KIND_LOAD_RESUME   18  /* DF to UZ; both games are ready and play continues; payload: dfb_save_done */
 #define DFB_KIND_HOLD          19  /* UZ to DF; p0 is 1 to hold Daggerfall paused at Doom's title, 0 to release */
+#define DFB_KIND_TRAVEL        20  /* DF to UZ; Daggerfall finished a fast travel, sent before the menu closes; payload: dfb_travel */
 
 #define DFB_SAVE_OK      0u
 #define DFB_SAVE_REFUSED 1u  /* Daggerfall cannot save right now */
@@ -193,6 +194,17 @@ typedef struct dfb_ui_result
 	int32_t map_pixel_y;
 	char name[36];        /* UTF-8, terminated */
 } dfb_ui_result;
+
+/* Where Daggerfall placed the player. World units, with Doom's yaw. */
+typedef struct dfb_travel
+{
+	double world_x;
+	double world_z;
+	float yaw_degrees;
+	int32_t map_pixel_x;
+	int32_t map_pixel_y;
+	uint32_t pad;
+} dfb_travel;
 
 /* Describes one frame in the UI surface. Pixels are BGRA, top row first, width * 4 bytes per row. */
 typedef struct dfb_surface_frame

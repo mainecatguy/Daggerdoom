@@ -196,6 +196,7 @@ void PublishPosition()
 
 void HandleUiState(const dfb_event &e);
 void HandleUiResult(const dfb_event &e);
+void HandleTravel(const dfb_event &e);
 void HandleSaveReply(const dfb_event &e);
 void HandleLoadReady(const dfb_event &e);
 void HandleLoadResume(const dfb_event &e);
@@ -210,6 +211,9 @@ void HandleEvent(const dfb_event &e, int64_t now)
 		break;
 	case DFB_KIND_UI_RESULT:
 		HandleUiResult(e);
+		break;
+	case DFB_KIND_TRAVEL:
+		HandleTravel(e);
 		break;
 	case DFB_KIND_SAVE_PREPARED:
 		HandleSaveReply(e);
@@ -395,7 +399,16 @@ void HandleUiResult(const dfb_event &e)
 	dfb_ui_result body;
 	memcpy(&body, e.payload, sizeof(body));
 	body.name[sizeof(body.name) - 1] = 0;
-	Log("ui: fast travel destination chosen: %s at map pixel %d,%d (not applied)", body.name, body.map_pixel_x, body.map_pixel_y);
+	Log("ui: fast travel to %s at map pixel %d,%d", body.name, body.map_pixel_x, body.map_pixel_y);
+}
+
+void HandleTravel(const dfb_event &e)
+{
+	dfb_travel body;
+	memcpy(&body, e.payload, sizeof(body));
+	const bool accepted = DDTreadmill_RequestTravel(body.world_x, body.world_z, body.yaw_degrees);
+	Log("travel: Daggerfall placed the player at world %.1f,%.1f yaw %.1f pixel %d,%d, %s", body.world_x, body.world_z,
+		body.yaw_degrees, body.map_pixel_x, body.map_pixel_y, accepted ? "loading" : "refused");
 }
 
 void PumpUi(int64_t now)
@@ -540,6 +553,13 @@ bool DD_BridgeNetEvent(const char *name)
 	{
 		Printf("Daggerfall is not ready to show the travel map.\n");
 		Log("ui: open refused, Daggerfall phase %u", peerState.df_phase);
+		return true;
+	}
+	// Daggerfall's own indoor check cannot see this: its hidden player waits outside the door Doom used.
+	if (ownState.world_context != DFB_WORLD_EXTERIOR)
+	{
+		Printf(PRINT_HIGH, "You cannot travel from indoors.\n");
+		Log("ui: open refused, indoors");
 		return true;
 	}
 	OpenUi(DFB_UI_TRAVEL_MAP);

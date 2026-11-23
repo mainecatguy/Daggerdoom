@@ -126,6 +126,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DfbUzState peer;
         DfbStats stats;
         DoomerfallPositionSync sync;
+        internal DoomerfallPositionSync PositionSync { get { return sync; } }
         DoomerfallUi ui;
         DoomerfallHp hp;
         DoomerfallSave save;

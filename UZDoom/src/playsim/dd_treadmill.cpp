@@ -1345,6 +1345,39 @@ namespace
 		Level->ChangeLevel(map, 0, CHANGELEVEL_NOINTERMISSION | CHANGELEVEL_KEEPFACING | CHANGELEVEL_PRERAISEWEAPON);
 	}
 
+	// A fast travel arrival. Lands in the location's map when the point is inside its entry band, so the
+	// player never stands in the overworld's flattened copy of a town.
+	struct TravelRequest { bool pending = false; double x = 0, y = 0, yaw = 0; } travel;
+
+	void BeginTravel(FLevelLocals *Level, AActor *pmo)
+	{
+		travel.pending = false;
+		const double tx = travel.x / 256, ty = travel.y / 256;
+		int bestGroup = -1;
+		double bestDist = 1e30;
+		for (int n = 0; n < int(groups.size()); n++)
+		{
+			if (groups[n].tooLarge) continue;
+			for (const TileRect &r : groups[n].rects)
+			{
+				const double dist = std::max({ r.x0 - tx, tx - r.x1, r.y0 - ty, ty - r.y1, 0.0 });
+				if (dist < bestDist) { bestDist = dist; bestGroup = n; }
+			}
+		}
+		int town = -1;
+		if (bestGroup >= 0 && bestDist <= REQUEST_TILES)
+		{
+			const int candidate = TownForGroup(bestGroup, DDTownCache::GetBlocking(bestGroup));
+			if (candidate >= 0 && towns[candidate].Near(tx, ty, towns[candidate].EntryMargin())) town = candidate;
+		}
+		returnPoint.valid = false;
+		const double ground = town >= 0 ? towns[town].ground : (SampleVertex(int(floor(tx)), int(floor(ty))) + Z_BASE) / DOOM_PER_DF;
+		const DoorTarget target{ travel.x, travel.y, ground, travel.yaw, false, DD_AREA_EXTERIOR };
+		const FString map = town >= 0 ? towns[town].map : FString("DDOVER01");
+		Printf("DDTRAVEL to %s world=%.2f,%.2f yaw=%.1f\n", map.GetChars(), travel.x, travel.y, travel.yaw);
+		BeginHandoff(Level, pmo, map.GetChars(), nullptr, &target);
+	}
+
 	void FinishHandoff(FLevelLocals *Level)
 	{
 		if (!handoff.pending) return;
@@ -1888,6 +1921,11 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 	AActor *pmo = Level->Players[consoleplayer]->mo;
 	if (!pmo) return;
 	if (runtimeTowns) DDTownCache::Poll();
+	if (travel.pending && !handoff.pending)
+	{
+		BeginTravel(Level, pmo);
+		return;
+	}
 
 	if (townActive)
 	{
@@ -1968,6 +2006,13 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 	const double err = verify ? VerifyGrid(Level) : -1;
 	if (shiftLog)	// Buffered, so logging does not add to the frame being measured.
 		fprintf(shiftLog, "%d,%d,%d,%.1f,%.1f,%d,%d,%.6f\n", shifts, originX, originY, rewriteNs / 1000.0, totalNs / 1000.0, moveCount, parkCount, err);
+}
+
+bool DDTreadmill_RequestTravel(double x, double y, double yawDegrees)
+{
+	if (!runtimeTowns || (!DDTreadmill_Active && !townActive) || x < 0 || y < 0 || x >= WORLD_W * PIXEL_TILES * 256.0 || y >= WORLD_H * PIXEL_TILES * 256.0) return false;
+	travel = { true, x, y, yawDegrees };
+	return true;
 }
 
 DDPlayerArea DDTreadmill_PlayerWorld(double &x, double &y, double &z, double &yawDegrees)
