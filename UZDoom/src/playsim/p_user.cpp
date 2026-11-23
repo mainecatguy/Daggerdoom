@@ -1626,6 +1626,8 @@ FSerializer& FSafePosition::Serialize(FSerializer& arc, const char* name)
 //
 //----------------------------------------------------------------------------
 
+void DD_BridgeHpThink(player_t *player); // [Doomerfall] no effect outside a bridge session
+
 void P_PlayerThink (player_t *player)
 {
 	usercmd_t *cmd = &player->cmd;
@@ -1634,6 +1636,8 @@ void P_PlayerThink (player_t *player)
 	{
 		I_Error ("No player %td start\n", player - players + 1);
 	}
+
+	DD_BridgeHpThink(player); // [Doomerfall]
 
 	for (unsigned int i = 0u; i < 3u; ++i)
 	{

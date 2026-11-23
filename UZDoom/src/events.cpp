@@ -2434,8 +2434,11 @@ CCMD(event)
 	}
 }
 
+bool DD_BridgeNetEvent(const char *name); // [Doomerfall] false outside a bridge session
+
 CCMD(netevent)
 {
+	if (argv.argc() == 2 && DD_BridgeNetEvent(argv[1])) return; // [Doomerfall]
 	if (gamestate != GS_LEVEL/* && gamestate != GS_TITLELEVEL*/) // not sure if this should work in title level, but probably not, because this is for actual playing
 	{
 		DPrintf(DMSG_SPAMMY, "netevent cannot be used outside of a map.\n");

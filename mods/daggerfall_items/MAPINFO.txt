@@ -1,0 +1,11 @@
+GameInfo
+{
+	AddEventHandlers = "DaggerfallItemGallery"
+}
+
+map DFGALLRY "Daggerfall Item Gallery"
+{
+	next = "DFGALLRY"
+	sky1 = "SKY1"
+	music = ""
+}

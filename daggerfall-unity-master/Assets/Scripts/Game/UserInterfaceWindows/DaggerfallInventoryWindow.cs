@@ -1513,7 +1513,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                 return;
 
             bool splitRequired = maxAmount < item.stackCount;
-            bool controlPressed = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+            bool controlPressed = DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.Poll(KeyCode.LeftControl) || DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.Poll(KeyCode.RightControl);
             if (splitRequired || controlPressed)
             {
                 if (allowSplitting && item.IsAStack())

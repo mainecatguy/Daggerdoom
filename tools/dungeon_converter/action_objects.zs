@@ -29,6 +29,13 @@ class DFActionFlat : Actor
 	Default { +NOBLOCKMAP +NOGRAVITY +NOINTERACTION +DONTSPLASH Radius 8; Height 16; }
 }
 
+// An ordinary Daggerfall billboard. It has no collision, as in Daggerfall Unity. ANIMDEFS animates its texture.
+class DFDungeonFlat : Actor
+{
+	Default { +NOBLOCKMAP +NOGRAVITY +NOINTERACTION +DONTSPLASH +NOTONAUTOMAP Radius 1; Height 1; }
+	States { Spawn: PLAY A -1 Bright; Stop; }
+}
+
 // One cube of a moving model's collision. Solid to movement, hitscans, and projectiles, and can be stood on.
 class DFActionCell : Actor
 {
@@ -57,7 +64,7 @@ class DFAction : DFDoorListener
 	Array<DFActionCell> cells;
 	vector3 pivot, travel, spin, center, boxMin, boxMax;
 	double yaw, fraction, rate, cellHalf;
-	bool forwardOnly, stalled;
+	bool forwardOnly, stalled, bodyInCells;
 	int phase, activationCount, ruleRequests, touchCooldown;
 
 	Default { +NOBLOCKMAP +NOSECTOR +NOGRAVITY +NOINTERACTION RenderStyle "None"; }
@@ -154,10 +161,54 @@ class DFAction : DFDoorListener
 		return true;
 	}
 
+	bool IsSpecialDoor() { return kind == 1 && (flag == 18 || flag == 20); }
+
+	bool OverlapsBody(DFActionCell cell)
+	{
+		let it = BlockThingsIterator.CreateFromPos(cell.pos.x, cell.pos.y, cell.pos.z, cell.height, cell.radius, false);
+		while (it.Next())
+		{
+			Actor t = it.thing;
+			if (!t.bSOLID || (!t.player && !t.bISMONSTER)) continue;
+			if (abs(t.pos.x - cell.pos.x) >= t.radius + cell.radius || abs(t.pos.y - cell.pos.y) >= t.radius + cell.radius) continue;
+			if (t.pos.z >= cell.pos.z + cell.height || t.pos.z + t.height <= cell.pos.z) continue;
+			return true;
+		}
+		return false;
+	}
+
+	// DaggerfallActionDoorSpecial never waits and never carries a body: its collider turns away and the character controller
+	// is pushed clear. Doom has no push, so a cell inside a body stays non-solid until the body leaves.
+	void TickSpecialDoor()
+	{
+		bool moving = phase == FORWARD || phase == REVERSE;
+		if (!moving && !bodyInCells) return;
+		if (moving)
+		{
+			fraction = clamp(fraction + (phase == FORWARD ? rate : -rate), 0.0, 1.0);
+			Place(true);
+			if (fraction >= 1 && phase == FORWARD) phase = AT_END;
+			else if (fraction <= 0 && phase == REVERSE) phase = AT_START;
+		}
+		bodyInCells = false;
+		foreach (cell : cells)
+		{
+			bool inside = OverlapsBody(cell);
+			cell.bSOLID = !inside;
+			bodyInCells = bodyInCells || inside;
+		}
+		// A body standing still does not notice a floor that swung away.
+		let it = BlockThingsIterator.CreateFromPos(pivot.x, pivot.y, pivot.z + boxMin.z - 64, boxMax.z - boxMin.z + 128, 160, false);
+		while (it.Next())
+			if (it.thing.player || it.thing.bISMONSTER) it.thing.FindFloorCeiling();
+	}
+
 	override void Tick()
 	{
 		if (touchCooldown > 0) touchCooldown--;
-		if ((phase != FORWARD && phase != REVERSE) || isFrozen()) return;
+		if (isFrozen()) return;
+		if (IsSpecialDoor()) { TickSpecialDoor(); return; }
+		if (phase != FORWARD && phase != REVERSE) return;
 		double next = clamp(fraction + (phase == FORWARD ? rate : -rate), 0.0, 1.0);
 		if (!TryStep(next)) { stalled = true; return; }
 		stalled = false;
@@ -210,8 +261,15 @@ class DFAction : DFDoorListener
 				else if (phase == AT_END && !forwardOnly) { phase = REVERSE; A_StartSound("plats/pt1_strt", CHAN_BODY); }
 				break;
 			case 14: Teleport(user); break;
-			case 18: if (door) door.ActionSet(true); break;
-			case 20: if (door) door.ActionSet(false); break;
+			// A model that is not a real door swings as DaggerfallActionDoorSpecial, once its converter record makes it a mover.
+			case 18:
+				if (door) door.ActionSet(true);
+				else if (kind == 1 && phase == AT_START) { phase = FORWARD; A_StartSound("doors/dr1_open", CHAN_BODY); }
+				break;
+			case 20:
+				if (door) door.ActionSet(false);
+				else if (kind == 1 && phase == AT_END) { phase = REVERSE; A_StartSound("doors/dr1_clos", CHAN_BODY); }
+				break;
 			case 30: break;
 			case 9: DFActionRules.Request(self, "spell", user); break;
 			case 11: DFActionRules.Request(self, "text", user); break;
@@ -288,6 +346,7 @@ class DFActionHandler : EventHandler
 	{
 		if (e.IsSaveGame || e.IsReopen || !(level.MapName ~== "MAP01")) return;
 		if (Wads.CheckNumForName("DFPOINTS", Wads.ns_global) < 0) return;
+		SpawnFlats();
 		int lump = Wads.CheckNumForFullName("DFACTIONS");
 		if (lump < 0) return;
 
@@ -312,7 +371,7 @@ class DFActionHandler : EventHandler
 				let cell = DFActionCell(Actor.Spawn("DFActionCell", a.pivot, NO_REPLACE));
 				cell.owner = a;
 				cell.lx = f[2].ToDouble(); cell.ly = f[3].ToDouble(); cell.lz = f[4].ToDouble();
-				cell.A_SetSize(cellSize / 2, cellSize, false);
+				cell.A_SetSize(f.Size() > 5 ? f[5].ToDouble() : cellSize / 2, cellSize, false); // a thin panel gives its own half width
 				a.cells.Push(cell);
 				cellCount++;
 			}
@@ -330,6 +389,35 @@ class DFActionHandler : EventHandler
 			a.Place(false);
 		}
 		Console.Printf("DFACTIONS loaded %d records, %d collision cells, %d door links", actions.Size(), cellCount, doorLinks);
+	}
+
+	// DFDFLATS: texture x y z scaleX scaleY. The center of the picture is on the position.
+	void SpawnFlats()
+	{
+		int lump = Wads.CheckNumForFullName("DFDFLATS");
+		if (lump < 0) return;
+		Array<String> rows;
+		Wads.ReadLump(lump).Split(rows, "\n", TOK_SKIPEMPTY);
+		int spawned = 0, outside = 0, missing = 0;
+		foreach (row : rows)
+		{
+			Array<String> f;
+			row.Split(f, " ", TOK_SKIPEMPTY);
+			if (f.Size() < 6) continue;
+			vector3 at = (f[1].ToDouble(), f[2].ToDouble(), f[3].ToDouble());
+			let flat = Actor.Spawn("DFDungeonFlat", at, NO_REPLACE);
+			flat.picnum = TexMan.CheckForTexture(f[0], TexMan.Type_Any);
+			if (!flat.picnum.IsValid()) missing++;
+			flat.scale = (f[4].ToDouble(), f[5].ToDouble());
+			if (!level.IsPointInLevel(at))
+			{
+				outside++;
+				let sec = level.PointInSector(at.xy);
+				Console.Printf("DFFLATOUT %s %.0f %.0f %.0f sector %d floor %.0f ceiling %.0f", f[0], at.x, at.y, at.z, sec.Index(), sec.floorplane.ZAtPoint(at.xy), sec.ceilingplane.ZAtPoint(at.xy));
+			}
+			spawned++;
+		}
+		Console.Printf("DFDFLATS spawned %d billboards, %d outside a sector, %d missing textures", spawned, outside, missing);
 	}
 
 	DFAction Build(Array<String> f, double cellSize)

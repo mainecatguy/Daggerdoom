@@ -3081,3 +3081,12 @@ OptionValue "os_isanyof_values"
 	0, "$OS_ALL"
 	1, "$OS_ANY"
 }
+
+// Doomerfall: opened only by the bridge after a death on a Daggerfall map.
+OptionMenu "DoomerfallDeathMenu" protected
+{
+	Title "YOU DIED"
+	Command "Load Last Save", "dd_death_loadlast"
+	Submenu "Load Game", "LoadGameMenu"
+	Command "Main Menu", "dd_death_mainmenu"
+}

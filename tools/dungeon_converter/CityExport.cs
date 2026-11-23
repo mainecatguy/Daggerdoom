@@ -19,7 +19,7 @@ using DaggerfallConnect.Utility;
 
 static partial class Program
 {
-    static class City
+    static partial class City
     {
         const int TilesPerPixel = 128, TileDf = 256, TilesPerBlock = 16, RmbDf = 4096;
         const double MaxTerrain = 1539, TerrainScale = 1.5, UnityToDf = 40, HeightToDf = MaxTerrain * TerrainScale * UnityToDf;
@@ -60,6 +60,8 @@ static partial class Program
             // --group <id> --ddt <file> converts one location group for the running game.
             int groupId = int.Parse(Arg("--group", "-1"));
             string ddtPath = Arg("--ddt", null);
+            if (args.Contains("--list-buildings")) return ListBuildings(groupId, arena2);
+            if (groupId >= SpaceBase) return RunInterior(groupId, ddtPath, outDir, arena2);
             if (groupId >= 0) mapName = RuntimeMapName(groupId);
             if ((cityName == null && groupId < 0) || outDir == null) { Console.Error.WriteLine("usage: --city <name> [--region <name>] --out <dir>, or --group <id> --ddt <file> --out <work dir>"); return 2; }
             if (Math.Abs(DoomTile / rasterCell - Math.Round(DoomTile / rasterCell)) > 1e-9) { Console.Error.WriteLine("--raster must divide the Doom tile size"); return 2; }
@@ -111,7 +113,7 @@ static partial class Program
             double groundDf = target * HeightToDf;
             double originDfX = originTileX * TileDf, originDfZ = originTileY * TileDf;
 
-            var scene = new Scene(arena2, location, originDfX, originDfZ);
+            var scene = new Scene(arena2, location, originDfX, originDfZ) { DoorGroup = groupId };
             foreach (var site in sites)
             {
                 scene.Use(site.Location);
@@ -128,13 +130,14 @@ static partial class Program
             foreach (var probe in (Arg("--probe", "")).Split(';', StringSplitOptions.RemoveEmptyEntries))
                 Collision.Probes.Add((double.Parse(probe.Split(',')[0], CultureInfo.InvariantCulture), double.Parse(probe.Split(',')[1], CultureInfo.InvariantCulture)));
             var rasters = sites.Select(q => new Collision(rasterCell, q, q == sites[0])).ToList();
-            foreach (var raster in rasters) raster.Rasterize(scene.Colliders);
+            foreach (var raster in rasters) raster.Rasterize(scene.Colliders, scene.ColliderOwners);
             var collision = rasters[0];
             var map = Collision.Build(rasters, bx0, bx1, by0, by1);
             string slug = new string(cityName.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant() + "_city";
             string wad = Path.Combine(outDir, slug + ".wad");
             WriteWad(wad, map.Text, "", mapName);
             File.WriteAllText(Path.Combine(outDir, slug + ".routes.txt"), collision.Routes());
+            File.WriteAllText(Path.Combine(outDir, slug + ".roofs.txt"), string.Concat(rasters.Select(q => q.RoofSamples())));
 
             int worldTileX = cityX * TilesPerPixel, worldTileY = (WorldTerrain.WorldH - 1 - cityY) * TilesPerPixel;
             var first = sites[0];
@@ -154,6 +157,7 @@ static partial class Program
                 $"city {location.RegionName}/{location.Name}\nmap pixel {cityX},{cityY}\nsites {sites.Count}\nblocks {sites[0].Place.BlocksWide}x{sites[0].Place.BlocksHigh}\nflat tiles x {sites[0].FlatX0}..{sites[0].FlatX1} y {sites[0].FlatY0}..{sites[0].FlatY1}\nground height {groundDf:F1} df units\n" +
                 $"models {scene.Models} missing {scene.Missing} gates {scene.Gates}\nmesh triangles {scene.Triangles} batches {scene.BatchCount} textures unreadable {scene.BadTextures}\nbillboards {scene.Flats.Count}\n" +
                 $"raster {collision.W}x{collision.H} at {rasterCell} units\nopen cells {collision.OpenCells} solid cells {collision.SolidCells} removed unreachable {collision.RemovedCells} kept regions {collision.KeptRegions}\nouter edge reachable from start {collision.ReachesEdge}\n" +
+                $"buildings {rasters.Sum(q => q.Buildings)} roof cells {rasters.Sum(q => q.RoofCells)} sloped {rasters.Sum(q => q.SlopedRoofCells)} filled from a neighbor {rasters.Sum(q => q.FilledRoofCells)} flat fallback {rasters.Sum(q => q.FallbackRoofCells)} open inside footprint {rasters.Sum(q => q.OpenFootprintCells)} no roof inside footprint {rasters.Sum(q => q.NoRoofCells)}\n" +
                 $"sectors {map.Sectors} (city {map.CitySectors}, terrain {map.TerrainSectors}) lines {map.Lines} vertices {map.Vertices}\nstart {map.StartX},{map.StartY}\nwad {(File.Exists(wad) ? new FileInfo(wad).Length / 1024 : 0)} KiB\nmesh package {new FileInfo(package).Length / 1024} KiB\nconvert time {clock.ElapsedMilliseconds} ms\n");
             File.WriteAllText(Path.Combine(outDir, slug + ".stats.txt"), report);
             Console.WriteLine(report);
@@ -203,7 +207,10 @@ static partial class Program
                 if (!blocks.GetBlockName(b).EndsWith(".RMB", StringComparison.OrdinalIgnoreCase)) continue;
                 var data = blocks.GetBlock(b).RmbBlock;
                 foreach (var sub in data.SubRecords)
+                {
                     foreach (var f in sub.Exterior.BlockFlatObjectRecords) flatArchives.Add(f.TextureArchive);
+                    foreach (var f in sub.Interior.BlockFlatObjectRecords) flatArchives.Add(f.TextureArchive);
+                }
                 foreach (var f in data.MiscFlatObjectRecords) flatArchives.Add(f.TextureArchive);
             }
             flatArchives.Remove(199);
@@ -281,6 +288,7 @@ class DFRuntimeTown
 			door.Setup(f[0].ToInt(), f[1].ToDouble(), f[2].ToDouble(), f[3].ToDouble(), f[4].ToDouble(),
 				f[5].ToDouble(), f[6].ToDouble(), f[7].ToDouble(), f[8].ToDouble(), f[9].ToDouble(), f[10].ToDouble());
 			door.swingDir = f[11].ToDouble();
+			door.solidWhenOpen = true;
 			count++;
 		}
 		Console.Printf(""DFGATES spawned %d leaves"", count);
@@ -289,7 +297,12 @@ class DFRuntimeTown
 
 class DFRuntimeHandler : EventHandler
 {
-	static bool IsTown() { return level.MapName.Left(3) ~== ""DDT"" && level.MapName.Length() == 8; }
+	static bool IsTown()
+	{
+		String prefix = level.MapName.Left(3);
+		if ((prefix ~== ""DDT"" || prefix ~== ""DDS"") && level.MapName.Length() == 8) return true;
+		return level.MapName ~== ""MAP01"" && Wads.CheckNumForName(""DDDUNGN"", Wads.ns_global) >= 0;	// A dungeon entered from a town.
+	}
 	override void WorldLoaded(WorldEvent e) { if (IsTown()) for (int i = 0; i < MAXPLAYERS; i++) if (playeringame[i]) Fit(players[i].mo); }
 	override void PlayerEntered(PlayerEvent e) { if (IsTown()) Fit(players[e.PlayerNumber].mo); }
 	static void Fit(PlayerPawn mo) { if (mo) mo.A_SetSize(10.5, mo.height); }
@@ -409,9 +422,16 @@ class DFRuntimeHandler : EventHandler
         sealed class Scene
         {
             public readonly List<(V3 a, V3 b, V3 c)> Colliders = new List<(V3, V3, V3)>();
+            public readonly List<int> ColliderOwners = new List<int>(); // building id per collider triangle, or -1 for walls, gates, and props
+            int currentOwner = -1, nextOwner;
             public readonly List<(int archive, int record, double x, double y, double z, double sx, double sy)> Flats = new List<(int, int, double, double, double, double, double)>();
             public int Models, Missing, Gates, BadTextures, BatchCount;
             public int Triangles => batches.Values.Sum(b => b.Count) / 24;
+            public readonly List<V3> ColliderNormals = new List<V3>(); // Doom axes, parallel to Colliders
+            public readonly List<(uint id, int instance)> ColliderModels = new List<(uint, int)>();
+            public int DoorGroup = -1; // The runtime group, so the town can list its doors.
+            public readonly List<string> DoorLines = new List<string>();
+            int nextBuilding;
 
             readonly string arena2;
             DFLocation location;
@@ -452,7 +472,7 @@ class DFRuntimeHandler : EventHandler
                 return (int)location.Climate.ClimateType + set;
             }
 
-            void AddModel(Arch3dFile arch, uint id, V3 position, double rx, double ry, double rz, V3 scale, V3 parent, double parentYaw)
+            public void AddModel(Arch3dFile arch, uint id, V3 position, double rx, double ry, double rz, V3 scale, V3 parent, double parentYaw)
             {
                 // A gate's frame stays in the static mesh. Its two leaves become swinging door objects (AddGate).
                 if (id == GateClosed) id = GateOpen;
@@ -499,6 +519,9 @@ class DFRuntimeHandler : EventHandler
                             Emit(0); Emit(i + 1); Emit(i);
                             V3 D(V3 p) => new V3((p.X - originX) * S, (p.Z - originZ) * S, p.Y * S);
                             Colliders.Add((D(world[0]), D(world[i]), D(world[i + 1])));
+                            ColliderOwners.Add(isGate ? -1 : currentOwner);
+                            ColliderNormals.Add(new V3(n.X / length, n.Z / length, n.Y / length));
+                            ColliderModels.Add((id, Models));
                         }
                     }
                 }
@@ -593,7 +616,8 @@ class DFRuntimeHandler : EventHandler
                 }
             }
 
-            void AddFlat(int archive, int record, double x, double up, double z)
+            // Town billboards stand on their position. Interior ones are centered on it, as in Daggerfall Unity.
+            public void AddFlat(int archive, int record, double x, double up, double z, bool centered = false)
             {
                 var file = Archive(archive);
                 if (file == null || record >= file.RecordCount) { BadTextures++; return; }
@@ -604,6 +628,7 @@ class DFRuntimeHandler : EventHandler
                     int xChange = (int)(raw.Width * (scale.Width / (double)BlocksFile.ScaleDivisor)), yChange = (int)(raw.Height * (scale.Height / (double)BlocksFile.ScaleDivisor));
                     flatSizes[(archive, record)] = size = (raw.Width + xChange, raw.Height + yChange, raw.Width, raw.Height);
                 }
+                if (centered) up -= size.h / 2;
                 Flats.Add((archive, record, (x - originX) * S, (z - originZ) * S, up * S, size.w / size.texW * S, size.h / size.texH * S));
             }
 
@@ -613,13 +638,17 @@ class DFRuntimeHandler : EventHandler
                 double div = BlocksFile.RotationDivisor;
                 var data = block.RmbBlock;
                 var origin = new V3(blockX, 2 + up, blockZ);
+                bool isWallBlock = (block.Name ?? "").StartsWith("WALL", StringComparison.OrdinalIgnoreCase);
                 V3 ScaleOf(DFBlock.RmbBlock3dObjectRecord o) => new V3(o.XScale == 0 ? 1 : o.XScale, o.YScale == 0 ? 1 : o.YScale, o.ZScale == 0 ? 1 : o.ZScale);
                 foreach (var sub in data.SubRecords)
                 {
                     var parent = origin + new V3(sub.XPos, 0, RmbDf - sub.ZPos);
                     double yaw = -sub.YRotation / div * toRad;
+                    // One subrecord is one building. City wall blocks and gates keep their full-height collision.
+                    currentOwner = !isWallBlock && !sub.Exterior.Block3dObjectRecords.Any(o => o.ModelIdNum == GateOpen || o.ModelIdNum == GateClosed) ? nextOwner++ : -1;
                     foreach (var o in sub.Exterior.Block3dObjectRecords)
                         AddModel(arch, o.ModelIdNum, new V3(o.XPos, -o.YPos, o.ZPos), -o.XRotation / div * toRad, -o.YRotation / div * toRad, -o.ZRotation / div * toRad, ScaleOf(o), parent, yaw);
+                    AddDoors(sub, arch, parent, yaw, nextBuilding++);
                     foreach (var f in sub.Exterior.BlockFlatObjectRecords)
                     {
                         if (f.TextureArchive == 199 || f.FactionID != 0) continue; // editor markers and NPCs are out of scope
@@ -630,8 +659,10 @@ class DFRuntimeHandler : EventHandler
                         AddFlat(archive, f.TextureRecord, fx, fy, fz);
                     }
                 }
+                currentOwner = -1;
                 foreach (var o in data.Misc3dObjectRecords)
                     AddModel(arch, o.ModelIdNum, new V3(o.XPos, -o.YPos - 4, o.ZPos + RmbDf), -o.XRotation / div * toRad, -o.YRotation / div * toRad, -o.ZRotation / div * toRad, ScaleOf(o), origin, 0);
+                if (DoorGroup >= 0) AddDoorsFrom(data.Misc3dObjectRecords, arch, origin, 0, new V3(0, -4, RmbDf), MaxBuildings, false);
                 foreach (var f in data.MiscFlatObjectRecords)
                     if (f.TextureArchive != 199 && f.FactionID == 0)
                         AddFlat(f.TextureArchive, f.TextureRecord, origin.X + f.XPos, origin.Y - f.YPos - 6, origin.Z + f.ZPos + RmbDf);
@@ -640,6 +671,43 @@ class DFRuntimeHandler : EventHandler
                     for (int x = 0; x < 16; x++)
                         if (scenery[x, 15 - y].TextureRecord >= 1)
                             AddFlat(location.Climate.NatureArchive, scenery[x, 15 - y].TextureRecord, origin.X + x * TileDf, origin.Y - 2, origin.Z + y * TileDf + TileDf);
+            }
+
+            // DDDOORS, one per line: kind target index x y z nx ny, in town map units. Kind 0 targets an interior space
+            // id, and kind 1 a dungeon's Daggerfall map id. The height is the door's bottom edge.
+            void AddDoors(DFBlock.RmbSubRecord sub, Arch3dFile arch, V3 parent, double yaw, int building)
+            {
+                if (DoorGroup < 0) return;
+                bool hasInterior = building < MaxBuildings && sub.Interior.Block3dObjectRecords != null && sub.Interior.Block3dObjectRecords.Length > 0;
+                AddDoorsFrom(sub.Exterior.Block3dObjectRecords, arch, parent, yaw, new V3(0, 0, 0), building, hasInterior);
+            }
+
+            // Dungeon entrances are often block-level models rather than part of a building record.
+            void AddDoorsFrom(DFBlock.RmbBlock3dObjectRecord[] records, Arch3dFile arch, V3 parent, double yaw, V3 shift, int building, bool hasInterior)
+            {
+                const double toRad = Math.PI / 180;
+                double div = BlocksFile.RotationDivisor;
+                int index = 0;
+                foreach (var o in records)
+                {
+                    int record = arch.GetRecordIndex(o.ModelIdNum);
+                    if (record < 0) continue;
+                    var scale = new V3(o.XScale == 0 ? 1 : o.XScale, o.YScale == 0 ? 1 : o.YScale, o.ZScale == 0 ? 1 : o.ZScale);
+                    double rx = -o.XRotation / div * toRad, ry = -o.YRotation / div * toRad, rz = -o.ZRotation / div * toRad;
+                    foreach (var door in DoorPlanes(arch.GetMesh(record)))
+                    {
+                        if (door.Type == DoorExit) continue;
+                        int doorIndex = door.Type == DoorBuilding ? index++ : 0; // Interior landings count building doors only.
+                        if (door.Type == DoorBuilding && !hasInterior) continue;
+                        if (door.Type == DoorEntrance && !location.HasDungeon) continue;
+                        var local = new V3(door.Centre.X * scale.X, door.Centre.Y * scale.Y, door.Centre.Z * scale.Z);
+                        var at = Rotate(Rotate(local, rx, ry, rz) + new V3(o.XPos, -o.YPos, o.ZPos) + shift, 0, yaw, 0) + parent;
+                        var n = Rotate(Rotate(door.Normal, rx, ry, rz), 0, yaw, 0);
+                        int kind = door.Type == DoorBuilding ? 0 : 1;
+                        int target = kind == 0 ? SpaceBase + DoorGroup * SpacePerGroup + building : location.MapTableData.MapId;
+                        DoorLines.Add(FormattableString.Invariant($"{kind} {target} {doorIndex} {(at.X - originX) * S:F3} {(at.Z - originZ) * S:F3} {(at.Y - door.HalfHeight * Math.Abs(scale.Y)) * S + 2:F3} {n.X:F4} {n.Z:F4}"));
+                    }
+                }
             }
 
             public void AddTerrain(int fromX, int toX, int fromY, int toY)
@@ -784,7 +852,7 @@ class DFRuntimeHandler : EventHandler
                 writer.Flush();
             }
 
-            // One cache entry: "DDT1", entry count, then name[8], raw size, packed size for each, then the zlib streams.
+            // One cache entry: "DDT2", entry count, then name[8], raw size, packed size for each, then the zlib streams.
             // It is written to a temporary file and renamed, so the engine never sees a partial entry.
             public void WriteRuntimeEntry(string path, string wadPath, string townInfo, string mapName)
             {
@@ -799,6 +867,7 @@ class DFRuntimeHandler : EventHandler
                 {
                     ("MAPWAD", File.ReadAllBytes(wadPath)), ("DFMESH", mesh.ToArray()), ("DFFLATS", Encoding.ASCII.GetBytes(flatList.ToString())),
                     ("DFGATES", Encoding.ASCII.GetBytes(string.Join((char)10, GatePlacements) + (char)10)), ("DDTOWN", Encoding.ASCII.GetBytes(townInfo)),
+                    ("DDDOORS", Encoding.ASCII.GetBytes(string.Join((char)10, DoorLines) + (char)10)),
                 };
                 var packed = new byte[entries.Length][];
                 System.Threading.Tasks.Parallel.For(0, entries.Length, i =>
@@ -811,7 +880,7 @@ class DFRuntimeHandler : EventHandler
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path)));
                 using (var w = new BinaryWriter(File.Create(temp)))
                 {
-                    w.Write(Encoding.ASCII.GetBytes("DDT1"));
+                    w.Write(Encoding.ASCII.GetBytes("DDT2"));
                     w.Write(entries.Length);
                     for (int i = 0; i < entries.Length; i++)
                     {
@@ -941,6 +1010,7 @@ class DFCityHandler : EventHandler
 			door.Setup(f[0].ToInt(), f[1].ToDouble(), f[2].ToDouble(), f[3].ToDouble(), f[4].ToDouble(),
 				f[5].ToDouble(), f[6].ToDouble(), f[7].ToDouble(), f[8].ToDouble(), f[9].ToDouble(), f[10].ToDouble());
 			door.swingDir = f[11].ToDouble();
+			door.solidWhenOpen = true;
 			count++;
 		}
 		Console.Printf(""DFGATES spawned %d leaves"", count);
@@ -954,7 +1024,7 @@ class DFCityHandler : EventHandler
 
         // ---- Collision ----
 
-        sealed class Collision
+        sealed partial class Collision
         {
             public static readonly List<(double x, double y)> Probes = new List<(double, double)>(); // --probe x,y;x,y prints what the raster saw
             const double Step = 24, Body = 56, Clearance = 2;
@@ -977,12 +1047,24 @@ class DFCityHandler : EventHandler
                 x0 = DoomX(flatX0); y0 = DoomY(flatY0);
             }
 
-            public void Rasterize(List<(V3 a, V3 b, V3 c)> triangles)
+            public void Rasterize(List<(V3 a, V3 b, V3 c)> triangles, List<int> owners)
             {
                 var hits = new List<(float lo, float hi)>[W * H];
                 Span<(double x, double y, double z)> poly = new (double, double, double)[12], next = new (double, double, double)[12];
-                foreach (var (a, b, c) in triangles)
+                // A building's ground is its lowest point, or the street when the model is sunk into it.
+                var ground = new double[owners.Count == 0 ? 0 : owners.Max() + 1];
+                Array.Fill(ground, double.MaxValue);
+                for (int t = 0; t < triangles.Count; t++)
+                    if (owners[t] >= 0) ground[owners[t]] = Math.Min(ground[owners[t]], Math.Min(triangles[t].a.Z, Math.Min(triangles[t].b.Z, triangles[t].c.Z)));
+                for (int o = 0; o < ground.Length; o++) ground[o] = Math.Max(ground[o], baseZ);
+                var sides = new Dictionary<int, HashSet<int>>();
+                for (int t = 0; t < triangles.Count; t++)
                 {
+                    var (a, b, c) = triangles[t];
+                    int owner = owners[t];
+                    bool vertical = IsVertical(a, b, c);
+                    double triLow = Math.Min(a.Z, Math.Min(b.Z, c.Z)), triHigh = Math.Max(a.Z, Math.Max(b.Z, c.Z));
+                    bool side = owner >= 0 && vertical && triLow <= ground[owner] + Body && triHigh - triLow >= MinSideHeight;
                     int i0 = Math.Max(0, (int)Math.Floor((Math.Min(a.X, Math.Min(b.X, c.X)) - x0) / cell)), i1 = Math.Min(W - 1, (int)Math.Floor((Math.Max(a.X, Math.Max(b.X, c.X)) - x0) / cell));
                     int j0 = Math.Max(0, (int)Math.Floor((Math.Min(a.Y, Math.Min(b.Y, c.Y)) - y0) / cell)), j1 = Math.Min(H - 1, (int)Math.Floor((Math.Max(a.Y, Math.Max(b.Y, c.Y)) - y0) / cell));
                     for (int j = j0; j <= j1; j++)
@@ -996,6 +1078,13 @@ class DFCityHandler : EventHandler
                             if (n == 0) continue;
                             double lo = double.MaxValue, hi = double.MinValue;
                             for (int k = 0; k < n; k++) { lo = Math.Min(lo, poly[k].z); hi = Math.Max(hi, poly[k].z); }
+                            if (side)
+                            {
+                                if (!sides.TryGetValue(owner, out var set)) sides[owner] = set = new HashSet<int>();
+                                set.Add(i + j * W);
+                            }
+                            // A roof overhang above step height must not block the player at the wall below it.
+                            if (owner >= 0 && !vertical && lo > ground[owner] + Step) continue;
                             (hits[i + j * W] ??= new List<(float, float)>(4)).Add(((float)lo, (float)hi));
                         }
                 }
@@ -1016,6 +1105,7 @@ class DFCityHandler : EventHandler
                 }
                 var before = (short[])floor.Clone();
                 KeepReachable();
+                BuildRoofs(triangles, owners, sides);
                 foreach (var (px, py) in Probes)
                 {
                     int i = (int)Math.Floor((px - x0) / cell), j = (int)Math.Floor((py - y0) / cell), c = i + j * W;
@@ -1166,6 +1256,7 @@ class DFCityHandler : EventHandler
             public static MapText Build(List<Collision> rasters, int tx0, int tx1, int ty0, int ty1)
             {
                 var floors = new List<int>();
+                var floorSlopes = new List<string>();
                 var stack = new Stack<int>();
                 foreach (var r in rasters)
                 {
@@ -1173,9 +1264,11 @@ class DFCityHandler : EventHandler
                     Array.Fill(r.sectorOf, NoSector);
                     for (int s = 0; s < r.sectorOf.Length; s++)
                     {
-                        if (r.floor[s] == short.MinValue || r.sectorOf[s] >= 0) continue;
+                        int code = r.Code(s);
+                        if (code == int.MinValue || r.sectorOf[s] >= 0) continue;
                         int id = floors.Count;
-                        floors.Add(r.floor[s]);
+                        floors.Add(r.roofPlane[s] >= 0 ? roofPlanes[r.roofPlane[s]].z : r.floor[s]);
+                        floorSlopes.Add(r.RoofSlope(r.roofPlane[s]));
                         r.sectorOf[s] = id;
                         stack.Push(s);
                         while (stack.Count > 0)
@@ -1185,7 +1278,7 @@ class DFCityHandler : EventHandler
                             {
                                 if (ni < 0 || nj < 0 || ni >= r.W || nj >= r.H) return;
                                 int q = ni + nj * r.W;
-                                if (r.sectorOf[q] < 0 && r.floor[q] == r.floor[s]) { r.sectorOf[q] = id; stack.Push(q); }
+                                if (r.sectorOf[q] < 0 && r.Code(q) == code) { r.sectorOf[q] = id; stack.Push(q); }
                             }
                             Try(i + 1, j); Try(i - 1, j); Try(i, j + 1); Try(i, j - 1);
                         }
@@ -1207,13 +1300,13 @@ class DFCityHandler : EventHandler
                 bool InMap(int x, int y) => InBox(x, y) && kind[TileIndex(x, y)] == 1;
                 var sectors = new StringBuilder();
                 string F(double v) => v.ToString("R", CultureInfo.InvariantCulture);
-                double maxZ = floors.Count > 0 ? floors.Max() : 0;
+                double maxZ = Math.Max(floors.Count > 0 ? floors.Max() : 0, rasters.Max(q => q.RoofTop()));
                 for (int y = ty0; y <= ty1; y++)
                     for (int x = tx0; x <= tx1; x++)
                         if (InMap(x, y) || InMap(x - 1, y) || InMap(x, y - 1) || InMap(x - 1, y - 1)) maxZ = Math.Max(maxZ, DoomZ(x, y));
                 int ceiling = (int)Math.Ceiling(maxZ / 64 + 1) * 64 + 2048;
-                foreach (int f in floors)
-                    sectors.Append($"sector {{ heightfloor = {f}; heightceiling = {ceiling}; texturefloor = \"FLOOR0_1\"; textureceiling = \"F_SKY1\"; lightlevel = 192; }}\n");
+                for (int n = 0; n < floors.Count; n++)
+                    sectors.Append($"sector {{ heightfloor = {floors[n]}; heightceiling = {ceiling}; texturefloor = \"FLOOR0_1\"; textureceiling = \"F_SKY1\"; lightlevel = 192;{floorSlopes[n]} }}\n");
                 int sectorCount = citySectors;
                 void Slope(double ax, double ay, double az, double bx, double by, double bz, double cx, double cy, double cz)
                 {

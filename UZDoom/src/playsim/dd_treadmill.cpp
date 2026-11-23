@@ -41,6 +41,7 @@
 #include "c_cvars.h"
 #include "c_dispatch.h"
 #include "d_player.h"
+#include "d_event.h"
 #include "doomstat.h"
 #include "filesystem.h"
 #include "g_level.h"
@@ -64,6 +65,7 @@ CVAR(Int, dd_tm_intown, 0, CVAR_NOSAVE)
 CVAR(Int, dd_tm_stitches, 0, CVAR_NOSAVE)
 CVAR(Int, dd_tm_nearest, -1, CVAR_NOSAVE)		// Nearest generated location group.
 CVAR(Int, dd_tm_neareststate, 0, CVAR_NOSAVE)	// Its DDTownCache::State.
+CVAR(Int, dd_tm_use, 0, CVAR_NOSAVE | CVAR_MOD)	// Test hook: one press of Use on a location door.
 CVAR(String, dd_tm_warp, "", CVAR_NOSAVE | CVAR_MOD)		// "tileX tileY": moves the player through the overworld handoff. The path fast travel can use.
 
 bool DDTreadmill_Active = false;
@@ -124,6 +126,8 @@ namespace
 
 	// A generated exterior map and where it sits in the world. Rectangles are global tiles.
 	struct TileRect { int x0, x1, y0, y1; };
+	struct SpaceLanding { int index; double x, y, z, yaw; };	// Local map units, for one exterior door.
+	struct SpaceExit { double x, y, z, nx, ny; };
 	struct Town
 	{
 		FString map;
@@ -133,6 +137,11 @@ namespace
 		bool holdEntry = false;	// The player was already inside when it became ready, so it waits until they walk clear.
 		TileRect visual{};
 		std::vector<TileRect> rects;
+		// A building interior or dungeon. It has a private area of the world table, far outside the real world.
+		bool space = false;
+		int spaceId = -1, dungeonMapId = 0;
+		std::vector<SpaceLanding> landings;
+		std::vector<SpaceExit> exits;
 		// The exit line is farther out than the entry line, so the border cannot cause repeated loads.
 		int EntryMargin() const { return margin - 12; }
 		int ExitMargin() const { return margin - 4; }
@@ -168,9 +177,22 @@ namespace
 		DVector3 vel;
 		DVector2 playerVel;
 		DAngle yaw, pitch;
+		bool atMapStart = false;	// A dungeon entry: stay on the map's start spot and only take the facing.
+		DDPlayerArea area = DD_AREA_EXTERIOR;	// What the player is arriving in.
 		std::chrono::steady_clock::time_point started;
 	} handoff;
 	int stitches;
+
+	// Doors between towns, building interiors, and dungeons.
+	constexpr int SPACE_BASE = 1000000, DUNGEON_SPACE = 17000000, DOOR_PREFETCH = 2;
+	constexpr double USE_REACH = 96, DOOR_CANCEL = 160, EXIT_STEP = 31.5;	// 128 Daggerfall units of reach. The step is three player radii.
+	struct DoorSpot { int kind, target, index; double x, y, z, nx, ny; };
+	struct ReturnPoint { bool valid = false; FString map; double x = 0, y = 0, z = 0, yaw = 0; };
+	std::vector<DoorSpot> townDoors;
+	ReturnPoint returnPoint;
+	std::unordered_set<std::string> visitedSpaces;
+	int pendingDoor = -1;
+	bool useHeld;
 
 	// The town's billboards, so trees and props look the same from the overworld. Global Doom coordinates.
 	struct TownFlat { FTextureID tex; double x, y, z; float sx, sy; };
@@ -903,6 +925,19 @@ namespace
 		Printf("DDTCACHE index: %d location groups\n", int(groups.size()));
 	}
 
+	// Gives a space its own rectangle of world-table coordinates, beyond the 128,000-tile world.
+	void PlaceSpace(Town &t, int id)
+	{
+		const int tileX = (1 << 22) + (id & 0xFFF) * 1024, tileY = (id >> 12) * 1024;
+		t.space = true;
+		t.spaceId = id;
+		t.originX = tileX * 256.0;
+		t.originY = tileY * 256.0;
+		t.margin = 1;
+		t.rects.push_back({ tileX - 400, tileX + 400, tileY - 400, tileY + 400 });
+		t.visual = t.rects[0];
+	}
+
 	void LoadTowns()
 	{
 		if (townsLoaded) return;
@@ -915,6 +950,68 @@ namespace
 			if (t.map.IsNotEmpty() && !t.rects.empty()) towns.push_back(std::move(t));
 		}
 		LoadGroupIndex();
+		last = 0;
+		for (int n = 0; (lump = fileSystem.FindLump("DDDUNGN", &last)) >= 0; n++)
+		{
+			auto data = fileSystem.ReadFile(lump);
+			Town t;
+			PlaceSpace(t, DUNGEON_SPACE + n);
+			FString text((const char *)data.data(), data.size());
+			for (auto &line : text.Split("\n"))
+			{
+				char name[16];
+				SpaceExit e;
+				if (sscanf(line.GetChars(), "mapid %d", &t.dungeonMapId) == 1) continue;	// First, because "map %s" also matches this line.
+				else if (sscanf(line.GetChars(), "map %15s", name) == 1) t.map = name;
+				else if (sscanf(line.GetChars(), "exit %lf %lf %lf %lf %lf", &e.x, &e.y, &e.z, &e.nx, &e.ny) == 5) t.exits.push_back(e);
+			}
+			if (t.map.IsNotEmpty()) towns.push_back(std::move(t));
+		}
+	}
+
+	// The map name of a building interior (DDS + five base-36 digits), as a space id, or -1.
+	int SpaceOfMap(const char *name)
+	{
+		if (strnicmp(name, "DDS", 3) || strlen(name) != 8) return -1;
+		int v = 0;
+		for (int i = 3; i < 8; i++)
+		{
+			const char c = char(toupper((unsigned char)name[i]));
+			if (c >= '0' && c <= '9') v = v * 36 + (c - '0');
+			else if (c >= 'A' && c <= 'Z') v = v * 36 + (c - 'A' + 10);
+			else return -1;
+		}
+		return v + SPACE_BASE;
+	}
+
+	FString SpaceMapName(int id)
+	{
+		char text[9] = "DDS00000";
+		for (int i = 7, v = id - SPACE_BASE; i >= 3; i--, v /= 36) text[i] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[v % 36];
+		return text;
+	}
+
+	// The town entry for an interior, built from its cache file.
+	int TownForSpace(int id, const DDTownCache::EntryPtr &entry)
+	{
+		for (size_t i = 0; i < towns.size(); i++)
+			if (towns[i].space && towns[i].spaceId == id) return int(i);
+		const auto *info = entry ? entry->Find("DDTOWN") : nullptr;
+		if (!info) return -1;
+		Town t;
+		PlaceSpace(t, id);
+		t.map = SpaceMapName(id);
+		FString text((const char *)info->data(), info->size());
+		for (auto &line : text.Split("\n"))
+		{
+			SpaceLanding l;
+			SpaceExit e;
+			if (sscanf(line.GetChars(), "entry %d %lf %lf %lf %lf", &l.index, &l.x, &l.y, &l.z, &l.yaw) == 5) t.landings.push_back(l);
+			else if (sscanf(line.GetChars(), "exit %lf %lf %lf %lf %lf", &e.x, &e.y, &e.z, &e.nx, &e.ny) == 5) t.exits.push_back(e);
+		}
+		if (t.landings.empty()) return -1;
+		towns.push_back(std::move(t));
+		return int(towns.size()) - 1;
 	}
 
 	// The group id in a generated map name (DDT + five digits), or -1.
@@ -943,6 +1040,8 @@ namespace
 	{
 		for (size_t i = 0; i < towns.size(); i++)
 			if (towns[i].map.CompareNoCase(name) == 0) return int(i);
+		if (runtimeTowns)
+			if (const int space = SpaceOfMap(name.GetChars()); space >= 0) return TownForSpace(space, DDTownCache::GetBlocking(space));
 		const int group = runtimeTowns ? GroupOfMap(name.GetChars()) : -1;
 		if (group < 0 || group >= int(groups.size())) return -1;
 		return TownForGroup(group, DDTownCache::GetBlocking(group));
@@ -1187,7 +1286,27 @@ namespace
 	//--------------------------------------------------------------------
 
 	// Parks every monster and item, then records the player and requests the other map.
-	void BeginHandoff(FLevelLocals *Level, AActor *pmo, const char *map, const int *warpTile = nullptr)
+	// The one place Daggerfall is told about a door transition. x and y are the outside door in world units.
+	// Actions are the bridge's DFB_TRANSITION_* values.
+	enum { TRANSITION_ENTER_BUILDING = 1, TRANSITION_EXIT_BUILDING, TRANSITION_ENTER_DUNGEON, TRANSITION_EXIT_DUNGEON };
+
+	void NotifyTransition(int action, const char *from, const char *to, double x, double y, int target)
+	{
+		static const char *const names[] = { "", "enter-building", "exit-building", "enter-dungeon", "exit-dungeon" };
+		Printf("DDTRANSITION %s from=%s to=%s door=%.2f,%.2f target=%d\n", names[action], from, to, x, y, target);
+		DD_BridgeTransition(action, x, y, target);
+	}
+
+	// The return point is one step out from the door, along the direction the player faces on leaving.
+	DVector2 ReturnDoor()
+	{
+		const double yaw = returnPoint.yaw * M_PI / 180;
+		return DVector2(returnPoint.x - cos(yaw) * EXIT_STEP / DOOM_PER_DF, returnPoint.y - sin(yaw) * EXIT_STEP / DOOM_PER_DF);
+	}
+
+	struct DoorTarget { double x, y, z, yaw; bool atMapStart; DDPlayerArea area; };
+
+	void BeginHandoff(FLevelLocals *Level, AActor *pmo, const char *map, const int *warpTile = nullptr, const DoorTarget *door = nullptr)
 	{
 		Reconcile(Level);
 		std::vector<AActor *> keep;
@@ -1219,8 +1338,56 @@ namespace
 			handoff.vel = DVector3(0, 0, 0);
 			handoff.playerVel = DVector2(0, 0);
 		}
+		handoff.atMapStart = false;
+		handoff.area = DD_AREA_EXTERIOR;
+		if (door)	// Through a door: world position in the destination's coordinates, standing still.
+		{
+			handoff.area = door->area;
+			handoff.x = door->x;
+			handoff.y = door->y;
+			handoff.z = handoff.feet = door->z;
+			handoff.aboveFloor = 0;
+			handoff.vel = DVector3(0, 0, 0);
+			handoff.playerVel = DVector2(0, 0);
+			handoff.yaw = DAngle::fromDeg(door->yaw);
+			handoff.pitch = nullAngle;
+			handoff.atMapStart = door->atMapStart;
+		}
 		Printf("DDSTITCH leave %s tic=%d world=%.2f,%.2f,%.2f vel=%.2f,%.2f,%.2f records=%d\n", Level->MapName.GetChars(), Level->maptime, world.X, world.Y, world.Z, pmo->Vel.X, pmo->Vel.Y, pmo->Vel.Z, int(table.size()));
 		Level->ChangeLevel(map, 0, CHANGELEVEL_NOINTERMISSION | CHANGELEVEL_KEEPFACING | CHANGELEVEL_PRERAISEWEAPON);
+	}
+
+	// A fast travel arrival. Lands in the location's map when the point is inside its entry band, so the
+	// player never stands in the overworld's flattened copy of a town.
+	struct TravelRequest { bool pending = false; double x = 0, y = 0, yaw = 0; } travel;
+
+	void BeginTravel(FLevelLocals *Level, AActor *pmo)
+	{
+		travel.pending = false;
+		const double tx = travel.x / 256, ty = travel.y / 256;
+		int bestGroup = -1;
+		double bestDist = 1e30;
+		for (int n = 0; n < int(groups.size()); n++)
+		{
+			if (groups[n].tooLarge) continue;
+			for (const TileRect &r : groups[n].rects)
+			{
+				const double dist = std::max({ r.x0 - tx, tx - r.x1, r.y0 - ty, ty - r.y1, 0.0 });
+				if (dist < bestDist) { bestDist = dist; bestGroup = n; }
+			}
+		}
+		int town = -1;
+		if (bestGroup >= 0 && bestDist <= REQUEST_TILES)
+		{
+			const int candidate = TownForGroup(bestGroup, DDTownCache::GetBlocking(bestGroup));
+			if (candidate >= 0 && towns[candidate].Near(tx, ty, towns[candidate].EntryMargin())) town = candidate;
+		}
+		returnPoint.valid = false;
+		const double ground = town >= 0 ? towns[town].ground : (SampleVertex(int(floor(tx)), int(floor(ty))) + Z_BASE) / DOOM_PER_DF;
+		const DoorTarget target{ travel.x, travel.y, ground, travel.yaw, false, DD_AREA_EXTERIOR };
+		const FString map = town >= 0 ? towns[town].map : FString("DDOVER01");
+		Printf("DDTRAVEL to %s world=%.2f,%.2f yaw=%.1f\n", map.GetChars(), travel.x, travel.y, travel.yaw);
+		BeginHandoff(Level, pmo, map.GetChars(), nullptr, &target);
 	}
 
 	void FinishHandoff(FLevelLocals *Level)
@@ -1230,12 +1397,13 @@ namespace
 		player_t *player = Level->Players[consoleplayer];
 		AActor *pmo = player->mo;
 		if (!pmo) return;
-		const DVector3 target = ToLocal(handoff.x, handoff.y, handoff.z);
+		const DVector3 target = handoff.atMapStart ? pmo->Pos() : ToLocal(handoff.x, handoff.y, handoff.z);
 		FLinkContext ctx;
 		pmo->UnlinkFromWorld(&ctx);
 		pmo->SetXYZ(target);
 		pmo->LinkToWorld(&ctx);
 		P_FindFloorCeiling(pmo, FFCF_ONLYSPAWNPOS);
+		if (handoff.atMapStart) handoff.feet = handoff.z = pmo->floorz / DOOM_PER_DF + towns[currentTown].ground;
 		// Keep the feet the same distance above whatever ground is here. The mismatch is reported, not shown.
 		const double z = pmo->floorz + handoff.aboveFloor;
 		const double dz = z - ToLocal(handoff.x, handoff.y, handoff.feet).Z;	// Height change across the handoff, including one tic of slope.
@@ -1290,6 +1458,145 @@ namespace
 		Printf("DDSEAM points=%d mean=%.4f worst=%.4f at tile %d,%d over0.1=%d over1=%d over10=%d\n", count, count ? sum / count : 0.0, worst, worstX, worstY, over01, over1, over10);
 	}
 
+	void LoadTownDoors(const Town &t)
+	{
+		townDoors.clear();
+		if (t.space || t.group < 0 || !mapEntry) return;
+		const auto *body = mapEntry->Find("DDDOORS");
+		if (!body) return;
+		FString text((const char *)body->data(), body->size());
+		for (auto &line : text.Split("\n"))
+		{
+			DoorSpot d;
+			if (sscanf(line.GetChars(), "%d %d %d %lf %lf %lf %lf %lf", &d.kind, &d.target, &d.index, &d.x, &d.y, &d.z, &d.nx, &d.ny) == 8) townDoors.push_back(d);
+		}
+		Printf("DDDOORS %d doors\n", int(townDoors.size()));
+	}
+
+	// True when the player can reach a door: close, on its front side, and looking toward it.
+	bool CanUse(AActor *pmo, double x, double y, double z, double nx, double ny, double &distance)
+	{
+		const double dx = x - pmo->X(), dy = y - pmo->Y();
+		distance = sqrt(dx * dx + dy * dy);
+		if (distance > USE_REACH || fabs(z - pmo->Z()) > USE_REACH) return false;
+		if (dx * nx + dy * ny > 0) return false;	// Behind the door.
+		if (distance < 1) return true;
+		const DVector2 view = pmo->Angles.Yaw.ToVector();
+		return (dx * view.X + dy * view.Y) / distance > 0.5;
+	}
+
+	int DungeonTown(int mapId)
+	{
+		for (size_t i = 0; i < towns.size(); i++)
+			if (towns[i].space && towns[i].dungeonMapId == mapId) return int(i);
+		return -1;
+	}
+
+	// Goes through a town door. False means the destination is not ready yet.
+	bool EnterDoor(FLevelLocals *Level, AActor *pmo, const DoorSpot &d)
+	{
+		const Town &from = towns[currentTown];
+		const FString fromMap = from.map;
+		DoorTarget target{};
+		FString map;
+		if (d.kind == 0)
+		{
+			if (DDTownCache::Status(d.target) != DDTownCache::State::Ready) return false;
+			const int index = TownForSpace(d.target, DDTownCache::Get(d.target));
+			if (index < 0) return false;
+			const Town &space = towns[index];
+			const SpaceLanding *landing = &space.landings[0];
+			for (const SpaceLanding &l : space.landings) if (l.index == d.index) landing = &l;
+			target = { landing->x / DOOM_PER_DF + space.originX, landing->y / DOOM_PER_DF + space.originY, landing->z / DOOM_PER_DF, landing->yaw, false, DD_AREA_INTERIOR };
+			map = space.map;
+		}
+		else
+		{
+			const int index = DungeonTown(d.target);
+			if (index < 0) return false;
+			const Town &space = towns[index];
+			target = { space.originX, space.originY, 0, space.exits.empty() ? pmo->Angles.Yaw.Degrees() : atan2(space.exits[0].ny, space.exits[0].nx) * 180 / M_PI, true, DD_AREA_DUNGEON };
+			map = space.map;
+		}
+		const Town &origin = towns[currentTown];	// TownForSpace can grow the list.
+		returnPoint.valid = true;
+		returnPoint.map = fromMap;
+		returnPoint.x = (d.x + d.nx * EXIT_STEP) / DOOM_PER_DF + origin.originX;
+		returnPoint.y = (d.y + d.ny * EXIT_STEP) / DOOM_PER_DF + origin.originY;
+		returnPoint.z = d.z / DOOM_PER_DF + origin.ground;
+		returnPoint.yaw = atan2(d.ny, d.nx) * 180 / M_PI;
+		const DVector2 door = ReturnDoor();
+		NotifyTransition(d.kind == 0 ? TRANSITION_ENTER_BUILDING : TRANSITION_ENTER_DUNGEON, fromMap.GetChars(), map.GetChars(), door.X, door.Y, d.target);
+		BeginHandoff(Level, pmo, map.GetChars(), nullptr, &target);
+		return true;
+	}
+
+	void TickTownDoors(FLevelLocals *Level, AActor *pmo)
+	{
+		const bool down = (pmo->player->cmd.buttons & BT_USE) != 0, pressed = (down && !useHeld) || dd_tm_use != 0;
+		useHeld = down;
+		if (dd_tm_use != 0) dd_tm_use = 0;
+		if (handoff.pending || pmo->health <= 0) return;
+		const Town &t = towns[currentTown];
+		if (t.space)
+		{
+			if (!pressed || !returnPoint.valid) return;
+			double distance;
+			for (const SpaceExit &e : t.exits)
+				if (CanUse(pmo, e.x, e.y, e.z, e.nx, e.ny, distance))
+				{
+					const DoorTarget target{ returnPoint.x, returnPoint.y, returnPoint.z, returnPoint.yaw, false, DD_AREA_EXTERIOR };
+					const FString back = returnPoint.map;
+					const DVector2 door = ReturnDoor();
+					returnPoint.valid = false;
+					NotifyTransition(t.spaceId >= DUNGEON_SPACE ? TRANSITION_EXIT_DUNGEON : TRANSITION_EXIT_BUILDING, t.map.GetChars(), back.GetChars(), door.X, door.Y, t.spaceId);
+					BeginHandoff(Level, pmo, back.GetChars(), nullptr, &target);
+					return;
+				}
+			return;
+		}
+		if (townDoors.empty()) return;
+		if (Level->maptime % SCAN_TICS == 0)	// Convert the nearest interiors before the player reaches them.
+		{
+			std::vector<std::pair<double, int>> near;
+			for (const DoorSpot &d : townDoors)
+				if (d.kind == 0)
+				{
+					const double dist = (DVector2(d.x, d.y) - pmo->Pos().XY()).Length();
+					if (dist < 768) near.push_back({ dist, d.target });
+				}
+			std::sort(near.begin(), near.end());
+			DDTownCache::BeginScan();
+			if (pendingDoor >= 0 && townDoors[pendingDoor].kind == 0) DDTownCache::Request(townDoors[pendingDoor].target, 0);
+			int requested = 0, lastId = -1;
+			for (auto &n : near)
+				if (n.second != lastId && requested < DOOR_PREFETCH) { DDTownCache::Request(n.second, n.first + 1); lastId = n.second; requested++; }
+		}
+		if (pendingDoor >= 0)
+		{
+			const DoorSpot d = townDoors[pendingDoor];
+			if ((DVector2(d.x, d.y) - pmo->Pos().XY()).Length() > DOOR_CANCEL) pendingDoor = -1;
+			else if (DDTownCache::Status(d.target) == DDTownCache::State::Failed) { Printf(PRINT_HIGH, "This door will not open.\n"); pendingDoor = -1; }
+			else if (EnterDoor(Level, pmo, d)) pendingDoor = -1;
+			return;
+		}
+		if (!pressed) return;
+		int best = -1;
+		double bestDistance = USE_REACH + 1, distance;
+		for (size_t i = 0; i < townDoors.size(); i++)
+		{
+			const DoorSpot &d = townDoors[i];
+			if (CanUse(pmo, d.x, d.y, d.z, d.nx, d.ny, distance) && distance < bestDistance) { best = int(i); bestDistance = distance; }
+		}
+		if (best < 0) return;
+		const DoorSpot d = townDoors[best];
+		if (d.kind == 1 && DungeonTown(d.target) < 0) { Printf(PRINT_HIGH, "This dungeon is not available yet.\n"); return; }
+		if (EnterDoor(Level, pmo, d)) return;
+		pendingDoor = best;
+		DDTownCache::Request(d.target, 0);
+		Printf(PRINT_HIGH, "Opening...\n");
+	}
+
 	void StartTown(FLevelLocals *Level, int index)
 	{
 		if (multiplayer || !LoadWorld()) return;
@@ -1299,6 +1606,18 @@ namespace
 		expected.clear();
 		pending.clear();
 		const Town &t = towns[index];
+		pendingDoor = -1;
+		useHeld = true;	// The press that opened the door must not also use the door on the far side.
+		LoadTownDoors(t);
+		// A revisited space comes back from the table, so what the map places by default must not return.
+		if (t.space && !visitedSpaces.insert(t.map.GetChars()).second)
+		{
+			std::vector<AActor *> stale;
+			auto it = Level->GetThinkerIterator<AActor>();
+			while (AActor *mo = it.Next())
+				if (!mo->player && !IsOwned(mo) && ((mo->flags3 & MF3_ISMONSTER) || mo->IsKindOf(NAME_Inventory))) stale.push_back(mo);
+			for (AActor *mo : stale) mo->Destroy();
+		}
 		int restored = 0;
 		for (auto &kv : table)
 		{
@@ -1307,7 +1626,7 @@ namespace
 			Restore(Level, r);
 			restored++;
 		}
-		if (t.group >= 0) SpawnTownContents(Level);
+		if (t.group >= 0 || (t.space && t.spaceId < DUNGEON_SPACE)) SpawnTownContents(Level);
 		FinishHandoff(Level);
 		if (FindArg("-ddtmverify")) VerifySeam(Level, t);
 		Printf("DDTOWN active %s restored=%d records=%d\n", t.map.GetChars(), restored, int(table.size()));
@@ -1331,6 +1650,8 @@ namespace
 		{
 			table.clear();
 			buckets.clear();
+			visitedSpaces.clear();
+			returnPoint = ReturnPoint();
 			nextDynamic = 0;
 			shifts = 0;
 			stitches = 0;
@@ -1387,6 +1708,9 @@ namespace
 			currentTown = town;
 			townActive = true;
 			dd_tm_intown = 1;
+			pendingDoor = -1;
+			useHeld = true;
+			LoadTownDoors(towns[town]);
 			expected.clear();
 			auto it = Level->GetThinkerIterator<AActor>();
 			while (AActor *mo = it.Next())
@@ -1477,6 +1801,10 @@ void DDTreadmill_Serialize(FLevelLocals *Level, FSerializer &arc)
 		Reconcile(Level);
 		FString state = EncodeState();
 		arc("ddoverworld", state);
+		FString spaces;
+		if (returnPoint.valid) spaces.AppendFormat("R %s %.17g %.17g %.17g %.17g\n", returnPoint.map.GetChars(), returnPoint.x, returnPoint.y, returnPoint.z, returnPoint.yaw);
+		for (const std::string &name : visitedSpaces) spaces.AppendFormat("V %s\n", name.c_str());
+		arc("ddspaces", spaces);
 		if (townActive)
 		{
 			int inTown = 1;
@@ -1497,6 +1825,23 @@ void DDTreadmill_Serialize(FLevelLocals *Level, FSerializer &arc)
 		arc("ddoverworld", state);
 		DecodeState(state);
 		if (arc.HasKey("ddintown")) resumeTown = 1;
+		returnPoint = ReturnPoint();
+		visitedSpaces.clear();
+		if (arc.HasKey("ddspaces"))
+		{
+			FString spaces;
+			arc("ddspaces", spaces);
+			for (auto &line : spaces.Split("\n"))
+			{
+				char name[16];
+				if (sscanf(line.GetChars(), "R %15s %lf %lf %lf %lf", name, &returnPoint.x, &returnPoint.y, &returnPoint.z, &returnPoint.yaw) == 5)
+				{
+					returnPoint.map = name;
+					returnPoint.valid = true;
+				}
+				else if (sscanf(line.GetChars(), "V %15s", name) == 1) visitedSpaces.insert(name);
+			}
+		}
 	}
 }
 
@@ -1516,8 +1861,8 @@ bool DDTreadmill_HandoffPending() { return handoff.pending; }
 // Each generated location gets its own copy of the DDTOWN template from the runtime package's MAPINFO.
 level_info_t *DDTreadmill_FindLevelInfo(const char *mapname)
 {
-	if (strnicmp(mapname, "DDT", 3) != 0) return nullptr;	// Every stock map name stops here.
-	if (GroupOfMap(mapname) < 0 || fileSystem.CheckNumForName("DDGROUPS") < 0) return nullptr;
+	if (strnicmp(mapname, "DDT", 3) != 0 && strnicmp(mapname, "DDS", 3) != 0) return nullptr;	// Every stock map name stops here.
+	if ((GroupOfMap(mapname) < 0 && SpaceOfMap(mapname) < 0) || fileSystem.CheckNumForName("DDGROUPS") < 0) return nullptr;
 	FString upper = mapname;
 	upper.ToUpper();
 	auto found = runtimeInfoByName.find(upper.GetChars());
@@ -1533,11 +1878,11 @@ level_info_t *DDTreadmill_FindLevelInfo(const char *mapname)
 
 bool DDTreadmill_OpenTownMap(const char *mapname, FileSys::FileReader &reader)
 {
-	if (strnicmp(mapname, "DDT", 3) != 0) return false;
-	const int group = GroupOfMap(mapname);
+	if (strnicmp(mapname, "DDT", 3) != 0 && strnicmp(mapname, "DDS", 3) != 0) return false;
+	const int space = SpaceOfMap(mapname), group = space >= 0 ? space : GroupOfMap(mapname);
 	if (group < 0) return false;
 	LoadTowns();
-	if (!runtimeTowns || group >= int(groups.size()) || groups[group].tooLarge) return false;
+	if (!runtimeTowns || (space < 0 && (group >= int(groups.size()) || groups[group].tooLarge))) return false;
 	DDTownCache::EntryPtr entry = DDTownCache::GetBlocking(group);
 	const auto *wad = entry ? entry->Find("MAPWAD") : nullptr;
 	if (!wad) return false;
@@ -1547,7 +1892,7 @@ bool DDTreadmill_OpenTownMap(const char *mapname, FileSys::FileReader &reader)
 
 bool DDTreadmill_MapMesh(const char *mapname, const uint8_t *&data, size_t &size, int &key)
 {
-	const int group = GroupOfMap(mapname);
+	const int space = SpaceOfMap(mapname), group = space >= 0 ? space : GroupOfMap(mapname);
 	if (group < 0 || !mapEntry) return false;
 	const auto *mesh = mapEntry->Find("DFMESH");
 	if (!mesh) return false;
@@ -1590,10 +1935,17 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 	AActor *pmo = Level->Players[consoleplayer]->mo;
 	if (!pmo) return;
 	if (runtimeTowns) DDTownCache::Poll();
+	if (travel.pending && !handoff.pending)
+	{
+		BeginTravel(Level, pmo);
+		return;
+	}
 
 	if (townActive)
 	{
+		TickTownDoors(Level, pmo);
 		const Town &t = towns[currentTown];
+		if (t.space) return;	// Interiors and dungeons are left through their doors.
 		const double tx = (pmo->X() / DOOM_PER_DF + t.originX) / 256, ty = (pmo->Y() / DOOM_PER_DF + t.originY) / 256;
 		if (!handoff.pending && pmo->health > 0 && !t.Near(tx, ty, t.ExitMargin())) BeginHandoff(Level, pmo, "DDOVER01");
 		return;
@@ -1668,6 +2020,55 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 	const double err = verify ? VerifyGrid(Level) : -1;
 	if (shiftLog)	// Buffered, so logging does not add to the frame being measured.
 		fprintf(shiftLog, "%d,%d,%d,%.1f,%.1f,%d,%d,%.6f\n", shifts, originX, originY, rewriteNs / 1000.0, totalNs / 1000.0, moveCount, parkCount, err);
+}
+
+bool DDTreadmill_RequestTravel(double x, double y, double yawDegrees)
+{
+	if (!runtimeTowns || (!DDTreadmill_Active && !townActive) || x < 0 || y < 0 || x >= WORLD_W * PIXEL_TILES * 256.0 || y >= WORLD_H * PIXEL_TILES * 256.0) return false;
+	travel = { true, x, y, yawDegrees };
+	return true;
+}
+
+bool DDTreadmill_CurrentDoor(int &action, double &x, double &y, int &target)
+{
+	if (!primaryLevel) return false;
+	action = TRANSITION_EXIT_BUILDING;	// Outdoors: Daggerfall leaves whatever it is in, and ignores the door.
+	x = y = 0;
+	target = 0;
+	const int index = TownForMap(primaryLevel->MapName);
+	if (index < 0) return primaryLevel->MapName.CompareNoCase("DDOVER01") == 0;
+	const Town &t = towns[index];
+	if (!t.space) return true;
+	if (!returnPoint.valid) return false;
+	const DVector2 door = ReturnDoor();
+	action = t.spaceId >= DUNGEON_SPACE ? TRANSITION_ENTER_DUNGEON : TRANSITION_ENTER_BUILDING;
+	x = door.X;
+	y = door.Y;
+	target = t.spaceId >= DUNGEON_SPACE ? t.dungeonMapId : t.spaceId;
+	return true;
+}
+
+DDPlayerArea DDTreadmill_PlayerWorld(double &x, double &y, double &z, double &yawDegrees)
+{
+	if (!primaryLevel || (!DDTreadmill_Active && !townActive && !handoff.pending)) return DD_AREA_NONE;
+	AActor *pmo = primaryLevel->Players[consoleplayer]->mo;
+	if (!pmo) return DD_AREA_NONE;
+	// Interiors and dungeons sit in a private part of the world table, so their coordinates are not map positions.
+	if (handoff.pending ? handoff.area != DD_AREA_EXTERIOR : townActive && towns[currentTown].space)
+		return handoff.pending ? handoff.area : towns[currentTown].spaceId >= DUNGEON_SPACE ? DD_AREA_DUNGEON : DD_AREA_INTERIOR;
+	yawDegrees = pmo->Angles.Yaw.Degrees();
+	if (handoff.pending)	// Between maps the actor is stale, so report where the player is arriving.
+	{
+		x = handoff.x;
+		y = handoff.y;
+		z = handoff.z;
+		return DD_AREA_EXTERIOR;
+	}
+	const DVector3 world = ToWorld(pmo->Pos(), originX, originY);
+	x = world.X;
+	y = world.Y;
+	z = world.Z;
+	return DD_AREA_EXTERIOR;
 }
 
 void DDTreadmill_UploadBegin() { uploadStart = Clock::now(); }

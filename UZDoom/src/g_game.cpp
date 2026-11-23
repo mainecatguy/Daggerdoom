@@ -123,6 +123,15 @@ void G_PlayerReborn (int player);
 void G_DoAutoSave ();
 void G_DoPlayDemo (void);
 void G_DoSaveGame (bool okForQuicksave, bool forceQuicksave, FString filename, const char *description);
+// Doomerfall: synchronized saves on Daggerfall maps. All do nothing outside a bridge save.
+bool DD_BridgeSaveBegin(const char *filename, const char *description);
+bool DD_BridgeAutosaveHold();
+bool DD_BridgeAutosaveBegin(const char *filename, const char *description);
+FString DD_BridgeSaveWritePath(const FString &filename);
+bool DD_BridgeSaveAddFiles(TArray<FCompressedBuffer> &content, TArray<FString> &names);
+bool DD_BridgeSaveCommit(const FString &written, const FString &filename);
+bool DD_BridgeLoadBegin(const char *filename);
+bool DD_BridgeDeathHold(int playernum);
 void G_DoVictory (void);
 
 void SetupLoadingCVars();
@@ -1796,6 +1805,7 @@ void FLevelLocals::QueueBody (AActor *body)
 //
 void FLevelLocals::DoReborn (int playernum, bool force)
 {
+	if (DD_BridgeDeathHold(playernum)) return; // Doomerfall: on a Daggerfall map the death screen decides what is next
 	if (!multiplayer && !(flags2 & LEVEL2_ALLOWRESPAWN) && !sv_singleplayerrespawn &&
 		!G_SkillProperty(SKILLP_PlayerRespawn))
 	{
@@ -1938,6 +1948,7 @@ void G_LoadGame (const char* name, bool hidecon)
 {
 	if (name != NULL)
 	{
+		if (DD_BridgeLoadBegin(name)) return; // Doomerfall: a bundle restores both games
 		savename = name;
 		gameaction = !hidecon ? ga_loadgame : ga_loadgamehidecon;
 	}
@@ -2236,6 +2247,35 @@ void G_DoLoadGame ()
 }
 
 
+// Doomerfall: true if this save can load in this session. Runs before either game's state is touched.
+bool G_DDCheckSave(FResourceFile *resfile, FString &map)
+{
+	const auto info = resfile->FindEntry("info.json");
+	if (info < 0) return false;
+	auto data = resfile->Read(info);
+	FSerializer arc;
+	if (!arc.OpenReader(data.string(), data.size())) return false;
+	FString engine;
+	int version = 0;
+	arc("Save Version", version);
+	arc("Engine", engine);
+	arc("Current Map", map);
+	return !map.IsEmpty() && engine.CompareNoCase(GAMESIG) == 0 && version >= MINSAVEVER && version <= SAVEVER && G_CheckSaveGameWads(arc, true);
+}
+
+// Doomerfall: loads Doom's half now, from the bridge pump. True if the level was restored.
+bool G_DDLoadNow(const char *file)
+{
+	const FString previous = BackupSaveName;
+	BackupSaveName = "";
+	savename = file;
+	gameaction = ga_loadgame;
+	G_DoLoadGame();
+	const bool ok = BackupSaveName.Compare(file) == 0;
+	if (!ok) BackupSaveName = previous;
+	return ok;
+}
+
 //
 // G_SaveGame
 // Called by the menu task.
@@ -2262,6 +2302,9 @@ void G_SaveGame (const char *filename, const char *description, bool quick)
 	else if (netgame && net_limitsaves && !players[consoleplayer].settings_controller)
 	{
 		Printf("Only settings controllers can save the game\n");
+	}
+	else if (!quick && DD_BridgeSaveBegin(filename, description)) // Doomerfall: quick keys stay as they are for now
+	{
 	}
 	else
 	{
@@ -2294,6 +2337,9 @@ void G_DoAutoSave ()
 	if (netgame)
 		return;
 
+	if (DD_BridgeAutosaveHold()) // Doomerfall: runs once Daggerfall can save too
+		return;
+
 	FString description;
 	FString file;
 	// Keep up to four autosaves at a time
@@ -2324,6 +2370,8 @@ void G_DoAutoSave ()
 
 	readableTime = myasctime ();
 	description.Format("Autosave %s", readableTime);
+	if (DD_BridgeAutosaveBegin(file.GetChars(), description.GetChars())) // Doomerfall: bundles both games on a Daggerfall map
+		return;
 	G_DoSaveGame (false, false, file, description.GetChars());
 }
 
@@ -2531,20 +2579,22 @@ void G_DoSaveGame (bool okForQuicksave, bool forceQuicksave, FString filename, c
 	savegame_content.Push(savegameglobals.GetCompressedOutput());
 	savegame_filenames.Push("globals.json");
 	G_WriteSnapshots (savegame_filenames, savegame_content);
+	const bool ddFilesOk = DD_BridgeSaveAddFiles(savegame_content, savegame_filenames); // Doomerfall
 
 	for (unsigned i = 0; i < savegame_content.Size(); i++)
 		savegame_content[i].filename = savegame_filenames[i].GetChars();
 
 	bool succeeded = false;
+	const FString ddWritePath = DD_BridgeSaveWritePath(filename); // Doomerfall: a temp file during a bridge save
 
-	if (WriteZip(filename.GetChars(), savegame_content.Data(), savegame_content.Size()))
+	if (ddFilesOk && WriteZip(ddWritePath.GetChars(), savegame_content.Data(), savegame_content.Size()))
 	{
 		// Check whether the file is ok by trying to open it.
-		FResourceFile *test = FResourceFile::OpenResourceFile(filename.GetChars(), true);
+		FResourceFile *test = FResourceFile::OpenResourceFile(ddWritePath.GetChars(), true);
 		if (test != nullptr)
 		{
 			delete test;
-			succeeded = true;
+			succeeded = DD_BridgeSaveCommit(ddWritePath, filename); // Doomerfall: true at once outside a bridge save
 		}
 	}
 

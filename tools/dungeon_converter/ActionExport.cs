@@ -26,15 +26,25 @@ static partial class Program
     static readonly int[] DoorLockValues = { 0x00, 0x02, 0x04, 0x06, 0x08, 0x0A, 0x0C, 0x0E, 0x10, 0x12, 0x14, 0x19, 0x1E, 0x32, 0x80, 0xFF }; // RDBLayout
 
     // Moving, untilted, non-door models leave the static mesh and collision. Their real position is decided at runtime.
-    static bool IsMovingAction(DFBlock.RdbObject obj, bool isDoor)
+    static bool IsMovingAction(DFBlock.RdbObject obj, bool isDoor, uint modelId)
     {
         var model = obj.Resources.ModelResource;
-        return !isDoor && model.ActionResource.Flags is >= 1 and <= 8 && model.XRotation == 0 && model.ZRotation == 0;
+        bool specialPanel = IsSpecialDoorFlag(model.ActionResource.Flags) && modelId != TrapdoorModelA && modelId != TrapdoorModelB;
+        return !isDoor && (model.ActionResource.Flags is >= 1 and <= 8 || specialPanel) && model.XRotation == 0 && model.ZRotation == 0;
     }
+
+    // Actions 18 and 20 on a model that is not a real door: RDBLayout gives it DaggerfallActionDoorSpecial, which swings it
+    // 90 degrees about its own Y in 1.5 s. Its mesh collider stays solid and turns with it.
+    static bool IsSpecialDoorFlag(int flag) => flag is 18 or 20;
+
+    // These floor tiles also carry action 18, but they open onto sealed pits whose only way out in Daggerfall is climbing.
+    // They stay static until Doom has a way out. See work/notes/20261123-155521.md.
+    const uint TrapdoorModelA = 54000, TrapdoorModelB = 54001;
 
     // RDBLayout.AddAction, GetTranslationActionVector, and GetRotationActionVector. Rotation stays in Unity's axes.
     static (V3 move, V3 spin, int tics, bool forwardOnly) ActionMotion(ActionRecord r)
     {
+        if (IsSpecialDoorFlag(r.Flag)) return (default, new V3(0, -90, 0), 53, false); // DaggerfallActionDoorSpecial: OpenAngle -90, OpenDuration 1.5 s
         int flag = r.Flag, axis = r.Axis, duration = r.Duration;
         double magnitude = r.Magnitude;
         bool forwardOnly = false;
@@ -93,6 +103,27 @@ static partial class Program
         return seen.Select(k => new V3((k.Item1 + 0.5) * ActionCellSize, (k.Item2 + 0.5) * ActionCellSize, (k.Item3 + 0.5) * ActionCellSize)).ToList();
     }
 
+    // One row along the panel's long side, stacked to its height. Each cell is as wide as the panel is thick.
+    static List<V3> ThinPanelCells(DoorModel m)
+    {
+        bool alongX = m.X1 - m.X0 >= m.Y1 - m.Y0;
+        double half = Math.Max(Math.Min(m.X1 - m.X0, m.Y1 - m.Y0) / 2, 1), start = alongX ? m.X0 : m.Y0, end = alongX ? m.X1 : m.Y1;
+        double middle = alongX ? (m.Y0 + m.Y1) / 2 : (m.X0 + m.X1) / 2;
+        int across = Math.Max(1, (int)Math.Ceiling((end - start) / (half * 2)));
+        int up = Math.Max(1, (int)Math.Ceiling((m.Z1 - m.Z0) / ActionCellSize));
+        var cells = new List<V3>();
+        for (int i = 0; i < across; i++)
+        {
+            double along = across == 1 ? (start + end) / 2 : start + half + (end - start - 2 * half) * i / (across - 1);
+            for (int k = 0; k < up; k++)
+            {
+                double z = up == 1 ? (m.Z0 + m.Z1) / 2 : m.Z0 + ActionCellSize / 2.0 + (m.Z1 - m.Z0 - ActionCellSize) * k / (up - 1);
+                cells.Add(alongX ? new V3(along, middle, z) : new V3(middle, along, z));
+            }
+        }
+        return cells;
+    }
+
     static readonly List<(double x0, double x1, double y0, double y1, double bottom)> lidFootprints = new List<(double, double, double, double, double)>();
 
     static void NoteLidFootprint(Arch3dFile arch, uint id, DFBlock.RdbObject obj, V3 offset)
@@ -146,14 +177,17 @@ static partial class Program
         public readonly List<ActionRecord> Records = new List<ActionRecord>();
         public readonly Dictionary<uint, DoorModel> Models = new Dictionary<uint, DoorModel>();
         public readonly Dictionary<uint, List<V3>> Cells = new Dictionary<uint, List<V3>>();
+        public readonly Dictionary<uint, List<V3>> SpecialCells = new Dictionary<uint, List<V3>>(); // models with action 18 or 20
+        public readonly Dictionary<uint, double> CellHalf = new Dictionary<uint, double>(); // thin special panels only; others use ActionCellSize / 2
         public readonly List<(int archive, int record)> Flats = new List<(int, int)>();
+        public readonly List<(int archive, int record, V3 at)> Ordinary = new List<(int, int, V3)>();
     }
 
     // Fills the placement, bounds, and collision of one model record during --export-mesh.
     static void PrepareActionModel(ActionPackage package, ActionRecord r, DFBlock.RdbObject obj, DFMesh mesh, double yaw, Func<int, TextureFile> archive, int[] table, DFLocation location)
     {
         r.Yaw = yaw;
-        bool moving = IsMovingAction(obj, r.IsDoor);
+        bool moving = IsMovingAction(obj, r.IsDoor, r.Model);
         r.Kind = moving ? 1 : 0;
         if (moving)
         {
@@ -161,6 +195,13 @@ static partial class Program
             {
                 package.Models[r.Model] = model = BuildDoorModel(r.Model, package.Models.Count, mesh, archive, table, location);
                 package.Cells[r.Model] = ActionCells(mesh);
+            }
+            // The same model can also be an ordinary mover elsewhere in the dungeon, so special doors keep their own cells.
+            if (IsSpecialDoorFlag(r.Flag) && !package.SpecialCells.ContainsKey(r.Model))
+            {
+                // A 4-unit panel on the 16-unit grid would fill a doorway when open. Use one thin row of real thickness.
+                package.SpecialCells[r.Model] = ThinPanelCells(model);
+                package.CellHalf[r.Model] = Math.Max(Math.Min(model.X1 - model.X0, model.Y1 - model.Y0) / 2, 1);
             }
             r.Visual = model.Slot;
             (r.X0, r.X1, r.Y0, r.Y1, r.Z0, r.Z1) = (model.X0, model.X1, model.Y0, model.Y1, model.Z0, model.Z1);
@@ -184,7 +225,8 @@ static partial class Program
                 }
     }
 
-    // Flats have no mesh. A flat that moves or starts a chain is drawn so the player can find it.
+    // Flats have no mesh. Daggerfall Unity draws every action flat except editor markers, which keep working while hidden.
+    // Treasure and NPC flats are drawn only when they move or start a chain, so the player can still find a working switch.
     static void PrepareActionFlats(ActionPackage package, Func<int, TextureFile> archive)
     {
         double scale = PlayerScale.DoomUnitsPerDaggerfallUnit;
@@ -194,7 +236,8 @@ static partial class Program
             var file = archive(r.FlatArchive);
             double w = Math.Max(8, file.GetWidth(r.FlatRecord) * scale) / 2, h = Math.Max(8, file.GetHeight(r.FlatRecord) * scale) / 2;
             (r.X0, r.X1, r.Y0, r.Y1, r.Z0, r.Z1) = (-w, w, -w, w, -h, h);
-            if (r.Flag is < 1 or > 8 && r.Next < 0) continue;
+            if (r.FlatArchive == EditorFlatArchive) continue;
+            if (!IsOrdinaryFlat(r.FlatArchive) && r.Flag is < 1 or > 8 && r.Next < 0) continue;
             int slot = package.Flats.IndexOf((r.FlatArchive, r.FlatRecord));
             if (slot < 0) { slot = package.Flats.Count; package.Flats.Add((r.FlatArchive, r.FlatRecord)); }
             r.Visual = slot;
@@ -213,8 +256,12 @@ static partial class Program
             text.Append(FormattableString.Invariant(
                 $"A {r.Id} {r.Kind} {r.Flag} {trigger} {r.Next} {r.Door} {r.Visual} {r.Position.X:F3} {r.Position.Y:F3} {r.Position.Z:F3} {r.Yaw:F3} {move.X:F3} {move.Y:F3} {move.Z:F3} {spin.X:F3} {spin.Y:F3} {spin.Z:F3} {tics} {(forwardOnly ? 1 : 0)} {cx:F3} {cy:F3} 0 {r.X0:F3} {r.X1:F3} {r.Y0:F3} {r.Y1:F3} {r.Z0:F3} {r.Z1:F3} {r.Sound} {r.Axis} {r.Magnitude} {r.LockValue} 0\n"));
             if (r.Kind == 1)
-                foreach (var c in package.Cells[r.Model])
-                    text.Append(FormattableString.Invariant($"C {r.Id} {c.X:F2} {c.Y:F2} {c.Z:F2}\n"));
+            {
+                bool special = package.SpecialCells.ContainsKey(r.Model) && IsSpecialDoorFlag(r.Flag);
+                string half = special && package.CellHalf.TryGetValue(r.Model, out var h) ? FormattableString.Invariant($" {h:F2}") : "";
+                foreach (var c in special ? package.SpecialCells[r.Model] : package.Cells[r.Model])
+                    text.Append(FormattableString.Invariant($"C {r.Id} {c.X:F2} {c.Y:F2} {c.Z:F2}{half}\n"));
+            }
         }
         return text.ToString();
     }
@@ -276,6 +323,49 @@ static partial class Program
                 if (r.NextPosition > 0 && inBlock.TryGetValue(r.NextPosition, out var next)) { r.Next = next.Id; next.Previous.Add(r.Id); }
         }
         return records;
+    }
+
+    // The record's tilt and its model's size in Doom units, for the census below.
+    static string SpecialDoorShape(string arena2, ActionRecord x)
+    {
+        var block = new BlocksFile(Path.Combine(arena2, "BLOCKS.BSA"), FileUsage.UseMemory, true).GetBlock(x.BlockName);
+        var obj = block.RdbBlock.ObjectRootList.Where(g => g.RdbObjects != null).SelectMany(g => g.RdbObjects).First(o => o.Position == x.FilePosition);
+        var arch = new Arch3dFile(Path.Combine(arena2, "ARCH3D.BSA"), FileUsage.UseMemory, true);
+        var points = arch.GetMesh(arch.GetRecordIndex(x.Model)).SubMeshes.SelectMany(s => s.Planes).SelectMany(p => p.Points).Select(q => ToDoom(new V3(q.X, -q.Y, q.Z))).ToList();
+        var m = obj.Resources.ModelResource;
+        return FormattableString.Invariant($"tilt={m.XRotation},{m.ZRotation} yaw={m.YRotation / BlocksFile.RotationDivisor:F0} x={points.Min(p => p.X):F0}..{points.Max(p => p.X):F0} y={points.Min(p => p.Y):F0}..{points.Max(p => p.Y):F0} z={points.Min(p => p.Z):F0}..{points.Max(p => p.Z):F0}");
+    }
+
+    // --list-door-actions: every model with action 18 or 20 that is not a real door, in every dungeon (DaggerfallActionDoorSpecial).
+    static int ListDoorActions(string arena2)
+    {
+        var maps = new MapsFile(Path.Combine(arena2, "MAPS.BSA"), FileUsage.UseMemory, true);
+        int dungeons = 0, affected = 0, placed = 0;
+        var perBlock = new SortedDictionary<string, string>();
+        for (int r = 0; r < maps.RegionCount; r++)
+        {
+            if (!maps.LoadRegion(r)) continue;
+            var region = maps.GetRegion(r);
+            if (region.MapNames == null) continue;
+            for (int l = 0; l < region.LocationCount; l++)
+            {
+                var location = maps.GetLocation(r, l);
+                if (!location.HasDungeon) continue;
+                dungeons++;
+                var records = ReadActionRecords(arena2, location);
+                var special = records.Where(x => !x.IsFlat && !x.IsDoor && x.Flag is 18 or 20).ToList();
+                if (special.Count == 0) continue;
+                affected++;
+                placed += special.Count;
+                bool main = MainStoryIds.Contains(location.MapTableData.MapId);
+                Console.WriteLine($"DUNGEON {location.MapTableData.MapId} {region.Name}/{region.MapNames[l]} main={main} objects={special.Count}");
+                foreach (var x in special)
+                    perBlock[$"{x.BlockName} {x.FilePosition}"] = $"m{x.Model} {x.Description} flag={x.Flag} trig={x.Trigger} at={x.Position.X:F0},{x.Position.Y:F0},{x.Position.Z:F0} {SpecialDoorShape(arena2, x)} next={x.Next} prev={string.Join(",", x.Previous.Select(p => $"{records[p].Description}:{records[p].Flag}:t{records[p].Trigger}"))}";
+            }
+        }
+        foreach (var kv in perBlock) Console.WriteLine($"OBJECT {kv.Key} {kv.Value}");
+        Console.WriteLine($"TOTAL dungeons={dungeons} affected={affected} placed={placed} distinctBlockObjects={perBlock.Count}");
+        return 0;
     }
 
     static int DumpActions(string arena2, DFLocation location, string outDir)

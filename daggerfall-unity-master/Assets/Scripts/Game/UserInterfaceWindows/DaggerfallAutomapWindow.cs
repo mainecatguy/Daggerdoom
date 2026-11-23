@@ -718,7 +718,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                 (automap.DebugTeleportMode == true) &&
                 leftMouseClickedOnPanelAutomap && // make sure click happened in panel area
                 InputManager.Instance.GetMouseButtonDown(0) && // make sure click was issued in this frame
-                ((Input.GetKey(KeyCode.LeftControl) && Input.GetKey(KeyCode.LeftShift)) || (Input.GetKey(KeyCode.RightControl) && Input.GetKey(KeyCode.RightShift)))
+                ((DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.Poll(KeyCode.LeftControl) && DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.Poll(KeyCode.LeftShift)) || (DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.Poll(KeyCode.RightControl) && DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.Poll(KeyCode.RightShift)))
                )
             {
                 //Vector2 mousePosition = new Vector2((InputManager.Instance.MousePosition.x / Screen.width) * panelRenderAutomap.Size.x, (InputManager.Instance.MousePosition.y / Screen.height) * panelRenderAutomap.Size.y);
@@ -1878,7 +1878,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                     return;
 
                 // if no teleporter portal marker was hit, try to add or edit a user marker note
-                automap.TryToAddOrEditUserNoteMarkerOnDungeonSegmentAtScreenPosition(mousePosition, !Input.GetKey(KeyCode.LeftControl));
+                automap.TryToAddOrEditUserNoteMarkerOnDungeonSegmentAtScreenPosition(mousePosition, !DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.Poll(KeyCode.LeftControl));
             }
         }
 
@@ -1923,7 +1923,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
             leftMouseClickedOnPanelAutomap = true; // used for debug teleport mode clicks
 
-            if (automap.DebugTeleportMode && ((Input.GetKey(KeyCode.LeftControl) && Input.GetKey(KeyCode.LeftShift)) || (Input.GetKey(KeyCode.RightControl) && Input.GetKey(KeyCode.RightShift))))
+            if (automap.DebugTeleportMode && ((DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.Poll(KeyCode.LeftControl) && DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.Poll(KeyCode.LeftShift)) || (DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.Poll(KeyCode.RightControl) && DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.Poll(KeyCode.RightShift))))
                 return;
 
             Vector2 mousePosition = new Vector2(InputManager.Instance.MousePosition.x, Screen.height - InputManager.Instance.MousePosition.y);

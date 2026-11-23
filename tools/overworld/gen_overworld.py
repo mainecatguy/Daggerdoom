@@ -9,6 +9,8 @@ import argparse, io, os, struct, zipfile
 W, H = 1000, 500
 CELLS, SPACING = 128, 192  # 256 Daggerfall units per tile at 75% scale
 CEILING = 32768  # UDMF's limit. The engine raises the sky above the highest terrain at startup.
+# Town meshes are built from these smoothed, flattened heights, so the overworld's collision must use them too.
+DEFAULT_WORLD_DIR = r"D:\dev\DoomDaggerfall-build\stitch-data"
 
 PLAYER_ZS = '''version "4.14"
 // Overworld player width: 75% of Daggerfall's character. Height and eye stay stock Doom.
@@ -98,7 +100,8 @@ def main():
     ap.add_argument("--start-tile", help="window origin in global tiles, overrides --start")
     ap.add_argument("--start-angle", type=int, default=0)
     ap.add_argument("--ground-from", help="town mesh package: its grass tile becomes the overworld floor")
-    ap.add_argument("--world-dir", help="DDWORLD and DDLOCS from the converter's --world mode. Required for towns to match.")
+    ap.add_argument("--world-dir", help="DDWORLD and DDLOCS from the converter's --world mode. Defaults to DEFAULT_WORLD_DIR.")
+    ap.add_argument("--raw-world", action="store_true", help="use unsmoothed WOODS.WLD heights with no location flattening. Town meshes will not match.")
     ap.add_argument("--packchance", type=float, default=0.2)
     ap.add_argument("--packsize", type=int, default=12)
     ap.add_argument("--classes", default="ZombieMan,ShotgunGuy,DoomImp,Demon")
@@ -136,9 +139,12 @@ def main():
             z.writestr("maps/DDOVER01.wad", build_map("DFGROUND", "xscalefloor=0.3333333;yscalefloor=0.3333333;"))
         else:
             z.writestr("maps/DDOVER01.wad", build_map())
-        if args.world_dir:
-            z.write(os.path.join(args.world_dir, "DDWORLD"), "DDWORLD")
-            z.write(os.path.join(args.world_dir, "DDLOCS"), "DDLOCS")
+        world_dir = None if args.raw_world else args.world_dir or DEFAULT_WORLD_DIR
+        if world_dir:
+            if not all(os.path.isfile(os.path.join(world_dir, n)) for n in ("DDWORLD", "DDLOCS")):
+                raise SystemExit(f"{world_dir} needs DDWORLD and DDLOCS. Run the converter with --world --out <dir>, or pass --raw-world.")
+            z.write(os.path.join(world_dir, "DDWORLD"), "DDWORLD")
+            z.write(os.path.join(world_dir, "DDLOCS"), "DDLOCS")
         else:
             z.writestr("DDWORLD", world_lump(woods))
         z.writestr("DDWLDCFG", config)

@@ -9,7 +9,8 @@ class DFDoorVisual : Actor
 	States { Spawn: DFDR A -1 Bright; Stop; }
 }
 
-// One link of the door's collision row. Solid to movement, hitscans, and projectiles.
+// One link of the door's collision row. Always stops hitscans and projectiles, as Daggerfall's rays and missiles
+// still hit an open door's trigger collider. Solid to movement only while its door is fully closed (see UpdateBlocking).
 class DFDoorBlocker : Actor
 {
 	DFDoor door;
@@ -44,6 +45,8 @@ class DFDoor : Actor
 	double swingDir;				// 1 unless a city gate leaf opens the other way
 	int moving;
 	bool stalled, sightOpen;
+	bool solidWhenOpen;			// city gates: Daggerfall swaps the model, and the open model's leaves stay solid
+	bool passable;				// links are currently non-solid to movement
 	Array<int> sightSectors;	// control sectors of the see-blocking 3D floors in this doorway
 	Array<double> sightTops;
 
@@ -115,8 +118,19 @@ class DFDoor : Actor
 		}
 	}
 
-	// True when the door row at this swing would not overlap any solid actor.
-	bool Clear(double next)
+	// DaggerfallActionDoor.MakeTrigger: non-solid from the moment opening starts until closing finishes.
+	// Daggerfall then pushes an overlapping body out. Doom cannot, so the door turns solid once no body overlaps it.
+	void UpdateBlocking()
+	{
+		bool want = !solidWhenOpen && (moving != 0 || swung > 0);
+		if (want == passable) return;
+		if (!want && !Clear(0, true)) return;
+		passable = want;
+		foreach (link : links) link.bSOLID = !want;
+	}
+
+	// True when the door row at this swing would not overlap any solid actor, or only any player or monster.
+	bool Clear(double next, bool bodiesOnly = false)
 	{
 		double angle = closedAngle + next * swingDir;
 		for (int i = 0; i < links.Size(); i++)
@@ -127,6 +141,7 @@ class DFDoor : Actor
 			{
 				Actor t = it.thing;
 				if (!t.bSOLID || t is "DFDoorBlocker") continue;
+				if (bodiesOnly && !t.player && !t.bISMONSTER) continue;
 				if (abs(t.pos.x - at.x) >= t.radius + linkRadius || abs(t.pos.y - at.y) >= t.radius + linkRadius) continue;
 				if (t.pos.z >= top || t.pos.z + t.height <= bottom) continue;
 				return false;
@@ -142,6 +157,7 @@ class DFDoor : Actor
 		if (moving != 0 && !stalled) return true;									// as ToggleDoor: ignored while moving
 		moving = stalled ? -moving : (swung > 0 ? -1 : 1);
 		stalled = false;
+		UpdateBlocking();
 		A_StartSound(moving > 0 ? "doors/dr1_open" : "doors/dr1_clos", CHAN_BODY);
 		return true;
 	}
@@ -151,19 +167,25 @@ class DFDoor : Actor
 	{
 		if (moving != 0 || (swung > 0) == open) return;
 		moving = open ? 1 : -1;
+		UpdateBlocking();
 		A_StartSound(open ? "doors/dr1_open" : "doors/dr1_clos", CHAN_BODY);
 	}
 
 	override void Tick()
 	{
-		if (moving == 0 || isFrozen()) return;
-		double next = clamp(swung + moving * RATE, 0.0, SWING);
-		if (!Clear(next)) { stalled = true; return; }
-		stalled = false;
-		swung = next;
-		Place(true);
-		SetSightOpen(swung > 0);
-		if (swung <= 0 || swung >= SWING) moving = 0;
+		if (isFrozen()) return;
+		if (moving != 0)
+		{
+			double next = clamp(swung + moving * RATE, 0.0, SWING);
+			// Only a door that stays solid can be held by a body. A non-solid door swings through it, as in Daggerfall.
+			if (solidWhenOpen && !Clear(next)) { stalled = true; return; }
+			stalled = false;
+			swung = next;
+			Place(true);
+			SetSightOpen(swung > 0);
+			if (swung <= 0 || swung >= SWING) moving = 0;
+		}
+		UpdateBlocking();
 	}
 }
 
@@ -186,6 +208,7 @@ class DFDoorHandler : EventHandler
 			let door = DFDoor(Actor.Spawn("DFDoor", (f[1].ToDouble(), f[2].ToDouble(), f[3].ToDouble()), NO_REPLACE));
 			door.Setup(f[0].ToInt(), f[1].ToDouble(), f[2].ToDouble(), f[3].ToDouble(), f[4].ToDouble(),
 				f[5].ToDouble(), f[6].ToDouble(), f[7].ToDouble(), f[8].ToDouble(), f[9].ToDouble(), f[10].ToDouble());
+			if (f.Size() > 11) door.swingDir = f[11].ToDouble();
 			spawned.Push(door);
 		}
 		// "DC <door> <control>" lines in DFPOINTS link each door to its sight-blocking control sectors.

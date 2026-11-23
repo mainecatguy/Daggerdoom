@@ -45,6 +45,14 @@ class DFWalk : EventHandler
 		if (!started)
 		{
 			started = true;
+			// Routes are planned on the static map and can run along the line where an open gate leaf rests.
+			// This walk tests streets and gate frames, so it removes the leaves' collision. It does not test gate use.
+			let it = ThinkerIterator.Create("Actor");
+			Actor t;
+			int links = 0;
+			while ((t = Actor(it.Next())))
+				if (t.GetClassName() == 'DFDoorBlocker') { t.bSOLID = false; links++; }
+			Console.Printf("DFWALK ignoring %d gate leaf links", links);
 			int resume = Wads.ReadLump(Wads.CheckNumForName("DFRESUME", Wads.ns_global)).ToInt();
 			if (resume > 0) { next = resume; mo.SetOrigin((xs[resume], ys[resume], mo.floorz), false); mo.vel = (0, 0, 0); }
 			last = mo.pos;
@@ -67,7 +75,11 @@ class DFWalk : EventHandler
 		else if (++stuck > 175)
 		{
 			finished = true;
-			Console.Printf("DFWALK stuck waypoints %d/%d tics %d at %.0f %.0f z %.1f target %.0f %.0f jumps %d", next, xs.Size(), level.maptime, mo.pos.x, mo.pos.y, mo.pos.z, xs[next], ys[next], jumps);
+			let near = BlockThingsIterator.Create(mo, 48);
+			while (near.Next())
+				if (near.thing != mo && near.thing.bSOLID)
+					Console.Printf("DFWALK near %s at %.0f %.0f radius %.1f z %.0f..%.0f", near.thing.GetClassName(), near.thing.pos.x, near.thing.pos.y, near.thing.radius, near.thing.pos.z, near.thing.pos.z + near.thing.height);
+			Console.Printf("DFWALK stuck waypoints %d/%d tics %d at %.0f %.0f z %.1f target %.0f %.0f jumps %d blocker %s line %d", next, xs.Size(), level.maptime, mo.pos.x, mo.pos.y, mo.pos.z, xs[next], ys[next], jumps, mo.BlockingMobj ? mo.BlockingMobj.GetClassName() : 'none', mo.BlockingLine ? mo.BlockingLine.Index() : -1);
 			return;
 		}
 		mo.angle = atan2(to.y, to.x);

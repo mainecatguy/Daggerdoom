@@ -221,7 +221,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
             if (DaggerfallUI.Instance.HotkeySequenceProcessed == HotkeySequence.HotkeySequenceProcessStatus.NotFound)
             {
-                if (Input.GetKeyDown(KeyCode.Tab))
+                if (DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.PollDown(KeyCode.Tab))
                     NextPage();
             }
         }

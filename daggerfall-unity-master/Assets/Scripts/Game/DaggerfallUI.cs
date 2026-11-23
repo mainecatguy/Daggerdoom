@@ -399,6 +399,10 @@ namespace DaggerfallWorkshop.Game
 
         void Update()
         {
+            // Doomerfall: text typed in Doom's window while a Daggerfall menu is open
+            if (Doomerfall.DoomerfallInput.Active && Doomerfall.DoomerfallInput.PendingChar != 0)
+                lastCharacterTyped = Doomerfall.DoomerfallInput.PendingChar;
+
             // HUD is always first window on stack when ready
             if (dfUnity.IsPathValidated && !hudSetup)
             {

@@ -11,6 +11,10 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 EXE = r"D:\dev\DoomDaggerfall-build\uzdoom-mesh\Release\uzdoom.exe"
+if "--exe" in sys.argv:  # test a private build
+    at = sys.argv.index("--exe")
+    EXE = sys.argv[at + 1]
+    del sys.argv[at:at + 2]
 WADS = r"D:\dev\DoomDaggerfall\GameResources\wads"
 MODS = r"D:\dev\DoomDaggerfall\GameMods"
 DRLA = [os.path.join(MODS, n) for n in ("DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3")]
@@ -76,18 +80,21 @@ for name, files in () if only_load else (("e1m1_stock", []), ("e1m1_drla", DRLA)
     fatal = any(b in text for b in BAD if b not in ("Script error", "Unknown class")) if drla else not clean(text)
     report(name, not fatal and entered and inactive, f"entered={entered} actions inactive={inactive}")
 
-ph = [os.path.join(holds, "privateershold" + s) for s in (".wad", "_mesh.pk3", "_doors.pk3", "_player.pk3")]
+# A default conversion, as the game uses. door_check applies the game's 10.5 player radius itself.
+ph = [os.path.join(holds, "privateershold" + s) for s in (".wad", "_mesh.pk3", "_doors.pk3")]
 if not only_load:
     text = launch("ph_doors", "DOOM2.WAD", [*ph, os.path.join(HERE, "door_check")], ["-nomonsters", "+map", "MAP01"], "DTDONE", 60)
     rows = [l for l in text.splitlines() if l.startswith("DT door=")]
     rows = rows[:len(rows) // 2] if len(rows) >= 116 and rows[:58] == rows[58:116] else rows
-    checked = ("use", "closed", "walk", "walkfree", "trace", "ball", "swing", "openblock", "traceopen", "ballopen", "stall")
+    checked = ("use", "closed", "walk", "trace", "ball", "swing", "openpass", "traceopen", "ballopen", "solid", "through", "hold")
     dead_ends = {21, 23, 24, 25, 27, 28, 31, 34, 37, 41, 49, 53}  # no dungeon on their far side; see work/notes/door-objects.md
     bad = [l for l in rows if int(l.split()[1][5:]) not in dead_ends
            and any(f.split("=")[0] in checked and "0" in f.split("=")[1] for f in l.split()[2:])]
     report("privateers_doors", "DTDONE" in text and clean(text) and len(rows) == 58 and not bad, f"{len(rows)} doors, {len(bad)} rows with a failed test")
     for l in bad[:4]:
         print("  " + l[:170])
+    bodies = next((l for l in text.splitlines() if l.startswith("DTPLAYERSTALL")), "")
+    report("door_bodies", "through+passable+solid" in bodies and not any(w in bodies for w in ("FAILED", "NOTPASSABLE", "NOTSOLID")), bodies)
     for old in glob.glob(os.path.join(run_dir, "*.zds")):
         os.remove(old)
 files = [*(os.path.join(scourg, "scourgbarrow" + s) for s in (".wad", "_mesh.pk3", "_doors.pk3")), os.path.join(HERE, "action_save_check")]

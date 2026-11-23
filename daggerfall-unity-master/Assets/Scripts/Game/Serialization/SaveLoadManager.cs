@@ -422,6 +422,60 @@ namespace DaggerfallWorkshop.Game.Serialization
             DaggerfallUI.Instance.PopupMessage(TextManager.Instance.GetLocalizedText("gameLoaded"));
         }
 
+        // Doomerfall: restores a save from a staging folder. The folder was checked by CheckFolderForLoad first.
+        public bool LoadFromFolder(string folder)
+        {
+            if (!IsReady() || loadInProgress)
+                return false;
+            saveDataJsonCache = null;
+            saveDataCache = null;
+            loadInProgress = true;
+            GameManager.Instance.PauseGame(false);
+            StartCoroutine(LoadGame(folder));
+            return true;
+        }
+
+        // Doomerfall: a staged load that threw or timed out must not block every later load.
+        public void AbortLoadFromFolder()
+        {
+            StopAllCoroutines();
+            loadInProgress = false;
+            saveDataJsonCache = null;
+            saveDataCache = null;
+        }
+
+        // Doomerfall: reads the staged save without touching the running game.
+        public bool CheckFolderForLoad(string folder, out int health, out int maxHealth, out int worldX, out int worldZ, out string error)
+        {
+            health = maxHealth = worldX = worldZ = 0;
+            error = null;
+            try
+            {
+                string path = Path.Combine(folder, saveDataFilename);
+                if (!File.Exists(path))
+                {
+                    error = "no SaveData.txt";
+                    return false;
+                }
+                SaveData_v1 data = Deserialize(typeof(SaveData_v1), ReadSaveFile(path)) as SaveData_v1;
+                if (data == null || data.playerData == null || data.playerData.playerEntity == null)
+                {
+                    error = "SaveData.txt has no player";
+                    return false;
+                }
+                health = data.playerData.playerEntity.currentHealth;
+                maxHealth = data.playerData.playerEntity.maxHealth;
+                worldX = data.playerData.playerPosition.worldPosX;
+                worldZ = data.playerData.playerPosition.worldPosZ;
+                return true;
+            }
+            catch (Exception e)
+            {
+                error = e.Message;
+                return false;
+            }
+        }
+
         public void Load(string characterName, string saveName)
         {
             //// Must be ready
@@ -1083,14 +1137,25 @@ namespace DaggerfallWorkshop.Game.Serialization
 
         #region Utility
 
-        IEnumerator SaveGame(string characterName, string saveName, bool instantReload = false)
+        // Doomerfall: writes a real save into an empty folder, within this call, leaving the normal save
+        // slots alone. There is no screenshot, because Daggerfall's own view is not what the player sees.
+        // Throws if a file cannot be written.
+        public void SaveToFolder(string folder, string saveName)
+        {
+            IEnumerator save = SaveGame(GameManager.Instance.PlayerEntity.Name, saveName, false, folder);
+            while (save.MoveNext()) { }
+        }
+
+        IEnumerator SaveGame(string characterName, string saveName, bool instantReload = false, string stagingFolder = null)
         {
             // Look for existing save with this character and name
-            int key = FindSaveFolderByNames(characterName, saveName);
+            int key = stagingFolder != null ? -1 : FindSaveFolderByNames(characterName, saveName);
 
             // Get or create folder
             string path;
-            if (key == -1)
+            if (stagingFolder != null)
+                path = stagingFolder;
+            else if (key == -1)
                 path = CreateNewSavePath(enumeratedSaveFolders);
             else
                 path = GetSaveFolder(key);
@@ -1145,11 +1210,15 @@ namespace DaggerfallWorkshop.Game.Serialization
 
             // Create screenshot for save
             // TODO: Hide UI for screenshot or use a different method
-            yield return new WaitForEndOfFrame();
-            yield return new WaitForEndOfFrame();
-            Texture2D screenshot = new Texture2D(Screen.width, Screen.height);
-            screenshot.ReadPixels(new Rect(0, 0, Screen.width, Screen.height), 0, 0);
-            screenshot.Apply();
+            Texture2D screenshot = null;
+            if (stagingFolder == null)
+            {
+                yield return new WaitForEndOfFrame();
+                yield return new WaitForEndOfFrame();
+                screenshot = new Texture2D(Screen.width, Screen.height);
+                screenshot.ReadPixels(new Rect(0, 0, Screen.width, Screen.height), 0, 0);
+                screenshot.Apply();
+            }
 
             //// Restore UI after screenshot
             //if (rawImageEnabled)
@@ -1176,9 +1245,13 @@ namespace DaggerfallWorkshop.Game.Serialization
             if (!File.Exists(Path.Combine(path, bioFileName)))
             {
                 StreamWriter file = new StreamWriter(Path.Combine(path, bioFileName).ToString());
-                foreach (string line in GameManager.Instance.PlayerEntity.BackStory)
+                // Doomerfall: a character without a backstory must not abort the save with this file open.
+                if (GameManager.Instance.PlayerEntity.BackStory != null)
                 {
-                    file.WriteLine(line);
+                    foreach (string line in GameManager.Instance.PlayerEntity.BackStory)
+                    {
+                        file.WriteLine(line);
+                    }
                 }
                 file.Close();
             }
@@ -1194,6 +1267,8 @@ namespace DaggerfallWorkshop.Game.Serialization
             {
                 string message = string.Format("Failed to save automap state. Message: {0}", ex.Message);
                 Debug.Log(message);
+                if (stagingFolder != null)
+                    throw; // Doomerfall: a bundle must not silently lose the automap.
             }
 
             // Save mod data
@@ -1223,11 +1298,18 @@ namespace DaggerfallWorkshop.Game.Serialization
             }
 
             // Save screenshot
-            byte[] bytes = screenshot.EncodeToJPG();
-            File.WriteAllBytes(Path.Combine(path, screenshotFilename), bytes);
+            if (screenshot != null)
+            {
+                byte[] bytes = screenshot.EncodeToJPG();
+                File.WriteAllBytes(Path.Combine(path, screenshotFilename), bytes);
+            }
 
             // Raise OnSaveEvent
             RaiseOnSaveEvent(saveData);
+
+            // Doomerfall: Doom reports the result and owns the save list.
+            if (stagingFolder != null)
+                yield break;
 
             // Update saves if needed
             if (key == -1)

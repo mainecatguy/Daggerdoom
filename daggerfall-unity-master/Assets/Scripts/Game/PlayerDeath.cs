@@ -86,7 +86,7 @@ namespace DaggerfallWorkshop.Game
                     mainCamera.transform.localPosition = pos;
                 }
 
-                if (Time.fixedTime - timeOfDeath > TimeBeforeReset)
+                if (Time.fixedTime - timeOfDeath > TimeBeforeReset && !DaggerfallWorkshop.Game.Doomerfall.DoomerfallBridge.SessionActive) // Doomerfall: Doom's death screen decides
                 {
                     // Start new game from death cinematic
                     startGameBehaviour.StartMethod = StartGameBehaviour.StartMethods.TitleMenuFromDeath;

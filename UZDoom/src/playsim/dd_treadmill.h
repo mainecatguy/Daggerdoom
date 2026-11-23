@@ -15,6 +15,11 @@ extern bool DDTreadmill_Active;
 void DDTreadmill_BeginMap(FLevelLocals *Level);
 void DDTreadmill_Tick(FLevelLocals *Level);
 bool DDTreadmill_MeshOffset(double &x, double &y, double &z);
+enum DDPlayerArea { DD_AREA_NONE, DD_AREA_EXTERIOR, DD_AREA_INTERIOR, DD_AREA_DUNGEON };	// Same values as the bridge's DFB_WORLD_*.
+DDPlayerArea DDTreadmill_PlayerWorld(double &x, double &y, double &z, double &yawDegrees);	// Position is Daggerfall world units, set only for DD_AREA_EXTERIOR.
+bool DDTreadmill_RequestTravel(double x, double y, double yawDegrees);	// Daggerfall world units. Moves the player on the next tic.
+bool DDTreadmill_CurrentDoor(int &action, double &x, double &y, int &target);	// After a load: which side of which door the player is on. False off Daggerfall maps.
+void DD_BridgeTransition(int action, double x, double y, int target);	// Tells Daggerfall about a door. Does nothing without a bridge session.
 
 // Generated locations. All of these return false or null unless the map name is DDT<5 digits> and the runtime package is loaded.
 level_info_t *DDTreadmill_FindLevelInfo(const char *mapname);

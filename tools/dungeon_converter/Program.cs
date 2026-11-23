@@ -62,6 +62,9 @@ static partial class Program
     static readonly List<Tri> tris = new List<Tri>();
     static readonly List<HangingCut> hanging = new List<HangingCut>();
     static readonly List<DoorInfo> doors = new List<DoorInfo>();
+    static readonly List<EnemyPlacement> enemyPlacements = new List<EnemyPlacement>();
+    static int enemiesSkipped, currentMapId;
+    const int RandomEnemyRecord = 15, FixedEnemyRecord = 16;
     static readonly List<(string name, int x, int y)> blockRects = new List<(string, int, int)>();
 
     static int Main(string[] args)
@@ -72,6 +75,10 @@ static partial class Program
         if (args.Contains("--city") || args.Contains("--group")) return City.Run(args); // cities have their own pipeline in CityExport.cs
         string name = null, outDir = null, arena2 = @"D:\dev\DoomDaggerfall\GameResources\DAGGER\ARENA2";
         if (args.Contains("--list-water")) return ListWater(arena2);
+        if (args.Contains("--list-tilted-doors")) return ListTiltedDoors(arena2);
+        if (args.Contains("--list-main")) return ListMain(arena2, args.Contains("--list-all"));
+        if (args.Contains("--list-flats")) return ListFlats(arena2);
+        if (args.Contains("--list-door-actions")) return ListDoorActions(arena2);
         for (int a = 0; a < args.Length; a++)
         {
             if (args[a] == "--out") outDir = args[++a];
@@ -84,7 +91,7 @@ static partial class Program
             else if (args[a] == "--debug-row") debugRow = args[++a];
             else if (args[a] == "--debug-line") debugLine = args[++a]; // x0,y0,x1,y1,z0,z1: raw hits, spans, and faces along a line
             else if (args[a] == "--audit-points") a += 2;
-            else if (args[a] == "--no-walls" || args[a] == "--export-mesh" || args[a] == "--no-ceiling-relief" || args[a] == "--door-dump" || args[a] == "--action-dump") { }
+            else if (args[a] == "--no-walls" || args[a] == "--export-mesh" || args[a] == "--no-ceiling-relief" || args[a] == "--door-dump" || args[a] == "--action-dump" || args[a] == "--runtime-dungeon") { }
             else if (args[a] == "--texture-table") a++; // used by --export-mesh: six archives, comma separated
             else if (args[a] == "--grid-collision") gridCollision = true; // old axis-aligned boundaries and flat planes
             else if (args[a] == "--open-actions") openActions = true;            else if (args[a] == "--route-step") routeStep = int.Parse(args[++a]); // diagnostic: models jumping or climbing
@@ -102,6 +109,7 @@ static partial class Program
         int meshAt = Array.IndexOf(args, "--export-mesh"); // writes <slug>_mesh.pk3 (real models, textures, UVs) and exits
         if (meshAt >= 0) return ExportMesh(arena2, location, outDir, new string(name.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant(), args);
 
+        currentMapId = location.MapTableData.MapId;
         V3 entrance = entranceMarker = LoadGeometry(arena2, location);
         BuildGrid();
         DumpLine("grid");
@@ -119,7 +127,7 @@ static partial class Program
         if (args.Contains("--door-dump"))
         {
             foreach (var d in doors)
-                Console.WriteLine(FormattableString.Invariant($"DOORDUMP {d.Id} m{d.Model} b{d.Block} pivot {d.PivotX:F2},{d.PivotY:F2},{d.PivotZ:F2} rot {d.RxDeg:F1},{d.RyDeg:F1},{d.RzDeg:F1} local x {d.LocalMinX:F2}..{d.LocalMaxX:F2} y {d.LocalMinY:F2}..{d.LocalMaxY:F2} z {d.LocalMinZ:F2}..{d.LocalMaxZ:F2} world x {d.MinX:F1}..{d.MaxX:F1} y {d.MinY:F1}..{d.MaxY:F1} z {d.MinZ:F1}..{d.MaxZ:F1}"));
+                Console.WriteLine(FormattableString.Invariant($"DOORDUMP {d.Id} m{d.Model} b{d.Block} pivot {d.PivotX:F2},{d.PivotY:F2},{d.PivotZ:F2} rot {d.RxDeg:F4},{d.RyDeg:F4},{d.RzDeg:F4} local x {d.LocalMinX:F2}..{d.LocalMaxX:F2} y {d.LocalMinY:F2}..{d.LocalMaxY:F2} z {d.LocalMinZ:F2}..{d.LocalMaxZ:F2} world x {d.MinX:F1}..{d.MaxX:F1} y {d.MinY:F1}..{d.MaxY:F1} z {d.MinZ:F1}..{d.MaxZ:F1}"));
             // Whether each side of a door has a dungeon block and source faces 24 units out from the panel.
             double blockSide = BlockSide * PlayerScale.DoomUnitsPerDaggerfallUnit;
             foreach (var d in doors)
@@ -164,6 +172,27 @@ static partial class Program
         return 0;
     }
 
+    // The ids in DaggerfallDungeon.IsMainStoryDungeon, copied because that class needs Unity.
+    static readonly int[] MainStoryIds = { 187853213, 630439035, 1291010263, 6634853, 19021260, 728811286, 701948302, 83032363, 1001, 207828842, 9570447, 2352284, 336619236, 43196334 };
+
+    static int ListMain(string arena2, bool all)
+    {
+        var maps = new MapsFile(Path.Combine(arena2, "MAPS.BSA"), FileUsage.UseMemory, true);
+        for (int r = 0; r < maps.RegionCount; r++)
+        {
+            if (!maps.LoadRegion(r)) continue;
+            var region = maps.GetRegion(r);
+            if (region.MapNames == null) continue;
+            for (int l = 0; l < region.LocationCount; l++)
+            {
+                var loc = maps.GetLocation(r, l);
+                if (!MainStoryIds.Contains(loc.MapTableData.MapId) && !all) continue; // --list-all lists every location with a dungeon
+                Console.WriteLine($"MAIN {loc.MapTableData.MapId} {region.Name}/{region.MapNames[l]} hasDungeon={loc.HasDungeon} blocks={(loc.HasDungeon ? loc.Dungeon.Blocks.Length : 0)}");
+            }
+        }
+        return 0;
+    }
+
     static bool FindDungeon(string arena2, string name, out DFLocation location)
     {
         var maps = new MapsFile(Path.Combine(arena2, "MAPS.BSA"), FileUsage.UseMemory, true);
@@ -174,8 +203,10 @@ static partial class Program
             if (region.MapNames == null) continue;
             for (int l = 0; l < region.LocationCount; l++)
             {
-                if (!string.Equals(region.MapNames[l], name, StringComparison.OrdinalIgnoreCase)) continue;
+                bool byId = name.StartsWith("#"); // "#<map id>" picks the exact location, because names repeat across regions
+                if (!byId && !string.Equals(region.MapNames[l], name, StringComparison.OrdinalIgnoreCase)) continue;
                 var candidate = maps.GetLocation(r, l);
+                if (byId && candidate.MapTableData.MapId.ToString() != name.Substring(1)) continue;
                 if (candidate.HasDungeon) { location = candidate; return true; }
             }
         }
@@ -228,6 +259,14 @@ static partial class Program
                         if (obj.Resources.FlatResource.TextureRecord == EnterRecord) enter ??= marker;
                         if (obj.Resources.FlatResource.TextureRecord == StartRecord) startMark ??= marker;
                     }
+                    if (obj.Type == DFBlock.RdbResourceTypes.Flat && obj.Resources.FlatResource.TextureArchive == EditorArchive
+                        && (obj.Resources.FlatResource.TextureRecord == RandomEnemyRecord || obj.Resources.FlatResource.TextureRecord == FixedEnemyRecord))
+                    {
+                        var f = obj.Resources.FlatResource;
+                        var at = ToDoom(new V3(obj.XPos, -obj.YPos, obj.ZPos) + offset);
+                        enemyPlacements.Add(new EnemyPlacement(at.X, at.Y, at.Z, EnemyRoster.Pick(currentMapId, dungeonBlock.BlockName, dungeonBlock.X, dungeonBlock.Z,
+                            obj.XPos, obj.YPos, obj.ZPos, f.TextureRecord, f.FactionOrMobileId)));
+                    }
                     if (obj.Type != DFBlock.RdbResourceTypes.Model) continue;
                     var reference = block.RdbBlock.ModelReferenceList[obj.Resources.ModelResource.ModelIndex];
                     uint id = reference.ModelIdNum;
@@ -240,7 +279,7 @@ static partial class Program
                     if (debugRow != null && (action.Flags != 0 || isDoor))
                         Console.WriteLine($"ACTION block={dungeonBlock.BlockName} model={id} desc={reference.Description} door={isDoor} flags={action.Flags} axis={action.Axis} dur={action.Duration} mag={action.Magnitude} next={action.NextObjectOffset} pos={obj.XPos + offset.X:F0},{obj.ZPos + offset.Z:F0},{-obj.YPos}");
                     // Moving models are runtime objects (action_objects.zs), so they are not static collision.
-                    if (IsMovingAction(obj, isDoor))
+                    if (IsMovingAction(obj, isDoor, id))
                     {
                         skippedActions++;
                         if (reference.Description == "LID") NoteLidFootprint(arch, id, obj, offset);
@@ -1035,11 +1074,33 @@ static partial class Program
         map.Append(lineText).Append(sideText).Append(sectorText);
         map.Append($"thing {{ x = {minX + start.I * cell}.0; y = {minX * 0 + minY + start.J * cell}.0; height = {start.F - BaseFloor(start)}.0; angle = 0; type = 1; skill1 = true; skill2 = true; skill3 = true; skill4 = true; skill5 = true; single = true; }}\n");
 
+        AppendEnemies(map);
         var doorList = new StringBuilder();
         foreach (var id in usedDoors) doorList.Append($"D {doors[id].Control} {doors[id].Height} {doors[id].Block}\n");
         foreach (var d in doors) doorList.Append($"DC {d.Id} {d.Control}\n"); // door order matches DFDOORS
-        WriteWad(path, map.ToString(), points + doorList);
+        WriteWad(path, map.ToString(), points + doorList, OutputMapName);
         return (sectorSpans.Count, lines, controls, usedDoors.Count);
+    }
+
+    // One enemy per Daggerfall placement (editor flat 199:15 random, 199:16 fixed). The type comes from EnemyRoster.Pick,
+    // a hash of the placement's static data, so a placement always yields the same Doom class.
+    static void AppendEnemies(StringBuilder map)
+    {
+        int placed = 0;
+        var counts = new SortedDictionary<int, int>();
+        foreach (var e in enemyPlacements)
+        {
+            int i = (int)Math.Floor((e.X - minX) / cell), j = (int)Math.Floor((e.Y - minY) / cell);
+            var spans = i >= 0 && j >= 0 && i < width && j < height ? grid[Index(i, j)] : null;
+            if (spans == null || spans.Count == 0) { enemiesSkipped++; continue; }
+            // The span whose floor is the highest one still at or below the marker (plus a step), with room to stand.
+            Span span = spans.Where(s => s.F <= e.Z + StepHeight && s.C - s.F >= ActorHeight).OrderByDescending(s => s.F).FirstOrDefault();
+            if (span == null) { enemiesSkipped++; continue; }
+            map.Append(FormattableString.Invariant($"thing {{ x = {minX + (i + 0.5) * cell:F1}; y = {minY + (j + 0.5) * cell:F1}; height = {span.F - spans[0].F}.0; angle = {(e.Type * 45) % 360}; type = {e.Type}; skill1 = true; skill2 = true; skill3 = true; skill4 = true; skill5 = true; single = true; coop = true; dm = true; }}\n"));
+            placed++;
+            counts[e.Type] = counts.GetValueOrDefault(e.Type) + 1;
+        }
+        Console.WriteLine($"enemies: {placed} placed, {enemiesSkipped} skipped (no floor under the marker), of {enemyPlacements.Count} placements; types {string.Join(" ", counts.Select(c => c.Key + "x" + c.Value))}");
     }
 
     static int BaseFloor(Node n)

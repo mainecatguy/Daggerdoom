@@ -1077,6 +1077,8 @@ static int hasBuddha(player_t *player)
 
 // Returns the amount of damage actually inflicted upon the target, or -1 if
 // the damage was cancelled.
+bool DD_BridgeHpHit(player_t *player, int damage); // [Doomerfall] false outside a bridge session
+
 static int DamageMobj (AActor *target, AActor *inflictor, AActor *source, int damage, FName mod, int flags, DAngle angle, bool& needevent)
 {
 	player_t *player = NULL;
@@ -1388,6 +1390,8 @@ static int DamageMobj (AActor *target, AActor *inflictor, AActor *source, int da
 
 		bool compat_voodoo_zombie = target->Level->i_compatflags2 & COMPATF2_VOODOO_ZOMBIES;
 
+		// [Doomerfall] In a bridge session Daggerfall owns HP: the hit is reported and health is left alone.
+		if (!DD_BridgeHpHit(player, damage)) {
 		player->health -= damage;		// mirror mobj health here for Dave
 		if(compat_voodoo_zombie)
 		{ // [RL0] To allow voodoo zombies, don't set the voodoo doll to the player mobj's health and don't change the player mobj's health on damage
@@ -1426,6 +1430,7 @@ static int DamageMobj (AActor *target, AActor *inflictor, AActor *source, int da
 				player->health = 0;
 			}
 		}
+		} // [Doomerfall]
 		player->LastDamageType = mod;
 		player->attacker = source;
 		player->damagecount += damage;	// add damage after armor / invuln

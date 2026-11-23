@@ -31,6 +31,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public long publishedNs;
         public uint dfFrame;
         public uint demoValue;
+        public int hpCurrent, hpMax;
+        public uint hpApplied, hpFlags;
     }
 
     [StructLayout(LayoutKind.Sequential, Size = 256)]
@@ -42,6 +44,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public long publishedNs;
         public uint uzTic;
         public uint demoValue;
+        public double worldX, worldZ, worldHeight; // Daggerfall world units
+        public float yawDegrees;
+        public uint worldContext;
+        public int mapPixelX, mapPixelY;
+        public uint areaSeq;
+        public uint pad0;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -68,18 +76,20 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [DllImport(Dll)] public static extern int dfb_read_state(IntPtr session, ref DfbUzState state, uint size);
         [DllImport(Dll)] public static extern int dfb_get_stats(IntPtr session, ref DfbStats stats);
         [DllImport(Dll)] public static extern long dfb_peer_state_age_ns(IntPtr session);
+        [DllImport(Dll)] public static extern int dfb_bulk_read(IntPtr session, uint slot, byte[] data, uint capacity, out uint size, out uint version);
+        [DllImport(Dll)] public static extern int dfb_surface_write(IntPtr session, byte[] bgra, uint width, uint height, uint frameId, long capturedNs, long inputNs, int flipY);
     }
 
     public sealed class DoomerfallBridge : MonoBehaviour
     {
-        const uint ProtocolVersion = 1;
+        const uint ProtocolVersion = 4;
         const int SideDf = 1;
         const int Got = 1;
-        const ushort KindHello = 1, KindPing = 2, KindPong = 3, KindText = 4;
+        const ushort KindHello = 1, KindPing = 2, KindPong = 3, KindText = 4, KindArea = 5, KindUiOpen = 6, KindUiClose = 7, KindUiInput = 8, KindHp = 11, KindSaveRequest = 12, KindSaveDone = 14, KindLoadRequest = 15, KindLoadDone = 17, KindHold = 19, KindTransition = 21;
         const long PingIntervalNs = 50000000, LogIntervalNs = 2000000000, StaleNs = 1000000000;
         const int SampleCount = 1024;
 
-        sealed class Samples
+        internal sealed class Samples
         {
             readonly long[] values = new long[SampleCount];
             readonly long[] sorted = new long[SampleCount];
@@ -106,12 +116,21 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         static string pendingSession, pendingLog;
 
+        // True in a working bridge session. Doom's death screen then replaces Daggerfall's automatic restart.
+        public static bool SessionActive { get; private set; }
+
         IntPtr session;
         StreamWriter log;
         DfbEvent ev;
         DfbDfState own;
         DfbUzState peer;
         DfbStats stats;
+        DoomerfallPositionSync sync;
+        internal DoomerfallPositionSync PositionSync { get { return sync; } }
+        DoomerfallUi ui;
+        DoomerfallHp hp;
+        DoomerfallSave save;
+        bool textFrame;
         uint ownSize, peerSize, nextPing = 1;
         ulong pingsAnswered, pongsReceived, unknownKinds;
         long nextPingNs, nextLogNs;
@@ -165,6 +184,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return;
             }
 
+            SessionActive = true;
             ownSize = (uint)Marshal.SizeOf(typeof(DfbDfState));
             peerSize = (uint)Marshal.SizeOf(typeof(DfbUzState));
             Log(string.Format("attached to session {0}, protocol {1}, layout {2:x16}", pendingSession,
@@ -173,7 +193,36 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             ev = new DfbEvent { kind = KindHello };
             DfbNative.dfb_send(session, ref ev);
             SendText("hello from Daggerfall Unity");
+
+            sync = gameObject.AddComponent<DoomerfallPositionSync>();
+            sync.Init(this, Environment.GetCommandLineArgs());
+            hp = new DoomerfallHp(this, sync, Environment.GetCommandLineArgs());
+            ui =gameObject.AddComponent<DoomerfallUi>();
+            ui.Init(this);
+            save = gameObject.AddComponent<DoomerfallSave>();
+            save.Init(this, sync, hp, Environment.GetCommandLineArgs());
         }
+
+        // The newest Doom state, for the save handshake. Doom published it before sending the request.
+        internal void ReadPeerState(out DfbUzState state)
+        {
+            DfbNative.dfb_read_state(session, ref peer, peerSize);
+            state = peer;
+        }
+
+        // Publishes now, so Doom sees Daggerfall's restored HP before it reads the load's answer.
+        internal void PublishNow()
+        {
+            own.dfPhase = sync.Phase;
+            own.dfHeartbeat++;
+            hp.Fill(ref own);
+            DfbNative.dfb_publish_state(session, ref own, ownSize);
+        }
+
+        internal IntPtr Session { get { return session; } }
+        internal void Send(ref DfbEvent e) { DfbNative.dfb_send(session, ref e); }
+        internal bool LogEnabled { get { return log != null; } }
+        internal void LogLine(string line) { Log(line); }
 
         void Fail(string message)
         {
@@ -225,8 +274,16 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
             long memoryBefore = GC.GetTotalMemory(false);
             int collectionsBefore = GC.CollectionCount(0);
-            bool textFrame = false;
 
+            // DoomerfallUi drained the event ring earlier this frame, before InputManager polled.
+            FinishFrame(memoryBefore, collectionsBefore);
+        }
+
+        // Runs first in the frame, so input from Doom is in place before anything reads it.
+        internal void DrainEvents()
+        {
+            if (session == IntPtr.Zero) return;
+            textFrame = false;
             while (DfbNative.dfb_receive(session, ref ev) == Got)
             {
                 long received = DfbNative.dfb_now_ns();
@@ -248,23 +305,67 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         pongsReceived++;
                         break;
                     case KindText:
-                        Log("message from UZDoom: \"" + ReadText() + "\" (seq " + ev.seq + ")");
+                    {
+                        string text = ReadText();
+                        Log("message from UZDoom: \"" + text + "\" (seq " + ev.seq + ")");
+                        hp.OnText(text);
+                        break;
+                    }
+                    case KindHp: // payload: event number, type, amount, pad, sent_ns
+                        hp.OnEvent((uint)ev.p0, (uint)(ev.p0 >> 32), (int)(uint)ev.p1);
+                        break;
+                    case KindSaveRequest: // payload: txn, HP events sent through, sent_ns
+                        save.OnRequest((uint)ev.p0, (uint)(ev.p0 >> 32));
+                        break;
+                    case KindSaveDone: // payload: txn, committed
+                        save.OnDone((uint)ev.p0, (uint)(ev.p0 >> 32) != 0);
+                        break;
+                    case KindLoadRequest: // payload: txn, hp, max hp, world x, world z, file count, sent_ns
+                        save.OnLoadRequest((uint)ev.p0, (int)(ev.p0 >> 32), (int)(uint)ev.p1, (int)(ev.p1 >> 32), (int)(uint)ev.p2);
+                        break;
+                    case KindLoadDone: // payload: txn, restored
+                        save.OnLoadDone((uint)ev.p0, (uint)(ev.p0 >> 32) != 0);
+                        break;
+                    case KindHold:
+                        save.OnHold(ev.p0 != 0);
                         break;
                     case KindHello:
                         Log("hello from UZDoom (seq " + ev.seq + ")");
+                        break;
+                    case KindArea: // payload: context, pixel x, pixel y, sequence, sent_ns
+                        sync.OnAreaEvent((uint)ev.p0, (int)(ev.p0 >> 32), (int)(uint)ev.p1, (long)ev.p2);
+                        break;
+                    case KindTransition: // payload: action, sequence, door x, door z, target
+                        sync.OnTransitionEvent((uint)ev.p0, (uint)(ev.p0 >> 32), BitConverter.Int64BitsToDouble((long)ev.p1),
+                            BitConverter.Int64BitsToDouble((long)ev.p2), (int)(uint)ev.p3);
+                        break;
+                    case KindUiOpen:
+                        ui.OnOpen((uint)ev.p0, (uint)(ev.p0 >> 32));
+                        break;
+                    case KindUiClose:
+                        ui.OnClose((uint)ev.p0);
+                        break;
+                    case KindUiInput: // payload: type, a, b, pad, sent_ns
+                        DoomerfallInput.Enqueue((uint)ev.p0, (int)(ev.p0 >> 32), (int)(uint)ev.p1, (long)ev.p2);
                         break;
                     default:
                         unknownKinds++; // contract rule 7: skip, never fatal
                         break;
                 }
             }
+        }
 
+        void FinishFrame(long memoryBefore, int collectionsBefore)
+        {
             if (DfbNative.dfb_read_state(session, ref peer, peerSize) == Got)
                 stateAge.Add(DfbNative.dfb_now_ns() - peer.publishedNs);
 
+            sync.Tick(ref peer);
+            own.dfPhase = sync.Phase;
             own.dfHeartbeat++;
             own.dfFrame = (uint)Time.frameCount;
             own.demoValue = (uint)Time.frameCount;
+            hp.Fill(ref own);
             DfbNative.dfb_publish_state(session, ref own, ownSize);
 
             long now = DfbNative.dfb_now_ns();
@@ -312,11 +413,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     stats.seqGaps, unknownKinds, stats.outboxCount, measuredFrames, allocatingFrames, allocatedBytes));
                 Log("latency rtt " + rtt.Summary() + " | df->uz " + oneWayOut.Summary() + " | uz->df " + oneWayIn.Summary() +
                     " | uz state age " + stateAge.Summary());
+                sync.LogStatus();
             }
         }
 
         void OnDestroy()
         {
+            SessionActive = false;
             if (session != IntPtr.Zero) DfbNative.dfb_close(session);
             session = IntPtr.Zero;
             if (log != null) log.Dispose();
