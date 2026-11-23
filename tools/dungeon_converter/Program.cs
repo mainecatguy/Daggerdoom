@@ -62,6 +62,9 @@ static partial class Program
     static readonly List<Tri> tris = new List<Tri>();
     static readonly List<HangingCut> hanging = new List<HangingCut>();
     static readonly List<DoorInfo> doors = new List<DoorInfo>();
+    static readonly List<EnemyPlacement> enemyPlacements = new List<EnemyPlacement>();
+    static int enemiesSkipped, currentMapId;
+    const int RandomEnemyRecord = 15, FixedEnemyRecord = 16;
     static readonly List<(string name, int x, int y)> blockRects = new List<(string, int, int)>();
 
     static int Main(string[] args)
@@ -104,6 +107,7 @@ static partial class Program
         int meshAt = Array.IndexOf(args, "--export-mesh"); // writes <slug>_mesh.pk3 (real models, textures, UVs) and exits
         if (meshAt >= 0) return ExportMesh(arena2, location, outDir, new string(name.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant(), args);
 
+        currentMapId = location.MapTableData.MapId;
         V3 entrance = entranceMarker = LoadGeometry(arena2, location);
         BuildGrid();
         DumpLine("grid");
@@ -252,6 +256,14 @@ static partial class Program
                             Console.WriteLine($"MARKER record={obj.Resources.FlatResource.TextureRecord} at {marker.X:F0},{marker.Y:F0},{marker.Z:F0}");
                         if (obj.Resources.FlatResource.TextureRecord == EnterRecord) enter ??= marker;
                         if (obj.Resources.FlatResource.TextureRecord == StartRecord) startMark ??= marker;
+                    }
+                    if (obj.Type == DFBlock.RdbResourceTypes.Flat && obj.Resources.FlatResource.TextureArchive == EditorArchive
+                        && (obj.Resources.FlatResource.TextureRecord == RandomEnemyRecord || obj.Resources.FlatResource.TextureRecord == FixedEnemyRecord))
+                    {
+                        var f = obj.Resources.FlatResource;
+                        var at = ToDoom(new V3(obj.XPos, -obj.YPos, obj.ZPos) + offset);
+                        enemyPlacements.Add(new EnemyPlacement(at.X, at.Y, at.Z, EnemyRoster.Pick(currentMapId, dungeonBlock.BlockName, dungeonBlock.X, dungeonBlock.Z,
+                            obj.XPos, obj.YPos, obj.ZPos, f.TextureRecord, f.FactionOrMobileId)));
                     }
                     if (obj.Type != DFBlock.RdbResourceTypes.Model) continue;
                     var reference = block.RdbBlock.ModelReferenceList[obj.Resources.ModelResource.ModelIndex];
@@ -1060,11 +1072,33 @@ static partial class Program
         map.Append(lineText).Append(sideText).Append(sectorText);
         map.Append($"thing {{ x = {minX + start.I * cell}.0; y = {minX * 0 + minY + start.J * cell}.0; height = {start.F - BaseFloor(start)}.0; angle = 0; type = 1; skill1 = true; skill2 = true; skill3 = true; skill4 = true; skill5 = true; single = true; }}\n");
 
+        AppendEnemies(map);
         var doorList = new StringBuilder();
         foreach (var id in usedDoors) doorList.Append($"D {doors[id].Control} {doors[id].Height} {doors[id].Block}\n");
         foreach (var d in doors) doorList.Append($"DC {d.Id} {d.Control}\n"); // door order matches DFDOORS
         WriteWad(path, map.ToString(), points + doorList);
         return (sectorSpans.Count, lines, controls, usedDoors.Count);
+    }
+
+    // One enemy per Daggerfall placement (editor flat 199:15 random, 199:16 fixed). The type comes from EnemyRoster.Pick,
+    // a hash of the placement's static data, so a placement always yields the same Doom class.
+    static void AppendEnemies(StringBuilder map)
+    {
+        int placed = 0;
+        var counts = new SortedDictionary<int, int>();
+        foreach (var e in enemyPlacements)
+        {
+            int i = (int)Math.Floor((e.X - minX) / cell), j = (int)Math.Floor((e.Y - minY) / cell);
+            var spans = i >= 0 && j >= 0 && i < width && j < height ? grid[Index(i, j)] : null;
+            if (spans == null || spans.Count == 0) { enemiesSkipped++; continue; }
+            // The span whose floor is the highest one still at or below the marker (plus a step), with room to stand.
+            Span span = spans.Where(s => s.F <= e.Z + StepHeight && s.C - s.F >= ActorHeight).OrderByDescending(s => s.F).FirstOrDefault();
+            if (span == null) { enemiesSkipped++; continue; }
+            map.Append(FormattableString.Invariant($"thing {{ x = {minX + (i + 0.5) * cell:F1}; y = {minY + (j + 0.5) * cell:F1}; height = {span.F - spans[0].F}.0; angle = {(e.Type * 45) % 360}; type = {e.Type}; skill1 = true; skill2 = true; skill3 = true; skill4 = true; skill5 = true; single = true; coop = true; dm = true; }}\n"));
+            placed++;
+            counts[e.Type] = counts.GetValueOrDefault(e.Type) + 1;
+        }
+        Console.WriteLine($"enemies: {placed} placed, {enemiesSkipped} skipped (no floor under the marker), of {enemyPlacements.Count} placements; types {string.Join(" ", counts.Select(c => c.Key + "x" + c.Value))}");
     }
 
     static int BaseFloor(Node n)
