@@ -43,6 +43,7 @@ class DTHarness : EventHandler
 	override void WorldTick()
 	{
 		if (done || !playeringame[0] || !players[0].mo) return;
+		String mode = "@MODE@";
 		let p = players[0].mo;
 		let st = DTState(p.FindInventory("DTState"));
 		if (!st) st = DTState(p.GiveInventoryType("DTState"));
@@ -100,6 +101,18 @@ class DTHarness : EventHandler
 				}
 				if (st.leg == 0 && st.visits == 1)
 					Console.Printf("DTPERSIST inside shells=%d monsters=%d corpses=%d", CountNear("Shell", p.pos, 64), CountMonsters(true), CountMonsters(false));
+			}
+			if (mode == "shot")	// Hold the arrival view for a timed console screenshot.
+			{
+				p.vel = (0, 0, 0);
+				if (st.timer > 330) Finish("shot");
+				break;
+			}
+			if (mode == "save")	// The load run resumes here and must still find its way back out.
+			{
+				if (st.timer == 6) { Console.Printf("DTSAVE map=%s", level.MapName); level.MakeAutoSave(); }
+				if (st.timer > 20) Finish("saved");
+				break;
 			}
 			if (st.timer > 2 && st.timer < 22) p.vel.xy = Actor.AngleToVector(p.angle, 6);
 			if (st.timer == 24)

@@ -3,7 +3,7 @@
 Usage: door_test.py NAME --group 9183 --build DIR --targets id,id [--dungeon-dir DIR] [--timeout 30]
 --targets lists interior space ids, or "dungeon" for the location's dungeon door. Generated files stay in DIR.
 """
-import argparse, os, re, shutil, struct, subprocess, sys, time, zipfile, zlib
+import argparse, glob, os, re, shutil, struct, subprocess, sys, time, zipfile, zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 IWAD = r"D:\dev\DoomDaggerfall\GameResources\wads\DOOM2.WAD"
@@ -28,12 +28,17 @@ ap.add_argument("--targets", required=True)
 ap.add_argument("--exe", required=True)
 ap.add_argument("--dungeon-dir")
 ap.add_argument("--timeout", type=int, default=30)
+ap.add_argument("--mode", default="route", choices=["route", "save", "load", "shot"], help="save inside the first space, or load that save and walk out")
 args = ap.parse_args()
 
 cache = os.path.join(args.build, "testcache")
 converter = os.path.join(args.build, "converter", "DungeonConverter.exe")
 doors = [l.split() for l in lumps(os.path.join(cache, f"T{args.group:05d}.ddt"))["DDDOORS"].decode().splitlines() if l.strip()]
 chosen, exits = [], []
+for t in args.targets.split(","):  # Convert first, so each launch measures the doors and stays short.
+    target = os.path.join(cache, f"T{t}.ddt")
+    if t != "dungeon" and not os.path.exists(target):
+        subprocess.run([converter, "--group", t, "--ddt", target, "--out", os.path.join(cache, "work", t), "--arena2", ARENA2], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60)
 for t in args.targets.split(","):
     match = [d for d in doors if d[0] == "1"] if t == "dungeon" else [d for d in doors if d[0] == "0" and d[1] == t]
     if not match:
@@ -48,6 +53,7 @@ text = open(os.path.join(HERE, "door_harness.zs")).read()
 text = text.replace("@DOORS@", ", ".join(v for d in chosen for v in d[3:8])).replace("@EXITS@", ", ".join(v for e in exits for v in e) or "0, 0, 0, 0, 0")
 # Decided at run time: a constant false condition stops the whole function body from running (see town-stitch.md).
 text = text.replace("EXITS.Size() >= FIELDS", "HasExit()").replace("const FIELDS = 5;", "const FIELDS = 5;\n\tbool HasExit() { int i = level.maptime * 0 + 3; return EXITS[i] != 0 || EXITS[i + 1] != 0; }")
+text = text.replace("@MODE@", args.mode)
 work = os.path.join(args.build, "tests")
 os.makedirs(os.path.join(work, "saves"), exist_ok=True)
 harness = os.path.join(work, args.name + "_harness.pk3")
@@ -60,6 +66,14 @@ if os.path.exists(log):
 game = [args.exe, "-iwad", IWAD, "-file", *files, harness, "-config", os.path.join(work, "test.ini"), "-savedir", os.path.join(work, "saves"), "-nosound", "-noautoload", "-skill", "3",
         "-width", "1280", "-height", "720", "-noactivate", "-ddtowncache", cache, "-ddconverter", converter, "-ddarena2", ARENA2,
         "+logfile", args.name, "+vid_fullscreen", "0", "+vid_vsync", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{args.group:05d}"]
+if args.mode == "shot":
+    cfg = os.path.join(work, args.name + ".cfg")
+    with open(cfg, "w") as f:
+        f.write('wait 260; screenshot "%s"\n' % os.path.join(work, args.name + ".png").replace("\\", "/"))
+    game += ["+screenblocks", "12", "+crosshair", "0", "+screenshot_type", "png", "+exec", cfg.replace("\\", "/")]
+if args.mode == "load":
+    newest = max(glob.glob(os.path.join(work, "saves", "auto*.zds")), key=os.path.getmtime)
+    game = game[:game.index("+map")] + ["-loadgame", os.path.basename(newest)]
 proc = subprocess.Popen([sys.executable, QUIET, "--timeout", str(args.timeout), "--"] + game, cwd=work, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 reason, end = "timeout", time.time() + args.timeout + 3
 while time.time() < end and proc.poll() is None:
@@ -78,5 +92,5 @@ print("result:", reason, "log bytes:", len(body))
 if not re.search(r"^DT[A-Z]+", body, re.M):
     print("\n".join(body.splitlines()[-12:])[:1500])
 for line in body.splitlines():
-    if re.match(r"(DT[A-Z]+|DDTRANSITION|DDSTITCH arrive|DDTCONV)", line) or any(k in line for k in FATAL):
+    if re.match(r"(DTFAIL|DTDONE|DTRETURN|DTWALK)", line) or any(k in line for k in FATAL):
         print(line[:170])

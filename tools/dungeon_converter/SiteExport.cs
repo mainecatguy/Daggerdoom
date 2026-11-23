@@ -59,6 +59,27 @@ static partial class Program
         static V3 Scaled(V3 p, V3 s) => new V3(p.X * s.X, p.Y * s.Y, p.Z * s.Z);
         static double Distance(V3 a, V3 b) => Math.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y) + (a.Z - b.Z) * (a.Z - b.Z));
 
+        // One line per building record: space id and Daggerfall building type.
+        public static int ListBuildings(int groupId, string arena2)
+        {
+            var maps = new MapsFile(Path.Combine(arena2, "MAPS.BSA"), FileUsage.UseMemory, true);
+            var blocksFile = new BlocksFile(Path.Combine(arena2, "BLOCKS.BSA"), FileUsage.UseMemory, true);
+            WorldTerrain.Load(arena2, maps, blocksFile);
+            int ordinal = 0;
+            foreach (var place in WorldTerrain.Groups()[groupId])
+            {
+                var loc = maps.GetLocation(place.RegionIndex, place.LocationIndex);
+                for (int y = 0; y < place.BlocksHigh; y++)
+                    for (int x = 0; x < place.BlocksWide; x++)
+                    {
+                        var data = blocksFile.GetBlock(maps.GetRmbBlockName(loc, x, y)).RmbBlock;
+                        for (int r = 0; r < data.SubRecords.Length; r++, ordinal++)
+                            Console.WriteLine($"BUILDING {SpaceBase + groupId * SpacePerGroup + ordinal} {data.FldHeader.BuildingDataList[r].BuildingType}");
+                    }
+            }
+            return 0;
+        }
+
         public static int RunInterior(int id, string ddtPath, string outDir, string arena2)
         {
             var clock = System.Diagnostics.Stopwatch.StartNew();
@@ -74,7 +95,7 @@ static partial class Program
 
             DFLocation location = default;
             DFBlock.RmbSubRecord record = default;
-            string blockName = null;
+            string blockName = null, buildingType = "?";
             int recordIndex = -1, ordinal = 0;
             foreach (var place in groups[groupId])
             {
@@ -85,7 +106,7 @@ static partial class Program
                         string name = maps.GetRmbBlockName(loc, x, y);
                         var subs = blocksFile.GetBlock(name).RmbBlock.SubRecords;
                         for (int r = 0; r < subs.Length; r++, ordinal++)
-                            if (ordinal == wanted) { location = loc; record = subs[r]; blockName = name; recordIndex = r; break; }
+                            if (ordinal == wanted) { location = loc; record = subs[r]; blockName = name; recordIndex = r; buildingType = blocksFile.GetBlock(name).RmbBlock.FldHeader.BuildingDataList[r].BuildingType.ToString(); break; }
                     }
                 if (blockName != null) break;
             }
@@ -183,7 +204,7 @@ static partial class Program
             var stats = WriteMap(wad, nodes[startNode], WritePoints(nodes, edges, startNode));
             scene.WriteRuntimeEntry(ddtPath, wad, info.ToString(), OutputMapName);
             File.Delete(wad);
-            Console.WriteLine($"interior {OutputMapName} {location.Name} {blockName}:{recordIndex} models {scene.Models} triangles {scene.Triangles} sectors {stats.sectors} doors {interiorDoors.Count} entries {entryIndex} {clock.ElapsedMilliseconds} ms");
+            Console.WriteLine($"interior {OutputMapName} {location.Name} {blockName}:{recordIndex} type {buildingType} models {scene.Models} triangles {scene.Triangles} sectors {stats.sectors} doors {interiorDoors.Count} entries {entryIndex} {clock.ElapsedMilliseconds} ms");
             return 0;
         }
     }

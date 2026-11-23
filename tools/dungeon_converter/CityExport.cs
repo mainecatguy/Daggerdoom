@@ -60,6 +60,7 @@ static partial class Program
             // --group <id> --ddt <file> converts one location group for the running game.
             int groupId = int.Parse(Arg("--group", "-1"));
             string ddtPath = Arg("--ddt", null);
+            if (args.Contains("--list-buildings")) return ListBuildings(groupId, arena2);
             if (groupId >= SpaceBase) return RunInterior(groupId, ddtPath, outDir, arena2);
             if (groupId >= 0) mapName = RuntimeMapName(groupId);
             if ((cityName == null && groupId < 0) || outDir == null) { Console.Error.WriteLine("usage: --city <name> [--region <name>] --out <dir>, or --group <id> --ddt <file> --out <work dir>"); return 2; }

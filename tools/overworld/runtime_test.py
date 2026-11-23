@@ -59,9 +59,13 @@ ap.add_argument("--keep-cache", action="store_true")
 ap.add_argument("--cap-mb", default=None)
 ap.add_argument("--mode", default="route", choices=["route", "save", "load"])
 ap.add_argument("--verify", action="store_true", help="measure the seam between each location and the overworld")
+ap.add_argument("--exe", default=EXE)
+ap.add_argument("--assets", default=os.path.join(ROOT, "ddruntime.pk3"))
+ap.add_argument("--work", default=WORK)
 args = ap.parse_args()
+EXE, WORK = args.exe, args.work
 
-assets = os.path.join(ROOT, "ddruntime.pk3")
+assets = args.assets
 groups = read_groups(assets)
 ids = [int(v) for v in args.groups.split(",")]
 if not args.keep_cache and os.path.isdir(args.cache):
