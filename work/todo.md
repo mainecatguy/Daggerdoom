@@ -23,6 +23,10 @@ The owner approved this work on 2026-11-23. Each item runs from its reviewed car
 - Autosaves on Daggerfall maps use the bundled save. Their frequency can be revisited if they slow the game down a lot.
 
 
+### Generate the C# bridge definitions (highest priority)
+
+Owner decision (2026-11-23): `bridge/doomerfall_bridge.h` is the single definition of the bridge. A script generates the C# side, and a normal build fails if the generated file is stale. Do this before further bridge work, starting from `integration` once position sync is merged. The card is `work/queue/bridge/01.opus.generate-bridge-definitions.md`.
+
 ### Piles and containers and trade
 Piles and containers open Daggerfall's real loot window as do NPCs.
 
