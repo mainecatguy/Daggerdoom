@@ -2,6 +2,14 @@
 
 Work that needs owner input or depends on unfinished work. **Automated loops never take work from this file.** When an item is unblocked and the owner approves it, it moves to `work/todo.md`. Finished work moves to `CHANGELOG.md`, with details in `work/notes/`.
 
+## Engine bridge
+
+### Message channel between the games
+
+**Waiting on:** owner design. No transport has been chosen.
+
+Design how Daggerfall Unity and UZDoom talk to each other, then build it. The fast travel menu, synchronized saving, and synchronized loading in `work/todo.md` cannot start until this is done.
+
 ## Overworld and towns
 
 ### Distant terrain LOD
@@ -159,10 +167,52 @@ Doors that were locked in Daggerfall must have the same requirements in Doom.
 
 Generated actor-based swinging doors currently swing one way. Run an experiment on having them open in both directions.
 
+## Before initial release
+
+### Check whether quests depend on moving NPCs
+
+**Waiting on:** the engine sync. Must be done before initial release.
+
+Check whether Daggerfall has quest or other scripts that move NPCs and depend on that to work. If so, Daggerfall must be able to tell Doom where an NPC should go, with Doom carrying out the movement. If not, no work is needed.
+
+### Sync wandering NPCs
+
+**Waiting on:** owner design.
+
+Decide how randomly wandering NPCs work across both games. The question is whether their positions need syncing at all, or whether it is enough to sync if they are alive or dead.
+
+### Quest targets in mook packs
+
+**Waiting on:** owner design.
+
+Decide how a Daggerfall quest target maps onto a pack of mooks. The current rule is that the entity's death triggers when most of its mooks are dead. Still open: whether one monster is the "real" target, how the player can tell, and where quest items drop.
+
+### Daggerfall completeness review
+
+**Waiting on:** owner request.
+
+Go through every Daggerfall file type and its entries, records, and scripts. For each, check whether we have a system documented as completed, and report back everything that does not.
+
+## After initial release
+
+### Revisit damage and resistances
+
+**Waiting on:** initial release.
+
+The initial release design in `gamedesign.md` is not final. Revisit how DRLA resistances, Daggerfall's damage rules, and armor work together.
+
+### Status effects on mooks
+
+**Waiting on:** initial release and owner design.
+
+For initial release, status effects apply only to the player. They need to reach Doom mooks eventually, or they will do almost nothing in slaughter-sized fights. Daggerfall does not track individual mooks, so the likely approach is that Daggerfall defines an effect, such as poison's damage and duration, and Doom runs it on each mook.
+
+The engine bridge and status effect design must leave room for this from the start, so adding it later does not require reworking them.
+
 ## Late development polish
 
 ### Sort out keybinds
 
 **Waiting on:** the late development and polish phase.
 
-Resolve keybind conflicts across Doom, Daggerfall, and DaggerDoom. For example, Doom binds Ctrl to fire and Alt to strafe by default, which conflicts with the planned Ctrl+number and Alt+number weapon hotkeys.
+Resolve keybind conflicts across Doom, Daggerfall, and Doomerfall. For example, Doom binds Ctrl to fire and Alt to strafe by default, which conflicts with the planned Ctrl+number and Alt+number weapon hotkeys.

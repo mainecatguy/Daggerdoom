@@ -51,6 +51,12 @@ The Daggerfall world is at **75% scale** in Doom (owner decision, 2026-11-22): 1
 - So far this scale has been applied to dungeons. The terrain treadmill test predates it.
 
 
+## Standing Requirements
+
+- **Bridge speed:** The bridge between the games must be instantaneous. Speed and performance are paramount, so server-style designs such as gRPC are out.
+- **Doom WAD compatibility:** Preserve compatibility with Doom WADs and mods. UZDoom must keep reading existing WADs, maps, and mods as stock UZDoom does.
+- **Platforms:** Testing is on Windows only, but do not kill Linux support if possible. Keep OS-specific code behind small, replaceable seams.
+
 ## Long-Term Direction:
 
 | Domain | Primary Owner | Secondary / Mirror | Boundary Contract |

@@ -31,7 +31,7 @@ param(
 $Integration = 'refs/heads/integration'
 # Blocked up front by agent-settings.json. Rechecked here because shell subprocesses can bypass deny rules.
 $Protected = 'AGENTS.md', 'CLAUDE.md', '.claude/', '.github/', 'scripts/overnight/', '.gitignore', 'GameResources/'
-$AgentSchema = '{"type":"object","properties":{"status":{"type":"string","enum":["CONTINUE","DONE","BLOCKED"]},"summary":{"type":"string"},"questions":{"type":"array","items":{"type":"string"}}},"required":["status","summary"]}'
+$AgentSchema = '{"type":"object","properties":{"status":{"type":"string","enum":["CONTINUE","DONE","BLOCKED"]},"summary":{"type":"string"},"questions":{"type":"array","items":{"type":"string"}},"oversights":{"type":"array","items":{"type":"string"}}},"required":["status","summary"]}'
 $VerifierSchema = '{"type":"object","properties":{"verdict":{"type":"string","enum":["PASS","FAIL"]},"problems":{"type":"string"}},"required":["verdict","problems"]}'
 $MaxDiffChars = 60000
 
@@ -75,16 +75,16 @@ function Save-Work {
     }
 }
 
-# Collects owner questions in the main checkout, without duplicates.
-function Add-Questions($Items) {
+# Collects raw agent reports in the main checkout for the orchestrator to triage, without duplicates.
+function Add-AgentReports($Items, $Kind) {
     $new = @($Items | ForEach-Object { ([string]$_ -replace '\s+', ' ').Trim() } | Where-Object { $_ })
     if (-not $new.Count) { return }
-    $lines = if (Test-Path $QuestionsFile) { @([IO.File]::ReadAllLines($QuestionsFile)) } else { @('# Open questions for the owner', '') }
+    $lines = if (Test-Path $ReportsFile) { @([IO.File]::ReadAllLines($ReportsFile)) } else { @('# Agent reports awaiting orchestrator triage', '') }
     foreach ($q in $new) {
-        if (-not @($lines | Where-Object { $_.EndsWith("] $q") }).Count) { $lines += "- [$Stamp] $q" }
+        if (-not @($lines | Where-Object { $_.EndsWith("] [$Kind] $q") }).Count) { $lines += "- [$Stamp] [$Kind] $q" }
     }
-    New-Item -ItemType Directory -Force (Split-Path $QuestionsFile -Parent) | Out-Null
-    Write-Text $QuestionsFile (($lines -join "`n") + "`n")
+    New-Item -ItemType Directory -Force (Split-Path $ReportsFile -Parent) | Out-Null
+    Write-Text $ReportsFile (($lines -join "`n") + "`n")
 }
 
 # --- Verification: protected paths, real build, independent verifier ---
@@ -148,7 +148,9 @@ RepoGit $Worktree switch -q -c $Branch $Base | Out-Null
 
 $Goal = [IO.File]::ReadAllText($GoalFile)
 $QuestionsFile = Join-Path $Repo 'work\questions.md'
-$OpenQuestions = if (Test-Path $QuestionsFile) { [IO.File]::ReadAllText($QuestionsFile) } else { 'None.' }
+$ReportsFile = Join-Path $Repo 'work\agent-reports.md'
+$OpenQuestions = (@($QuestionsFile, $ReportsFile) | Where-Object { Test-Path $_ } | ForEach-Object { [IO.File]::ReadAllText($_) }) -join "`n"
+if (-not $OpenQuestions) { $OpenQuestions = 'None.' }
 $VerifierPrompt = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'verifier.md'))
 $FirstPrompt = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'agent.md')).Replace('{{GOAL}}', $Goal).Replace('{{NOTES}}', "work/notes/$Stamp.md").Replace('{{QUESTIONS}}', $OpenQuestions)
 if ($ContinueSession) {
@@ -184,7 +186,8 @@ try {
             $SessionUsd = [double]$r.total_cost_usd
             $Turns += [int]$r.num_turns
             $Denials += @($r.permission_denials).Count
-            Add-Questions $r.structured_output.questions
+            Add-AgentReports $r.structured_output.questions 'question'
+            Add-AgentReports $r.structured_output.oversights 'oversight'
         }
 
         # Limits exit nonzero too, so handle them before treating this as an outage.
@@ -234,8 +237,8 @@ $harness = try { RepoGit $Repo rev-parse --short HEAD:scripts/overnight } catch 
 } | Export-Csv -LiteralPath (Join-Path $RunDir 'metrics.csv') -Append -NoTypeInformation -Encoding utf8
 
 $report = Join-Path $RunDir 'report.md'
-$openCount = if (Test-Path $QuestionsFile) { @(Get-Content $QuestionsFile | Where-Object { $_ -like '- *' }).Count } else { 0 }
-$entry = @("## Run $Stamp", "- Result: $outcome", "- Branch: $Branch ($($commits.Count) commits)", "- Rounds: $round, turns: $Turns, estimated cost: `$$cost, minutes: $minutes", "- Open questions for you: $openCount (work/questions.md)", "- Notes: work/notes/$Stamp.md", "- Logs: $Logs", '')
+$openCount = if (Test-Path $ReportsFile) { @(Get-Content $ReportsFile | Where-Object { $_ -like '- *' }).Count } else { 0 }
+$entry = @("## Run $Stamp", "- Result: $outcome", "- Branch: $Branch ($($commits.Count) commits)", "- Rounds: $round, turns: $Turns, estimated cost: `$$cost, minutes: $minutes", "- Agent reports awaiting triage: $openCount (work/agent-reports.md)", "- Notes: work/notes/$Stamp.md", "- Logs: $Logs", '')
 Add-Content -LiteralPath $report -Value $entry -Encoding utf8
 $entry | Write-Output
 exit $exitCode

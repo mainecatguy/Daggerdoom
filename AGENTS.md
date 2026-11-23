@@ -1,4 +1,4 @@
-# DoomDaggerfall
+# Doomerfall
 
 ## What we are making
 
@@ -25,14 +25,17 @@ Two pillars must survive every decision:
 | `work/goal.md` | The current goal. Written with the owner and not committed. |
 | `work/todo.md` | Owner-approved work that is ready to do automatically. |
 | `work/backlog.md` | Work that needs owner input or depends on unfinished work. |
+| `work/future-ideas.md` | Unplanned ideas for after the initial release. Never start these unless the owner asks. |
 | `work/notes/` | Plans, findings, and play-test lists, one file per run. |
-| `work/questions.md` | Open questions for the owner. Managed by the loop and not committed. |
+| `work/agent-reports.md` | Raw questions and oversights from overnight agents, awaiting orchestrator triage. Not committed. |
+| `work/questions.md` | Triaged open questions for the owner. Managed by the orchestrator and not committed. |
+| `work/suspectedoversights.md` | Triaged major oversights outside any agent's task. Managed by the orchestrator and not committed. |
 | `GameResources/` | Local copyrighted game data. Never commit it. |
 
 ## Work tracking
 
 - **Todo** is ready: approved by the owner, needing no owner input, and depending only on finished work or earlier todo items. Automated loops take work only from `work/todo.md`.
-- **Backlog** is not ready. Never start backlog work unless the owner asks. New ideas and discovered work go here.
+- **Backlog** is not ready. Never start backlog work unless the owner asks. New ideas and owner-accepted discovered work go here.
 - Only the owner approves moving an item from backlog to todo. If a todo item turns out to be blocked, move it to the backlog and say what it is waiting on.
 
 ## Current milestone
@@ -61,9 +64,15 @@ Do not make wholesale game system design choices without the owner's preferences
 
 If you are talking with the owner and `work/questions.md` is not empty, present its questions at the start of the conversation. Remove each question once it is answered.
 
-In an overnight run, report questions through the `questions` status field. The loop saves them to this file.
+Worker agents never edit this file. In an overnight run, report questions through the `questions` status field. Otherwise, put them in a "Questions for the owner" section of your final report. The orchestrator triages them into this file.
 
 @work/questions.md
+
+## Suspected oversights
+
+Report only major missed dependencies, missed gaps, or critical bugs that are outside your current task. Do not report minor issues, style, or ideas. Give what is wrong, the evidence, what it could break, and your confidence. Do not investigate further or fix it.
+
+In an overnight run, use the `oversights` status field. Otherwise, use a "Suspected oversights" section of your final report. Worker agents never edit `work/suspectedoversights.md`. The orchestrator triages reports into it.
 
 ## Working rules
 
