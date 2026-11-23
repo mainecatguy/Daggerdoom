@@ -23,7 +23,7 @@ class DFRoofCheck : EventHandler
 	Array<double> xs, ys, zs;
 	Array<int> drops;
 	int phase, at, wait;
-	double startZ, landedOff, landedSlide;
+	double startZ, landedOff, landedSlide, peak;
 	Vector2 uphill;
 
 	override void WorldLoaded(WorldEvent e)
@@ -124,8 +124,10 @@ class DFRoofCheck : EventHandler
 			if (s.floorplane.Normal.z < 0) uphill = -uphill;
 			if (uphill.Length() > 0.001) uphill = uphill.Unit();
 		}
+		// The run can cross the ridge and fall off the far side, so the highest point reached is the climb.
+		peak = wait == 13 ? 0 : max(peak, mo.pos.z - startZ);
 		if (wait < 33) { mo.vel.xy = uphill * 12; return; }
-		Console.Printf("DFDROP owner %%d bucket %%d deg %%.1f off %%.1f slid %%.1f rise %%.1f", owner[drops[at]], Bucket(s.floorplane.Normal.z), acos(s.floorplane.Normal.z), landedOff, landedSlide, mo.pos.z - startZ);
+		Console.Printf("DFDROP owner %%d bucket %%d deg %%.1f off %%.1f slid %%.1f rise %%.1f", owner[drops[at]], Bucket(s.floorplane.Normal.z), acos(s.floorplane.Normal.z), landedOff, landedSlide, peak);
 		if (++at >= drops.Size()) { phase = 3; Console.Printf("DFROOF done"); return; }
 		Place(mo);
 	}
