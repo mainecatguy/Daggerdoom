@@ -81,13 +81,15 @@ if not only_load:
     text = launch("ph_doors", "DOOM2.WAD", [*ph, os.path.join(HERE, "door_check")], ["-nomonsters", "+map", "MAP01"], "DTDONE", 60)
     rows = [l for l in text.splitlines() if l.startswith("DT door=")]
     rows = rows[:len(rows) // 2] if len(rows) >= 116 and rows[:58] == rows[58:116] else rows
-    checked = ("use", "closed", "walk", "walkfree", "trace", "ball", "swing", "openblock", "traceopen", "ballopen", "stall")
+    checked = ("use", "closed", "walk", "trace", "ball", "swing", "openpass", "traceopen", "ballopen", "solid", "through", "hold")
     dead_ends = {21, 23, 24, 25, 27, 28, 31, 34, 37, 41, 49, 53}  # no dungeon on their far side; see work/notes/door-objects.md
     bad = [l for l in rows if int(l.split()[1][5:]) not in dead_ends
            and any(f.split("=")[0] in checked and "0" in f.split("=")[1] for f in l.split()[2:])]
     report("privateers_doors", "DTDONE" in text and clean(text) and len(rows) == 58 and not bad, f"{len(rows)} doors, {len(bad)} rows with a failed test")
     for l in bad[:4]:
         print("  " + l[:170])
+    bodies = next((l for l in text.splitlines() if l.startswith("DTPLAYERSTALL")), "")
+    report("door_bodies", "through+passable+solid" in bodies and not any(w in bodies for w in ("FAILED", "NOTPASSABLE", "NOTSOLID")), bodies)
     for old in glob.glob(os.path.join(run_dir, "*.zds")):
         os.remove(old)
 files = [*(os.path.join(scourg, "scourgbarrow" + s) for s in (".wad", "_mesh.pk3", "_doors.pk3")), os.path.join(HERE, "action_save_check")]

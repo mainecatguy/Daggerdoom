@@ -19,7 +19,7 @@ class DFTestBall : Actor
 
 class DFTestBody : Actor
 {
-	Default { Radius 10.5; Height 56; +SOLID +NOGRAVITY +DONTSPLASH }
+	Default { Radius 10.5; Height 56; +SOLID +ISMONSTER +NOGRAVITY +DONTSPLASH }
 	States { Spawn: TNT1 A -1; Stop; }
 }
 
@@ -33,13 +33,13 @@ class DFDoorRow
 {
 	DFDoor door;
 	double cx, cy, nx, ny;
-	String use[2], closedBlock[2], walk[2], walkFree[2], traceClosed[2], ballClosed[2], ballOpen[2];
+	String use[2], closedBlock[2], walk[2], traceClosed[2], ballClosed[2], ballOpen[2];
 	bool openRoom[2];
-	String openBlock, traceOpen, swing, stall, stallWhy, sightClosed, sightOpen;
+	String openPass, traceOpen, swing, through, hold, sightClosed, sightOpen;
+	String solidStates;	// solid when closed, then non-solid opening, open, and closing, then solid again
 	int floorCases, floorFails;
 	DFTestBall balls[2];
 	Actor imp;
-	bool overlapped;
 }
 
 class DFDoorCheck : EventHandler
@@ -146,8 +146,13 @@ class DFDoorCheck : EventHandler
 		bool started = r.door.moving != 0;
 		r.door.moving = 0;
 		r.door.stalled = false;
+		r.door.UpdateBlocking();
 		return started;
 	}
+
+	bool AllSolid(DFDoorRow r) { foreach (l : r.door.links) if (!l.bSOLID) return false; return true; }
+	bool NoneSolid(DFDoorRow r) { foreach (l : r.door.links) if (l.bSOLID) return false; return true; }
+	void SampleSolid(bool wantSolid) { foreach (r : rows) r.solidStates = r.solidStates .. ((wantSolid ? AllSolid(r) : NoneSolid(r)) ? "1" : "0"); }
 
 	bool TraceHitsDoor(PlayerPawn p, double angle, double range, double height)
 	{
@@ -174,6 +179,7 @@ class DFDoorCheck : EventHandler
 				r.closedBlock[s] = WalkThrough(p, r, side, 24, 24) ? "0" : "1";
 			}
 			r.sightClosed = SightAcross(p, r);
+			CheckFloors(p, r); // a closed door is the state that can block another floor
 		}
 	}
 
@@ -232,31 +238,31 @@ class DFDoorCheck : EventHandler
 			for (int s = 0; s < 2; s++)
 			{
 				double side = s == 0 ? 1 : -1;
-				if (r.use[s] == "-") { r.walk[s] = "-"; r.walkFree[s] = "-"; continue; }
+				if (r.use[s] == "-") { r.walk[s] = "-"; continue; }
 				r.walk[s] = WalkThrough(p, r, side, 24, 24) ? "1" : "0";
-				foreach (l : r.door.links) l.bSOLID = false;
-				r.walkFree[s] = WalkThrough(p, r, side, 24, 24) ? "1" : "0"; // the same walk with this door's collision off
-				foreach (l : r.door.links) l.bSOLID = true;
 			}
-			// Approach the open panel's face from each side with real moves. A side inside a wall has no result.
+			// Walk into the open panel's face from each side with real moves. A wall may stop the body; the door must not.
 			double a = r.door.closedAngle + 90 * r.door.swingDir;
 			vector2 mid = r.door.ToWorld(r.door.centerX, r.door.centerY, a);
 			double fx = -sin(a), fy = cos(a);
-			r.openBlock = ""; r.traceOpen = "";
+			r.openPass = ""; r.traceOpen = "";
 			for (int s = 0; s < 2; s++)
 			{
 				double side = s == 0 ? 1 : -1;
 				double x = mid.x + fx * side * 18, y = mid.y + fy * side * 18;
 				r.openRoom[s] = Stand(p, r, x, y);
-				if (!r.openRoom[s]) { r.openBlock = r.openBlock .. "-"; r.traceOpen = r.traceOpen .. "-"; continue; }
+				if (!r.openRoom[s]) { r.openPass = r.openPass .. "-"; r.traceOpen = r.traceOpen .. "-"; continue; }
 				r.traceOpen = r.traceOpen .. (TraceHitsDoor(p, atan2(-fy * side, -fx * side), 30, r.door.bottom - p.pos.z + 30) ? "1" : "0");
-				bool reached = true;
-				for (double d = 16; d >= 0 && reached; d -= 2)
-					reached = p.TryMove((mid.x + fx * side * d, mid.y + fy * side * d), true);
-				r.openBlock = r.openBlock .. (reached ? "0" : "1");
+				bool doorStopped = false;
+				for (double d = 16; d >= 0; d -= 2)
+				{
+					if (p.TryMove((mid.x + fx * side * d, mid.y + fy * side * d), true)) continue;
+					doorStopped = p.BlockingMobj is "DFDoorBlocker";
+					break;
+				}
+				r.openPass = r.openPass .. (doorStopped ? "0" : "1");
 			}
 			r.sightOpen = SightAcross(p, r);
-			CheckFloors(p, r);
 		}
 	}
 
@@ -293,19 +299,43 @@ class DFDoorCheck : EventHandler
 
 	void SetAll(int dir) { foreach (r : rows) { r.door.moving = dir; r.door.stalled = false; } }
 
-	void SpawnImps()
+	void SpawnBodies()
 	{
 		foreach (r : rows)
 		{
 			// In the swing path, clear of the closed door. A body the same size as the player.
 			vector2 at = SwingPoint(r.door);
-			if (!NearWalkable(at.x, at.y)) { r.stall = "-"; continue; } // swings into solid rock, where no body can stand
+			if (!NearWalkable(at.x, at.y)) { r.through = "-"; continue; } // swings into solid rock, where no body can stand
 			r.imp = Actor.Spawn("DFTestBody", (at.x, at.y, r.door.bottom), NO_REPLACE);
 		}
 	}
 
-	// The real player, then a real dormant Imp, stand in the swing of the prototype doors.
-	void ActorStall(PlayerPawn p, int t)
+	// The door has swung through any body. Now put a body in the closed doorway and close the door on it.
+	void BodiesToDoorway()
+	{
+		foreach (r : rows)
+		{
+			if (r.through != "-") r.through = r.door.swung >= 90 && !r.door.stalled ? "1" : "0";
+			if (!NearWalkable(r.cx, r.cy)) { r.hold = "-"; if (r.imp) r.imp.Destroy(); r.imp = null; continue; }
+			if (!r.imp) r.imp = Actor.Spawn("DFTestBody", (r.cx, r.cy, r.door.bottom), NO_REPLACE);
+			else r.imp.SetOrigin((r.cx, r.cy, r.door.bottom), false);
+		}
+	}
+
+	// A closed door stays passable while a body overlaps it.
+	void ScoreHold()
+	{
+		foreach (r : rows)
+		{
+			if (r.hold == "-") continue;
+			r.hold = r.door.swung <= 0 && r.imp && Overlaps(r, r.imp) && NoneSolid(r) ? "1" : "0";
+			if (r.imp) r.imp.Destroy();
+			r.imp = null;
+		}
+	}
+
+	// The real player, then a real dormant Imp: the door swings through them, then closes on them and turns solid once they leave.
+	void ActorThrough(PlayerPawn p, int t)
 	{
 		static const int proto[] = { 0, 2, 21, 1 };
 		if (stallIndex >= 8) return;
@@ -313,6 +343,7 @@ class DFDoorCheck : EventHandler
 		let r = rows[proto[stallIndex % 4]];
 		int step = t - stallTic;
 		vector2 at = SwingPoint(r.door);
+		vector3 away = (r.cx - r.nx * 24 * SwingSide(r.door), r.cy - r.ny * 24 * SwingSide(r.door), FloorOf(r.door));
 		if (step == 0 && !NearWalkable(at.x, at.y))
 		{
 			playerResult = playerResult .. String.Format(" %s%d:swings-into-rock", imp ? "imp" : "player", proto[stallIndex % 4]);
@@ -322,12 +353,12 @@ class DFDoorCheck : EventHandler
 		}
 		if (step == 0)
 		{
-			r.door.swung = 0; r.door.moving = 0; r.door.stalled = false; r.door.Place(false);
-			p.SetOrigin((r.cx - r.nx * 24 * SwingSide(r.door), r.cy - r.ny * 24 * SwingSide(r.door), FloorOf(r.door)), false);
+			r.door.swung = 0; r.door.moving = 0; r.door.stalled = false; r.door.Place(false); r.door.UpdateBlocking();
+			p.SetOrigin(away, false);
 			if (imp)
 			{
 				r.imp = Actor.Spawn("DoomImp", (at.x, at.y, FloorOf(r.door)), NO_REPLACE);
-				if (r.imp) { r.imp.bDORMANT = true; r.imp.A_SetSize(10.5, 56, false); }
+				if (r.imp) { r.imp.Deactivate(null); r.imp.A_SetSize(10.5, 56, false); } // stays put for the whole swing
 			}
 			else
 			{
@@ -335,25 +366,26 @@ class DFDoorCheck : EventHandler
 				p.SetOrigin((at.x, at.y, p.pos.z), false);
 				r.imp = p;
 			}
-			r.overlapped = false;
 			r.door.moving = 1;
 		}
-		else if (step <= 24)
+		else if (step == FULL_SWING)
 		{
-			if (r.imp && Overlaps(r, r.imp)) r.overlapped = true;
+			playerResult = playerResult .. String.Format(" %s%d:%s", imp ? "imp" : "player", proto[stallIndex % 4], r.door.swung >= 90 ? "through" : "FAILED");
+			if (r.imp) r.imp.SetOrigin((r.cx, r.cy, FloorOf(r.door)), false);
+			r.door.moving = -1;
 		}
-		if (step == 24)
+		else if (step == 2 * FULL_SWING)
 		{
-			bool held = r.door.stalled && r.door.swung < 90 && !r.overlapped;
-			playerResult = playerResult .. String.Format(" %s%d:%s(swung%.0f)", imp ? "imp" : "player", proto[stallIndex % 4], held ? "held" : "FAILED", r.door.swung);
+			bool held = r.door.swung <= 0 && r.imp && Overlaps(r, r.imp) && NoneSolid(r);
+			playerResult = playerResult .. (held ? "+passable" : "+NOTPASSABLE");
 			if (imp) { if (r.imp) r.imp.Destroy(); }
-			else p.SetOrigin((r.cx - r.nx * 24 * SwingSide(r.door), r.cy - r.ny * 24 * SwingSide(r.door), FloorOf(r.door)), false);
+			else p.SetOrigin(away, false);
 			r.imp = null;
 		}
-		if (step == 24 + FULL_SWING)
+		else if (step == 2 * FULL_SWING + 3)
 		{
-			playerResult = playerResult .. (r.door.swung >= 90 ? "+resumed" : "+NORESUME");
-			r.door.swung = 0; r.door.moving = 0; r.door.stalled = false; r.door.Place(false);
+			playerResult = playerResult .. (AllSolid(r) ? "+solid" : "+NOTSOLID");
+			r.door.swung = 0; r.door.moving = 0; r.door.stalled = false; r.door.Place(false); r.door.UpdateBlocking();
 			stallIndex++;
 			stallTic = t + 1;
 		}
@@ -364,9 +396,9 @@ class DFDoorCheck : EventHandler
 		int pass = 0;
 		foreach (r : rows)
 		{
-			Console.Printf("DT door=%d use=%s%s closed=%s%s walk=%s%s walkfree=%s%s trace=%s%s ball=%s%s swing=%s openblock=%s traceopen=%s ballopen=%s%s stall=%s stallwhy=%s sightclosed=%s sightopen=%s floors=%d/%d",
-				rows.Find(r), r.use[0], r.use[1], r.closedBlock[0], r.closedBlock[1], r.walk[0], r.walk[1], r.walkFree[0], r.walkFree[1], r.traceClosed[0], r.traceClosed[1],
-				r.ballClosed[0], r.ballClosed[1], r.swing, r.openBlock, r.traceOpen, r.ballOpen[0], r.ballOpen[1], r.stall, r.stallWhy, r.sightClosed, r.sightOpen, r.floorCases - r.floorFails, r.floorCases);
+			Console.Printf("DT door=%d use=%s%s closed=%s%s walk=%s%s trace=%s%s ball=%s%s swing=%s openpass=%s traceopen=%s ballopen=%s%s solid=%s through=%s hold=%s sightclosed=%s sightopen=%s floors=%d/%d",
+				rows.Find(r), r.use[0], r.use[1], r.closedBlock[0], r.closedBlock[1], r.walk[0], r.walk[1], r.traceClosed[0], r.traceClosed[1],
+				r.ballClosed[0], r.ballClosed[1], r.swing, r.openPass, r.traceOpen, r.ballOpen[0], r.ballOpen[1], r.solidStates, r.through, r.hold, r.sightClosed, r.sightOpen, r.floorCases - r.floorFails, r.floorCases);
 		}
 		Console.Printf("DTPLAYERSTALL %s", playerResult);
 		Console.Printf("DTDONE");
@@ -384,39 +416,21 @@ class DFDoorCheck : EventHandler
 			parking = p.pos;
 			ClosedChecks(p);
 			p.SetOrigin(parking, false);
+			SampleSolid(true);
 			SpawnBalls(p, false);
 		}
 		else if (t == 22) { ScoreBalls(false); SetAll(1); }
-		else if (t == 22 + FULL_SWING) { OpenChecks(p); p.SetOrigin(parking, false); SpawnBalls(p, true); }
+		else if (t == 32) SampleSolid(false); // opening
+		else if (t == 22 + FULL_SWING) { SampleSolid(false); OpenChecks(p); p.SetOrigin(parking, false); SpawnBalls(p, true); }
 		else if (t == 34 + FULL_SWING) { ScoreBalls(true); SetAll(-1); }
-		else if (t == 34 + 2 * FULL_SWING) { SpawnImps(); SetAll(1); }
-		else if (t > 34 + 2 * FULL_SWING && t < 34 + 3 * FULL_SWING)
-		{
-			foreach (r : rows) if (r.imp && Overlaps(r, r.imp)) r.overlapped = true;
-		}
-		else if (t == 34 + 3 * FULL_SWING)
-		{
-			foreach (r : rows)
-			{
-				if (r.stall == "-") { r.stallWhy = "rock"; continue; }
-				r.stall = r.door.swung < 90 && r.door.stalled && !r.overlapped ? "1" : "0";
-				r.stallWhy = String.Format("swung%.0f,stalled%d,overlap%d", r.door.swung, r.door.stalled, r.overlapped);
-				if (r.imp) r.imp.Destroy();
-			}
-		}
-		else if (t == 34 + 4 * FULL_SWING + 4)
-		{
-			foreach (r : rows) if (r.door.swung < 90) { r.stall = "0"; r.stallWhy = r.stallWhy .. ",noresume"; }
-			SetAll(-1);
-		}
-		else if (t == 34 + 5 * FULL_SWING + 8)
-		{
-			foreach (r : rows) if (r.door.swung > 0) { r.stall = "0"; r.stallWhy = r.stallWhy .. ",noclose"; }
-			stallTic = t + 1;
-		}
+		else if (t == 44 + FULL_SWING) SampleSolid(false); // closing
+		else if (t == 34 + 2 * FULL_SWING) { SampleSolid(true); SpawnBodies(); SetAll(1); }
+		else if (t == 34 + 3 * FULL_SWING) { BodiesToDoorway(); SetAll(-1); }
+		else if (t == 34 + 4 * FULL_SWING) ScoreHold();
+		else if (t == 38 + 4 * FULL_SWING) { SampleSolid(true); stallTic = t + 1; } // solid again once the bodies left
 		else if (stallTic > 0 && t >= stallTic)
 		{
-			ActorStall(p, t);
+			ActorThrough(p, t);
 			if (stallIndex >= 8) { PrintRows(); finished = true; }
 		}
 	}
