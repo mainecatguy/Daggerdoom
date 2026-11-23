@@ -24,20 +24,24 @@ static partial class Program
     sealed class DoorModel
     {
         public uint Id;
+        public bool Flipped; // model drawn upside down (roll of 180 degrees): the flip is baked into the vertices
+        public string Name => $"m{Id}{(Flipped ? "f" : "")}";
         public int Slot;
         public double X0 = 1e9, X1 = -1e9, Y0 = 1e9, Y1 = -1e9, Z0 = 1e9, Z1 = -1e9;
         public string Obj;
         public readonly HashSet<(int archive, int record)> Textures = new HashSet<(int, int)>();
     }
 
-    static DoorModel BuildDoorModel(uint id, int slot, DFMesh mesh, Func<int, TextureFile> archive, int[] table, DFLocation location)
+    static DoorModel BuildDoorModel(uint id, int slot, DFMesh mesh, Func<int, TextureFile> archive, int[] table, DFLocation location, bool flipped = false)
     {
-        var model = new DoorModel { Id = id, Slot = slot };
+        var model = new DoorModel { Id = id, Slot = slot, Flipped = flipped };
+        // A roll of 180 degrees maps (x, y, z) to (x, -y, -z) in model space, normals too.
+        double flip = flipped ? -1 : 1;
         foreach (var sub in mesh.SubMeshes)
             foreach (var plane in sub.Planes)
                 foreach (var p in plane.Points)
                 {
-                    var l = ToDoom(new V3(p.X, -p.Y, p.Z));
+                    var l = ToDoom(new V3(p.X, -p.Y * flip, p.Z * flip));
                     model.X0 = Math.Min(model.X0, l.X); model.X1 = Math.Max(model.X1, l.X);
                     model.Y0 = Math.Min(model.Y0, l.Y); model.Y1 = Math.Max(model.Y1, l.Y);
                     model.Z0 = Math.Min(model.Z0, l.Z); model.Z1 = Math.Max(model.Z1, l.Z);
@@ -58,8 +62,8 @@ static partial class Program
                 int first = next;
                 foreach (var p in plane.Points)
                 {
-                    var l = ToDoom(new V3(p.X, -p.Y, p.Z));
-                    double nx = p.NX, ny = p.NZ, nz = -p.NY, length = Math.Sqrt(nx * nx + ny * ny + nz * nz);
+                    var l = ToDoom(new V3(p.X, -p.Y * flip, p.Z * flip));
+                    double nx = p.NX, ny = p.NZ * flip, nz = -p.NY * flip, length = Math.Sqrt(nx * nx + ny * ny + nz * nz);
                     if (length < 1e-6) length = 1;
                     // The engine's OBJ loader negates z and flips v.
                     text.Append($"v {F(l.X - cx)} {F(l.Z)} {F(-(l.Y - cy))}\nvt {F(p.U / w)} {F(1 - p.V / h)}\nvn {F(nx / length)} {F(nz / length)} {F(-ny / length)}\n");
@@ -74,6 +78,38 @@ static partial class Program
         }
         model.Obj = text.ToString();
         return model;
+    }
+
+    // Lists every dungeon block that holds a door model with a roll or pitch. Usage: --list-tilted-doors
+    static int ListTiltedDoors(string arena2)
+    {
+        var blocks = new BlocksFile(Path.Combine(arena2, "BLOCKS.BSA"), FileUsage.UseMemory, true);
+        var arch = new Arch3dFile(Path.Combine(arena2, "ARCH3D.BSA"), FileUsage.UseMemory, true);
+        int doors = 0, tilted = 0;
+        for (int i = 0; i < blocks.Count; i++)
+        {
+            string name = blocks.GetBlockName(i);
+            if (!name.EndsWith(".RDB", StringComparison.OrdinalIgnoreCase)) continue;
+            var block = blocks.GetBlock(i);
+            if (block.RdbBlock.ObjectRootList == null) continue;
+            foreach (var group in block.RdbBlock.ObjectRootList)
+                foreach (var obj in group.RdbObjects ?? new DFBlock.RdbObject[0])
+                {
+                    if (obj.Type != DFBlock.RdbResourceTypes.Model) continue;
+                    var reference = block.RdbBlock.ModelReferenceList[obj.Resources.ModelResource.ModelIndex];
+                    if (!IsActionDoorModel(reference.ModelIdNum, reference.Description)) continue;
+                    doors++;
+                    var m = obj.Resources.ModelResource;
+                    if (m.XRotation != 0 || m.ZRotation != 0)
+                    {
+                        tilted++;
+                        Console.WriteLine($"{name} door {reference.ModelIdNum} rot {m.XRotation / BlocksFile.RotationDivisor:F1},{m.YRotation / BlocksFile.RotationDivisor:F1},{m.ZRotation / BlocksFile.RotationDivisor:F1}");
+                    }
+                }
+            blocks.DiscardBlock(i);
+        }
+        Console.WriteLine($"{doors} door objects in RDB blocks, {tilted} tilted");
+        return 0;
     }
 
     static string SourceDirectory([CallerFilePath] string file = "") => Path.GetDirectoryName(file);
@@ -122,7 +158,7 @@ static partial class Program
         Text("MAPINFO", "GameInfo\n{\n\tAddEventHandlers = \"DFDoorHandler\", \"DFActionHandler\"\n}\n");
         Text("DFDOORS", string.Join("\n", placements) + "\n");
         Text("MODELDEF", modeldef.ToString());
-        foreach (var m in models) Text($"models/dfdoors/m{m.Id}.obj", m.Obj);
+        foreach (var m in models) Text($"models/dfdoors/{m.Name}.obj", m.Obj);
         foreach (var (a, r) in models.Concat(actionModels).SelectMany(m => m.Textures).Distinct())
         {
             var file = archive(a);

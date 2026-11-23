@@ -65,7 +65,7 @@ static partial class Program
 
         var batches = new Dictionary<(int archive, int record), List<float>>();
         int models = 0, missing = 0;
-        var doorModels = new Dictionary<uint, DoorModel>();
+        var doorModels = new Dictionary<(uint, bool), DoorModel>();
         var doorPlacements = new List<string>();
         const double toRad = Math.PI / 180;
         var actions = new ActionPackage();
@@ -103,11 +103,19 @@ static partial class Program
                     }
                     if (IsActionDoorModel(id, reference.Description))
                     {
-                        if (rx != 0 || rz != 0) throw new InvalidDataException($"door {id} is tilted; only yaw is supported");
-                        if (!doorModels.TryGetValue(id, out var doorModel))
-                            doorModels[id] = doorModel = BuildDoorModel(id, doorModels.Count, mesh, Archive, table, location);
+                        // Any rotation that keeps the vertical axis vertical is R = Ry(phi) * F, where F is nothing or a 180 degree roll
+                        // (upside down or mirrored doors). F is baked into the model, and phi is the closed angle.
+                        var up = Rotate(new V3(0, 1, 0), rx, ry, rz);
+                        if (Math.Abs(up.Y) < 0.999) throw new InvalidDataException($"door {id} is tilted by {rx / toRad:F2},{ry / toRad:F2},{rz / toRad:F2}; only yaw and a 180 degree flip are supported");
+                        bool flipped = up.Y < 0;
+                        var east = Rotate(new V3(1, 0, 0), rx, ry, rz);
+                        double phi = Math.Atan2(-east.Z, east.X);
+                        if (!doorModels.TryGetValue((id, flipped), out var doorModel))
+                            doorModels[(id, flipped)] = doorModel = BuildDoorModel(id, doorModels.Count, mesh, Archive, table, location, flipped);
                         var pivot = ToDoom(position);
-                        doorPlacements.Add(FormattableString.Invariant($"{doorModel.Slot} {pivot.X:F3} {pivot.Y:F3} {pivot.Z:F3} {-ry / toRad:F3} {doorModel.X0:F3} {doorModel.X1:F3} {doorModel.Y0:F3} {doorModel.Y1:F3} {doorModel.Z0:F3} {doorModel.Z1:F3}"));
+                        // Unity swings about the door's own Y axis, which points down on a flipped door, so the swing reverses.
+                        double closed = -phi / toRad;
+                        doorPlacements.Add(FormattableString.Invariant($"{doorModel.Slot} {pivot.X:F3} {pivot.Y:F3} {pivot.Z:F3} {closed:F3} {doorModel.X0:F3} {doorModel.X1:F3} {doorModel.Y0:F3} {doorModel.Y1:F3} {doorModel.Z0:F3} {doorModel.Z1:F3} {(flipped ? -1 : 1)}"));
                         continue;
                     }
                     foreach (var sub in mesh.SubMeshes)
