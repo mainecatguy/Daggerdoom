@@ -12,7 +12,7 @@ Daggerfall Unity should eventually run with its 3D world rendering and entity ph
 
 ## MVP
 
-The MVP target is that the player can run around the world, kill enemies, enter and exit towns, use the fast travel menu, and do other basic things. Position sync, the fast travel menu, and synchronized saving and loading are in `work/todo.md`.
+The MVP target is that the player can run around the world, kill enemies, enter and exit towns, use the fast travel menu, and do other basic things. Position sync, the fast travel menu, and synchronized saving and loading are in `work/todo.md`. Everything in this section is required before MVP is complete. Items come after the others and depend on the inventory menu.
 
 ### Fast travel arrival
 
@@ -38,9 +38,15 @@ Owner decision (2026-11-22): for MVP, each Daggerfall enemy placement generates 
 
 Doom sends damage to Daggerfall, Daggerfall stays final for the player's HP and death, and Doom shows the result.
 
+### Open the inventory menu from Doom
+
+**Waiting on:** the fast travel menu, which proves the path for showing Daggerfall menus in Doom.
+
+A Doom keybind opens Daggerfall's real inventory inside the Doom window, with input routed to it, and closing it resumes Doom. The exact key is not important, but it must be a bindable control. The "Open Inventory" action already exists in Doomerfall Controls.
+
 ### Daggerfall items in the world
 
-**Waiting on:** the bridge core and position sync.
+**Waiting on:** the bridge core, position sync, and the inventory menu.
 
 Owner design (2026-11-22): Doom must be tolerant of Daggerfall items. Doom is the dominant client, so it must show them and let the player interact with them.
 
@@ -49,7 +55,13 @@ Owner design (2026-11-22): Doom must be tolerant of Daggerfall items. Doom is th
 - The player presses E to interact with an item and pick it up into their Daggerfall inventory.
 - Picked-up items stay gone, following the permanent location state rules.
 
-**Open question for the owner:** Daggerfall loot piles and containers can hold several items. Should E open Daggerfall's loot window through the Doom menu path, or take everything at once?
+Working plan: for loot piles and containers holding several items, E opens Daggerfall's real loot window through the Doom menu path.
+
+### Reduce or rework Doom autopickup
+
+**Waiting on:** Daggerfall items in the world, and an owner decision on what still picks up by touch.
+
+Required before MVP. Doom's walk-over pickup bypasses Daggerfall's inventory, which conflicts with items being picked up with E into the Daggerfall inventory. Reduce or rework it on Daggerfall maps only. Regular WADs and mods keep normal Doom pickup.
 
 ## Overworld and towns
 
