@@ -182,6 +182,13 @@ void PublishPosition()
 		ownState.world_height = z;
 		ownState.yaw_degrees = float(yaw);
 	}
+	double spaceYaw = 0;
+	int spaceTarget = 0;
+	const bool inSpace = (area == DD_AREA_INTERIOR || area == DD_AREA_DUNGEON) &&
+		DDTreadmill_PlayerSpace(ownState.space_x, ownState.space_y, ownState.space_z, spaceYaw, spaceTarget);
+	ownState.space_yaw = float(spaceYaw);
+	ownState.space_target = spaceTarget;
+	ownState.space_valid = inSpace ? 1 : 0;
 	if (context != ownState.world_context || pixelX != ownState.map_pixel_x || pixelY != ownState.map_pixel_y)
 	{
 		ownState.world_context = context;

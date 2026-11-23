@@ -327,7 +327,16 @@ typedef struct dfb_uz_state
 	int32_t map_pixel_y;      /* Daggerfall convention: 499 - floor(world_z / 32768) */
 	uint32_t area_seq;        /* increments with each DFB_KIND_AREA */
 	uint32_t pad0;
-	uint8_t reserved[DFB_STATE_BYTES - 80];
+	/* Indoors: the Doom player in the space's own Daggerfall units (doom / 0.75), x east, y north, z up.
+	   Daggerfall's interior or dungeon local position is (x, z, y) / 40. */
+	double space_x;
+	double space_y;
+	double space_z;
+	float space_yaw;          /* Doom angle within the space */
+	int32_t space_target;     /* the target of the door event for this space */
+	uint32_t space_valid;     /* 0 outdoors and between maps */
+	uint32_t pad1;
+	uint8_t reserved[DFB_STATE_BYTES - 120];
 } dfb_uz_state;
 
 typedef struct dfb_stats
