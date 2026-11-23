@@ -87,14 +87,6 @@ Outside feedback raised these possible problems. Treat them as unverified until 
 - Editor marker flats may carry teleporter destinations, quest anchors, fixed spawns, and ambient sounds.
 - Some original blocks have misaligned doorways, small lips that snag movement, or broken action chains.
 
-### Check the main quest dungeons
-
-**Waiting on:** the dungeon audit, action system, and swimmable water.
-
-Check that Daggerfall's main quest dungeons convert and can be completed. Candidates named in outside feedback include Direnni Tower, Scourg Barrow, Castle Wayrest, Orsinium, and Mantellan Crux. Confirm the real list from the game's data.
-
-Tell the owner wherever a dungeon requires climbing or levitation to progress, with the dungeon and location.
-
 ### Climbing, levitation, and steep surfaces
 
 **Waiting on:** owner design input after the research step.
