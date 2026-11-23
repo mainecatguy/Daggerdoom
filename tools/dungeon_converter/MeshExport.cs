@@ -190,16 +190,22 @@ static partial class Program
             using (var s = new StreamWriter(zip.CreateEntry("MAPINFO", CompressionLevel.Fastest).Open()))
                 s.Write($"map MAP01 \"{location.Name}\"\n{{\n\tpixelratio = 1.0\n{(runtimeDungeon ? "\tkeepfullinventory\n\tUsePlayerStartZ\n" : "")}}}\n");
 
+            var animdefs = new StringBuilder();
             foreach (var k in keys)
             {
                 var file = Archive(k.archive);
                 var image = k.record < file.RecordCount ? file.GetDFBitmap(k.record, 0) : null;
                 if (image?.Data == null || image.Width == 0) { badTextures++; Console.WriteLine($"missing texture {k.archive}:{k.record}"); continue; }
-                using var s = zip.CreateEntry($"dfmesh/a{k.archive:D3}r{k.record:D2}.png", CompressionLevel.Fastest).Open();
-                WriteTexturePng(s, image, file.Palette);
+                using (var s = zip.CreateEntry($"dfmesh/a{k.archive:D3}r{k.record:D2}.png", CompressionLevel.Fastest).Open())
+                    WriteTexturePng(s, image, file.Palette);
+                WriteModelTextureFrames(zip, animdefs, file, k.archive, k.record);
             }
+            if (animdefs.Length > 0)
+                using (var s = new StreamWriter(zip.CreateEntry("ANIMDEFS", CompressionLevel.Fastest).Open()))
+                    s.Write(animdefs.ToString());
         }
         PrepareActionFlats(actions, Archive);
+        CollectDungeonFlats(actions, blocks, location, Archive);
         WriteDoorPackage(Path.Combine(outDir, slug + "_doors.pk3"), doorModels.Values.OrderBy(m => m.Slot).ToList(), doorPlacements, Archive, actions);
         Console.WriteLine($"doors: {doorPlacements.Count} placed, {doorModels.Count} models");
         Console.WriteLine($"actions: {actions.Records.Count} records, {actions.Records.Count(r => r.Kind == 1)} moving models, {actions.Models.Count} models, {actions.Records.Where(r => r.Kind == 1).Sum(r => actions.Cells[r.Model].Count)} collision cells, {actions.Flats.Count} flat sprites");
@@ -208,7 +214,8 @@ static partial class Program
     }
 
     // transparentZero writes RGBA with palette index 0 clear, as Daggerfall Unity does for billboards (alphaIndex 0).
-    static void WriteTexturePng(Stream output, DFBitmap image, DFPalette palette, bool transparentZero = false)
+    // grab stores a sprite anchor, in pixels from the top left.
+    static void WriteTexturePng(Stream output, DFBitmap image, DFPalette palette, bool transparentZero = false, (int x, int y)? grab = null)
     {
         byte[] buffer = palette.PaletteBuffer;
         int head = palette.HeaderLength, w = image.Width, h = image.Height, bytes = transparentZero ? 4 : 3;
@@ -238,6 +245,8 @@ static partial class Program
         header[4] = (byte)(h >> 24); header[5] = (byte)(h >> 16); header[6] = (byte)(h >> 8); header[7] = (byte)h;
         header[8] = 8; header[9] = (byte)(transparentZero ? 6 : 2);
         Chunk("IHDR", header);
+        if (grab is (int gx, int gy))
+            Chunk("grAb", new[] { gx, gy }.SelectMany(q => new[] { (byte)(q >> 24), (byte)(q >> 16), (byte)(q >> 8), (byte)q }).ToArray());
         Chunk("IDAT", packed.ToArray());
         Chunk("IEND", new byte[0]);
     }

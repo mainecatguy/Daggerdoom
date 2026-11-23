@@ -77,6 +77,7 @@ static partial class Program
         if (args.Contains("--list-water")) return ListWater(arena2);
         if (args.Contains("--list-tilted-doors")) return ListTiltedDoors(arena2);
         if (args.Contains("--list-main")) return ListMain(arena2, args.Contains("--list-all"));
+        if (args.Contains("--list-flats")) return ListFlats(arena2);
         for (int a = 0; a < args.Length; a++)
         {
             if (args[a] == "--out") outDir = args[++a];

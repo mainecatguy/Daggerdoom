@@ -35,7 +35,7 @@ CVAR(Bool, dfmesh_view, true, 0)	// true: Daggerfall mesh. false: Doom collider 
 
 namespace
 {
-	struct Batch { FGameTexture *texture; int first, count; };
+	struct Batch { FTextureID texture; int first, count; };	// an ID, so ANIMDEFS can pick the current frame
 
 	FModelVertexBuffer *buffer;
 	DFrameBuffer *bufferOwner;
@@ -71,9 +71,8 @@ namespace
 			char name[33] = {};
 			memcpy(name, names + entry[0] * 32, 32);
 			FTextureID id = TexMan.CheckForTexture(name, ETextureType::Any, FTextureManager::TEXMAN_TryAny | FTextureManager::TEXMAN_ForceLookup);
-			FGameTexture *texture = id.isValid() ? TexMan.GetGameTexture(id) : nullptr;
-			if (!texture) Printf(TEXTCOLOR_RED "DFMesh: missing texture %s\n", name);
-			batches.push_back({ texture, entry[1], entry[2] });
+			if (!id.isValid() || !TexMan.GetGameTexture(id)) { Printf(TEXTCOLOR_RED "DFMesh: missing texture %s\n", name); id.SetInvalid(); }
+			batches.push_back({ id, entry[1], entry[2] });
 		}
 
 		delete buffer;
@@ -160,8 +159,8 @@ void DFMesh_Draw(FRenderState &state)
 	int submitted = 0;
 	for (const Batch &batch : batches)
 	{
-		if (!batch.texture) continue;
-		state.SetMaterial(batch.texture, UF_Skin, 0, CLAMP_NONE, NO_TRANSLATION, -1);
+		if (!batch.texture.isValid()) continue;
+		state.SetMaterial(TexMan.GetGameTexture(batch.texture, true), UF_Skin, 0, CLAMP_NONE, NO_TRANSLATION, -1);
 		state.Draw(DT_Triangles, batch.first, batch.count);
 		submitted += batch.count / 3;
 	}

@@ -29,6 +29,13 @@ class DFActionFlat : Actor
 	Default { +NOBLOCKMAP +NOGRAVITY +NOINTERACTION +DONTSPLASH Radius 8; Height 16; }
 }
 
+// An ordinary Daggerfall billboard. It has no collision, as in Daggerfall Unity. ANIMDEFS animates its texture.
+class DFDungeonFlat : Actor
+{
+	Default { +NOBLOCKMAP +NOGRAVITY +NOINTERACTION +DONTSPLASH +NOTONAUTOMAP Radius 1; Height 1; }
+	States { Spawn: PLAY A -1 Bright; Stop; }
+}
+
 // One cube of a moving model's collision. Solid to movement, hitscans, and projectiles, and can be stood on.
 class DFActionCell : Actor
 {
@@ -288,6 +295,7 @@ class DFActionHandler : EventHandler
 	{
 		if (e.IsSaveGame || e.IsReopen || !(level.MapName ~== "MAP01")) return;
 		if (Wads.CheckNumForName("DFPOINTS", Wads.ns_global) < 0) return;
+		SpawnFlats();
 		int lump = Wads.CheckNumForFullName("DFACTIONS");
 		if (lump < 0) return;
 
@@ -330,6 +338,35 @@ class DFActionHandler : EventHandler
 			a.Place(false);
 		}
 		Console.Printf("DFACTIONS loaded %d records, %d collision cells, %d door links", actions.Size(), cellCount, doorLinks);
+	}
+
+	// DFDFLATS: texture x y z scaleX scaleY. The center of the picture is on the position.
+	void SpawnFlats()
+	{
+		int lump = Wads.CheckNumForFullName("DFDFLATS");
+		if (lump < 0) return;
+		Array<String> rows;
+		Wads.ReadLump(lump).Split(rows, "\n", TOK_SKIPEMPTY);
+		int spawned = 0, outside = 0, missing = 0;
+		foreach (row : rows)
+		{
+			Array<String> f;
+			row.Split(f, " ", TOK_SKIPEMPTY);
+			if (f.Size() < 6) continue;
+			vector3 at = (f[1].ToDouble(), f[2].ToDouble(), f[3].ToDouble());
+			let flat = Actor.Spawn("DFDungeonFlat", at, NO_REPLACE);
+			flat.picnum = TexMan.CheckForTexture(f[0], TexMan.Type_Any);
+			if (!flat.picnum.IsValid()) missing++;
+			flat.scale = (f[4].ToDouble(), f[5].ToDouble());
+			if (!level.IsPointInLevel(at))
+			{
+				outside++;
+				let sec = level.PointInSector(at.xy);
+				Console.Printf("DFFLATOUT %s %.0f %.0f %.0f sector %d floor %.0f ceiling %.0f", f[0], at.x, at.y, at.z, sec.Index(), sec.floorplane.ZAtPoint(at.xy), sec.ceilingplane.ZAtPoint(at.xy));
+			}
+			spawned++;
+		}
+		Console.Printf("DFDFLATS spawned %d billboards, %d outside a sector, %d missing textures", spawned, outside, missing);
 	}
 
 	DFAction Build(Array<String> f, double cellSize)

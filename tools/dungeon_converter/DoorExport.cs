@@ -157,20 +157,17 @@ static partial class Program
             modeldef.Append($"Model DFActionVisual{m.Slot}\n{{\n\tPath \"models/dfactions\"\n\tDONTCULLBACKFACES\n\tUSEACTORPITCH\n\tUSEACTORROLL\n\tModel 0 \"m{m.Id}.obj\"\n\tFrameIndex DFAC A 0 0\n}}\n");
             Text($"models/dfactions/m{m.Id}.obj", m.Obj);
         }
-        // Flat sprites: DFA + one letter per texture, so up to 26 distinct switch flats per dungeon.
-        var sprites = new StringBuilder();
-        for (int i = 0; i < actions.Flats.Count && i < 26; i++)
+        // Action flats name their texture directly, so ANIMDEFS animates them the same way as ordinary billboards.
+        var animdefs = new StringBuilder();
+        for (int i = 0; i < actions.Flats.Count; i++)
         {
             var (fa, fr) = actions.Flats[i];
-            var file = archive(fa);
-            var image = file.GetDFBitmap(fr, 0);
-            string sprite = "DFA" + (char)('A' + i);
-            using (var s = zip.CreateEntry($"dfaction/f{i}.png", CompressionLevel.Fastest).Open()) WriteTexturePng(s, image, file.Palette, true); // sprites: index 0 is clear
-            double scale = PlayerScale.DoomUnitsPerDaggerfallUnit;
-            sprites.Append(FormattableString.Invariant($"Sprite \"{sprite}A0\", {image.Width}, {image.Height}\n{{\n\tXScale {1 / scale:F4}\n\tYScale {1 / scale:F4}\n\tOffset {image.Width / 2}, {image.Height / 2}\n\tPatch \"dfaction/f{i}.png\", 0, 0\n}}\n"));
-            classes.Append($"\nclass DFActionFlat{i} : DFActionFlat {{ States {{ Spawn: {sprite} A -1 Bright; Stop; }} }}\n");
+            var (sx, sy) = BillboardScale(archive(fa), fr);
+            classes.Append(FormattableString.Invariant($"\nclass DFActionFlat{i} : DFActionFlat {{ override void BeginPlay() {{ Super.BeginPlay(); picnum = TexMan.CheckForTexture(\"{FlatTextureName(fa, fr)}\", TexMan.Type_Any); scale = ({sx:F4}, {sy:F4}); }} States {{ Spawn: PLAY A -1 Bright; Stop; }} }}\n"));
         }
-        if (sprites.Length > 0) Text("TEXTURES", sprites.ToString());
+        foreach (var (fa, fr) in actions.Flats.Concat(actions.Ordinary.Select(f => (f.archive, f.record))).Distinct())
+            WriteFlatTexture(zip, animdefs, archive(fa), fa, fr);
+        if (actions.Ordinary.Count > 0) Text("DFDFLATS", DungeonFlatLump(actions, archive));
         Text("DFACTIONS", ActionLump(actions));
         Text("zscript.zs", classes.ToString());
         Text("MAPINFO", "GameInfo\n{\n\tAddEventHandlers = \"DFDoorHandler\", \"DFActionHandler\"\n}\n");
@@ -182,8 +179,10 @@ static partial class Program
             var file = archive(a);
             var image = r < file.RecordCount ? file.GetDFBitmap(r, 0) : null;
             if (image?.Data == null || image.Width == 0) { Console.WriteLine($"missing door texture {a}:{r}"); continue; }
-            using var s = zip.CreateEntry($"dfmesh/a{a:D3}r{r:D2}.png", CompressionLevel.Fastest).Open();
-            WriteTexturePng(s, image, file.Palette);
+            using (var s = zip.CreateEntry($"dfmesh/a{a:D3}r{r:D2}.png", CompressionLevel.Fastest).Open())
+                WriteTexturePng(s, image, file.Palette);
+            WriteModelTextureFrames(zip, animdefs, file, a, r);
         }
+        if (animdefs.Length > 0) Text("ANIMDEFS", animdefs.ToString());
     }
 }
