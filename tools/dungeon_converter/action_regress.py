@@ -80,7 +80,8 @@ for name, files in () if only_load else (("e1m1_stock", []), ("e1m1_drla", DRLA)
     fatal = any(b in text for b in BAD if b not in ("Script error", "Unknown class")) if drla else not clean(text)
     report(name, not fatal and entered and inactive, f"entered={entered} actions inactive={inactive}")
 
-ph = [os.path.join(holds, "privateershold" + s) for s in (".wad", "_mesh.pk3", "_doors.pk3", "_player.pk3")]
+# A default conversion, as the game uses. door_check applies the game's 10.5 player radius itself.
+ph = [os.path.join(holds, "privateershold" + s) for s in (".wad", "_mesh.pk3", "_doors.pk3")]
 if not only_load:
     text = launch("ph_doors", "DOOM2.WAD", [*ph, os.path.join(HERE, "door_check")], ["-nomonsters", "+map", "MAP01"], "DTDONE", 60)
     rows = [l for l in text.splitlines() if l.startswith("DT door=")]
