@@ -130,6 +130,8 @@ bool DD_BridgeAutosaveBegin(const char *filename, const char *description);
 FString DD_BridgeSaveWritePath(const FString &filename);
 bool DD_BridgeSaveAddFiles(TArray<FCompressedBuffer> &content, TArray<FString> &names);
 bool DD_BridgeSaveCommit(const FString &written, const FString &filename);
+bool DD_BridgeLoadBegin(const char *filename);
+bool DD_BridgeDeathHold(int playernum);
 void G_DoVictory (void);
 
 void SetupLoadingCVars();
@@ -1803,6 +1805,7 @@ void FLevelLocals::QueueBody (AActor *body)
 //
 void FLevelLocals::DoReborn (int playernum, bool force)
 {
+	if (DD_BridgeDeathHold(playernum)) return; // Doomerfall: on a Daggerfall map the death screen decides what is next
 	if (!multiplayer && !(flags2 & LEVEL2_ALLOWRESPAWN) && !sv_singleplayerrespawn &&
 		!G_SkillProperty(SKILLP_PlayerRespawn))
 	{
@@ -1945,6 +1948,7 @@ void G_LoadGame (const char* name, bool hidecon)
 {
 	if (name != NULL)
 	{
+		if (DD_BridgeLoadBegin(name)) return; // Doomerfall: a bundle restores both games
 		savename = name;
 		gameaction = !hidecon ? ga_loadgame : ga_loadgamehidecon;
 	}
@@ -2242,6 +2246,35 @@ void G_DoLoadGame ()
 	GC::StartCollection();
 }
 
+
+// Doomerfall: true if this save can load in this session. Runs before either game's state is touched.
+bool G_DDCheckSave(FResourceFile *resfile, FString &map)
+{
+	const auto info = resfile->FindEntry("info.json");
+	if (info < 0) return false;
+	auto data = resfile->Read(info);
+	FSerializer arc;
+	if (!arc.OpenReader(data.string(), data.size())) return false;
+	FString engine;
+	int version = 0;
+	arc("Save Version", version);
+	arc("Engine", engine);
+	arc("Current Map", map);
+	return !map.IsEmpty() && engine.CompareNoCase(GAMESIG) == 0 && version >= MINSAVEVER && version <= SAVEVER && G_CheckSaveGameWads(arc, true);
+}
+
+// Doomerfall: loads Doom's half now, from the bridge pump. True if the level was restored.
+bool G_DDLoadNow(const char *file)
+{
+	const FString previous = BackupSaveName;
+	BackupSaveName = "";
+	savename = file;
+	gameaction = ga_loadgame;
+	G_DoLoadGame();
+	const bool ok = BackupSaveName.Compare(file) == 0;
+	if (!ok) BackupSaveName = previous;
+	return ok;
+}
 
 //
 // G_SaveGame

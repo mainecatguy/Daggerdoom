@@ -73,6 +73,11 @@ extern "C" {
 #define DFB_KIND_SAVE_REQUEST  12  /* UZ to DF; Doom is frozen, and this is ordered after all its earlier events; payload: dfb_save_request */
 #define DFB_KIND_SAVE_PREPARED 13  /* DF to UZ; Daggerfall's answer, ordered after all its earlier events; payload: dfb_save_reply */
 #define DFB_KIND_SAVE_DONE     14  /* UZ to DF; the transaction ended and Daggerfall may resume; payload: dfb_save_done */
+#define DFB_KIND_LOAD_REQUEST  15  /* UZ to DF; Doom is frozen and the staged save is checked; payload: dfb_load_request */
+#define DFB_KIND_LOAD_READY    16  /* DF to UZ; Daggerfall restored the save, or left its game untouched; payload: dfb_save_reply */
+#define DFB_KIND_LOAD_DONE     17  /* UZ to DF; Doom restored its half, or could not; payload: dfb_save_done */
+#define DFB_KIND_LOAD_RESUME   18  /* DF to UZ; both games are ready and play continues; payload: dfb_save_done */
+#define DFB_KIND_HOLD          19  /* UZ to DF; p0 is 1 to hold Daggerfall paused at Doom's title, 0 to release */
 
 #define DFB_SAVE_OK      0u
 #define DFB_SAVE_REFUSED 1u  /* Daggerfall cannot save right now */
@@ -232,6 +237,17 @@ typedef struct dfb_save_reply
 	int32_t world_z;
 	uint64_t total_bytes;
 } dfb_save_reply;
+
+typedef struct dfb_load_request
+{
+	uint32_t txn;
+	int32_t hp;           /* The manifest's values, which Daggerfall's half must match */
+	int32_t hp_max;
+	int32_t world_x;
+	int32_t world_z;
+	uint32_t file_count;
+	int64_t sent_ns;
+} dfb_load_request;
 
 typedef struct dfb_save_done
 {
