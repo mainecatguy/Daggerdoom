@@ -49,6 +49,7 @@ Keep Daggerfall and Doom loaded into the same area, through a deterministic coor
 - Perfect sync is not needed. Daggerfall applying the player's position about once per second should be enough. Area changes should not wait for that update.
 - Daggerfall must keep the same world objects in memory as Doom, so leave its terrain and location streaming running and measure the cost.
 - Daggerfall's hidden player must not take fall damage, get stuck, or trigger anything from being moved this way.
+- The hidden Daggerfall world must not change real game state on its own. How to do that is an engineering call. The suggested approach is to stop drawing, stop the hidden player's motor and physics, and turn off AI and attacks for Daggerfall's enemies while keeping those objects in memory. Leave peaceful NPCs alone until the NPC design is settled. Avoid a blanket god mode, because it would also block legitimate Daggerfall effects such as poison and could hide bugs.
 
 ### Show Daggerfall's fast travel menu in Doom
 
