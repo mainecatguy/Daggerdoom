@@ -100,6 +100,7 @@ extern "C" {
 #define DFB_UI_NONE        0u
 #define DFB_UI_TRAVEL_MAP  1u
 #define DFB_UI_INVENTORY   2u
+#define DFB_UI_MAP         3u  /* the map for where the player is; dfb_ui_command.context is Doom's DFB_WORLD_* */
 
 #define DFB_UI_CLOSED      0u
 #define DFB_UI_OPENED      1u
@@ -171,7 +172,7 @@ typedef struct dfb_area
 typedef struct dfb_ui_command
 {
 	uint32_t ui_id;
-	uint32_t pad;
+	uint32_t context;
 	int64_t sent_ns;
 } dfb_ui_command;
 

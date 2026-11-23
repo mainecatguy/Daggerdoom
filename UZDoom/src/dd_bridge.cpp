@@ -18,6 +18,7 @@
 #include <miniz.h>
 
 #include "../../bridge/doomerfall_bridge.h"
+#include "am_map.h"
 #include "bitmap.h"
 #include "c_bind.h"
 #include "c_cvars.h"
@@ -63,7 +64,9 @@ FARG_ADVANCED(dfhptest, "Doomerfall", "basic|monsters", "HP sync test only: scri
 
 CVAR(Int, dd_sync_df_phase, 0, CVAR_NOSAVE) // Read by the position sync test route.
 CVAR(Int, dd_ui_test_hold, 0, CVAR_NOSAVE | CVAR_MOD) // Test only: a route holds -dfuitest until it reaches the place to open the menu.
-CVAR(Int, dd_ui_test_menu, 1, CVAR_NOSAVE) // Test only: the menu -dfuitest opens. 1 is the travel map, 2 the inventory.
+CVAR(Int, dd_ui_test_menu, 1, CVAR_NOSAVE) // Test only: the menu -dfuitest opens. 1 is the travel map, 2 the inventory, 3 the map command.
+CVAR(Bool, dd_ui_test_doommap, false, CVAR_NOSAVE) // Test only: opens Doom's own map just before -dfuitest opens its menu.
+EXTERN_CVAR(Bool, dfmesh_view)
 
 namespace
 {
@@ -324,12 +327,12 @@ void EnsureUiTextures()
 	}
 }
 
-void SendUiCommand(uint16_t kind, uint32_t id)
+void SendUiCommand(uint16_t kind, uint32_t id, uint32_t context = 0)
 {
 	dfb_event e{};
 	e.kind = kind;
 	e.tic = gametic;
-	const dfb_ui_command body{ id, 0, dfb_now_ns() };
+	const dfb_ui_command body{ id, context, dfb_now_ns() };
 	memcpy(e.payload, &body, sizeof(body));
 	dfb_send(session, &e);
 }
@@ -344,7 +347,7 @@ void SendUiInput(uint32_t type, int a = 0, int b = 0)
 	dfb_send(session, &e);
 }
 
-void OpenUi(uint32_t id)
+void OpenUi(uint32_t id, uint32_t context = 0)
 {
 	EnsureUiTextures();
 	uiId = id;
@@ -356,7 +359,7 @@ void OpenUi(uint32_t id)
 	uiSavedPause = pauseext;
 	pauseext = true;
 	uiMapTimeAtOpen = primaryLevel ? primaryLevel->maptime : -1;
-	SendUiCommand(DFB_KIND_UI_OPEN, id);
+	SendUiCommand(DFB_KIND_UI_OPEN, id, context);
 	Log("ui: asked Daggerfall to open menu %u, maptime %d", id, uiMapTimeAtOpen);
 }
 
@@ -407,9 +410,14 @@ void HandleTravel(const dfb_event &e)
 {
 	dfb_travel body;
 	memcpy(&body, e.payload, sizeof(body));
+	// The player arrives looking at the world, not at Doom's map or the debug collider view.
+	const bool hadMap = automapactive, hadColliders = !dfmesh_view;
+	if (hadMap) AM_Stop();
+	if (hadColliders) dfmesh_view = true;
 	const bool accepted = DDTreadmill_RequestTravel(body.world_x, body.world_z, body.yaw_degrees);
 	Log("travel: Daggerfall placed the player at world %.1f,%.1f yaw %.1f pixel %d,%d, %s", body.world_x, body.world_z,
 		body.yaw_degrees, body.map_pixel_x, body.map_pixel_y, accepted ? "loading" : "refused");
+	if (hadMap || hadColliders) Log("travel: closed Doom's map %d, left collider view %d", hadMap, hadColliders);
 }
 
 void PumpUi(int64_t now)
@@ -468,6 +476,11 @@ void PumpUi(int64_t now)
 	uiLastFrameNs = dfb_now_ns();
 }
 
+const char *UiCommandName(uint32_t id)
+{
+	return id == DFB_UI_INVENTORY ? "netevent df_inventory" : id == DFB_UI_MAP ? "togglemap" : "netevent df_fast_travel";
+}
+
 void RunUiTest(int64_t now)
 {
 	if (uiTestRemaining <= 0 || dd_ui_test_hold || uiState != UiClosed || gamestate != GS_LEVEL || peerState.df_phase != DFB_DF_PHASE_PLAY) return;
@@ -475,7 +488,12 @@ void RunUiTest(int64_t now)
 	if (now < uiTestAtNs) return;
 	uiTestRemaining--;
 	uiTestAtNs = 0;
-	C_DoCommand(dd_ui_test_menu == DFB_UI_INVENTORY ? "netevent df_inventory" : "netevent df_fast_travel");
+	if (dd_ui_test_doommap && !automapactive) // The map command can no longer open Doom's map here, so the fast travel test does.
+	{
+		AM_ToggleMap();
+		Log("ui test: Doom's map is %s", automapactive ? "open" : "closed");
+	}
+	C_DoCommand(UiCommandName(dd_ui_test_menu));
 }
 
 void UiRect(int &x, int &y, int &w, int &h)
@@ -530,7 +548,7 @@ bool IsOpenMenuKey(long long lParam)
 {
 	int key = int((lParam >> 16) & 0xFF);
 	if ((lParam >> 24) & 1) key |= 0x80;
-	return Bindings.GetBinding(key).CompareNoCase(uiId == DFB_UI_INVENTORY ? "netevent df_inventory" : "netevent df_fast_travel") == 0;
+	return Bindings.GetBinding(key).CompareNoCase(UiCommandName(uiId)) == 0;
 }
 }
 
@@ -550,6 +568,35 @@ void DD_BridgeTransition(int action, double x, double y, int target)
 bool DD_BridgeUiActive() { return uiState != UiClosed; }
 bool DD_BridgeSaveActive();
 
+static bool UiCanOpen()
+{
+	if (gamestate != GS_LEVEL || flowHold || players[consoleplayer].health <= 0 || DDTreadmill_HandoffPending() || DD_BridgeSaveActive()) return false; // Not while going through a door or map seam, or saving.
+	if (!peerSeen || peerStale || peerState.df_phase != DFB_DF_PHASE_PLAY)
+	{
+		Printf("Daggerfall is not ready to show that menu.\n");
+		Log("ui: open refused, Daggerfall phase %u", peerState.df_phase);
+		return false;
+	}
+	return true;
+}
+
+// The togglemap command. True means Daggerfall handled it. Regular Doom maps and non-bridge launches return false.
+bool DD_BridgeToggleMap()
+{
+	if (!session) return false;
+	if (uiState != UiClosed)
+	{
+		SendUiCommand(DFB_KIND_UI_CLOSE, uiId);
+		return true;
+	}
+	if (gamestate != GS_LEVEL || automapactive) return false; // An already open Doom map can always be closed.
+	double x, y, z, yaw;
+	const DDPlayerArea area = DDTreadmill_PlayerWorld(x, y, z, yaw);
+	if (area == DD_AREA_NONE) return false;
+	if (UiCanOpen()) OpenUi(DFB_UI_MAP, uint32_t(area));
+	return true;
+}
+
 bool DD_BridgeNetEvent(const char *name)
 {
 	if (session && !strcmp(name, "df_hp_damage")) // Demo only: stands in for a Daggerfall-side attacker
@@ -565,13 +612,7 @@ bool DD_BridgeNetEvent(const char *name)
 		SendUiCommand(DFB_KIND_UI_CLOSE, uiId);
 		return true;
 	}
-	if (gamestate != GS_LEVEL || flowHold || players[consoleplayer].health <= 0 || DDTreadmill_HandoffPending() || DD_BridgeSaveActive()) return true; // Not while going through a door or map seam, or saving.
-	if (!peerSeen || peerStale || peerState.df_phase != DFB_DF_PHASE_PLAY)
-	{
-		Printf("Daggerfall is not ready to show that menu.\n");
-		Log("ui: open refused, Daggerfall phase %u", peerState.df_phase);
-		return true;
-	}
+	if (!UiCanOpen()) return true;
 	if (inventory)
 	{
 		OpenUi(DFB_UI_INVENTORY);
