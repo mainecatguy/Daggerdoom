@@ -2,6 +2,14 @@
 
 Work that needs owner input or depends on unfinished work. **Automated loops never take work from this file.** When an item is unblocked and the owner approves it, it moves to `work/todo.md`. Finished work moves to `CHANGELOG.md`, with details in `work/notes/`.
 
+## Engine bridge
+
+### Turn off Daggerfall's 3D simulation
+
+**Waiting on:** owner design for how NPCs work.
+
+Daggerfall Unity should eventually run with its 3D world rendering and entity physics turned off while its simulation loop and 2D UI keep working. This is one of the four core technical hurdles. Disabling entities and physics may break NPC behavior, so it should not start until the NPC design is settled. Normal Daggerfall Unity launches must behave as they do today.
+
 ## Overworld and towns
 
 ### Distant terrain LOD
@@ -61,6 +69,23 @@ Fresh locations take about 5 to 7 seconds to convert in the background. Profile 
 **Waiting on:** owner decision, on hold. See `work/questions.md`.
 
 ## Dungeons
+
+### Audit and fix dungeons
+
+**Waiting on:** the owner being satisfied that all travel methods are implemented correctly. Do this last, or earlier only if we are low on other tasks.
+
+Run the converter on all non-random mainquest dungeons as well as some random dungeons (say 5) and report what breaks, map size, load time, frame rate, and how often each feature appears, such as teleporters, water, lifts, climbing shafts, and special markers. Use the results to recommend priorities for the dungeon work.
+
+The audit includes fixing what it finds, and must be broken down into steps before it starts.
+
+Outside feedback raised these possible problems. Treat them as unverified until the audit or real data confirms them:
+
+- Large multi-block dungeons may hit practical size or performance limits.
+- Stacked floors may cause sliver sectors, sound bleeding through rock, automap clutter, or lighting and fog bleeding between floors.
+- Tightly stacked sloped 3D floors may snag actors or show seams.
+- Dungeon textures may need runtime swaps by region and dungeon type, and some are animated.
+- Editor marker flats may carry teleporter destinations, quest anchors, fixed spawns, and ambient sounds.
+- Some original blocks have misaligned doorways, small lips that snag movement, or broken action chains.
 
 ### Check the main quest dungeons
 
