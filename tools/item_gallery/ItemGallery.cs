@@ -18,7 +18,7 @@ static class ItemGallery
     // Copied from ItemHelper so the mapping matches Daggerfall Unity.
     static readonly int[] ArtifactRecords = { 12, 13, 10, 8, 19, 16, 25, 18, 21, 2, 24, 26, 0, 15, 3, 9, 23, 17, 7, 1, 22, 20, 5 };
     const int ArtifactMaleArchive = 432;
-    const int Spacing = 128, Columns = 36, Margin = 192, MaxSpriteSize = 112;
+    const int Spacing = 128, Columns = 36, Margin = 192; // The largest item is 169 pixels, 127 world units at 75%, so the grid never overlaps.
     const string Placeholder = "DINOSPR";
 
     static readonly (ItemGroups group, Type type)[] Groups =
@@ -40,7 +40,17 @@ static class ItemGallery
         public int Template, Variant, Artifact = -1, Archive, Record, X, Y, W, H;
         public ItemGroups Group;
         public string Name, Texture, Status;
-        public double Scale = 1;
+        public double ScaleX = 1, ScaleY = 1;
+    }
+
+    // MeshReader.GetBillboardMesh's size at the converted world's scale. Only the actor's display scale changes, never the image.
+    static (double x, double y) WorldSpriteScale(TextureFile file, int record)
+    {
+        var size = file.GetSize(record);
+        var scale = file.GetScale(record);
+        int xChange = (int)(size.Width * (scale.Width / (double)BlocksFile.ScaleDivisor)), yChange = (int)(size.Height * (scale.Height / (double)BlocksFile.ScaleDivisor));
+        double s = PlayerScale.DoomUnitsPerDaggerfallUnit;
+        return (s * (size.Width + xChange) / size.Width, s * (size.Height + yChange) / size.Height);
     }
 
     static int Main(string[] args)
@@ -140,7 +150,7 @@ static class ItemGallery
                 if (size is (int w, int h))
                 {
                     e.Texture = TextureName(e.Archive, e.Record); e.W = w; e.H = h; e.Status = "sprite";
-                    e.Scale = Math.Min(1.0, (double)MaxSpriteSize / Math.Max(w, h));
+                    (e.ScaleX, e.ScaleY) = WorldSpriteScale(Open(e.Archive), e.Record);
                 }
                 else { e.Texture = Placeholder; e.W = e.H = 32; e.Status = e.Archive == 0 ? "no-sprite-reference" : "bad-record"; }
             }
@@ -159,7 +169,7 @@ static class ItemGallery
             var table = new StringBuilder();
             foreach (var e in entries)
                 table.Append(string.Join("\t", e.Template, e.Variant, e.Artifact, (int)e.Group, e.Archive, e.Record, e.X, e.Y,
-                    e.Scale.ToString("0.###", CultureInfo.InvariantCulture), e.Texture, e.Name.Replace('\t', ' '))).Append('\n');
+                    e.ScaleX.ToString("0.####", CultureInfo.InvariantCulture), e.ScaleY.ToString("0.####", CultureInfo.InvariantCulture), e.Texture, e.Name.Replace('\t', ' '))).Append('\n');
             WriteText(zip, "dfitems.txt", table.ToString());
             WriteMap(zip, width, height);
         }

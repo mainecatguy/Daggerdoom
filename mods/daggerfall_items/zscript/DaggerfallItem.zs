@@ -27,7 +27,7 @@ class DaggerfallItem : Actor
 		Stop;
 	}
 
-	static DaggerfallItem Create(Vector3 where, int template, int variant, int artifact, int group, int archive, int record, double size, String texture, String itemName)
+	static DaggerfallItem Create(Vector3 where, int template, int variant, int artifact, int group, int archive, int record, double scaleX, double scaleY, String texture, String itemName)
 	{
 		let item = DaggerfallItem(Actor.Spawn("DaggerfallItem", where));
 		if (item == null) return null;
@@ -39,7 +39,7 @@ class DaggerfallItem : Actor
 		item.DFSpriteRecord = record;
 		item.DFItemName = itemName;
 		item.picnum = TexMan.CheckForTexture(texture, TexMan.Type_Any);
-		item.scale = (size, size);
+		item.scale = (scaleX, scaleY);
 		return item;
 	}
 }
@@ -63,8 +63,8 @@ class DaggerfallItemGallery : EventHandler
 		{
 			f.Clear();
 			rows[i].Split(f, "\t");
-			if (f.Size() < 11) { broken++; continue; }
-			let item = DaggerfallItem.Create((f[6].ToDouble(), f[7].ToDouble(), 0), f[0].ToInt(), f[1].ToInt(), f[2].ToInt(), f[3].ToInt(), f[4].ToInt(), f[5].ToInt(), f[8].ToDouble(), f[9], f[10]);
+			if (f.Size() < 12) { broken++; continue; }
+			let item = DaggerfallItem.Create((f[6].ToDouble(), f[7].ToDouble(), 0), f[0].ToInt(), f[1].ToInt(), f[2].ToInt(), f[3].ToInt(), f[4].ToInt(), f[5].ToInt(), f[8].ToDouble(), f[9].ToDouble(), f[10], f[11]);
 			if (item == null || !item.picnum.IsValid()) { broken++; continue; }
 			int w, h;
 			[w, h] = TexMan.GetSize(item.picnum);
