@@ -7,7 +7,7 @@ Work that is ready to do automatically, in priority order. Every item here is ap
 - Take the first item only. Never take work from `work/backlog.md`.
 - If an item turns out to need owner input or unfinished work, move it to the backlog, say what it is waiting on, add the question to `work/questions.md`, and continue with the next item that does not depend on it.
 - When an item is verified, remove it from this file and record it in `CHANGELOG.md`.
-- Stop if weekly plan usage reaches 90%, extra usage becomes enabled, two runs in a row fail to make verified progress, or the right next step is unclear. Stopping is an acceptable result.
+- Stop if weekly plan usage reaches 95%, extra usage becomes enabled, two runs in a row fail to make verified progress, or the right next step is unclear. Stopping is an acceptable result.
 - Do not merge to `main`, push, or make owner-level design choices.
 
 ## Ready

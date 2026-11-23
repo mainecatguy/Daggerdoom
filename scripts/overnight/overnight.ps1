@@ -73,6 +73,11 @@ function Stop-Descendants([int]$ParentId) {
 function Save-CrashedWork($Lane) {
     $wt = Join-Path $Lane.RunDir 'worktree'
     if (-not (Test-Path $wt)) { return }
+    # Every Unity build rewrites this file, so it must never ride along in an automatic commit.
+    $artifact = 'daggerfall-unity-master/Assets/AddressableAssetsData/Windows/addressables_content_state.bin'
+    if (& git -C $wt status --porcelain -- $artifact) {
+        & git -C $wt restore --source=HEAD --staged --worktree -- $artifact
+    }
     if (& git -C $wt status --porcelain) {
         & git -C $wt add -A
         & git -C $wt commit -q -m 'overnight: save work after a lane crash'

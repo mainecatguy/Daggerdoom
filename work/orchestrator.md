@@ -110,7 +110,7 @@ Use `git merge-tree --write-tree <a> <b>` for a trial merge. After merging, upda
 
 ## Usage limits
 
-The owner has a Pro plan with extra usage off. Check usage before dispatching and when an agent finishes. Do not start new work if weekly usage is at or above 90% unless the owner says to. Warn before a run is likely to hit the 5-hour limit.
+The owner has a Pro plan with extra usage off. Check usage before dispatching and when an agent finishes. Do not start new work if weekly usage is at or above 95% unless the owner says to. Warn before a run is likely to hit the 5-hour limit.
 
 ## Overnight loop
 
@@ -125,6 +125,6 @@ Replace this section as the state changes.
 - **Queued cards:** `work/queue/engine` has startup and save research, position sync, the fast travel menu, and HP sync. `work/queue/dungeon` has the tilted door fix, traversal check, town colliders, one random enemy, the texture pass, and Doom-side building and dungeon entry.
 - **Lane branches:** verified work lands on `overnight/engine` and `overnight/dungeon`, which start from `integration`. Merge them only when the owner approves.
 - **Held:** synchronized saving and loading wait on the startup and save research.
-- **Usage:** weekly was 5% at last check and resets on 2026-11-25 at 08:00 UTC. The stop line is 90%.
+- **Usage:** weekly was 5% at last check and resets on 2026-11-25 at 08:00 UTC. The stop line is 95%.
 - **Inventory:** Daggerfall's existing inventory stays. The owner is working out Doom weapon hotkeys separately, and the design is in the backlog.
 - **Local build notes:** `uzdoom-launcher` is the current engine build. `sndfile.dll` and `soft_oal.dll` must sit beside the exe for sound.
