@@ -1256,7 +1256,7 @@ public:
 									// no matter what (even if shot)
 	player_t		*player;		// only valid if type of PlayerPawn
 	TObjPtr<AActor*>	LastLookActor;	// Actor last looked for (if TIDtoHate != 0)
-	uint64_t		ddRecordId = 0;	// [DoomDaggerfall] Overworld table id. Zero on all stock actors.
+	uint64_t		ddRecordId = 0;	// [Doomerfall] Overworld table id. Zero on all stock actors.
 	DVector3		SpawnPoint; 	// For nightmare respawn
 	int				StartHealth;
 	uint8_t			WeaveIndexXY;	// Separated from special2 because it's used by globally accessible functions.

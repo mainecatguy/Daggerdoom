@@ -41,7 +41,7 @@
 #include "i_system.h"
 #include "screenjob.h"
 #include "texturemanager.h"
-#include "playsim/dd_treadmill.h" // [DoomDaggerfall]
+#include "playsim/dd_treadmill.h" // [Doomerfall]
 
 static TArray<cluster_info_t> wadclusterinfos;
 TArray<level_info_t> wadlevelinfos;
@@ -83,7 +83,7 @@ level_info_t *FindLevelInfo (const char *mapname, bool allowdefault)
 	{
 		return &wadlevelinfos[i];
 	}
-	else if (level_info_t *ddTown = DDTreadmill_FindLevelInfo(mapname)) // [DoomDaggerfall] generated locations have no MAPINFO entry
+	else if (level_info_t *ddTown = DDTreadmill_FindLevelInfo(mapname)) // [Doomerfall] generated locations have no MAPINFO entry
 	{
 		return ddTown;
 	}
@@ -210,7 +210,7 @@ void G_ClearSnapshots (void)
 	{
 		wadlevelinfos[i].Snapshot.Clean();
 	}
-	for (unsigned int i = 0; level_info_t *ddInfo = DDTreadmill_LevelInfoAt(i); i++) // [DoomDaggerfall]
+	for (unsigned int i = 0; level_info_t *ddInfo = DDTreadmill_LevelInfoAt(i); i++) // [Doomerfall]
 	{
 		ddInfo->Snapshot.Clean();
 	}

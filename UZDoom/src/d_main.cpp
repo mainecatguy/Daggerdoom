@@ -53,7 +53,7 @@
 #include "d_dehacked.h"
 #include "d_event.h"
 #include "d_main.h"
-#include "playsim/dd_treadmill.h" // [DoomDaggerfall]
+#include "playsim/dd_treadmill.h" // [Doomerfall]
 #include "d_net.h"
 #include "d_netinf.h"
 #include "decallib.h"
@@ -1096,7 +1096,7 @@ static void End2DAndUpdate()
 	twod->End();
 	CheckBench();
 	screen->Update();
-	DDTreadmill_FrameEnd(); // [DoomDaggerfall]
+	DDTreadmill_FrameEnd(); // [Doomerfall]
 	twod->OnFrameDone();
 }
 

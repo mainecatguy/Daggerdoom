@@ -1,4 +1,4 @@
-// [DoomDaggerfall] Overworld terrain treadmill. Inactive unless the current map
+// [Doomerfall] Overworld terrain treadmill. Inactive unless the current map
 // is DDOVER01 and a loaded file provides the DDWORLD terrain lump.
 #pragma once
 

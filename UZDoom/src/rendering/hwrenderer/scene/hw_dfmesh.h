@@ -1,4 +1,4 @@
-// [DoomDaggerfall] Opt-in static mesh layer for converted Daggerfall maps. See hw_dfmesh.cpp.
+// [Doomerfall] Opt-in static mesh layer for converted Daggerfall maps. See hw_dfmesh.cpp.
 #pragma once
 
 struct FLevelLocals;

@@ -1,4 +1,4 @@
-// DoomDaggerfall test tool: captures dungeon viewpoints for comparison with the converted UZDoom map.
+// Doomerfall test tool: captures dungeon viewpoints for comparison with the converted UZDoom map.
 // Inactive unless the player is started with -dfcapture <job file>, and refuses to run outside a portable install.
 // See tools/dungeon_compare/README.md.
 

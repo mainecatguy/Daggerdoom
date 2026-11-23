@@ -1,4 +1,4 @@
-// [DoomDaggerfall] Disk cache and background converter for generated Daggerfall locations.
+// [Doomerfall] Disk cache and background converter for generated Daggerfall locations.
 //
 // A location is one file, T<group>.ddt. The converter writes it to a temporary name and renames it, so a
 // partial file is never read. Files are decompressed on a worker thread. Files are disposable: they are

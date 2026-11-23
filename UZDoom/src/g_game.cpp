@@ -1113,7 +1113,7 @@ bool G_Responder (event_t *ev)
 	if (CT_Responder(ev))
 		return true; // chat ate the event
 
-	// [DoomDaggerfall] F1 toggles the mesh layer on Daggerfall-layer maps only.
+	// [Doomerfall] F1 toggles the mesh layer on Daggerfall-layer maps only.
 	extern bool DFMesh_Responder(event_t *ev);
 	if (DFMesh_Responder(ev))
 		return true;
