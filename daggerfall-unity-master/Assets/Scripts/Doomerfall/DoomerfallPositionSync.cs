@@ -31,6 +31,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         int travelX, travelY;
         long travelHoldUntilNs;
         DoomerfallBridge bridge;
+        DoomerfallTransition transition;
+        bool logAfterExit;
         bool engaged, savedDisableAI, savedMotor, savedController, savedLook, savedActivate, savedWeapons;
         bool areaDirty, areaPending, verifyPending, noDraw, testWorldReady, testEnemySpawned, testImageTaken;
         uint phase = PhaseBoot;
@@ -56,6 +58,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public void Init(DoomerfallBridge owner, string[] args)
         {
             bridge = owner;
+            transition = new DoomerfallTransition(owner);
             noDraw = Array.IndexOf(args, "-dfnodraw") >= 0;
             int test = Array.IndexOf(args, "-dfsynctest");
             if (test < 0)
@@ -106,6 +109,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             player.GoldPieces = 5000; // Lets the travel menu test afford any trip.
             if (player.SkillUses == null) // The blank test character has none, and travel's skill check reads them.
                 player.SkillUses = new short[DaggerfallSkills.Count];
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfinventorytest") >= 0) // Something to equip and move in the inventory test.
+            {
+                // The blank test character's career can forbid every weapon.
+                player.Career.ForbiddenProficiencies = 0;
+                player.Career.ForbiddenMaterials = 0;
+                player.Items.AddItem(DaggerfallWorkshop.Game.Items.ItemBuilder.CreateWeapon(DaggerfallWorkshop.Game.Items.Weapons.Longsword, DaggerfallWorkshop.Game.Items.WeaponMaterialTypes.Iron));
+                player.Items.AddItem(DaggerfallWorkshop.Game.Items.ItemBuilder.CreateWeapon(DaggerfallWorkshop.Game.Items.Weapons.Dagger, DaggerfallWorkshop.Game.Items.WeaponMaterialTypes.Steel));
+            }
             startHealth = player.CurrentHealth;
             testWorldReady = true;
             bridge.LogLine("sync test: entered the world, health " + startHealth);
@@ -150,7 +161,27 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (!game.IsReady)
                 return;
             StreamingWorld world = game.StreamingWorld;
-            if (!world || !world.isActiveAndEnabled || world.suppressWorld || game.PlayerEnterExit.IsPlayerInside)
+            if (!world || LoadRunning)
+                return;
+
+            // Daggerfall follows Doom through doors. Indoors there is no exterior position to apply.
+            if (InGame && transition.Update(game))
+            {
+                Engage(game);
+                game.DisableAI = !testEnemyAI;
+                game.PlayerEntity.PreventEnemySpawns = true;
+                long indoorNowNs = DfbNative.dfb_now_ns();
+                if (noDraw && indoorNowNs >= nextCameraCheckNs)
+                {
+                    nextCameraCheckNs = indoorNowNs + ApplyIntervalNs;
+                    HideWorld(game);
+                }
+                if (!game.PlayerEnterExit.IsRespawning)
+                    phase = PhasePlay;
+                return;
+            }
+
+            if (!world.isActiveAndEnabled || world.suppressWorld || game.PlayerEnterExit.IsPlayerInside)
                 return;
 
             Engage(game);
@@ -164,8 +195,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 HideWorld(game);
             }
 
-            // Seam for the task that moves Daggerfall indoors. Until then it stays stopped at the last
-            // outdoor position, which is the door the player used, and still answers menus.
+            // Doom is indoors but Daggerfall could not follow. It waits at the last outdoor position,
+            // which is the door the player used, and still answers menus.
             if (indoors)
             {
                 indoorFrames++;
@@ -222,6 +253,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             {
                 verifyPending = false;
                 worstApplyError = Math.Max(worstApplyError, Distance(gps.WorldX - targetX, gps.WorldZ - targetZ));
+                if (logAfterExit)
+                {
+                    logAfterExit = false;
+                    bridge.LogLine(string.Format("transition: back on Doom's position after the exit, off by {0:F1} units, gps {1},{2}, health {3}",
+                        Distance(gps.WorldX - targetX, gps.WorldZ - targetZ), gps.WorldX, gps.WorldZ, game.PlayerEntity.CurrentHealth));
+                }
             }
             if (areaPending && world.MapPixelX == areaX && world.MapPixelY == areaY)
             {
@@ -250,9 +287,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         // False means the world cannot take the position yet.
         internal bool ApplyForSave(ref DfbUzState peer)
         {
-            if (travelHold)
+            if (travelHold || transition.Pending)
                 return false;
             GameManager game = GameManager.Instance;
+            if (game.PlayerEnterExit.IsPlayerInside)
+                return !game.PlayerEnterExit.IsRespawning; // Really indoors, so the outdoor position does not apply.
             StreamingWorld world = game.StreamingWorld;
             bool known = peer.worldContext == WorldExterior ||
                 ((peer.worldContext == WorldInterior || peer.worldContext == WorldDungeon) && peer.mapPixelX >= 0 && peer.mapPixelY >= 0);
@@ -265,7 +304,26 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return true;
         }
 
-        internal bool PositionSettled { get { return GameManager.Instance.StreamingWorld.DoomerfallPositionSettled; } }
+        // The exterior streaming world does not update while the player is indoors.
+        internal bool PositionSettled
+        {
+            get
+            {
+                GameManager game = GameManager.Instance;
+                return game.PlayerEnterExit.IsPlayerInside ? !game.PlayerEnterExit.IsRespawning : game.StreamingWorld.DoomerfallPositionSettled;
+            }
+        }
+
+        // A load replaces Daggerfall's place. Doom reports its restored side of the door before the load ends.
+        internal bool LoadRunning { get; set; }
+
+        internal void OnTransitionEvent(uint action, uint seq, double x, double z, int target)
+        {
+            transition.OnEvent(action, seq, x, z, target);
+            logAfterExit = action == 2 || action == 4;
+            verifyPending = false; // A check still waiting from before the door would compare against an old target.
+            areaDirty = true; // Apply Doom's outdoor position as soon as the world allows it.
+        }
 
         // Daggerfall has moved the player itself. Holds until Doom reports the same map pixel.
         internal void BeginTravelHold(int pixelX, int pixelY)

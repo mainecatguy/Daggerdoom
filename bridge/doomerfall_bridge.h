@@ -79,6 +79,12 @@ extern "C" {
 #define DFB_KIND_LOAD_RESUME   18  /* DF to UZ; both games are ready and play continues; payload: dfb_save_done */
 #define DFB_KIND_HOLD          19  /* UZ to DF; p0 is 1 to hold Daggerfall paused at Doom's title, 0 to release */
 #define DFB_KIND_TRAVEL        20  /* DF to UZ; Daggerfall finished a fast travel, sent before the menu closes; payload: dfb_travel */
+#define DFB_KIND_TRANSITION    21  /* UZ to DF; the player went through a door, or a load restored this place; payload: dfb_transition */
+
+#define DFB_TRANSITION_ENTER_BUILDING 1u
+#define DFB_TRANSITION_EXIT_BUILDING  2u
+#define DFB_TRANSITION_ENTER_DUNGEON  3u
+#define DFB_TRANSITION_EXIT_DUNGEON   4u
 
 #define DFB_SAVE_OK      0u
 #define DFB_SAVE_REFUSED 1u  /* Daggerfall cannot save right now */
@@ -93,6 +99,7 @@ extern "C" {
 /* Daggerfall screens Doom can ask for. Add new menus here. */
 #define DFB_UI_NONE        0u
 #define DFB_UI_TRAVEL_MAP  1u
+#define DFB_UI_INVENTORY   2u
 
 #define DFB_UI_CLOSED      0u
 #define DFB_UI_OPENED      1u
@@ -205,6 +212,17 @@ typedef struct dfb_travel
 	int32_t map_pixel_y;
 	uint32_t pad;
 } dfb_travel;
+
+/* The outside door used, in Daggerfall world units. target is Doom's interior space or dungeon map id, for logs. */
+typedef struct dfb_transition
+{
+	uint32_t action;      /* DFB_TRANSITION_* */
+	uint32_t seq;
+	double door_x;
+	double door_z;
+	int32_t target;
+	uint32_t pad;
+} dfb_transition;
 
 /* Describes one frame in the UI surface. Pixels are BGRA, top row first, width * 4 bytes per row. */
 typedef struct dfb_surface_frame

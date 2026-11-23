@@ -1286,10 +1286,22 @@ namespace
 	//--------------------------------------------------------------------
 
 	// Parks every monster and item, then records the player and requests the other map.
-	// The one place Daggerfall will be told about a door transition. Position sync is a separate lane.
-	void NotifyTransition(const char *kind, const char *from, const char *to)
+	// The one place Daggerfall is told about a door transition. x and y are the outside door in world units.
+	// Actions are the bridge's DFB_TRANSITION_* values.
+	enum { TRANSITION_ENTER_BUILDING = 1, TRANSITION_EXIT_BUILDING, TRANSITION_ENTER_DUNGEON, TRANSITION_EXIT_DUNGEON };
+
+	void NotifyTransition(int action, const char *from, const char *to, double x, double y, int target)
 	{
-		Printf("DDTRANSITION %s from=%s to=%s\n", kind, from, to);
+		static const char *const names[] = { "", "enter-building", "exit-building", "enter-dungeon", "exit-dungeon" };
+		Printf("DDTRANSITION %s from=%s to=%s door=%.2f,%.2f target=%d\n", names[action], from, to, x, y, target);
+		DD_BridgeTransition(action, x, y, target);
+	}
+
+	// The return point is one step out from the door, along the direction the player faces on leaving.
+	DVector2 ReturnDoor()
+	{
+		const double yaw = returnPoint.yaw * M_PI / 180;
+		return DVector2(returnPoint.x - cos(yaw) * EXIT_STEP / DOOM_PER_DF, returnPoint.y - sin(yaw) * EXIT_STEP / DOOM_PER_DF);
 	}
 
 	struct DoorTarget { double x, y, z, yaw; bool atMapStart; DDPlayerArea area; };
@@ -1513,7 +1525,8 @@ namespace
 		returnPoint.y = (d.y + d.ny * EXIT_STEP) / DOOM_PER_DF + origin.originY;
 		returnPoint.z = d.z / DOOM_PER_DF + origin.ground;
 		returnPoint.yaw = atan2(d.ny, d.nx) * 180 / M_PI;
-		NotifyTransition(d.kind == 0 ? "enter-building" : "enter-dungeon", fromMap.GetChars(), map.GetChars());
+		const DVector2 door = ReturnDoor();
+		NotifyTransition(d.kind == 0 ? TRANSITION_ENTER_BUILDING : TRANSITION_ENTER_DUNGEON, fromMap.GetChars(), map.GetChars(), door.X, door.Y, d.target);
 		BeginHandoff(Level, pmo, map.GetChars(), nullptr, &target);
 		return true;
 	}
@@ -1534,8 +1547,9 @@ namespace
 				{
 					const DoorTarget target{ returnPoint.x, returnPoint.y, returnPoint.z, returnPoint.yaw, false, DD_AREA_EXTERIOR };
 					const FString back = returnPoint.map;
+					const DVector2 door = ReturnDoor();
 					returnPoint.valid = false;
-					NotifyTransition(t.spaceId >= DUNGEON_SPACE ? "exit-dungeon" : "exit-building", t.map.GetChars(), back.GetChars());
+					NotifyTransition(t.spaceId >= DUNGEON_SPACE ? TRANSITION_EXIT_DUNGEON : TRANSITION_EXIT_BUILDING, t.map.GetChars(), back.GetChars(), door.X, door.Y, t.spaceId);
 					BeginHandoff(Level, pmo, back.GetChars(), nullptr, &target);
 					return;
 				}
@@ -2012,6 +2026,25 @@ bool DDTreadmill_RequestTravel(double x, double y, double yawDegrees)
 {
 	if (!runtimeTowns || (!DDTreadmill_Active && !townActive) || x < 0 || y < 0 || x >= WORLD_W * PIXEL_TILES * 256.0 || y >= WORLD_H * PIXEL_TILES * 256.0) return false;
 	travel = { true, x, y, yawDegrees };
+	return true;
+}
+
+bool DDTreadmill_CurrentDoor(int &action, double &x, double &y, int &target)
+{
+	if (!primaryLevel) return false;
+	action = TRANSITION_EXIT_BUILDING;	// Outdoors: Daggerfall leaves whatever it is in, and ignores the door.
+	x = y = 0;
+	target = 0;
+	const int index = TownForMap(primaryLevel->MapName);
+	if (index < 0) return primaryLevel->MapName.CompareNoCase("DDOVER01") == 0;
+	const Town &t = towns[index];
+	if (!t.space) return true;
+	if (!returnPoint.valid) return false;
+	const DVector2 door = ReturnDoor();
+	action = t.spaceId >= DUNGEON_SPACE ? TRANSITION_ENTER_DUNGEON : TRANSITION_ENTER_BUILDING;
+	x = door.X;
+	y = door.Y;
+	target = t.spaceId >= DUNGEON_SPACE ? t.dungeonMapId : t.spaceId;
 	return true;
 }
 

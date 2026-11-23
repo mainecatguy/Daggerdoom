@@ -85,7 +85,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         const uint ProtocolVersion = 4;
         const int SideDf = 1;
         const int Got = 1;
-        const ushort KindHello = 1, KindPing = 2, KindPong = 3, KindText = 4, KindArea = 5, KindUiOpen = 6, KindUiClose = 7, KindUiInput = 8, KindHp = 11, KindSaveRequest = 12, KindSaveDone = 14, KindLoadRequest = 15, KindLoadDone = 17, KindHold = 19;
+        const ushort KindHello = 1, KindPing = 2, KindPong = 3, KindText = 4, KindArea = 5, KindUiOpen = 6, KindUiClose = 7, KindUiInput = 8, KindHp = 11, KindSaveRequest = 12, KindSaveDone = 14, KindLoadRequest = 15, KindLoadDone = 17, KindHold = 19, KindTransition = 21;
         const long PingIntervalNs = 50000000, LogIntervalNs = 2000000000, StaleNs = 1000000000;
         const int SampleCount = 1024;
 
@@ -334,6 +334,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         break;
                     case KindArea: // payload: context, pixel x, pixel y, sequence, sent_ns
                         sync.OnAreaEvent((uint)ev.p0, (int)(ev.p0 >> 32), (int)(uint)ev.p1, (long)ev.p2);
+                        break;
+                    case KindTransition: // payload: action, sequence, door x, door z, target
+                        sync.OnTransitionEvent((uint)ev.p0, (uint)(ev.p0 >> 32), BitConverter.Int64BitsToDouble((long)ev.p1),
+                            BitConverter.Int64BitsToDouble((long)ev.p2), (int)(uint)ev.p3);
                         break;
                     case KindUiOpen:
                         ui.OnOpen((uint)ev.p0);
