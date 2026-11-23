@@ -21,9 +21,13 @@
 #include "c_bind.h"
 #include "c_cvars.h"
 #include "c_dispatch.h"
+#include "d_event.h"
+#include "d_net.h"
+#include "d_protocol.h"
 #include "doomstat.h"
 #include "engineerrors.h"
 #include "fs_decompress.h"
+#include "g_game.h"
 #include "g_levellocals.h"
 #include "gamestate.h"
 #include "i_interface.h"
@@ -46,7 +50,7 @@ FARG_ADVANCED(dfbridgelog, "Doomerfall", "file", "Appends Doomerfall bridge traf
 FARG_ADVANCED(dfuitest, "Doomerfall", "count", "Bridge test only: opens the fast travel menu this many times.");
 FARG_ADVANCED(dfbridgetestpause, "Doomerfall", "ext|game|menu", "Bridge test only: enters a pause state for six seconds.");
 
-FARG_ADVANCED(dfsavetest, "Doomerfall", "file", "Save test only: makes one synchronized save to this file, then quits.");
+FARG_ADVANCED(dfsavetest, "Doomerfall", "file|autoN", "Save test only: makes one synchronized save to this file, or N real autosaves, then quits.");
 FARG_ADVANCED(dfsavetestfail, "Doomerfall", "uz_zip|uz_commit|uz_crash", "Save test only: fails the save at this step.");
 
 FARG_ADVANCED(dfhptest, "Doomerfall", "basic|monsters", "HP sync test only: scripts hits, heals, and a lethal hit.");
@@ -827,6 +831,21 @@ std::vector<std::vector<uint8_t>> saveBuffers;
 const char *saveTestFile, *saveTestFail;
 bool saveTestStarted;
 int64_t saveTestAtNs;
+int saveTestAutos; // Autosaves still to trigger in an autoN test.
+bool saveIsAuto, autosaveHeld;
+int64_t autosaveHeldUntil, saveReplyNs;
+constexpr int64_t AutosaveHoldNs = 60000000000LL;
+
+bool SaveOnDaggerfallMap()
+{
+	double x, y, z, yaw;
+	return gamestate == GS_LEVEL && DDTreadmill_PlayerWorld(x, y, z, yaw) != DD_AREA_NONE;
+}
+
+bool SaveReady()
+{
+	return uiState == UiClosed && !DDTreadmill_HandoffPending() && peerSeen && !peerStale && peerState.df_phase == DFB_DF_PHASE_PLAY;
+}
 
 fs::path SavePath(const char *utf8) { return fs::path(std::u8string(reinterpret_cast<const char8_t *>(utf8))); }
 
@@ -853,9 +872,12 @@ void SaveFinish(bool committed, const char *why)
 	saveBuffers.clear();
 	saveState = SaveIdle;
 	pauseext = saveSavedPause;
-	Log("save %u: %s (%s), %.1f ms", saveTxn, committed ? "committed" : "FAILED, previous save untouched", why, (dfb_now_ns() - saveStartNs) / 1e6);
+	const int64_t endNs = dfb_now_ns();
+	Log("save %u: %s%s (%s), %.1f ms frozen, Daggerfall %.1f ms, Doom %.1f ms", saveTxn, saveIsAuto ? "autosave " : "",
+		committed ? "committed" : "FAILED, previous save untouched", why, (endNs - saveStartNs) / 1e6,
+		saveReplyNs ? (saveReplyNs - saveStartNs) / 1e6 : 0.0, saveReplyNs ? (endNs - saveReplyNs) / 1e6 : 0.0);
 	if (!committed) Printf(PRINT_HIGH, "Save failed: %s. Your previous save is unchanged.\n", why);
-	if (saveTestFile) C_DoCommand("quit");
+	if (saveTestFile && (saveTestAutos <= 0 || !committed)) C_DoCommand("quit");
 }
 
 bool SaveAddEntry(TArray<FCompressedBuffer> &content, TArray<FString> &names, const FString &name, const uint8_t *data, size_t size)
@@ -903,7 +925,7 @@ void SaveRun()
 	}
 	try
 	{
-		G_DoSaveGame(true, false, saveFile, saveDescription.GetChars());
+		G_DoSaveGame(!saveIsAuto, false, saveFile, saveDescription.GetChars());
 	}
 	catch (const CRecoverableError &error)
 	{
@@ -929,13 +951,31 @@ void HandleSaveReply(const dfb_event &e)
 	}
 	saveReply = body;
 	saveHaveReply = true;
+	saveReplyNs = dfb_now_ns();
 	Log("save %u: Daggerfall prepared %u files, %llu bytes, hp %d/%d, position %d,%d", body.txn, body.file_count,
 		(unsigned long long)body.total_bytes, body.hp_current, body.hp_max, body.world_x, body.world_z);
 }
 
 void PumpSave(int64_t now)
 {
-	if (saveTestFile && !saveTestStarted && peerSeen && gamestate == GS_LEVEL && peerState.df_phase == DFB_DF_PHASE_PLAY)
+	if (saveTestFile && !strncmp(saveTestFile, "auto", 4))
+	{
+		// Goes through the same net command as a real autosave.
+		if (!saveTestStarted && gamestate == GS_LEVEL && SaveReady())
+		{
+			saveTestStarted = true;
+			saveTestAutos = std::max(atoi(saveTestFile + 4), 1);
+			saveTestAtNs = now + 2000000000LL;
+		}
+		if (saveTestAutos > 0 && saveState == SaveIdle && now >= saveTestAtNs && gamestate == GS_LEVEL && SaveReady())
+		{
+			saveTestAutos--;
+			saveTestAtNs = now + 1500000000LL;
+			for (int i = 0; i < 5; i++) HpSend(DFB_HP_HIT, 1, "autosave test");
+			Net_WriteInt8(DEM_CHECKAUTOSAVE);
+		}
+	}
+	else if (saveTestFile && !saveTestStarted && peerSeen && gamestate == GS_LEVEL && peerState.df_phase == DFB_DF_PHASE_PLAY)
 	{
 		if (!saveTestAtNs) saveTestAtNs = now + 2000000000LL;
 		if (now >= saveTestAtNs)
@@ -943,6 +983,20 @@ void PumpSave(int64_t now)
 			saveTestStarted = true;
 			for (int i = 0; i < 20; i++) HpSend(DFB_HP_HIT, 1, "save test"); // In flight when the request is sent.
 			G_SaveGame(saveTestFile, "Doomerfall save test", false);
+		}
+	}
+	// An autosave that came while Daggerfall was busy runs as soon as it is ready.
+	if (autosaveHeld && saveState == SaveIdle)
+	{
+		if (now > autosaveHeldUntil || !SaveOnDaggerfallMap())
+		{
+			autosaveHeld = false;
+			Log("save: dropped a held autosave");
+		}
+		else if (SaveReady() && gameaction == ga_nothing && !paused && !pauseext && players[consoleplayer].playerstate == PST_LIVE)
+		{
+			autosaveHeld = false;
+			gameaction = ga_autosave;
 		}
 	}
 	if (saveState != SaveWaiting) return;
@@ -959,17 +1013,45 @@ void PumpSave(int64_t now)
 
 bool DD_BridgeSaveActive() { return saveState != SaveIdle; }
 
+// G_DoAutoSave: true while Daggerfall cannot save yet on a Daggerfall map. The autosave then runs when it can,
+// so a Daggerfall map never gets a Doom-only autosave.
+bool DD_BridgeAutosaveHold()
+{
+	if (!session || !SaveOnDaggerfallMap()) return false;
+	if (saveState == SaveIdle && SaveReady()) return false;
+	if (!autosaveHeld) Log("save: holding an autosave until Daggerfall is ready");
+	autosaveHeld = true;
+	autosaveHeldUntil = dfb_now_ns() + AutosaveHoldNs;
+	return true;
+}
+
+static bool SaveStart(const char *filename, const char *description, bool isAuto);
+
+// G_DoAutoSave: true means the bridge took this autosave.
+bool DD_BridgeAutosaveBegin(const char *filename, const char *description)
+{
+	if (!session || !SaveOnDaggerfallMap()) return false;
+	return SaveStart(filename, description, true);
+}
+
 // G_SaveGame, for a save from the menu or console. True means the bridge took it, or refused it with a message.
 bool DD_BridgeSaveBegin(const char *filename, const char *description)
 {
-	if (!session || (ownState.world_context == DFB_WORLD_NONE && !saveTestFile)) return false; // A regular WAD saves normally.
+	if (!session || (!SaveOnDaggerfallMap() && !saveTestFile)) return false; // A regular WAD saves normally.
+	return SaveStart(filename, description, false);
+}
+
+static bool SaveStart(const char *filename, const char *description, bool isAuto)
+{
 	if (saveState != SaveIdle) { Printf("A save is already in progress.\n"); return true; }
-	if (uiState != UiClosed || DDTreadmill_HandoffPending() || !peerSeen || peerStale || peerState.df_phase != DFB_DF_PHASE_PLAY)
+	if (!SaveReady())
 	{
 		Printf(PRINT_HIGH, "Cannot save right now. Daggerfall is not ready.\n");
 		Log("save: refused before starting, Daggerfall phase %u, stale %d", peerState.df_phase, int(peerStale));
 		return true;
 	}
+	saveIsAuto = isAuto;
+	saveReplyNs = 0;
 	saveFile = filename;
 	saveDescription = description;
 	saveTxn++;

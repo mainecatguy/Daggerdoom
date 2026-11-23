@@ -125,6 +125,8 @@ void G_DoPlayDemo (void);
 void G_DoSaveGame (bool okForQuicksave, bool forceQuicksave, FString filename, const char *description);
 // Doomerfall: synchronized saves on Daggerfall maps. All do nothing outside a bridge save.
 bool DD_BridgeSaveBegin(const char *filename, const char *description);
+bool DD_BridgeAutosaveHold();
+bool DD_BridgeAutosaveBegin(const char *filename, const char *description);
 FString DD_BridgeSaveWritePath(const FString &filename);
 bool DD_BridgeSaveAddFiles(TArray<FCompressedBuffer> &content, TArray<FString> &names);
 bool DD_BridgeSaveCommit(const FString &written, const FString &filename);
@@ -2302,6 +2304,9 @@ void G_DoAutoSave ()
 	if (netgame)
 		return;
 
+	if (DD_BridgeAutosaveHold()) // Doomerfall: runs once Daggerfall can save too
+		return;
+
 	FString description;
 	FString file;
 	// Keep up to four autosaves at a time
@@ -2332,6 +2337,8 @@ void G_DoAutoSave ()
 
 	readableTime = myasctime ();
 	description.Format("Autosave %s", readableTime);
+	if (DD_BridgeAutosaveBegin(file.GetChars(), description.GetChars())) // Doomerfall: bundles both games on a Daggerfall map
+		return;
 	G_DoSaveGame (false, false, file, description.GetChars());
 }
 

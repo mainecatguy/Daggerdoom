@@ -46,8 +46,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         public uint Phase { get { return phase; } }
 
-        // True once the test start has put Daggerfall in a game. The real startup flow replaces this.
-        public bool InGame { get { return testWorldReady; } }
+        // True once Daggerfall is in a game, from the test start or a normal one.
+        public bool InGame { get { return testWorldReady || (GameManager.HasInstance && GameManager.Instance.StateManager.GameInProgress); } }
 
         public void Init(DoomerfallBridge owner, string[] args)
         {

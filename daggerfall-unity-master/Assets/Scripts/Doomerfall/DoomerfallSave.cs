@@ -31,6 +31,23 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             hp = playerHp;
             int fail = Array.IndexOf(args, "-dfsavetestfail");
             testFail = fail >= 0 && fail + 1 < args.Length && args[fail + 1] == "df_write";
+            if (Array.IndexOf(args, "-dfplainsavetest") >= 0)
+                StartCoroutine(PlainSaveTest());
+        }
+
+        // Test only: a normal Daggerfall save through its own entry point, into the private portable folder.
+        IEnumerator PlainSaveTest()
+        {
+            while (!sync.InGame || sync.Phase != PhasePlay)
+                yield return null;
+            yield return new WaitForSecondsRealtime(1f);
+            SaveLoadManager saves = GameManager.Instance.SaveLoadManager;
+            string character = GameManager.Instance.PlayerEntity.Name;
+            saves.Save(character, "PlainSaveTest");
+            yield return new WaitForSecondsRealtime(2f);
+            int key = saves.FindSaveFolderByNames(character, "PlainSaveTest");
+            string folder = key >= 0 ? saves.GetSaveFolder(key) : null;
+            bridge.LogLine("plain save test: " + (folder == null ? "no save found" : "files " + string.Join(",", Array.ConvertAll(Directory.GetFiles(folder), Path.GetFileName))));
         }
 
         public void OnRequest(uint txn, uint hpSentThrough)
@@ -145,7 +162,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
             catch (Exception e)
             {
-                Fail(txn, e.Message);
+                Fail(txn, e.ToString());
                 yield break;
             }
             bridge.LogLine(string.Format("save {0}: wrote {1} files, {2} bytes, hp {3}, position {4},{5}", txn, files, bytes,

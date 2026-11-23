@@ -1191,9 +1191,13 @@ namespace DaggerfallWorkshop.Game.Serialization
             if (!File.Exists(Path.Combine(path, bioFileName)))
             {
                 StreamWriter file = new StreamWriter(Path.Combine(path, bioFileName).ToString());
-                foreach (string line in GameManager.Instance.PlayerEntity.BackStory)
+                // Doomerfall: a character without a backstory must not abort the save with this file open.
+                if (GameManager.Instance.PlayerEntity.BackStory != null)
                 {
-                    file.WriteLine(line);
+                    foreach (string line in GameManager.Instance.PlayerEntity.BackStory)
+                    {
+                        file.WriteLine(line);
+                    }
                 }
                 file.Close();
             }
@@ -1209,6 +1213,8 @@ namespace DaggerfallWorkshop.Game.Serialization
             {
                 string message = string.Format("Failed to save automap state. Message: {0}", ex.Message);
                 Debug.Log(message);
+                if (stagingFolder != null)
+                    throw; // Doomerfall: a bundle must not silently lose the automap.
             }
 
             // Save mod data
