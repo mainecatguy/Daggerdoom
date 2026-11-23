@@ -340,7 +340,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                             BitConverter.Int64BitsToDouble((long)ev.p2), (int)(uint)ev.p3);
                         break;
                     case KindUiOpen:
-                        ui.OnOpen((uint)ev.p0);
+                        ui.OnOpen((uint)ev.p0, (uint)(ev.p0 >> 32));
                         break;
                     case KindUiClose:
                         ui.OnClose((uint)ev.p0);

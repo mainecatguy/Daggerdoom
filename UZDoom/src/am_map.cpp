@@ -241,10 +241,13 @@ CCMD(am_gobig)
 		primaryLevel->automap->GoBig();
 }
 
+bool DD_BridgeToggleMap(); // Doomerfall: false outside a bridge session and on regular Doom maps
+
 CCMD(togglemap)
 {
 	if (gameaction == ga_nothing)
 	{
+		if (DD_BridgeToggleMap()) return; // Doomerfall: on a Daggerfall map, Daggerfall's map opens instead.
 		AM_ToggleMap();
 	}
 }

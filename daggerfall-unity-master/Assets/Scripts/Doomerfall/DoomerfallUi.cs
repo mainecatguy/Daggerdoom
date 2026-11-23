@@ -208,7 +208,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
     [DefaultExecutionOrder(-32000)]
     public sealed class DoomerfallUi : MonoBehaviour
     {
-        const uint UiTravelMap = 1, UiInventory = 2;
+        const uint UiTravelMap = 1, UiInventory = 2, UiMap = 3;
+        const uint WorldExterior = 1, WorldInterior = 2, WorldDungeon = 3;
         const int HudFramesToClose = 2; // A window can post the next window as it closes, which appears a frame later.
         const uint StateClosed = 0, StateOpened = 1;
         const uint ReasonUser = 1, ReasonRefused = 2, ReasonResult = 3, ReasonDoom = 4;
@@ -225,7 +226,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         IUserInterfaceWindow lastTop;
         RenderTexture scaled;
         uint openId;
-        bool waitingForWindow, windowOpen, travelArriving;
+        bool waitingForWindow, windowOpen, travelArriving, showingTravelMap;
         float travelWaitUntil;
         uint closeReason;
         int waitFrames, hudFrames, pending, surfaceWidth, surfaceHeight;
@@ -304,17 +305,50 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
         }
 
-        public void OnOpen(uint id)
+        public void OnOpen(uint id, uint doomContext)
         {
             if (openId != 0)
                 return;
             openId = id;
             closeReason = 0;
             waitFrames = hudFrames = 0;
-            if ((id != UiTravelMap && id != UiInventory) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
+            showingTravelMap = id == UiTravelMap;
+            if ((id != UiTravelMap && id != UiInventory && id != UiMap) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
             {
                 Finish(ReasonRefused);
                 return;
+            }
+
+            string message = id == UiInventory ? DaggerfallUIMessages.dfuiOpenInventoryWindow : DaggerfallUIMessages.dfuiOpenTravelMapWindow;
+            if (id == UiMap)
+            {
+                // The map must describe the place Doom is showing, so wait out a door still in progress.
+                PlayerEnterExit enter = GameManager.Instance.PlayerEnterExit;
+                uint actual = enter.IsPlayerInsideDungeon ? WorldDungeon : enter.IsPlayerInside ? WorldInterior : WorldExterior;
+                if (actual != doomContext)
+                {
+                    bridge.LogLine(string.Format("ui: map refused, Doom is in area {0} and Daggerfall in {1}", doomContext, actual));
+                    Finish(ReasonRefused);
+                    return;
+                }
+
+                // Daggerfall has no automap for the wilderness, so its real map there is the travel map.
+                PlayerGPS gps = GameManager.Instance.PlayerGPS;
+                DaggerfallConnect.Utility.DFPosition pixel = gps.CurrentMapPixel;
+                ContentReader.MapSummary summary;
+                bool hasLocation = DaggerfallUnity.Instance.ContentReader.HasLocation(pixel.X, pixel.Y, out summary);
+                // The exterior automap draws GPS's current location, which trails a map pixel change.
+                if (!enter.IsPlayerInside && hasLocation && (!gps.HasCurrentLocation || gps.CurrentLocation.MapTableData.MapId != summary.MapID))
+                {
+                    bridge.LogLine(string.Format("ui: map refused, location at pixel {0},{1} has not loaded yet", pixel.X, pixel.Y));
+                    Finish(ReasonRefused);
+                    return;
+                }
+                bool hasAutomap = enter.IsPlayerInside || hasLocation;
+                showingTravelMap = !hasAutomap;
+                if (hasAutomap)
+                    message = DaggerfallUIMessages.dfuiOpenAutomap;
+                bridge.LogLine(string.Format("ui: map for area {0} at pixel {1},{2} uses {3}", actual, pixel.X, pixel.Y, hasAutomap ? (enter.IsPlayerInside ? "interior automap" : "exterior automap") : "travel map"));
             }
 
             if (!target)
@@ -329,7 +363,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DoomerfallInput.Begin();
             waitingForWindow = true;
             LogWorldState("before");
-            DaggerfallUI.PostMessage(id == UiInventory ? DaggerfallUIMessages.dfuiOpenInventoryWindow : DaggerfallUIMessages.dfuiOpenTravelMapWindow);
+            DaggerfallUI.PostMessage(message);
         }
 
         public void OnClose(uint id)
@@ -393,7 +427,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         // finishes over the next frames, so Doom stays paused behind the menu until it has settled.
         void OnPostFastTravel()
         {
-            if (openId != UiTravelMap)
+            if (openId == 0 || !showingTravelMap)
                 return;
             GameManager game = GameManager.Instance;
             StreamingWorld world = game.StreamingWorld;
