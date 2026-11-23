@@ -20,7 +20,7 @@ Demo: `D:\dev\DoomDaggerfall-loop\review\town-stitch\play.bat`. You start in the
 ## What I learned
 
 - **The 12-tile margin crash was recursion in `MapLoader::FloodZone`.** Marking terrain lines as zone boundaries avoids it, so **the stack size did not need raising**.
-- **A "max-size" map is not 341 tiles in the stock engine.** `R_PointOnSide` uses 32-bit deltas, which wrap once a point is more than 32,768 units from a node line. The city group spans about 61,000 units, and 329 of 39,870 test points landed in the wrong sector. A small patch uses 64-bit math, only while a generated town map is loaded.
+- **A "max-size" map is not 341 tiles in the stock engine.** `R_PointOnSide` uses 32-bit deltas, which wrap once a point is more than 32,768 units from a node line. The city group's map spans about 63,500 units north to south, and 329 of 39,870 test points landed in the wrong sector. A small patch uses 64-bit math, only while a generated town map is loaded.
 - A constant `false` in a ZScript `if` condition made the whole function body stop running in my test harness. I did not find the cause in the compiler. The harness now assigns those flags at run time.
 
 ## Engine changes
