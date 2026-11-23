@@ -832,7 +832,8 @@ const char *saveTestFile, *saveTestFail;
 bool saveTestStarted;
 int64_t saveTestAtNs;
 int saveTestAutos; // Autosaves still to trigger in an autoN test.
-bool saveIsAuto, autosaveHeld;
+bool saveIsAuto, autosaveHeld, saveStartPending, savePendingAuto;
+FString savePendingFile, savePendingDescription;
 int64_t autosaveHeldUntil, saveReplyNs;
 constexpr int64_t AutosaveHoldNs = 60000000000LL;
 
@@ -877,7 +878,7 @@ void SaveFinish(bool committed, const char *why)
 		committed ? "committed" : "FAILED, previous save untouched", why, (endNs - saveStartNs) / 1e6,
 		saveReplyNs ? (saveReplyNs - saveStartNs) / 1e6 : 0.0, saveReplyNs ? (endNs - saveReplyNs) / 1e6 : 0.0);
 	if (!committed) Printf(PRINT_HIGH, "Save failed: %s. Your previous save is unchanged.\n", why);
-	if (saveTestFile && (saveTestAutos <= 0 || !committed)) C_DoCommand("quit");
+	if (saveTestFile && saveTestAutos <= 0) C_DoCommand("quit"); // An autoN test continues after a failure, to prove play resumes.
 }
 
 bool SaveAddEntry(TArray<FCompressedBuffer> &content, TArray<FString> &names, const FString &name, const uint8_t *data, size_t size)
@@ -956,8 +957,16 @@ void HandleSaveReply(const dfb_event &e)
 		(unsigned long long)body.total_bytes, body.hp_current, body.hp_max, body.world_x, body.world_z);
 }
 
+bool SaveStart(const char *filename, const char *description, bool isAuto);
+
 void PumpSave(int64_t now)
 {
+	// Here no game tic is running, so nothing can happen in Doom between its final state and the request.
+	if (saveStartPending && saveState == SaveIdle)
+	{
+		saveStartPending = false;
+		SaveStart(savePendingFile.GetChars(), savePendingDescription.GetChars(), savePendingAuto);
+	}
 	if (saveTestFile && !strncmp(saveTestFile, "auto", 4))
 	{
 		// Goes through the same net command as a real autosave.
@@ -1018,33 +1027,44 @@ bool DD_BridgeSaveActive() { return saveState != SaveIdle; }
 bool DD_BridgeAutosaveHold()
 {
 	if (!session || !SaveOnDaggerfallMap()) return false;
-	if (saveState == SaveIdle && SaveReady()) return false;
+	if (saveState == SaveIdle && !saveStartPending && SaveReady()) return false;
 	if (!autosaveHeld) Log("save: holding an autosave until Daggerfall is ready");
 	autosaveHeld = true;
 	autosaveHeldUntil = dfb_now_ns() + AutosaveHoldNs;
 	return true;
 }
 
-static bool SaveStart(const char *filename, const char *description, bool isAuto);
+// Saves are asked for during a tic or menu event and start at the next frame.
+static bool SaveQueue(const char *filename, const char *description, bool isAuto)
+{
+	if (saveState != SaveIdle || saveStartPending) { Printf("A save is already in progress.\n"); return true; }
+	savePendingFile = filename;
+	savePendingDescription = description;
+	savePendingAuto = isAuto;
+	saveStartPending = true;
+	return true;
+}
 
 // G_DoAutoSave: true means the bridge took this autosave.
 bool DD_BridgeAutosaveBegin(const char *filename, const char *description)
 {
 	if (!session || !SaveOnDaggerfallMap()) return false;
-	return SaveStart(filename, description, true);
+	return SaveQueue(filename, description, true);
 }
 
 // G_SaveGame, for a save from the menu or console. True means the bridge took it, or refused it with a message.
 bool DD_BridgeSaveBegin(const char *filename, const char *description)
 {
 	if (!session || (!SaveOnDaggerfallMap() && !saveTestFile)) return false; // A regular WAD saves normally.
-	return SaveStart(filename, description, false);
+	return SaveQueue(filename, description, false);
 }
 
-static bool SaveStart(const char *filename, const char *description, bool isAuto)
+namespace
+{
+bool SaveStart(const char *filename, const char *description, bool isAuto)
 {
 	if (saveState != SaveIdle) { Printf("A save is already in progress.\n"); return true; }
-	if (!SaveReady())
+	if (gamestate != GS_LEVEL || players[consoleplayer].health <= 0 || !SaveReady())
 	{
 		Printf(PRINT_HIGH, "Cannot save right now. Daggerfall is not ready.\n");
 		Log("save: refused before starting, Daggerfall phase %u, stale %d", peerState.df_phase, int(peerStale));
@@ -1082,6 +1102,7 @@ static bool SaveStart(const char *filename, const char *description, bool isAuto
 	dfb_flush(session);
 	Log("save %u: Doom frozen at tic %d, requested Daggerfall's save", saveTxn, gametic);
 	return true;
+}
 }
 
 FString DD_BridgeSaveWritePath(const FString &filename)

@@ -43,6 +43,7 @@ ap.add_argument("--extra-uz", action="append", default=[])
 ap.add_argument("--extra-df", action="append", default=[])
 ap.add_argument("--no-savetest", action="store_true", help="the run's own commands make the save")
 ap.add_argument("--bundle", default="bundle.zds", help="the save file to check")
+ap.add_argument("--mod", action="append", default=[], help="an extra mod to load")
 ap.add_argument("--auto", type=int, default=0, help="make this many real autosaves instead of a menu save")
 ap.add_argument("--until", default="", help="stop when this text appears in Doom's bridge log")
 args = ap.parse_args()
@@ -51,7 +52,7 @@ run = REVIEW / "test" / args.name
 (run / "saves").mkdir(parents=True, exist_ok=True)
 uz_log, df_log = run / "uz.log", run / "df.log"
 save = run / "saves" / args.bundle
-for path in (uz_log, df_log, run / "launcher.log", run / "console.txt"):
+for path in (uz_log, df_log, run / "launcher.log", run / "log-console.txt"):
     path.unlink(missing_ok=True)
 if not args.keep_old:
     save.unlink(missing_ok=True)
@@ -60,7 +61,7 @@ registry_before = registry_hash()
 
 uz = ["-noactivate", "-config", str(run / "uz.ini"), "-savedir", str(run / "saves"), "-dfbridgelog", str(uz_log), "-nosound",
       "-ddtowncache", str(DATA / "cache"), "-ddconverter", str(DATA / "converter" / "DungeonConverter.exe"),
-      "-ddarena2", str(GAME / "DAGGER" / "ARENA2"), "-skill", "3", "+logfile", str(run / "console.txt"), "+map", args.map,
+      "-ddarena2", str(GAME / "DAGGER" / "ARENA2"), "-noautoload", "-skill", "3", "+logfile", "console", "+map", args.map,
       "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"]
 if args.auto:
     uz += ["-dfsavetest", f"auto{args.auto}", "+autosavecount", "1"]  # One slot, so a failed autosave targets the previous file.
@@ -79,6 +80,8 @@ command = [sys.executable, QUIET, "--timeout", str(args.timeout), "--", str(REVI
            "--iwad", str(GAME / "wads" / "DOOM2.WAD"), "--uzdoom-cwd", str(run), "--log", str(run / "launcher.log")]
 for mod in ("ddruntime.pk3", "overworld.pk3", "privateershold.wad", "privateershold_mesh.pk3", "privateershold_doors.pk3"):
     command += ["--mod", str(DATA / mod)]
+for mod in args.mod:
+    command += ["--mod", mod]
 for arg in uz:
     command += ["--uzdoom-arg", arg]
 for arg in df:
@@ -93,7 +96,8 @@ while time.time() < end:
         break
     time.sleep(0.25)
     text = uz_log.read_text(errors="replace") if uz_log.exists() else ""
-    console = (run / "console.txt").read_text(errors="replace") if (run / "console.txt").exists() else ""
+    text += df_log.read_text(errors="replace") if df_log.exists() else ""
+    console = (run / "log-console.txt").read_text(errors="replace") if (run / "log-console.txt").exists() else ""
     if any(k in console for k in FATAL):
         reason = "fatal"
         break
@@ -108,12 +112,12 @@ if proc.poll() is None:
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 print("stopped:", reason)
-for path, keys in ((uz_log, ("save", "Save")), (df_log, ("save ", "error", "sync test: entered"))):
+for path, keys in ((uz_log, ("save", "Save")), (df_log, ("save ", "error", "sync test: entered", "plain save test", "load test"))):
     for line in path.read_text(errors="replace").splitlines() if path.exists() else []:
         if any(k in line for k in keys) and "hp: sent" not in line:
             print(path.stem, line[:230])
-for line in (run / "console.txt").read_text(errors="replace").splitlines() if (run / "console.txt").exists() else []:
-    if any(k in line for k in FATAL) or "Save failed" in line:
+for line in (run / "log-console.txt").read_text(errors="replace").splitlines() if (run / "log-console.txt").exists() else []:
+    if any(k in line for k in FATAL) or "Save failed" in line or "SAVEHORDE" in line:
         print("console", line[:200])
 
 registry_after = registry_hash()

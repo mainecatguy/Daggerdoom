@@ -33,6 +33,28 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             testFail = fail >= 0 && fail + 1 < args.Length && args[fail + 1] == "df_write";
             if (Array.IndexOf(args, "-dfplainsavetest") >= 0)
                 StartCoroutine(PlainSaveTest());
+            int load = Array.IndexOf(args, "-dfloadsavetest");
+            if (load >= 0 && load + 1 < args.Length)
+                StartCoroutine(LoadSaveTest(args[load + 1]));
+        }
+
+        // Test only: loads a Daggerfall half taken out of a bundle, through Daggerfall's normal loader.
+        IEnumerator LoadSaveTest(string saveName)
+        {
+            while (!sync.InGame || sync.Phase != PhasePlay)
+                yield return null;
+            yield return new WaitForSecondsRealtime(1f);
+            SaveLoadManager saves = GameManager.Instance.SaveLoadManager;
+            saves.EnumerateSaves();
+            SaveLoadManager.OnLoad += LogLoaded;
+            saves.Load(GameManager.Instance.PlayerEntity.Name, saveName);
+        }
+
+        void LogLoaded(SaveData_v1 data)
+        {
+            SaveLoadManager.OnLoad -= LogLoaded;
+            bridge.LogLine(string.Format("load test: loaded health {0}/{1}, position {2},{3}", GameManager.Instance.PlayerEntity.CurrentHealth,
+                GameManager.Instance.PlayerEntity.MaxHealth, data.playerData.playerPosition.worldPosX, data.playerData.playerPosition.worldPosZ));
         }
 
         // Test only: a normal Daggerfall save through its own entry point, into the private portable folder.
@@ -97,6 +119,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (pausedBySave)
                 GameManager.Instance.PauseGame(false);
             pausedBySave = false;
+            bridge.LogLine("save " + activeTxn + ": resumed, paused " + GameManager.IsGamePaused + ", time scale " + Time.timeScale);
         }
 
         string RefusalReason(uint hpSentThrough)

@@ -223,12 +223,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         }
 
         // Save handshake: moves Daggerfall to Doom's frozen position now instead of at the next update.
-        // Indoors the position stays at the door. False means the world cannot take the position yet.
+        // Indoors Doom keeps publishing the door it used, which the once-a-second update may not have reached.
+        // False means the world cannot take the position yet.
         internal bool ApplyForSave(ref DfbUzState peer)
         {
             GameManager game = GameManager.Instance;
             StreamingWorld world = game.StreamingWorld;
-            if (peer.worldContext == WorldExterior)
+            bool known = peer.worldContext == WorldExterior ||
+                ((peer.worldContext == WorldInterior || peer.worldContext == WorldDungeon) && peer.mapPixelX >= 0 && peer.mapPixelY >= 0);
+            if (known)
             {
                 if (!world.DoomerfallPositionSettled)
                     return false;
