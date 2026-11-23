@@ -38,6 +38,14 @@ Build the existing non-random main quest dungeons and about 5 random dungeons wi
 
 Tell the owner wherever a dungeon requires climbing or levitation to progress, with the dungeon and location. Fixing what this finds is separate work.
 
+### 6. Town building colliders
+
+Building colliders in towns currently stretch up forever instead of ending at roof height. Generate them so the player can climb onto buildings:
+
+- Find the building's sides and model those, ignoring any part of the roof that overhangs them.
+- Go up from the sides and stop at the top of the building.
+- If the roof is sloped, apply the correct slope to the Doom collider.
+
 ## Held for owner review
 
 Approved work that waits until the owner has reviewed the bridge core. Automated loops do not take these yet.
@@ -50,7 +58,7 @@ Keep Daggerfall and Doom loaded into the same area, through a deterministic coor
 - Daggerfall must keep the same world objects in memory as Doom, so leave its terrain and location streaming running and measure the cost.
 - Daggerfall's hidden player must not take fall damage, get stuck, or trigger anything from being moved this way.
 - Daggerfall's 3D drawing is controlled by a flag the launcher passes, such as `--nodraw`. Without the flag Daggerfall draws normally, because tests compare screenshots from both games to check areas and LODs. The simulation safeguards below apply either way.
-- The hidden Daggerfall world must not change real game state on its own. How to do that is an engineering call. The suggested approach is to stop the hidden player's motor and physics, and turn off AI and attacks for Daggerfall's enemies while keeping those objects in memory. Leave peaceful NPCs alone until the NPC design is settled. Avoid a blanket god mode, because it would also block legitimate Daggerfall effects such as poison and could hide bugs.
+- The hidden Daggerfall world must not change real game state on its own. How to do that is an engineering call. The suggested approach is to stop the hidden player's motor and physics, and turn off AI and attacks for Daggerfall's enemies while keeping those objects in memory. Leave peaceful NPCs alone until the NPC design is settled. 
 
 ### Show Daggerfall's fast travel menu in Doom
 
