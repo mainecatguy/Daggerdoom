@@ -94,7 +94,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             base.Update();
 
             // Scroll questions up or down
-            if (Input.GetKey(KeyCode.Mouse0))
+            if (DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.Poll(KeyCode.Mouse0))
             {
                 if (scrollUpButton.MouseOverComponent)
                     ScrollQuestions(-1);

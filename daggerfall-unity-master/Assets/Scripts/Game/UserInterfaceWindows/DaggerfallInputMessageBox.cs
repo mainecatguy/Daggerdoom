@@ -199,11 +199,11 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         {
             base.Update();
 
-            if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
+            if (DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.PollDown(KeyCode.Return) || DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.PollDown(KeyCode.KeypadEnter))
             {
                 ReturnPlayerInputEvent(this, textBox.Text);
             }
-            //else if (Input.GetKeyDown(exitKey))
+            //else if (DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.PollDown(exitKey))
             // {
             //  ReturnPlayerInputEvent(this, string.Empty);
             //}

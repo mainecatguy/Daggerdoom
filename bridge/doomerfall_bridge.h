@@ -27,13 +27,15 @@ extern "C" {
 #endif
 
 #define DFB_MAGIC            0x42464444u /* "DDFB" */
-#define DFB_PROTOCOL_VERSION 2u
+#define DFB_PROTOCOL_VERSION 3u
 
 #define DFB_RING_SLOTS     4096u   /* power of two */
 #define DFB_OUTBOX_SLOTS   16384u  /* local, per process; hard cap before a bridge fault */
 #define DFB_BULK_SLOTS     8u      /* 0-3 written by DF, 4-7 written by UZ */
 #define DFB_BULK_BYTES     65536u
 #define DFB_STATE_BYTES    256u    /* each state half; may grow to 4 KiB with a protocol bump */
+#define DFB_SURFACE_MAX_W  1920u   /* UI surface: a separate mapping holding three BGRA frames */
+#define DFB_SURFACE_MAX_H  1200u
 
 /* Sides */
 #define DFB_SIDE_DF 1
@@ -62,6 +64,33 @@ extern "C" {
 #define DFB_KIND_PONG       3   /* payload: dfb_ping, echoed with the replier's receive time */
 #define DFB_KIND_TEXT       4   /* payload: up to 48 bytes of UTF-8, not terminated if full */
 #define DFB_KIND_AREA       5   /* UZ to DF, sent at once when the context or map pixel changes; payload: dfb_area */
+#define DFB_KIND_UI_OPEN    6   /* UZ to DF; payload: dfb_ui_command */
+#define DFB_KIND_UI_CLOSE   7   /* UZ to DF; payload: dfb_ui_command */
+#define DFB_KIND_UI_INPUT   8   /* UZ to DF; payload: dfb_ui_input */
+#define DFB_KIND_UI_STATE   9   /* DF to UZ; payload: dfb_ui_state */
+#define DFB_KIND_UI_RESULT  10  /* DF to UZ; payload: dfb_ui_result */
+
+/* Daggerfall screens Doom can ask for. Add new menus here. */
+#define DFB_UI_NONE        0u
+#define DFB_UI_TRAVEL_MAP  1u
+
+#define DFB_UI_CLOSED      0u
+#define DFB_UI_OPENED      1u
+
+#define DFB_UI_REASON_NONE     0u
+#define DFB_UI_REASON_USER     1u  /* the player closed it in Daggerfall */
+#define DFB_UI_REASON_REFUSED  2u  /* Daggerfall could not open it here */
+#define DFB_UI_REASON_RESULT   3u  /* closed after sending a dfb_ui_result */
+#define DFB_UI_REASON_DOOM     4u  /* Doom asked it to close */
+
+#define DFB_UI_INPUT_MOVE        1u /* a, b: surface pixels, origin top left */
+#define DFB_UI_INPUT_BUTTON_DOWN 2u /* a: 0 left, 1 right, 2 middle */
+#define DFB_UI_INPUT_BUTTON_UP   3u
+#define DFB_UI_INPUT_WHEEL       4u /* a: notches, positive is up */
+#define DFB_UI_INPUT_KEY_DOWN    5u /* a: Windows virtual key, with left and right modifiers separated */
+#define DFB_UI_INPUT_KEY_UP      6u
+#define DFB_UI_INPUT_CHAR        7u /* a: UTF-16 code unit */
+#define DFB_UI_INPUT_RELEASE_ALL 8u /* Doom lost focus */
 
 /* Where the Doom player is. Position alone cannot move Daggerfall indoors: INTERIOR and DUNGEON are
    reserved for the explicit transition work, and Daggerfall holds its position while they are set. */
@@ -111,6 +140,52 @@ typedef struct dfb_area
 	uint32_t area_seq;
 	int64_t sent_ns;
 } dfb_area;
+
+typedef struct dfb_ui_command
+{
+	uint32_t ui_id;
+	uint32_t pad;
+	int64_t sent_ns;
+} dfb_ui_command;
+
+typedef struct dfb_ui_input
+{
+	uint32_t type;
+	int32_t a;
+	int32_t b;
+	uint32_t pad;
+	int64_t sent_ns;
+} dfb_ui_input;
+
+typedef struct dfb_ui_state
+{
+	uint32_t ui_id;
+	uint32_t state;
+	uint32_t reason;
+	uint32_t surface_width;
+	uint32_t surface_height;
+	uint32_t pad;
+} dfb_ui_state;
+
+typedef struct dfb_ui_result
+{
+	uint32_t ui_id;
+	int32_t map_pixel_x;
+	int32_t map_pixel_y;
+	char name[36];        /* UTF-8, terminated */
+} dfb_ui_result;
+
+/* Describes one frame in the UI surface. Pixels are BGRA, top row first, width * 4 bytes per row. */
+typedef struct dfb_surface_frame
+{
+	uint32_t width;
+	uint32_t height;
+	uint32_t frame_id;
+	uint32_t pad;
+	int64_t captured_ns;  /* when Daggerfall asked the GPU for this frame */
+	int64_t input_ns;     /* sent_ns of the newest input applied before this frame was drawn, or 0 */
+	int64_t published_ns;
+} dfb_surface_frame;
 
 typedef struct dfb_hello
 {
@@ -205,6 +280,14 @@ DFB_API int dfb_read_state(dfb_session *session, void *out, uint32_t size);
 DFB_API int dfb_bulk_write(dfb_session *session, uint32_t slot, const void *data, uint32_t size, uint32_t *version_out);
 DFB_API int dfb_bulk_read(dfb_session *session, uint32_t slot, void *out, uint32_t capacity, uint32_t *size_out, uint32_t *version_out);
 DFB_API uint32_t dfb_bulk_version(dfb_session *session, uint32_t slot);
+
+/* UI surface, a triple buffer with one writer (DF) and one reader (UZ).
+   dfb_surface_write copies one BGRA frame. flip_y reverses the rows while copying.
+   dfb_surface_acquire returns DFB_GOT with a newer frame, or DFB_EMPTY with the current one. The
+   pixel pointer stays valid until the next acquire. Before the first write, *pixels is null. */
+DFB_API int dfb_surface_write(dfb_session *session, const void *bgra, uint32_t width, uint32_t height,
+	uint32_t frame_id, int64_t captured_ns, int64_t input_ns, int flip_y);
+DFB_API int dfb_surface_acquire(dfb_session *session, dfb_surface_frame *frame, const void **pixels);
 
 DFB_API int dfb_get_stats(dfb_session *session, dfb_stats *out);
 

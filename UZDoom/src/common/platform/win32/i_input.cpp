@@ -144,11 +144,15 @@ void I_ReleaseMouseCapture()
 	ReleaseCapture();
 }
 
+bool DD_BridgeUiWndProc(UINT message, WPARAM wParam, LPARAM lParam); // Doomerfall
+
 bool GUIWndProcHook(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam, LRESULT *result)
 {
 	event_t ev = { EV_GUI_Event };
 
 	*result = 0;
+
+	if (DD_BridgeUiWndProc(message, wParam, lParam)) return true; // Doomerfall
 
 	switch (message)
 	{

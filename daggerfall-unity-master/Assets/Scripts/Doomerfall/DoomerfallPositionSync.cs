@@ -96,6 +96,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             PlayerEntity player = GameManager.Instance.PlayerEntity;
             player.MaxHealth = 100;
             player.SetHealth(100, true);
+            player.GoldPieces = 5000; // Lets the travel menu test afford any trip.
             startHealth = player.CurrentHealth;
             testWorldReady = true;
             bridge.LogLine("sync test: entered the world, health " + startHealth);

@@ -409,7 +409,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                     zoom = !zoom;
                     ZoomMapTextures();
                 }
-                else if ((Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)) && zoom && NativePanel.MouseOverComponent)
+                else if ((DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.Poll(KeyCode.LeftShift) || DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.Poll(KeyCode.RightShift)) && zoom && NativePanel.MouseOverComponent)
                 {
                     // Scrolling while zoomed in
                     zoomPosition = currentMousePos;
@@ -429,7 +429,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             }
             else
             {
-                if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
+                if (DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.PollDown(KeyCode.Return) || DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.PollDown(KeyCode.KeypadEnter))
                 {
                     if (identifying)
                         OpenRegionPanel(GetPlayerRegion());

@@ -267,6 +267,8 @@ namespace DaggerfallWorkshop.Game
         {
             get
             {
+                if (Doomerfall.DoomerfallInput.Active)
+                    return Doomerfall.DoomerfallUi.MouseScreenPosition;
                 if (UsingController)
                     return controllerCursorPosition;
                 else
@@ -1049,31 +1051,37 @@ namespace DaggerfallWorkshop.Game
 
         public bool GetMouseButtonDown(int button)
         {
+            if (Doomerfall.DoomerfallInput.Active) return Doomerfall.DoomerfallInput.GetKeyDown(KeyCode.Mouse0 + button);
             return Input.GetMouseButtonDown(button) || (EnableController && GetKeyDown(joystickUICache[button], false));
         }
 
         public bool GetMouseButtonUp(int button)
         {
+            if (Doomerfall.DoomerfallInput.Active) return Doomerfall.DoomerfallInput.GetKeyUp(KeyCode.Mouse0 + button);
             return Input.GetMouseButtonUp(button) || (EnableController && GetKeyUp(joystickUICache[button], false));
         }
 
         public bool GetMouseButton(int button)
         {
+            if (Doomerfall.DoomerfallInput.Active) return Doomerfall.DoomerfallInput.GetKey(KeyCode.Mouse0 + button);
             return Input.GetMouseButton(button) || (EnableController && GetKey(joystickUICache[button], false));
         }
 
         public bool GetBackButtonDown()
         {
+            if (Doomerfall.DoomerfallInput.Active) return Doomerfall.DoomerfallInput.GetKeyDown(KeyCode.Escape);
             return Input.GetKeyDown(KeyCode.Escape) || (EnableController && GetKeyDown(joystickUICache[3], false));
         }
 
         public bool GetBackButtonUp()
         {
+            if (Doomerfall.DoomerfallInput.Active) return Doomerfall.DoomerfallInput.GetKeyUp(KeyCode.Escape);
             return Input.GetKeyUp(KeyCode.Escape) || (EnableController && GetKeyUp(joystickUICache[3], false));
         }
 
         public bool GetBackButton()
         {
+            if (Doomerfall.DoomerfallInput.Active) return Doomerfall.DoomerfallInput.GetKey(KeyCode.Escape);
             return Input.GetKey(KeyCode.Escape) || (EnableController && GetKey(joystickUICache[3], false));
         }
 
@@ -1647,7 +1655,7 @@ namespace DaggerfallWorkshop.Game
         bool GetPollKey(KeyCode k)
         {
             if ((int)k < startingAxisKeyCode)
-                return Input.GetKey(k);
+                return Doomerfall.DoomerfallInput.Poll(k);
             else
                 return GetAxisKey((int)k);
         }

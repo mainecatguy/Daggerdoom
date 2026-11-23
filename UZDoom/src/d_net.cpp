@@ -154,6 +154,7 @@ static int	SkipCommandTimer = 0;	// Tracker for when to check for skipping comma
 static int	SkipCommandAmount = 0;	// Amount of commands to skip. Try and batch skip them all at once since we won't be able to get an update until the full RTT.
 
 void D_ProcessEvents(void);
+bool DD_BridgeUiActive(); // Doomerfall
 void G_BuildTiccmd(usercmd_t *cmd);
 void D_DoAdvanceDemo(void);
 
@@ -2197,7 +2198,7 @@ void TryRunTics()
 		AddCommandString("toggle vid_fullscreen");
 	}
 
-	bool doWait = (cl_capfps || pauseext || (!netgame && r_NoInterpolate && !M_IsAnimated()));
+	bool doWait = (cl_capfps || (pauseext && !DD_BridgeUiActive()) || (!netgame && r_NoInterpolate && !M_IsAnimated()));
 	if (vid_dontdowait && (vid_maxfps > 0 || vid_vsync))
 		doWait = false;
 	if (!netgame && !AppActive && vid_lowerinbackground)

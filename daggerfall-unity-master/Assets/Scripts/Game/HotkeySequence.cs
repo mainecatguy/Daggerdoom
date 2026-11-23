@@ -152,7 +152,7 @@ namespace DaggerfallWorkshop.Game
 
         public static KeyModifiers GetKeyboardKeyModifiers()
         {
-            return GetKeyModifiers(Input.GetKey(KeyCode.LeftControl), Input.GetKey(KeyCode.RightControl), Input.GetKey(KeyCode.LeftShift), Input.GetKey(KeyCode.RightShift), Input.GetKey(KeyCode.LeftAlt), Input.GetKey(KeyCode.RightAlt));
+            return GetKeyModifiers(Doomerfall.DoomerfallInput.Poll(KeyCode.LeftControl), Doomerfall.DoomerfallInput.Poll(KeyCode.RightControl), Doomerfall.DoomerfallInput.Poll(KeyCode.LeftShift), Doomerfall.DoomerfallInput.Poll(KeyCode.RightShift), Doomerfall.DoomerfallInput.Poll(KeyCode.LeftAlt), Doomerfall.DoomerfallInput.Poll(KeyCode.RightAlt));
         }
 
         public static bool CheckSetModifiers(HotkeySequence.KeyModifiers pressedModifiers, HotkeySequence.KeyModifiers triggeringModifiers)

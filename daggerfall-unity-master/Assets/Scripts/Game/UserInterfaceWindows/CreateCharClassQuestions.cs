@@ -173,11 +173,11 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             base.Update();
 
             // User picked an answer with a key
-            if (Input.GetKeyDown(KeyCode.A))
+            if (DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.PollDown(KeyCode.A))
                 AnswerAndPlayAnim(0);
-            else if (Input.GetKeyDown(KeyCode.B))
+            else if (DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.PollDown(KeyCode.B))
                 AnswerAndPlayAnim(1);
-            else if (Input.GetKeyDown(KeyCode.C))
+            else if (DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.PollDown(KeyCode.C))
                 AnswerAndPlayAnim(2);
 
             float movement = InputManager.Instance.GetUIScrollMovement();

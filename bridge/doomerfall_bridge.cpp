@@ -36,6 +36,10 @@
 static_assert(sizeof(dfb_event) == 64, "event record must be 64 bytes");
 static_assert(sizeof(dfb_ping) <= sizeof(((dfb_event *)nullptr)->payload), "ping payload too large");
 static_assert(sizeof(dfb_hello) <= sizeof(((dfb_event *)nullptr)->payload), "hello payload too large");
+static_assert(sizeof(dfb_ui_command) <= sizeof(((dfb_event *)nullptr)->payload), "ui command payload too large");
+static_assert(sizeof(dfb_ui_input) <= sizeof(((dfb_event *)nullptr)->payload), "ui input payload too large");
+static_assert(sizeof(dfb_ui_state) <= sizeof(((dfb_event *)nullptr)->payload), "ui state payload too large");
+static_assert(sizeof(dfb_ui_result) <= sizeof(((dfb_event *)nullptr)->payload), "ui result payload too large");
 static_assert(sizeof(dfb_df_state) == DFB_STATE_BYTES, "df state size");
 static_assert(sizeof(dfb_uz_state) == DFB_STATE_BYTES, "uz state size");
 static_assert((DFB_RING_SLOTS & (DFB_RING_SLOTS - 1)) == 0, "ring slots must be a power of two");
@@ -253,6 +257,19 @@ struct Shared
 	BulkSlot bulk[DFB_BULK_SLOTS];
 };
 
+// The UI surface lives in its own mapping, so the event and state lanes keep their small footprint.
+// The OS commits its pages only when a menu first writes them.
+constexpr size_t SurfaceFrameBytes = size_t(DFB_SURFACE_MAX_W) * DFB_SURFACE_MAX_H * 4;
+
+struct alignas(64) SurfaceShared
+{
+	alignas(64) std::atomic<uint32_t> middle;    // index 0-2, plus Fresh
+	alignas(64) std::atomic<uint32_t> back;      // writer only
+	alignas(64) std::atomic<uint32_t> front;     // reader only
+	alignas(64) dfb_surface_frame frames[3];
+	alignas(64) uint8_t pixels[3][SurfaceFrameBytes];
+};
+
 uint64_t Fnv(uint64_t h, const void *data, size_t size)
 {
 	const uint8_t *p = static_cast<const uint8_t *>(data);
@@ -283,7 +300,9 @@ uint64_t ComputeLayoutHash()
 		offsetof(dfb_uz_state, world_x), offsetof(dfb_uz_state, world_z), offsetof(dfb_uz_state, world_height),
 		offsetof(dfb_uz_state, yaw_degrees), offsetof(dfb_uz_state, world_context), offsetof(dfb_uz_state, map_pixel_x),
 		offsetof(dfb_uz_state, map_pixel_y), offsetof(dfb_uz_state, area_seq), sizeof(dfb_area),
-		sizeof(dfb_ping), sizeof(dfb_hello),
+		sizeof(dfb_ping), sizeof(dfb_hello), sizeof(SurfaceShared), sizeof(dfb_surface_frame),
+		sizeof(dfb_ui_command), sizeof(dfb_ui_input), sizeof(dfb_ui_state), sizeof(dfb_ui_result),
+		DFB_SURFACE_MAX_W, DFB_SURFACE_MAX_H,
 	};
 	for (uint64_t v : values) h = FnvU64(h, v);
 	return h;
@@ -308,6 +327,8 @@ bool ValidId(const char *id)
 struct dfb_session
 {
 	OsMapping mapping;
+	OsMapping surfaceMapping;
+	SurfaceShared *surface = nullptr;
 	Shared *shared = nullptr;
 	int side = 0;        // 0 for the creator
 	Ring *out = nullptr; // ring we produce into
@@ -385,6 +406,12 @@ int FlushOutbox(dfb_session *s)
 	return (int)s->outboxCount;
 }
 
+bool SurfaceName(const char *id, char *out, size_t cap)
+{
+	const int n = snprintf(out, cap, "%s-surface", id);
+	return n > 0 && size_t(n) < cap;
+}
+
 uint32_t StateSizeFor(int side) { return side == DFB_SIDE_DF ? (uint32_t)sizeof(dfb_df_state) : (uint32_t)sizeof(dfb_uz_state); }
 
 bool OwnsBulkSlot(int side, uint32_t slot)
@@ -425,6 +452,18 @@ DFB_API int dfb_create(const char *session_id, dfb_session **out)
 		delete s;
 		return rc;
 	}
+	char surfaceId[96];
+	rc = SurfaceName(session_id, surfaceId, sizeof(surfaceId)) ? OsCreate(surfaceId, sizeof(SurfaceShared), s->surfaceMapping) : DFB_ERR_ARG;
+	if (rc != DFB_OK)
+	{
+		OsClose(s->mapping);
+		delete s;
+		return rc;
+	}
+	s->surface = static_cast<SurfaceShared *>(s->surfaceMapping.view);
+	s->surface->back.store(0, std::memory_order_relaxed);
+	s->surface->middle.store(1, std::memory_order_relaxed);
+	s->surface->front.store(2, std::memory_order_relaxed);
 	Shared *sh = static_cast<Shared *>(s->mapping.view); // zero-filled by the OS
 	sh->header.protocolVersion = DFB_PROTOCOL_VERSION;
 	sh->header.layoutHash = LayoutHash;
@@ -470,11 +509,18 @@ DFB_API int dfb_attach(const char *session_id, int side, dfb_session **out)
 	}
 	if (rc == DFB_OK)
 	{
+		char surfaceId[96];
+		rc = SurfaceName(session_id, surfaceId, sizeof(surfaceId)) ? OsOpen(surfaceId, sizeof(SurfaceShared), s->surfaceMapping) : DFB_ERR_ARG;
+		if (rc == DFB_OK) s->surface = static_cast<SurfaceShared *>(s->surfaceMapping.view);
+	}
+	if (rc == DFB_OK)
+	{
 		s->outbox = static_cast<dfb_event *>(std::calloc(DFB_OUTBOX_SLOTS, sizeof(dfb_event)));
 		if (!s->outbox) rc = DFB_ERR_OS;
 	}
 	if (rc != DFB_OK)
 	{
+		OsClose(s->surfaceMapping);
 		OsClose(s->mapping);
 		delete s;
 		return rc;
@@ -494,6 +540,7 @@ DFB_API void dfb_close(dfb_session *s)
 {
 	if (!s) return;
 	if (s->side) s->shared->header.pid[s->side].store(0, std::memory_order_relaxed);
+	OsClose(s->surfaceMapping);
 	OsClose(s->mapping);
 	std::free(s->outbox);
 	delete s;
@@ -630,6 +677,46 @@ DFB_API uint32_t dfb_bulk_version(dfb_session *s, uint32_t slot)
 {
 	if (!s || slot >= DFB_BULK_SLOTS) return 0;
 	return s->shared->bulk[slot].version.load(std::memory_order_acquire) / 2;
+}
+
+DFB_API int dfb_surface_write(dfb_session *s, const void *bgra, uint32_t width, uint32_t height,
+	uint32_t frame_id, int64_t captured_ns, int64_t input_ns, int flip_y)
+{
+	if (!s || !s->surface || !bgra || !width || !height) return DFB_ERR_ARG;
+	if (s->side != DFB_SIDE_DF) return DFB_ERR_SIDE;
+	if (width > DFB_SURFACE_MAX_W || height > DFB_SURFACE_MAX_H) return DFB_ERR_SIZE;
+	SurfaceShared &surface = *s->surface;
+	const uint32_t back = surface.back.load(std::memory_order_relaxed);
+	const size_t row = size_t(width) * 4;
+	const uint8_t *src = static_cast<const uint8_t *>(bgra);
+	uint8_t *dst = surface.pixels[back];
+	if (flip_y)
+		for (uint32_t y = 0; y < height; y++) std::memcpy(dst + y * row, src + (height - 1 - y) * row, row);
+	else
+		std::memcpy(dst, src, row * height);
+	surface.frames[back] = dfb_surface_frame{ width, height, frame_id, 0, captured_ns, input_ns, OsNowNs() };
+	const uint32_t previous = surface.middle.exchange(back | Fresh, std::memory_order_acq_rel);
+	surface.back.store(previous & 3, std::memory_order_release);
+	return DFB_OK;
+}
+
+DFB_API int dfb_surface_acquire(dfb_session *s, dfb_surface_frame *frame, const void **pixels)
+{
+	if (!s || !s->surface || !frame || !pixels) return DFB_ERR_ARG;
+	if (s->side != DFB_SIDE_UZ) return DFB_ERR_SIDE;
+	SurfaceShared &surface = *s->surface;
+	int rc = DFB_EMPTY;
+	uint32_t front = surface.front.load(std::memory_order_relaxed);
+	if (surface.middle.load(std::memory_order_relaxed) & Fresh)
+	{
+		const uint32_t previous = surface.middle.exchange(front, std::memory_order_acq_rel);
+		front = previous & 3;
+		surface.front.store(front, std::memory_order_release);
+		rc = DFB_GOT;
+	}
+	*frame = surface.frames[front];
+	*pixels = frame->width ? surface.pixels[front] : nullptr;
+	return rc;
 }
 
 DFB_API int dfb_get_stats(dfb_session *s, dfb_stats *out)

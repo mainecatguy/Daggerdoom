@@ -4,12 +4,16 @@
 // returns before G_Ticker and P_RunClientSideLogic while pauseext is set.
 
 #include <algorithm>
+#include <chrono>
 #include <cstdarg>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <thread>
 
 #include "../../bridge/doomerfall_bridge.h"
+#include "bitmap.h"
+#include "c_bind.h"
 #include "c_cvars.h"
 #include "c_dispatch.h"
 #include "doomstat.h"
@@ -21,9 +25,14 @@
 #include "menu.h"
 #include "playsim/dd_treadmill.h"
 #include "printf.h"
+#include "texturemanager.h"
+#include "textures.h"
+#include "v_draw.h"
+#include "v_video.h"
 
 FARG_ADVANCED(dfbridge, "Doomerfall", "session", "Attaches to the Doomerfall bridge session created by the launcher.");
 FARG_ADVANCED(dfbridgelog, "Doomerfall", "file", "Appends Doomerfall bridge traffic and latency to a log file.");
+FARG_ADVANCED(dfuitest, "Doomerfall", "count", "Bridge test only: opens the fast travel menu this many times.");
 FARG_ADVANCED(dfbridgetestpause, "Doomerfall", "ext|game|menu", "Bridge test only: enters a pause state for six seconds.");
 
 CVAR(Int, dd_sync_df_phase, 0, CVAR_NOSAVE) // Read by the position sync test route.
@@ -151,10 +160,19 @@ void PublishPosition()
 	}
 }
 
+void HandleUiState(const dfb_event &e);
+void HandleUiResult(const dfb_event &e);
+
 void HandleEvent(const dfb_event &e, int64_t now)
 {
 	switch (e.kind)
 	{
+	case DFB_KIND_UI_STATE:
+		HandleUiState(e);
+		break;
+	case DFB_KIND_UI_RESULT:
+		HandleUiResult(e);
+		break;
 	case DFB_KIND_PING:
 	{
 		dfb_event reply = e;
@@ -193,6 +211,350 @@ void HandleEvent(const dfb_event &e, int64_t now)
 		break;
 	}
 }
+
+//==========================================================================
+// Daggerfall menus shown inside Doom. Daggerfall draws the real window into the shared surface.
+// While one is open Doom is paused, draws the newest frame, and forwards all input.
+//==========================================================================
+
+class DDUiTexture : public FTexture
+{
+	TArray<uint8_t> image;
+
+public:
+	void SetFrame(const void *bgra, int width, int height)
+	{
+		if (width != Width || height != Height)
+		{
+			FTexture::SetSize(width, height);
+			image.Resize(width * height * 4);
+		}
+		memcpy(image.Data(), bgra, image.Size());
+	}
+
+	FBitmap GetBgraBitmap(const PalEntry *, int *) override
+	{
+		return FBitmap(image.Data(), Width * 4, Width, Height);
+	}
+};
+
+enum UiState { UiClosed, UiOpening, UiOpen };
+constexpr int64_t UiOpenTimeoutNs = 5000000000LL;
+constexpr int64_t UiMinFrameNs = 8000000; // Paused Doom has no tic wait, so keep it near 120 Hz.
+
+UiState uiState = UiClosed;
+uint32_t uiId;
+bool uiSavedPause, uiHasFrame;
+int64_t uiOpenedNs, uiLastInputSeen, uiLastFrameNs;
+FGameTexture *uiTextures[2];
+DDUiTexture *uiPixels[2];
+int uiActiveTexture;
+dfb_surface_frame uiFrame;
+int uiMapTimeAtOpen;
+uint32_t uiFrames;
+Samples uiInputLatency, uiFrameAge, uiUpload;
+
+// Test only (-dfuitest <count>): opens the menu through the real command, count times.
+int uiTestRemaining;
+int64_t uiTestAtNs, uiTestShotNs;
+
+void EnsureUiTextures()
+{
+	static const char *const names[2] = { "DoomerfallUiFrame1", "DoomerfallUiFrame2" };
+	for (int i = 0; i < 2; i++)
+	{
+		FGameTexture *found = TexMan.FindGameTexture(names[i], ETextureType::Override);
+		if (found && found == uiTextures[i]) continue;
+		uiPixels[i] = new DDUiTexture;
+		uiTextures[i] = MakeGameTexture(uiPixels[i], names[i], ETextureType::Override);
+		uiTextures[i]->SetUpscaleFlag(false, true);
+		TexMan.AddGameTexture(uiTextures[i]);
+	}
+}
+
+void SendUiCommand(uint16_t kind, uint32_t id)
+{
+	dfb_event e{};
+	e.kind = kind;
+	e.tic = gametic;
+	const dfb_ui_command body{ id, 0, dfb_now_ns() };
+	memcpy(e.payload, &body, sizeof(body));
+	dfb_send(session, &e);
+}
+
+void SendUiInput(uint32_t type, int a = 0, int b = 0)
+{
+	dfb_event e{};
+	e.kind = DFB_KIND_UI_INPUT;
+	e.tic = gametic;
+	const dfb_ui_input body{ type, a, b, 0, dfb_now_ns() };
+	memcpy(e.payload, &body, sizeof(body));
+	dfb_send(session, &e);
+}
+
+void OpenUi(uint32_t id)
+{
+	EnsureUiTextures();
+	uiId = id;
+	uiState = UiOpening;
+	uiHasFrame = false;
+	uiOpenedNs = dfb_now_ns();
+	uiLastInputSeen = 0;
+	uiFrames = 0;
+	uiSavedPause = pauseext;
+	pauseext = true;
+	uiMapTimeAtOpen = primaryLevel ? primaryLevel->maptime : -1;
+	SendUiCommand(DFB_KIND_UI_OPEN, id);
+	Log("ui: asked Daggerfall to open menu %u, maptime %d", id, uiMapTimeAtOpen);
+}
+
+void FinishUi(const char *why)
+{
+	if (uiState == UiClosed) return;
+	uiState = UiClosed;
+	uiHasFrame = false;
+	pauseext = uiSavedPause;
+	char input[96], age[96], upload[96];
+	uiInputLatency.Format(input, sizeof(input));
+	uiFrameAge.Format(age, sizeof(age));
+	uiUpload.Format(upload, sizeof(upload));
+	Log("ui: closed (%s), %u frames shown, maptime %d then %d", why, uiFrames, uiMapTimeAtOpen,
+		primaryLevel ? primaryLevel->maptime : -1);
+	Log("ui latency: input to shown %s | capture to shown %s | texture copy %s", input, age, upload);
+	uiInputLatency.count = uiInputLatency.next = uiFrameAge.count = uiFrameAge.next = uiUpload.count = uiUpload.next = 0;
+	uiTestShotNs = 0;
+	uiTestAtNs = dfb_now_ns() + 2000000000LL;
+}
+
+void HandleUiState(const dfb_event &e)
+{
+	dfb_ui_state body;
+	memcpy(&body, e.payload, sizeof(body));
+	if (uiState == UiClosed || body.ui_id != uiId) return;
+	if (body.state == DFB_UI_OPENED)
+	{
+		uiState = UiOpen;
+		Log("ui: Daggerfall opened menu %u at %ux%u, %.1f ms after the request", body.ui_id, body.surface_width,
+			body.surface_height, (dfb_now_ns() - uiOpenedNs) / 1e6);
+		return;
+	}
+	static const char *const reasons[] = { "none", "player closed it", "Daggerfall refused", "choice made", "Doom asked" };
+	if (body.reason == DFB_UI_REASON_REFUSED) Printf("Daggerfall cannot open that menu here.\n");
+	FinishUi(body.reason < 5 ? reasons[body.reason] : "unknown");
+}
+
+void HandleUiResult(const dfb_event &e)
+{
+	dfb_ui_result body;
+	memcpy(&body, e.payload, sizeof(body));
+	body.name[sizeof(body.name) - 1] = 0;
+	Log("ui: fast travel destination chosen: %s at map pixel %d,%d (not applied)", body.name, body.map_pixel_x, body.map_pixel_y);
+}
+
+void PumpUi(int64_t now)
+{
+	if (uiState == UiClosed) return;
+	pauseext = true; // A focus change can clear it while the menu is open.
+
+	if (uiState == UiOpening && now - uiOpenedNs > UiOpenTimeoutNs)
+	{
+		SendUiCommand(DFB_KIND_UI_CLOSE, uiId);
+		Printf("Daggerfall did not open the menu.\n");
+		FinishUi("no answer from Daggerfall");
+		return;
+	}
+	if (peerStale)
+	{
+		Printf("Daggerfall stopped responding, closing its menu.\n");
+		FinishUi("Daggerfall heartbeat stale");
+		return;
+	}
+
+	dfb_surface_frame frame;
+	const void *pixels = nullptr;
+	if (uiState == UiOpen && dfb_surface_acquire(session, &frame, &pixels) == DFB_GOT && pixels && frame.captured_ns >= uiOpenedNs)
+	{
+		const int64_t copyStart = dfb_now_ns();
+		const int next = uiActiveTexture ^ 1;
+		uiPixels[next]->SetFrame(pixels, frame.width, frame.height);
+		uiTextures[next]->SetSize(frame.width, frame.height);
+		uiTextures[next]->CleanHardwareData();
+		uiActiveTexture = next;
+		uiFrame = frame;
+		uiHasFrame = true;
+		uiFrames++;
+		const int64_t shown = dfb_now_ns();
+		uiUpload.Add(shown - copyStart);
+		uiFrameAge.Add(shown - frame.captured_ns);
+		if (frame.input_ns > uiLastInputSeen)
+		{
+			uiLastInputSeen = frame.input_ns;
+			uiInputLatency.Add(shown - frame.input_ns);
+		}
+	}
+
+	if (uiTestRemaining >= 0 && uiHasFrame && !uiTestShotNs)
+		uiTestShotNs = now + 1500000000LL;
+	if (uiTestShotNs > 0 && now >= uiTestShotNs)
+	{
+		uiTestShotNs = now + 1000000000LL;
+		C_DoCommand("screenshot");
+		Log("ui test: screenshot of the open menu");
+	}
+
+	// Paused Doom skips its tic wait so the cursor stays responsive. This keeps it from spinning.
+	while (dfb_now_ns() - uiLastFrameNs < UiMinFrameNs) std::this_thread::sleep_for(std::chrono::microseconds(500));
+	uiLastFrameNs = dfb_now_ns();
+}
+
+void RunUiTest(int64_t now)
+{
+	if (uiTestRemaining <= 0 || uiState != UiClosed || gamestate != GS_LEVEL || peerState.df_phase != DFB_DF_PHASE_PLAY) return;
+	if (!uiTestAtNs) uiTestAtNs = now + 3000000000LL;
+	if (now < uiTestAtNs) return;
+	uiTestRemaining--;
+	uiTestAtNs = 0;
+	C_DoCommand("netevent df_fast_travel");
+}
+
+void UiRect(int &x, int &y, int &w, int &h)
+{
+	const int screenW = twod->GetWidth(), screenH = twod->GetHeight();
+	const int frameW = uiHasFrame ? uiFrame.width : 16, frameH = uiHasFrame ? uiFrame.height : 10;
+	w = screenW;
+	h = int(int64_t(screenW) * frameH / frameW);
+	if (h > screenH)
+	{
+		h = screenH;
+		w = int(int64_t(screenH) * frameW / frameH);
+	}
+	x = (screenW - w) / 2;
+	y = (screenH - h) / 2;
+}
+
+void SendUiMouse(long long lParam)
+{
+	if (!uiHasFrame || !screen) return;
+	int16_t mx = int16_t(lParam & 0xFFFF), my = int16_t((lParam >> 16) & 0xFFFF);
+	if (uiTestRemaining >= 0)
+	{
+		// Test only: a minimized window has no usable client area, so the driver sends surface pixels.
+		SendUiInput(DFB_UI_INPUT_MOVE, std::clamp<int>(mx, 0, uiFrame.width - 1), std::clamp<int>(my, 0, uiFrame.height - 1));
+		return;
+	}
+	screen->ScaleCoordsFromWindow(mx, my);
+	int x, y, w, h;
+	UiRect(x, y, w, h);
+	const int px = std::clamp(int(int64_t(mx - x) * uiFrame.width / std::max(w, 1)), 0, int(uiFrame.width) - 1);
+	const int py = std::clamp(int(int64_t(my - y) * uiFrame.height / std::max(h, 1)), 0, int(uiFrame.height) - 1);
+	SendUiInput(DFB_UI_INPUT_MOVE, px, py);
+}
+
+// Windows reports one code for both Shift keys, Ctrl keys, and Alt keys.
+int SidedVirtualKey(uint64_t vk, long long lParam)
+{
+	const int scan = int((lParam >> 16) & 0xFF);
+	const bool extended = (lParam >> 24) & 1;
+	switch (vk)
+	{
+	case 0x10: return scan == 0x36 ? 0xA1 : 0xA0;
+	case 0x11: return extended ? 0xA3 : 0xA2;
+	case 0x12: return extended ? 0xA5 : 0xA4;
+	default: return int(vk);
+	}
+}
+
+bool IsFastTravelKey(long long lParam)
+{
+	int key = int((lParam >> 16) & 0xFF);
+	if ((lParam >> 24) & 1) key |= 0x80;
+	return Bindings.GetBinding(key).CompareNoCase("netevent df_fast_travel") == 0;
+}
+}
+
+bool DD_BridgeUiActive() { return uiState != UiClosed; }
+
+bool DD_BridgeNetEvent(const char *name)
+{
+	if (!session || strcmp(name, "df_fast_travel")) return false;
+	if (uiState != UiClosed)
+	{
+		SendUiCommand(DFB_KIND_UI_CLOSE, uiId);
+		return true;
+	}
+	if (gamestate != GS_LEVEL) return true;
+	if (!peerSeen || peerStale || peerState.df_phase != DFB_DF_PHASE_PLAY)
+	{
+		Printf("Daggerfall is not ready to show the travel map.\n");
+		Log("ui: open refused, Daggerfall phase %u", peerState.df_phase);
+		return true;
+	}
+	OpenUi(DFB_UI_TRAVEL_MAP);
+	return true;
+}
+
+void DD_BridgeDrawUi()
+{
+	if (uiState == UiClosed) return;
+	Dim(twod, 0, 1.f, 0, 0, twod->GetWidth(), twod->GetHeight());
+	if (!uiHasFrame) return;
+	int x, y, w, h;
+	UiRect(x, y, w, h);
+	DrawTexture(twod, uiTextures[uiActiveTexture], x, y, DTA_DestWidth, w, DTA_DestHeight, h, DTA_LeftOffset, 0, DTA_TopOffset, 0, TAG_DONE);
+}
+
+// Runs on Doom's window thread while the GUI has the input. True means the message was consumed.
+bool DD_BridgeUiWndProc(unsigned int message, unsigned long long wParam, long long lParam)
+{
+	if (uiState == UiClosed) return false;
+	constexpr unsigned WmKillFocus = 0x0008, WmKeyDown = 0x0100, WmKeyUp = 0x0101, WmChar = 0x0102, WmSysKeyDown = 0x0104,
+		WmSysKeyUp = 0x0105, WmSysChar = 0x0106, WmMouseMove = 0x0200, WmLDown = 0x0201, WmLUp = 0x0202, WmRDown = 0x0204,
+		WmRUp = 0x0205, WmMDown = 0x0207, WmMUp = 0x0208, WmWheel = 0x020A;
+	constexpr unsigned long long VkReturn = 0x0D, VkF4 = 0x73;
+	// Test only: the scripted driver marks its mouse messages, because Windows also reports the real cursor.
+	if (uiTestRemaining >= 0 && message >= WmMouseMove && message <= WmMUp && !(wParam & 0x8000)) return true;
+	switch (message)
+	{
+	case WmKillFocus:
+		SendUiInput(DFB_UI_INPUT_RELEASE_ALL);
+		return false;
+	case WmSysKeyDown:
+		if (wParam == VkF4 || wParam == VkReturn) return false; // Keep Alt+F4 and Alt+Enter working.
+		[[fallthrough]];
+	case WmKeyDown:
+		if (lParam & 0x40000000) return true; // Auto-repeat. Daggerfall tracks held keys itself.
+		if (IsFastTravelKey(lParam))
+		{
+			SendUiCommand(DFB_KIND_UI_CLOSE, uiId);
+			return true;
+		}
+		SendUiInput(DFB_UI_INPUT_KEY_DOWN, SidedVirtualKey(wParam, lParam));
+		return true;
+	case WmSysKeyUp:
+	case WmKeyUp:
+		SendUiInput(DFB_UI_INPUT_KEY_UP, SidedVirtualKey(wParam, lParam));
+		return true;
+	case WmChar:
+		if (wParam >= 32) SendUiInput(DFB_UI_INPUT_CHAR, int(wParam));
+		return true;
+	case WmSysChar:
+		return false;
+	case WmMouseMove:
+		SendUiMouse(lParam);
+		return true;
+	case WmLDown: case WmRDown: case WmMDown:
+		SendUiMouse(lParam);
+		SendUiInput(DFB_UI_INPUT_BUTTON_DOWN, message == WmLDown ? 0 : message == WmRDown ? 1 : 2);
+		return true;
+	case WmLUp: case WmRUp: case WmMUp:
+		SendUiMouse(lParam);
+		SendUiInput(DFB_UI_INPUT_BUTTON_UP, message == WmLUp ? 0 : message == WmRUp ? 1 : 2);
+		return true;
+	case WmWheel:
+		SendUiInput(DFB_UI_INPUT_WHEEL, int(int16_t((wParam >> 16) & 0xFFFF)) / 120);
+		return true;
+	}
+	return false;
 }
 
 void DD_BridgeInit()
@@ -208,6 +570,8 @@ void DD_BridgeInit()
 	if (const char *path = Args->CheckValue(FArg_dfbridgelog))
 		logFile = fopen(path, "ab");
 	testPause = Args->CheckValue(FArg_dfbridgetestpause);
+	if (const char *count = Args->CheckValue(FArg_dfuitest)) uiTestRemaining = atoi(count);
+	else uiTestRemaining = -1;
 	Log("attached to session %s, protocol %u, layout %016llx", id, dfb_protocol_version(),
 		(unsigned long long)dfb_layout_hash());
 
@@ -267,6 +631,8 @@ void DD_BridgeFrame()
 		memcpy(ping.payload, &body, sizeof(body));
 		dfb_send(session, &ping);
 	}
+	PumpUi(now);
+	RunUiTest(now);
 	dfb_flush(session);
 	RunTestPause(now);
 

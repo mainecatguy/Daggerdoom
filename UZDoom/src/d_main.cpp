@@ -381,6 +381,8 @@ bool OkForLocalization(FTextureID texnum, const char* substitute);
 void D_DoomLoop ();
 void DD_BridgeInit(); // Doomerfall
 void DD_BridgeFrame(); // Doomerfall
+void DD_BridgeDrawUi(); // Doomerfall
+bool DD_BridgeUiActive(); // Doomerfall
 
 // EXTERNAL DATA DECLARATIONS ----------------------------------------------
 
@@ -1086,6 +1088,7 @@ static void DrawRateStuff()
 
 static void DrawOverlays()
 {
+	DD_BridgeDrawUi(); // Doomerfall: no effect unless a Daggerfall menu is open
 	C_DrawConsole ();
 	M_Drawer ();
 	DrawRateStuff();
@@ -3119,6 +3122,8 @@ bool StrTable_ValidFilter(const char* str)
 bool System_WantGuiCapture()
 {
 	bool wantCapt;
+
+	if (DD_BridgeUiActive()) return true; // Doomerfall: a Daggerfall menu owns the mouse and keyboard
 
 	if (menuactive == MENU_Off)
 	{
