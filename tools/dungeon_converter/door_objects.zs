@@ -186,6 +186,7 @@ class DFDoorHandler : EventHandler
 			let door = DFDoor(Actor.Spawn("DFDoor", (f[1].ToDouble(), f[2].ToDouble(), f[3].ToDouble()), NO_REPLACE));
 			door.Setup(f[0].ToInt(), f[1].ToDouble(), f[2].ToDouble(), f[3].ToDouble(), f[4].ToDouble(),
 				f[5].ToDouble(), f[6].ToDouble(), f[7].ToDouble(), f[8].ToDouble(), f[9].ToDouble(), f[10].ToDouble());
+			if (f.Size() > 11) door.swingDir = f[11].ToDouble();
 			spawned.Push(door);
 		}
 		// "DC <door> <control>" lines in DFPOINTS link each door to its sight-blocking control sectors.

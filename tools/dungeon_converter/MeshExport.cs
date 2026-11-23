@@ -47,10 +47,17 @@ static partial class Program
         _ => archive,
     };
 
+    const int RuntimeDoorSlots = 2;
+    static bool runtimeDungeon;
+    static StringBuilder dungeonInfo;
+
     static int ExportMesh(string arena2, DFLocation location, string outDir, string slug, string[] args)
     {
         int tableAt = Array.IndexOf(args, "--texture-table");
         int[] table = tableAt >= 0 ? args[tableAt + 1].Split(',').Select(int.Parse).ToArray() : ClassicTextureTable(location);
+        // --runtime-dungeon: the package loads beside ddruntime.pk3, which already holds the door runtime and two gate models.
+        runtimeDungeon = args.Contains("--runtime-dungeon");
+        dungeonInfo = new StringBuilder($"map MAP01\nmapid {location.MapTableData.MapId}\n");
         Console.WriteLine($"climate {location.Climate.WorldClimate} base {location.Climate.ClimateType} texture table {string.Join(",", table)}");
 
         var blocks = new BlocksFile(Path.Combine(arena2, "BLOCKS.BSA"), FileUsage.UseMemory, true);
@@ -65,7 +72,7 @@ static partial class Program
 
         var batches = new Dictionary<(int archive, int record), List<float>>();
         int models = 0, missing = 0;
-        var doorModels = new Dictionary<uint, DoorModel>();
+        var doorModels = new Dictionary<(uint, bool), DoorModel>();
         var doorPlacements = new List<string>();
         const double toRad = Math.PI / 180;
         var actions = new ActionPackage();
@@ -94,6 +101,13 @@ static partial class Program
                     double ry = -obj.Resources.ModelResource.YRotation / BlocksFile.RotationDivisor * toRad;
                     double rz = -obj.Resources.ModelResource.ZRotation / BlocksFile.RotationDivisor * toRad;
                     var position = new V3(obj.XPos, -obj.YPos, obj.ZPos) + offset;
+                    if (runtimeDungeon)
+                        foreach (var exit in City.DoorPlanes(mesh).Where(q => q.Type == City.DoorExit))
+                        {
+                            var at = ToDoom(Rotate(exit.Centre, rx, ry, rz) + position);
+                            var n = Rotate(exit.Normal, rx, ry, rz);
+                            dungeonInfo.Append(FormattableString.Invariant($"exit {at.X:F3} {at.Y:F3} {at.Z - exit.HalfHeight * PlayerScale.DoomUnitsPerDaggerfallUnit:F3} {n.X:F4} {n.Z:F4}\n"));
+                        }
                     actionAt.TryGetValue((blockNumber, obj.Position), out var actionRecord);
                     if (actionRecord != null)
                     {
@@ -103,11 +117,19 @@ static partial class Program
                     }
                     if (IsActionDoorModel(id, reference.Description))
                     {
-                        if (rx != 0 || rz != 0) throw new InvalidDataException($"door {id} is tilted; only yaw is supported");
-                        if (!doorModels.TryGetValue(id, out var doorModel))
-                            doorModels[id] = doorModel = BuildDoorModel(id, doorModels.Count, mesh, Archive, table, location);
+                        // Any rotation that keeps the vertical axis vertical is R = Ry(phi) * F, where F is nothing or a 180 degree roll
+                        // (upside down or mirrored doors). F is baked into the model, and phi is the closed angle.
+                        var up = Rotate(new V3(0, 1, 0), rx, ry, rz);
+                        if (Math.Abs(up.Y) < 0.999) throw new InvalidDataException($"door {id} is tilted by {rx / toRad:F2},{ry / toRad:F2},{rz / toRad:F2}; only yaw and a 180 degree flip are supported");
+                        bool flipped = up.Y < 0;
+                        var east = Rotate(new V3(1, 0, 0), rx, ry, rz);
+                        double phi = Math.Atan2(-east.Z, east.X);
+                        if (!doorModels.TryGetValue((id, flipped), out var doorModel))
+                            doorModels[(id, flipped)] = doorModel = BuildDoorModel(id, doorModels.Count + (runtimeDungeon ? RuntimeDoorSlots : 0), mesh, Archive, table, location, flipped);
                         var pivot = ToDoom(position);
-                        doorPlacements.Add(FormattableString.Invariant($"{doorModel.Slot} {pivot.X:F3} {pivot.Y:F3} {pivot.Z:F3} {-ry / toRad:F3} {doorModel.X0:F3} {doorModel.X1:F3} {doorModel.Y0:F3} {doorModel.Y1:F3} {doorModel.Z0:F3} {doorModel.Z1:F3}"));
+                        // Unity swings about the door's own Y axis, which points down on a flipped door, so the swing reverses.
+                        double closed = -phi / toRad;
+                        doorPlacements.Add(FormattableString.Invariant($"{doorModel.Slot} {pivot.X:F3} {pivot.Y:F3} {pivot.Z:F3} {closed:F3} {doorModel.X0:F3} {doorModel.X1:F3} {doorModel.Y0:F3} {doorModel.Y1:F3} {doorModel.Z0:F3} {doorModel.Z1:F3} {(flipped ? -1 : 1)}"));
                         continue;
                     }
                     foreach (var sub in mesh.SubMeshes)
@@ -166,7 +188,7 @@ static partial class Program
             using (var s = zip.CreateEntry("DFMESH", CompressionLevel.Fastest).Open()) { body.Position = 0; body.CopyTo(s); }
             // Daggerfall has square pixels. Doom's default 1.2 vertical stretch would distort the real mesh.
             using (var s = new StreamWriter(zip.CreateEntry("MAPINFO", CompressionLevel.Fastest).Open()))
-                s.Write($"map MAP01 \"{location.Name}\"\n{{\n\tpixelratio = 1.0\n}}\n");
+                s.Write($"map MAP01 \"{location.Name}\"\n{{\n\tpixelratio = 1.0\n{(runtimeDungeon ? "\tkeepfullinventory\n\tUsePlayerStartZ\n" : "")}}}\n");
 
             foreach (var k in keys)
             {
@@ -185,11 +207,12 @@ static partial class Program
         return badTextures == 0 && missing == 0 ? 0 : 1;
     }
 
-    static void WriteTexturePng(Stream output, DFBitmap image, DFPalette palette)
+    // transparentZero writes RGBA with palette index 0 clear, as Daggerfall Unity does for billboards (alphaIndex 0).
+    static void WriteTexturePng(Stream output, DFBitmap image, DFPalette palette, bool transparentZero = false)
     {
         byte[] buffer = palette.PaletteBuffer;
-        int head = palette.HeaderLength, w = image.Width, h = image.Height;
-        var raw = new byte[(w * 3 + 1) * h];
+        int head = palette.HeaderLength, w = image.Width, h = image.Height, bytes = transparentZero ? 4 : 3;
+        var raw = new byte[(w * bytes + 1) * h];
         for (int y = 0, at = 0; y < h; y++)
         {
             raw[at++] = 0;
@@ -197,6 +220,7 @@ static partial class Program
             {
                 int c = image.Data[y * w + x] * 3 + head;
                 raw[at++] = buffer[c]; raw[at++] = buffer[c + 1]; raw[at++] = buffer[c + 2];
+                if (transparentZero) raw[at++] = image.Data[y * w + x] == 0 ? (byte)0 : (byte)255;
             }
         }
         var packed = new MemoryStream();
@@ -212,7 +236,7 @@ static partial class Program
         var header = new byte[13];
         header[0] = (byte)(w >> 24); header[1] = (byte)(w >> 16); header[2] = (byte)(w >> 8); header[3] = (byte)w;
         header[4] = (byte)(h >> 24); header[5] = (byte)(h >> 16); header[6] = (byte)(h >> 8); header[7] = (byte)h;
-        header[8] = 8; header[9] = 2;
+        header[8] = 8; header[9] = (byte)(transparentZero ? 6 : 2);
         Chunk("IHDR", header);
         Chunk("IDAT", packed.ToArray());
         Chunk("IEND", new byte[0]);

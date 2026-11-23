@@ -4,7 +4,7 @@ version "4.10"
 
 class DFProbe : Actor
 {
-	Default { Radius 16; Height 56; MaxStepHeight 24; +NOGRAVITY; +NOBLOCKMAP; +DROPOFF; +NOTRIGGER; }
+	Default { Radius 10.5; Height 56; MaxStepHeight 24; +NOGRAVITY; +NOBLOCKMAP; +DROPOFF; +NOTRIGGER; } // the 21-wide player box of the 0.75-scale world
 	States { Spawn: TNT1 A -1; Stop; }
 }
 
@@ -32,8 +32,9 @@ class DFMapCheck : EventHandler
 	Array<int> falls, ledges, slabA, slabB, chaseFrom, chaseTo;
 	DFProbe probe;
 	Actor shooter, monster;
-	double chaseStart;
+	double chaseStart, lastEdgeDz;
 	bool active;
+	int dbgCount;
 
 	// Doom spawns players on the lowest floor, so converted maps move them to the real entrance.
 	override void PlayerEntered(PlayerEvent e)
@@ -76,11 +77,13 @@ class DFMapCheck : EventHandler
 		probe.SetZ(probe.floorz);
 		vector2 target = (nx[b], ny[b]);
 		vector2 mid = ((nx[a] + nx[b]) / 2.0, (ny[a] + ny[b]) / 2.0);
+		lastEdgeDz = 9999; // 9999 means TryMove was blocked
 		if (!probe.TryMove(mid, 1)) return false;
 		probe.SetZ(probe.floorz);
 		if (!probe.TryMove(target, 1)) return false;
 		probe.SetZ(probe.floorz);
-		return abs(probe.pos.z - nf[b]) <= 2;
+		lastEdgeDz = probe.pos.z - nf[b]; // sloped floors differ from the converter's node height, so the log keeps the number
+		return abs(lastEdgeDz) <= 2;
 	}
 
 	override void WorldTick()
@@ -144,6 +147,19 @@ class DFMapCheck : EventHandler
 				{
 					nodeFail++;
 					Console.Printf("DFCHK N %d %d %d %d", cursor, fits, int(probe.floorz), int(probe.ceilingz));
+					if (!fits && probe.ceilingz <= probe.floorz && dbgCount < 400) // failures whose ceiling lies below the floor, with the sector's stacked slabs, for diagnosis
+					{
+						dbgCount++;
+						vector2 at = (nx[cursor], ny[cursor]);
+						Sector sc = level.PointInSector(at);
+						String t = String.Format("DFDBG node %d at %d,%d,%d sector %d floor %.0f ceil %.0f ff=%d:", cursor, nx[cursor], ny[cursor], nf[cursor], sc.Index(), sc.floorplane.ZAtPoint(at), sc.ceilingplane.ZAtPoint(at), sc.Get3DFloorCount());
+						for (int q = 0; q < sc.Get3DFloorCount(); q++)
+						{
+							F3DFloor ff = sc.Get3DFloor(q);
+							t = t .. String.Format(" [%.0f..%.0f f%x]", ff.bottom.ZAtPoint(at), ff.top.ZAtPoint(at), ff.flags);
+						}
+						Console.Printf("%s", t);
+					}
 				}
 			}
 			if (cursor >= nx.Size()) { cursor = 0; phase = 5; }
@@ -153,7 +169,7 @@ class DFMapCheck : EventHandler
 				if (!MoveEdge(ea[cursor], eb[cursor]))
 				{
 					edgeFail++;
-					Console.Printf("DFCHK E %d %d", ea[cursor], eb[cursor]);
+					Console.Printf("DFCHK E %d %d %d", ea[cursor], eb[cursor], int(lastEdgeDz));
 				}
 			if (cursor >= ea.Size()) { cursor = 0; FindSamples(); phase = 6; }
 			break;
