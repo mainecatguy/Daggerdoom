@@ -78,6 +78,7 @@ static partial class Program
         if (args.Contains("--list-tilted-doors")) return ListTiltedDoors(arena2);
         if (args.Contains("--list-main")) return ListMain(arena2, args.Contains("--list-all"));
         if (args.Contains("--list-flats")) return ListFlats(arena2);
+        if (args.Contains("--list-door-actions")) return ListDoorActions(arena2);
         for (int a = 0; a < args.Length; a++)
         {
             if (args[a] == "--out") outDir = args[++a];
@@ -278,7 +279,7 @@ static partial class Program
                     if (debugRow != null && (action.Flags != 0 || isDoor))
                         Console.WriteLine($"ACTION block={dungeonBlock.BlockName} model={id} desc={reference.Description} door={isDoor} flags={action.Flags} axis={action.Axis} dur={action.Duration} mag={action.Magnitude} next={action.NextObjectOffset} pos={obj.XPos + offset.X:F0},{obj.ZPos + offset.Z:F0},{-obj.YPos}");
                     // Moving models are runtime objects (action_objects.zs), so they are not static collision.
-                    if (IsMovingAction(obj, isDoor))
+                    if (IsMovingAction(obj, isDoor, id))
                     {
                         skippedActions++;
                         if (reference.Description == "LID") NoteLidFootprint(arch, id, obj, offset);

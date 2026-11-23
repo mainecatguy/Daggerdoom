@@ -412,6 +412,7 @@ class DFDoorCheck : EventHandler
 		if (t == 10)
 		{
 			LoadRows();
+			p.A_SetSize(10.5, p.height); // the real game's width (overworld.pk3, ddruntime.pk3); stock Doom's 16 is not a game setup
 			Console.Printf("DTSTART doors=%d nodes=%d radius=%.2f height=%.1f", rows.Size(), nodeX.Size(), p.radius, p.height);
 			parking = p.pos;
 			ClosedChecks(p);
