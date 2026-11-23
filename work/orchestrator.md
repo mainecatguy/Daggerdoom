@@ -83,7 +83,7 @@ result with known gaps than chase a perfect system.
 - Use a private `-config` for test launches, about 30-second timeouts, and stop on a fatal error.
 - Leave a demo in a new folder under `D:\dev\DoomDaggerfall-loop\review` with a one-click `play.bat`, and write `work/notes/<task>.md`.
 
-Use Opus for hard open problems. Use Sonnet for small, bounded jobs, and tell it to stop and report if the job turns out to be hard.
+Pick the cheapest model that fits the job. Use Opus for hard open problems and complicated implementation. Use Sonnet for bounded work and verification that needs judgment. Use Haiku for trivial checks, such as testing a map and reporting back. Tell Sonnet and Haiku to stop and report if the job turns out to be hard.
 
 ## Reviewing finished work
 
@@ -114,17 +114,17 @@ The owner has a Pro plan with extra usage off. Check usage before dispatching an
 
 ## Overnight loop
 
-`scripts/overnight/run.ps1` runs one goal on its own branch, has an independent verifier check it, and adds passing work to `integration`. It does not pick the next task. The planned outer loop would take the first item from `work/todo.md`, write the goal, run the script, record the result, and follow the stop rules in `work/todo.md`. It is not built, and it should not start until the current branches are reviewed and merged.
+`scripts/overnight/run.ps1` runs one goal on its own branch, has an independent verifier check it, and adds passing work to `integration`. It does not pick the next task. `scripts/overnight/overnight.ps1` is the outer loop: run from its own PowerShell window, it runs the goal cards in `work/queue/<lane>` in parallel lanes, keeps the PC awake, and writes `work/queue/morning.md`. The orchestrator writes the cards and the owner approves them. It has no clock deadline. It runs until its cards finish, a cost or failure limit stops it, or the owner says to stop.
 
 ## Handoff snapshot, 2026-11-22
 
 Replace this section as the state changes.
 
-- **Running:** nothing.
-- **Reviewed but not merged:** `agent/doomerfall-controls-submenu` at `8865bd3`. `integration` can fast-forward to it. Merge only when the owner approves. Demo: `D:\dev\DoomDaggerfall-loop\review\doomerfall-controls-submenu\play.bat`.
-- **`integration`:** `26dc6b8`, with the launcher and Doomerfall mod merged. `main` is `e2181f0`.
-- **Message channel:** not designed and no transport chosen. The fast travel menu, synchronized saving, and synchronized loading wait on it.
-- **Usage:** weekly was 0% at last check and resets on 2026-11-25 at 08:00 UTC. The stop line is 90%.
-- **Next planned work:** design the message channel with the owner, then the fast travel menu, synchronized saving, and synchronized loading.
+- **Running:** nothing until the owner starts `scripts/overnight/overnight.ps1` from a PowerShell window.
+- **Merged to `integration`:** bridge core, parity test, swimmable water, and the action system. `main` has not been updated. Demos: `D:\dev\DoomDaggerfall-loop\review\bridge-core\play.bat` and `D:\dev\DoomDaggerfall-loop\review\action-system\play.bat`.
+- **Queued cards:** `work/queue/engine` has startup and save research, position sync, the fast travel menu, and HP sync. `work/queue/dungeon` has the tilted door fix, traversal check, town colliders, one random enemy, the texture pass, and Doom-side building and dungeon entry.
+- **Lane branches:** verified work lands on `overnight/engine` and `overnight/dungeon`, which start from `integration`. Merge them only when the owner approves.
+- **Held:** synchronized saving and loading wait on the startup and save research.
+- **Usage:** weekly was 5% at last check and resets on 2026-11-25 at 08:00 UTC. The stop line is 90%.
 - **Inventory:** Daggerfall's existing inventory stays. The owner is working out Doom weapon hotkeys separately, and the design is in the backlog.
 - **Local build notes:** `uzdoom-launcher` is the current engine build. `sndfile.dll` and `soft_oal.dll` must sit beside the exe for sound.

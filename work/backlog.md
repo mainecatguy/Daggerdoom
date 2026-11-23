@@ -4,11 +4,52 @@ Work that needs owner input or depends on unfinished work. **Automated loops nev
 
 ## Engine bridge
 
-### Message channel between the games
+### Turn off Daggerfall's 3D simulation
 
-**Waiting on:** owner design. No transport has been chosen.
+**Waiting on:** owner design for how NPCs work.
 
-Design how Daggerfall Unity and UZDoom talk to each other, then build it. The fast travel menu, synchronized saving, and synchronized loading in `work/todo.md` cannot start until this is done.
+Daggerfall Unity should eventually run with its 3D world rendering and entity physics turned off while its simulation loop and 2D UI keep working. This is one of the four core technical hurdles. Daggerfall must still keep the same world objects in memory as Doom, and drawing must stay switchable by the launcher's `--nodraw` flag so tests can compare screenshots from both games. Disabling entities and physics may break NPC behavior, so it should not start until the NPC design is settled. Normal Daggerfall Unity launches must behave as they do today.
+
+## MVP
+
+The MVP target is that the player can run around the world, kill enemies, enter and exit towns, use the fast travel menu, and do other basic things. Position sync, the fast travel menu, and synchronized saving and loading are in `work/todo.md`. Everything in this section is required before MVP is complete. Items come after the others and depend on the inventory menu.
+
+### Fast travel arrival
+
+**Waiting on:** position sync and the fast travel menu in `work/todo.md`.
+
+Daggerfall owns travel cost, time, and destination. Doom reports the player's world position to Daggerfall, then loads the chosen town or overworld position and places the player where Daggerfall would.
+
+### Connect building and dungeon transitions to Daggerfall
+
+**Waiting on:** position sync, and the Doom-side building and dungeon entry task in `work/todo.md`.
+
+When the player enters or leaves a building or dungeon in Doom, Daggerfall moves to the same place, so both games stay in the same area.
+
+### Open the inventory menu from Doom
+
+**Waiting on:** the fast travel menu, which proves the path for showing Daggerfall menus in Doom.
+
+A Doom keybind opens Daggerfall's real inventory inside the Doom window, with input routed to it, and closing it resumes Doom. The exact key is not important, but it must be a bindable control. The "Open Inventory" action already exists in Doomerfall Controls.
+
+### Daggerfall items in the world
+
+**Waiting on:** the bridge core, position sync, and the inventory menu.
+
+Owner design (2026-11-22): Doom must be tolerant of Daggerfall items. Doom is the dominant client, so it must show them and let the player interact with them.
+
+- All Daggerfall items can drop in the world or appear in the world, including static placed items.
+- Doom shows these items in the game, whether or not they have a Doom equivalent.
+- The player presses the Interact keybind to pick an item up into their Daggerfall inventory. Interact is a bindable action in the existing Doomerfall Controls definitions, never a hardcoded key.
+- Picked-up items stay gone, following the permanent location state rules.
+
+- For loot piles and containers holding several items, Interact opens Daggerfall's real loot window through the Doom menu path.
+
+### Rework Doom autopickup
+
+**Waiting on:** Daggerfall items in the world.
+
+Required before MVP. Owner decision (2026-11-22): on Daggerfall maps, only health and ammo pick up by touch. Everything else uses the Interact keybind, because items now have weight. Regular WADs and mods keep normal Doom pickup.
 
 ## Overworld and towns
 
@@ -25,12 +66,6 @@ Check whether UZDoom's sky viewpoints or the existing static-mesh pass is the be
 **Waiting on:** the town stitching task and distant terrain LOD.
 
 Show a real town from outside its playable area and capture screenshots for the owner to judge.
-
-### Fast travel arrival
-
-**Waiting on:** the town stitching task and the fast travel menu in `work/todo.md`.
-
-Daggerfall owns travel cost, time, and destination. Doom reports the player's world position to Daggerfall, then loads the chosen town or overworld position and places the player where Daggerfall would.
 
 ### Town gates follow day and night
 
@@ -70,13 +105,28 @@ Fresh locations take about 5 to 7 seconds to convert in the background. Profile 
 
 ## Dungeons
 
-### Check the main quest dungeons
+### Audit and fix dungeons
 
-**Waiting on:** the dungeon audit, action system, and swimmable water.
+**Waiting on:** the owner being satisfied that all travel methods are implemented correctly. Do this last, or earlier only if we are low on other tasks.
 
-Check that Daggerfall's main quest dungeons convert and can be completed. Candidates named in outside feedback include Direnni Tower, Scourg Barrow, Castle Wayrest, Orsinium, and Mantellan Crux. Confirm the real list from the game's data.
+Run the converter on all non-random mainquest dungeons as well as some random dungeons (say 5) and report what breaks, map size, load time, frame rate, and how often each feature appears, such as teleporters, water, lifts, climbing shafts, and special markers. Use the results to recommend priorities for the dungeon work.
 
-Tell the owner wherever a dungeon requires climbing or levitation to progress, with the dungeon and location.
+The audit includes fixing what it finds, and must be broken down into steps before it starts.
+
+Outside feedback raised these possible problems. Treat them as unverified until the audit or real data confirms them:
+
+- Large multi-block dungeons may hit practical size or performance limits.
+- Stacked floors may cause sliver sectors, sound bleeding through rock, automap clutter, or lighting and fog bleeding between floors.
+- Tightly stacked sloped 3D floors may snag actors or show seams.
+- Dungeon textures may need runtime swaps by region and dungeon type, and some are animated.
+- Editor marker flats may carry teleporter destinations, quest anchors, fixed spawns, and ambient sounds.
+- Some original blocks have misaligned doorways, small lips that snag movement, or broken action chains.
+
+### Support main quest dungeon quest steps
+
+**Waiting on:** the main quest dungeon traversal check, and many more systems being ported into the game.
+
+Reverse engineer how the quest steps in the main quest dungeons work, then support those steps.
 
 ### Climbing, levitation, and steep surfaces
 
@@ -181,11 +231,38 @@ Check whether Daggerfall has quest or other scripts that move NPCs and depend on
 
 Decide how randomly wandering NPCs work across both games. The question is whether their positions need syncing at all, or whether it is enough to sync if they are alive or dead.
 
+### Mook packs
+
+**Waiting on:** MVP, and the owner defining the point-buy system.
+
+Post-MVP, but before initial release. Replace the one random enemy per placement with the mook pack design in `gamedesign.md`: encounters generate packs of Doom enemies from fixed seeds, and only deaths are tracked. Mook HP and resistances come from Doom's WAD and mod definitions. Daggerfall can at most apply a multiplier. Research found that `RandomSpawner` uses a shared random number generator, so packs must be expanded into concrete monster classes from the seed before spawning.
+
 ### Quest targets in mook packs
 
 **Waiting on:** owner design.
 
 Decide how a Daggerfall quest target maps onto a pack of mooks. The current rule is that the entity's death triggers when most of its mooks are dead. Still open: whether one monster is the "real" target, how the player can tell, and where quest items drop.
+
+### Oblivion Portals
+
+**Waiting on:** MVP, including HP sync, synchronized saving and loading, and item drops.
+
+Owner design (2026-11-22):
+
+- Oblivion Portals are styled after the portals in The Elder Scrolls: Oblivion.
+- Entering one takes the player to a classic Doom map, or a map from a WAD in their custom WADs.
+- A system may let the player buy an item that makes a portal lead to a specific Doom map, so players can visit any Doom map they choose.
+- Some random dungeons may also lead to Doom maps.
+- Daggerfall idles while the player is inside and keeps mediating damage dealt and taken. Portal maps have random drops.
+
+**Likely approach, if we build see-through rifts (owner, 2026-11-22):** generate a map from the WAD map that also includes the surrounding Daggerfall exterior and the portal, joined by a UZDoom line portal. The overworld treadmill hands off to it the way it does to a town, because the treadmill itself cannot host linked portals. Generate this as a separate cached map and never modify the player's WAD. Start with a proof using one classic Doom map. Maps that cannot merge, such as heavily scripted ones, fall back to a normal load.
+
+**To work out when this starts:**
+
+- Most WADs are already supported. The risk is WADs that change core monsters or rules, because UZDoom mounts WADs at startup and those changes could reach Daggerfall maps. Map names such as MAP01 can also collide between WADs.
+- How the player returns, including when a map's normal exit fires, and what happens on death inside a portal.
+- Saving and loading while inside a portal map.
+- Keeping the player's inventory through Doom map changes that normally reset it.
 
 ### Daggerfall completeness review
 
