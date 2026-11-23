@@ -38,6 +38,8 @@ Then, we only need to track which mooks are dead for save/load in daggerfall (th
 Doom then for all mooks places Doom enemies using a point buy system the user will define. Points are allocated based on encounter difficulty calculations.
 Death events for an NPC trigger when most of the mooks are dead. For consistency's sake, if the user kills all but 1-2 entities, we may have to flag the NPC is dead and allow that to not make those stragglers respawn.
 
+Mook HP and resistances: Daggerfall does not understand Doom monster tables and must not be made to. It never sets a mook's HP or resistances directly. Doom's WAD and mod definitions decide them, and Daggerfall can at most apply a multiplier. Daggerfall can set HP for its own non-Doom entities, such as NPCs.
+
 Damage and resistances for the initial release (not final, to be revisited after release):
 DRLA keeps its resistance system, and Daggerfall's rules are applied on top of it as much as is reasonable.
 Daggerfall controls damage, so Daggerfall armor is the armor that matters.

@@ -253,7 +253,7 @@ Decide how randomly wandering NPCs work across both games. The question is wheth
 
 **Waiting on:** MVP, and the owner defining the point-buy system.
 
-Post-MVP, but before initial release. Replace the one random enemy per placement with the mook pack design in `gamedesign.md`: encounters generate packs of Doom enemies from fixed seeds, and only deaths are tracked. Research found that `RandomSpawner` uses a shared random number generator, so packs must be expanded into concrete monster classes from the seed before spawning.
+Post-MVP, but before initial release. Replace the one random enemy per placement with the mook pack design in `gamedesign.md`: encounters generate packs of Doom enemies from fixed seeds, and only deaths are tracked. Mook HP and resistances come from Doom's WAD and mod definitions. Daggerfall can at most apply a multiplier. Research found that `RandomSpawner` uses a shared random number generator, so packs must be expanded into concrete monster classes from the seed before spawning.
 
 ### Quest targets in mook packs
 
@@ -275,7 +275,7 @@ Owner design (2026-11-22):
 
 **To work out when this starts:**
 
-- UZDoom mounts WADs at startup, so custom WADs must be loaded up front or the game must handle switching. Loaded WADs must not change textures, monsters, or rules on Daggerfall maps, and map names such as MAP01 can collide between WADs.
+- Most WADs are already supported. The risk is WADs that change core monsters or rules, because UZDoom mounts WADs at startup and those changes could reach Daggerfall maps. Map names such as MAP01 can also collide between WADs.
 - How the player returns, including when a map's normal exit fires, and what happens on death inside a portal.
 - Saving and loading while inside a portal map.
 - Keeping the player's inventory through Doom map changes that normally reset it.
