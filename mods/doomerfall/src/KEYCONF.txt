@@ -1,0 +1,8 @@
+// Doomerfall controls. Everything here is unbound by default.
+// To add an action: add an AddMenuKey line here, a case in Doomerfall_Events.NetworkProcess
+// (zscript/Doomerfall.zs). The command must be "netevent <name>" with a df_ prefix.
+
+AddKeySection "Doomerfall" Doomerfall
+
+AddMenuKey "Open Fast Travel" "netevent df_fast_travel"
+AddMenuKey "Open Inventory" "netevent df_inventory"
