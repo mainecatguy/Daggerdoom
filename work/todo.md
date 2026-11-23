@@ -32,9 +32,9 @@ Build a system for Daggerfall's action records, extending the swinging door patt
 
 Use each dungeon block's Daggerfall water level to create swimmable water, likely with UZDoom's swimmable 3D floors. Flooded rooms must not affect rooms above or below them.
 
-### 5. Build and check the main quest dungeons
+### 5. Build and check main quest dungeon traversal
 
-Build the existing non-random main quest dungeons and about 5 random dungeons with the current converter, load each in UZDoom, and check them. Report what works, what breaks, and whether each main quest dungeon looks completable. Candidates named in outside feedback include Direnni Tower, Scourg Barrow, Castle Wayrest, Orsinium, and Mantellan Crux. Confirm the real list from the game's data.
+Build the existing non-random main quest dungeons and about 5 random dungeons with the current converter, load each in UZDoom, and check that the player can physically traverse them. Report what works, what breaks, and which areas cannot be reached. This pass does not fix or test quests. Candidates named in outside feedback include Direnni Tower, Scourg Barrow, Castle Wayrest, Orsinium, and Mantellan Crux. Confirm the real list from the game's data. Do Mantellan Crux last, as the final boss, because it may be extremely hard.
 
 Tell the owner wherever a dungeon requires climbing or levitation to progress, with the dungeon and location. Fixing what this finds is separate work.
 

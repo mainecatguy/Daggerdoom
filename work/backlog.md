@@ -87,6 +87,12 @@ Outside feedback raised these possible problems. Treat them as unverified until 
 - Editor marker flats may carry teleporter destinations, quest anchors, fixed spawns, and ambient sounds.
 - Some original blocks have misaligned doorways, small lips that snag movement, or broken action chains.
 
+### Support main quest dungeon quest steps
+
+**Waiting on:** the main quest dungeon traversal check, and many more systems being ported into the game.
+
+Reverse engineer how the quest steps in the main quest dungeons work, then support those steps.
+
 ### Climbing, levitation, and steep surfaces
 
 **Waiting on:** owner design input after the research step.
