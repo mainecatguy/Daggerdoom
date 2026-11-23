@@ -22,6 +22,8 @@ bool DDTreadmill_OpenTownMap(const char *mapname, FileSys::FileReader &reader);
 bool DDTreadmill_MapMesh(const char *mapname, const uint8_t *&data, size_t &size, int &key);
 bool DDTreadmill_LodMesh(const uint8_t *&data, size_t &size, int &key);
 bool DDTreadmill_RuntimeTowns();
+level_info_t *DDTreadmill_LevelInfoAt(unsigned index);	// Null past the end. Empty unless a generated location was used.
+bool DDTreadmill_HandoffPending();	// True during a stitched map change, which must not autosave and hitch.
 
 void DDTreadmill_Serialize(FLevelLocals *Level, FSerializer &arc);
 void DDTreadmill_FrameEnd();

@@ -210,6 +210,10 @@ void G_ClearSnapshots (void)
 	{
 		wadlevelinfos[i].Snapshot.Clean();
 	}
+	for (unsigned int i = 0; level_info_t *ddInfo = DDTreadmill_LevelInfoAt(i); i++) // [DoomDaggerfall]
+	{
+		ddInfo->Snapshot.Clean();
+	}
 
 	// Clear current levels' snapshots just in case they are not defined via MAPINFO,
 	// so they were not handled by the loop above

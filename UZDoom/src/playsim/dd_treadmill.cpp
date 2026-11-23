@@ -1510,6 +1510,8 @@ void DDTreadmill_BeginMap(FLevelLocals *Level)
 }
 
 bool DDTreadmill_RuntimeTowns() { return runtimeTowns; }
+level_info_t *DDTreadmill_LevelInfoAt(unsigned index) { return index < runtimeInfos.size() ? &runtimeInfos[index] : nullptr; }
+bool DDTreadmill_HandoffPending() { return handoff.pending; }
 
 // Each generated location gets its own copy of the DDTOWN template from the runtime package's MAPINFO.
 level_info_t *DDTreadmill_FindLevelInfo(const char *mapname)

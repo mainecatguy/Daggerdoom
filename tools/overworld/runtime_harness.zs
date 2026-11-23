@@ -6,6 +6,7 @@ class RTState : Inventory
 {
 	Default { Inventory.MaxAmount 1; +INVENTORY.UNDROPPABLE +INVENTORY.UNTOSSABLE }
 	int leg, phase, timer, waited, baseStitches, wait2;
+	bool saved, marked;
 }
 
 class RTHarness : EventHandler
@@ -19,6 +20,7 @@ class RTHarness : EventHandler
 	static const int ROUTE[] = { @ROUTE@ };
 	const FIELDS = 6;
 	bool done;
+	String mode;
 
 	static int CV(String name) { return CVar.FindCVar(name).GetInt(); }
 
@@ -31,6 +33,7 @@ class RTHarness : EventHandler
 		if (!st) return;
 		p.bNOTARGET = true;
 		players[0].cheats |= CF_GODMODE;
+		mode = "@MODE@";
 		int count = ROUTE.Size() / FIELDS;
 		if (st.leg >= count)
 		{
@@ -57,6 +60,12 @@ class RTHarness : EventHandler
 			p.vel = (0, 0, 0);
 			if (st.timer > 4 && level.maptime > 2 && !inTown && abs(CV("dd_tm_originx") + (p.pos.x + HALF) / TILE - sx) < 3 && abs(CV("dd_tm_originy") + (p.pos.y + HALF) / TILE - sy) < 3)
 			{
+				if (mode == "save" && !st.marked)	// A wounded imp beside the player: world-table state that must outlive the cache.
+				{
+					st.marked = true;
+					let imp = Actor.Spawn("DoomImp", p.pos + (96, 96, 0));
+					if (imp) { imp.health = 17; imp.bDORMANT = true; }
+				}
 				st.phase = 2;
 				st.timer = 0;
 			}
@@ -67,6 +76,12 @@ class RTHarness : EventHandler
 			if (inTown)
 			{
 				Console.Printf("RTLEG entered leg=%d group=%d map=%s waited_tics=%d", st.leg, group, level.MapName, st.waited);
+				if (mode == "save" && !st.saved)
+				{
+					st.saved = true;
+					Console.Printf("RTSAVE map=%s records=%d", level.MapName, CV("dd_tm_records"));
+					level.MakeAutoSave();
+				}
 				st.phase = 3;
 				st.timer = 0;
 				break;
@@ -86,6 +101,7 @@ class RTHarness : EventHandler
 			break;
 		}
 		case 3:	// A little way inside the map, then back out.
+			if (mode == "save") { p.vel.xy = (0, 0); if (st.timer > 50) { Console.Printf("RTDONE saved"); done = true; } break; }
 			p.vel.xy = (dx * SPEED, dy * SPEED);
 			if (st.timer >= 12) { st.phase = 4; st.timer = 0; }
 			break;
@@ -95,9 +111,22 @@ class RTHarness : EventHandler
 			if (!inTown)
 			{
 				Console.Printf("RTLEG left leg=%d group=%d", st.leg, group);
+				if (mode == "load") { st.phase = 5; st.timer = 0; break; }
 				Next(st);
 			}
 			else if (st.timer > 500) Fail(st, group, "could not leave");
+			break;
+		case 5:	// After a loaded save: the world-table imp must come back, wounded, once its chunk loads.
+			p.vel = (0, 0, 0);
+			if (st.timer == 70)
+			{
+				int imps = 0, health = 0;
+				let it = ThinkerIterator.Create("DoomImp");
+				Actor a;
+				while (a = Actor(it.Next())) { imps++; health = a.health; }
+				Console.Printf("RTLOAD after leaving: imps=%d health=%d records=%d", imps, health, CV("dd_tm_records"));
+				Next(st);
+			}
 			break;
 		}
 	}

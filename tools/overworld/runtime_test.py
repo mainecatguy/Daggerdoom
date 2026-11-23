@@ -3,7 +3,7 @@
 Usage: runtime_test.py NAME --groups 1,3,5,1 [--timeout 150] [--cache DIR] [--converter EXE] [--keep-cache]
 A group listed twice is the return visit, which must come from the cache. Generated files stay outside the repository.
 """
-import argparse, csv, os, re, shutil, struct, subprocess, sys, time, zipfile
+import argparse, csv, glob, os, re, shutil, struct, subprocess, sys, time, zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 EXE = r"D:\dev\DoomDaggerfall-build\uzdoom-stitch\Release\uzdoom.exe"
@@ -13,8 +13,8 @@ QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 WORK = r"D:\dev\DoomDaggerfall-build\runtime-tests"
 ROOT = r"D:\dev\DoomDaggerfall-loop\town-cache"
 CONVERTER = r"D:\dev\DoomDaggerfall-loop\DoomDaggerfall-build\dungeon_converter\bin\Release\net9.0\DungeonConverter.exe"
-FATAL = ("VM execution aborted", "Script error", "Execution could not continue", "Unable to open map")
-KEYS = ("RTLEG", "RTDONE", "DDTCONV", "DDTCACHE", "DDSTITCH arrive", "DDTLOD", "DDTOWN contents", "DFGATES", "DFMesh", "Script error", "aborted")
+FATAL = ("DIED WITH FATAL", "VM execution aborted", "Script error", "Execution could not continue", "Unable to open map")
+KEYS = ("RTSAVE", "RTLOAD", "DDTOWN resumed", "DDSEAM", "RTLEG", "RTDONE", "DDTCONV", "DDTCACHE", "DDSTITCH arrive", "DDTLOD", "DDTOWN contents", "DFGATES", "DFMesh", "Script error", "aborted")
 
 
 def read_groups(pk3):
@@ -57,6 +57,8 @@ ap.add_argument("--cache", default=os.path.join(ROOT, "test"))
 ap.add_argument("--converter", default=CONVERTER)
 ap.add_argument("--keep-cache", action="store_true")
 ap.add_argument("--cap-mb", default=None)
+ap.add_argument("--mode", default="route", choices=["route", "save", "load"])
+ap.add_argument("--verify", action="store_true", help="measure the seam between each location and the overworld")
 args = ap.parse_args()
 
 assets = os.path.join(ROOT, "ddruntime.pk3")
@@ -75,7 +77,7 @@ over = os.path.join(WORK, args.name + "_over.pk3")
 subprocess.check_call([sys.executable, os.path.join(HERE, "gen_overworld.py"), "--out", over, "--world-dir", r"D:\dev\DoomDaggerfall-build\stitch-data",
                        "--ground-from", assets, "--start-tile", f"{(first[0] - 64) // 32 * 32},{(first[1] - 64) // 32 * 32}", "--packchance", "0"], stdout=subprocess.DEVNULL)
 harness = os.path.join(WORK, args.name + "_harness.pk3")
-text = open(os.path.join(HERE, "runtime_harness.zs")).read().replace("@ROUTE@", ", ".join(map(str, route)))
+text = open(os.path.join(HERE, "runtime_harness.zs")).read().replace("@ROUTE@", ", ".join(map(str, route))).replace("@MODE@", args.mode)
 with zipfile.ZipFile(harness, "w") as z:
     z.writestr("zscript.txt", text)
     z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "RTHarness" }\n')
@@ -87,6 +89,11 @@ frames = os.path.join(WORK, args.name + ".csv")
 game = [EXE, "-iwad", IWAD, "-file", assets, over, harness, "-config", os.path.join(WORK, "test.ini"), "-savedir", os.path.join(WORK, "saves"), "-nosound", "-noautoload", "-skill", "3",
         "-width", "1280", "-height", "720", "-noactivate", "-ddcrashexit", os.path.join(WORK, args.name + ".crash.txt"), "-ddtowncache", args.cache, "-ddconverter", args.converter, "-ddarena2", ARENA2, "-ddtmlog", frames,
         "+logfile", args.name, "+vid_fullscreen", "0", "+vid_vsync", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", "DDOVER01"]
+if args.verify:
+    game.insert(1, "-ddtmverify")
+if args.mode == "load":
+    newest = max(glob.glob(os.path.join(WORK, "saves", "auto*.zds")), key=os.path.getmtime)
+    game = game[:game.index("+map")] + ["-loadgame", os.path.basename(newest)]
 if args.cap_mb:
     game[game.index("-ddtowncache"):game.index("-ddtowncache")] = ["-ddtowncachemb", args.cap_mb]
 proc = subprocess.Popen([sys.executable, QUIET, "--timeout", str(args.timeout), "--"] + game, cwd=WORK, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

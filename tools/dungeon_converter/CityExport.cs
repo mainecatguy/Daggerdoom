@@ -68,6 +68,7 @@ static partial class Program
             walkMargin = margin;
 
             var maps = new MapsFile(Path.Combine(arena2, "MAPS.BSA"), FileUsage.UseMemory, true);
+            List<WorldTerrain.Place> runtimeGroup = null;
             DFLocation location = default;
             if (groupId < 0 && !FindCity(maps, regionName, cityName, out location)) { Console.Error.WriteLine("city not found: " + cityName); return 1; }
             var blocksFile = new BlocksFile(Path.Combine(arena2, "BLOCKS.BSA"), FileUsage.UseMemory, true);
@@ -77,7 +78,8 @@ static partial class Program
             {
                 var groups = WorldTerrain.Groups();
                 if (groupId >= groups.Count) { Console.Error.WriteLine("no such group: " + groupId); return 1; }
-                var primary = groups[groupId][0];
+                runtimeGroup = groups[groupId];
+                var primary = runtimeGroup[0];
                 location = maps.GetLocation(primary.RegionIndex, primary.LocationIndex);
                 cityName = primary.Name;
                 cityX = primary.X; cityY = primary.Y;
@@ -90,7 +92,7 @@ static partial class Program
             Console.WriteLine($"{location.RegionName}/{location.Name}: map pixel {cityX},{cityY}, climate {location.Climate.WorldClimate} base {location.Climate.ClimateType}, ground {location.Climate.GroundArchive}, nature {location.Climate.NatureArchive}, sky {location.Climate.SkyBase}");
 
             // Adjacent locations share this one map.
-            foreach (var place in WorldTerrain.GroupOf(WorldTerrain.Places[(cityX, cityY)]))
+            foreach (var place in runtimeGroup ?? WorldTerrain.GroupOf(WorldTerrain.Places[(cityX, cityY)]))
             {
                 var site = new Site { Place = place, Location = maps.GetLocation(place.RegionIndex, place.LocationIndex), DX = place.X - cityX, DY = cityY - place.Y };
                 site.Blocks = new DFBlock[place.BlocksWide * place.BlocksHigh];
