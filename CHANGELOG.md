@@ -12,10 +12,10 @@ What is done on the project, newest first. Agents do not need to read this unles
 
 ## 2026-11-22
 
-### Bridge core (`overnight/engine`, not merged)
+### Bridge core
 - UZDoom and Daggerfall Unity exchange messages and shared state through the launcher. The owner confirmed the IPC demo works.
 
-### Parity test, action system, and water (`overnight/dungeon`, not merged)
+### Parity test, action system, and water
 - Closed-door parity stages use swinging doors, dungeon water is swimmable, and Daggerfall action objects move. The owner confirmed the Scourg Barrow coffin works, and textures need a second pass.
 
 ### Launcher (`7e80862`)
