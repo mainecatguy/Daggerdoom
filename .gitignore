@@ -13,6 +13,8 @@
 # The current overnight goal is local.
 /work/goal.md
 /work/questions.md
+/work/agent-reports.md
+/work/suspectedoversights.md
 
 __pycache__/
 *.pyc

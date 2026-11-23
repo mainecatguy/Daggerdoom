@@ -12,27 +12,19 @@ Work that is ready to do automatically, in priority order. Every item here is ap
 
 ## Ready
 
-### 1. Launcher for both games
-
-A launcher starts Daggerfall Unity and UZDoom as one package and exits both if either one exits or crashes. It includes a simple message channel between them. Launching UZDoom normally must behave exactly as it does today.
-
-### 2. DaggerDoom mod scaffolding
-
-Create our own Doom mod for DaggerDoom. Use whatever form fits best, likely a pk3 with custom key sections, menus, and event handlers. At minimum it adds a DaggerDoom section to the controls menu with bindable actions such as "Open Inventory" and "Open Fast Travel", and sends those actions to Daggerfall. The launcher loads it, so regular WADs and mods are unaffected.
-
-### 3. Show Daggerfall's fast travel menu in Doom
+### 1. Show Daggerfall's fast travel menu in Doom
 
 Pressing the Fast Travel key pauses Doom and shows Daggerfall's real travel map inside the Doom window, with input routed to it. Closing it resumes Doom. Do not recreate the menu in Doom. Build this so other Daggerfall menus, such as inventory, can use the same path. Daggerfall's 3D world should not render while this runs. Arriving at the chosen destination is a separate backlog item.
 
-### 4. Synchronized saving
+### 2. Synchronized saving
 
 Saving pauses both games with a handshake, so messages in flight are not lost, then saves both. Each writes temporary files, and the real save is replaced only after both succeed. Start with player HP and position. On Daggerfall maps, Doom's save command goes through this path. Regular WADs keep normal Doom saves.
 
-### 5. Synchronized loading
+### 3. Synchronized loading
 
 Loading restores both games from the same save, and both confirm they are ready before resuming together. Doom's load command and death restart on Daggerfall maps go through this path. Regular WADs keep normal Doom loading.
 
-### 6. Audit every dungeon
+### 4. Audit every dungeon
 
 Run the converter on all dungeons and report what breaks, map size, load time, frame rate, and how often each feature appears, such as teleporters, water, lifts, climbing shafts, and special markers. Use the results to recommend priorities for the dungeon work.
 
@@ -45,11 +37,11 @@ Outside feedback raised these possible problems. Treat them as unverified until 
 - Editor marker flats may carry teleporter destinations, quest anchors, fixed spawns, and ambient sounds.
 - Some original blocks have misaligned doorways, small lips that snag movement, or broken action chains.
 
-### 7. Update the parity test for swinging doors
+### 5. Update the parity test for swinging doors
 
 The parity tool's closed-door stages were written for the old door slabs and no longer mean anything. Make them meaningful for swinging door objects.
 
-### 8. Daggerfall action system
+### 6. Daggerfall action system
 
 Build a system for Daggerfall's action records, extending the swinging door pattern. Moving dungeon objects should work faithfully to Daggerfall, and the implementing agent is empowered to make the engineering decisions. This also unblocks Scourg Barrow.
 
@@ -57,6 +49,6 @@ Build a system for Daggerfall's action records, extending the swinging door patt
 - **Daggerfall owns the rules:** spells, riddles and text, trap damage, and locks. These wait for the engine sync and should not be faked in Doom.
 - Do not cull "sealed" rooms as sealed rooms as these may be the reason.
 
-### 9. Swimmable water
+### 7. Swimmable water
 
 Use each dungeon block's Daggerfall water level to create swimmable water, likely with UZDoom's swimmable 3D floors. Flooded rooms must not affect rooms above or below them.

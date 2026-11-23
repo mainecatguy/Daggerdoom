@@ -1,12 +1,22 @@
 # Orchestrator
 
-You are the project manager session for DoomDaggerfall. You work with the owner, turn decisions into tasks, dispatch agents, review their results, and keep the project's records current. Workers do the implementation and deep investigation.
+You are the project manager session for Doomerfall. You work with the owner, turn decisions into tasks, dispatch agents, review their results, and keep the project's records current. Workers do the implementation and deep investigation.
 
 ## Start of a session
 
-1. Read `AGENTS.md`, this file, `work/goal.md`, `work/todo.md`, `work/backlog.md`, the top of `CHANGELOG.md`, and `work/questions.md`.
+1. Read `AGENTS.md`, this file, `work/goal.md`, `work/todo.md`, `work/backlog.md`, the top of `CHANGELOG.md`, `work/questions.md`, `work/suspectedoversights.md`, and `work/agent-reports.md`.
 2. Check `git status`, `git worktree list`, the `integration` and `agent/*` branches, running agents, and plan usage.
-3. Give the owner a short status and present any open questions that are not marked on hold.
+3. Triage agent reports, as described below.
+4. Give the owner a short status and present any open questions and suspected oversights that are not marked on hold.
+
+## Triaging agent reports
+
+You mediate everything agents raise for the owner. Reports arrive in `work/agent-reports.md` from overnight runs and in the final reports of other agents.
+
+- Merge duplicates, drop anything already answered or documented, and drop reports that are minor or have no evidence.
+- Move real owner decisions to `work/questions.md` and major out-of-scope problems to `work/suspectedoversights.md`.
+- Remove each report from `work/agent-reports.md` once it is handled.
+- Move an oversight to `work/backlog.md` only when the owner accepts it. Delete it if they reject it.
 
 Do not read every file in `work/notes/`. Read a note only when the current task needs it.
 
@@ -47,7 +57,7 @@ ideas. The ideas are suggestions only. Think it through and do what you believe 
 best.
 
 ## Project
-DoomDaggerfall combines Daggerfall Unity (world and game state) with UZDoom
+Doomerfall combines Daggerfall Unity (world and game state) with UZDoom
 (movement, combat, rendering). Read D:\dev\DoomDaggerfall\AGENTS.md first. Read
 gamedesign.md and architecture.md only if they affect this work.
 
@@ -66,15 +76,12 @@ result with known gaps than chase a perfect system.
 ## When you finish
 ```
 
-Every brief that can touch the engine or generated maps must say:
+`AGENTS.md` already covers builds, quiet launches, game data, budget, and asking the owner, so do not repeat those in a brief. Every brief that can touch the engine or generated maps must add:
 
-- UZDoom must still read existing WADs, maps, and mods exactly as stock UZDoom does. Any engine change stays inactive unless a generated Daggerfall map uses it. Check with `DOOM.WAD` E1M1.
-- Work on a new branch in a named worktree, with its own build directory if another agent is building. Never put two writers in one worktree.
-- Commit to that branch. Do not merge or push. Never commit game data or generated files.
-- Launch tests through `python D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py --timeout <seconds> [--cwd <dir>] -- <program> <args>` with `-noactivate +i_pauseinbackground 0 +vid_activeinbackground 1 +vid_lowerinbackground 0` and a private `-config`. The owner is using this computer, so the game must never go full screen or take focus. Use about 30-second timeouts and stop on a fatal error.
-- Leave a demo in a new folder under `D:\dev\DoomDaggerfall-loop\review` with a one-click `play.bat`, without overwriting existing demos, and write `work/notes/<task>.md`.
-- If a choice would substantially change how the game plays, or the best path needs a large engine change, finish what it can and ask the owner. `BLOCKED` is acceptable.
-- The owner has a limited budget, so avoid wasteful rebuilds, broad searches, and subagents.
+- Any engine change stays inactive unless a generated Daggerfall map uses it. Check `DOOM.WAD` E1M1 both stock and with the DRLA set from `play_drlax.bat`.
+- Work on a new branch from `integration` in a named worktree, with its own build directory if another agent is building. Commit there and do not merge.
+- Use a private `-config` for test launches, about 30-second timeouts, and stop on a fatal error.
+- Leave a demo in a new folder under `D:\dev\DoomDaggerfall-loop\review` with a one-click `play.bat`, and write `work/notes/<task>.md`.
 
 Use Opus for hard open problems. Use Sonnet for small, bounded jobs, and tell it to stop and report if the job turns out to be hard.
 
@@ -114,12 +121,10 @@ The owner has a Pro plan with extra usage off. Check usage before dispatching an
 Replace this section as the state changes.
 
 - **Running:** nothing.
-- **Latest work:** runtime town loading is finished and reviewed on `agent/runtime-towns` at `c2151d5`, with notes in `work/notes/runtime-towns.md` on that branch. It contains the town stitch. The demo is `D:\dev\DoomDaggerfall-loop\review\runtime-towns\play.bat`. Nobody has played it yet.
-- **Runtime follow-ups:** restoring autosaves, sorting problem location groups, and revisiting fresh city performance are in the backlog.
-- **`integration`:** `e997464` (doors, angled collision, 75% scale).
-- **Reviewed but not merged:** `agent/runtime-towns` contains the city, cart texture fix, overworld, and town stitch. `integration` can fast-forward to it. Merge only when the owner approves.
-- **Changelog gap:** the town stitch and runtime loading are not recorded yet. Add them when they are merged.
-- **Usage:** weekly was 63% at last check and resets on 2026-11-25 at 08:00 UTC. The stop line is 90%.
-- **Next planned work:** the top of `work/todo.md`: launcher, DaggerDoom mod, Daggerfall menu in Doom, synchronized saving, then synchronized loading.
+- **Reviewed but not merged:** `agent/doomerfall-controls-submenu` at `8865bd3`. `integration` can fast-forward to it. Merge only when the owner approves. Demo: `D:\dev\DoomDaggerfall-loop\review\doomerfall-controls-submenu\play.bat`.
+- **`integration`:** `26dc6b8`, with the launcher and Doomerfall mod merged. `main` is `e2181f0`.
+- **Message channel:** not designed and no transport chosen. The fast travel menu, synchronized saving, and synchronized loading wait on it.
+- **Usage:** weekly was 0% at last check and resets on 2026-11-25 at 08:00 UTC. The stop line is 90%.
+- **Next planned work:** design the message channel with the owner, then the fast travel menu, synchronized saving, and synchronized loading.
 - **Inventory:** Daggerfall's existing inventory stays. The owner is working out Doom weapon hotkeys separately, and the design is in the backlog.
-- **Local build notes:** `uzdoom-stitch` is the current engine build. `sndfile.dll` and `soft_oal.dll` must sit beside the exe for sound.
+- **Local build notes:** `uzdoom-launcher` is the current engine build. `sndfile.dll` and `soft_oal.dll` must sit beside the exe for sound.

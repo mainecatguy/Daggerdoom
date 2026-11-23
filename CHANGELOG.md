@@ -6,10 +6,25 @@ What is done on the project, newest first. Agents do not need to read this unles
 
 - **Playable demo:** Privateer's Hold with Daggerfall visuals, Doom movement and combat, 42 Doom monsters, swinging doors, and angled collision. Run `D:\dev\DoomDaggerfall-loop\review\angled-demo\play.bat`.
 - **Other demos:** City of Daggerfall at `D:\dev\DoomDaggerfall-loop\review\city-texture-fix\play.bat`, overworld at `D:\dev\DoomDaggerfall-loop\review\overworld-demo\play.bat`, and DRLAX on E1M1 at `D:\dev\DoomDaggerfall\play_drlax.bat`.
-- **Branches:** `integration` is at `e997464`. The city, cart fix, and overworld are on their own branches and are being combined in `agent/town-stitch`.
+- **Launcher:** starts Daggerfall Unity and UZDoom as one package. Run `D:\dev\DoomDaggerfall-loop\review\launcher\play.bat`.
+- **Branches:** `integration` is at `26dc6b8`, with the city, overworld, town stitch, runtime towns, launcher, and Doomerfall mod.
 - **Roughest spots:** some walls still bend where they stayed tied to the grid, and false walls and openings remain.
 
 ## 2026-11-22
+
+### Launcher (`7e80862`)
+- A native launcher runs both games in one Job Object and closes both when either exits or is killed. It passes an ordered mod list to UZDoom. There is no message channel yet.
+- The owner tested it and confirmed it works. Doom had no sound because the launcher build lacked `sndfile.dll` and `soft_oal.dll`. They were copied in, and OpenAL now initializes.
+- Known gaps: hung games are not detected, a UZDoom fatal dialog holds both games open, and shutdown does not coordinate saves.
+
+### Doomerfall mod (`b564fc0`)
+- Our own mod adds unbound "Open Fast Travel" and "Open Inventory" controls that log when fired. It works with and without the DRLA set. The owner tested it.
+
+### Project renamed to Doomerfall (`17ea32a`)
+- Engine code markers now use the new name. The local folder keeps its old name.
+
+### Town stitch and runtime towns (`e2181f0`)
+- The overworld stitches to generated towns, and Daggerfall locations convert and load during play with a disk cache.
 
 ### Work tracking
 - Added `work/todo.md` for owner-approved work that is ready to run automatically. `work/backlog.md` now holds only work that needs owner input or depends on unfinished work.

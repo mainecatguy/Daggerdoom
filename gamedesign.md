@@ -19,7 +19,7 @@ Play through one Daggerfall dungeon (e.g., Privateer's Hold) and one town, fast-
 | **Monsters & Encounters** | **Doom / DRLX** | All monsters are replaced by slaughter-map-sized Doom/DRLX packs that spill through available space and infight, scaled by Daggerfall's location difficulty and encounter tables. |
 | **NPCs, Dialogue & Quests** | **Daggerfall (peaceful) + Doom (hostile)** | Townsfolk, guilds, dialogue, and quests follow Daggerfall's rules. Once attacked or flagged hostile, NPCs fight as aggressive Doom bots, usually with powerful non-hitscan weapons. |
 | **Crime, Bounties & Guards** | **Daggerfall (rules) + Doom (enforcement)** | Daggerfall governs reputation, bounties, surrender, and court/jail; hostile guards pursue and fight like Doom bots. |
-| **Player Vitals & Death** | **Daggerfall** | Daggerfall's HP, attributes, resistances, fatigue, magicka, and death rules govern survival. DRLX passes base damage and damage type entities want to deal to daggerfall, and daggerfall applies its damage rules and is the final arbitrator of how much damage was dealt to an entity. All DRLX weapons have damage types. |
+| **Player Vitals & Death** | **Daggerfall** | Daggerfall's HP, attributes, armor, resistances, fatigue, magicka, and death rules govern survival. DRLX passes base damage and damage type entities want to deal to daggerfall, and daggerfall applies its damage rules and is the final arbitrator of how much damage was dealt to an entity. All DRLX weapons have damage types. |
 | **Status Effects & Transformations** | **Daggerfall** | Poison, disease, paralysis, buffs, vampirism, and lycanthropy follow Daggerfall's rules and directly alter movement, vision, and survivability in Doom combat. |
 | **Movement & Traversal** | **Doom (feel) + Daggerfall (abilities)** | Doom's fast, responsive FPS movement is the baseline, modified by Daggerfall's encumbrance, swimming, climbing, levitation, and horses. |
 | **Magic & Spellcasting** | **Daggerfall (rules) + Doom (execution)** | Daggerfall's spellbooks, spellmaker, and magicka costs prevail, for spells that hit Daggerfall can spawn a projectile and specify a radius which it will ask  Doom to spawn, Doom will then report what the projectile hit. |
@@ -37,6 +37,19 @@ Mooks are generated from deterministic seeds so we always get the same set of mo
 Then, we only need to track which mooks are dead for save/load in daggerfall (this is an expansion) and then tell doom on load "these are dead bodies".
 Doom then for all mooks places Doom enemies using a point buy system the user will define. Points are allocated based on encounter difficulty calculations.
 Death events for an NPC trigger when most of the mooks are dead. For consistency's sake, if the user kills all but 1-2 entities, we may have to flag the NPC is dead and allow that to not make those stragglers respawn.
+
+Damage and resistances for the initial release (not final, to be revisited after release):
+DRLA keeps its resistance system, and Daggerfall's rules are applied on top of it as much as is reasonable.
+Daggerfall controls damage, so Daggerfall armor is the armor that matters.
+
+## Ammunition (design pillar)
+
+Ammunition will eventually be an inventory object.
+
+- Ammunition has different qualities.
+- A system will let the player change the type of ammo loaded in a gun.
+- Daggerfall can tell Doom that the player has more than Doom's max ammo, and Doom accepts it.
+- There may be limits on how much ammo the player can carry. That is a future system.
 
 Other todos:
 DFU loot should persist no matter where it is dropped if possible.
