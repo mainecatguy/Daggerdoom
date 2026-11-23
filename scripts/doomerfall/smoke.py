@@ -46,6 +46,10 @@ for name, files in setups.items():
     sub = [l for l in menu if "MENUDUMP DoomerfallControlsMenu" in l]
     if name != "drla-only":
         if not any("Doomerfall Controls" in l for l in main): ok = False; bad.append("no submenu entry")
+        idx = [i for i, l in enumerate(main) if "Doomerfall Controls" in l]
+        rst = [i for i, l in enumerate(main) if "OPTMNU_DEFAULTS" in l]
+        if not idx or not rst or idx[0] > rst[0]: ok = False; bad.append("entry not above Reset to defaults")
+        elif not any("Submenu" in main[idx[0] - 1] for _ in [0]): ok = False; bad.append("entry not next to the other submenus")
         if any("Open Fast Travel" in l for l in main): ok = False; bad.append("action in main list")
         if not (any("Open Fast Travel" in l for l in sub) and any("Open Inventory" in l for l in sub)): ok = False; bad.append("submenu lacks actions")
     elif any("Doomerfall" in l for l in main): ok = False

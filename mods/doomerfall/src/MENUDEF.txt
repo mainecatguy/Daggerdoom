@@ -1,10 +1,7 @@
-// Adds "Doomerfall Controls" to Options > Customize Controls, and defines that submenu.
+// Defines the Doomerfall Controls submenu. Its entry in Options > Customize Controls is inserted
+// next to the other submenus by Doomerfall_Events.UiTick (zscript/Doomerfall.zs), because
+// AddOptionMenu can only append (below "Reset to defaults").
 // All actions are unbound by default; bindings are saved in the player's config like any other.
-AddOptionMenu "CustomizeControls"
-{
-	Submenu "Doomerfall Controls", "DoomerfallControlsMenu"
-}
-
 OptionMenu "DoomerfallControlsMenu"
 {
 	Title "Doomerfall Controls"
