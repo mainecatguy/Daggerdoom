@@ -300,6 +300,7 @@ uint64_t ComputeLayoutHash()
 		offsetof(dfb_uz_state, world_x), offsetof(dfb_uz_state, world_z), offsetof(dfb_uz_state, world_height),
 		offsetof(dfb_uz_state, yaw_degrees), offsetof(dfb_uz_state, world_context), offsetof(dfb_uz_state, map_pixel_x),
 		offsetof(dfb_uz_state, map_pixel_y), offsetof(dfb_uz_state, area_seq), sizeof(dfb_area),
+		offsetof(dfb_uz_state, space_x), offsetof(dfb_uz_state, space_yaw), offsetof(dfb_uz_state, space_target), offsetof(dfb_uz_state, space_valid),
 		sizeof(dfb_ping), sizeof(dfb_hello), sizeof(SurfaceShared), sizeof(dfb_surface_frame),
 		sizeof(dfb_ui_command), sizeof(dfb_ui_input), sizeof(dfb_ui_state), sizeof(dfb_ui_result),
 		DFB_SURFACE_MAX_W, DFB_SURFACE_MAX_H,
