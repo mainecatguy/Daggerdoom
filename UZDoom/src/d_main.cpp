@@ -379,6 +379,8 @@ bool OkForLocalization(FTextureID texnum, const char* substitute);
 // PRIVATE FUNCTION PROTOTYPES ---------------------------------------------
 
 void D_DoomLoop ();
+void DD_BridgeInit(); // Doomerfall
+void DD_BridgeFrame(); // Doomerfall
 
 // EXTERNAL DATA DECLARATIONS ----------------------------------------------
 
@@ -1579,10 +1581,13 @@ void D_DoomLoop ()
 
 	vid_cursor->Callback();
 
+	DD_BridgeInit(); // Doomerfall: no effect without -dfbridge
+
 	for (;;)
 	{
 		try
 		{
+			DD_BridgeFrame(); // Doomerfall: before TryRunTics, which returns early while pauseext is set
 			GStrings.SetDefaultGender(players[consoleplayer].userinfo.GetGender()); // cannot be done when the CVAR changes because we don't know if it's for the consoleplayer.
 
 			// frame syncronous IO operations
