@@ -56,6 +56,20 @@ For MVP, each Daggerfall enemy placement generates one random Doom enemy, the sa
 
 The owner found bugged textures in the Scourg Barrow action demo. Do a second pass that finds and fixes textures that do not match Daggerfall.
 
+### 9. Synchronize player HP
+
+MVP scope (owner, 2026-11-22): synchronize HP between the games. This is not the permanent solution and does not commit to the full damage system. Damage scale, armor, and resistances are covered by "Revisit damage and resistances".
+
+- Daggerfall owns the player's HP value and death.
+- Doom sends each hit or heal to Daggerfall as a numbered event through the queue. Daggerfall applies them in order. Damage that starts in Daggerfall is applied there directly.
+- Damage values pass through unchanged for now.
+- Daggerfall publishes current HP, max HP, and the last event number it applied in its half of the shared state.
+- Doom shows that HP on the player and does not kill the player until Daggerfall reports death.
+
+### 10. Building and dungeon entry and exit, Doom side
+
+Let the player go through a building's door into its real Daggerfall interior and back out, and enter and exit dungeons from the overworld or a town, arriving where Daggerfall would place them. World state must survive the trip. Telling Daggerfall about the move is a separate backlog item.
+
 ## Held for owner review
 
 Approved work that waits until the owner has reviewed the startup and save flow research. Automated loops do not take these yet.
