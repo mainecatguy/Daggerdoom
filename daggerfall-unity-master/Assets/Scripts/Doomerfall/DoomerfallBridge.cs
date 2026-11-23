@@ -50,6 +50,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public int mapPixelX, mapPixelY;
         public uint areaSeq;
         public uint pad0;
+        public double spaceX, spaceY, spaceZ; // Indoors: Doom position in the space's own Daggerfall units
+        public float spaceYaw;
+        public int spaceTarget;
+        public uint spaceValid;
+        public uint pad1;
     }
 
     [StructLayout(LayoutKind.Sequential)]

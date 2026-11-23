@@ -35,6 +35,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         // True until Daggerfall has reached the place Doom last reported, or has given up on it.
         internal bool Pending { get { return pending; } }
 
+        // True when Daggerfall has finished entering the space Doom reports, so its local position applies.
+        internal bool IsIn(PlayerEnterExit enter, uint context, int spaceTarget)
+        {
+            return !pending && !enter.IsRespawning && want == context && Actual(enter) == context && target == spaceTarget;
+        }
+
         internal void OnEvent(uint action, uint eventSeq, double x, double z, int targetId)
         {
             want = action == EnterBuilding ? WorldInterior : action == EnterDungeon ? WorldDungeon : WorldExterior;

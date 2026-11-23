@@ -2071,6 +2071,20 @@ DDPlayerArea DDTreadmill_PlayerWorld(double &x, double &y, double &z, double &ya
 	return DD_AREA_EXTERIOR;
 }
 
+bool DDTreadmill_PlayerSpace(double &x, double &y, double &z, double &yawDegrees, int &target)
+{
+	if (!primaryLevel || !townActive || handoff.pending || !towns[currentTown].space) return false;
+	AActor *pmo = primaryLevel->Players[consoleplayer]->mo;
+	if (!pmo) return false;
+	const Town &t = towns[currentTown];
+	x = pmo->X() / DOOM_PER_DF;
+	y = pmo->Y() / DOOM_PER_DF;
+	z = pmo->Z() / DOOM_PER_DF;
+	yawDegrees = pmo->Angles.Yaw.Degrees();
+	target = t.spaceId >= DUNGEON_SPACE ? t.dungeonMapId : t.spaceId;	// The same id the door event carried.
+	return true;
+}
+
 void DDTreadmill_UploadBegin() { uploadStart = Clock::now(); }
 void DDTreadmill_UploadEnd() { uploadNs += NsSince(uploadStart); uploadCount++; }
 
