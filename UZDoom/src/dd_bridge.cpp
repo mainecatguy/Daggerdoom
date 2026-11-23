@@ -1589,9 +1589,13 @@ void RunLoadTest(int64_t now)
 	case 4:
 		if (deathState != DeathMenu || !menuactive) return;
 		LoadTestLog("death menu open");
-		C_DoCommand("screenshot");
+		loadTestStep = 11;
+		loadTestAtNs = now + 4000000000LL;
+		return;
+	case 11:
+		C_DoCommand("screenshot"); // Some frames after opening, so the picture shows the drawn menu.
 		loadTestStep = 5;
-		loadTestAtNs = now + 5000000000LL; // Longer than Daggerfall's own restart timer.
+		loadTestAtNs = now + 1000000000LL; // With the wait above, longer than Daggerfall's own restart timer.
 		return;
 	case 5:
 		LoadTestLog("still dead after Daggerfall's restart time");
