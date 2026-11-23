@@ -24,6 +24,8 @@ ap.add_argument("--world", default=r"D:\dev\DoomDaggerfall-build\stitch-data")
 ap.add_argument("--start-tile", default=None)
 ap.add_argument("--side", default="east", choices=["east", "west", "north", "south"], help="the side of the City of Daggerfall to approach")
 ap.add_argument("--dir", help="run direction x,y, for other locations")
+ap.add_argument("--packchance", default="0")
+ap.add_argument("--packsize", default="12")
 ap.add_argument("--cachenodes", action="store_true", help="use the engine's default node cache, as a player would")
 args = ap.parse_args()
 
@@ -37,7 +39,7 @@ os.makedirs(WORK, exist_ok=True)
 over = os.path.join(WORK, args.name + "_over.pk3")
 harness = os.path.join(WORK, args.name + "_harness.pk3")
 subprocess.check_call([sys.executable, os.path.join(HERE, "gen_overworld.py"), "--out", over, "--world-dir", args.world, "--ground-from", os.path.join(args.town, args.slug + "_mesh.pk3"), "--start-tile", start_tile,
-                       "--start-angle", "180", "--packchance", "0"], stdout=subprocess.DEVNULL)
+                       "--start-angle", "180", "--packchance", args.packchance, "--packsize", args.packsize], stdout=subprocess.DEVNULL)
 text = open(os.path.join(HERE, "stitch_harness.zs")).read()
 text = text.replace("@DIRX@", dir_x).replace("@DIRY@", dir_y).replace("@SPEED@", args.speed + ".0").replace("@SAVETOWN@", "true" if args.mode == "savetown" else "false").replace("@SAVEOVER@", "true" if args.mode == "saveover" else "false").replace("@SKIPGATE@", "true" if args.mode == "loadtown" else "false")
 with zipfile.ZipFile(harness, "w") as z:
@@ -51,7 +53,7 @@ saves = os.path.join(WORK, "saves")
 os.makedirs(saves, exist_ok=True)
 files = [over, os.path.join(args.town, args.slug + ".wad"), os.path.join(args.town, args.slug + "_mesh.pk3"), harness]
 game = [EXE, "-iwad", IWAD, "-file"] + files + ["-config", os.path.join(WORK, "test.ini"), "-savedir", saves, "-nosound", "-noautoload", "-skill", "3",
-        "-width", "1280", "-height", "720", "-noactivate", "-ddtmverify", "+logfile", args.name, "+vid_fullscreen", "0", "+gl_cachenodes", "1" if args.cachenodes else "0",
+        "-width", "1280", "-height", "720", "-noactivate", "-ddtmverify", "-ddtmlog", os.path.join(WORK, args.name + ".csv"), "+logfile", args.name, "+vid_fullscreen", "0", "+gl_cachenodes", "1" if args.cachenodes else "0",
         "+vid_vsync", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"]
 if args.mode == "loadtown":
     newest = max(glob.glob(os.path.join(saves, "auto*.zds")), key=os.path.getmtime)
