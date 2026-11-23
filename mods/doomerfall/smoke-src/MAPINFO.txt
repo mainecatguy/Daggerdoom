@@ -1,4 +1,4 @@
 gameinfo
 {
-	AddEventHandlers = "DoomerfallSmoke_Events"
+	AddEventHandlers = "DoomerfallSmoke_Events", "DoomerfallSmoke_Menus"
 }

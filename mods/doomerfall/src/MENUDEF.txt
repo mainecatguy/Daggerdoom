@@ -1,0 +1,17 @@
+// Adds "Doomerfall Controls" to Options > Customize Controls, and defines that submenu.
+// All actions are unbound by default; bindings are saved in the player's config like any other.
+AddOptionMenu "CustomizeControls"
+{
+	Submenu "Doomerfall Controls", "DoomerfallControlsMenu"
+}
+
+OptionMenu "DoomerfallControlsMenu"
+{
+	Title "Doomerfall Controls"
+	ScrollTop 2
+	StaticTextSwitchable "$CNTRLMNU_SWITCHTEXT1", "$CNTRLMNU_SWITCHTEXT2", "ControlMessage"
+
+	StaticText ""
+	Control "Open Fast Travel", "netevent df_fast_travel"
+	Control "Open Inventory", "netevent df_inventory"
+}
