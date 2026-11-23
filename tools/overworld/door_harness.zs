@@ -77,9 +77,9 @@ class DTHarness : EventHandler
 			st.timer = 0;
 			break;
 		case 1:	// Wait for the interior. A not-yet-converted one takes a few seconds.
+			if (inside) { st.phase = 2; st.timer = 0; break; }
 			p.SetOrigin((door.xy + normal * 48, door.z), false);
 			p.vel = (0, 0, 0);
-			if (inside) { st.phase = 2; st.timer = 0; break; }
 			if (st.timer > LIMIT) { Console.Printf("DTFAIL leg=%d door did not open", st.leg); st.leg++; st.phase = 0; }
 			break;
 		case 2:	// Arrived. Report the landing, then walk forward to prove the player is not stuck.

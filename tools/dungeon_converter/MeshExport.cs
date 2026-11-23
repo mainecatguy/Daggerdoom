@@ -188,7 +188,7 @@ static partial class Program
             using (var s = zip.CreateEntry("DFMESH", CompressionLevel.Fastest).Open()) { body.Position = 0; body.CopyTo(s); }
             // Daggerfall has square pixels. Doom's default 1.2 vertical stretch would distort the real mesh.
             using (var s = new StreamWriter(zip.CreateEntry("MAPINFO", CompressionLevel.Fastest).Open()))
-                s.Write($"map MAP01 \"{location.Name}\"\n{{\n\tpixelratio = 1.0\n{(runtimeDungeon ? "\tkeepfullinventory\n" : "")}}}\n");
+                s.Write($"map MAP01 \"{location.Name}\"\n{{\n\tpixelratio = 1.0\n{(runtimeDungeon ? "\tkeepfullinventory\n\tUsePlayerStartZ\n" : "")}}}\n");
 
             foreach (var k in keys)
             {

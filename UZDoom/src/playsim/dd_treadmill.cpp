@@ -960,8 +960,8 @@ namespace
 			{
 				char name[16];
 				SpaceExit e;
-				if (sscanf(line.GetChars(), "map %15s", name) == 1) t.map = name;
-				else if (sscanf(line.GetChars(), "mapid %d", &t.dungeonMapId) == 1) continue;
+				if (sscanf(line.GetChars(), "mapid %d", &t.dungeonMapId) == 1) continue;	// First, because "map %s" also matches this line.
+				else if (sscanf(line.GetChars(), "map %15s", name) == 1) t.map = name;
 				else if (sscanf(line.GetChars(), "exit %lf %lf %lf %lf %lf", &e.x, &e.y, &e.z, &e.nx, &e.ny) == 5) t.exits.push_back(e);
 			}
 			if (t.map.IsNotEmpty()) towns.push_back(std::move(t));

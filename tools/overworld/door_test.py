@@ -45,21 +45,21 @@ if args.dungeon_dir:
     with zipfile.ZipFile(files[-1]) as z:
         exits = [l.split()[1:] for l in z.read("DDDUNGN").decode().splitlines() if l.startswith("exit")][:1]
 text = open(os.path.join(HERE, "door_harness.zs")).read()
-text = text.replace("@DOORS@", ", ".join(v for d in chosen for v in d[3:8])).replace("@EXITS@", ", ".join(v for e in exits for v in e) or "0")
-if not exits:
-    text = text.replace("EXITS.Size() >= FIELDS", "false")
+text = text.replace("@DOORS@", ", ".join(v for d in chosen for v in d[3:8])).replace("@EXITS@", ", ".join(v for e in exits for v in e) or "0, 0, 0, 0, 0")
+# Decided at run time: a constant false condition stops the whole function body from running (see town-stitch.md).
+text = text.replace("EXITS.Size() >= FIELDS", "HasExit()").replace("const FIELDS = 5;", "const FIELDS = 5;\n\tbool HasExit() { int i = level.maptime * 0 + 3; return EXITS[i] != 0 || EXITS[i + 1] != 0; }")
 work = os.path.join(args.build, "tests")
 os.makedirs(os.path.join(work, "saves"), exist_ok=True)
 harness = os.path.join(work, args.name + "_harness.pk3")
 with zipfile.ZipFile(harness, "w") as z:
     z.writestr("zscript.txt", text)
     z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "DTHarness" }\n')
-log = os.path.join(work, f"{args.name}.log")
+log = os.path.join(work, f"log-{args.name}.txt")  # the engine names a +logfile this way
 if os.path.exists(log):
     os.remove(log)
 game = [args.exe, "-iwad", IWAD, "-file", *files, harness, "-config", os.path.join(work, "test.ini"), "-savedir", os.path.join(work, "saves"), "-nosound", "-noautoload", "-skill", "3",
         "-width", "1280", "-height", "720", "-noactivate", "-ddtowncache", cache, "-ddconverter", converter, "-ddarena2", ARENA2,
-        "+logfile", log, "+vid_fullscreen", "0", "+vid_vsync", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{args.group:05d}"]
+        "+logfile", args.name, "+vid_fullscreen", "0", "+vid_vsync", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{args.group:05d}"]
 proc = subprocess.Popen([sys.executable, QUIET, "--timeout", str(args.timeout), "--"] + game, cwd=work, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 reason, end = "timeout", time.time() + args.timeout + 3
 while time.time() < end and proc.poll() is None:
@@ -74,7 +74,9 @@ while time.time() < end and proc.poll() is None:
 if proc.poll() is None:
     subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 body = open(log, errors="replace").read() if os.path.exists(log) else ""
-print("result:", reason)
+print("result:", reason, "log bytes:", len(body))
+if not re.search(r"^DT[A-Z]+", body, re.M):
+    print("\n".join(body.splitlines()[-12:])[:1500])
 for line in body.splitlines():
     if re.match(r"(DT[A-Z]+|DDTRANSITION|DDSTITCH arrive|DDTCONV)", line) or any(k in line for k in FATAL):
         print(line[:170])
