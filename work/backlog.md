@@ -261,6 +261,25 @@ Post-MVP, but before initial release. Replace the one random enemy per placement
 
 Decide how a Daggerfall quest target maps onto a pack of mooks. The current rule is that the entity's death triggers when most of its mooks are dead. Still open: whether one monster is the "real" target, how the player can tell, and where quest items drop.
 
+### Oblivion Portals
+
+**Waiting on:** MVP, including HP sync, synchronized saving and loading, and item drops.
+
+Owner design (2026-11-22):
+
+- Oblivion Portals are styled after the portals in The Elder Scrolls: Oblivion.
+- Entering one takes the player to a classic Doom map, or a map from a WAD in their custom WADs.
+- A system may let the player buy an item that makes a portal lead to a specific Doom map, so players can visit any Doom map they choose.
+- Some random dungeons may also lead to Doom maps.
+- Daggerfall idles while the player is inside and keeps mediating damage dealt and taken. Portal maps have random drops.
+
+**To work out when this starts:**
+
+- UZDoom mounts WADs at startup, so custom WADs must be loaded up front or the game must handle switching. Loaded WADs must not change textures, monsters, or rules on Daggerfall maps, and map names such as MAP01 can collide between WADs.
+- How the player returns, including when a map's normal exit fires, and what happens on death inside a portal.
+- Saving and loading while inside a portal map.
+- Keeping the player's inventory through Doom map changes that normally reset it.
+
 ### Daggerfall completeness review
 
 **Waiting on:** owner request.
