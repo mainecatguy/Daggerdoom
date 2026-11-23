@@ -31,6 +31,10 @@
 #include <vector>
 
 #include "dd_treadmill.h"
+#include "dd_towncache.h"
+#include "fs_files.h"
+#include "gi.h"
+#include "vm.h"
 #include "a_sharedglobal.h"
 #include "actor.h"
 #include "actorinlines.h"
@@ -58,6 +62,9 @@ CVAR(Int, dd_tm_shifts, 0, CVAR_NOSAVE)
 CVAR(Int, dd_tm_records, 0, CVAR_NOSAVE)
 CVAR(Int, dd_tm_intown, 0, CVAR_NOSAVE)
 CVAR(Int, dd_tm_stitches, 0, CVAR_NOSAVE)
+CVAR(Int, dd_tm_nearest, -1, CVAR_NOSAVE)		// Nearest generated location group.
+CVAR(Int, dd_tm_neareststate, 0, CVAR_NOSAVE)	// Its DDTownCache::State.
+CVAR(String, dd_tm_warp, "", CVAR_NOSAVE | CVAR_MOD)		// "tileX tileY": moves the player through the overworld handoff. The path fast travel can use.
 
 bool DDTreadmill_Active = false;
 bool DDTreadmill_WideNodes = false;
@@ -122,6 +129,8 @@ namespace
 		FString map;
 		double originX = 0, originY = 0, ground = 0;
 		int margin = 24;
+		int group = -1;			// A location from the town cache. -1 for a package named on the command line.
+		bool holdEntry = false;	// The player was already inside when it became ready, so it waits until they walk clear.
 		TileRect visual{};
 		std::vector<TileRect> rects;
 		// The exit line is farther out than the entry line, so the border cannot cause repeated loads.
@@ -137,6 +146,19 @@ namespace
 	std::vector<Town> towns;
 	bool townsLoaded, townActive;
 	int currentTown = -1, resumeTown = -1;
+
+	// Generated locations. The index comes from the DDGROUPS lump, and map data comes from the town cache.
+	constexpr int REQUEST_TILES = 100, SCAN_TICS = 8, FLAT_CHUNKS_PER_TIC = 2, RUNTIME_MESH_KEY = 1 << 24;
+	struct RuntimeGroup { std::vector<TileRect> rects; TileRect box{}; bool tooLarge = false; int town = -1; };
+	std::vector<RuntimeGroup> groups;
+	bool runtimeTowns;
+	int lodTown = -1;
+	DDTownCache::EntryPtr mapEntry, lodEntry;	// Kept alive while the current map or the distant view uses them.
+	std::deque<int64_t> flatQueue;
+	std::unordered_set<int64_t> flatSpawned;
+	std::unordered_map<std::string, FTextureID> flatTextures;
+	std::unordered_map<std::string, level_info_t *> runtimeInfoByName;
+	std::deque<level_info_t> runtimeInfos;	// A deque, because the engine keeps pointers to these.
 
 	// The player's state in world units while a map change is in flight.
 	struct Handoff
@@ -358,6 +380,7 @@ namespace
 	// The town whose mesh covers part of the current window, if any.
 	const Town *LodTown()
 	{
+		if (runtimeTowns) return lodTown >= 0 ? &towns[lodTown] : nullptr;
 		for (const Town &t : towns)
 			if (t.visual.x1 > originX && t.visual.x0 < originX + CELLS && t.visual.y1 > originY && t.visual.y0 < originY + CELLS) return &t;
 		return nullptr;
@@ -628,6 +651,7 @@ namespace
 
 	void SpawnFlats(FLevelLocals *Level, int cx, int cy)
 	{
+		if (runtimeTowns && !flatSpawned.insert(ChunkKey(cx, cy)).second) return;
 		auto found = townFlats.find(ChunkKey(cx, cy));
 		if (found == townFlats.end()) return;
 		for (const TownFlat &f : found->second)
@@ -655,7 +679,15 @@ namespace
 		const double start[2] = { (startTileX + CELLS / 2) * double(SPACING), (startTileY + CELLS / 2) * double(SPACING) };
 		if (hypot(cxDoom - start[0], cyDoom - start[1]) < 1600) return;	// Keep the arrival point clear.
 		for (const Town &t : towns)	// Placeholder packs stay out of generated towns.
-			if (t.Near(cxDoom / SPACING, cyDoom / SPACING, t.margin)) return;
+			if (t.group < 0 && t.Near(cxDoom / SPACING, cyDoom / SPACING, t.margin)) return;
+		// From the index, so a chunk's pack does not depend on which locations happen to be converted.
+		for (const RuntimeGroup &g : groups)
+		{
+			const double tx = cxDoom / SPACING, ty = cyDoom / SPACING;
+			if (tx < g.box.x0 - 24 || tx >= g.box.x1 + 24 || ty < g.box.y0 - 24 || ty >= g.box.y1 + 24) continue;
+			for (const TileRect &r : g.rects)
+				if (tx >= r.x0 - 24 && tx < r.x1 + 24 && ty >= r.y0 - 24 && ty < r.y1 + 24) return;
+		}
 		if (SampleVertex(int(cxDoom / SPACING), int(cyDoom / SPACING)) <= OCEAN * UNITS_PER_SAMPLE * DOOM_PER_DF - Z_BASE + 0.5) return;
 
 		const int side = int(ceil(sqrt(double(packSize))));
@@ -817,6 +849,60 @@ namespace
 		return true;
 	}
 
+	Town ParseTown(const char *body, size_t size)
+	{
+		FString text(body, size);
+		Town t;
+		for (auto &line : text.Split("\n"))
+		{
+			char key[32], a[64];
+			double v1, v2;
+			TileRect r;
+			const char *l = line.GetChars();
+			if (sscanf(l, "%31s", key) != 1) continue;
+			if (!stricmp(key, "map") && sscanf(l, "%*s %63s", a) == 1) t.map = a;
+			else if (!stricmp(key, "origin") && sscanf(l, "%*s %lf %lf", &v1, &v2) == 2) { t.originX = v1; t.originY = v2; }
+			else if (!stricmp(key, "ground") && sscanf(l, "%*s %lf", &v1) == 1) t.ground = v1;
+			else if (!stricmp(key, "margin") && sscanf(l, "%*s %lf", &v1) == 1) t.margin = int(v1);
+			else if (!stricmp(key, "visual") && sscanf(l, "%*s %d %d %d %d", &r.x0, &r.x1, &r.y0, &r.y1) == 4) t.visual = r;
+			else if (!stricmp(key, "rect") && sscanf(l, "%*s %d %d %d %d", &r.x0, &r.x1, &r.y0, &r.y1) == 4) t.rects.push_back(r);
+		}
+		return t;
+	}
+
+	void LoadGroupIndex()
+	{
+		const int lump = fileSystem.CheckNumForName("DDGROUPS");
+		if (lump < 0 || !DDTownCache::Init()) return;
+		auto data = fileSystem.ReadFile(lump);
+		const uint8_t *p = (const uint8_t *)data.data(), *end = p + data.size();
+		int count = 0;
+		if (data.size() < 8 || memcmp(p, "DDG1", 4)) return;
+		memcpy(&count, p + 4, 4);
+		p += 8;
+		groups.resize(count);
+		for (RuntimeGroup &g : groups)
+		{
+			int16_t head[2];
+			if (p + 4 > end) { groups.clear(); return; }
+			memcpy(head, p, 4);
+			p += 4;
+			if (p + head[0] * 16 > end) { groups.clear(); return; }
+			g.tooLarge = head[1] != 0;
+			g.rects.resize(head[0]);
+			memcpy(g.rects.data(), p, head[0] * 16);
+			p += head[0] * 16;
+			g.box = g.rects[0];
+			for (const TileRect &r : g.rects)
+			{
+				g.box.x0 = std::min(g.box.x0, r.x0); g.box.x1 = std::max(g.box.x1, r.x1);
+				g.box.y0 = std::min(g.box.y0, r.y0); g.box.y1 = std::max(g.box.y1, r.y1);
+			}
+		}
+		runtimeTowns = !groups.empty();
+		Printf("DDTCACHE index: %d location groups\n", int(groups.size()));
+	}
+
 	void LoadTowns()
 	{
 		if (townsLoaded) return;
@@ -825,31 +911,173 @@ namespace
 		while ((lump = fileSystem.FindLump("DDTOWN", &last)) >= 0)
 		{
 			auto data = fileSystem.ReadFile(lump);
-			FString text((const char *)data.data(), data.size());
-			Town t;
-			for (auto &line : text.Split("\n"))
-			{
-				char key[32], a[64];
-				double v1, v2;
-				TileRect r;
-				const char *l = line.GetChars();
-				if (sscanf(l, "%31s", key) != 1) continue;
-				if (!stricmp(key, "map") && sscanf(l, "%*s %63s", a) == 1) t.map = a;
-				else if (!stricmp(key, "origin") && sscanf(l, "%*s %lf %lf", &v1, &v2) == 2) { t.originX = v1; t.originY = v2; }
-				else if (!stricmp(key, "ground") && sscanf(l, "%*s %lf", &v1) == 1) t.ground = v1;
-				else if (!stricmp(key, "margin") && sscanf(l, "%*s %lf", &v1) == 1) t.margin = int(v1);
-				else if (!stricmp(key, "visual") && sscanf(l, "%*s %d %d %d %d", &r.x0, &r.x1, &r.y0, &r.y1) == 4) t.visual = r;
-				else if (!stricmp(key, "rect") && sscanf(l, "%*s %d %d %d %d", &r.x0, &r.x1, &r.y0, &r.y1) == 4) t.rects.push_back(r);
-			}
+			Town t = ParseTown((const char *)data.data(), data.size());
 			if (t.map.IsNotEmpty() && !t.rects.empty()) towns.push_back(std::move(t));
 		}
+		LoadGroupIndex();
+	}
+
+	// The group id in a generated map name (DDT + five digits), or -1.
+	int GroupOfMap(const char *name)
+	{
+		if (strnicmp(name, "DDT", 3) || strlen(name) != 8) return -1;
+		for (int i = 3; i < 8; i++) if (name[i] < '0' || name[i] > '9') return -1;
+		return atoi(name + 3);
+	}
+
+	// Gives a ready group its place in the town list. Returns the town, or -1.
+	int TownForGroup(int group, const DDTownCache::EntryPtr &entry)
+	{
+		RuntimeGroup &g = groups[group];
+		if (g.town >= 0) return g.town;
+		const auto *info = entry ? entry->Find("DDTOWN") : nullptr;
+		if (!info) return -1;
+		Town t = ParseTown((const char *)info->data(), info->size());
+		if (t.map.IsEmpty() || t.rects.empty()) return -1;
+		t.group = group;
+		towns.push_back(std::move(t));
+		return g.town = int(towns.size()) - 1;
 	}
 
 	int TownForMap(const FString &name)
 	{
 		for (size_t i = 0; i < towns.size(); i++)
 			if (towns[i].map.CompareNoCase(name) == 0) return int(i);
-		return -1;
+		const int group = runtimeTowns ? GroupOfMap(name.GetChars()) : -1;
+		if (group < 0 || group >= int(groups.size())) return -1;
+		return TownForGroup(group, DDTownCache::GetBlocking(group));
+	}
+
+	FTextureID FlatTexture(const char *name)
+	{
+		auto id = flatTextures.find(name);
+		if (id == flatTextures.end())
+			id = flatTextures.emplace(name, TexMan.CheckForTexture(name, ETextureType::Any, FTextureManager::TEXMAN_TryAny | FTextureManager::TEXMAN_ForceLookup)).first;
+		return id->second;
+	}
+
+	// Fresh entry to a generated location: its billboards and gates. Saves restore these as ordinary actors.
+	void SpawnTownContents(FLevelLocals *Level)
+	{
+		if (!mapEntry) return;
+		PClassActor *flat = PClass::FindActor("DFCityFlat");
+		int spawned = 0;
+		if (const auto *body = mapEntry->Find("DFFLATS"); body && flat)
+		{
+			FString text((const char *)body->data(), body->size());
+			for (auto &line : text.Split("\n"))
+			{
+				char name[40];
+				double x, y, z;
+				float sx, sy;
+				if (sscanf(line.GetChars(), "%39s %lf %lf %lf %f %f", name, &x, &y, &z, &sx, &sy) != 6) continue;
+				const FTextureID tex = FlatTexture(name);
+				if (!tex.isValid()) continue;
+				AActor *mo = Spawn(Level, flat, DVector3(x, y, z), NO_REPLACE);
+				if (!mo) continue;
+				mo->picnum = tex;
+				mo->Scale = DVector2(sx, sy);
+				spawned++;
+			}
+		}
+		VMFunction *func = nullptr;
+		PClass::FindFunction(&func, "DFRuntimeTown", "SpawnGates");
+		const auto *gates = mapEntry->Find("DFGATES");
+		if (func && gates && gates->size() > 1)
+		{
+			FString text((const char *)gates->data(), gates->size());
+			VMValue params[] = { &text };
+			VMCall(func, params, 1, nullptr, 0);
+		}
+		Printf("DDTOWN contents billboards=%d\n", spawned);
+	}
+
+	// Switches which location the overworld draws in the distance.
+	void SetLodTown(FLevelLocals *Level, int town)
+	{
+		if (town == lodTown) return;
+		const auto start = Clock::now();
+		lodTown = town;
+		lodEntry = town >= 0 ? DDTownCache::Get(towns[town].group) : nullptr;
+		if (town >= 0 && !lodEntry) lodTown = -1;
+		if (!flatClass) flatClass = PClass::FindActor("DFCityFlat");
+		if (flatClass)
+		{
+			std::vector<AActor *> old;
+			auto it = Level->GetThinkerIterator<AActor>();
+			while (AActor *mo = it.Next()) if (mo->GetClass() == flatClass) old.push_back(mo);
+			for (AActor *mo : old) mo->Destroy();
+		}
+		townFlats.clear();
+		flatSpawned.clear();
+		flatQueue.clear();
+		if (lodTown >= 0 && flatClass)
+		{
+			const Town &t = towns[lodTown];
+			const double chunkDoom = CHUNK_TILES * double(SPACING);
+			if (const auto *body = lodEntry->Find("DFFLATS"))
+			{
+				FString text((const char *)body->data(), body->size());
+				for (auto &line : text.Split("\n"))
+				{
+					char name[40];
+					double x, y, z;
+					float sx, sy;
+					if (sscanf(line.GetChars(), "%39s %lf %lf %lf %f %f", name, &x, &y, &z, &sx, &sy) != 6) continue;
+					const FTextureID tex = FlatTexture(name);
+					if (!tex.isValid()) continue;
+					const double gx = t.originX * DOOM_PER_DF + x, gy = t.originY * DOOM_PER_DF + y;
+					townFlats[ChunkKey(int(floor(gx / chunkDoom)), int(floor(gy / chunkDoom)))].push_back({ tex, gx, gy, z + t.ground * DOOM_PER_DF - Z_BASE, sx, sy });
+				}
+			}
+			for (int cy = originY / CHUNK_TILES; cy < (originY + CELLS) / CHUNK_TILES; cy++)
+				for (int cx = originX / CHUNK_TILES; cx < (originX + CELLS) / CHUNK_TILES; cx++)
+					flatQueue.push_back(ChunkKey(cx, cy));
+		}
+		RewriteGrid();
+		Printf("DDTLOD town=%s ms=%.1f\n", lodTown >= 0 ? towns[lodTown].map.GetChars() : "none", NsSince(start) / 1e6);
+	}
+
+	void ProcessFlatQueue(FLevelLocals *Level, int chunks)
+	{
+		while (!flatQueue.empty() && chunks-- > 0)
+		{
+			const int64_t key = flatQueue.front();
+			flatQueue.pop_front();
+			const int cx = int(uint32_t(key)), cy = int(key >> 32);
+			if (ChunkInWindow(cx, cy)) SpawnFlats(Level, cx, cy);
+		}
+	}
+
+	// Requests nearby locations, picks the one to draw in the distance, and reports the nearest.
+	void ScanLocations(FLevelLocals *Level, AActor *pmo)
+	{
+		const double tx = originX + (pmo->X() + HALF) / SPACING, ty = originY + (pmo->Y() + HALF) / SPACING;
+		int nearest = -1, bestLod = -1;
+		double nearestDist = 1e30, bestLodDist = 1e30;
+		DDTownCache::BeginScan();
+		for (int n = 0; n < int(groups.size()); n++)
+		{
+			RuntimeGroup &g = groups[n];
+			const double dx = std::max({ g.box.x0 - tx, tx - g.box.x1, 0.0 }), dy = std::max({ g.box.y0 - ty, ty - g.box.y1, 0.0 });
+			const double dist = std::max(dx, dy);
+			if (dist > REQUEST_TILES) continue;
+			if (dist < nearestDist) { nearestDist = dist; nearest = n; }
+			if (g.tooLarge) continue;
+			DDTownCache::Request(n, dist);
+			if (DDTownCache::Status(n) != DDTownCache::State::Ready) continue;
+			const int town = TownForGroup(n, DDTownCache::Get(n));
+			if (town < 0) continue;
+			Town &t = towns[town];
+			// A location that finished while the player stands in it appears only after they walk clear.
+			if (t.Near(tx, ty, 0)) t.holdEntry = true;
+			else if (!t.Near(tx, ty, t.EntryMargin())) t.holdEntry = false;
+			const bool inWindow = t.visual.x1 > originX && t.visual.x0 < originX + CELLS && t.visual.y1 > originY && t.visual.y0 < originY + CELLS;
+			if (inWindow && !t.holdEntry && dist < bestLodDist) { bestLodDist = dist; bestLod = town; }
+		}
+		dd_tm_nearest = nearest;
+		dd_tm_neareststate = nearest >= 0 ? int(DDTownCache::Status(nearest)) : 0;
+		SetLodTown(Level, bestLod);
 	}
 
 	// Text settings, one "key value" per line.
@@ -914,7 +1142,7 @@ namespace
 		if (const char *logPath = ArgValue("-ddtmlog"); logPath && !frameLog)
 		{
 			frameLog = fopen(logPath, "w");
-			if (frameLog) fputs("frame,tic,frame_us,sim_us,upload_us,uploads,shift\n", frameLog);
+			if (frameLog) fputs("frame,tic,frame_us,sim_us,upload_us,uploads,shift,converting\n", frameLog);
 			shiftLog = fopen((FString(logPath) + ".shifts.csv").GetChars(), "w");
 			if (shiftLog) fputs("shift,origin_x,origin_y,rewrite_us,total_us,moved,parked,plane_err\n", shiftLog);
 		}
@@ -959,7 +1187,7 @@ namespace
 	//--------------------------------------------------------------------
 
 	// Parks every monster and item, then records the player and requests the other map.
-	void BeginHandoff(FLevelLocals *Level, AActor *pmo, const char *map)
+	void BeginHandoff(FLevelLocals *Level, AActor *pmo, const char *map, const int *warpTile = nullptr)
 	{
 		Reconcile(Level);
 		std::vector<AActor *> keep;
@@ -982,6 +1210,15 @@ namespace
 		handoff.yaw = pmo->Angles.Yaw;
 		handoff.pitch = pmo->Angles.Pitch;
 		handoff.started = Clock::now();
+		if (warpTile)	// A direct move to a world position, standing still on the ground there.
+		{
+			handoff.x = (warpTile[0] + 0.5) * 256;
+			handoff.y = (warpTile[1] + 0.5) * 256;
+			handoff.z = handoff.feet = (SampleVertex(warpTile[0], warpTile[1]) + Z_BASE) / DOOM_PER_DF;
+			handoff.aboveFloor = 0;
+			handoff.vel = DVector3(0, 0, 0);
+			handoff.playerVel = DVector2(0, 0);
+		}
 		Printf("DDSTITCH leave %s tic=%d world=%.2f,%.2f,%.2f vel=%.2f,%.2f,%.2f records=%d\n", Level->MapName.GetChars(), Level->maptime, world.X, world.Y, world.Z, pmo->Vel.X, pmo->Vel.Y, pmo->Vel.Z, int(table.size()));
 		Level->ChangeLevel(map, 0, CHANGELEVEL_NOINTERMISSION | CHANGELEVEL_KEEPFACING | CHANGELEVEL_PRERAISEWEAPON);
 	}
@@ -1070,6 +1307,7 @@ namespace
 			Restore(Level, r);
 			restored++;
 		}
+		if (t.group >= 0) SpawnTownContents(Level);
 		FinishHandoff(Level);
 		if (FindArg("-ddtmverify")) VerifySeam(Level, t);
 		Printf("DDTOWN active %s restored=%d records=%d\n", t.map.GetChars(), restored, int(table.size()));
@@ -1100,6 +1338,14 @@ namespace
 		}
 		expected.clear();
 		pending.clear();
+		lodTown = -1;
+		lodEntry = nullptr;
+		if (runtimeTowns)
+		{
+			townFlats.clear();
+			flatSpawned.clear();
+			flatQueue.clear();
+		}
 		LoadConfig();
 		originX = startTileX;
 		originY = startTileY;
@@ -1119,6 +1365,12 @@ namespace
 			for (int cx = originX / CHUNK_TILES; cx < (originX + CELLS) / CHUNK_TILES; cx++)
 				QueueChunk(cx, cy);
 		ProcessPending(Level, std::numeric_limits<int>::max());
+		if (runtimeTowns)
+		{
+			DDTownCache::Poll();
+			if (AActor *pmo = Level->Players[consoleplayer]->mo) ScanLocations(Level, pmo);
+			ProcessFlatQueue(Level, std::numeric_limits<int>::max());
+		}
 		DDTreadmill_Active = true;
 		Printf("DDTM active origin=%d,%d spacing=%d sectors=%d packs=%.2f/%d\n", originX, originY, SPACING, int(tris.size()), packChance, packSize);
 	}
@@ -1145,6 +1397,8 @@ namespace
 		LoadConfig();
 		if (!PrepareLevel(Level)) return;
 		LoadTownFlats();
+		lodTown = -2;	// The next scan replaces the billboards the save restored.
+		lodEntry = nullptr;
 		expected.clear();
 		auto it = Level->GetThinkerIterator<AActor>();
 		while (AActor *mo = it.Next())
@@ -1249,10 +1503,69 @@ void DDTreadmill_Serialize(FLevelLocals *Level, FSerializer &arc)
 void DDTreadmill_BeginMap(FLevelLocals *Level)
 {
 	DDTreadmill_WideNodes = false;
-	static const bool hasTowns = fileSystem.CheckNumForName("DDTOWN") >= 0;
+	static const bool hasTowns = fileSystem.CheckNumForName("DDTOWN") >= 0 || fileSystem.CheckNumForName("DDGROUPS") >= 0;
 	if (!hasTowns || !Level->isPrimaryLevel()) return;
 	LoadTowns();
 	DDTreadmill_WideNodes = TownForMap(Level->MapName) >= 0;
+}
+
+bool DDTreadmill_RuntimeTowns() { return runtimeTowns; }
+level_info_t *DDTreadmill_LevelInfoAt(unsigned index) { return index < runtimeInfos.size() ? &runtimeInfos[index] : nullptr; }
+bool DDTreadmill_HandoffPending() { return handoff.pending; }
+
+// Each generated location gets its own copy of the DDTOWN template from the runtime package's MAPINFO.
+level_info_t *DDTreadmill_FindLevelInfo(const char *mapname)
+{
+	if (strnicmp(mapname, "DDT", 3) != 0) return nullptr;	// Every stock map name stops here.
+	if (GroupOfMap(mapname) < 0 || fileSystem.CheckNumForName("DDGROUPS") < 0) return nullptr;
+	FString upper = mapname;
+	upper.ToUpper();
+	auto found = runtimeInfoByName.find(upper.GetChars());
+	if (found != runtimeInfoByName.end()) return found->second;
+	level_info_t *base = FindLevelInfo("DDTOWN", false);
+	if (!base) return nullptr;
+	runtimeInfos.push_back(*base);
+	level_info_t *info = &runtimeInfos.back();
+	info->MapName = upper;
+	runtimeInfoByName[upper.GetChars()] = info;
+	return info;
+}
+
+bool DDTreadmill_OpenTownMap(const char *mapname, FileSys::FileReader &reader)
+{
+	if (strnicmp(mapname, "DDT", 3) != 0) return false;
+	const int group = GroupOfMap(mapname);
+	if (group < 0) return false;
+	LoadTowns();
+	if (!runtimeTowns || group >= int(groups.size()) || groups[group].tooLarge) return false;
+	DDTownCache::EntryPtr entry = DDTownCache::GetBlocking(group);
+	const auto *wad = entry ? entry->Find("MAPWAD") : nullptr;
+	if (!wad) return false;
+	mapEntry = entry;
+	return reader.OpenMemory(wad->data(), wad->size());
+}
+
+bool DDTreadmill_MapMesh(const char *mapname, const uint8_t *&data, size_t &size, int &key)
+{
+	const int group = GroupOfMap(mapname);
+	if (group < 0 || !mapEntry) return false;
+	const auto *mesh = mapEntry->Find("DFMESH");
+	if (!mesh) return false;
+	data = mesh->data();
+	size = mesh->size();
+	key = RUNTIME_MESH_KEY + group;
+	return true;
+}
+
+bool DDTreadmill_LodMesh(const uint8_t *&data, size_t &size, int &key)
+{
+	if (lodTown < 0 || !lodEntry) return false;
+	const auto *mesh = lodEntry->Find("DFMESH");
+	if (!mesh) return false;
+	data = mesh->data();
+	size = mesh->size();
+	key = RUNTIME_MESH_KEY + towns[lodTown].group;
+	return true;
 }
 
 // Where the town mesh's origin sits in the overworld window, so distant towns can be drawn from it.
@@ -1276,6 +1589,7 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 
 	AActor *pmo = Level->Players[consoleplayer]->mo;
 	if (!pmo) return;
+	if (runtimeTowns) DDTownCache::Poll();
 
 	if (townActive)
 	{
@@ -1285,10 +1599,27 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 		return;
 	}
 	if (handoff.pending) return;
+	if (runtimeTowns)
+	{
+		if (const char *warp = *dd_tm_warp; warp && *warp)
+		{
+			int tile[2];
+			const bool valid = sscanf(warp, "%d %d", &tile[0], &tile[1]) == 2 && tile[0] >= 0 && tile[0] < WORLD_W * PIXEL_TILES && tile[1] >= 0 && tile[1] < WORLD_H * PIXEL_TILES;
+			dd_tm_warp = "";
+			if (valid)
+			{
+				BeginHandoff(Level, pmo, "DDOVER01", tile);
+				return;
+			}
+		}
+		if (Level->maptime % SCAN_TICS == 0) ScanLocations(Level, pmo);
+		ProcessFlatQueue(Level, FLAT_CHUNKS_PER_TIC);
+	}
 	{
 		const double tx = originX + (pmo->X() + HALF) / SPACING, ty = originY + (pmo->Y() + HALF) / SPACING;
 		for (const Town &t : towns)
-			if (pmo->health > 0 && t.Near(tx, ty, t.EntryMargin()))
+			if (pmo->health > 0 && t.Near(tx, ty, t.EntryMargin())
+				&& (t.group < 0 || (!t.holdEntry && !t.Near(tx, ty, 0) && DDTownCache::Status(t.group) == DDTownCache::State::Ready)))
 			{
 				BeginHandoff(Level, pmo, t.map.GetChars());
 				return;
@@ -1314,6 +1645,9 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 	RewriteGrid();	// Before the move, so actors find their floors on the new terrain.
 	const int64_t rewriteNs = NsSince(rewriteStart);
 	MoveActors(Level, DVector3(dx * double(SPACING), dy * double(SPACING), 0), oldX, oldY);
+	if (runtimeTowns)	// Billboards in a chunk that left were destroyed with it, so its next entry spawns them again.
+		for (auto it = flatSpawned.begin(); it != flatSpawned.end();)
+			it = ChunkInWindow(int(uint32_t(*it)), int(*it >> 32)) ? std::next(it) : flatSpawned.erase(it);
 
 	// Queue the chunks that just entered the window.
 	for (int cy = originY / CHUNK_TILES; cy < (originY + CELLS) / CHUNK_TILES; cy++)
@@ -1347,8 +1681,8 @@ void DDTreadmill_FrameEnd()
 	lastFrame = now;
 	if (frameLog)
 	{
-		fprintf(frameLog, "%lld,%d,%.1f,%.1f,%.1f,%lld,%d\n", (long long)frameNo++, primaryLevel->maptime, frameNs / 1000.0,
-			simNs / 1000.0, uploadNs / 1000.0, (long long)uploadCount, shiftFlag);
+		fprintf(frameLog, "%lld,%d,%.1f,%.1f,%.1f,%lld,%d,%d\n", (long long)frameNo++, primaryLevel->maptime, frameNs / 1000.0,
+			simNs / 1000.0, uploadNs / 1000.0, (long long)uploadCount, shiftFlag, runtimeTowns && DDTownCache::Converting() ? 1 : 0);
 		if ((frameNo & 255) == 0) { fflush(frameLog); if (shiftLog) fflush(shiftLog); }
 	}
 	simNs = uploadNs = uploadCount = 0;

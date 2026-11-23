@@ -68,7 +68,8 @@ static partial class Program
     {
         CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
         if (args.Contains("--world")) return WorldTerrain.RunExport(args); // shared height data for the overworld and town maps
-        if (args.Contains("--city")) return City.Run(args); // cities have their own pipeline in CityExport.cs
+        if (args.Contains("--runtime-assets")) return City.RuntimeAssets(args); // the shared package for locations converted during play
+        if (args.Contains("--city") || args.Contains("--group")) return City.Run(args); // cities have their own pipeline in CityExport.cs
         string name = null, outDir = null, arena2 = @"D:\dev\DoomDaggerfall\GameResources\DAGGER\ARENA2";
         for (int a = 0; a < args.Length; a++)
         {

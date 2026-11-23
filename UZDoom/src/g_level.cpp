@@ -82,6 +82,7 @@
 
 #include "g_hub.h"
 #include "g_levellocals.h"
+#include "playsim/dd_treadmill.h" // [DoomDaggerfall]
 #include "actorinlines.h"
 #include "i_time.h"
 #include "p_maputl.h"
@@ -1539,7 +1540,7 @@ void FLevelLocals::DoLoadLevel(const FString &nextmapname, int position, bool au
 
 
 	// [RH] Always save the game when entering a new
-	if (autosave && !savegamerestore && disableautosave < 1)
+	if (autosave && !savegamerestore && disableautosave < 1 && !DDTreadmill_HandoffPending()) // [DoomDaggerfall] a stitched change is not a new level
 	{
 		CreateThinker<DAutosaver>();
 	}
@@ -2084,6 +2085,17 @@ void G_WriteSnapshots(TArray<FString> &filenames, TArray<FCompressedBuffer> &buf
 			filename.ToLower();
 			filenames.Push(filename);
 			buffers.Push(wadlevelinfos[i].Snapshot);
+		}
+	}
+	// [DoomDaggerfall] Generated locations have their level info outside wadlevelinfos.
+	for (i = 0; level_info_t *ddInfo = DDTreadmill_LevelInfoAt(i); i++)
+	{
+		if (ddInfo->Snapshot.mCompressedSize > 0)
+		{
+			filename.Format("%s.map.json", ddInfo->MapName.GetChars());
+			filename.ToLower();
+			filenames.Push(filename);
+			buffers.Push(ddInfo->Snapshot);
 		}
 	}
 	if (TheDefaultLevelInfo.Snapshot.mCompressedSize > 0)

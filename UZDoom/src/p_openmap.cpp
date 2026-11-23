@@ -28,6 +28,7 @@
 #include "filesystem.h"
 #include "md5.h"
 #include "g_levellocals.h"
+#include "playsim/dd_treadmill.h" // [DoomDaggerfall]
 #include "cmdlib.h"
 
 #define IWAD_ID		MAKE_ID('I','W','A','D')
@@ -105,7 +106,19 @@ MapData *P_OpenMapData(const char * mapname, bool justcheck)
 	FileReader * wadReader = nullptr;
 	bool externalfile = !strnicmp(mapname, "file:", 5);
 
-	if (externalfile)
+	FileReader ddTownReader; // [DoomDaggerfall] a generated location comes from the town cache, not a loaded file
+	if (!externalfile && DDTreadmill_OpenTownMap(mapname, ddTownReader))
+	{
+		map->resource = FResourceFile::OpenResourceFile(mapname, ddTownReader, true);
+		if (map->resource == nullptr)
+		{
+			delete map;
+			return NULL;
+		}
+		wadReader = map->resource->GetContainerReader();
+		map->lumpnum = fileSystem.CheckNumForName("DDGROUPS"); // Saves record the runtime package as this map's file.
+	}
+	else if (externalfile)
 	{
 		mapname += 5;
 		if (!FileExists(mapname))

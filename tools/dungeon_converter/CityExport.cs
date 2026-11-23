@@ -57,23 +57,42 @@ static partial class Program
             int margin = int.Parse(Arg("--margin", "24")), visualMargin = int.Parse(Arg("--visual-margin", "64")), rasterCell = int.Parse(Arg("--raster", "8"));
             string mapName = Arg("--map-name", "MAP01");
             PlayerScale.DoomUnitsPerDaggerfallUnit = double.Parse(Arg("--world-scale", "0.75"), CultureInfo.InvariantCulture);
-            if (cityName == null || outDir == null) { Console.Error.WriteLine("usage: --city <name> [--region <name>] --out <dir>"); return 2; }
+            // --group <id> --ddt <file> converts one location group for the running game.
+            int groupId = int.Parse(Arg("--group", "-1"));
+            string ddtPath = Arg("--ddt", null);
+            if (groupId >= 0) mapName = RuntimeMapName(groupId);
+            if ((cityName == null && groupId < 0) || outDir == null) { Console.Error.WriteLine("usage: --city <name> [--region <name>] --out <dir>, or --group <id> --ddt <file> --out <work dir>"); return 2; }
             if (Math.Abs(DoomTile / rasterCell - Math.Round(DoomTile / rasterCell)) > 1e-9) { Console.Error.WriteLine("--raster must divide the Doom tile size"); return 2; }
             Directory.CreateDirectory(outDir);
             var clock = System.Diagnostics.Stopwatch.StartNew();
             walkMargin = margin;
 
             var maps = new MapsFile(Path.Combine(arena2, "MAPS.BSA"), FileUsage.UseMemory, true);
-            if (!FindCity(maps, regionName, cityName, out DFLocation location)) { Console.Error.WriteLine("city not found: " + cityName); return 1; }
+            List<WorldTerrain.Place> runtimeGroup = null;
+            DFLocation location = default;
+            if (groupId < 0 && !FindCity(maps, regionName, cityName, out location)) { Console.Error.WriteLine("city not found: " + cityName); return 1; }
             var blocksFile = new BlocksFile(Path.Combine(arena2, "BLOCKS.BSA"), FileUsage.UseMemory, true);
             var arch = new Arch3dFile(Path.Combine(arena2, "ARCH3D.BSA"), FileUsage.UseMemory, true);
             WorldTerrain.Load(arena2, maps, blocksFile);
-            var pixel = MapsFile.LongitudeLatitudeToMapPixel(location.MapTableData.Longitude, location.MapTableData.Latitude);
-            cityX = pixel.X; cityY = pixel.Y;
+            if (groupId >= 0)
+            {
+                var groups = WorldTerrain.Groups();
+                if (groupId >= groups.Count) { Console.Error.WriteLine("no such group: " + groupId); return 1; }
+                runtimeGroup = groups[groupId];
+                var primary = runtimeGroup[0];
+                location = maps.GetLocation(primary.RegionIndex, primary.LocationIndex);
+                cityName = primary.Name;
+                cityX = primary.X; cityY = primary.Y;
+            }
+            else
+            {
+                var pixel = MapsFile.LongitudeLatitudeToMapPixel(location.MapTableData.Longitude, location.MapTableData.Latitude);
+                cityX = pixel.X; cityY = pixel.Y;
+            }
             Console.WriteLine($"{location.RegionName}/{location.Name}: map pixel {cityX},{cityY}, climate {location.Climate.WorldClimate} base {location.Climate.ClimateType}, ground {location.Climate.GroundArchive}, nature {location.Climate.NatureArchive}, sky {location.Climate.SkyBase}");
 
             // Adjacent locations share this one map.
-            foreach (var place in WorldTerrain.GroupOf(WorldTerrain.Places[(cityX, cityY)]))
+            foreach (var place in runtimeGroup ?? WorldTerrain.GroupOf(WorldTerrain.Places[(cityX, cityY)]))
             {
                 var site = new Site { Place = place, Location = maps.GetLocation(place.RegionIndex, place.LocationIndex), DX = place.X - cityX, DY = cityY - place.Y };
                 site.Blocks = new DFBlock[place.BlocksWide * place.BlocksHigh];
@@ -123,18 +142,159 @@ static partial class Program
             // DDTOWN tells the engine where this map sits in the world. Rectangles are global tiles.
             var town = new StringBuilder(FormattableString.Invariant($"map {mapName}\nscale {S}\norigin {(worldTileX + originTileX) * (double)TileDf} {(worldTileY + originTileY) * (double)TileDf}\nground {groundDf:R}\nmargin {margin}\nvisual {worldTileX + bx0 - visualMargin} {worldTileX + bx1 + visualMargin} {worldTileY + by0 - visualMargin} {worldTileY + by1 + visualMargin}\n"));
             foreach (var q in sites) town.Append($"rect {worldTileX + q.FlatX0} {worldTileX + q.FlatX1} {worldTileY + q.FlatY0} {worldTileY + q.FlatY1}\n");
-            string package = Path.Combine(outDir, slug + "_mesh.pk3");
-            scene.WritePackage(package, location, metadata, town.ToString(), mapName);
+            string package = ddtPath ?? Path.Combine(outDir, slug + "_mesh.pk3");
+            if (ddtPath != null)
+            {
+                scene.WriteRuntimeEntry(ddtPath, wad, town.ToString(), mapName);
+                File.Delete(wad);
+            }
+            else scene.WritePackage(package, location, metadata, town.ToString(), mapName);
 
             string report = ( // the project sets InvariantGlobalization
                 $"city {location.RegionName}/{location.Name}\nmap pixel {cityX},{cityY}\nsites {sites.Count}\nblocks {sites[0].Place.BlocksWide}x{sites[0].Place.BlocksHigh}\nflat tiles x {sites[0].FlatX0}..{sites[0].FlatX1} y {sites[0].FlatY0}..{sites[0].FlatY1}\nground height {groundDf:F1} df units\n" +
                 $"models {scene.Models} missing {scene.Missing} gates {scene.Gates}\nmesh triangles {scene.Triangles} batches {scene.BatchCount} textures unreadable {scene.BadTextures}\nbillboards {scene.Flats.Count}\n" +
                 $"raster {collision.W}x{collision.H} at {rasterCell} units\nopen cells {collision.OpenCells} solid cells {collision.SolidCells} removed unreachable {collision.RemovedCells} kept regions {collision.KeptRegions}\nouter edge reachable from start {collision.ReachesEdge}\n" +
-                $"sectors {map.Sectors} (city {map.CitySectors}, terrain {map.TerrainSectors}) lines {map.Lines} vertices {map.Vertices}\nstart {map.StartX},{map.StartY}\nwad {new FileInfo(wad).Length / 1024} KiB\nmesh package {new FileInfo(package).Length / 1024} KiB\nconvert time {clock.ElapsedMilliseconds} ms\n");
+                $"sectors {map.Sectors} (city {map.CitySectors}, terrain {map.TerrainSectors}) lines {map.Lines} vertices {map.Vertices}\nstart {map.StartX},{map.StartY}\nwad {(File.Exists(wad) ? new FileInfo(wad).Length / 1024 : 0)} KiB\nmesh package {new FileInfo(package).Length / 1024} KiB\nconvert time {clock.ElapsedMilliseconds} ms\n");
             File.WriteAllText(Path.Combine(outDir, slug + ".stats.txt"), report);
             Console.WriteLine(report);
+            if (ddtPath != null) return 0; // A missing prop is reported above and does not stop the player from entering.
             return scene.BadTextures == 0 && scene.Missing == 0 ? 0 : 1;
         }
+
+        public static string RuntimeMapName(int group) => "DDT" + group.ToString("D5", CultureInfo.InvariantCulture);
+
+        // The package every runtime location shares: the location index, all textures, the gate models, and the scripts.
+        public static int RuntimeAssets(string[] args)
+        {
+            string Arg(string name, string fallback) { int at = Array.IndexOf(args, name); return at >= 0 ? args[at + 1] : fallback; }
+            string outFile = Arg("--out", null), arena2 = Arg("--arena2", @"D:\dev\DoomDaggerfall\GameResources\DAGGER\ARENA2");
+            if (outFile == null) { Console.Error.WriteLine("usage: --runtime-assets --out <ddruntime.pk3>"); return 2; }
+            PlayerScale.DoomUnitsPerDaggerfallUnit = 0.75;
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            var maps = new MapsFile(Path.Combine(arena2, "MAPS.BSA"), FileUsage.UseMemory, true);
+            var blocks = new BlocksFile(Path.Combine(arena2, "BLOCKS.BSA"), FileUsage.UseMemory, true);
+            var arch = new Arch3dFile(Path.Combine(arena2, "ARCH3D.BSA"), FileUsage.UseMemory, true);
+            WorldTerrain.Load(arena2, maps, blocks);
+            var groups = WorldTerrain.Groups();
+
+            // DDGROUPS: where each group is, so the engine can request it before any conversion has run.
+            int tooLarge = 0, mapLimit = (int)Math.Floor(65000 / DoomTile);
+            var index = new MemoryStream();
+            using (var w = new BinaryWriter(index, Encoding.ASCII, true))
+            {
+                w.Write(Encoding.ASCII.GetBytes("DDG1"));
+                w.Write(groups.Count);
+                foreach (var group in groups)
+                {
+                    var rects = group.Select(p => (x0: p.X * TilesPerPixel + p.RectX0, x1: p.X * TilesPerPixel + p.RectX1,
+                        y0: (WorldTerrain.WorldH - 1 - p.Y) * TilesPerPixel + p.RectY0, y1: (WorldTerrain.WorldH - 1 - p.Y) * TilesPerPixel + p.RectY1)).ToList();
+                    bool large = rects.Max(r => r.x1) - rects.Min(r => r.x0) + 48 > mapLimit || rects.Max(r => r.y1) - rects.Min(r => r.y0) + 48 > mapLimit;
+                    tooLarge += large ? 1 : 0;
+                    w.Write((short)rects.Count);
+                    w.Write((short)(large ? 1 : 0));
+                    foreach (var r in rects) { w.Write(r.x0); w.Write(r.x1); w.Write(r.y0); w.Write(r.y1); }
+                }
+            }
+
+            // Billboards can come from any archive a block names, plus the nature sets.
+            var flatArchives = new HashSet<int>(Enumerable.Range((int)DFLocation.ClimateTextureSet.Nature_RainForest, (int)DFLocation.ClimateTextureSet.Nature_Mountains_Snow - (int)DFLocation.ClimateTextureSet.Nature_RainForest + 1));
+            for (int b = 0; b < blocks.Count; b++)
+            {
+                if (!blocks.GetBlockName(b).EndsWith(".RMB", StringComparison.OrdinalIgnoreCase)) continue;
+                var data = blocks.GetBlock(b).RmbBlock;
+                foreach (var sub in data.SubRecords)
+                    foreach (var f in sub.Exterior.BlockFlatObjectRecords) flatArchives.Add(f.TextureArchive);
+                foreach (var f in data.MiscFlatObjectRecords) flatArchives.Add(f.TextureArchive);
+            }
+            flatArchives.Remove(199);
+
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outFile)));
+            string temp = outFile + ".tmp";
+            if (File.Exists(temp)) File.Delete(temp);
+            int meshImages = 0, flatImages = 0;
+            using (var zip = ZipFile.Open(temp, ZipArchiveMode.Create))
+            {
+                void Text(string name, string body) { using var s = new StreamWriter(zip.CreateEntry(name, CompressionLevel.Fastest).Open()); s.Write(body); }
+                using (var s = zip.CreateEntry("DDGROUPS", CompressionLevel.Fastest).Open()) { index.Position = 0; index.CopyTo(s); }
+                foreach (string path in Directory.GetFiles(arena2, "TEXTURE.*").OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
+                {
+                    if (!int.TryParse(Path.GetExtension(path).TrimStart('.'), out int archive)) continue;
+                    var file = new TextureFile(path, FileUsage.UseMemory, true);
+                    for (int record = 0; record < file.RecordCount; record++)
+                    {
+                        var image = file.GetDFBitmap(record, 0);
+                        if (image?.Data == null || image.Width == 0) continue;
+                        using (var s = zip.CreateEntry($"dfmesh/a{archive:D3}r{record:D2}.png", CompressionLevel.Fastest).Open()) WriteTexturePng(s, image, file.Palette);
+                        meshImages++;
+                        if (!flatArchives.Contains(archive)) continue;
+                        using (var s = zip.CreateEntry($"dfflat/F{archive:D3}R{record:D2}.png", CompressionLevel.Fastest).Open()) WriteFlatPng(s, image, file.Palette);
+                        flatImages++;
+                    }
+                }
+                var home = maps.GetLocation(WorldTerrain.Places[(207, 213)].RegionIndex, WorldTerrain.Places[(207, 213)].LocationIndex);
+                var scene = new Scene(arena2, home, 0, 0);
+                scene.WriteSharedSky(zip);
+                scene.BuildGateModels(arch);
+                string modeldef = "";
+                for (int slot = 0; slot < 2; slot++)
+                {
+                    Text($"models/dfdoors/gate{slot}.obj", scene.GateObj(slot));
+                    modeldef += $"Model DFDoorVisual{slot}{(char)10}{{{(char)10}Path \"models/dfdoors\"{(char)10}DONTCULLBACKFACES{(char)10}Model 0 \"gate{slot}.obj\"{(char)10}FrameIndex DFDR A 0 0{(char)10}}}{(char)10}";
+                }
+                Text("MODELDEF", modeldef);
+                // One map entry is the template for every generated location. The engine gives each its own copy.
+                Text("MAPINFO", "GameInfo\n{\n\tAddEventHandlers = \"DFRuntimeHandler\"\n}\nmap DDTOWN \"Daggerfall Location\"\n{\n\tpixelratio = 1.0\n\tsky1 = \"DFSKY\"\n\tkeepfullinventory\n}\n");
+                string doors = File.ReadAllText(Path.Combine(SourceDirectory(), "door_objects.zs"));
+                doors = doors.Substring(doors.IndexOf((char)10) + 1);
+                Text("zscript.zs", RuntimeScript + doors + "class DFDoorVisual0 : DFDoorVisual {}" + (char)10 + "class DFDoorVisual1 : DFDoorVisual {}" + (char)10);
+            }
+            File.Move(temp, outFile, true);
+            // A readable list for choosing test locations. It names game content, so it stays beside the package, outside the repository.
+            File.WriteAllLines(Path.ChangeExtension(outFile, ".groups.tsv"), groups.Select((g, id) => $"{id}\t{g.Count}\t{g.Max(p => p.BlocksWide * p.BlocksHigh)}\t{string.Join("; ", g.Select(p => $"{p.Region}/{p.Name} {p.Type} {p.BlocksWide}x{p.BlocksHigh}"))}"));
+            Console.WriteLine($"runtime assets: {groups.Count} groups ({tooLarge} over the map limit), {meshImages} mesh textures, {flatImages} billboards, {new FileInfo(outFile).Length / 1048576} MiB, {clock.ElapsedMilliseconds} ms");
+            return 0;
+        }
+
+        const string RuntimeScript = @"version ""4.10""
+
+// [DoomDaggerfall] Shared script for Daggerfall locations converted during play.
+class DFCityFlat : Actor
+{
+	Default { +NOINTERACTION +NOBLOCKMAP +NOGRAVITY +DONTSPLASH +NOTONAUTOMAP Radius 1; Height 1; }
+	States { Spawn: PLAY A -1; Stop; }
+}
+
+class DFRuntimeTown
+{
+	// Called by the engine on a fresh entry. Each line: slot pivotX pivotY pivotZ angle x0 x1 y0 y1 z0 z1 direction.
+	play static void SpawnGates(String body)
+	{
+		Array<String> lines;
+		body.Split(lines, ""\n"", TOK_SKIPEMPTY);
+		int count = 0;
+		for (int n = 0; n < lines.Size(); n++)
+		{
+			Array<String> f;
+			lines[n].Split(f, "" "", TOK_SKIPEMPTY);
+			if (f.Size() < 12) continue;
+			let door = DFDoor(Actor.Spawn(""DFDoor"", (f[1].ToDouble(), f[2].ToDouble(), f[3].ToDouble()), NO_REPLACE));
+			door.Setup(f[0].ToInt(), f[1].ToDouble(), f[2].ToDouble(), f[3].ToDouble(), f[4].ToDouble(),
+				f[5].ToDouble(), f[6].ToDouble(), f[7].ToDouble(), f[8].ToDouble(), f[9].ToDouble(), f[10].ToDouble());
+			door.swingDir = f[11].ToDouble();
+			count++;
+		}
+		Console.Printf(""DFGATES spawned %d leaves"", count);
+	}
+}
+
+class DFRuntimeHandler : EventHandler
+{
+	static bool IsTown() { return level.MapName.Left(3) ~== ""DDT"" && level.MapName.Length() == 8; }
+	override void WorldLoaded(WorldEvent e) { if (IsTown()) for (int i = 0; i < MAXPLAYERS; i++) if (playeringame[i]) Fit(players[i].mo); }
+	override void PlayerEntered(PlayerEvent e) { if (IsTown()) Fit(players[e.PlayerNumber].mo); }
+	static void Fit(PlayerPawn mo) { if (mo) mo.A_SetSize(10.5, mo.height); }
+}
+";
 
         static bool FindCity(MapsFile maps, string region, string name, out DFLocation location)
         {
@@ -552,35 +712,7 @@ static partial class Program
                     using var s = new StreamWriter(zip.CreateEntry(name, CompressionLevel.Fastest).Open());
                     s.Write(body);
                 }
-                using (var s = zip.CreateEntry("DFMESH", CompressionLevel.Fastest).Open())
-                {
-                    var writer = new BinaryWriter(s);
-                    writer.Write(Encoding.ASCII.GetBytes("DFM1"));
-                    writer.Write(Encoding.ASCII.GetBytes(mapName.PadRight(8, '\0')));
-                    writer.Write(keys.Count); writer.Write(keys.Count); writer.Write(batches.Values.Sum(b => b.Count) / 8);
-                    foreach (var k in keys)
-                        writer.Write(Encoding.ASCII.GetBytes($"dfmesh/a{k.archive:D3}r{k.record:D2}.png".PadRight(32, '\0')));
-                    int first = 0;
-                    for (int t = 0; t < keys.Count; t++)
-                    {
-                        int count = batches[keys[t]].Count / 8;
-                        writer.Write(t); writer.Write(first); writer.Write(count);
-                        first += count;
-                    }
-                    var buffer = new byte[1 << 16];
-                    foreach (var k in keys)
-                    {
-                        var list = batches[k];
-                        for (int i = 0; i < list.Count;)
-                        {
-                            int n = Math.Min(list.Count - i, buffer.Length / 4);
-                            for (int j = 0; j < n; j++) BitConverter.TryWriteBytes(buffer.AsSpan(j * 4), list[i + j]);
-                            writer.Write(buffer, 0, n * 4);
-                            i += n;
-                        }
-                    }
-                    writer.Flush();
-                }
+                using (var s = zip.CreateEntry("DFMESH", CompressionLevel.Fastest).Open()) WriteMesh(s, keys, mapName);
                 foreach (var k in keys)
                 {
                     var file = Archive(k.archive);
@@ -621,6 +753,87 @@ static partial class Program
                     Text("MODELDEF", modeldef.ToString());
                 }
             }
+
+            void WriteMesh(Stream s, List<(int archive, int record)> keys, string mapName)
+            {
+                var writer = new BinaryWriter(s);
+                writer.Write(Encoding.ASCII.GetBytes("DFM1"));
+                writer.Write(Encoding.ASCII.GetBytes(mapName.PadRight(8, '\0')));
+                writer.Write(keys.Count); writer.Write(keys.Count); writer.Write(batches.Values.Sum(b => b.Count) / 8);
+                foreach (var k in keys)
+                    writer.Write(Encoding.ASCII.GetBytes($"dfmesh/a{k.archive:D3}r{k.record:D2}.png".PadRight(32, '\0')));
+                int first = 0;
+                for (int t = 0; t < keys.Count; t++)
+                {
+                    int count = batches[keys[t]].Count / 8;
+                    writer.Write(t); writer.Write(first); writer.Write(count);
+                    first += count;
+                }
+                var buffer = new byte[1 << 16];
+                foreach (var k in keys)
+                {
+                    var list = batches[k];
+                    for (int i = 0; i < list.Count;)
+                    {
+                        int n = Math.Min(list.Count - i, buffer.Length / 4);
+                        for (int j = 0; j < n; j++) BitConverter.TryWriteBytes(buffer.AsSpan(j * 4), list[i + j]);
+                        writer.Write(buffer, 0, n * 4);
+                        i += n;
+                    }
+                }
+                writer.Flush();
+            }
+
+            // One cache entry: "DDT1", entry count, then name[8], raw size, packed size for each, then the zlib streams.
+            // It is written to a temporary file and renamed, so the engine never sees a partial entry.
+            public void WriteRuntimeEntry(string path, string wadPath, string townInfo, string mapName)
+            {
+                var keys = batches.Keys.OrderBy(k => k.archive).ThenBy(k => k.record).ToList();
+                BatchCount = keys.Count;
+                var mesh = new MemoryStream();
+                WriteMesh(mesh, keys, mapName);
+                var flatList = new StringBuilder();
+                foreach (var f in Flats)
+                    flatList.Append(FormattableString.Invariant($"dfflat/F{f.archive:D3}R{f.record:D2}.png {f.x:F2} {f.y:F2} {f.z:F2} {f.sx:F4} {f.sy:F4}\n"));
+                var entries = new (string name, byte[] data)[]
+                {
+                    ("MAPWAD", File.ReadAllBytes(wadPath)), ("DFMESH", mesh.ToArray()), ("DFFLATS", Encoding.ASCII.GetBytes(flatList.ToString())),
+                    ("DFGATES", Encoding.ASCII.GetBytes(string.Join((char)10, GatePlacements) + (char)10)), ("DDTOWN", Encoding.ASCII.GetBytes(townInfo)),
+                };
+                var packed = new byte[entries.Length][];
+                System.Threading.Tasks.Parallel.For(0, entries.Length, i =>
+                {
+                    var body = new MemoryStream();
+                    using (var z = new ZLibStream(body, CompressionLevel.Fastest, true)) z.Write(entries[i].data);
+                    packed[i] = body.ToArray();
+                });
+                string temp = path + ".tmp";
+                Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path)));
+                using (var w = new BinaryWriter(File.Create(temp)))
+                {
+                    w.Write(Encoding.ASCII.GetBytes("DDT1"));
+                    w.Write(entries.Length);
+                    for (int i = 0; i < entries.Length; i++)
+                    {
+                        w.Write(Encoding.ASCII.GetBytes(entries[i].name.PadRight(8, '\0')));
+                        w.Write(entries[i].data.Length);
+                        w.Write(packed[i].Length);
+                    }
+                    foreach (var body in packed) w.Write(body);
+                }
+                File.Move(temp, path, true);
+            }
+
+            public void WriteSharedSky(ZipArchive zip) => WriteSky(zip);
+
+            public void BuildGateModels(Arch3dFile arch)
+            {
+                var mesh = arch.GetMesh(arch.GetRecordIndex(GateOpen));
+                BuildGateLeaf(mesh, 1);
+                BuildGateLeaf(mesh, -1);
+            }
+
+            public string GateObj(int slot) => gateLeafObj[slot];
 
             void WriteSky(ZipArchive zip)
             {

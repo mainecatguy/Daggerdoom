@@ -245,6 +245,28 @@ static class WorldTerrain
         return group;
     }
 
+    // Every location group in a fixed order. The list index is the group's id, and its first place is the map's primary location.
+    public static List<List<Place>> Groups()
+    {
+        var groups = new List<List<Place>>();
+        var seen = new HashSet<(int, int)>();
+        foreach (var place in Places.Values.OrderBy(p => p.Y).ThenBy(p => p.X))
+        {
+            if (seen.Contains((place.X, place.Y))) continue;
+            var group = GroupOf(place);
+            foreach (var member in group) seen.Add((member.X, member.Y));
+            // A group too wide for one map (Wayrest's is) becomes one map per location. They meet in open overworld.
+            int x0 = group.Min(p => p.X * TilesPerPixel + p.RectX0), x1 = group.Max(p => p.X * TilesPerPixel + p.RectX1);
+            int y0 = group.Min(p => -p.Y * TilesPerPixel + p.RectY0), y1 = group.Max(p => -p.Y * TilesPerPixel + p.RectY1);
+            if (x1 - x0 + 2 * RuntimeMargin > RuntimeMapTiles || y1 - y0 + 2 * RuntimeMargin > RuntimeMapTiles)
+                groups.AddRange(group.OrderBy(p => p.Y).ThenBy(p => p.X).Select(p => new List<Place> { p }));
+            else groups.Add(group);
+        }
+        return groups;
+    }
+
+    const int RuntimeMargin = 24, RuntimeMapTiles = 338; // 65000 Doom units at 192 per tile
+
     public static int RunExport(string[] args)
     {
         string Arg(string name, string fallback) { int at = Array.IndexOf(args, name); return at >= 0 ? args[at + 1] : fallback; }
