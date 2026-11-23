@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
+#include <memory>
 #include <fstream>
 #include <string>
 #include <thread>
@@ -21,9 +22,13 @@
 #include "c_bind.h"
 #include "c_cvars.h"
 #include "c_dispatch.h"
+#include "d_event.h"
+#include "d_net.h"
+#include "d_protocol.h"
 #include "doomstat.h"
 #include "engineerrors.h"
 #include "fs_decompress.h"
+#include "g_game.h"
 #include "g_levellocals.h"
 #include "gamestate.h"
 #include "i_interface.h"
@@ -34,20 +39,25 @@
 #include "p_local.h"
 #include "playsim/dd_treadmill.h"
 #include "printf.h"
+#include "resourcefile.h"
+#include "savegamemanager.h"
 #include "texturemanager.h"
 #include "textures.h"
 #include "v_draw.h"
 #include "v_video.h"
 
 void G_SaveGame(const char *filename, const char *description, bool quick);
+extern FString savename;
 
 FARG_ADVANCED(dfbridge, "Doomerfall", "session", "Attaches to the Doomerfall bridge session created by the launcher.");
 FARG_ADVANCED(dfbridgelog, "Doomerfall", "file", "Appends Doomerfall bridge traffic and latency to a log file.");
 FARG_ADVANCED(dfuitest, "Doomerfall", "count", "Bridge test only: opens the fast travel menu this many times.");
 FARG_ADVANCED(dfbridgetestpause, "Doomerfall", "ext|game|menu", "Bridge test only: enters a pause state for six seconds.");
 
-FARG_ADVANCED(dfsavetest, "Doomerfall", "file", "Save test only: makes one synchronized save to this file, then quits.");
+FARG_ADVANCED(dfsavetest, "Doomerfall", "file|autoN", "Save test only: makes one synchronized save to this file, or N real autosaves, then quits.");
 FARG_ADVANCED(dfsavetestfail, "Doomerfall", "uz_zip|uz_commit|uz_crash", "Save test only: fails the save at this step.");
+
+FARG_ADVANCED(dfloadtest, "Doomerfall", "mode:file", "Load test only: cycle, death, menu, or bad, using this save file.");
 
 FARG_ADVANCED(dfhptest, "Doomerfall", "basic|monsters", "HP sync test only: scripts hits, heals, and a lethal hit.");
 
@@ -187,6 +197,9 @@ void PublishPosition()
 void HandleUiState(const dfb_event &e);
 void HandleUiResult(const dfb_event &e);
 void HandleSaveReply(const dfb_event &e);
+void HandleLoadReady(const dfb_event &e);
+void HandleLoadResume(const dfb_event &e);
+bool flowHold; // A load is running, or a failed load or the title left no game both halves agree on.
 
 void HandleEvent(const dfb_event &e, int64_t now)
 {
@@ -200,6 +213,12 @@ void HandleEvent(const dfb_event &e, int64_t now)
 		break;
 	case DFB_KIND_SAVE_PREPARED:
 		HandleSaveReply(e);
+		break;
+	case DFB_KIND_LOAD_READY:
+		HandleLoadReady(e);
+		break;
+	case DFB_KIND_LOAD_RESUME:
+		HandleLoadResume(e);
 		break;
 	case DFB_KIND_PING:
 	{
@@ -516,7 +535,7 @@ bool DD_BridgeNetEvent(const char *name)
 		SendUiCommand(DFB_KIND_UI_CLOSE, uiId);
 		return true;
 	}
-	if (gamestate != GS_LEVEL || DDTreadmill_HandoffPending() || DD_BridgeSaveActive()) return true; // Not while going through a door or map seam, or saving.
+	if (gamestate != GS_LEVEL || flowHold || players[consoleplayer].health <= 0 || DDTreadmill_HandoffPending() || DD_BridgeSaveActive()) return true; // Not while going through a door or map seam, or saving.
 	if (!peerSeen || peerStale || peerState.df_phase != DFB_DF_PHASE_PLAY)
 	{
 		Printf("Daggerfall is not ready to show the travel map.\n");
@@ -615,7 +634,7 @@ void HpTestTicStep();
 
 bool HpActive()
 {
-	return session && peerSeen && (peerState.hp_flags & DFB_HPF_VALID) && !hpAllowKill;
+	return session && !flowHold && peerSeen && (peerState.hp_flags & DFB_HPF_VALID) && !hpAllowKill;
 }
 
 bool HpIsBridgedPlayer(player_t *player)
@@ -827,6 +846,22 @@ std::vector<std::vector<uint8_t>> saveBuffers;
 const char *saveTestFile, *saveTestFail;
 bool saveTestStarted;
 int64_t saveTestAtNs;
+int saveTestAutos; // Autosaves still to trigger in an autoN test.
+bool saveIsAuto, autosaveHeld, saveStartPending, savePendingAuto;
+FString savePendingFile, savePendingDescription;
+int64_t autosaveHeldUntil, saveReplyNs;
+constexpr int64_t AutosaveHoldNs = 60000000000LL;
+
+bool SaveOnDaggerfallMap()
+{
+	double x, y, z, yaw;
+	return gamestate == GS_LEVEL && DDTreadmill_PlayerWorld(x, y, z, yaw) != DD_AREA_NONE;
+}
+
+bool SaveReady()
+{
+	return uiState == UiClosed && !flowHold && !DDTreadmill_HandoffPending() && peerSeen && !peerStale && peerState.df_phase == DFB_DF_PHASE_PLAY;
+}
 
 fs::path SavePath(const char *utf8) { return fs::path(std::u8string(reinterpret_cast<const char8_t *>(utf8))); }
 
@@ -853,9 +888,12 @@ void SaveFinish(bool committed, const char *why)
 	saveBuffers.clear();
 	saveState = SaveIdle;
 	pauseext = saveSavedPause;
-	Log("save %u: %s (%s), %.1f ms", saveTxn, committed ? "committed" : "FAILED, previous save untouched", why, (dfb_now_ns() - saveStartNs) / 1e6);
+	const int64_t endNs = dfb_now_ns();
+	Log("save %u: %s%s (%s), %.1f ms frozen, Daggerfall %.1f ms, Doom %.1f ms", saveTxn, saveIsAuto ? "autosave " : "",
+		committed ? "committed" : "FAILED, previous save untouched", why, (endNs - saveStartNs) / 1e6,
+		saveReplyNs ? (saveReplyNs - saveStartNs) / 1e6 : 0.0, saveReplyNs ? (endNs - saveReplyNs) / 1e6 : 0.0);
 	if (!committed) Printf(PRINT_HIGH, "Save failed: %s. Your previous save is unchanged.\n", why);
-	if (saveTestFile) C_DoCommand("quit");
+	if (saveTestFile && saveTestAutos <= 0) C_DoCommand("quit"); // An autoN test continues after a failure, to prove play resumes.
 }
 
 bool SaveAddEntry(TArray<FCompressedBuffer> &content, TArray<FString> &names, const FString &name, const uint8_t *data, size_t size)
@@ -903,7 +941,7 @@ void SaveRun()
 	}
 	try
 	{
-		G_DoSaveGame(true, false, saveFile, saveDescription.GetChars());
+		G_DoSaveGame(!saveIsAuto, false, saveFile, saveDescription.GetChars());
 	}
 	catch (const CRecoverableError &error)
 	{
@@ -929,13 +967,39 @@ void HandleSaveReply(const dfb_event &e)
 	}
 	saveReply = body;
 	saveHaveReply = true;
+	saveReplyNs = dfb_now_ns();
 	Log("save %u: Daggerfall prepared %u files, %llu bytes, hp %d/%d, position %d,%d", body.txn, body.file_count,
 		(unsigned long long)body.total_bytes, body.hp_current, body.hp_max, body.world_x, body.world_z);
 }
 
+bool SaveStart(const char *filename, const char *description, bool isAuto);
+
 void PumpSave(int64_t now)
 {
-	if (saveTestFile && !saveTestStarted && peerSeen && gamestate == GS_LEVEL && peerState.df_phase == DFB_DF_PHASE_PLAY)
+	// Here no game tic is running, so nothing can happen in Doom between its final state and the request.
+	if (saveStartPending && saveState == SaveIdle)
+	{
+		saveStartPending = false;
+		SaveStart(savePendingFile.GetChars(), savePendingDescription.GetChars(), savePendingAuto);
+	}
+	if (saveTestFile && !strncmp(saveTestFile, "auto", 4))
+	{
+		// Goes through the same net command as a real autosave.
+		if (!saveTestStarted && gamestate == GS_LEVEL && SaveReady())
+		{
+			saveTestStarted = true;
+			saveTestAutos = std::max(atoi(saveTestFile + 4), 1);
+			saveTestAtNs = now + 2000000000LL;
+		}
+		if (saveTestAutos > 0 && saveState == SaveIdle && now >= saveTestAtNs && gamestate == GS_LEVEL && SaveReady())
+		{
+			saveTestAutos--;
+			saveTestAtNs = now + 1500000000LL;
+			for (int i = 0; i < 5; i++) HpSend(DFB_HP_HIT, 1, "autosave test");
+			Net_WriteInt8(DEM_CHECKAUTOSAVE);
+		}
+	}
+	else if (saveTestFile && !saveTestStarted && peerSeen && gamestate == GS_LEVEL && peerState.df_phase == DFB_DF_PHASE_PLAY)
 	{
 		if (!saveTestAtNs) saveTestAtNs = now + 2000000000LL;
 		if (now >= saveTestAtNs)
@@ -943,6 +1007,20 @@ void PumpSave(int64_t now)
 			saveTestStarted = true;
 			for (int i = 0; i < 20; i++) HpSend(DFB_HP_HIT, 1, "save test"); // In flight when the request is sent.
 			G_SaveGame(saveTestFile, "Doomerfall save test", false);
+		}
+	}
+	// An autosave that came while Daggerfall was busy runs as soon as it is ready.
+	if (autosaveHeld && saveState == SaveIdle)
+	{
+		if (now > autosaveHeldUntil || !SaveOnDaggerfallMap())
+		{
+			autosaveHeld = false;
+			Log("save: dropped a held autosave");
+		}
+		else if (SaveReady() && gameaction == ga_nothing && !paused && !pauseext && players[consoleplayer].playerstate == PST_LIVE)
+		{
+			autosaveHeld = false;
+			gameaction = ga_autosave;
 		}
 	}
 	if (saveState != SaveWaiting) return;
@@ -959,17 +1037,56 @@ void PumpSave(int64_t now)
 
 bool DD_BridgeSaveActive() { return saveState != SaveIdle; }
 
+// G_DoAutoSave: true while Daggerfall cannot save yet on a Daggerfall map. The autosave then runs when it can,
+// so a Daggerfall map never gets a Doom-only autosave.
+bool DD_BridgeAutosaveHold()
+{
+	if (!session || !SaveOnDaggerfallMap()) return false;
+	if (saveState == SaveIdle && !saveStartPending && SaveReady()) return false;
+	if (!autosaveHeld) Log("save: holding an autosave until Daggerfall is ready");
+	autosaveHeld = true;
+	autosaveHeldUntil = dfb_now_ns() + AutosaveHoldNs;
+	return true;
+}
+
+// Saves are asked for during a tic or menu event and start at the next frame.
+static bool SaveQueue(const char *filename, const char *description, bool isAuto)
+{
+	if (saveState != SaveIdle || saveStartPending) { Printf("A save is already in progress.\n"); return true; }
+	savePendingFile = filename;
+	savePendingDescription = description;
+	savePendingAuto = isAuto;
+	saveStartPending = true;
+	return true;
+}
+
+// G_DoAutoSave: true means the bridge took this autosave.
+bool DD_BridgeAutosaveBegin(const char *filename, const char *description)
+{
+	if (!session || !SaveOnDaggerfallMap()) return false;
+	return SaveQueue(filename, description, true);
+}
+
 // G_SaveGame, for a save from the menu or console. True means the bridge took it, or refused it with a message.
 bool DD_BridgeSaveBegin(const char *filename, const char *description)
 {
-	if (!session || (ownState.world_context == DFB_WORLD_NONE && !saveTestFile)) return false; // A regular WAD saves normally.
+	if (!session || (!SaveOnDaggerfallMap() && !saveTestFile)) return false; // A regular WAD saves normally.
+	return SaveQueue(filename, description, false);
+}
+
+namespace
+{
+bool SaveStart(const char *filename, const char *description, bool isAuto)
+{
 	if (saveState != SaveIdle) { Printf("A save is already in progress.\n"); return true; }
-	if (uiState != UiClosed || DDTreadmill_HandoffPending() || !peerSeen || peerStale || peerState.df_phase != DFB_DF_PHASE_PLAY)
+	if (gamestate != GS_LEVEL || players[consoleplayer].health <= 0 || !SaveReady())
 	{
 		Printf(PRINT_HIGH, "Cannot save right now. Daggerfall is not ready.\n");
 		Log("save: refused before starting, Daggerfall phase %u, stale %d", peerState.df_phase, int(peerStale));
 		return true;
 	}
+	saveIsAuto = isAuto;
+	saveReplyNs = 0;
 	saveFile = filename;
 	saveDescription = description;
 	saveTxn++;
@@ -1000,6 +1117,7 @@ bool DD_BridgeSaveBegin(const char *filename, const char *description)
 	dfb_flush(session);
 	Log("save %u: Doom frozen at tic %d, requested Daggerfall's save", saveTxn, gametic);
 	return true;
+}
 }
 
 FString DD_BridgeSaveWritePath(const FString &filename)
@@ -1063,6 +1181,547 @@ bool DD_BridgeSaveCommit(const FString &written, const FString &filename)
 	return saveCommitted;
 }
 
+//==========================================================================
+// Synchronized load and the death screen. Doom freezes, proves the whole bundle is intact, and stages
+// Daggerfall's files. Daggerfall checks its half and restores first, then Doom restores, and play resumes
+// only when both have confirmed. Nothing is touched until both halves pass their checks.
+//==========================================================================
+
+bool G_DDCheckSave(FResourceFile *resfile, FString &map);
+bool G_DDLoadNow(const char *file);
+void D_StartTitle();
+
+namespace
+{
+constexpr int64_t LoadTimeoutNs = 30000000000LL, LoadPeerWaitNs = 15000000000LL, DeathViewNs = 2500000000LL;
+enum LoadState { LoadIdle, LoadPending, LoadWaitDf, LoadWaitResume };
+enum DeathState { DeathNone, DeathView, DeathMenu };
+LoadState loadState = LoadIdle;
+DeathState deathState = DeathNone;
+bool loadBroken; // Daggerfall or Doom lost its game in a failed load, so only another load can continue.
+bool atTitle;
+uint32_t loadTxn;
+int64_t loadStartNs, deathAtNs;
+FString loadFile, loadStage;
+dfb_save_reply loadReply;
+const char *loadTestMode;
+FString loadTestFile;
+int loadTestStep, loadTestSavedHp;
+double loadTestPos[3];
+int64_t loadTestAtNs;
+
+struct BundleInfo
+{
+	int hp = 0, hpMax = 0, x = 0, z = 0;
+	uint32_t files = 0;
+	FString map;
+};
+
+bool ManifestInt(const std::string &text, const char *key, int &out)
+{
+	const std::string needle = std::string("\"") + key + "\":";
+	const size_t at = text.find(needle);
+	return at != std::string::npos && sscanf(text.c_str() + at + needle.size(), "%d", &out) == 1;
+}
+
+bool ManifestPair(const std::string &text, const char *key, int &a, int &b)
+{
+	const std::string needle = std::string("\"") + key + "\":[";
+	const size_t at = text.find(needle);
+	return at != std::string::npos && sscanf(text.c_str() + at + needle.size(), "%d,%d", &a, &b) == 2;
+}
+
+std::string LowerName(std::string name)
+{
+	std::transform(name.begin(), name.end(), name.begin(), [](unsigned char c) { return char(tolower(c)); });
+	return name;
+}
+
+// Proves every entry's checksum and that the manifest, Doom's half, and the Daggerfall files agree.
+// With extract set, also writes the Daggerfall files to the stage. Never changes the save.
+bool BundleCheck(const char *file, BundleInfo &info, FString &why, const fs::path *extract)
+{
+	try
+	{
+		std::unique_ptr<FResourceFile> res(FResourceFile::OpenResourceFile(file, true));
+		if (!res) { why = "the file cannot be read"; return false; }
+		const int manifestEntry = res->FindEntry("doomerfall/manifest.json");
+		if (manifestEntry < 0) { why = "it is not a Doomerfall save"; return false; }
+		std::vector<std::string> names;
+		for (uint32_t i = 0; i < res->EntryCountU(); i++)
+		{
+			FCompressedBuffer raw = res->GetRawData(i);
+			const uint32_t expected = raw.mCRC32;
+			raw.Clean();
+			auto data = res->Read(i);
+			if (crc32(0, reinterpret_cast<const Bytef *>(data.data()), uInt(data.size())) != expected)
+			{
+				why.Format("damaged entry %s", res->getName(i));
+				return false;
+			}
+			const std::string name = res->getName(i);
+			static const std::string prefix = "doomerfall/daggerfall/";
+			if (LowerName(name).compare(0, prefix.size(), prefix)) continue;
+			const std::string relative = name.substr(prefix.size());
+			if (relative.empty() || relative.find("..") != std::string::npos || relative[0] == '/' || relative.find(':') != std::string::npos)
+			{
+				why = "unsafe file name in the bundle";
+				return false;
+			}
+			names.push_back(LowerName(relative));
+			if (extract)
+			{
+				const fs::path target = *extract / SavePath(relative.c_str());
+				std::error_code error;
+				fs::create_directories(target.parent_path(), error);
+				std::ofstream out(target, std::ios::binary);
+				if (error || !out.write(reinterpret_cast<const char *>(data.data()), std::streamsize(data.size())))
+				{
+					why = "could not stage the Daggerfall files";
+					return false;
+				}
+			}
+		}
+		auto manifestData = res->Read(manifestEntry);
+		const std::string manifest(reinterpret_cast<const char *>(manifestData.data()), manifestData.size());
+		int format = 0;
+		if (!ManifestInt(manifest, "format", format) || format != SaveFormat) { why = "unsupported bundle format"; return false; }
+		if (!ManifestInt(manifest, "hp", info.hp) || !ManifestInt(manifest, "hp_max", info.hpMax) ||
+			!ManifestPair(manifest, "df_world", info.x, info.z)) { why = "the manifest is incomplete"; return false; }
+		const size_t mapAt = manifest.find("\"map\":\""), listAt = manifest.find("\"files\":[");
+		if (mapAt == std::string::npos || listAt == std::string::npos) { why = "the manifest is incomplete"; return false; }
+		const size_t mapEnd = manifest.find('"', mapAt + 7);
+		const std::string manifestMap = manifest.substr(mapAt + 7, mapEnd - mapAt - 7);
+		std::vector<std::string> listed;
+		const size_t listEnd = manifest.find(']', listAt);
+		for (size_t at = manifest.find('"', listAt + 9); at != std::string::npos && at < listEnd;)
+		{
+			const size_t end = manifest.find('"', at + 1);
+			if (end == std::string::npos) break;
+			listed.push_back(LowerName(manifest.substr(at + 1, end - at - 1)));
+			at = manifest.find('"', end + 1);
+		}
+		std::sort(names.begin(), names.end());
+		std::sort(listed.begin(), listed.end());
+		if (names.empty() || names != listed) { why = "the Daggerfall files do not match the manifest"; return false; }
+		info.files = uint32_t(names.size());
+		if (!G_DDCheckSave(res.get(), info.map)) { why = "Doom's half does not fit this game or its mods"; return false; }
+		if (info.map.CompareNoCase(manifestMap.c_str())) { why = "Doom's half and the manifest name different maps"; return false; }
+		return true;
+	}
+	catch (const std::exception &error)
+	{
+		why.Format("the file is damaged (%s)", error.what());
+		return false;
+	}
+}
+
+void LoadRemoveStage()
+{
+	if (loadStage.IsEmpty()) return;
+	std::error_code ignored;
+	fs::remove_all(SavePath(loadStage.GetChars()), ignored);
+	loadStage = "";
+}
+
+// Refused before anything changed: the running game simply continues.
+void LoadRefuse(const char *why)
+{
+	LoadRemoveStage();
+	const bool wasFrozen = loadState == LoadWaitDf;
+	loadState = LoadIdle;
+	if (wasFrozen && !loadBroken) pauseext = false;
+	if (!loadBroken && !atTitle) flowHold = false;
+	Log("load: refused, %s", why);
+	Printf(PRINT_HIGH, "Cannot load that save: %s.\n", why);
+	if (gamestate == GS_STARTUP) D_StartTitle();
+}
+
+// A half was lost. Neither game may run until a save loads, so the death screen stays up.
+void LoadBreak(const char *why)
+{
+	LoadRemoveStage();
+	loadState = LoadIdle;
+	loadBroken = true;
+	flowHold = true;
+	Log("load: FAILED after restore began, %s", why);
+	Printf(PRINT_HIGH, "Load failed: %s. Choose another save.\n", why);
+	if (gamestate != GS_LEVEL)
+	{
+		atTitle = true;
+		D_StartTitle();
+	}
+	deathState = DeathMenu;
+}
+
+void LoadStart()
+{
+	BundleInfo info;
+	FString why;
+	loadTxn = ++saveTxn;
+	loadStage.Format("%s.load.dfstage", loadFile.GetChars());
+	std::error_code error;
+	const fs::path stage = SavePath(loadStage.GetChars());
+	fs::remove_all(stage, error);
+	fs::create_directories(stage, error);
+	if (error) { LoadRefuse("could not prepare the staging folder"); return; }
+	if (!BundleCheck(loadFile.GetChars(), info, why, &stage)) { LoadRefuse(why.GetChars()); return; }
+	uint32_t version;
+	if (dfb_bulk_write(session, DFB_SAVE_PATH_SLOT, loadStage.GetChars(), uint32_t(loadStage.Len() + 1), &version) != DFB_OK)
+	{
+		LoadRefuse("could not reach Daggerfall");
+		return;
+	}
+	pauseext = true;
+	flowHold = true;
+	loadState = LoadWaitDf;
+	loadStartNs = dfb_now_ns();
+	dfb_event e{};
+	e.kind = DFB_KIND_LOAD_REQUEST;
+	e.tic = gametic;
+	const dfb_load_request body{ loadTxn, info.hp, info.hpMax, info.x, info.z, info.files, loadStartNs };
+	memcpy(e.payload, &body, sizeof(body));
+	dfb_send(session, &e);
+	dfb_flush(session);
+	Log("load %u: bundle checked (%u Daggerfall files, hp %d/%d, map %s), Doom frozen", loadTxn, info.files, info.hp, info.hpMax, info.map.GetChars());
+}
+
+void SendLoadDone(bool ok)
+{
+	dfb_event e{};
+	e.kind = DFB_KIND_LOAD_DONE;
+	e.tic = gametic;
+	const dfb_save_done body{ loadTxn, ok ? 1u : 0u };
+	memcpy(e.payload, &body, sizeof(body));
+	dfb_send(session, &e);
+	dfb_flush(session);
+}
+
+void LoadRestoreDoom()
+{
+	hpMirroredPawn = nullptr;
+	bool ok = false;
+	try
+	{
+		if (gamestate == GS_LEVEL) P_UnPredictClient(); // The drawn prediction must not outlive the level it points into.
+		ok = G_DDLoadNow(loadFile.GetChars());
+	}
+	catch (const CRecoverableError &error)
+	{
+		Printf(PRINT_HIGH, "%s\n", error.GetMessage());
+	}
+	LoadRemoveStage();
+	SendLoadDone(ok);
+	if (!ok)
+	{
+		LoadBreak("Doom could not restore its half");
+		return;
+	}
+	player_t &player = players[consoleplayer];
+	if (player.mo && loadReply.hp_current > 0) player.health = player.mo->health = loadReply.hp_current; // Daggerfall's value.
+	loadState = LoadWaitResume;
+	Log("load %u: Doom restored map %s at tic %d, hp %d", loadTxn, primaryLevel->MapName.GetChars(), gametic, player.health);
+}
+
+void HandleLoadReady(const dfb_event &e)
+{
+	dfb_save_reply body;
+	memcpy(&body, e.payload, sizeof(body));
+	if (loadState != LoadWaitDf || body.txn != loadTxn) return;
+	if (body.status == DFB_SAVE_REFUSED) { LoadRefuse("Daggerfall rejected its half of the save"); return; }
+	if (body.status != DFB_SAVE_OK) { SendLoadDone(false); LoadBreak("Daggerfall could not restore its half"); return; }
+	loadReply = body;
+	LoadRestoreDoom();
+}
+
+void HandleLoadResume(const dfb_event &e)
+{
+	dfb_save_done body;
+	memcpy(&body, e.payload, sizeof(body));
+	if (loadState != LoadWaitResume || body.txn != loadTxn) return;
+	loadState = LoadIdle;
+	loadBroken = atTitle = flowHold = false;
+	deathState = DeathNone;
+	pauseext = false;
+	M_ClearMenus();
+	Log("load %u: both games resumed, %.1f ms frozen", loadTxn, (dfb_now_ns() - loadStartNs) / 1e6);
+}
+
+// The newest save in the save folder that passes every check.
+bool NewestBundle(FString &out)
+{
+	std::vector<std::pair<fs::file_time_type, fs::path>> found;
+	std::error_code error;
+	const FString folder = G_GetSavegamesFolder();
+	for (fs::directory_iterator it(SavePath(folder.GetChars()), error), end; !error && it != end; it.increment(error))
+		if (it->is_regular_file() && it->path().extension() == ".zds") found.emplace_back(it->last_write_time(), it->path());
+	std::sort(found.begin(), found.end(), [](const auto &a, const auto &b) { return a.first > b.first; });
+	for (const auto &entry : found)
+	{
+		const std::u8string text = entry.second.generic_u8string();
+		const FString name(reinterpret_cast<const char *>(text.c_str()));
+		BundleInfo info;
+		FString why;
+		if (BundleCheck(name.GetChars(), info, why, nullptr)) { out = name; return true; }
+		Log("load: skipping %s: %s", name.GetChars(), why.GetChars());
+	}
+	return false;
+}
+
+void PumpDeath(int64_t now)
+{
+	if (loadState != LoadIdle) return;
+	if (loadBroken && gamestate == GS_LEVEL) pauseext = true;
+	if (atTitle && !loadBroken) return;
+	const player_t &player = players[consoleplayer];
+	if (deathState == DeathNone && gamestate == GS_LEVEL && SaveOnDaggerfallMap() && player.mo &&
+		(player.playerstate == PST_DEAD || player.playerstate == PST_REBORN))
+	{
+		deathState = DeathView;
+		deathAtNs = now + DeathViewNs;
+		Log("death: showing Doom's death view");
+	}
+	if (deathState == DeathView && now >= deathAtNs) deathState = DeathMenu;
+	if (deathState == DeathMenu && !menuactive && gameaction == ga_nothing)
+	{
+		M_StartControlPanel(false);
+		M_SetMenu(FName("DoomerfallDeathMenu"), -1);
+		Log("death: showing the death menu");
+	}
+}
+
+void RunLoadTest(int64_t now);
+
+void PumpLoad(int64_t now)
+{
+	if (loadState == LoadPending && saveState == SaveIdle && !saveStartPending && uiState == UiClosed)
+	{
+		if (peerSeen && !peerStale) LoadStart();
+		else if (now - loadStartNs > LoadPeerWaitNs) LoadRefuse("Daggerfall is not responding");
+	}
+	if (loadState == LoadWaitDf || loadState == LoadWaitResume)
+	{
+		pauseext = true;
+		if (now - loadStartNs > LoadTimeoutNs || peerStale)
+		{
+			SendLoadDone(false);
+			LoadBreak("Daggerfall stopped responding");
+		}
+	}
+	PumpDeath(now);
+	RunLoadTest(now);
+}
+
+void LoadTestLog(const char *what)
+{
+	const player_t &p = players[consoleplayer];
+	double x = 0, y = 0, z = 0, yaw = 0;
+	const bool world = gamestate == GS_LEVEL && DDTreadmill_PlayerWorld(x, y, z, yaw) != DD_AREA_NONE;
+	Log("load test: %s | doom hp %d, Daggerfall hp %d dead %d, world %d at %.1f,%.1f, gamestate %d, death %d, hold %d, menu %d", what, p.health, peerState.hp_current,
+		(peerState.hp_flags & DFB_HPF_DEAD) ? 1 : 0, int(world), x, y, int(gamestate), int(deathState), int(flowHold), int(menuactive));
+}
+
+// Test only (-dfloadtest mode:file). Drives the same save, load, and death entry points the menus use.
+void RunLoadTest(int64_t now)
+{
+	if (!loadTestMode || loadTestStep < 0 || now < loadTestAtNs) return;
+	const bool settled = loadState == LoadIdle && saveState == SaveIdle && !saveStartPending;
+	const bool bad = !strcmp(loadTestMode, "bad"), death = !strcmp(loadTestMode, "death"), menu = !strcmp(loadTestMode, "menu");
+	const player_t &player = players[consoleplayer];
+	double x = 0, y = 0, z = 0, yaw = 0;
+	const auto finish = [&]()
+	{
+		const bool world = gamestate == GS_LEVEL && DDTreadmill_PlayerWorld(x, y, z, yaw) != DD_AREA_NONE;
+		const double moved = std::hypot(x - loadTestPos[0], y - loadTestPos[1]);
+		const bool pass = world && !flowHold && deathState == DeathNone && player.playerstate == PST_LIVE &&
+			player.health == loadTestSavedHp && peerState.hp_current == loadTestSavedHp && !(peerState.hp_flags & DFB_HPF_DEAD) && moved < 2.0;
+		LoadTestLog(pass ? "PASS" : "FAIL");
+		Log("load test: moved %.2f from the saved position", moved);
+		loadTestStep = -1;
+		C_DoCommand("quit");
+	};
+	switch (loadTestStep)
+	{
+	case 0:
+		if (gamestate != GS_LEVEL || !SaveReady() || !(peerState.hp_flags & DFB_HPF_VALID)) return;
+		if (!loadTestAtNs) { loadTestAtNs = now + 2000000000LL; return; }
+		LoadTestLog("start");
+		if (bad)
+		{
+			loadTestSavedHp = player.health;
+			DDTreadmill_PlayerWorld(loadTestPos[0], loadTestPos[1], loadTestPos[2], yaw);
+			G_LoadGame(loadTestFile.GetChars());
+			loadTestStep = 10;
+			loadTestAtNs = now + 3000000000LL;
+			return;
+		}
+		HpSend(DFB_HP_HIT, 13, "load test setup");
+		loadTestStep = 1;
+		loadTestAtNs = now + 700000000LL;
+		return;
+	case 1:
+		if (peerState.hp_applied_event + 1 != hpNextEvent) return;
+		loadTestSavedHp = peerState.hp_current;
+		G_SaveGame(loadTestFile.GetChars(), "Doomerfall load test", false);
+		loadTestStep = 2;
+		loadTestAtNs = now + 1000000000LL;
+		return;
+	case 2:
+		if (!settled || !SaveReady()) return;
+		DDTreadmill_PlayerWorld(loadTestPos[0], loadTestPos[1], loadTestPos[2], yaw);
+		LoadTestLog("saved");
+		if (death || menu) HpSend(DFB_HP_HIT, 100000, "load test lethal");
+		else
+		{
+			HpSend(DFB_HP_HIT, 17, "load test change");
+			P_UnPredictClient();
+			if (AActor *mo = players[consoleplayer].mo) mo->SetOrigin(mo->Pos() + DVector3(96, 0, 0), false);
+		}
+		loadTestStep = death || menu ? 4 : 3;
+		loadTestAtNs = now + 1500000000LL;
+		return;
+	case 3:
+		LoadTestLog("changed");
+		G_LoadGame(loadTestFile.GetChars());
+		loadTestStep = 8;
+		loadTestAtNs = now + 500000000LL;
+		return;
+	case 4:
+		if (deathState != DeathMenu || !menuactive) return;
+		LoadTestLog("death menu open");
+		loadTestStep = 11;
+		loadTestAtNs = now + 4000000000LL;
+		return;
+	case 11:
+		C_DoCommand("screenshot"); // Some frames after opening, so the picture shows the drawn menu.
+		loadTestStep = 5;
+		loadTestAtNs = now + 1000000000LL; // With the wait above, longer than Daggerfall's own restart timer.
+		return;
+	case 5:
+		LoadTestLog("still dead after Daggerfall's restart time");
+		if (menu)
+		{
+			C_DoCommand("dd_death_mainmenu");
+			loadTestStep = 6;
+			loadTestAtNs = now + 2000000000LL;
+			return;
+		}
+		C_DoCommand("dd_death_loadlast");
+		loadTestStep = 8;
+		loadTestAtNs = now + 500000000LL;
+		return;
+	case 6:
+		LoadTestLog("at the title");
+		C_DoCommand("map DDT09183"); // Must be refused while no game is loaded.
+		loadTestStep = 7;
+		loadTestAtNs = now + 1500000000LL;
+		return;
+	case 7:
+		LoadTestLog("after trying a new game from the title");
+		G_LoadGame(loadTestFile.GetChars());
+		loadTestStep = 8;
+		loadTestAtNs = now + 500000000LL;
+		return;
+	case 8:
+		if (!settled || flowHold) return;
+		loadTestStep = 9;
+		loadTestAtNs = now + 2000000000LL; // Both games run together for a moment before the check.
+		return;
+	case 9:
+		finish();
+		return;
+	case 10:
+		if (!settled) return;
+		finish();
+		return;
+	}
+}
+}
+
+bool DD_BridgeBlocksNewGame()
+{
+	if (!session || !atTitle) return false;
+	Printf(PRINT_HIGH, "Load a save to continue.\n");
+	Log("title: refused a new game, no Daggerfall game is loaded");
+	return true;
+}
+
+// DoReborn on a Daggerfall map: the player stays dead until the death screen loads a save.
+bool DD_BridgeDeathHold(int playernum)
+{
+	if (!session || playernum != consoleplayer || !SaveOnDaggerfallMap()) return false;
+	players[playernum].playerstate = PST_DEAD;
+	return true;
+}
+
+// G_LoadGame. True means the bridge took the load, or refused it with a message.
+bool DD_BridgeLoadBegin(const char *filename)
+{
+	if (!session) return false;
+	bool bundle = false, doomerfallMap = false;
+	try
+	{
+		std::unique_ptr<FResourceFile> res(FResourceFile::OpenResourceFile(filename, true));
+		if (res)
+		{
+			bundle = res->FindEntry("doomerfall/manifest.json") >= 0;
+			FString map;
+			if (!bundle && G_DDCheckSave(res.get(), map)) doomerfallMap = DDTreadmill_FindLevelInfo(map.GetChars()) != nullptr;
+		}
+	}
+	catch (const std::exception &) {}
+	if (!bundle)
+	{
+		if (!doomerfallMap && !SaveOnDaggerfallMap() && !flowHold && deathState == DeathNone) return false; // A regular WAD loads normally.
+		Log("load: refused %s, not a Doomerfall save", filename);
+		Printf(PRINT_HIGH, "Cannot load that save: it is not a Doomerfall save.\n");
+		return true;
+	}
+	if (loadState != LoadIdle || saveState != SaveIdle || saveStartPending || uiState != UiClosed)
+	{
+		Printf(PRINT_HIGH, "Cannot load right now.\n");
+		return true;
+	}
+	loadFile = filename;
+	loadState = LoadPending;
+	loadStartNs = dfb_now_ns();
+	return true;
+}
+
+CCMD(dd_death_loadlast)
+{
+	if (!session || deathState == DeathNone || loadState != LoadIdle) return;
+	FString newest;
+	if (!NewestBundle(newest))
+	{
+		Printf(PRINT_HIGH, "No usable Doomerfall save was found.\n");
+		Log("death: no usable save for Load Last Save");
+		return;
+	}
+	M_ClearMenus();
+	Log("death: loading the newest save, %s", newest.GetChars());
+	DD_BridgeLoadBegin(newest.GetChars());
+}
+
+CCMD(dd_death_mainmenu)
+{
+	if (!session || deathState == DeathNone || loadState != LoadIdle) return;
+	dfb_event e{};
+	e.kind = DFB_KIND_HOLD;
+	e.tic = gametic;
+	const uint64_t hold = 1;
+	memcpy(e.payload, &hold, sizeof(hold));
+	dfb_send(session, &e);
+	dfb_flush(session);
+	M_ClearMenus();
+	deathState = DeathNone;
+	loadBroken = false;
+	atTitle = flowHold = true;
+	pauseext = false;
+	Log("death: returning to the title, Daggerfall held until a save is loaded");
+	D_StartTitle();
+}
+
 void DD_BridgeInit()
 {
 	if (session) return;
@@ -1079,6 +1738,17 @@ void DD_BridgeInit()
 	hpTestMode = Args->CheckValue(FArg_dfhptest);
 	saveTestFile = Args->CheckValue(FArg_dfsavetest);
 	saveTestFail = Args->CheckValue(FArg_dfsavetestfail);
+	if (const char *test = Args->CheckValue(FArg_dfloadtest))
+	{
+		static std::string mode(test);
+		const size_t colon = mode.find(':');
+		if (colon != std::string::npos)
+		{
+			loadTestFile = mode.substr(colon + 1).c_str();
+			mode.resize(colon);
+			loadTestMode = mode.c_str();
+		}
+	}
 	if (const char *count = Args->CheckValue(FArg_dfuitest)) uiTestRemaining = atoi(count);
 	else uiTestRemaining = -1;
 	Log("attached to session %s, protocol %u, layout %016llx", id, dfb_protocol_version(),
@@ -1092,6 +1762,13 @@ void DD_BridgeInit()
 	memcpy(hello.payload, &body, sizeof(body));
 	dfb_send(session, &hello);
 	SendText("hello from UZDoom");
+	if (gameaction == ga_loadgame || gameaction == ga_loadgamehidecon) // -loadgame ran before the bridge attached.
+	{
+		const FString startup = savename;
+		const gameaction_t action = gameaction;
+		gameaction = ga_nothing;
+		if (!DD_BridgeLoadBegin(startup.GetChars())) gameaction = action;
+	}
 }
 
 void DD_BridgeFrame()
@@ -1143,6 +1820,7 @@ void DD_BridgeFrame()
 	}
 	PumpUi(now);
 	PumpSave(now);
+	PumpLoad(now);
 	RunUiTest(now);
 	RunHpTest(now);
 	dfb_flush(session);

@@ -501,8 +501,11 @@ void G_NewInit ()
 //
 //==========================================================================
 
+bool DD_BridgeBlocksNewGame(); // Doomerfall
+
 void G_DoNewGame (void)
 {
+	if (DD_BridgeBlocksNewGame()) { gameaction = ga_nothing; return; }
 	G_NewInit ();
 	playeringame[consoleplayer] = 1;
 	if (d_skill != -1)

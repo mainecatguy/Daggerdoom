@@ -422,6 +422,60 @@ namespace DaggerfallWorkshop.Game.Serialization
             DaggerfallUI.Instance.PopupMessage(TextManager.Instance.GetLocalizedText("gameLoaded"));
         }
 
+        // Doomerfall: restores a save from a staging folder. The folder was checked by CheckFolderForLoad first.
+        public bool LoadFromFolder(string folder)
+        {
+            if (!IsReady() || loadInProgress)
+                return false;
+            saveDataJsonCache = null;
+            saveDataCache = null;
+            loadInProgress = true;
+            GameManager.Instance.PauseGame(false);
+            StartCoroutine(LoadGame(folder));
+            return true;
+        }
+
+        // Doomerfall: a staged load that threw or timed out must not block every later load.
+        public void AbortLoadFromFolder()
+        {
+            StopAllCoroutines();
+            loadInProgress = false;
+            saveDataJsonCache = null;
+            saveDataCache = null;
+        }
+
+        // Doomerfall: reads the staged save without touching the running game.
+        public bool CheckFolderForLoad(string folder, out int health, out int maxHealth, out int worldX, out int worldZ, out string error)
+        {
+            health = maxHealth = worldX = worldZ = 0;
+            error = null;
+            try
+            {
+                string path = Path.Combine(folder, saveDataFilename);
+                if (!File.Exists(path))
+                {
+                    error = "no SaveData.txt";
+                    return false;
+                }
+                SaveData_v1 data = Deserialize(typeof(SaveData_v1), ReadSaveFile(path)) as SaveData_v1;
+                if (data == null || data.playerData == null || data.playerData.playerEntity == null)
+                {
+                    error = "SaveData.txt has no player";
+                    return false;
+                }
+                health = data.playerData.playerEntity.currentHealth;
+                maxHealth = data.playerData.playerEntity.maxHealth;
+                worldX = data.playerData.playerPosition.worldPosX;
+                worldZ = data.playerData.playerPosition.worldPosZ;
+                return true;
+            }
+            catch (Exception e)
+            {
+                error = e.Message;
+                return false;
+            }
+        }
+
         public void Load(string characterName, string saveName)
         {
             //// Must be ready
@@ -1191,9 +1245,13 @@ namespace DaggerfallWorkshop.Game.Serialization
             if (!File.Exists(Path.Combine(path, bioFileName)))
             {
                 StreamWriter file = new StreamWriter(Path.Combine(path, bioFileName).ToString());
-                foreach (string line in GameManager.Instance.PlayerEntity.BackStory)
+                // Doomerfall: a character without a backstory must not abort the save with this file open.
+                if (GameManager.Instance.PlayerEntity.BackStory != null)
                 {
-                    file.WriteLine(line);
+                    foreach (string line in GameManager.Instance.PlayerEntity.BackStory)
+                    {
+                        file.WriteLine(line);
+                    }
                 }
                 file.Close();
             }
@@ -1209,6 +1267,8 @@ namespace DaggerfallWorkshop.Game.Serialization
             {
                 string message = string.Format("Failed to save automap state. Message: {0}", ex.Message);
                 Debug.Log(message);
+                if (stagingFolder != null)
+                    throw; // Doomerfall: a bundle must not silently lose the automap.
             }
 
             // Save mod data

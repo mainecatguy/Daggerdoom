@@ -85,7 +85,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         const uint ProtocolVersion = 4;
         const int SideDf = 1;
         const int Got = 1;
-        const ushort KindHello = 1, KindPing = 2, KindPong = 3, KindText = 4, KindArea = 5, KindUiOpen = 6, KindUiClose = 7, KindUiInput = 8, KindHp = 11, KindSaveRequest = 12, KindSaveDone = 14;
+        const ushort KindHello = 1, KindPing = 2, KindPong = 3, KindText = 4, KindArea = 5, KindUiOpen = 6, KindUiClose = 7, KindUiInput = 8, KindHp = 11, KindSaveRequest = 12, KindSaveDone = 14, KindLoadRequest = 15, KindLoadDone = 17, KindHold = 19;
         const long PingIntervalNs = 50000000, LogIntervalNs = 2000000000, StaleNs = 1000000000;
         const int SampleCount = 1024;
 
@@ -115,6 +115,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         }
 
         static string pendingSession, pendingLog;
+
+        // True in a working bridge session. Doom's death screen then replaces Daggerfall's automatic restart.
+        public static bool SessionActive { get; private set; }
 
         IntPtr session;
         StreamWriter log;
@@ -180,6 +183,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return;
             }
 
+            SessionActive = true;
             ownSize = (uint)Marshal.SizeOf(typeof(DfbDfState));
             peerSize = (uint)Marshal.SizeOf(typeof(DfbUzState));
             Log(string.Format("attached to session {0}, protocol {1}, layout {2:x16}", pendingSession,
@@ -203,6 +207,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             DfbNative.dfb_read_state(session, ref peer, peerSize);
             state = peer;
+        }
+
+        // Publishes now, so Doom sees Daggerfall's restored HP before it reads the load's answer.
+        internal void PublishNow()
+        {
+            own.dfPhase = sync.Phase;
+            own.dfHeartbeat++;
+            hp.Fill(ref own);
+            DfbNative.dfb_publish_state(session, ref own, ownSize);
         }
 
         internal IntPtr Session { get { return session; } }
@@ -306,6 +319,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     case KindSaveDone: // payload: txn, committed
                         save.OnDone((uint)ev.p0, (uint)(ev.p0 >> 32) != 0);
                         break;
+                    case KindLoadRequest: // payload: txn, hp, max hp, world x, world z, file count, sent_ns
+                        save.OnLoadRequest((uint)ev.p0, (int)(ev.p0 >> 32), (int)(uint)ev.p1, (int)(ev.p1 >> 32), (int)(uint)ev.p2);
+                        break;
+                    case KindLoadDone: // payload: txn, restored
+                        save.OnLoadDone((uint)ev.p0, (uint)(ev.p0 >> 32) != 0);
+                        break;
+                    case KindHold:
+                        save.OnHold(ev.p0 != 0);
+                        break;
                     case KindHello:
                         Log("hello from UZDoom (seq " + ev.seq + ")");
                         break;
@@ -392,6 +414,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         void OnDestroy()
         {
+            SessionActive = false;
             if (session != IntPtr.Zero) DfbNative.dfb_close(session);
             session = IntPtr.Zero;
             if (log != null) log.Dispose();
