@@ -13,7 +13,7 @@ static partial class Program
     {
         public int Id, Block, FilePosition, NextPosition = -1, Next = -1;
         public string BlockName, Description = "FLT";
-        public bool IsFlat, IsDoor;
+        public bool IsFlat, IsDoor, TrapdoorTile;
         public uint Model, Trigger;
         public int Flag, Axis, Duration, Magnitude, Sound;
         public V3 Position;
@@ -29,17 +29,12 @@ static partial class Program
     static bool IsMovingAction(DFBlock.RdbObject obj, bool isDoor, uint modelId)
     {
         var model = obj.Resources.ModelResource;
-        bool specialPanel = IsSpecialDoorFlag(model.ActionResource.Flags) && modelId != TrapdoorModelA && modelId != TrapdoorModelB;
-        return !isDoor && (model.ActionResource.Flags is >= 1 and <= 8 || specialPanel) && model.XRotation == 0 && model.ZRotation == 0;
+        return !isDoor && (model.ActionResource.Flags is >= 1 and <= 8 || IsSpecialDoorFlag(model.ActionResource.Flags)) && model.XRotation == 0 && model.ZRotation == 0;
     }
 
     // Actions 18 and 20 on a model that is not a real door: RDBLayout gives it DaggerfallActionDoorSpecial, which swings it
     // 90 degrees about its own Y in 1.5 s. Its mesh collider stays solid and turns with it.
     static bool IsSpecialDoorFlag(int flag) => flag is 18 or 20;
-
-    // These floor tiles also carry action 18, but they open onto sealed pits whose only way out in Daggerfall is climbing.
-    // They stay static until Doom has a way out. See work/notes/20261123-155521.md.
-    const uint TrapdoorModelA = 54000, TrapdoorModelB = 54001;
 
     // RDBLayout.AddAction, GetTranslationActionVector, and GetRotationActionVector. Rotation stays in Unity's axes.
     static (V3 move, V3 spin, int tics, bool forwardOnly) ActionMotion(ActionRecord r)
@@ -124,6 +119,24 @@ static partial class Program
         return cells;
     }
 
+    // A trapdoor lies flat, so its thin side is its height.
+    static bool IsFloorTile(DoorModel m) => m.Z1 - m.Z0 < Math.Min(m.X1 - m.X0, m.Y1 - m.Y0) / 4;
+    // Wayrest and Lysandus' Tomb only, as approved. Hinged tiles elsewhere keep their old behavior until the owner decides (work/notes/20261123-170731.md).
+    static readonly int[] TrapdoorDungeons = { 630439035, 207828842 };
+    static bool IsTrapdoorTile(ActionRecord r, DoorModel m, DFLocation location) =>
+        r.Description == "TRP" && r.Flag is 8 or 18 or 20 && IsFloorTile(m) && TrapdoorDungeons.Contains(location.MapTableData.MapId);
+
+    // One layer of cells that covers the tile exactly and has its real thickness.
+    static List<V3> FloorTileCells(DoorModel m)
+    {
+        int nx = Math.Max(1, (int)Math.Ceiling((m.X1 - m.X0) / ActionCellSize)), ny = Math.Max(1, (int)Math.Ceiling((m.Y1 - m.Y0) / ActionCellSize));
+        var cells = new List<V3>();
+        for (int i = 0; i < nx; i++)
+            for (int j = 0; j < ny; j++)
+                cells.Add(new V3(m.X0 + (m.X1 - m.X0) * (i + 0.5) / nx, m.Y0 + (m.Y1 - m.Y0) * (j + 0.5) / ny, (m.Z0 + m.Z1) / 2));
+        return cells;
+    }
+
     static readonly List<(double x0, double x1, double y0, double y1, double bottom)> lidFootprints = new List<(double, double, double, double, double)>();
 
     static void NoteLidFootprint(Arch3dFile arch, uint id, DFBlock.RdbObject obj, V3 offset)
@@ -179,6 +192,7 @@ static partial class Program
         public readonly Dictionary<uint, List<V3>> Cells = new Dictionary<uint, List<V3>>();
         public readonly Dictionary<uint, List<V3>> SpecialCells = new Dictionary<uint, List<V3>>(); // models with action 18 or 20
         public readonly Dictionary<uint, double> CellHalf = new Dictionary<uint, double>(); // thin special panels only; others use ActionCellSize / 2
+        public readonly Dictionary<uint, double> CellHeight = new Dictionary<uint, double>(); // flat trapdoor tiles only; others use ActionCellSize
         public readonly List<(int archive, int record)> Flats = new List<(int, int)>();
         public readonly List<(int archive, int record, V3 at)> Ordinary = new List<(int, int, V3)>();
     }
@@ -197,11 +211,22 @@ static partial class Program
                 package.Cells[r.Model] = ActionCells(mesh);
             }
             // The same model can also be an ordinary mover elsewhere in the dungeon, so special doors keep their own cells.
-            if (IsSpecialDoorFlag(r.Flag) && !package.SpecialCells.ContainsKey(r.Model))
+            // A trapdoor tile uses its real shape on either action. The 16-unit grid puts its walking surface 16 units too high.
+            r.TrapdoorTile = IsTrapdoorTile(r, model, location);
+            if ((IsSpecialDoorFlag(r.Flag) || r.TrapdoorTile) && !package.SpecialCells.ContainsKey(r.Model))
             {
-                // A 4-unit panel on the 16-unit grid would fill a doorway when open. Use one thin row of real thickness.
-                package.SpecialCells[r.Model] = ThinPanelCells(model);
-                package.CellHalf[r.Model] = Math.Max(Math.Min(model.X1 - model.X0, model.Y1 - model.Y0) / 2, 1);
+                if (IsFloorTile(model))
+                {
+                    package.SpecialCells[r.Model] = FloorTileCells(model);
+                    package.CellHalf[r.Model] = ActionCellSize / 2.0;
+                    package.CellHeight[r.Model] = Math.Max(model.Z1 - model.Z0, 1);
+                }
+                else
+                {
+                    // A 4-unit panel on the 16-unit grid would fill a doorway when open. Use one thin row of real thickness.
+                    package.SpecialCells[r.Model] = ThinPanelCells(model);
+                    package.CellHalf[r.Model] = Math.Max(Math.Min(model.X1 - model.X0, model.Y1 - model.Y0) / 2, 1);
+                }
             }
             r.Visual = model.Slot;
             (r.X0, r.X1, r.Y0, r.Y1, r.Z0, r.Z1) = (model.X0, model.X1, model.Y0, model.Y1, model.Z0, model.Z1);
@@ -254,11 +279,12 @@ static partial class Program
             int trigger = Enum.IsDefined(typeof(DFBlock.RdbTriggerFlags), (DFBlock.RdbTriggerFlags)r.Trigger) ? (int)r.Trigger : 0;
             double cx = (r.X0 + r.X1) / 2, cy = (r.Y0 + r.Y1) / 2;
             text.Append(FormattableString.Invariant(
-                $"A {r.Id} {r.Kind} {r.Flag} {trigger} {r.Next} {r.Door} {r.Visual} {r.Position.X:F3} {r.Position.Y:F3} {r.Position.Z:F3} {r.Yaw:F3} {move.X:F3} {move.Y:F3} {move.Z:F3} {spin.X:F3} {spin.Y:F3} {spin.Z:F3} {tics} {(forwardOnly ? 1 : 0)} {cx:F3} {cy:F3} 0 {r.X0:F3} {r.X1:F3} {r.Y0:F3} {r.Y1:F3} {r.Z0:F3} {r.Z1:F3} {r.Sound} {r.Axis} {r.Magnitude} {r.LockValue} 0\n"));
+                $"A {r.Id} {r.Kind} {r.Flag} {trigger} {r.Next} {r.Door} {r.Visual} {r.Position.X:F3} {r.Position.Y:F3} {r.Position.Z:F3} {r.Yaw:F3} {move.X:F3} {move.Y:F3} {move.Z:F3} {spin.X:F3} {spin.Y:F3} {spin.Z:F3} {tics} {(forwardOnly ? 1 : 0)} {cx:F3} {cy:F3} 0 {r.X0:F3} {r.X1:F3} {r.Y0:F3} {r.Y1:F3} {r.Z0:F3} {r.Z1:F3} {r.Sound} {r.Axis} {r.Magnitude} {r.LockValue} {(r.TrapdoorTile ? 1 : 0)}\n"));
             if (r.Kind == 1)
             {
-                bool special = package.SpecialCells.ContainsKey(r.Model) && IsSpecialDoorFlag(r.Flag);
+                bool special = package.SpecialCells.ContainsKey(r.Model) && (IsSpecialDoorFlag(r.Flag) || r.TrapdoorTile);
                 string half = special && package.CellHalf.TryGetValue(r.Model, out var h) ? FormattableString.Invariant($" {h:F2}") : "";
+                if (special && package.CellHeight.TryGetValue(r.Model, out var tall)) half += FormattableString.Invariant($" {tall:F2}");
                 foreach (var c in special ? package.SpecialCells[r.Model] : package.Cells[r.Model])
                     text.Append(FormattableString.Invariant($"C {r.Id} {c.X:F2} {c.Y:F2} {c.Z:F2}{half}\n"));
             }
@@ -364,6 +390,22 @@ static partial class Program
             }
         }
         foreach (var kv in perBlock) Console.WriteLine($"OBJECT {kv.Key} {kv.Value}");
+        // Every action 8 trapdoor tile, so the count of tiles this affects is known.
+        var hinged = new SortedDictionary<string, int>();
+        for (int r = 0; r < maps.RegionCount; r++)
+        {
+            if (!maps.LoadRegion(r) || maps.GetRegion(r).MapNames == null) continue;
+            var region = maps.GetRegion(r);
+            for (int l = 0; l < region.LocationCount; l++)
+            {
+                var location = maps.GetLocation(r, l);
+                if (!location.HasDungeon) continue;
+                int n = ReadActionRecords(arena2, location).Count(x => !x.IsFlat && x.Description == "TRP" && x.Flag == 8);
+                if (n > 0) hinged[$"{location.MapTableData.MapId} {region.Name}/{region.MapNames[l]}"] = n;
+            }
+        }
+        foreach (var kv in hinged) Console.WriteLine($"HINGED {kv.Key} tiles={kv.Value}");
+        Console.WriteLine($"HINGEDTOTAL dungeons={hinged.Count} tiles={hinged.Values.Sum()}");
         Console.WriteLine($"TOTAL dungeons={dungeons} affected={affected} placed={placed} distinctBlockObjects={perBlock.Count}");
         return 0;
     }
