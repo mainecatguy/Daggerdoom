@@ -89,7 +89,7 @@ static partial class Program
             else if (args[a] == "--debug-row") debugRow = args[++a];
             else if (args[a] == "--debug-line") debugLine = args[++a]; // x0,y0,x1,y1,z0,z1: raw hits, spans, and faces along a line
             else if (args[a] == "--audit-points") a += 2;
-            else if (args[a] == "--no-walls" || args[a] == "--export-mesh" || args[a] == "--no-ceiling-relief" || args[a] == "--door-dump" || args[a] == "--action-dump") { }
+            else if (args[a] == "--no-walls" || args[a] == "--export-mesh" || args[a] == "--no-ceiling-relief" || args[a] == "--door-dump" || args[a] == "--action-dump" || args[a] == "--runtime-dungeon") { }
             else if (args[a] == "--texture-table") a++; // used by --export-mesh: six archives, comma separated
             else if (args[a] == "--grid-collision") gridCollision = true; // old axis-aligned boundaries and flat planes
             else if (args[a] == "--open-actions") openActions = true;            else if (args[a] == "--route-step") routeStep = int.Parse(args[++a]); // diagnostic: models jumping or climbing
@@ -1076,7 +1076,7 @@ static partial class Program
         var doorList = new StringBuilder();
         foreach (var id in usedDoors) doorList.Append($"D {doors[id].Control} {doors[id].Height} {doors[id].Block}\n");
         foreach (var d in doors) doorList.Append($"DC {d.Id} {d.Control}\n"); // door order matches DFDOORS
-        WriteWad(path, map.ToString(), points + doorList);
+        WriteWad(path, map.ToString(), points + doorList, OutputMapName);
         return (sectorSpans.Count, lines, controls, usedDoors.Count);
     }
 

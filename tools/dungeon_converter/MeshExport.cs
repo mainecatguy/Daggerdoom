@@ -47,10 +47,17 @@ static partial class Program
         _ => archive,
     };
 
+    const int RuntimeDoorSlots = 2;
+    static bool runtimeDungeon;
+    static StringBuilder dungeonInfo;
+
     static int ExportMesh(string arena2, DFLocation location, string outDir, string slug, string[] args)
     {
         int tableAt = Array.IndexOf(args, "--texture-table");
         int[] table = tableAt >= 0 ? args[tableAt + 1].Split(',').Select(int.Parse).ToArray() : ClassicTextureTable(location);
+        // --runtime-dungeon: the package loads beside ddruntime.pk3, which already holds the door runtime and two gate models.
+        runtimeDungeon = args.Contains("--runtime-dungeon");
+        dungeonInfo = new StringBuilder($"map MAP01\nmapid {location.MapTableData.MapId}\n");
         Console.WriteLine($"climate {location.Climate.WorldClimate} base {location.Climate.ClimateType} texture table {string.Join(",", table)}");
 
         var blocks = new BlocksFile(Path.Combine(arena2, "BLOCKS.BSA"), FileUsage.UseMemory, true);
@@ -94,6 +101,13 @@ static partial class Program
                     double ry = -obj.Resources.ModelResource.YRotation / BlocksFile.RotationDivisor * toRad;
                     double rz = -obj.Resources.ModelResource.ZRotation / BlocksFile.RotationDivisor * toRad;
                     var position = new V3(obj.XPos, -obj.YPos, obj.ZPos) + offset;
+                    if (runtimeDungeon)
+                        foreach (var exit in City.DoorPlanes(mesh).Where(q => q.Type == City.DoorExit))
+                        {
+                            var at = ToDoom(Rotate(exit.Centre, rx, ry, rz) + position);
+                            var n = Rotate(exit.Normal, rx, ry, rz);
+                            dungeonInfo.Append(FormattableString.Invariant($"exit {at.X:F3} {at.Y:F3} {at.Z - exit.HalfHeight * PlayerScale.DoomUnitsPerDaggerfallUnit:F3} {n.X:F4} {n.Z:F4}\n"));
+                        }
                     actionAt.TryGetValue((blockNumber, obj.Position), out var actionRecord);
                     if (actionRecord != null)
                     {
@@ -111,7 +125,7 @@ static partial class Program
                         var east = Rotate(new V3(1, 0, 0), rx, ry, rz);
                         double phi = Math.Atan2(-east.Z, east.X);
                         if (!doorModels.TryGetValue((id, flipped), out var doorModel))
-                            doorModels[(id, flipped)] = doorModel = BuildDoorModel(id, doorModels.Count, mesh, Archive, table, location, flipped);
+                            doorModels[(id, flipped)] = doorModel = BuildDoorModel(id, doorModels.Count + (runtimeDungeon ? RuntimeDoorSlots : 0), mesh, Archive, table, location, flipped);
                         var pivot = ToDoom(position);
                         // Unity swings about the door's own Y axis, which points down on a flipped door, so the swing reverses.
                         double closed = -phi / toRad;
@@ -174,7 +188,7 @@ static partial class Program
             using (var s = zip.CreateEntry("DFMESH", CompressionLevel.Fastest).Open()) { body.Position = 0; body.CopyTo(s); }
             // Daggerfall has square pixels. Doom's default 1.2 vertical stretch would distort the real mesh.
             using (var s = new StreamWriter(zip.CreateEntry("MAPINFO", CompressionLevel.Fastest).Open()))
-                s.Write($"map MAP01 \"{location.Name}\"\n{{\n\tpixelratio = 1.0\n}}\n");
+                s.Write($"map MAP01 \"{location.Name}\"\n{{\n\tpixelratio = 1.0\n{(runtimeDungeon ? "\tkeepfullinventory\n" : "")}}}\n");
 
             foreach (var k in keys)
             {

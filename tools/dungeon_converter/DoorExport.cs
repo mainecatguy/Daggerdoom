@@ -124,7 +124,8 @@ static partial class Program
             s.Write(body);
         }
         // One actor class per model: a class with several model slots draws all of them at once.
-        var classes = new StringBuilder(File.ReadAllText(Path.Combine(SourceDirectory(), "door_objects.zs")));
+        var classes = new StringBuilder(runtimeDungeon ? "version \"4.10\"\n" : File.ReadAllText(Path.Combine(SourceDirectory(), "door_objects.zs")));
+        if (runtimeDungeon) Text("DDDUNGN", dungeonInfo.ToString());
         var modeldef = new StringBuilder();
         foreach (var m in models)
         {
