@@ -9,7 +9,12 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <string>
 #include <thread>
+#include <vector>
+#include <miniz.h>
 
 #include "../../bridge/doomerfall_bridge.h"
 #include "bitmap.h"
@@ -18,6 +23,7 @@
 #include "c_dispatch.h"
 #include "doomstat.h"
 #include "engineerrors.h"
+#include "fs_decompress.h"
 #include "g_levellocals.h"
 #include "gamestate.h"
 #include "i_interface.h"
@@ -33,10 +39,15 @@
 #include "v_draw.h"
 #include "v_video.h"
 
+void G_SaveGame(const char *filename, const char *description, bool quick);
+
 FARG_ADVANCED(dfbridge, "Doomerfall", "session", "Attaches to the Doomerfall bridge session created by the launcher.");
 FARG_ADVANCED(dfbridgelog, "Doomerfall", "file", "Appends Doomerfall bridge traffic and latency to a log file.");
 FARG_ADVANCED(dfuitest, "Doomerfall", "count", "Bridge test only: opens the fast travel menu this many times.");
 FARG_ADVANCED(dfbridgetestpause, "Doomerfall", "ext|game|menu", "Bridge test only: enters a pause state for six seconds.");
+
+FARG_ADVANCED(dfsavetest, "Doomerfall", "file", "Save test only: makes one synchronized save to this file, then quits.");
+FARG_ADVANCED(dfsavetestfail, "Doomerfall", "uz_zip|uz_commit|uz_crash", "Save test only: fails the save at this step.");
 
 FARG_ADVANCED(dfhptest, "Doomerfall", "basic|monsters", "HP sync test only: scripts hits, heals, and a lethal hit.");
 
@@ -175,6 +186,7 @@ void PublishPosition()
 
 void HandleUiState(const dfb_event &e);
 void HandleUiResult(const dfb_event &e);
+void HandleSaveReply(const dfb_event &e);
 
 void HandleEvent(const dfb_event &e, int64_t now)
 {
@@ -185,6 +197,9 @@ void HandleEvent(const dfb_event &e, int64_t now)
 		break;
 	case DFB_KIND_UI_RESULT:
 		HandleUiResult(e);
+		break;
+	case DFB_KIND_SAVE_PREPARED:
+		HandleSaveReply(e);
 		break;
 	case DFB_KIND_PING:
 	{
@@ -486,6 +501,7 @@ bool IsFastTravelKey(long long lParam)
 }
 
 bool DD_BridgeUiActive() { return uiState != UiClosed; }
+bool DD_BridgeSaveActive();
 
 bool DD_BridgeNetEvent(const char *name)
 {
@@ -500,7 +516,7 @@ bool DD_BridgeNetEvent(const char *name)
 		SendUiCommand(DFB_KIND_UI_CLOSE, uiId);
 		return true;
 	}
-	if (gamestate != GS_LEVEL || DDTreadmill_HandoffPending()) return true; // Not while going through a door or map seam.
+	if (gamestate != GS_LEVEL || DDTreadmill_HandoffPending() || DD_BridgeSaveActive()) return true; // Not while going through a door or map seam, or saving.
 	if (!peerSeen || peerStale || peerState.df_phase != DFB_DF_PHASE_PLAY)
 	{
 		Printf("Daggerfall is not ready to show the travel map.\n");
@@ -785,6 +801,268 @@ void HpTestTicStep()
 }
 }
 
+//==========================================================================
+// Synchronized save. Doom freezes and sends a request, which the ordered ring places after all its
+// earlier events. Daggerfall applies those, writes a real save to a staging folder, and answers.
+// Doom writes one .zds holding both games to a temp file, verifies it, and atomically replaces the
+// old save. Any failure before that replace leaves the old save untouched.
+//==========================================================================
+
+void G_DoSaveGame(bool okForQuicksave, bool forceQuicksave, FString filename, const char *description);
+
+namespace
+{
+namespace fs = std::filesystem;
+constexpr int64_t SaveTimeoutNs = 10000000000LL;
+constexpr int SaveFormat = 1;
+
+enum SaveState { SaveIdle, SaveWaiting, SaveWriting };
+SaveState saveState = SaveIdle;
+uint32_t saveTxn;
+bool saveSavedPause, saveCommitted, saveHaveReply;
+int64_t saveStartNs;
+FString saveFile, saveDescription, saveStage;
+dfb_save_reply saveReply;
+std::vector<std::vector<uint8_t>> saveBuffers;
+const char *saveTestFile, *saveTestFail;
+bool saveTestStarted;
+int64_t saveTestAtNs;
+
+fs::path SavePath(const char *utf8) { return fs::path(std::u8string(reinterpret_cast<const char8_t *>(utf8))); }
+
+void SaveRemoveStage()
+{
+	if (saveStage.IsEmpty()) return;
+	std::error_code ignored;
+	fs::remove_all(SavePath(saveStage.GetChars()), ignored);
+}
+
+void SaveFinish(bool committed, const char *why)
+{
+	dfb_event e{};
+	e.kind = DFB_KIND_SAVE_DONE;
+	e.tic = gametic;
+	const dfb_save_done body{ saveTxn, committed ? 1u : 0u };
+	memcpy(e.payload, &body, sizeof(body));
+	dfb_send(session, &e);
+	dfb_flush(session);
+
+	SaveRemoveStage();
+	std::error_code ignored;
+	fs::remove(SavePath((saveFile + ".tmp").GetChars()), ignored);
+	saveBuffers.clear();
+	saveState = SaveIdle;
+	pauseext = saveSavedPause;
+	Log("save %u: %s (%s), %.1f ms", saveTxn, committed ? "committed" : "FAILED, previous save untouched", why, (dfb_now_ns() - saveStartNs) / 1e6);
+	if (!committed) Printf(PRINT_HIGH, "Save failed: %s. Your previous save is unchanged.\n", why);
+	if (saveTestFile) C_DoCommand("quit");
+}
+
+bool SaveAddEntry(TArray<FCompressedBuffer> &content, TArray<FString> &names, const FString &name, const uint8_t *data, size_t size)
+{
+	std::vector<uint8_t> packed(compressBound(uLong(size)) + 64);
+	z_stream stream{};
+	if (deflateInit2(&stream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, -MAX_WBITS, 8, Z_DEFAULT_STRATEGY) != Z_OK) return false;
+	stream.next_in = const_cast<Bytef *>(data);
+	stream.avail_in = uInt(size);
+	stream.next_out = packed.data();
+	stream.avail_out = uInt(packed.size());
+	const int rc = deflate(&stream, Z_FINISH);
+	const size_t packedSize = stream.total_out;
+	deflateEnd(&stream);
+	if (rc != Z_STREAM_END) return false;
+	packed.resize(packedSize);
+	saveBuffers.push_back(std::move(packed));
+	FCompressedBuffer entry{};
+	entry.mSize = size;
+	entry.mCompressedSize = packedSize;
+	entry.mMethod = FileSys::METHOD_DEFLATE;
+	entry.mCRC32 = crc32(0, data, uInt(size));
+	entry.mBuffer = reinterpret_cast<char *>(saveBuffers.back().data());
+	content.Push(entry);
+	names.Push(name);
+	return true;
+}
+
+void SaveRun()
+{
+	saveState = SaveWriting;
+	saveCommitted = false;
+	player_t &player = players[consoleplayer];
+	P_UnPredictClient(); // The save must hold the real player, not the prediction drawn between tics.
+	if (saveReply.hp_applied != hpNextEvent - 1)
+	{
+		SaveFinish(false, "Daggerfall had not applied every HP event");
+		return;
+	}
+	if ((peerState.hp_flags & DFB_HPF_VALID) && player.mo && saveReply.hp_current > 0)
+	{
+		player.health = player.mo->health = saveReply.hp_current; // Both halves hold Daggerfall's value.
+		hpMirrored = saveReply.hp_current;
+		hpMirroredPawn = player.mo;
+	}
+	try
+	{
+		G_DoSaveGame(true, false, saveFile, saveDescription.GetChars());
+	}
+	catch (const CRecoverableError &error)
+	{
+		Printf(PRINT_HIGH, "%s\n", error.GetMessage());
+		saveCommitted = false;
+	}
+	SaveFinish(saveCommitted, saveCommitted ? "both games saved" : "could not write the bundle");
+}
+
+void HandleSaveReply(const dfb_event &e)
+{
+	dfb_save_reply body;
+	memcpy(&body, e.payload, sizeof(body));
+	if (saveState != SaveWaiting || body.txn != saveTxn)
+	{
+		Log("save: ignored a late answer for transaction %u", body.txn);
+		return;
+	}
+	if (body.status != DFB_SAVE_OK)
+	{
+		SaveFinish(false, body.status == DFB_SAVE_REFUSED ? "Daggerfall cannot save right now" : "Daggerfall could not write its save");
+		return;
+	}
+	saveReply = body;
+	saveHaveReply = true;
+	Log("save %u: Daggerfall prepared %u files, %llu bytes, hp %d/%d, position %d,%d", body.txn, body.file_count,
+		(unsigned long long)body.total_bytes, body.hp_current, body.hp_max, body.world_x, body.world_z);
+}
+
+void PumpSave(int64_t now)
+{
+	if (saveTestFile && !saveTestStarted && peerSeen && gamestate == GS_LEVEL && peerState.df_phase == DFB_DF_PHASE_PLAY)
+	{
+		if (!saveTestAtNs) saveTestAtNs = now + 2000000000LL;
+		if (now >= saveTestAtNs)
+		{
+			saveTestStarted = true;
+			for (int i = 0; i < 20; i++) HpSend(DFB_HP_HIT, 1, "save test"); // In flight when the request is sent.
+			G_SaveGame(saveTestFile, "Doomerfall save test", false);
+		}
+	}
+	if (saveState != SaveWaiting) return;
+	pauseext = true; // A focus change can clear it during the save.
+	if (saveHaveReply)
+	{
+		saveHaveReply = false;
+		SaveRun();
+	}
+	else if (peerStale) SaveFinish(false, "Daggerfall stopped responding");
+	else if (now - saveStartNs > SaveTimeoutNs) SaveFinish(false, "Daggerfall did not answer in time");
+}
+}
+
+bool DD_BridgeSaveActive() { return saveState != SaveIdle; }
+
+// G_SaveGame, for a save from the menu or console. True means the bridge took it, or refused it with a message.
+bool DD_BridgeSaveBegin(const char *filename, const char *description)
+{
+	if (!session || (ownState.world_context == DFB_WORLD_NONE && !saveTestFile)) return false; // A regular WAD saves normally.
+	if (saveState != SaveIdle) { Printf("A save is already in progress.\n"); return true; }
+	if (uiState != UiClosed || DDTreadmill_HandoffPending() || !peerSeen || peerStale || peerState.df_phase != DFB_DF_PHASE_PLAY)
+	{
+		Printf(PRINT_HIGH, "Cannot save right now. Daggerfall is not ready.\n");
+		Log("save: refused before starting, Daggerfall phase %u, stale %d", peerState.df_phase, int(peerStale));
+		return true;
+	}
+	saveFile = filename;
+	saveDescription = description;
+	saveTxn++;
+	saveStage.Format("%s.dfstage", filename);
+	SaveRemoveStage();
+	std::error_code error;
+	fs::create_directories(SavePath(saveStage.GetChars()), error);
+	uint32_t version;
+	if (error || dfb_bulk_write(session, DFB_SAVE_PATH_SLOT, saveStage.GetChars(), uint32_t(saveStage.Len() + 1), &version) != DFB_OK)
+	{
+		SaveRemoveStage();
+		Printf(PRINT_HIGH, "Save failed: could not prepare the staging folder. Your previous save is unchanged.\n");
+		return true;
+	}
+	saveSavedPause = pauseext;
+	pauseext = true;
+	saveHaveReply = false;
+	saveState = SaveWaiting;
+	saveStartNs = dfb_now_ns();
+	PublishPosition();
+	dfb_publish_state(session, &ownState, sizeof(ownState)); // Daggerfall reads the frozen position after the request.
+	dfb_event e{};
+	e.kind = DFB_KIND_SAVE_REQUEST;
+	e.tic = gametic;
+	const dfb_save_request body{ saveTxn, hpNextEvent - 1, saveStartNs };
+	memcpy(e.payload, &body, sizeof(body));
+	dfb_send(session, &e);
+	dfb_flush(session);
+	Log("save %u: Doom frozen at tic %d, requested Daggerfall's save", saveTxn, gametic);
+	return true;
+}
+
+FString DD_BridgeSaveWritePath(const FString &filename)
+{
+	return saveState == SaveWriting ? filename + ".tmp" : filename;
+}
+
+// Adds Daggerfall's staged files and the manifest to the zip.
+bool DD_BridgeSaveAddFiles(TArray<FCompressedBuffer> &content, TArray<FString> &names)
+{
+	if (saveState != SaveWriting) return true;
+	saveBuffers.clear();
+	saveBuffers.reserve(256); // Entries point into these buffers, so they must not move.
+	std::error_code error;
+	const fs::path root = SavePath(saveStage.GetChars());
+	uint32_t files = 0;
+	uint64_t bytes = 0;
+	FString list;
+	for (fs::recursive_directory_iterator it(root, error), end; !error && it != end; it.increment(error))
+	{
+		if (!it->is_regular_file()) continue;
+		if (saveBuffers.size() >= 250) return false;
+		const std::u8string relative = fs::relative(it->path(), root, error).generic_u8string();
+		if (error) return false;
+		const std::string name(reinterpret_cast<const char *>(relative.data()), relative.size());
+		std::ifstream in(it->path(), std::ios::binary);
+		if (!in) return false;
+		std::vector<uint8_t> data(size_t(it->file_size()));
+		if (!data.empty()) in.read(reinterpret_cast<char *>(data.data()), std::streamsize(data.size()));
+		if (!in || !SaveAddEntry(content, names, FStringf("doomerfall/daggerfall/%s", name.c_str()), data.data(), data.size())) return false;
+		list.AppendFormat("%s\"%s\"", files ? "," : "", name.c_str());
+		files++;
+		bytes += data.size();
+	}
+	if (error || files != saveReply.file_count || bytes != saveReply.total_bytes)
+	{
+		Log("save %u: staged files do not match Daggerfall's report (%u files, %llu bytes)", saveTxn, files, (unsigned long long)bytes);
+		return false;
+	}
+	FString manifest;
+	manifest.Format("{\"format\":%d,\"txn\":%u,\"hp\":%d,\"hp_max\":%d,\"hp_applied\":%u,\"doom_hp\":%d,"
+		"\"df_world\":[%d,%d],\"doom_world\":[%.3f,%.3f,%.3f],\"yaw\":%.3f,\"context\":%u,\"map_pixel\":[%d,%d],\"map\":\"%s\",\"files\":[%s]}\n",
+		SaveFormat, saveTxn, saveReply.hp_current, saveReply.hp_max, saveReply.hp_applied, players[consoleplayer].health,
+		saveReply.world_x, saveReply.world_z, ownState.world_x, ownState.world_z, ownState.world_height, ownState.yaw_degrees,
+		ownState.world_context, ownState.map_pixel_x, ownState.map_pixel_y, primaryLevel->MapName.GetChars(), list.GetChars());
+	if (!SaveAddEntry(content, names, "doomerfall/manifest.json", reinterpret_cast<const uint8_t *>(manifest.GetChars()), manifest.Len())) return false;
+	return !(saveTestFail && !strcmp(saveTestFail, "uz_zip"));
+}
+
+// The commit point. True means the file named filename is now the new save.
+bool DD_BridgeSaveCommit(const FString &written, const FString &filename)
+{
+	if (saveState != SaveWriting) return true;
+	if (saveTestFail && !strcmp(saveTestFail, "uz_crash"))
+	{
+		Log("save %u: test crash after writing the temp file", saveTxn);
+		std::_Exit(3);
+	}
+	if (saveTestFail && !strcmp(saveTestFail, "uz_commit")) return false;
+	saveCommitted = dfb_atomic_replace(written.GetChars(), filename.GetChars()) == DFB_OK;
+	return saveCommitted;
+}
+
 void DD_BridgeInit()
 {
 	if (session) return;
@@ -799,6 +1077,8 @@ void DD_BridgeInit()
 		logFile = fopen(path, "ab");
 	testPause = Args->CheckValue(FArg_dfbridgetestpause);
 	hpTestMode = Args->CheckValue(FArg_dfhptest);
+	saveTestFile = Args->CheckValue(FArg_dfsavetest);
+	saveTestFail = Args->CheckValue(FArg_dfsavetestfail);
 	if (const char *count = Args->CheckValue(FArg_dfuitest)) uiTestRemaining = atoi(count);
 	else uiTestRemaining = -1;
 	Log("attached to session %s, protocol %u, layout %016llx", id, dfb_protocol_version(),
@@ -862,6 +1142,7 @@ void DD_BridgeFrame()
 		dfb_send(session, &ping);
 	}
 	PumpUi(now);
+	PumpSave(now);
 	RunUiTest(now);
 	RunHpTest(now);
 	dfb_flush(session);

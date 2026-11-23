@@ -50,6 +50,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     type == HitType ? "hit" : "heal", amount, before, player.CurrentHealth, player.MaxHealth));
         }
 
+        public uint Applied { get { return applied; } }
+
         // Test only: Doom asks for Daggerfall-side damage, standing in for a Daggerfall attacker.
         public void OnText(string text)
         {

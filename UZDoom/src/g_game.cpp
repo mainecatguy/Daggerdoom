@@ -123,6 +123,11 @@ void G_PlayerReborn (int player);
 void G_DoAutoSave ();
 void G_DoPlayDemo (void);
 void G_DoSaveGame (bool okForQuicksave, bool forceQuicksave, FString filename, const char *description);
+// Doomerfall: synchronized saves on Daggerfall maps. All do nothing outside a bridge save.
+bool DD_BridgeSaveBegin(const char *filename, const char *description);
+FString DD_BridgeSaveWritePath(const FString &filename);
+bool DD_BridgeSaveAddFiles(TArray<FCompressedBuffer> &content, TArray<FString> &names);
+bool DD_BridgeSaveCommit(const FString &written, const FString &filename);
 void G_DoVictory (void);
 
 void SetupLoadingCVars();
@@ -2263,6 +2268,9 @@ void G_SaveGame (const char *filename, const char *description, bool quick)
 	{
 		Printf("Only settings controllers can save the game\n");
 	}
+	else if (!quick && DD_BridgeSaveBegin(filename, description)) // Doomerfall: quick keys stay as they are for now
+	{
+	}
 	else
 	{
 		savegamefile = filename;
@@ -2531,20 +2539,22 @@ void G_DoSaveGame (bool okForQuicksave, bool forceQuicksave, FString filename, c
 	savegame_content.Push(savegameglobals.GetCompressedOutput());
 	savegame_filenames.Push("globals.json");
 	G_WriteSnapshots (savegame_filenames, savegame_content);
+	const bool ddFilesOk = DD_BridgeSaveAddFiles(savegame_content, savegame_filenames); // Doomerfall
 
 	for (unsigned i = 0; i < savegame_content.Size(); i++)
 		savegame_content[i].filename = savegame_filenames[i].GetChars();
 
 	bool succeeded = false;
+	const FString ddWritePath = DD_BridgeSaveWritePath(filename); // Doomerfall: a temp file during a bridge save
 
-	if (WriteZip(filename.GetChars(), savegame_content.Data(), savegame_content.Size()))
+	if (ddFilesOk && WriteZip(ddWritePath.GetChars(), savegame_content.Data(), savegame_content.Size()))
 	{
 		// Check whether the file is ok by trying to open it.
-		FResourceFile *test = FResourceFile::OpenResourceFile(filename.GetChars(), true);
+		FResourceFile *test = FResourceFile::OpenResourceFile(ddWritePath.GetChars(), true);
 		if (test != nullptr)
 		{
 			delete test;
-			succeeded = true;
+			succeeded = DD_BridgeSaveCommit(ddWritePath, filename); // Doomerfall: true at once outside a bridge save
 		}
 	}
 

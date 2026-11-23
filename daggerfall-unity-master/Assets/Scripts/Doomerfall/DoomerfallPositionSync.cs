@@ -222,6 +222,23 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             Apply(game, world, gps, ref peer);
         }
 
+        // Save handshake: moves Daggerfall to Doom's frozen position now instead of at the next update.
+        // Indoors the position stays at the door. False means the world cannot take the position yet.
+        internal bool ApplyForSave(ref DfbUzState peer)
+        {
+            GameManager game = GameManager.Instance;
+            StreamingWorld world = game.StreamingWorld;
+            if (peer.worldContext == WorldExterior)
+            {
+                if (!world.DoomerfallPositionSettled)
+                    return false;
+                Apply(game, world, game.PlayerGPS, ref peer);
+            }
+            return true;
+        }
+
+        internal bool PositionSettled { get { return GameManager.Instance.StreamingWorld.DoomerfallPositionSettled; } }
+
         void Apply(GameManager game, StreamingWorld world, PlayerGPS gps, ref DfbUzState peer)
         {
             targetX = Mathf.Clamp((int)peer.worldX, MapsFile.MinWorldCoordX, MapsFile.MaxWorldCoordX - 1);

@@ -76,6 +76,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [DllImport(Dll)] public static extern int dfb_read_state(IntPtr session, ref DfbUzState state, uint size);
         [DllImport(Dll)] public static extern int dfb_get_stats(IntPtr session, ref DfbStats stats);
         [DllImport(Dll)] public static extern long dfb_peer_state_age_ns(IntPtr session);
+        [DllImport(Dll)] public static extern int dfb_bulk_read(IntPtr session, uint slot, byte[] data, uint capacity, out uint size, out uint version);
         [DllImport(Dll)] public static extern int dfb_surface_write(IntPtr session, byte[] bgra, uint width, uint height, uint frameId, long capturedNs, long inputNs, int flipY);
     }
 
@@ -84,7 +85,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         const uint ProtocolVersion = 4;
         const int SideDf = 1;
         const int Got = 1;
-        const ushort KindHello = 1, KindPing = 2, KindPong = 3, KindText = 4, KindArea = 5, KindUiOpen = 6, KindUiClose = 7, KindUiInput = 8, KindHp = 11;
+        const ushort KindHello = 1, KindPing = 2, KindPong = 3, KindText = 4, KindArea = 5, KindUiOpen = 6, KindUiClose = 7, KindUiInput = 8, KindHp = 11, KindSaveRequest = 12, KindSaveDone = 14;
         const long PingIntervalNs = 50000000, LogIntervalNs = 2000000000, StaleNs = 1000000000;
         const int SampleCount = 1024;
 
@@ -124,6 +125,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DoomerfallPositionSync sync;
         DoomerfallUi ui;
         DoomerfallHp hp;
+        DoomerfallSave save;
         bool textFrame;
         uint ownSize, peerSize, nextPing = 1;
         ulong pingsAnswered, pongsReceived, unknownKinds;
@@ -192,6 +194,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             hp = new DoomerfallHp(this, sync, Environment.GetCommandLineArgs());
             ui =gameObject.AddComponent<DoomerfallUi>();
             ui.Init(this);
+            save = gameObject.AddComponent<DoomerfallSave>();
+            save.Init(this, sync, hp, Environment.GetCommandLineArgs());
+        }
+
+        // The newest Doom state, for the save handshake. Doom published it before sending the request.
+        internal void ReadPeerState(out DfbUzState state)
+        {
+            DfbNative.dfb_read_state(session, ref peer, peerSize);
+            state = peer;
         }
 
         internal IntPtr Session { get { return session; } }
@@ -288,6 +299,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     }
                     case KindHp: // payload: event number, type, amount, pad, sent_ns
                         hp.OnEvent((uint)ev.p0, (uint)(ev.p0 >> 32), (int)(uint)ev.p1);
+                        break;
+                    case KindSaveRequest: // payload: txn, HP events sent through, sent_ns
+                        save.OnRequest((uint)ev.p0, (uint)(ev.p0 >> 32));
+                        break;
+                    case KindSaveDone: // payload: txn, committed
+                        save.OnDone((uint)ev.p0, (uint)(ev.p0 >> 32) != 0);
                         break;
                     case KindHello:
                         Log("hello from UZDoom (seq " + ev.seq + ")");

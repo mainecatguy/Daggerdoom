@@ -719,6 +719,35 @@ DFB_API int dfb_surface_acquire(dfb_session *s, dfb_surface_frame *frame, const 
 	return rc;
 }
 
+DFB_API int dfb_atomic_replace(const char *temp_path, const char *final_path)
+{
+	if (!temp_path || !final_path) return DFB_ERR_ARG;
+#ifdef _WIN32
+	wchar_t temp[1024], target[1024];
+	if (!MultiByteToWideChar(CP_UTF8, 0, temp_path, -1, temp, 1024) || !MultiByteToWideChar(CP_UTF8, 0, final_path, -1, target, 1024))
+		return DFB_ERR_ARG;
+	HANDLE file = CreateFileW(temp, GENERIC_WRITE, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+	if (file == INVALID_HANDLE_VALUE) return DFB_ERR_OS;
+	const BOOL flushed = FlushFileBuffers(file);
+	CloseHandle(file);
+	if (!flushed) return DFB_ERR_OS;
+	// Antivirus or the indexer can hold the target briefly.
+	for (int attempt = 0; attempt < 10; attempt++)
+	{
+		if (MoveFileExW(temp, target, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) return DFB_OK;
+		Sleep(20);
+	}
+	return DFB_ERR_OS;
+#else
+	int fd = open(temp_path, O_RDWR);
+	if (fd < 0) return DFB_ERR_OS;
+	const int synced = fsync(fd);
+	close(fd);
+	if (synced != 0 || rename(temp_path, final_path) != 0) return DFB_ERR_OS;
+	return DFB_OK;
+#endif
+}
+
 DFB_API int dfb_get_stats(dfb_session *s, dfb_stats *out)
 {
 	if (!s || !s->side || !out) return DFB_ERR_ARG;

@@ -1083,14 +1083,25 @@ namespace DaggerfallWorkshop.Game.Serialization
 
         #region Utility
 
-        IEnumerator SaveGame(string characterName, string saveName, bool instantReload = false)
+        // Doomerfall: writes a real save into an empty folder, within this call, leaving the normal save
+        // slots alone. There is no screenshot, because Daggerfall's own view is not what the player sees.
+        // Throws if a file cannot be written.
+        public void SaveToFolder(string folder, string saveName)
+        {
+            IEnumerator save = SaveGame(GameManager.Instance.PlayerEntity.Name, saveName, false, folder);
+            while (save.MoveNext()) { }
+        }
+
+        IEnumerator SaveGame(string characterName, string saveName, bool instantReload = false, string stagingFolder = null)
         {
             // Look for existing save with this character and name
-            int key = FindSaveFolderByNames(characterName, saveName);
+            int key = stagingFolder != null ? -1 : FindSaveFolderByNames(characterName, saveName);
 
             // Get or create folder
             string path;
-            if (key == -1)
+            if (stagingFolder != null)
+                path = stagingFolder;
+            else if (key == -1)
                 path = CreateNewSavePath(enumeratedSaveFolders);
             else
                 path = GetSaveFolder(key);
@@ -1145,11 +1156,15 @@ namespace DaggerfallWorkshop.Game.Serialization
 
             // Create screenshot for save
             // TODO: Hide UI for screenshot or use a different method
-            yield return new WaitForEndOfFrame();
-            yield return new WaitForEndOfFrame();
-            Texture2D screenshot = new Texture2D(Screen.width, Screen.height);
-            screenshot.ReadPixels(new Rect(0, 0, Screen.width, Screen.height), 0, 0);
-            screenshot.Apply();
+            Texture2D screenshot = null;
+            if (stagingFolder == null)
+            {
+                yield return new WaitForEndOfFrame();
+                yield return new WaitForEndOfFrame();
+                screenshot = new Texture2D(Screen.width, Screen.height);
+                screenshot.ReadPixels(new Rect(0, 0, Screen.width, Screen.height), 0, 0);
+                screenshot.Apply();
+            }
 
             //// Restore UI after screenshot
             //if (rawImageEnabled)
@@ -1223,11 +1238,18 @@ namespace DaggerfallWorkshop.Game.Serialization
             }
 
             // Save screenshot
-            byte[] bytes = screenshot.EncodeToJPG();
-            File.WriteAllBytes(Path.Combine(path, screenshotFilename), bytes);
+            if (screenshot != null)
+            {
+                byte[] bytes = screenshot.EncodeToJPG();
+                File.WriteAllBytes(Path.Combine(path, screenshotFilename), bytes);
+            }
 
             // Raise OnSaveEvent
             RaiseOnSaveEvent(saveData);
+
+            // Doomerfall: Doom reports the result and owns the save list.
+            if (stagingFolder != null)
+                yield break;
 
             // Update saves if needed
             if (key == -1)

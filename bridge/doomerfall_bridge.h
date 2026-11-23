@@ -70,6 +70,14 @@ extern "C" {
 #define DFB_KIND_UI_STATE   9   /* DF to UZ; payload: dfb_ui_state */
 #define DFB_KIND_UI_RESULT  10  /* DF to UZ; payload: dfb_ui_result */
 #define DFB_KIND_HP         11  /* UZ to DF; one numbered hit or heal on the player; payload: dfb_hp_event */
+#define DFB_KIND_SAVE_REQUEST  12  /* UZ to DF; Doom is frozen, and this is ordered after all its earlier events; payload: dfb_save_request */
+#define DFB_KIND_SAVE_PREPARED 13  /* DF to UZ; Daggerfall's answer, ordered after all its earlier events; payload: dfb_save_reply */
+#define DFB_KIND_SAVE_DONE     14  /* UZ to DF; the transaction ended and Daggerfall may resume; payload: dfb_save_done */
+
+#define DFB_SAVE_OK      0u
+#define DFB_SAVE_REFUSED 1u  /* Daggerfall cannot save right now */
+#define DFB_SAVE_FAILED  2u  /* Daggerfall tried and could not write its save */
+#define DFB_SAVE_PATH_SLOT 4u /* bulk slot: UTF-8 staging folder for Daggerfall's files, written before the request */
 
 #define DFB_HP_HIT    1u
 #define DFB_HP_HEAL   2u
@@ -204,6 +212,33 @@ typedef struct dfb_hp_event
 	int64_t sent_ns;
 } dfb_hp_event;
 
+/* Synchronized save. Doom picks the transaction number and the staging folder. */
+typedef struct dfb_save_request
+{
+	uint32_t txn;
+	uint32_t hp_sent_through; /* number of the last dfb_hp_event sent before the freeze */
+	int64_t sent_ns;
+} dfb_save_request;
+
+typedef struct dfb_save_reply
+{
+	uint32_t txn;
+	uint32_t status;      /* DFB_SAVE_* */
+	int32_t hp_current;
+	int32_t hp_max;
+	uint32_t hp_applied;
+	uint32_t file_count;
+	int32_t world_x;      /* Daggerfall's saved position */
+	int32_t world_z;
+	uint64_t total_bytes;
+} dfb_save_reply;
+
+typedef struct dfb_save_done
+{
+	uint32_t txn;
+	uint32_t committed;   /* 1 if the bundle replaced the save file */
+} dfb_save_done;
+
 typedef struct dfb_hello
 {
 	uint32_t pid;
@@ -311,6 +346,10 @@ DFB_API int dfb_surface_write(dfb_session *session, const void *bgra, uint32_t w
 DFB_API int dfb_surface_acquire(dfb_session *session, dfb_surface_frame *frame, const void **pixels);
 
 DFB_API int dfb_get_stats(dfb_session *session, dfb_stats *out);
+
+/* Flushes temp_path to disk, then atomically replaces final_path with it. Paths are UTF-8.
+   On failure final_path is unchanged and temp_path is left for the caller to remove. */
+DFB_API int dfb_atomic_replace(const char *temp_path, const char *final_path);
 
 /* Peer liveness, for logging only: nanoseconds since the peer last published state, or -1. */
 DFB_API int64_t dfb_peer_state_age_ns(dfb_session *session);
