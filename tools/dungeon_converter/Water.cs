@@ -67,6 +67,15 @@ static partial class Program
         var stacked = new List<string>();
         var plain = new List<string>();
         (int x, int y, int floor, int top, int depth) deepest = default;
+        int bestScore = -1;
+        bool OpenWater(int ci, int cj, Span span)
+        {
+            const int reach = 5;
+            if (ci < reach || cj < reach || ci >= width - reach || cj >= height - reach) return false;
+            foreach (var (di, dj) in new[] { (-reach, 0), (reach, 0), (0, -reach), (0, reach), (-reach, -reach), (reach, reach), (-reach, reach), (reach, -reach) })
+                if (!grid[Index(ci + di, cj + dj)].Any(s => s.F == span.F && s.Water == span.Water)) return false;
+            return true;
+        }
         for (int j = 0; j < height; j++)
             for (int i = 0; i < width; i++)
             {
@@ -84,7 +93,9 @@ static partial class Program
                         (mixed ? stacked : plain).Add($"P {x} {y} {z} {(span.Water != NoWater ? 1 : 0)}");
                     if (span.Water == NoWater) continue;
                     int top = span.Water == WaterToCeiling ? span.C : span.Water;
-                    if (top - span.F > deepest.depth) deepest = (x, y, span.F, top, top - span.F);
+                    // Prefer open water at least two body heights deep over a deeper spot against a wall.
+                    int score = Math.Min(top - span.F, 2 * ActorHeight) * 10000 + (OpenWater(i, j, span) ? 5000 : 0) + Math.Min(top - span.F, 4999);
+                    if (score > bestScore) { bestScore = score; deepest = (x, y, span.F, top, top - span.F); }
                 }
             }
         var text = new StringBuilder();
