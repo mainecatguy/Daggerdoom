@@ -30,6 +30,32 @@ Daggerfall owns travel cost, time, and destination. Doom reports the player's wo
 
 Owner decision (2026-11-22): town gates should follow Daggerfall's day and night cycle.
 
+### Permanent location state owned by Daggerfall
+
+**Waiting on:** runtime town loading being merged, and synchronized saving and loading.
+
+The game never forgets what the player did in a location, apart from any Daggerfall dungeon resets the owner chooses to keep. Doom's world table holds this history for now and stores it in Doom saves. Move its authority to Daggerfall by extending Daggerfall's save data, since Daggerfall does not track Doom monsters or packs on its own.
+
+Monster packs come from fixed seeds, so store only what changed, such as deaths, drops, pickups, and unlocked doors. Keep this in a stable format separate from Doom's save snapshots, so progress survives engine or mod updates.
+
+### Identify and sort problem location groups
+
+**Waiting on:** runtime town loading being merged.
+
+Find locations that do not fit the normal one-map scheme and sort them by how much they matter. Known cases are groups too wide for one map, such as Wayrest and Merwark Hollow, which split into one map per location and do not show each other's buildings from inside. Decide fixes after seeing the full list.
+
+### Restore autosaves on location changes
+
+**Waiting on:** runtime town loading being merged.
+
+Owner decision (2026-11-22): keep normal autosaving. The runtime work skipped autosaves on stitched map changes because each added a 220 to 240 ms hitch, and the owner considers that acceptable during a load.
+
+### Revisit performance of generating fresh cities
+
+**Waiting on:** owner request.
+
+Fresh locations take about 5 to 7 seconds to convert in the background. Profile where that time goes, which is likely CPU rather than disk, and reduce it if worthwhile.
+
 ### Overworld monsters outside the loaded window
 
 **Waiting on:** owner decision, on hold. See `work/questions.md`.

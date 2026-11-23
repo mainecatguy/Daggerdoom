@@ -103,7 +103,7 @@ Use `git merge-tree --write-tree <a> <b>` for a trial merge. After merging, upda
 
 ## Usage limits
 
-The owner has a Pro plan with extra usage off. Check usage before dispatching and when an agent finishes. Do not start new work if weekly usage is at or above 60% unless the owner says to. Warn before a run is likely to hit the 5-hour limit.
+The owner has a Pro plan with extra usage off. Check usage before dispatching and when an agent finishes. Do not start new work if weekly usage is at or above 90% unless the owner says to. Warn before a run is likely to hit the 5-hour limit.
 
 ## Overnight loop
 
@@ -113,11 +113,13 @@ The owner has a Pro plan with extra usage off. Check usage before dispatching an
 
 Replace this section as the state changes.
 
-- **Running:** the runtime town loading agent, on `agent/runtime-towns` in `D:\dev\DoomDaggerfall-loop\worktree`. It belongs to the previous orchestrator session. Its expected outputs are `work/notes/runtime-towns.md` on that branch and a demo in `D:\dev\DoomDaggerfall-loop\review\runtime-towns`.
+- **Running:** nothing.
+- **Latest work:** runtime town loading is finished and reviewed on `agent/runtime-towns` at `c2151d5`, with notes in `work/notes/runtime-towns.md` on that branch. It contains the town stitch. The demo is `D:\dev\DoomDaggerfall-loop\review\runtime-towns\play.bat`. Nobody has played it yet.
+- **Runtime follow-ups:** restoring autosaves, sorting problem location groups, and revisiting fresh city performance are in the backlog.
 - **`integration`:** `e997464` (doors, angled collision, 75% scale).
-- **Reviewed but not merged:** `agent/town-stitch` at `1f72eda`, which already contains the city, the cart texture fix, and the overworld. `agent/runtime-towns` builds on it. Merge only when the owner approves. The stitch demo is `D:\dev\DoomDaggerfall-loop\review\town-stitch\play.bat`.
-- **Changelog gap:** the town stitch is not recorded yet. Add it when it is merged.
-- **Usage:** weekly was 61% at last check and resets on 2026-11-25 at 08:00 UTC. That is above the 60% stop line, so do not dispatch new work without the owner's approval.
+- **Reviewed but not merged:** `agent/runtime-towns` contains the city, cart texture fix, overworld, and town stitch. `integration` can fast-forward to it. Merge only when the owner approves.
+- **Changelog gap:** the town stitch and runtime loading are not recorded yet. Add them when they are merged.
+- **Usage:** weekly was 63% at last check and resets on 2026-11-25 at 08:00 UTC. The stop line is 90%.
 - **Next planned work:** the top of `work/todo.md`: launcher, DaggerDoom mod, Daggerfall menu in Doom, synchronized saving, then synchronized loading.
 - **Inventory:** Daggerfall's existing inventory stays. The owner is working out Doom weapon hotkeys separately, and the design is in the backlog.
 - **Local build notes:** `uzdoom-stitch` is the current engine build. `sndfile.dll` and `soft_oal.dll` must sit beside the exe for sound.
