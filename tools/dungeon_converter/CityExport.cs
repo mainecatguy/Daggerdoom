@@ -288,6 +288,7 @@ class DFRuntimeTown
 			door.Setup(f[0].ToInt(), f[1].ToDouble(), f[2].ToDouble(), f[3].ToDouble(), f[4].ToDouble(),
 				f[5].ToDouble(), f[6].ToDouble(), f[7].ToDouble(), f[8].ToDouble(), f[9].ToDouble(), f[10].ToDouble());
 			door.swingDir = f[11].ToDouble();
+			door.solidWhenOpen = true;
 			count++;
 		}
 		Console.Printf(""DFGATES spawned %d leaves"", count);
@@ -1009,6 +1010,7 @@ class DFCityHandler : EventHandler
 			door.Setup(f[0].ToInt(), f[1].ToDouble(), f[2].ToDouble(), f[3].ToDouble(), f[4].ToDouble(),
 				f[5].ToDouble(), f[6].ToDouble(), f[7].ToDouble(), f[8].ToDouble(), f[9].ToDouble(), f[10].ToDouble());
 			door.swingDir = f[11].ToDouble();
+			door.solidWhenOpen = true;
 			count++;
 		}
 		Console.Printf(""DFGATES spawned %d leaves"", count);

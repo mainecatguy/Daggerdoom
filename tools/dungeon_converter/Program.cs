@@ -125,7 +125,7 @@ static partial class Program
         if (args.Contains("--door-dump"))
         {
             foreach (var d in doors)
-                Console.WriteLine(FormattableString.Invariant($"DOORDUMP {d.Id} m{d.Model} b{d.Block} pivot {d.PivotX:F2},{d.PivotY:F2},{d.PivotZ:F2} rot {d.RxDeg:F1},{d.RyDeg:F1},{d.RzDeg:F1} local x {d.LocalMinX:F2}..{d.LocalMaxX:F2} y {d.LocalMinY:F2}..{d.LocalMaxY:F2} z {d.LocalMinZ:F2}..{d.LocalMaxZ:F2} world x {d.MinX:F1}..{d.MaxX:F1} y {d.MinY:F1}..{d.MaxY:F1} z {d.MinZ:F1}..{d.MaxZ:F1}"));
+                Console.WriteLine(FormattableString.Invariant($"DOORDUMP {d.Id} m{d.Model} b{d.Block} pivot {d.PivotX:F2},{d.PivotY:F2},{d.PivotZ:F2} rot {d.RxDeg:F4},{d.RyDeg:F4},{d.RzDeg:F4} local x {d.LocalMinX:F2}..{d.LocalMaxX:F2} y {d.LocalMinY:F2}..{d.LocalMaxY:F2} z {d.LocalMinZ:F2}..{d.LocalMaxZ:F2} world x {d.MinX:F1}..{d.MaxX:F1} y {d.MinY:F1}..{d.MaxY:F1} z {d.MinZ:F1}..{d.MaxZ:F1}"));
             // Whether each side of a door has a dungeon block and source faces 24 units out from the panel.
             double blockSide = BlockSide * PlayerScale.DoomUnitsPerDaggerfallUnit;
             foreach (var d in doors)

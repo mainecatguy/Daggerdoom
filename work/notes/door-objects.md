@@ -1,5 +1,7 @@
 # Daggerfall door objects
 
+> **Superseded on movement blocking.** Doors now block as Daggerfall's do: solid only while fully closed, and they swing through bodies. See `work/notes/20261123-130741.md`. The behavior and per-door results below describe the earlier always-solid doors.
+
 Map: Privateer's Hold at 75% scale, player 21 wide and 56 tall. Demo: `D:\dev\DoomDaggerfall-loop\review\door-demo\play.bat`.
 
 ## What changed

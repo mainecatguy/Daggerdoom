@@ -112,12 +112,19 @@ def main():
     lines = [l for l in open(log, errors="replace") if l.startswith(("DFF ", "DFB ", "DFSEEDFAIL", "DFPARITYDONE"))]
     state = [l.strip() for l in open(log, errors="replace") if l.startswith(("DFDOORS", "DFDOORSTATE"))]
     print("\n".join(state))
-    if not any("closed links" in l and not l.endswith("links 0 moved 0") for l in state):
-        sys.exit("no door objects loaded; the closed-door stages would mean nothing")
-    if not any(l.startswith("DFDOORSTATE opened") and not l.endswith("moved 0") for l in state):
-        sys.exit("no door moved when used; the open-door stages would mean nothing")
     if not finished:
         sys.exit("UZDoom did not finish the test; see " + log)
+    # Daggerfall's side models closed doors as solid boxes and open doors as absent, so Doom's doors must match.
+    door_states = {m.group(1): tuple(map(int, m.groups()[1:])) for m in
+                   (re.match(r"DFDOORSTATE (closed|opened) links (\d+) solid (\d+) moved (\d+)$", l) for l in state) if m}
+    if "closed" not in door_states or "opened" not in door_states:
+        sys.exit("the door state report is missing; the door stages would mean nothing")
+    links, solid, moved = door_states["closed"]
+    if not links or solid != links or moved:
+        sys.exit(f"closed doors must be in place and solid: links {links} solid {solid} moved {moved}")
+    links, solid, moved = door_states["opened"]
+    if moved != links or solid:
+        sys.exit(f"open doors must have swung and be non-solid: links {links} solid {solid} moved {moved}")
     with open(flood, "w") as f:
         f.writelines(lines)
     convert(args.dungeon, out, parity, args.world_scale, extra)

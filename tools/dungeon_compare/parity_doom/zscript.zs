@@ -185,10 +185,13 @@ class DFParity : EventHandler
 
 	void ReportDoors(String when)
 	{
-		int moved = 0;
+		int moved = 0, solid = 0;
 		for (int i = 0; i < links.Size(); i++)
+		{
 			if (abs(links[i].pos.x - linkX0[i]) + abs(links[i].pos.y - linkY0[i]) > 1) moved++;
-		Console.Printf("DFDOORSTATE %s links %d moved %d", when, links.Size(), moved);
+			if (links[i].bSOLID) solid++;
+		}
+		Console.Printf("DFDOORSTATE %s links %d solid %d moved %d", when, links.Size(), solid, moved);
 	}
 
 	bool AdvanceMode()

@@ -64,4 +64,4 @@ Block offsets of 2048 units are already part of `X` and `Z`. The dungeon root wa
 - A minimized UZDoom renders only 320x200, so it runs unminimized at an off-screen position without taking focus.
 - Probes are single rays. A ray can pass through a one-sided Daggerfall face, so confirm a mismatch in the image.
 - The flood fill is evidence, not proof. It treats doors as open and other moving objects as fixed, and it can leak through mesh cracks.
-- The parity test's closed-door stages were written for the old door slabs and are not meaningful with swinging door objects.
+- The parity test follows Daggerfall's door rule. Closed doors are solid boxes on the Daggerfall side and solid links on the Doom side. Open doors do not block movement on either side, and `parity.py` stops if Doom's door links are not in the expected state. City gates are not part of this test.
