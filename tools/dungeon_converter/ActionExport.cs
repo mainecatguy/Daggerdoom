@@ -52,8 +52,8 @@ static partial class Program
         }
         else if (flag is >= 1 and <= 7)
         {
-            if (flag > 1) { duration = 50; magnitude = axis * 8; axis = flag; } // flags 2-7 name the axis in the same order, offset by one
-            if (flag > 1) axis = flag - 1;
+            // Flags 2-7 are +X, -X, +Y, -Y, +Z, -Z. The axis enum is -X, +X, -Y, +Y, -Z, +Z.
+            if (flag > 1) { duration = 50; magnitude = axis * 8; axis = flag % 2 == 0 ? flag : flag - 2; }
             if (r.Axis == 11 && r.Description == "C0X") { axis = 3; forwardOnly = true; }
             var unity = axis switch
             {

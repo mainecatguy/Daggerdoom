@@ -29,7 +29,8 @@ with open(config, "w", newline="\n") as f:
 startup = subprocess.STARTUPINFO()
 startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 startup.wShowWindow = 7  # SW_SHOWMINNOACTIVE
-files = [os.path.join(folder, args.slug + suffix) for suffix in (".wad", "_mesh.pk3", "_doors.pk3")]
+files = [os.path.join(folder, args.slug + suffix) for suffix in (".wad", "_mesh.pk3", "_doors.pk3", "_player.pk3")]
+files = [path for path in files if os.path.exists(path)]  # the player package gives the real 21-wide Daggerfall body
 startup_log = open(os.path.join(folder, "actioncheck.stdout"), "w")  # script compile errors happen before +logfile opens
 process = subprocess.Popen([args.uzdoom, "-iwad", args.iwad, "-file", *files, os.path.join(HERE, "action_check"),
                             "-config", config, "-noactivate", "-nosound", "-nomonsters", "-skill", "3", "-stdout",

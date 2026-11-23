@@ -17,7 +17,7 @@ class DFActionCheck : EventHandler
 	double mark;
 	bool finished;
 	Array<DFDoor> doors;
-	int pushTics;
+	int pushTics, lidId;
 	vector2 push;
 
 	PlayerPawn Pawn() { return PlayerPawn(players[consoleplayer].mo); }
@@ -80,11 +80,21 @@ class DFActionCheck : EventHandler
 			if (!sys || sys.actions.Size() != 50) { Report("load", false, "records missing"); Finish(); return; }
 			Report("load", true, String.Format("%d records", sys.actions.Size()));
 			// Keeps one launch near 30 s. Records 1 and 5 keep real timing; the others are checked for route and end state.
-			foreach (a : sys.actions) if (a.id != 1 && a.id != 5) a.rate *= 3;
+			foreach (a : sys.actions) if (a.id != 1 && a.id != 5) a.rate *= 6;
+			lidId = 1;
 		}
 		if (pushTics > 0) { pushTics--; Pawn().vel.x = push.x; Pawn().vel.y = push.y; } // holding forward through a jump
 		if (wait > 0) { wait--; return; }
 		Step();
+	}
+
+	// Both coffins that sit over a shaft are exits from the entrance crypt.
+	void NextLid(PlayerPawn p)
+	{
+		if (lidId != 1) { stage = 6; return; }
+		lidId = 18;
+		Put(p, Middle(Rec(18)) + (0, 0, 60));
+		wait = 45; stage = 1;
 	}
 
 	void Finish()
@@ -109,7 +119,7 @@ class DFActionCheck : EventHandler
 	void Step()
 	{
 		let p = Pawn();
-		DFAction lid = Rec(1);
+		DFAction lid = Rec(lidId);
 		switch (stage)
 		{
 		case 0: // Trigger rules: a click-only lid ignores a walk-on.
@@ -124,7 +134,7 @@ class DFActionCheck : EventHandler
 			Report("lid-real-aim", UseReal(lid));
 			Report("lid-started", lid.phase == DFAction.FORWARD);
 			Put(p, (672, 439, 1345)); // out of the lid's swing, which would otherwise wait for the player
-			wait = 75; stage++;
+			wait = int(1 / lid.rate) + 5; stage++;
 			break;
 		case 2: // Duration 40 = 2 s = 70 tics. Open coffin drops the player into the level below.
 			Report("lid-finished", lid.phase == DFAction.AT_END, String.Format("fraction %.2f", lid.fraction));
@@ -137,7 +147,7 @@ class DFActionCheck : EventHandler
 			break;
 		case 4: // Real jump from the crypt floor over the rim, trying each side.
 		{
-			if (sub >= 8) { Report("jump-into-coffin", false, String.Format("no side worked; best peak %.1f", mark)); stage = 6; break; }
+			if (sub >= 8) { Report("jump-into-coffin", false, String.Format("lid %d: no side worked", lidId)); NextLid(p); break; }
 			double turn = sub * 45;
 			vector3 c = lid.ToWorld(((lid.boxMin.x + lid.boxMax.x) / 2, (lid.boxMin.y + lid.boxMax.y) / 2, 0), 0);
 			Put(p, (c.x + cos(turn) * 62, c.y + sin(turn) * 62, 1345));
@@ -151,7 +161,7 @@ class DFActionCheck : EventHandler
 		}
 		case 5:
 			Console.Printf("ACINFO jump side %d ended %.0f,%.0f,%.0f", sub, p.pos.x, p.pos.y, p.pos.z);
-			if (p.pos.z < 1200) { Report("jump-into-coffin", true, String.Format("side %d landed z %.1f", sub, p.pos.z)); stage = 6; }
+			if (p.pos.z < 1200) { Report("jump-into-coffin", true, String.Format("lid %d side %d landed z %.1f", lidId, sub, p.pos.z)); NextLid(p); }
 			else { sub++; stage = 4; }
 			break;
 		case 6: // Door 16 used directly moves its linked wall.
@@ -228,22 +238,42 @@ class DFActionCheck : EventHandler
 		case 16: // A body riding the top of a moving object is carried.
 		{
 			let a = Rec(39);
-			double best = -1e9; vector3 top = a.pivot;
-			foreach (c : a.cells) if (c.pos.z > best) { best = c.pos.z; top = c.pos; }
-			Put(p, (top.x, top.y, top.z + 16));
-			p.SetZ(top.z + 16);
+			// The deck is the highest layer holding at least half as many cells as the fullest layer.
+			Map<int, int> layers;
+			int most = 0;
+			foreach (c : a.cells)
+			{
+				int key = int(c.lz);
+				int count = layers.CheckKey(key) ? layers.Get(key) + 1 : 1;
+				layers.Insert(key, count);
+				most = max(most, count);
+			}
+			int deck = -100000;
+			foreach (c : a.cells) if (layers.Get(int(c.lz)) * 2 >= most) deck = max(deck, int(c.lz));
+			double sx = 0, sy = 0, sz = 0;
+			int n = 0;
+			foreach (c : a.cells) if (int(c.lz) == deck) { sx += c.pos.x; sy += c.pos.y; sz = c.pos.z + c.height; n++; }
+			Put(p, (sx / n, sy / n, sz));
+			p.SetZ(sz);
+			Report("rider-fits", p.TestMobjLocation(), String.Format("deck %.0f,%.0f,%.0f cells %d floorz %.0f ceilingz %.0f", sx / n, sy / n, sz, n, p.floorz, p.ceilingz));
 			mark = p.pos.z;
 			a.Receive(p, DFAction.FROM_ACTION);
-			wait = int(1 / a.rate) + 4; stage++;
+			wait = int(1 / a.rate) + 6; stage++;
 			break;
 		}
 		case 17:
 		{
 			let a = Rec(39);
 			double moved = p.pos.z - mark;
-			// The object may sink into the floor at the end of its move. The rider then correctly stops on that floor.
-			bool onWorldFloor = moved > a.travel.z && p.pos.z <= p.floorz + 1 && p.floorz == p.CurSector.NextLowestFloorAt(p.pos.x, p.pos.y, p.pos.z + 1);
-			Report("rider-carried", abs(moved - a.travel.z) < 6 || onWorldFloor, String.Format("moved %.1f of %.1f, world floor %d, z %.1f floorz %.1f", moved, a.travel.z, onWorldFloor, p.pos.z, p.floorz));
+			Report("rider-down", a.phase == DFAction.AT_END && abs(moved - a.travel.z) < 3, String.Format("moved %.1f of %.1f", moved, a.travel.z));
+			a.Receive(p, DFAction.FROM_ACTION);
+			wait = int(1 / a.rate) + 6; stage++;
+			break;
+		}
+		case 18:
+		{
+			let a = Rec(39);
+			Report("rider-up", a.phase == DFAction.AT_START && abs(p.pos.z - mark) < 3, String.Format("z %.1f, started %.1f, phase %d", p.pos.z, mark, a.phase));
 			Finish();
 			break;
 		}
