@@ -22,30 +22,62 @@ The owner approved this work on 2026-11-23. Each item runs from its reviewed car
 - Leave quick keys and quit behavior alone for now.
 - Autosaves on Daggerfall maps use the bundled save. Their frequency can be revisited if they slow the game down a lot.
 
-### Prove and finish synchronized saving
 
-The first version is merged to `integration`, but no real Daggerfall save has gone through it. Saving pauses both games with a handshake, so messages in flight are not lost, then saves both. Each writes temporary files, and the real save is replaced only after both succeed. Start with player HP and position. On Daggerfall maps, Doom's save command and autosaves go through this path. Regular WADs keep normal Doom saves.
+### Piles and containers and trade
+Piles and containers open Daggerfall's real loot window as do NPCs.
 
-### Synchronized loading
 
-Loading restores both games from the same save, and both confirm they are ready before resuming together. Doom's load command and death restart on Daggerfall maps go through this path. Regular WADs keep normal Doom loading.
+## NPC Dialogue (After Stationary NPCs)
+NPCs should be interactible. An interact key should be added to Doom. 
 
-### Fast travel arrival
 
-Daggerfall owns travel cost, time, and destination. Doom reports the player's world position to Daggerfall, then loads the chosen town or overworld position and places the player where Daggerfall would.
+### Sync player position at about 10 Hz, including indoors (running)
 
-### Connect building and dungeon transitions to Daggerfall
+Daggerfall's hidden player follows the Doom player at about 10 updates per second in towns, the wilderness, interiors, and dungeons, so Daggerfall's map shows the right place. Measure the overhead.
 
-When the player enters or leaves a building or dungeon in Doom, Daggerfall moves to the same place, so both games stay in the same area.
+### Speed up town and interior transitions
 
-### Open the inventory menu from Doom
+Owner request (2026-11-23): going between towns and interiors works, but with big stuttering. Find where the time goes and make it much smoother. Measure with the connected Daggerfall transitions in place.
 
-A Doom keybind opens Daggerfall's real inventory inside the Doom window, with input routed to it, and closing it resumes Doom. The exact key is not important, but it must be a bindable control. The "Open Inventory" action already exists in Doomerfall Controls.
+Scripted timings so far: entering a converted building takes 44 to 84 ms, returning to the City of Daggerfall group takes 1.8 to 2.5 s, returning to the Gothway Garden group takes 0.66 to 1.4 s, entering Privateer's Hold takes 0.32 to 0.58 s, and a first interior conversion takes 4 to 8 s in the background. Returning to the big city is the slowest common step, and its cause is unknown. It is also slower than the 1.0 s recorded for walking into that city.
 
-### Animated textures and ordinary dungeon flats
+These timings come from the fastest consumer SSD available, so they are a best case. Players will have slower drives. Measure CPU and disk time separately, and do not accept a fix that only feels smooth because this drive is fast. Reduce how much is read and rebuilt on each transition, and estimate how the result holds up on a slower SSD.
 
-Add these to the dungeon export so they match Daggerfall. Dungeons currently show only the first frame of animated textures, such as Scourg Barrow's 6-frame blue shard and 4-frame fireplace. Ordinary non-action flats, such as wall torches, lights, and plants, are not exported at all.
+Owner's suggestion, not a required solution: keep the town cached in memory while the player is in an interior, even if Doom can only run one map at a time, so returning does not rebuild it from scratch.
 
-### Show Daggerfall items in Doom
+### New Game through Daggerfall's real menus
 
-Owner design (2026-11-23): Doom can show every Daggerfall item in the world with its original sprite, without crashing. Doom knows each one is a Daggerfall item, perhaps through a `DaggerfallItem` class holding Daggerfall's item ID and sprite index. This task only shows items. It does not drop or place them.
+New Game runs Daggerfall's real character creation and cutscenes inside Doom, then a temporary difficulty prompt and fixed Doom class, and starts in Privateer's Hold.
+
+### Pick up Daggerfall items from inside Doom and Daggerfall Interaction
+As one task:
+Interaction should be generic. Doom should have an interact button that works like daggerfall's.
+Daggerfall items appear in Doom, and Interact puts them into the real Daggerfall inventory. 
+
+### Report monster deaths to Daggerfall
+
+Each replaced monster gets an ID that can later cover a pack of mooks. Its death is reported to Daggerfall, which should update quests, fire death events and produce Daggerfall drops in doom. Runs after item pickup, so drops can use its path.
+
+### Show stationary NPCs in Doom
+
+NPCs, including wanderers, appear standing still with their real sprites and stable IDs. Talking, damage, and behavior are separate backlog tasks.
+
+### Document the shared memory bus
+
+Write one document that shows where the Daggerfall and Doom shared memory bus lives and how it is organized: the shared state, events, surfaces, owners, and where to add a field. Run it after the map and position sync lanes land, because both change the bridge. It comes before the skill and climbing tasks.
+
+### Daggerfall publishes character skills to Doom
+
+Daggerfall keeps Doom informed of the character's skills through shared memory. Daggerfall stays the authority. Depends on the bus document.
+
+### Climb function in Doom
+
+Initial release target, to start fairly soon. Doom gets a climb function that uses the Daggerfall character's real climbing skill and matches Daggerfall's rules for starting, continuing, and failing a climb. Start from `FrictionMotor.cs` and `ClimbingMotor.cs`. Depends on skill publishing. A read-only research card on Daggerfall's climbing rules is running first.
+
+### Enable main quest trapdoors (running)
+
+Owner decision (2026-11-23): trapdoors work as they do in Daggerfall. Enable the 4 static trapdoors in Wayrest and Lysandus' Tomb, and check the 3 existing action 8 trapdoor records in Wayrest. Their pits need climbing to escape until the climb function lands, so report any soft lock this creates.
+
+### High-level code quality audit (running)
+
+Review the code we have written, not vendored engine code. Is it unnecessarily complex, can it be simplified, and should it be? Keep this a high-level review with a short ranked list of recommendations. Do not change code.

@@ -12,8 +12,19 @@ This is a one-line-per-item index. Open an item's file only when you need its de
 
 The MVP target is that the player can run around the world, kill enemies, enter and exit towns, use the fast travel menu, and do other basic things. Position sync, the fast travel menu, and synchronized saving and loading are in `work/todo.md`. Everything in this section is required before MVP is complete. Items come after the others and depend on the inventory menu.
 
-- [Daggerfall items in the world](backlog/daggerfall-items-in-the-world.md): Show all DF items in Doom, with Interact pickup.
 - [Rework Doom autopickup](backlog/rework-doom-autopickup.md): On DF maps, only health and ammo pick up by touch.
+
+## NPCs
+
+The initial scope is stationary and passive NPCs, including wanderers, that follow Daggerfall's rules on being killed (owner, 2026-11-23). Each interaction is its own task.
+
+- [Talk to stationary NPCs](backlog/talk-to-stationary-npcs.md): Interact opens Daggerfall's real talk window.
+- [NPC shops and services](backlog/npc-shops-and-services.md): Open real trade and service windows.
+- [NPC quest givers](backlog/npc-quest-givers.md): Run real quest offers and turn-ins.
+- [NPC damage and death](backlog/kill-passive-npcs.md): Match Daggerfall's rules, with unkillable flats invincible.
+- [Hostile NPC sprites](backlog/hostile-npc-sprites.md): Choose visuals for NPCs that fight.
+- [NPC self defense with one Doom bot](backlog/npc-self-defense-doom-bot.md): Hostile NPCs use one bot template.
+- [Sync wandering NPCs](backlog/sync-wandering-npcs.md): Add real wandering and decide what must sync.
 
 ## Overworld and towns
 
@@ -49,19 +60,19 @@ The MVP target is that the player can run around the world, kill enemies, enter 
 
 ## Before initial release
 
-- [Full Daggerfall new game flow](backlog/full-daggerfall-new-game-flow.md): New Game runs DF character creation and cutscene.
+- [Final Doom class and difficulty for New Game](backlog/full-daggerfall-new-game-flow.md): Replace the temporary prompt and fixed class.
 - [Load Daggerfall saves with no Doom data](backlog/load-daggerfall-saves-with-no-doom-data.md): Create default Doom data for plain DF saves.
+- [Doom monsters block fast travel](backlog/doom-monsters-block-fast-travel.md): Decide whether and how nearby Doom monsters block travel.
 - [Check whether quests depend on moving NPCs](backlog/check-whether-quests-depend-on-moving-npcs.md): Find scripts that need Doom to move NPCs.
-- [Sync wandering NPCs](backlog/sync-wandering-npcs.md): Decide what wandering NPC state must sync.
 - [Mook packs](backlog/mook-packs.md): Replace single spawns with seeded Doom packs.
 - [Improve the random enemy roster](backlog/improve-the-random-enemy-roster.md): Weight or tier the uniform random roster.
 - [Quest targets in mook packs](backlog/quest-targets-in-mook-packs.md): Decide how quest targets map onto packs.
 - [Oblivion Portals](backlog/oblivion-portals.md): Portals that lead to Doom and custom WAD maps.
-- [Daggerfall completeness review](backlog/daggerfall-completeness-review.md): Audit every DF data type for missing systems.
 
 ## After initial release
 
 - [Revisit damage and resistances](backlog/revisit-damage-and-resistances.md): Rework how DRLA and DF damage rules combine.
+- [Greater NPC bot variety](backlog/greater-npc-bot-variety.md): Add bot types for guards and classes.
 - [Status effects on mooks](backlog/status-effects-on-mooks.md): Extend DF status effects to Doom mooks.
 - [Should open doors block monster sight?](backlog/should-open-doors-block-monster-sight.md): Decide whether to match DF's door sight rule.
 - [Support texture packs and lighting mods](backlog/support-texture-packs-and-lighting-mods.md): Carry DF visual mods into the converter.
@@ -69,3 +80,4 @@ The MVP target is that the player can run around the world, kill enemies, enter 
 ## Late development polish
 
 - [Sort out keybinds](backlog/sort-out-keybinds.md): Resolve Doom, DF, and Doomerfall key conflicts.
+- [Graceful save and load screen](backlog/graceful-save-and-load-screen.md): Stop showing "paused" during saves and loads.

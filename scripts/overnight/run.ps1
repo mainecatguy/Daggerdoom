@@ -80,7 +80,10 @@ function Save-Work {
     }
     if (RepoGit $Worktree status --porcelain) {
         RepoGit $Worktree add -A | Out-Null
-        RepoGit $Worktree commit -q -m "overnight: save work in progress" | Out-Null
+        # Line-ending-only changes can disappear when staged, and an empty commit would stop the run.
+        if (RepoGit $Worktree diff --cached --name-only) {
+            RepoGit $Worktree commit -q -m "overnight: save work in progress" | Out-Null
+        }
     }
 }
 
@@ -94,6 +97,41 @@ function Add-AgentReports($Items, $Kind) {
     }
     New-Item -ItemType Directory -Force (Split-Path $ReportsFile -Parent) | Out-Null
     Write-Text $ReportsFile (($lines -join "`n") + "`n")
+}
+
+# Stats cover the worker agent and its subagents. The verifier keeps no transcript. A failed read leaves blanks.
+function Get-RunStats {
+    $blank = @{ PeakContext = ''; CacheReadTokens = ''; OutputTokens = ''; Messages = ''; ToolOutputChars = '' }
+    try {
+        $since = $StartedAt.ToUniversalTime().ToString('o')
+        $text = & python -I (Join-Path $PSScriptRoot 'run_stats.py') --since $since @($SessionIds) 2>$null
+        if ($LASTEXITCODE -ne 0) { return $blank }
+        $parsed = $text | ConvertFrom-Json
+        foreach ($name in @($blank.Keys)) { $blank[$name] = $parsed.$name }
+    }
+    catch { Write-Warning "Could not read run stats: $($_.Exception.Message)" }
+    $blank
+}
+
+# Export-Csv -Append rejects rows when the header is older, so add missing columns first. Old rows stay blank there.
+function Add-MetricColumns([string]$Path, [string[]]$Columns) {
+    if (-not (Test-Path -LiteralPath $Path)) { return }
+    $stream = [IO.File]::Open($Path, 'Open', 'ReadWrite', 'None')
+    try {
+        $reader = New-Object IO.StreamReader($stream, [Text.Encoding]::UTF8, $true, 4096, $true)
+        $text = $reader.ReadToEnd(); $reader.Dispose()
+        $lines = @($text -split "`r?`n" | Where-Object { $_ })
+        if (-not $lines.Count) { return }
+        $existing = @(($lines[0] | ConvertFrom-Csv -Header (1..200)).PSObject.Properties.Value | Where-Object { $_ })
+        $missing = @($Columns | Where-Object { $existing -notcontains $_ })
+        if (-not $missing.Count) { return }
+        $lines[0] += ($missing | ForEach-Object { ",`"$_`"" }) -join ''
+        $padding = ',' * $missing.Count
+        for ($i = 1; $i -lt $lines.Count; $i++) { $lines[$i] += $padding }
+        $bytes = (New-Object Text.UTF8Encoding($true)).GetPreamble() + [Text.Encoding]::UTF8.GetBytes(($lines -join "`r`n") + "`r`n")
+        $stream.SetLength(0); $stream.Write($bytes, 0, $bytes.Length)
+    }
+    finally { $stream.Dispose() }
 }
 
 # --- Verification: protected paths, real build, independent verifier ---
@@ -179,6 +217,7 @@ $session = [guid]::NewGuid().ToString(); $started = $false
 $next = $FirstPrompt; $round = 0; $failures = 0
 $PriorSessionUsd = 0.0; $SessionUsd = 0.0; $VerifierUsd = 0.0
 $Turns = 0; $Denials = 0; $CheckFails = 0; $VerifierFails = 0; $Verifications = 0
+$SessionIds = @($session)
 $result = 'limit'; $outcome = 'Stopped at the time or round limit.'; $exitCode = 1
 
 try {
@@ -198,7 +237,7 @@ try {
         # total_cost_usd is cumulative across resumes of one session.
         $r = Read-Result "$tag.log"
         if ($r) {
-            if ($r.session_id) { $session = $r.session_id }
+            if ($r.session_id) { $session = $r.session_id; $SessionIds += $session }
             $SessionUsd = [double]$r.total_cost_usd
             $Turns += [int]$r.num_turns
             $Denials += @($r.permission_denials).Count
@@ -214,7 +253,7 @@ try {
             # Usually a usage limit or outage. Wait it out without counting a round.
             $round--; $failures++
             if ($failures -ge $MaxFailures) { $result = 'error'; $outcome = "Stopped after $failures failed Claude runs. Last exit code: $code."; break }
-            if (-not $started) { $PriorSessionUsd += $SessionUsd; $SessionUsd = 0.0; $session = [guid]::NewGuid().ToString(); $next = $FirstPrompt }
+            if (-not $started) { $PriorSessionUsd += $SessionUsd; $SessionUsd = 0.0; $session = [guid]::NewGuid().ToString(); $SessionIds += $session; $next = $FirstPrompt }
             Write-Output "Claude exited with $code. Waiting $RetryMinutes minutes."
             $wait = [Math]::Min($RetryMinutes * 60, [Math]::Max(0, ($Deadline - (Get-Date)).TotalSeconds))
             Start-Sleep -Seconds ([int]$wait)
@@ -246,15 +285,19 @@ $commits = @(RepoGit $Worktree log --oneline "${Base}..$Branch")
 $cost = [Math]::Round((Get-Spent), 4)
 $minutes = [Math]::Round(((Get-Date) - $StartedAt).TotalMinutes, 1)
 $harness = try { RepoGit $Repo rev-parse --short HEAD:scripts/overnight } catch { 'uncommitted' }
+$stats = Get-RunStats
 $metric = [pscustomobject]@{
     Run = $Stamp; Harness = $harness; Model = $Model; Result = $result; Rounds = $round; Turns = $Turns
     CostUsd = $cost; Minutes = $minutes; Commits = $commits.Count; Verifications = $Verifications
     CheckFails = $CheckFails; VerifierFails = $VerifierFails; Denials = $Denials
+    PeakContext = $stats.PeakContext; CacheReadTokens = $stats.CacheReadTokens; OutputTokens = $stats.OutputTokens
+    Messages = $stats.Messages; ToolOutputChars = $stats.ToolOutputChars
 }
 # The shared file can be locked, for example while it is open in a spreadsheet. Never lose the row.
 $metricSaved = $false
 foreach ($try in 1..12) {
     try {
+        Add-MetricColumns (Join-Path $RunDir 'metrics.csv') @($metric.PSObject.Properties.Name)
         $metric | Export-Csv -LiteralPath (Join-Path $RunDir 'metrics.csv') -Append -NoTypeInformation -Encoding utf8 -ErrorAction Stop
         $metricSaved = $true; break
     }

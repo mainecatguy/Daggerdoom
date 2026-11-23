@@ -1,5 +1,5 @@
-# Full Daggerfall new game flow
+# Final Doom class and difficulty for New Game
 
-**Waiting on:** the startup flow and showing Daggerfall menus in Doom.
+**Waiting on:** "New Game through Daggerfall's real menus" in `work/todo.md`, and owner design.
 
-Owner direction (2026-11-23): New Game should eventually run Daggerfall's character creation workflow and play its cutscene. The difficulty prompt and fixed default Doom class are temporary.
+Owner direction (2026-11-23): the difficulty prompt and fixed default Doom class used by New Game are temporary. Decide how they should finally work.

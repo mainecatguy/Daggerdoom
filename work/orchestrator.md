@@ -121,10 +121,11 @@ The owner has a Pro plan with extra usage off. Check usage before dispatching an
 
 Replace this section as the state changes.
 
-- **Running:** lane `engine_r3` from `3e74e18`, and lane `dungeon_r2` from `6cb87da`. Both were started directly through `queue.ps1`, so neither has the supervisor's crash restart.
-- **Merged to `integration`:** `3e74e18`, recorded in `CHANGELOG.md`. `main` has not been updated. Synchronized saving is merged but unproven with real Daggerfall.
-- **Queued cards:** `work/queue/engine` has saving proof, loading and death, fast travel arrival, transitions, and inventory. `work/queue/dungeon` has animated textures and flats, and Daggerfall items. The owner reviews new cards before launch.
-- **Lane branches:** verified work lands on `overnight/engine_r3` and `overnight/dungeon_r2`. The owner wants finished work merged to `integration` regularly when it does not make things worse and does not interrupt running work.
+- **Running:** lanes `sync` and `dungeon_r4` (trapdoors), started directly through `queue.ps1`, so they have no supervisor crash restart. The PC has 15 GB of RAM, and the owner accepts paging to run extra lanes.
+- **Survey:** the Daggerfall data and quest survey is merged, with a review copy at `work/rpg-survey-review.md`. Its proposed tasks are not in the todo until the owner approves them.
+- **Merged to `integration`:** `c73f16c`, recorded in `CHANGELOG.md`. `main` has not been updated. Saving and loading passed scripted tests with both real games, but nobody has used the menus by hand.
+- **Queued cards:** `work/queue/engine` has transition speed, New Game, item pickup, monster deaths, and stationary NPCs. Hold it until terrain, map, and sync land, because it would conflict with them. The owner reviews new cards before launch.
+- **Lane branches:** verified work lands on `overnight/sync` and `overnight/dungeon_r4`. The owner wants finished work merged to `integration` regularly when it does not make things worse and does not interrupt running work.
 - **Usage:** weekly was 9% at last check and resets on 2026-11-25 at 08:00 UTC. The stop line is 95%.
 - **Inventory:** Daggerfall's existing inventory stays. The owner is working out Doom weapon hotkeys separately, and the design is in the backlog.
 - **Local build notes:** `uzdoom-launcher` is the current engine build. `sndfile.dll` and `soft_oal.dll` must sit beside the exe for sound.

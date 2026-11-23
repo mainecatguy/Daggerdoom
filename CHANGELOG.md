@@ -7,10 +7,62 @@ What is done on the project, newest first. Agents do not need to read this unles
 - **Playable demo:** Privateer's Hold with Daggerfall visuals, Doom movement and combat, 42 Doom monsters, swinging doors, and angled collision. Run `D:\dev\DoomDaggerfall-loop\review\angled-demo\play.bat`.
 - **Other demos:** City of Daggerfall at `D:\dev\DoomDaggerfall-loop\review\city-texture-fix\play.bat`, overworld at `D:\dev\DoomDaggerfall-loop\review\overworld-demo\play.bat`, and DRLAX on E1M1 at `D:\dev\DoomDaggerfall\play_drlax.bat`.
 - **Launcher:** starts Daggerfall Unity and UZDoom as one package. Run `D:\dev\DoomDaggerfall-loop\review\launcher\play.bat`.
-- **Branches:** `integration` is at `3e74e18`, with both overnight lanes, the bridge and door fixes, and the first version of synchronized saving. `main` has not been updated.
+- **Branches:** `integration` is at `c73f16c`, with the wilderness height fix, the Daggerfall map command, door route fixes, both overnight lanes, the bridge and door fixes, dungeon flats, Daggerfall items, synchronized saving and loading, the death screen, fast travel arrival, connected door transitions, and the inventory menu.
 - **Roughest spots:** some walls still bend where they stayed tied to the grid, and false walls and openings remain.
 
 ## 2026-11-23
+
+### Merged to `integration` (`c73f16c`)
+Notes only, with no code changes.
+
+- **Code quality audit:** the core design is sound. The two fixes recommended soon are pointing regression scripts at the current engine and generating the C# bridge definitions from the header. See `work/notes/20261123-170733.md`.
+- **Climbing research:** Daggerfall's climbing rules, a proposed Doom implementation, and four owner questions. Nothing was run in Daggerfall Unity itself. See `work/notes/20261123-171304.md`.
+
+### Merged to `integration` (`cdfbc1a`)
+This merge changes only the overworld tools and notes, so no engine rebuild was needed. Nobody has hand-played it.
+
+- **Wilderness terrain height:** the player sank because overworld collision used raw heights while town meshes used Daggerfall's smoothed and flattened heights. The largest measured mismatch fell from 1,095.9 units to 0.146 across 131,696 mesh vertices. Existing demo folders keep their old `overworld.pk3` until they are reassembled.
+- **Known gap:** small terrain bumps still differ from real Daggerfall, because the engine and converter use a stand-in for Unity's Perlin noise.
+
+### Merged to `integration` (`70625fc`)
+The engine code is identical to the map lane's verified build, and the merge only adds the separate door route tools. Scripted tests used both real games, and nobody has hand-played it.
+
+- **Daggerfall map command:** Doom's map key opens Daggerfall's town map, interior or dungeon automap, or the travel map in the wilderness, which the owner confirmed on 2026-11-23. Regular Doom maps keep Doom's map. Fast travel closes Doom's map and leaves the collider view.
+- **Known gap:** the dungeon automap opens but reveals no rooms in the Privateer's Hold test.
+
+### Merged to `integration` (`72bd692`)
+The converter builds from this merge. No engine files changed. Scripted door regressions passed, and nobody has hand-played the panels.
+
+- **Door 15:** a false alarm from the test setup. It passes at the real player width of 10.5, and the door test now uses that width.
+- **Secret door panels:** 3 non-door panels in Orsinium and Lysandus' Tomb now swing open through their real triggers. They guard small pockets, not a main route.
+- **Trapdoors:** 4 main-quest trapdoors stay inert, because they open onto sealed pits that need climbing.
+
+### Merged to `integration` (`079c841`)
+UZDoom builds from this merge and passes its startup check. Its Daggerfall Unity code is identical to the engine lane's verified build. Nobody has hand-played these features.
+
+- **Connected transitions:** Daggerfall follows the player through building and dungeon doors. Scripted runs passed 16 building types and Privateer's Hold, including saves and loads inside. Daggerfall does not track the player's position within a room yet.
+- **Inventory menu:** the Open Inventory control shows Daggerfall's real inventory inside Doom. Scripted mouse input equipped a weapon. Real window mouse mapping, item use, and dropping are not proven.
+- **Sprite scale:** `DaggerfallItem` now displays at the 75% world size with its images unchanged. Dungeon and town billboards were measured and already matched.
+- **Survey:** the Daggerfall data and quest survey is in `work/notes/20261123-154554.md`.
+
+### Merged to `integration` (`a954b0e`)
+UZDoom builds from this merge and passes its startup check. Its Daggerfall Unity code is identical to the engine lane's verified build.
+
+- **Fast travel arrival:** Daggerfall's real travel map now charges gold, advances time, and moves both games to the same place. Scripted trips to a hamlet, village, and farm ended with 0 world units of difference. A first visit freezes Doom for about 5 seconds while the location converts. Nobody has played it by hand.
+
+### Merged to `integration` (`f97ed3b`)
+UZDoom builds from this merge and passes its startup check. Its Daggerfall Unity code is identical to the engine lane's verified build. Scripted tests used both real games, but nobody has used the menus by hand.
+
+- **Synchronized saving:** real bundled saves of both games, including autosaves on Daggerfall maps. Each save freezes the game for about 0.2 seconds.
+- **Synchronized loading:** both games restore from one save, with a load freeze of about 2 seconds. Loading was only tested in the city, not in a building or dungeon.
+- **Death screen:** Doom's death view leads to Load Last Save, Load Game, or Main Menu. Daggerfall no longer restarts itself in a bridge session.
+- **Known gaps:** indoors, Daggerfall's half of a save records the player outside at the door until transitions are connected. New Game is refused until the real start flow exists.
+
+### Merged to `integration` (`3816407`)
+UZDoom builds from this merge and passes its startup check. Nobody has hand-played these features, and neither `play.bat` has been launched.
+
+- **Animated textures and flats:** dungeons now show animated textures and ordinary flats such as torches and plants, with no measurable frame cost in Orsinium. Fixed treasure and NPC flats are not drawn yet, because loot and talking do not work on them.
+- **Daggerfall items:** all 311 items exist as `DaggerfallItem` actors in a test gallery. 283 use their original sprite, and 28 show a placeholder because the game data has no usable image. Dye colors are not applied.
 
 ### Merged to `integration` (`3e74e18`)
 UZDoom and Daggerfall Unity both build from this merge, and UZDoom passes its startup check. Most tests were scripted, and nobody has hand-played the combined build.
