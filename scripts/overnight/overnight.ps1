@@ -23,8 +23,7 @@ $Culture = [Globalization.CultureInfo]::InvariantCulture
 $Repo = (& git -C $PSScriptRoot rev-parse --show-toplevel)
 if (-not $QueueRoot) { $QueueRoot = Join-Path $Repo 'work\queue' }
 if (-not $PSBoundParameters.ContainsKey('Until')) {
-    $Until = (Get-Date).Date.AddHours(7)
-    if ($Until -le (Get-Date)) { $Until = $Until.AddDays(1) }
+    $Until = [datetime]::MaxValue
 }
 $StartStamp = Get-Date -Format yyyyMMdd-HHmmss
 $Morning = Join-Path $QueueRoot 'morning.md'
@@ -33,8 +32,9 @@ Add-Type -Namespace Doomerfall -Name Power -MemberDefinition '[DllImport("kernel
 $ES_CONTINUOUS = [uint32]2147483648; $ES_SYSTEM_REQUIRED = [uint32]1
 
 function Get-Runs($Lane) {
-    $file = Join-Path $Lane.RunDir 'metrics.csv'
-    @(if (Test-Path $file) { Import-Csv $file | Where-Object { $_.Run -ge $StartStamp } })
+    @(Get-ChildItem -LiteralPath $Lane.RunDir -Filter 'metrics*.csv' -File -ErrorAction SilentlyContinue | ForEach-Object {
+            try { Import-Csv -LiteralPath $_.FullName -ErrorAction Stop } catch { }
+        } | Where-Object { $_.Run -ge $StartStamp } | Sort-Object Run)
 }
 
 function Get-Spend($Lane) {
@@ -52,9 +52,10 @@ function Start-Lane($Lane) {
     $left = $MaxUsdPerLane - (Get-Spend $Lane)
     $a = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$(Join-Path $PSScriptRoot 'queue.ps1')`"",
         '-Lane', $Lane.Name, '-GoalDir', "`"$($Lane.GoalDir)`"", '-RunDir', "`"$($Lane.RunDir)`"",
-        '-Until', "`"$($Until.ToString('s'))`"", '-MaxUsd', $left.ToString('0.####', $Culture),
+        '-MaxUsd', $left.ToString('0.####', $Culture),
         '-MaxUsdPerGoal', $MaxUsdPerGoal.ToString('0.####', $Culture), '-ClaudeExe', "`"$ClaudeExe`"")
     if ($ClaudePrefix) { $a += @('-ClaudePrefix', "`"$ClaudePrefix`"") }
+    if ($Until -ne [datetime]::MaxValue) { $a += @('-Until', "`"$($Until.ToString('s'))`"") }
     $Lane.Process = Start-Process powershell.exe -ArgumentList $a -WindowStyle Hidden -PassThru
     $null = $Lane.Process.Handle
     $Lane.State = 'running'
@@ -114,7 +115,7 @@ foreach ($l in $Lanes) {
 
 [void][Doomerfall.Power]::SetThreadExecutionState($ES_CONTINUOUS -bor $ES_SYSTEM_REQUIRED)
 try {
-    Write-Output "Overnight run until $($Until.ToString('yyyy-MM-dd HH:mm')). Leave this window open."
+    Write-Output 'Overnight run started. It continues until the queued goals finish or a cost or failure limit stops them. Leave this window open.'
     # Staggered so the two lanes never create the same branch name in the same second.
     foreach ($l in $Lanes) { Start-Lane $l; Start-Sleep -Seconds 2 }
     Write-Morning

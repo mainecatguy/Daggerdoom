@@ -232,11 +232,24 @@ $commits = @(RepoGit $Worktree log --oneline "${Base}..$Branch")
 $cost = [Math]::Round((Get-Spent), 4)
 $minutes = [Math]::Round(((Get-Date) - $StartedAt).TotalMinutes, 1)
 $harness = try { RepoGit $Repo rev-parse --short HEAD:scripts/overnight } catch { 'uncommitted' }
-[pscustomobject]@{
+$metric = [pscustomobject]@{
     Run = $Stamp; Harness = $harness; Model = $Model; Result = $result; Rounds = $round; Turns = $Turns
     CostUsd = $cost; Minutes = $minutes; Commits = $commits.Count; Verifications = $Verifications
     CheckFails = $CheckFails; VerifierFails = $VerifierFails; Denials = $Denials
-} | Export-Csv -LiteralPath (Join-Path $RunDir 'metrics.csv') -Append -NoTypeInformation -Encoding utf8
+}
+# The shared file can be locked, for example while it is open in a spreadsheet. Never lose the row.
+$metricSaved = $false
+foreach ($try in 1..12) {
+    try {
+        $metric | Export-Csv -LiteralPath (Join-Path $RunDir 'metrics.csv') -Append -NoTypeInformation -Encoding utf8 -ErrorAction Stop
+        $metricSaved = $true; break
+    }
+    catch { Start-Sleep -Seconds 5 }
+}
+if (-not $metricSaved) {
+    $metric | Export-Csv -LiteralPath (Join-Path $RunDir "metrics-$Stamp.csv") -NoTypeInformation -Encoding utf8
+    Write-Warning "metrics.csv was locked. Saved this run to metrics-$Stamp.csv."
+}
 
 $report = Join-Path $RunDir 'report.md'
 $openCount = if (Test-Path $ReportsFile) { @(Get-Content $ReportsFile | Where-Object { $_ -like '- *' }).Count } else { 0 }

@@ -83,7 +83,7 @@ result with known gaps than chase a perfect system.
 - Use a private `-config` for test launches, about 30-second timeouts, and stop on a fatal error.
 - Leave a demo in a new folder under `D:\dev\DoomDaggerfall-loop\review` with a one-click `play.bat`, and write `work/notes/<task>.md`.
 
-Use Opus for hard open problems. Use Sonnet for small, bounded jobs, and tell it to stop and report if the job turns out to be hard.
+Pick the cheapest model that fits the job. Use Opus for hard open problems and complicated implementation. Use Sonnet for bounded work and verification that needs judgment. Use Haiku for trivial checks, such as testing a map and reporting back. Tell Sonnet and Haiku to stop and report if the job turns out to be hard.
 
 ## Reviewing finished work
 
@@ -114,7 +114,7 @@ The owner has a Pro plan with extra usage off. Check usage before dispatching an
 
 ## Overnight loop
 
-`scripts/overnight/run.ps1` runs one goal on its own branch, has an independent verifier check it, and adds passing work to `integration`. It does not pick the next task. The planned outer loop would take the first item from `work/todo.md`, write the goal, run the script, record the result, and follow the stop rules in `work/todo.md`. It is not built, and it should not start until the current branches are reviewed and merged.
+`scripts/overnight/run.ps1` runs one goal on its own branch, has an independent verifier check it, and adds passing work to `integration`. It does not pick the next task. `scripts/overnight/overnight.ps1` is the outer loop: run from its own PowerShell window, it runs the goal cards in `work/queue/<lane>` in parallel lanes, keeps the PC awake, and writes `work/queue/morning.md`. The orchestrator writes the cards and the owner approves them. It has no clock deadline. It runs until its cards finish, a cost or failure limit stops it, or the owner says to stop.
 
 ## Handoff snapshot, 2026-11-22
 
