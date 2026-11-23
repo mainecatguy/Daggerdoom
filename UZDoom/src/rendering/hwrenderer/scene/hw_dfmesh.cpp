@@ -19,6 +19,7 @@
 #include "filesystem.h"
 #include "g_levellocals.h"
 #include "hw_dfmesh.h"
+#include "playsim/dd_treadmill.h"
 #include "hw_material.h"
 #include "hw_modelvertexbuffer.h"
 #include "hw_portal.h"
@@ -39,7 +40,8 @@ namespace
 	FModelVertexBuffer *buffer;
 	DFrameBuffer *bufferOwner;
 	std::vector<Batch> batches;
-	FString checkedMap;
+	FString checkedMap, meshMap;
+	int loadedLump = -1, headerLump = -1;
 	bool checked, present;
 	int triangles;
 
@@ -51,6 +53,7 @@ namespace
 	void Load(int lump)
 	{
 		uint64_t start = I_nsTime();
+		loadedLump = lump;
 		auto data = fileSystem.ReadFile(lump);
 		auto bytes = data.bytes();
 		int textures, batchCount, vertices;
@@ -100,12 +103,17 @@ namespace
 			int lump = fileSystem.CheckNumForName("DFMESH");
 			if (lump >= 0 && fileSystem.FileLength(lump) >= 24)
 			{
-				auto data = fileSystem.ReadFile(lump);
-				auto bytes = data.bytes();
-				char map[9] = {};
-				memcpy(map, bytes + 4, 8);
-				present = !memcmp(bytes, "DFM1", 4) && level->MapName.CompareNoCase(map) == 0;
-				if (present) Load(lump);
+				if (lump != headerLump)
+				{
+					auto data = fileSystem.ReadFile(lump);
+					auto bytes = data.bytes();
+					char map[9] = {};
+					memcpy(map, bytes + 4, 8);
+					headerLump = lump;
+					meshMap = memcmp(bytes, "DFM1", 4) ? "" : map;
+				}
+				present = level->MapName.CompareNoCase(meshMap) == 0;
+				if (present && (!buffer || loadedLump != lump)) Load(lump); // kept across a town handoff
 			}
 		}
 		if (present && bufferOwner != screen) Load(fileSystem.CheckNumForName("DFMESH"));
@@ -149,6 +157,21 @@ void DFMesh_Draw(FRenderState &state)
 	state.SetCulling(Cull_None);
 	state.EnableFog(true);
 	state.SetVertexBuffer(screen->mVertexData);
+}
+
+// Draws the town's mesh in the overworld at its true world position, over the grid tiles it replaces.
+void DFMesh_DrawLod(FLevelLocals *level, FRenderState &state)
+{
+	double x, y, z;
+	if (level != primaryLevel || !dfmesh_view || !DDTreadmill_MeshOffset(x, y, z)) return;
+	const int lump = fileSystem.CheckNumForName("DFMESH");
+	if (lump < 0) return;
+	if (!buffer || loadedLump != lump || bufferOwner != screen) Load(lump);
+	state.mModelMatrix.loadIdentity();
+	state.mModelMatrix.translate(float(x), float(z), float(y));
+	state.EnableModelMatrix(true);
+	DFMesh_Draw(state);
+	state.EnableModelMatrix(false);
 }
 
 void DFMesh_FrameTick(FLevelLocals *level)

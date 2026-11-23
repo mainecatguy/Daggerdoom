@@ -549,6 +549,7 @@ void HWDrawInfo::RenderScene(FRenderState &state)
 	DFMesh_FrameTick(Level);
 	const bool dfMeshView = DFMesh_HideCollider(Level);
 	if (dfMeshView) DFMesh_Draw(state);
+	else DFMesh_DrawLod(Level, state);
 	if (!dfMeshView) drawlists[GLDL_PLAINWALLS].DrawWalls(this, state, false);
 	if (!dfMeshView) drawlists[GLDL_PLAINFLATS].DrawFlats(this, state, false);
 

@@ -95,6 +95,9 @@ def main():
     ap.add_argument("--woods", default=r"D:\dev\DoomDaggerfall\GameResources\DAGGER\ARENA2\WOODS.WLD")
     ap.add_argument("--out", required=True, help="output .pk3")
     ap.add_argument("--start", default="862,442", help="starting map pixel mx,my")
+    ap.add_argument("--start-tile", help="window origin in global tiles, overrides --start")
+    ap.add_argument("--start-angle", type=int, default=0)
+    ap.add_argument("--world-dir", help="DDWORLD and DDLOCS from the converter's --world mode. Required for towns to match.")
     ap.add_argument("--packchance", type=float, default=0.2)
     ap.add_argument("--packsize", type=int, default=12)
     ap.add_argument("--classes", default="ZombieMan,ShotgunGuy,DoomImp,Demon")
@@ -105,7 +108,9 @@ def main():
     mx, my = map(int, args.start.split(","))
     start_x = mx * 128 - CELLS // 2 + 64
     start_y = (H - 1 - my) * 128 - CELLS // 2 + 64
-    config = (f"starttilex {start_x}\nstarttiley {start_y}\npackchance {args.packchance}\n"
+    if args.start_tile:
+        start_x, start_y = map(int, args.start_tile.split(","))
+    config = (f"starttilex {start_x}\nstarttiley {start_y}\nstartangle {args.start_angle}\npackchance {args.packchance}\n"
               f"packsize {args.packsize}\nclasses {args.classes}\n")
 
     handlers = ["DDOverworldSize"]
@@ -115,14 +120,19 @@ def main():
         zscript += text.split("\n", 1)[1]  # Drop the harness file's version line.
         handlers.append("OWHarness")
     names = ", ".join(f'"{h}"' for h in handlers)
-    mapinfo = f'gameinfo {{ addeventhandlers = {names} }}\nmap DDOVER01 "Daggerfall Overworld" {{ sky1 = "SKY1" }}\n'
+    sky = "DFSKY" if args.world_dir else "SKY1"  # DFSKY comes from the town package
+    mapinfo = f'gameinfo {{ addeventhandlers = {names} }}\nmap DDOVER01 "Daggerfall Overworld" {{ sky1 = "{sky}" keepfullinventory }}\n'
 
     with open(args.woods, "rb") as f:
         woods = f.read()
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     with zipfile.ZipFile(args.out, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr("maps/DDOVER01.wad", build_map())
-        z.writestr("DDWORLD", world_lump(woods))
+        if args.world_dir:
+            z.write(os.path.join(args.world_dir, "DDWORLD"), "DDWORLD")
+            z.write(os.path.join(args.world_dir, "DDLOCS"), "DDLOCS")
+        else:
+            z.writestr("DDWORLD", world_lump(woods))
         z.writestr("DDWLDCFG", config)
         z.writestr("zscript.txt", zscript)
         z.writestr("mapinfo.txt", mapinfo)

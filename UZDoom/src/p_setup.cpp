@@ -18,6 +18,7 @@
 **
 */
 
+#include "playsim/dd_treadmill.h" // [DoomDaggerfall]
 #include <math.h>
 #ifdef _MSC_VER
 #include <malloc.h>		// for alloca()
@@ -417,6 +418,8 @@ void P_FreeLevelData (bool fullgc)
 void P_SetupLevel(FLevelLocals *Level, int position, bool newGame)
 {
 	unsigned int i;
+
+	DDTreadmill_BeginMap(Level); // [DoomDaggerfall] no-op unless this is a generated town map
 
 	Level->ShaderStartTime = I_msTimeFS(); // indicate to the shader system that the level just started
 

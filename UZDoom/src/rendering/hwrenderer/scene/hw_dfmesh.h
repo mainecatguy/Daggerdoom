@@ -6,4 +6,5 @@ class FRenderState;
 
 bool DFMesh_HideCollider(FLevelLocals *level);	// true only on a Daggerfall-layer map in mesh view
 void DFMesh_Draw(FRenderState &state);
+void DFMesh_DrawLod(FLevelLocals *level, FRenderState &state);	// the town mesh, seen from the overworld
 void DFMesh_FrameTick(FLevelLocals *level);

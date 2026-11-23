@@ -33,6 +33,7 @@ class DFDoor : Actor
 	Array<double> linkX;
 	DFDoorVisual visual;
 	double pivotX, pivotY, pivotZ, closedAngle, swung, rowY, centerX, centerY, bottom, top, linkRadius;
+	double swingDir;				// 1 unless a city gate leaf opens the other way
 	int moving;
 	bool stalled, sightOpen;
 	Array<int> sightSectors;	// control sectors of the see-blocking 3D floors in this doorway
@@ -49,7 +50,7 @@ class DFDoor : Actor
 
 	void Setup(int slot, double px, double py, double pz, double angle, double x0, double x1, double y0, double y1, double z0, double z1)
 	{
-		pivotX = px; pivotY = py; pivotZ = pz; closedAngle = angle;
+		pivotX = px; pivotY = py; pivotZ = pz; closedAngle = angle; swingDir = 1;
 		centerX = (x0 + x1) / 2; centerY = (y0 + y1) / 2; rowY = centerY;
 		bottom = pz + z0; top = pz + z1;
 		linkRadius = (y1 - y0) / 2;
@@ -70,7 +71,7 @@ class DFDoor : Actor
 
 	void Place(bool interpolate)
 	{
-		double angle = closedAngle + swung;
+		double angle = closedAngle + swung * swingDir;
 		for (int i = 0; i < links.Size(); i++)
 		{
 			vector2 at = ToWorld(linkX[i], rowY, angle);
@@ -109,7 +110,7 @@ class DFDoor : Actor
 	// True when the door row at this swing would not overlap any solid actor.
 	bool Clear(double next)
 	{
-		double angle = closedAngle + next;
+		double angle = closedAngle + next * swingDir;
 		for (int i = 0; i < links.Size(); i++)
 		{
 			vector2 at = ToWorld(linkX[i], rowY, angle);

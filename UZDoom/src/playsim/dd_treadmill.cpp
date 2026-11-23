@@ -10,6 +10,12 @@
 //
 // Active only on map DDOVER01 when a loaded file has a DDWORLD lump.
 // Test options: -ddtmlog <frames.csv>, -ddtmverify.
+//
+// Town stitch: a DDTOWN lump places a generated exterior map in the world. Walking
+// into its entry zone parks the window in the table and loads the town with the
+// player's position, facing, and momentum. Walking past its farther exit zone does
+// the reverse. Both maps read the same heights, including Daggerfall's location
+// flattening (DDLOCS), so the ground matches across the handoff.
 
 #include <algorithm>
 #include <chrono>
@@ -29,7 +35,10 @@
 #include "actorinlines.h"
 #include "c_cvars.h"
 #include "c_dispatch.h"
+#include "d_player.h"
+#include "doomstat.h"
 #include "filesystem.h"
+#include "g_level.h"
 #include "g_levellocals.h"
 #include "info.h"
 #include "m_argv.h"
@@ -38,6 +47,7 @@
 #include "printf.h"
 #include "r_utility.h"
 #include "s_sound.h"
+#include "texturemanager.h"
 #include "serializer.h"
 #include "serializer_doom.h"
 
@@ -45,8 +55,13 @@ CVAR(Int, dd_tm_originx, 0, CVAR_NOSAVE)
 CVAR(Int, dd_tm_originy, 0, CVAR_NOSAVE)
 CVAR(Int, dd_tm_shifts, 0, CVAR_NOSAVE)
 CVAR(Int, dd_tm_records, 0, CVAR_NOSAVE)
+CVAR(Int, dd_tm_intown, 0, CVAR_NOSAVE)
+CVAR(Int, dd_tm_stitches, 0, CVAR_NOSAVE)
 
 bool DDTreadmill_Active = false;
+bool DDTreadmill_WideNodes = false;
+
+extern gamestate_t wipegamestate;
 
 namespace
 {
@@ -93,9 +108,50 @@ namespace
 	struct Tri { sector_t *sec; int v[3]; };
 
 	std::vector<uint8_t> smallMap, largeMap;
+
+	// Daggerfall's location flattening, from the DDLOCS lump. Rectangles are tiles inside the map pixel.
+	struct LocRect { short x0, x1, y0, y1; };
+	std::unordered_map<int, LocRect> locRects;
+	std::unordered_map<int, std::vector<float>> blendCache;
+
+	// A generated exterior map and where it sits in the world. Rectangles are global tiles.
+	struct TileRect { int x0, x1, y0, y1; };
+	struct Town
+	{
+		FString map;
+		double originX = 0, originY = 0, ground = 0;
+		int margin = 24;
+		TileRect visual{};
+		std::vector<TileRect> rects;
+		// The exit line is farther out than the entry line, so the border cannot cause repeated loads.
+		int EntryMargin() const { return margin - 12; }
+		int ExitMargin() const { return margin - 4; }
+		bool Near(double tx, double ty, double by) const
+		{
+			for (auto &r : rects)
+				if (tx >= r.x0 - by && tx < r.x1 + by && ty >= r.y0 - by && ty < r.y1 + by) return true;
+			return false;
+		}
+	};
+	std::vector<Town> towns;
+	bool townsLoaded, townActive;
+	int currentTown = -1, resumeTown = -1;
+
+	// The player's state in world units while a map change is in flight.
+	struct Handoff
+	{
+		bool pending = false;
+		double x = 0, y = 0, z = 0, aboveFloor = 0;
+		DVector3 vel;
+		DVector2 playerVel;
+		DAngle yaw, pitch;
+		std::chrono::steady_clock::time_point started;
+	} handoff;
+	int stitches;
 	std::vector<float> window;
 	std::vector<Tri> tris;
-	int originX, originY, startTileX, startTileY, shifts;
+	int originX, originY, startTileX, startTileY, shifts, startAngle;
+	FTextureID baseFloor;
 
 	std::unordered_map<uint64_t, Record> table;
 	std::unordered_map<int64_t, std::vector<uint64_t>> buckets;
@@ -193,11 +249,10 @@ namespace
 		return std::clamp((a + v * (b - a)) * 0.5f + 0.5f, 0.f, 1.f);
 	}
 
-	// Height in Doom units at a global tile vertex (north is +Y).
-	float SampleVertex(int gx, int gy)
+	// Normalized height before location flattening. (x, y) run 0..128 inside the map pixel.
+	float RawHeight(int px, int north, int x, int y)
 	{
-		const int px = std::min(gx / PIXEL_TILES, WORLD_W - 1), north = std::min(gy / PIXEL_TILES, WORLD_H - 1);
-		const int x = gx - px * PIXEL_TILES, y = gy - north * PIXEL_TILES, my = WORLD_H - 1 - north;
+		const int my = WORLD_H - 1 - north;
 		const float div = PIXEL_TILES / 3.f;
 		const int ix = int(floorf(x / div)), iy = int(floorf(y / div));
 		const float sx = x / float(PIXEL_TILES), sy = y / float(PIXEL_TILES);
@@ -214,8 +269,56 @@ namespace
 
 		const int nx = px * PIXEL_TILES + x, ny = (WORLD_H - my) * PIXEL_TILES + y;	// MaxMapPixelY is 500 in Daggerfall Unity.
 		h += Perlin(nx * 0.3f, ny * 0.3f) * 0.5f * Perlin(nx * 0.9f, ny * 0.9f) * 0.5f * EXTRA_SCALE;
-		h = std::clamp(h, OCEAN, MAX_HEIGHT);
-		return float(h * UNITS_PER_SAMPLE * DOOM_PER_DF - Z_BASE);
+		if (h < OCEAN) h = OCEAN;
+		return std::clamp(h / MAX_HEIGHT, 0.f, 1.f);
+	}
+
+	// BlendLocationTerrainJob for one location pixel. Matches WorldTerrain.cs in the converter.
+	const std::vector<float> &BlendedPixel(int px, int north, const LocRect &rect)
+	{
+		const int key = north * WORLD_W + px, dim = PIXEL_TILES + 1;
+		auto found = blendCache.find(key);
+		if (found != blendCache.end()) return found->second;
+		if (blendCache.size() >= 64) blendCache.clear();
+		std::vector<float> &h = blendCache[key];
+		h.resize(size_t(dim) * dim);
+		float sum = 0;
+		for (int x = 0; x < dim; x++)
+			for (int y = 0; y < dim; y++)
+				sum += h[size_t(x) * dim + y] = RawHeight(px, north, x, y);
+		const float target = sum / (dim * dim);
+		const float x0 = rect.x0 / float(PIXEL_TILES), x1 = rect.x1 / float(PIXEL_TILES), y0 = rect.y0 / float(PIXEL_TILES), y1 = rect.y1 / float(PIXEL_TILES);
+		const float left = 1 / x0, right = 1 / (1 - x1), top = 1 / y0, bottom = 1 / (1 - y1);
+		for (int y = 0; y < dim; y++)
+		{
+			const float v = y / float(dim - 1);
+			const bool insideY = v >= y0 && v <= y1;
+			for (int x = 0; x < dim; x++)
+			{
+				const float u = x / float(dim - 1);
+				const bool insideX = u >= x0 && u <= x1;
+				float &value = h[size_t(x) * dim + y];
+				if (insideX && insideY) { value = target; continue; }
+				float strength;
+				if (insideY) strength = u <= x0 ? u * left : (1 - u) * right;
+				else if (insideX) strength = v <= y0 ? v * top : (1 - v) * bottom;
+				else strength = (u <= x0 ? u * left : (1 - u) * right) * (v <= y0 ? v * top : (1 - v) * bottom);
+				value += (target - value) * std::clamp(strength, 0.f, 1.f);
+			}
+		}
+		return h;
+	}
+
+	// Height in Doom units at a global tile vertex (north is +Y).
+	float SampleVertex(int gx, int gy)
+	{
+		const int px = std::min(gx / PIXEL_TILES, WORLD_W - 1), north = std::min(gy / PIXEL_TILES, WORLD_H - 1);
+		const int x = gx - px * PIXEL_TILES, y = gy - north * PIXEL_TILES;
+		float h;
+		auto loc = locRects.find(north * WORLD_W + px);
+		if (loc != locRects.end()) h = BlendedPixel(px, north, loc->second)[size_t(x) * (PIXEL_TILES + 1) + y];
+		else h = RawHeight(px, north, x, y);
+		return float(h * MAX_HEIGHT * UNITS_PER_SAMPLE * DOOM_PER_DF - Z_BASE);
 	}
 
 	float &WindowAt(int i, int j) { return window[size_t(j) * VERTS + i]; }
@@ -245,8 +348,17 @@ namespace
 
 	double LocalCoord(int index) { return index * double(SPACING) - HALF; }
 
+	// The town whose mesh covers part of the current window, if any.
+	const Town *LodTown()
+	{
+		for (const Town &t : towns)
+			if (t.visual.x1 > originX && t.visual.x0 < originX + CELLS && t.visual.y1 > originY && t.visual.y0 < originY + CELLS) return &t;
+		return nullptr;
+	}
+
 	void RewriteGrid()
 	{
+		const Town *lod = LodTown();
 		for (auto &t : tris)
 		{
 			DVector3 p[3];
@@ -259,6 +371,10 @@ namespace
 			if (n.Z < 0) n = -n;
 			n /= n.Length();
 			t.sec->floorplane.set(n.X, n.Y, n.Z, -(n | p[0]));
+			// Where a town's mesh supplies the ground, the grid's own floor is not drawn. Collision is unchanged.
+			const double cx = originX + ((p[0].X + p[1].X + p[2].X) / 3 + HALF) / SPACING, cy = originY + ((p[0].Y + p[1].Y + p[2].Y) / 3 + HALF) / SPACING;
+			const bool covered = lod && cx >= lod->visual.x0 && cx < lod->visual.x1 && cy >= lod->visual.y0 && cy < lod->visual.y1;
+			t.sec->SetTexture(sector_t::floor, covered ? FNullTextureID() : baseFloor, false);
 			// NaN never equals the plane's TexZ, so the renderer re-uploads
 			// this floor the next time the sector is actually drawn.
 			for (auto &vbo : t.sec->vboheight)
@@ -365,6 +481,27 @@ namespace
 		}
 	}
 
+	// Local map position to Daggerfall world units, on whichever map is running.
+	DVector3 ToWorld(const DVector3 &p, int fromX, int fromY)
+	{
+		if (townActive)
+		{
+			const Town &t = towns[currentTown];
+			return DVector3(p.X / DOOM_PER_DF + t.originX, p.Y / DOOM_PER_DF + t.originY, p.Z / DOOM_PER_DF + t.ground);
+		}
+		return DVector3((fromX * double(SPACING) + HALF + p.X) / DOOM_PER_DF, (fromY * double(SPACING) + HALF + p.Y) / DOOM_PER_DF, (p.Z + Z_BASE) / DOOM_PER_DF);
+	}
+
+	DVector3 ToLocal(double x, double y, double z)
+	{
+		if (townActive)
+		{
+			const Town &t = towns[currentTown];
+			return DVector3((x - t.originX) * DOOM_PER_DF, (y - t.originY) * DOOM_PER_DF, (z - t.ground) * DOOM_PER_DF);
+		}
+		return DVector3(x * DOOM_PER_DF - originX * double(SPACING) - HALF, y * DOOM_PER_DF - originY * double(SPACING) - HALF, z * DOOM_PER_DF - Z_BASE);
+	}
+
 	bool IsTouched(AActor *mo)
 	{
 		return mo->health < mo->SpawnHealth() || mo->target != nullptr
@@ -391,9 +528,10 @@ namespace
 		Record r;
 		r.id = id;
 		r.cls = mo->GetClass()->TypeName;
-		r.x = (fromX * double(SPACING) + HALF + mo->X()) / DOOM_PER_DF;
-		r.y = (fromY * double(SPACING) + HALF + mo->Y()) / DOOM_PER_DF;
-		r.z = (mo->Z() + Z_BASE) / DOOM_PER_DF;
+		const DVector3 world = ToWorld(mo->Pos(), fromX, fromY);
+		r.x = world.X;
+		r.y = world.Y;
+		r.z = world.Z;
 		r.angle = mo->Angles.Yaw.Degrees();
 		r.health = mo->health;
 		r.height = mo->Height;
@@ -435,8 +573,7 @@ namespace
 	{
 		PClassActor *cls = PClass::FindActor(r.cls);
 		if (!cls) return;
-		const DVector3 pos(r.x * DOOM_PER_DF - originX * double(SPACING) - HALF, r.y * DOOM_PER_DF - originY * double(SPACING) - HALF, r.z * DOOM_PER_DF - Z_BASE);
-		AActor *mo = Spawn(Level, cls, pos, NO_REPLACE);
+		AActor *mo = Spawn(Level, cls, ToLocal(r.x, r.y, r.z), NO_REPLACE);
 		if (!mo) return;
 		mo->ddRecordId = r.id;
 		mo->Angles.Yaw = DAngle::fromDeg(r.angle);
@@ -472,6 +609,8 @@ namespace
 		const double cyDoom = cy * chunkDoom + margin + unit() * (chunkDoom - 2 * margin);
 		const double start[2] = { (startTileX + CELLS / 2) * double(SPACING), (startTileY + CELLS / 2) * double(SPACING) };
 		if (hypot(cxDoom - start[0], cyDoom - start[1]) < 1600) return;	// Keep the arrival point clear.
+		for (const Town &t : towns)	// Placeholder packs stay out of generated towns.
+			if (t.Near(cxDoom / SPACING, cyDoom / SPACING, t.margin)) return;
 		if (SampleVertex(int(cxDoom / SPACING), int(cyDoom / SPACING)) <= OCEAN * UNITS_PER_SAMPLE * DOOM_PER_DF - Z_BASE + 0.5) return;
 
 		const int side = int(ceil(sqrt(double(packSize))));
@@ -611,7 +750,59 @@ namespace
 		smallMap.assign(p, p + size_t(WORLD_W) * WORLD_H);
 		p += smallMap.size();
 		largeMap.assign(p, p + size_t(WORLD_W) * WORLD_H * 9);
+		locRects.clear();
+		blendCache.clear();
+		const int locLump = fileSystem.CheckNumForName("DDLOCS");
+		if (locLump >= 0)
+		{
+			auto locs = fileSystem.ReadFile(locLump);
+			const uint8_t *q = (const uint8_t *)locs.data();
+			int count = 0;
+			if (locs.size() >= 8 && !memcmp(q, "DDL1", 4)) memcpy(&count, q + 4, 4);
+			if (size_t(locs.size()) == 8 + size_t(count) * 12)
+				for (int i = 0; i < count; i++)
+				{
+					int16_t v[6];
+					memcpy(v, q + 8 + i * 12, 12);
+					locRects[(WORLD_H - 1 - v[1]) * WORLD_W + v[0]] = { v[2], v[3], v[4], v[5] };
+				}
+		}
 		return true;
+	}
+
+	void LoadTowns()
+	{
+		if (townsLoaded) return;
+		townsLoaded = true;
+		int last = 0, lump;
+		while ((lump = fileSystem.FindLump("DDTOWN", &last)) >= 0)
+		{
+			auto data = fileSystem.ReadFile(lump);
+			FString text((const char *)data.data(), data.size());
+			Town t;
+			for (auto &line : text.Split("\n"))
+			{
+				char key[32], a[64];
+				double v1, v2;
+				TileRect r;
+				const char *l = line.GetChars();
+				if (sscanf(l, "%31s", key) != 1) continue;
+				if (!stricmp(key, "map") && sscanf(l, "%*s %63s", a) == 1) t.map = a;
+				else if (!stricmp(key, "origin") && sscanf(l, "%*s %lf %lf", &v1, &v2) == 2) { t.originX = v1; t.originY = v2; }
+				else if (!stricmp(key, "ground") && sscanf(l, "%*s %lf", &v1) == 1) t.ground = v1;
+				else if (!stricmp(key, "margin") && sscanf(l, "%*s %lf", &v1) == 1) t.margin = int(v1);
+				else if (!stricmp(key, "visual") && sscanf(l, "%*s %d %d %d %d", &r.x0, &r.x1, &r.y0, &r.y1) == 4) t.visual = r;
+				else if (!stricmp(key, "rect") && sscanf(l, "%*s %d %d %d %d", &r.x0, &r.x1, &r.y0, &r.y1) == 4) t.rects.push_back(r);
+			}
+			if (t.map.IsNotEmpty() && !t.rects.empty()) towns.push_back(std::move(t));
+		}
+	}
+
+	int TownForMap(const FString &name)
+	{
+		for (size_t i = 0; i < towns.size(); i++)
+			if (towns[i].map.CompareNoCase(name) == 0) return int(i);
+		return -1;
 	}
 
 	// Text settings, one "key value" per line.
@@ -619,6 +810,7 @@ namespace
 	{
 		startTileX = 862 * PIXEL_TILES;
 		startTileY = (WORLD_H - 1 - 442) * PIXEL_TILES;
+		startAngle = 0;
 		packClasses.clear();
 		const int lump = fileSystem.CheckNumForName("DDWLDCFG");
 		if (lump < 0) return;
@@ -630,6 +822,7 @@ namespace
 			if (sscanf(line.GetChars(), "%31s %511s", key, value) != 2) continue;
 			if (!stricmp(key, "starttilex")) startTileX = atoi(value);
 			else if (!stricmp(key, "starttiley")) startTileY = atoi(value);
+			else if (!stricmp(key, "startangle")) startAngle = atoi(value);
 			else if (!stricmp(key, "packchance")) packChance = atof(value);
 			else if (!stricmp(key, "packsize")) packSize = atoi(value);
 			else if (!stricmp(key, "classes"))
@@ -685,6 +878,7 @@ namespace
 			for (auto &vbo : t.sec->vboheight)
 				vbo[sector_t::ceiling] = std::numeric_limits<double>::quiet_NaN();
 		}
+		baseFloor = tris[0].sec->GetTexture(sector_t::floor);
 		window.resize(size_t(VERTS) * VERTS);
 		FillWindow(0, VERTS, 0, VERTS);
 		RewriteGrid();
@@ -711,21 +905,165 @@ namespace
 				Level->Players[i]->viewz = Level->Players[i]->mo->Z() + Level->Players[i]->viewheight;
 	}
 
+	//--------------------------------------------------------------------
+	// Town stitch
+	//--------------------------------------------------------------------
+
+	// Parks every monster and item, then records the player and requests the other map.
+	void BeginHandoff(FLevelLocals *Level, AActor *pmo, const char *map)
+	{
+		Reconcile(Level);
+		std::vector<AActor *> keep;
+		auto it = Level->GetThinkerIterator<AActor>();
+		while (AActor *mo = it.Next())
+			if (!mo->player && !IsOwned(mo) && ((mo->flags3 & MF3_ISMONSTER) || mo->IsKindOf(NAME_Inventory)))
+				keep.push_back(mo);
+		for (AActor *mo : keep) Park(mo, originX, originY);
+
+		// This tic's move still happens on the old map, so the arrival point is one tic ahead.
+		const DVector3 world = ToWorld(pmo->Pos() + pmo->Vel, originX, originY);
+		handoff.pending = true;
+		handoff.x = world.X;
+		handoff.y = world.Y;
+		handoff.z = world.Z;
+		handoff.aboveFloor = std::max(0.0, pmo->Z() + pmo->Vel.Z - pmo->floorz);
+		handoff.vel = pmo->Vel;
+		handoff.playerVel = pmo->player->Vel;
+		handoff.yaw = pmo->Angles.Yaw;
+		handoff.pitch = pmo->Angles.Pitch;
+		handoff.started = Clock::now();
+		Printf("DDSTITCH leave %s tic=%d world=%.2f,%.2f,%.2f vel=%.2f,%.2f,%.2f records=%d\n", Level->MapName.GetChars(), Level->maptime, world.X, world.Y, world.Z, pmo->Vel.X, pmo->Vel.Y, pmo->Vel.Z, int(table.size()));
+		Level->ChangeLevel(map, 0, CHANGELEVEL_NOINTERMISSION | CHANGELEVEL_KEEPFACING | CHANGELEVEL_PRERAISEWEAPON);
+	}
+
+	void FinishHandoff(FLevelLocals *Level)
+	{
+		if (!handoff.pending) return;
+		handoff.pending = false;
+		player_t *player = Level->Players[consoleplayer];
+		AActor *pmo = player->mo;
+		if (!pmo) return;
+		const DVector3 target = ToLocal(handoff.x, handoff.y, handoff.z);
+		FLinkContext ctx;
+		pmo->UnlinkFromWorld(&ctx);
+		pmo->SetXYZ(target);
+		pmo->LinkToWorld(&ctx);
+		P_FindFloorCeiling(pmo, FFCF_ONLYSPAWNPOS);
+		// Keep the feet the same distance above whatever ground is here. The mismatch is reported, not shown.
+		const double z = pmo->floorz + handoff.aboveFloor;
+		const double seam = target.Z - z;
+		pmo->SetZ(z);
+		pmo->Vel = handoff.vel;
+		player->Vel = handoff.playerVel;
+		pmo->Angles.Yaw = handoff.yaw;
+		pmo->Angles.Pitch = handoff.pitch;
+		pmo->ClearInterpolation();
+		player->viewz = z + player->viewheight;
+		wipegamestate = gamestate;	// No screen wipe on a stitched change.
+		dd_tm_stitches = ++stitches;
+		Printf("DDSTITCH arrive %s ms=%.1f local=%.2f,%.2f,%.2f seam_z=%.3f records=%d stitches=%d\n", Level->MapName.GetChars(),
+			NsSince(handoff.started) / 1e6, target.X, target.Y, z, seam, int(table.size()), stitches);
+	}
+
+	// Compares the town map's real floors with the overworld height function across the handoff band.
+	void VerifySeam(FLevelLocals *Level, const Town &t)
+	{
+		const int band = t.margin - 1;
+		double worst = 0, sum = 0;
+		int count = 0, worstX = 0, worstY = 0, over01 = 0, over1 = 0, over10 = 0, logged = 0;
+		const double zShift = t.ground * DOOM_PER_DF - Z_BASE;
+		for (const TileRect &r : t.rects)
+			for (int gy = r.y0 - band; gy < r.y1 + band; gy++)
+				for (int gx = r.x0 - band; gx < r.x1 + band; gx++)
+				{
+					if (t.Near(gx, gy, 0) || t.Near(gx + 1, gy, 0) || t.Near(gx, gy + 1, 0) || t.Near(gx + 1, gy + 1, 0)) continue;
+					const double a = SampleVertex(gx, gy), b = SampleVertex(gx + 1, gy), c = SampleVertex(gx + 1, gy + 1), d = SampleVertex(gx, gy + 1);
+					for (int k = 0; k < 2; k++)
+					{
+						const double fx = k ? 0.25 : 0.75, fy = k ? 0.75 : 0.25;
+						const double expected = (fx >= fy ? a + fx * (b - a) + fy * (c - b) : a + fy * (d - a) + fx * (c - d)) - zShift;
+						const double x = (gx + fx) * 256 - t.originX, y = (gy + fy) * 256 - t.originY;
+						const double lx = x * DOOM_PER_DF, ly = y * DOOM_PER_DF;
+						const double actual = Level->PointInSector(DVector2(lx, ly))->floorplane.ZatPoint(lx, ly);
+						const double err = fabs(actual - expected);
+						sum += err;
+						count++;
+						over01 += err > 0.1;
+						over1 += err > 1;
+						over10 += err > 10;
+						if (err > 10 && logged < 6)
+						{
+							logged++;
+							const sector_t *sec = Level->PointInSector(DVector2(lx, ly));
+							Printf("DDSEAM far tile=%d,%d f=%.2f,%.2f local=%.0f,%.0f floor=%.2f expected=%.2f sector=%d lines=%d center=%.0f,%.0f\n", gx, gy, fx, fy, lx, ly, actual, expected, sec->Index(), int(sec->Lines.Size()), sec->centerspot.X, sec->centerspot.Y);
+						}
+						if (err > worst) { worst = err; worstX = gx; worstY = gy; }
+					}
+				}
+		Printf("DDSEAM points=%d mean=%.4f worst=%.4f at tile %d,%d over0.1=%d over1=%d over10=%d\n", count, count ? sum / count : 0.0, worst, worstX, worstY, over01, over1, over10);
+	}
+
+	void StartTown(FLevelLocals *Level, int index)
+	{
+		if (multiplayer || !LoadWorld()) return;
+		currentTown = index;
+		townActive = true;
+		dd_tm_intown = 1;
+		expected.clear();
+		pending.clear();
+		const Town &t = towns[index];
+		int restored = 0;
+		for (auto &kv : table)
+		{
+			const Record &r = kv.second;
+			if (r.kind == KGone || !t.Near(r.x / 256, r.y / 256, t.margin - 1)) continue;
+			Restore(Level, r);
+			restored++;
+		}
+		FinishHandoff(Level);
+		if (FindArg("-ddtmverify")) VerifySeam(Level, t);
+		Printf("DDTOWN active %s restored=%d records=%d\n", t.map.GetChars(), restored, int(table.size()));
+	}
+
 	void Start(FLevelLocals *Level)
 	{
 		DDTreadmill_Active = false;
+		townActive = false;
+		dd_tm_intown = 0;
+		LoadTowns();
+		const int town = TownForMap(Level->MapName);
+		if (town >= 0)
+		{
+			StartTown(Level, town);
+			return;
+		}
 		if (Level->MapName.CompareNoCase("DDOVER01") != 0) return;
-		table.clear();
-		buckets.clear();
+		const bool returning = handoff.pending;
+		if (!returning)
+		{
+			table.clear();
+			buckets.clear();
+			nextDynamic = 0;
+			shifts = 0;
+			stitches = 0;
+			dd_tm_stitches = 0;
+		}
 		expected.clear();
 		pending.clear();
-		nextDynamic = 0;
-		shifts = 0;
 		LoadConfig();
 		originX = startTileX;
 		originY = startTileY;
+		if (returning)
+		{
+			// Whole chunks, with the player inside the band that does not shift.
+			const int tileX = int(floor(handoff.x / 256)), tileY = int(floor(handoff.y / 256));
+			originX = std::clamp(((tileX - CELLS / 2 + CHUNK_TILES / 2) / CHUNK_TILES) * CHUNK_TILES, 0, WORLD_W * PIXEL_TILES - CELLS);
+			originY = std::clamp(((tileY - CELLS / 2 + CHUNK_TILES / 2) / CHUNK_TILES) * CHUNK_TILES, 0, WORLD_H * PIXEL_TILES - CELLS);
+		}
 		if (!PrepareLevel(Level)) return;
 		SettleActors(Level, true);
+		if (returning) FinishHandoff(Level);
+		else if (AActor *start = Level->Players[consoleplayer]->mo) start->Angles.Yaw = DAngle::fromDeg(startAngle);
 		for (int cy = originY / CHUNK_TILES; cy < (originY + CELLS) / CHUNK_TILES; cy++)
 			for (int cx = originX / CHUNK_TILES; cx < (originX + CELLS) / CHUNK_TILES; cx++)
 				QueueChunk(cx, cy);
@@ -737,6 +1075,22 @@ namespace
 	void Resume(FLevelLocals *Level)
 	{
 		resumePending = false;
+		LoadTowns();
+		if (resumeTown >= 0)
+		{
+			const int town = TownForMap(Level->MapName);
+			resumeTown = -1;
+			if (town < 0 || !LoadWorld()) return;
+			currentTown = town;
+			townActive = true;
+			dd_tm_intown = 1;
+			expected.clear();
+			auto it = Level->GetThinkerIterator<AActor>();
+			while (AActor *mo = it.Next())
+				if (mo->ddRecordId && !IsOwned(mo)) expected.insert(mo->ddRecordId);
+			Printf("DDTOWN resumed %s records=%d\n", Level->MapName.GetChars(), int(table.size()));
+			return;
+		}
 		LoadConfig();
 		if (!PrepareLevel(Level)) return;
 		expected.clear();
@@ -811,21 +1165,51 @@ void DDTreadmill_Serialize(FLevelLocals *Level, FSerializer &arc)
 {
 	if (arc.isWriting())
 	{
-		if (!DDTreadmill_Active || Level != primaryLevel) return;
+		if ((!DDTreadmill_Active && !townActive) || Level != primaryLevel) return;
 		Reconcile(Level);
 		FString state = EncodeState();
 		arc("ddoverworld", state);
+		if (townActive)
+		{
+			int inTown = 1;
+			arc("ddintown", inTown);
+		}
 		return;
 	}
 	if (Level != primaryLevel) return;
 	DDTreadmill_Active = false;	// Sector pointers from the previous level are no longer valid.
+	townActive = false;
+	dd_tm_intown = 0;
+	handoff.pending = false;
 	resumePending = false;
+	resumeTown = -1;
 	if (arc.HasKey("ddoverworld"))
 	{
 		FString state;
 		arc("ddoverworld", state);
 		DecodeState(state);
+		if (arc.HasKey("ddintown")) resumeTown = 1;
 	}
+}
+
+void DDTreadmill_BeginMap(FLevelLocals *Level)
+{
+	DDTreadmill_WideNodes = false;
+	static const bool hasTowns = fileSystem.CheckNumForName("DDTOWN") >= 0;
+	if (!hasTowns || !Level->isPrimaryLevel()) return;
+	LoadTowns();
+	DDTreadmill_WideNodes = TownForMap(Level->MapName) >= 0;
+}
+
+// Where the town mesh's origin sits in the overworld window, so distant towns can be drawn from it.
+bool DDTreadmill_MeshOffset(double &x, double &y, double &z)
+{
+	const Town *t = DDTreadmill_Active ? LodTown() : nullptr;
+	if (!t) return false;
+	x = t->originX * DOOM_PER_DF - originX * double(SPACING) - HALF;
+	y = t->originY * DOOM_PER_DF - originY * double(SPACING) - HALF;
+	z = t->ground * DOOM_PER_DF - Z_BASE;
+	return true;
 }
 
 void DDTreadmill_Tick(FLevelLocals *Level)
@@ -834,10 +1218,28 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 	if (!requested || Level != primaryLevel) return;
 	if (resumePending) Resume(Level);
 	else if (Level->maptime == 0) Start(Level);
-	if (!DDTreadmill_Active) return;
+	if (!DDTreadmill_Active && !townActive) return;
 
 	AActor *pmo = Level->Players[consoleplayer]->mo;
 	if (!pmo) return;
+
+	if (townActive)
+	{
+		const Town &t = towns[currentTown];
+		const double tx = (pmo->X() / DOOM_PER_DF + t.originX) / 256, ty = (pmo->Y() / DOOM_PER_DF + t.originY) / 256;
+		if (!handoff.pending && pmo->health > 0 && !t.Near(tx, ty, t.ExitMargin())) BeginHandoff(Level, pmo, "DDOVER01");
+		return;
+	}
+	if (handoff.pending) return;
+	{
+		const double tx = originX + (pmo->X() + HALF) / SPACING, ty = originY + (pmo->Y() + HALF) / SPACING;
+		for (const Town &t : towns)
+			if (pmo->health > 0 && t.Near(tx, ty, t.EntryMargin()))
+			{
+				BeginHandoff(Level, pmo, t.map.GetChars());
+				return;
+			}
+	}
 
 	ProcessPending(Level, SPAWNS_PER_TIC);
 

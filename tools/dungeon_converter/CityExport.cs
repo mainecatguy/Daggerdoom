@@ -30,70 +30,104 @@ static partial class Program
         static double S => PlayerScale.DoomUnitsPerDaggerfallUnit;
         static double DoomTile => TileDf * S;
 
-        static WoodsFile woods;
-        static readonly Dictionary<(int, int), float[,]> pixels = new Dictionary<(int, int), float[,]>();
-        static int cityX, cityY;
+        // One location on this exterior map. Tile coordinates are relative to the primary location's map pixel, +Y north.
+        sealed class Site
+        {
+            public WorldTerrain.Place Place;
+            public DFLocation Location;
+            public DFBlock[] Blocks;
+            public byte[,] Tiles = new byte[TilesPerPixel, TilesPerPixel];
+            public int DX, DY, FlatX0, FlatX1, FlatY0, FlatY1;
+            public float Target;
+            public bool InFlat(int x, int y) => x >= FlatX0 && x < FlatX1 && y >= FlatY0 && y < FlatY1;
+        }
+
+        static readonly List<Site> sites = new List<Site>();
+        static WoodsFile woods => WorldTerrain.Woods;
+        static int cityX, cityY, originTileX, originTileY, walkMargin;
         static float target;
-        static int flatX0, flatX1, flatY0, flatY1; // flattened tile rect, in vertices
-        static byte[,] locationTiles;
+        static bool Walkable(int x, int y) => sites.Any(s => x >= s.FlatX0 - walkMargin && x < s.FlatX1 + walkMargin && y >= s.FlatY0 - walkMargin && y < s.FlatY1 + walkMargin);
 
         public static int Run(string[] args)
         {
             string Arg(string name, string fallback) { int at = Array.IndexOf(args, name); return at >= 0 ? args[at + 1] : fallback; }
             string cityName = Arg("--city", null), regionName = Arg("--region", cityName), outDir = Arg("--out", null);
             string arena2 = Arg("--arena2", @"D:\dev\DoomDaggerfall\GameResources\DAGGER\ARENA2");
-            // Margin 16 and up crashes the current engine build during map load. The same build with a 64 MB stack loads margin 32, so the default stays below the limit.
-            int margin = int.Parse(Arg("--margin", "12")), visualPixels = int.Parse(Arg("--visual-pixels", "1")), rasterCell = int.Parse(Arg("--raster", "8"));
+            // Terrain lines carry zone boundaries, which keeps the engine's recursive sound-zone flood shallow at any margin.
+            int margin = int.Parse(Arg("--margin", "24")), visualMargin = int.Parse(Arg("--visual-margin", "64")), rasterCell = int.Parse(Arg("--raster", "8"));
+            string mapName = Arg("--map-name", "MAP01");
             PlayerScale.DoomUnitsPerDaggerfallUnit = double.Parse(Arg("--world-scale", "0.75"), CultureInfo.InvariantCulture);
             if (cityName == null || outDir == null) { Console.Error.WriteLine("usage: --city <name> [--region <name>] --out <dir>"); return 2; }
             if (Math.Abs(DoomTile / rasterCell - Math.Round(DoomTile / rasterCell)) > 1e-9) { Console.Error.WriteLine("--raster must divide the Doom tile size"); return 2; }
             Directory.CreateDirectory(outDir);
             var clock = System.Diagnostics.Stopwatch.StartNew();
+            walkMargin = margin;
 
             var maps = new MapsFile(Path.Combine(arena2, "MAPS.BSA"), FileUsage.UseMemory, true);
             if (!FindCity(maps, regionName, cityName, out DFLocation location)) { Console.Error.WriteLine("city not found: " + cityName); return 1; }
-            var pixel = MapsFile.LongitudeLatitudeToMapPixel(location.MapTableData.Longitude, location.MapTableData.Latitude);
-            cityX = pixel.X; cityY = pixel.Y;
-            int blocksWide = location.Exterior.ExteriorData.Width, blocksHigh = location.Exterior.ExteriorData.Height;
-            int originTileX = (TilesPerPixel - blocksWide * TilesPerBlock) / 2, originTileY = (TilesPerPixel - blocksHigh * TilesPerBlock) / 2;
-            Console.WriteLine($"{location.RegionName}/{location.Name}: map pixel {cityX},{cityY}, {blocksWide}x{blocksHigh} blocks, climate {location.Climate.WorldClimate} base {location.Climate.ClimateType}, ground {location.Climate.GroundArchive}, nature {location.Climate.NatureArchive}, sky {location.Climate.SkyBase}");
-
-            woods = new WoodsFile(Path.Combine(arena2, "WOODS.WLD"), FileUsage.UseMemory, true);
             var blocksFile = new BlocksFile(Path.Combine(arena2, "BLOCKS.BSA"), FileUsage.UseMemory, true);
             var arch = new Arch3dFile(Path.Combine(arena2, "ARCH3D.BSA"), FileUsage.UseMemory, true);
-            var blocks = new DFBlock[blocksWide * blocksHigh];
-            for (int y = 0; y < blocksHigh; y++)
-                for (int x = 0; x < blocksWide; x++)
-                    blocks[y * blocksWide + x] = blocksFile.GetBlock(maps.GetRmbBlockName(location, x, y));
+            WorldTerrain.Load(arena2, maps, blocksFile);
+            var pixel = MapsFile.LongitudeLatitudeToMapPixel(location.MapTableData.Longitude, location.MapTableData.Latitude);
+            cityX = pixel.X; cityY = pixel.Y;
+            Console.WriteLine($"{location.RegionName}/{location.Name}: map pixel {cityX},{cityY}, climate {location.Climate.WorldClimate} base {location.Climate.ClimateType}, ground {location.Climate.GroundArchive}, nature {location.Climate.NatureArchive}, sky {location.Climate.SkyBase}");
 
-            PrepareCityTerrain(blocks, blocksWide, blocksHigh, originTileX, originTileY);
+            // Adjacent locations share this one map.
+            foreach (var place in WorldTerrain.GroupOf(WorldTerrain.Places[(cityX, cityY)]))
+            {
+                var site = new Site { Place = place, Location = maps.GetLocation(place.RegionIndex, place.LocationIndex), DX = place.X - cityX, DY = cityY - place.Y };
+                site.Blocks = new DFBlock[place.BlocksWide * place.BlocksHigh];
+                for (int y = 0; y < place.BlocksHigh; y++)
+                    for (int x = 0; x < place.BlocksWide; x++)
+                        site.Blocks[y * place.BlocksWide + x] = blocksFile.GetBlock(maps.GetRmbBlockName(site.Location, x, y));
+                PrepareSite(site);
+                sites.Add(site);
+                Console.WriteLine($"  site {place.Name} ({place.Type}) pixel {place.X},{place.Y} flat x {site.FlatX0}..{site.FlatX1} y {site.FlatY0}..{site.FlatY1}");
+            }
+            target = sites[0].Target;
+            int bx0 = sites.Min(q => q.FlatX0) - margin, bx1 = sites.Max(q => q.FlatX1) + margin, by0 = sites.Min(q => q.FlatY0) - margin, by1 = sites.Max(q => q.FlatY1) + margin;
+            int mapLimit = (int)Math.Floor(65000 / DoomTile);
+            if (bx1 - bx0 > mapLimit || by1 - by0 > mapLimit) { Console.Error.WriteLine($"walkable area {bx1 - bx0}x{by1 - by0} tiles exceeds the {mapLimit}-tile map limit"); return 1; }
+            originTileX = (bx0 + bx1) / 2; originTileY = (by0 + by1) / 2;
             double groundDf = target * HeightToDf;
-            double originDfX = TilesPerPixel / 2 * TileDf, originDfZ = originDfX;
+            double originDfX = originTileX * TileDf, originDfZ = originTileY * TileDf;
 
             var scene = new Scene(arena2, location, originDfX, originDfZ);
-            for (int y = 0; y < blocksHigh; y++)
-                for (int x = 0; x < blocksWide; x++)
-                    scene.AddBlock(blocks[y * blocksWide + x], arch, originTileX * TileDf + x * RmbDf, originTileY * TileDf + y * RmbDf);
-            scene.AddTerrain(-visualPixels * TilesPerPixel, (visualPixels + 1) * TilesPerPixel);
-            scene.AddNature(-margin, TilesPerPixel + margin);
+            foreach (var site in sites)
+            {
+                scene.Use(site.Location);
+                double up = (site.Target - target) * HeightToDf, baseX = (site.DX * TilesPerPixel + site.Place.OriginX) * TileDf, baseZ = (site.DY * TilesPerPixel + site.Place.OriginY) * TileDf;
+                for (int y = 0; y < site.Place.BlocksHigh; y++)
+                    for (int x = 0; x < site.Place.BlocksWide; x++)
+                        scene.AddBlock(site.Blocks[y * site.Place.BlocksWide + x], arch, baseX + x * RmbDf, baseZ + y * RmbDf, up);
+            }
+            scene.Use(location);
+            scene.AddTerrain(bx0 - visualMargin, bx1 + visualMargin, by0 - visualMargin, by1 + visualMargin);
+            scene.AddNature(bx0, bx1, by0, by1);
             Console.WriteLine($"scene: {scene.Models} models ({scene.Missing} missing), {scene.Gates} gates, {scene.Colliders.Count} collider triangles, {scene.Flats.Count} billboards, {scene.Triangles} mesh triangles [{clock.ElapsedMilliseconds} ms]");
 
             foreach (var probe in (Arg("--probe", "")).Split(';', StringSplitOptions.RemoveEmptyEntries))
                 Collision.Probes.Add((double.Parse(probe.Split(',')[0], CultureInfo.InvariantCulture), double.Parse(probe.Split(',')[1], CultureInfo.InvariantCulture)));
-            var collision = new Collision(rasterCell, margin);
-            collision.Rasterize(scene.Colliders);
-            var map = collision.Build();
+            var rasters = sites.Select(q => new Collision(rasterCell, q, q == sites[0])).ToList();
+            foreach (var raster in rasters) raster.Rasterize(scene.Colliders);
+            var collision = rasters[0];
+            var map = Collision.Build(rasters, bx0, bx1, by0, by1);
             string slug = new string(cityName.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant() + "_city";
             string wad = Path.Combine(outDir, slug + ".wad");
-            WriteWad(wad, map.Text, "");
+            WriteWad(wad, map.Text, "", mapName);
             File.WriteAllText(Path.Combine(outDir, slug + ".routes.txt"), collision.Routes());
 
-            string metadata = FormattableString.Invariant($"scale {S}\nmappixel {cityX} {cityY}\noriginworld {cityX * 32768 + originDfX} {(499 - cityY) * 32768 + originDfZ}\ngroundheight {groundDf}\nflat {flatX0} {flatX1} {flatY0} {flatY1}\nstart {map.StartX} {map.StartY}\n");
+            int worldTileX = cityX * TilesPerPixel, worldTileY = (WorldTerrain.WorldH - 1 - cityY) * TilesPerPixel;
+            var first = sites[0];
+            string metadata = FormattableString.Invariant($"scale {S}\nmappixel {cityX} {cityY}\noriginworld {(worldTileX + originTileX) * (double)TileDf} {(worldTileY + originTileY) * (double)TileDf}\ngroundheight {groundDf}\nflat {first.FlatX0} {first.FlatX1} {first.FlatY0} {first.FlatY1}\nstart {map.StartX} {map.StartY}\n");
+            // DDTOWN tells the engine where this map sits in the world. Rectangles are global tiles.
+            var town = new StringBuilder(FormattableString.Invariant($"map {mapName}\nscale {S}\norigin {(worldTileX + originTileX) * (double)TileDf} {(worldTileY + originTileY) * (double)TileDf}\nground {groundDf:R}\nmargin {margin}\nvisual {worldTileX + bx0 - visualMargin} {worldTileX + bx1 + visualMargin} {worldTileY + by0 - visualMargin} {worldTileY + by1 + visualMargin}\n"));
+            foreach (var q in sites) town.Append($"rect {worldTileX + q.FlatX0} {worldTileX + q.FlatX1} {worldTileY + q.FlatY0} {worldTileY + q.FlatY1}\n");
             string package = Path.Combine(outDir, slug + "_mesh.pk3");
-            scene.WritePackage(package, location, metadata);
+            scene.WritePackage(package, location, metadata, town.ToString(), mapName);
 
             string report = ( // the project sets InvariantGlobalization
-                $"city {location.RegionName}/{location.Name}\nmap pixel {cityX},{cityY}\nblocks {blocksWide}x{blocksHigh}\nflat tiles x {flatX0}..{flatX1} y {flatY0}..{flatY1}\nground height {groundDf:F1} df units\n" +
+                $"city {location.RegionName}/{location.Name}\nmap pixel {cityX},{cityY}\nsites {sites.Count}\nblocks {sites[0].Place.BlocksWide}x{sites[0].Place.BlocksHigh}\nflat tiles x {sites[0].FlatX0}..{sites[0].FlatX1} y {sites[0].FlatY0}..{sites[0].FlatY1}\nground height {groundDf:F1} df units\n" +
                 $"models {scene.Models} missing {scene.Missing} gates {scene.Gates}\nmesh triangles {scene.Triangles} batches {scene.BatchCount} textures unreadable {scene.BadTextures}\nbillboards {scene.Flats.Count}\n" +
                 $"raster {collision.W}x{collision.H} at {rasterCell} units\nopen cells {collision.OpenCells} solid cells {collision.SolidCells} removed unreachable {collision.RemovedCells} kept regions {collision.KeptRegions}\nouter edge reachable from start {collision.ReachesEdge}\n" +
                 $"sectors {map.Sectors} (city {map.CitySectors}, terrain {map.TerrainSectors}) lines {map.Lines} vertices {map.Vertices}\nstart {map.StartX},{map.StartY}\nwad {new FileInfo(wad).Length / 1024} KiB\nmesh package {new FileInfo(package).Length / 1024} KiB\nconvert time {clock.ElapsedMilliseconds} ms\n");
@@ -116,132 +150,38 @@ static partial class Program
             return false;
         }
 
-        // ---- Terrain heights: a port of DefaultTerrainSampler and BlendLocationTerrainJob ----
+        // ---- Terrain heights come from WorldTerrain, the same function the overworld uses ----
 
-        static float Cubic(float v0, float v1, float v2, float v3, float t)
-        {
-            float a = (v3 - v2) - (v0 - v1), b = (v0 - v1) - a, c = v2 - v0;
-            return a * t * t * t + b * t * t + c * t + v1;
-        }
+        static float Perlin(float x, float y) => WorldTerrain.Perlin(x, y);
 
-        // Mathf.PerlinNoise is native Unity code. This classic Perlin surrogate has the same frequencies and range, as in the terrain treadmill spike.
-        static readonly int[] perm = BuildPermutation();
-        static int[] BuildPermutation()
+        static void PrepareSite(Site site)
         {
-            var random = new Random(417028);
-            var p = Enumerable.Range(0, 256).OrderBy(_ => random.Next()).ToArray();
-            return p.Concat(p).ToArray();
-        }
-        static float Perlin(float x, float y)
-        {
-            int xi = (int)Math.Floor(x), yi = (int)Math.Floor(y);
-            float fx = x - xi, fy = y - yi;
-            xi &= 255; yi &= 255;
-            float Fade(float t) => t * t * t * (t * (t * 6 - 15) + 10);
-            float Grad(int h, float dx, float dy) => ((h & 1) == 0 ? dx : -dx) + ((h & 2) == 0 ? dy : -dy);
-            float L(float a, float b, float t) => a + (b - a) * t;
-            float u = Fade(fx), v = Fade(fy);
-            float n = L(L(Grad(perm[perm[xi] + yi], fx, fy), Grad(perm[perm[xi + 1] + yi], fx - 1, fy), u),
-                        L(Grad(perm[perm[xi] + yi + 1], fx, fy - 1), Grad(perm[perm[xi + 1] + yi + 1], fx - 1, fy - 1), u), v);
-            return Math.Clamp((n + 1) / 2, 0, 1);
-        }
-
-        static float[,] SamplePixel(int mx, int my)
-        {
-            const int dim = TilesPerPixel + 1;
-            float div = (dim - 1) / 3f;
-            byte[] shm = woods.GetHeightMapValuesRange1Dim(mx - 2, my - 2, 4);
-            byte[,] lhm = woods.GetLargeHeightMapValuesRange(mx - 1, my, 3);
-            float S4(int r, int c) => shm[r + c * 4];
-            var result = new float[dim, dim];
-            for (int x = 0; x < dim; x++)
-                for (int y = 0; y < dim; y++)
+            var place = site.Place;
+            for (int by = 0; by < place.BlocksHigh; by++)
+                for (int bx = 0; bx < place.BlocksWide; bx++)
                 {
-                    float rx = x / div, ry = y / div;
-                    int ix = (int)Math.Floor(rx), iy = (int)Math.Floor(ry);
-                    float sx = x / (float)(dim - 1), sy = y / (float)(dim - 1), fx = (x - ix * div) / div, fy = (y - iy * div) / div;
-                    float a = Cubic(S4(0, 3), S4(1, 3), S4(2, 3), S4(3, 3), sx), b = Cubic(S4(0, 2), S4(1, 2), S4(2, 2), S4(3, 2), sx);
-                    float c = Cubic(S4(0, 1), S4(1, 1), S4(2, 1), S4(3, 1), sx), d = Cubic(S4(0, 0), S4(1, 0), S4(2, 0), S4(3, 0), sx);
-                    float h = Cubic(a, b, c, d, sy) * 8f;
-                    float L(int px, int py) => lhm[Math.Min(px, 8), Math.Min(py, 8)];
-                    a = Cubic(L(ix, iy), L(ix + 1, iy), L(ix + 2, iy), L(ix + 3, iy), fx);
-                    b = Cubic(L(ix, iy + 1), L(ix + 1, iy + 1), L(ix + 2, iy + 1), L(ix + 3, iy + 1), fx);
-                    c = Cubic(L(ix, iy + 2), L(ix + 1, iy + 2), L(ix + 2, iy + 2), L(ix + 3, iy + 2), fx);
-                    d = Cubic(L(ix, iy + 3), L(ix + 1, iy + 3), L(ix + 2, iy + 3), L(ix + 3, iy + 3), fx);
-                    h += Cubic(a, b, c, d, fy) * 4f;
-                    int nx = mx * (dim - 1) + x, ny = (MapsFile.MaxMapPixelY - my) * (dim - 1) + y;
-                    h += Math.Clamp(Perlin(nx * 0.3f, ny * 0.3f) * 0.5f, 0, 1) * Math.Clamp(Perlin(nx * 0.9f, ny * 0.9f) * 0.5f, 0, 1) * 10f;
-                    if (h < Ocean) h = Ocean;
-                    result[x, y] = Math.Clamp(h / (float)MaxTerrain, 0, 1);
-                }
-            return result;
-        }
-
-        static void PrepareCityTerrain(DFBlock[] blocks, int wide, int high, int originX, int originY)
-        {
-            locationTiles = new byte[TilesPerPixel, TilesPerPixel];
-            int xmin = int.MaxValue, ymin = int.MaxValue, xmax = 0, ymax = 0;
-            for (int by = 0; by < high; by++)
-                for (int bx = 0; bx < wide; bx++)
-                {
-                    var ground = blocks[by * wide + bx].RmbBlock.FldHeader.GroundData.GroundTiles;
+                    var ground = site.Blocks[by * place.BlocksWide + bx].RmbBlock.FldHeader.GroundData.GroundTiles;
                     for (int ty = 0; ty < TilesPerBlock; ty++)
                         for (int tx = 0; tx < TilesPerBlock; tx++)
                         {
                             var tile = ground[tx, TilesPerBlock - 1 - ty];
                             if (tile.TextureRecord >= 56) continue;
-                            int x = originX + bx * TilesPerBlock + tx, y = originY + by * TilesPerBlock + ty;
-                            xmin = Math.Min(xmin, x); xmax = Math.Max(xmax, x); ymin = Math.Min(ymin, y); ymax = Math.Max(ymax, y);
-                            locationTiles[x, y] = tile.TileBitfield == 0 ? byte.MaxValue : tile.TileBitfield;
+                            site.Tiles[place.OriginX + bx * TilesPerBlock + tx, place.OriginY + by * TilesPerBlock + ty] = tile.TileBitfield == 0 ? byte.MaxValue : tile.TileBitfield;
                         }
                 }
-            flatX0 = xmin - 3; flatX1 = xmax + 3; flatY0 = ymin - 3; flatY1 = ymax + 3;
-
-            var h = SamplePixel(cityX, cityY);
-            double sum = 0;
-            foreach (float v in h) sum += v;
-            target = (float)(sum / h.Length);
-            float x0 = flatX0 / (float)TilesPerPixel, x1 = flatX1 / (float)TilesPerPixel, y0 = flatY0 / (float)TilesPerPixel, y1 = flatY1 / (float)TilesPerPixel;
-            float left = 1 / x0, right = 1 / (1 - x1), top = 1 / y0, bottom = 1 / (1 - y1);
-            for (int y = 0; y <= TilesPerPixel; y++)
-            {
-                float v = y / (float)TilesPerPixel;
-                bool insideY = v >= y0 && v <= y1;
-                for (int x = 0; x <= TilesPerPixel; x++)
-                {
-                    float u = x / (float)TilesPerPixel, strength = 0;
-                    bool insideX = u >= x0 && u <= x1;
-                    if (insideX || insideY)
-                    {
-                        if (insideY && u <= x0) strength = u * left;
-                        else if (insideY && u >= x1) strength = (1 - u) * right;
-                        else if (insideX && v <= y0) strength = v * top;
-                        else if (insideX && v >= y1) strength = (1 - v) * bottom;
-                    }
-                    else
-                    {
-                        float xs = u <= x0 ? u * left : (1 - u) * right, ys = v <= y0 ? v * top : (1 - v) * bottom;
-                        strength = xs * ys; // BilinearInterpolator(0, 0, 0, 1, xs, ys)
-                    }
-                    h[x, y] = insideX && insideY ? target : h[x, y] + (target - h[x, y]) * strength;
-                }
-            }
-            pixels[(cityX, cityY)] = h;
+            site.FlatX0 = site.DX * TilesPerPixel + place.RectX0; site.FlatX1 = site.DX * TilesPerPixel + place.RectX1;
+            site.FlatY0 = site.DY * TilesPerPixel + place.RectY0; site.FlatY1 = site.DY * TilesPerPixel + place.RectY1;
+            site.Target = WorldTerrain.Pixel(place.X, place.Y)[(place.RectX0 + place.RectX1) / 2, (place.RectY0 + place.RectY1) / 2];
         }
 
-        static int FloorDiv(int a, int b) => a >= 0 ? a / b : -((-a + b - 1) / b);
+        static int FloorDiv(int a, int b) => WorldTerrain.FloorDiv(a, b);
 
-        // Normalized height at a tile vertex relative to the city's map pixel. +y is north, toward smaller map pixel Y.
-        static float Height(int tx, int ty)
-        {
-            int px = FloorDiv(tx, TilesPerPixel), py = FloorDiv(ty, TilesPerPixel);
-            var key = (cityX + px, cityY - py);
-            if (!pixels.TryGetValue(key, out var h)) pixels[key] = h = SamplePixel(key.Item1, key.Item2);
-            return h[tx - px * TilesPerPixel, ty - py * TilesPerPixel];
-        }
+        // Normalized height at a tile vertex relative to the primary location's map pixel. +y is north, toward smaller map pixel Y.
+        static float Height(int tx, int ty) => WorldTerrain.Height(cityX * TilesPerPixel + tx, (WorldTerrain.WorldH - 1 - cityY) * TilesPerPixel + ty);
 
         static double DoomZ(int tx, int ty) => (Height(tx, ty) - target) * HeightToDf * S;
-        static double DoomXY(int t) => (t - TilesPerPixel / 2) * DoomTile;
+        static double DoomX(int t) => (t - originTileX) * DoomTile;
+        static double DoomY(int t) => (t - originTileY) * DoomTile;
 
         // ---- Ground tiles: a port of DefaultTerrainTexturing ----
 
@@ -279,7 +219,7 @@ static partial class Program
         {
             float height = Height(tx, ty) * (float)MaxTerrain;
             if (height <= Ocean) return 0;
-            uint hash = (uint)(tx * 73856093) ^ (uint)(ty * 19349663);
+            uint hash = (uint)((cityX * TilesPerPixel + tx) * 73856093) ^ (uint)(((WorldTerrain.WorldH - 1 - cityY) * TilesPerPixel + ty) * 19349663); // world tiles, so every map agrees
             hash = (hash ^ (hash >> 13)) * 1274126177u;
             float jitter = ((hash >> 8) & 0xffff) / 65535f * 3f - 1.5f; // Stands in for Unity's Random.CreateFromIndex
             if (height <= Beach + jitter) return 1;
@@ -292,8 +232,13 @@ static partial class Program
 
         static byte TileAt(int tx, int ty)
         {
-            if (tx >= 0 && ty >= 0 && tx < TilesPerPixel && ty < TilesPerPixel && locationTiles[tx, ty] != 0)
-                return locationTiles[tx, ty] == byte.MaxValue ? (byte)0 : locationTiles[tx, ty];
+            int tilePixelX = FloorDiv(tx, TilesPerPixel), tilePixelY = FloorDiv(ty, TilesPerPixel);
+            foreach (var site in sites)
+            {
+                if (site.DX != tilePixelX || site.DY != tilePixelY) continue;
+                byte own = site.Tiles[tx - tilePixelX * TilesPerPixel, ty - tilePixelY * TilesPerPixel];
+                if (own != 0) return own == byte.MaxValue ? (byte)0 : own;
+            }
             int b0 = TileClass(tx, ty), b1 = TileClass(tx + 1, ty), b2 = TileClass(tx, ty + 1), b3 = TileClass(tx + 1, ty + 1);
             int shape = (b0 & 1) | (b1 & 1) << 1 | (b2 & 1) << 2 | (b3 & 1) << 3;
             return lookup[shape | ((b0 + b1 + b2 + b3) >> 2) << 4];
@@ -309,7 +254,7 @@ static partial class Program
             public int Triangles => batches.Values.Sum(b => b.Count) / 24;
 
             readonly string arena2;
-            readonly DFLocation location;
+            DFLocation location;
             readonly double originX, originZ;
             readonly Dictionary<(int archive, int record), List<float>> batches = new Dictionary<(int, int), List<float>>();
             readonly Dictionary<int, TextureFile> files = new Dictionary<int, TextureFile>();
@@ -320,6 +265,8 @@ static partial class Program
             {
                 this.arena2 = arena2; this.location = location; this.originX = originX; this.originZ = originZ;
             }
+
+            public void Use(DFLocation current) => location = current; // climate swaps follow the location being placed
 
             TextureFile Archive(int a)
             {
@@ -347,8 +294,10 @@ static partial class Program
 
             void AddModel(Arch3dFile arch, uint id, V3 position, double rx, double ry, double rz, V3 scale, V3 parent, double parentYaw)
             {
-                if (id == GateClosed) id = GateOpen; // Gates stand open so the city connects to the terrain.
-                if (id == GateOpen) Gates++;
+                // A gate's frame stays in the static mesh. Its two leaves become swinging door objects (AddGate).
+                if (id == GateClosed) id = GateOpen;
+                bool isGate = id == GateOpen;
+                if (isGate) Gates++;
                 if (!meshes.TryGetValue(id, out var mesh))
                 {
                     int record = arch.GetRecordIndex(id);
@@ -373,6 +322,7 @@ static partial class Program
                     if (!batches.TryGetValue(key, out var v)) batches[key] = v = new List<float>();
                     foreach (var plane in sub.Planes)
                     {
+                        if (isGate && GateLeaf(sub.TextureArchive, plane) != 0) continue;
                         var world = plane.Points.Select(p => Place(p.X, -p.Y, p.Z)).ToArray();
                         var n = Rotate(Rotate(new V3(plane.Points[0].NX, -plane.Points[0].NY, plane.Points[0].NZ), rx, ry, rz), 0, parentYaw, 0);
                         double length = Math.Sqrt(n.X * n.X + n.Y * n.Y + n.Z * n.Z);
@@ -392,6 +342,95 @@ static partial class Program
                         }
                     }
                 }
+                if (isGate) AddGate(mesh, Place);
+            }
+
+            // Model 446 holds both leaves in their open pose: left beside x = -314, right beside x = 59, both hinged at z = -128.
+            const double HingeLeftX = -314, HingeRightX = 59, HingeZ = -128;
+            const int GateTextureArchive = 321;
+            readonly string[] gateLeafObj = new string[2];
+            readonly double[,] gateLeafBounds = new double[2, 6];
+            public readonly List<string> GatePlacements = new List<string>();
+
+            static int GateLeaf(int archive, DFMesh.DFPlane plane)
+            {
+                if (archive != GateTextureArchive) return 0;
+                double low = plane.Points.Min(p => (double)p.X), high = plane.Points.Max(p => (double)p.X);
+                return high <= -282 ? 1 : low >= 27 && high <= 59 ? -1 : 0;
+            }
+
+            // Writes one leaf as an OBJ in its closed pose, relative to the hinge, as door_objects.zs expects.
+            void BuildGateLeaf(DFMesh mesh, int leaf)
+            {
+                int slot = leaf > 0 ? 0 : 1;
+                double hx = leaf > 0 ? HingeLeftX : HingeRightX;
+                (double x, double y) Close(double ox, double oz) => leaf > 0 ? (oz, -ox) : (-oz, ox);
+                double x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9, z0 = 1e9, z1 = -1e9;
+                foreach (var sub in mesh.SubMeshes)
+                    foreach (var plane in sub.Planes)
+                    {
+                        if (GateLeaf(sub.TextureArchive, plane) != leaf) continue;
+                        foreach (var p in plane.Points)
+                        {
+                            var c = Close(p.X - hx, p.Z - HingeZ);
+                            x0 = Math.Min(x0, c.x * S); x1 = Math.Max(x1, c.x * S); y0 = Math.Min(y0, c.y * S); y1 = Math.Max(y1, c.y * S);
+                            z0 = Math.Min(z0, -p.Y * S); z1 = Math.Max(z1, -p.Y * S);
+                        }
+                    }
+                double cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+                string F(double v) => v.ToString("0.#####", CultureInfo.InvariantCulture);
+                var text = new StringBuilder("# Daggerfall gate leaf" + (char)10);
+                int next = 1;
+                foreach (var sub in mesh.SubMeshes)
+                {
+                    var source = Archive(sub.TextureArchive);
+                    double w = source.GetWidth(sub.TextureRecord), h = source.GetHeight(sub.TextureRecord);
+                    int archive = Swap(sub.TextureArchive, sub.TextureRecord);
+                    if (Archive(archive) == null || sub.TextureRecord >= Archive(archive).RecordCount) archive = sub.TextureArchive;
+                    bool any = false;
+                    foreach (var plane in sub.Planes)
+                    {
+                        if (GateLeaf(sub.TextureArchive, plane) != leaf) continue;
+                        if (!any)
+                        {
+                            any = true;
+                            text.Append($"usemtl dfmesh/a{archive:D3}r{sub.TextureRecord:D2}.png" + (char)10);
+                            if (!batches.ContainsKey((archive, sub.TextureRecord))) batches[(archive, sub.TextureRecord)] = new List<float>(); // keeps the texture in the package
+                        }
+                        int first = next;
+                        foreach (var p in plane.Points)
+                        {
+                            var c = Close(p.X - hx, p.Z - HingeZ);
+                            var n = Close(p.NX, p.NZ);
+                            double nz = -p.NY, length = Math.Sqrt(n.x * n.x + n.y * n.y + nz * nz);
+                            if (length < 1e-6) length = 1;
+                            // The engine's OBJ loader negates z and flips v.
+                            text.Append($"v {F(c.x * S - cx)} {F(-p.Y * S)} {F(-(c.y * S - cy))}{(char)10}vt {F(p.U / w)} {F(1 - p.V / h)}{(char)10}vn {F(n.x / length)} {F(nz / length)} {F(-n.y / length)}{(char)10}");
+                            next++;
+                        }
+                        for (int i = 1; i + 1 < plane.Points.Length; i++)
+                        {
+                            int a = first, b = first + i + 1, d = first + i;
+                            text.Append($"f {a}/{a}/{a} {b}/{b}/{b} {d}/{d}/{d}" + (char)10);
+                        }
+                    }
+                }
+                gateLeafObj[slot] = text.ToString();
+                gateLeafBounds[slot, 0] = x0; gateLeafBounds[slot, 1] = x1; gateLeafBounds[slot, 2] = y0;
+                gateLeafBounds[slot, 3] = y1; gateLeafBounds[slot, 4] = z0; gateLeafBounds[slot, 5] = z1;
+            }
+
+            void AddGate(DFMesh mesh, Func<double, double, double, V3> place)
+            {
+                if (gateLeafObj[0] == null) { BuildGateLeaf(mesh, 1); BuildGateLeaf(mesh, -1); }
+                var origin = place(0, 0, 0);
+                var axis = place(1, 0, 0);
+                double angle = Math.Atan2(axis.Z - origin.Z, axis.X - origin.X) * 180 / Math.PI;
+                for (int slot = 0; slot < 2; slot++)
+                {
+                    var hinge = place(slot == 0 ? HingeLeftX : HingeRightX, 0, HingeZ);
+                    GatePlacements.Add(FormattableString.Invariant($"{slot} {(hinge.X - originX) * S:F3} {(hinge.Z - originZ) * S:F3} {hinge.Y * S:F3} {angle:F3} {gateLeafBounds[slot, 0]:F3} {gateLeafBounds[slot, 1]:F3} {gateLeafBounds[slot, 2]:F3} {gateLeafBounds[slot, 3]:F3} {gateLeafBounds[slot, 4]:F3} {gateLeafBounds[slot, 5]:F3} {(slot == 0 ? 1 : -1)}"));
+                }
             }
 
             void AddFlat(int archive, int record, double x, double up, double z)
@@ -408,12 +447,12 @@ static partial class Program
                 Flats.Add((archive, record, (x - originX) * S, (z - originZ) * S, up * S, size.w / size.texW * S, size.h / size.texH * S));
             }
 
-            public void AddBlock(DFBlock block, Arch3dFile arch, double blockX, double blockZ)
+            public void AddBlock(DFBlock block, Arch3dFile arch, double blockX, double blockZ, double up)
             {
                 const double toRad = Math.PI / 180;
                 double div = BlocksFile.RotationDivisor;
                 var data = block.RmbBlock;
-                var origin = new V3(blockX, 2, blockZ);
+                var origin = new V3(blockX, 2 + up, blockZ);
                 V3 ScaleOf(DFBlock.RmbBlock3dObjectRecord o) => new V3(o.XScale == 0 ? 1 : o.XScale, o.YScale == 0 ? 1 : o.YScale, o.ZScale == 0 ? 1 : o.ZScale);
                 foreach (var sub in data.SubRecords)
                 {
@@ -443,11 +482,11 @@ static partial class Program
                             AddFlat(location.Climate.NatureArchive, scenery[x, 15 - y].TextureRecord, origin.X + x * TileDf, origin.Y - 2, origin.Z + y * TileDf + TileDf);
             }
 
-            public void AddTerrain(int from, int to)
+            public void AddTerrain(int fromX, int toX, int fromY, int toY)
             {
                 int archive = location.Climate.GroundArchive;
-                for (int ty = from; ty < to; ty++)
-                    for (int tx = from; tx < to; tx++)
+                for (int ty = fromY; ty < toY; ty++)
+                    for (int tx = fromX; tx < toX; tx++)
                     {
                         byte tile = TileAt(tx, ty);
                         int record = tile & 63;
@@ -464,7 +503,7 @@ static partial class Program
                                 case 3: tu = 1 - w; tv = u; break;
                                 default: tu = u; tv = w; break;
                             }
-                            v.Add((float)DoomXY(x)); v.Add((float)DoomZ(x, y)); v.Add((float)DoomXY(y));
+                            v.Add((float)DoomX(x)); v.Add((float)DoomZ(x, y)); v.Add((float)DoomY(y));
                             v.Add(tu); v.Add(1 - tv); // Unity samples tile images bottom-up
                             v.Add(0); v.Add(1); v.Add(0);
                         }
@@ -475,15 +514,15 @@ static partial class Program
 
             // DefaultTerrainNature's rules. Unity's random sequence is not reproduced, so individual trees differ from Daggerfall Unity.
             // Only the walkable area gets trees: a billboard outside every Doom sector would never be drawn.
-            public void AddNature(int from, int to)
+            public void AddNature(int fromX, int toX, int fromY, int toY)
             {
                 const int clearance = 4;
                 const double maxSteepness = 50, sinkRatio = 70;
                 var random = new Random(TerrainKey(cityX, cityY));
-                for (int y = from; y < to; y++)
-                    for (int x = from; x < to; x++)
+                for (int y = fromY; y < toY; y++)
+                    for (int x = fromX; x < toX; x++)
                     {
-                        if (x >= flatX0 - clearance && x < flatX1 + clearance && y >= flatY0 - clearance && y < flatY1 + clearance) continue;
+                        if (!Walkable(x, y) || sites.Any(q => x >= q.FlatX0 - clearance && x < q.FlatX1 + clearance && y >= q.FlatY0 - clearance && y < q.FlatY1 + clearance)) continue;
                         int px = FloorDiv(x, TilesPerPixel), py = FloorDiv(y, TilesPerPixel);
                         double elevation = Math.Clamp(woods.GetHeightMapValue(cityX + px, cityY - py) / 128.0, 0.4, 1.0);
                         int tile = TileAt(x, y) & 0x3F;
@@ -496,13 +535,13 @@ static partial class Program
                         double steepness = Math.Atan(Math.Sqrt(dx * dx + dy * dy)) * 180 / Math.PI;
                         if (steepness > maxSteepness) continue;
                         double up = (Height(x, y) - target) * HeightToDf - steepness / sinkRatio * UnityToDf;
-                        AddFlat(location.Climate.NatureArchive, record, originX + (x - TilesPerPixel / 2) * TileDf, up, originZ + (y - TilesPerPixel / 2) * TileDf);
+                        AddFlat(location.Climate.NatureArchive, record, originX + (x - originTileX) * TileDf, up, originZ + (y - originTileY) * TileDf);
                     }
             }
 
             static int TerrainKey(int x, int y) => (y << 16) + x;
 
-            public void WritePackage(string path, DFLocation place, string metadata)
+            public void WritePackage(string path, DFLocation place, string metadata, string townInfo, string mapName)
             {
                 var keys = batches.Keys.OrderBy(k => k.archive).ThenBy(k => k.record).ToList();
                 BatchCount = keys.Count;
@@ -517,7 +556,7 @@ static partial class Program
                 {
                     var writer = new BinaryWriter(s);
                     writer.Write(Encoding.ASCII.GetBytes("DFM1"));
-                    writer.Write(Encoding.ASCII.GetBytes("MAP01\0\0\0"));
+                    writer.Write(Encoding.ASCII.GetBytes(mapName.PadRight(8, '\0')));
                     writer.Write(keys.Count); writer.Write(keys.Count); writer.Write(batches.Values.Sum(b => b.Count) / 8);
                     foreach (var k in keys)
                         writer.Write(Encoding.ASCII.GetBytes($"dfmesh/a{k.archive:D3}r{k.record:D2}.png".PadRight(32, '\0')));
@@ -563,9 +602,24 @@ static partial class Program
                     flatList.Append(FormattableString.Invariant($"F{f.archive:D3}R{f.record:D2} {f.x:F2} {f.y:F2} {f.z:F2} {f.sx:F4} {f.sy:F4}\n"));
                 Text("DFFLATS", flatList.ToString());
                 Text("DFCITY", metadata);
+                Text("DDTOWN", townInfo);
                 WriteSky(zip);
-                Text("MAPINFO", $"GameInfo\n{{\n\tAddEventHandlers = \"DFCityHandler\"\n}}\nmap MAP01 \"{place.Name}\"\n{{\n\tpixelratio = 1.0\n\tsky1 = \"DFSKY\"\n}}\n");
-                Text("zscript.zs", CityScript);
+                Text("MAPINFO", $"GameInfo\n{{\n\tAddEventHandlers = \"DFCityHandler\"\n}}\nmap {mapName} \"{place.Name}\"\n{{\n\tpixelratio = 1.0\n\tsky1 = \"DFSKY\"\n\tkeepfullinventory\n}}\n");
+                // The swinging gates reuse the dungeon door runtime. Its handler is not registered here, so only DFGATES spawns doors.
+                string doors = File.ReadAllText(Path.Combine(SourceDirectory(), "door_objects.zs"));
+                doors = doors.Substring(doors.IndexOf((char)10) + 1);
+                Text("zscript.zs", CityScript.Replace("@MAP@", mapName) + doors + "class DFDoorVisual0 : DFDoorVisual {}" + (char)10 + "class DFDoorVisual1 : DFDoorVisual {}" + (char)10);
+                Text("DFGATES", string.Join((char)10, GatePlacements) + (char)10);
+                if (gateLeafObj[0] != null)
+                {
+                    var modeldef = new StringBuilder();
+                    for (int slot = 0; slot < 2; slot++)
+                    {
+                        Text($"models/dfdoors/gate{slot}.obj", gateLeafObj[slot]);
+                        modeldef.Append($"Model DFDoorVisual{slot}{(char)10}{{{(char)10}Path \"models/dfdoors\"{(char)10}DONTCULLBACKFACES{(char)10}Model 0 \"gate{slot}.obj\"{(char)10}FrameIndex DFDR A 0 0{(char)10}}}{(char)10}");
+                    }
+                    Text("MODELDEF", modeldef.ToString());
+                }
             }
 
             void WriteSky(ZipArchive zip)
@@ -631,7 +685,7 @@ class DFCityFlat : Actor
 
 class DFCityHandler : EventHandler
 {
-	static bool IsCity() { return level.MapName ~== ""MAP01"" && Wads.CheckNumForName(""DFCITY"", Wads.ns_global) >= 0; }
+	static bool IsCity() { return level.MapName ~== ""@MAP@"" && Wads.CheckNumForName(""DFCITY"", Wads.ns_global) >= 0; }
 
 	override void WorldLoaded(WorldEvent e)
 	{
@@ -654,6 +708,29 @@ class DFCityHandler : EventHandler
 			a.scale = (f[4].ToDouble(), f[5].ToDouble());
 		}
 		Console.Printf(""DFCITY: %d billboards"", rows.Size());
+		SpawnGates();
+	}
+
+	// Each gate leaf is a hinged door object: slot pivotX pivotY pivotZ angle x0 x1 y0 y1 z0 z1 direction.
+	static void SpawnGates()
+	{
+		int lump = Wads.CheckNumForName(""DFGATES"", Wads.ns_global);
+		if (lump < 0) return;
+		Array<String> lines;
+		Wads.ReadLump(lump).Split(lines, ""\n"", TOK_SKIPEMPTY);
+		int count = 0;
+		for (int n = 0; n < lines.Size(); n++)
+		{
+			Array<String> f;
+			lines[n].Split(f, "" "", TOK_SKIPEMPTY);
+			if (f.Size() < 12) continue;
+			let door = DFDoor(Actor.Spawn(""DFDoor"", (f[1].ToDouble(), f[2].ToDouble(), f[3].ToDouble()), NO_REPLACE));
+			door.Setup(f[0].ToInt(), f[1].ToDouble(), f[2].ToDouble(), f[3].ToDouble(), f[4].ToDouble(),
+				f[5].ToDouble(), f[6].ToDouble(), f[7].ToDouble(), f[8].ToDouble(), f[9].ToDouble(), f[10].ToDouble());
+			door.swingDir = f[11].ToDouble();
+			count++;
+		}
+		Console.Printf(""DFGATES spawned %d leaves"", count);
 	}
 
 	override void PlayerEntered(PlayerEvent e) { if (IsCity()) Fit(players[e.PlayerNumber].mo); }
@@ -670,18 +747,21 @@ class DFCityHandler : EventHandler
             const double Step = 24, Body = 56, Clearance = 2;
             public int W, H, OpenCells, SolidCells, RemovedCells, KeptRegions;
             public bool ReachesEdge;
-            readonly int cell, margin, perTile;
-            readonly double x0, y0;
+            readonly int cell, perTile, flatX0, flatX1, flatY0, flatY1;
+            readonly bool primary;
+            readonly double x0, y0, baseZ;
             short[] floor; // quantized floor, or short.MinValue when solid
             int[] component;
             int startIndex = -1;
 
-            public Collision(int cell, int margin)
+            public Collision(int cell, Site site, bool primary)
             {
-                this.cell = cell; this.margin = margin;
+                this.cell = cell; this.primary = primary;
+                flatX0 = site.FlatX0; flatX1 = site.FlatX1; flatY0 = site.FlatY0; flatY1 = site.FlatY1;
+                baseZ = (site.Target - target) * HeightToDf * S;
                 perTile = (int)Math.Round(DoomTile / cell);
                 W = (flatX1 - flatX0) * perTile; H = (flatY1 - flatY0) * perTile;
-                x0 = DoomXY(flatX0); y0 = DoomXY(flatY0);
+                x0 = DoomX(flatX0); y0 = DoomY(flatY0);
             }
 
             public void Rasterize(List<(V3 a, V3 b, V3 c)> triangles)
@@ -711,9 +791,9 @@ class DFCityHandler : EventHandler
                 for (int c = 0; c < floor.Length; c++)
                 {
                     var list = hits[c];
-                    if (list == null) continue;
+                    if (list == null) { floor[c] = (short)(Math.Round(baseZ / 4) * 4); continue; }
                     list.Sort((p, q) => p.lo.CompareTo(q.lo));
-                    double f = 0;
+                    double f = baseZ;
                     foreach (var (lo, hi) in list)
                         if (hi > f && hi <= f + Step && lo <= f + Step) f = hi;
                     bool solid = false;
@@ -809,7 +889,7 @@ class DFCityHandler : EventHandler
                                 if (floor[c + a + b * W] != floor[c]) { clear = false; break; }
                         if (clear) { best = d; startIndex = c; }
                     }
-                if (startIndex < 0) throw new InvalidDataException("no open start cell");
+                if (startIndex < 0 && primary) throw new InvalidDataException("no open start cell");
             }
 
             // Test routes from the start out through the walls toward each side, over cells wide enough for the player's box.
@@ -869,47 +949,55 @@ class DFCityHandler : EventHandler
                 return text.ToString();
             }
 
-            public MapText Build()
+            // One UDMF map: each location's raster, and sloped terrain triangles over the walkable tiles around them.
+            public static MapText Build(List<Collision> rasters, int tx0, int tx1, int ty0, int ty1)
             {
-                // City sectors: connected cells with the same floor.
-                var sectorOf = new int[W * H];
-                Array.Fill(sectorOf, NoSector);
                 var floors = new List<int>();
                 var stack = new Stack<int>();
-                for (int s = 0; s < sectorOf.Length; s++)
+                foreach (var r in rasters)
                 {
-                    if (floor[s] == short.MinValue || sectorOf[s] >= 0) continue;
-                    int id = floors.Count;
-                    floors.Add(floor[s]);
-                    sectorOf[s] = id;
-                    stack.Push(s);
-                    while (stack.Count > 0)
+                    r.sectorOf = new int[r.W * r.H];
+                    Array.Fill(r.sectorOf, NoSector);
+                    for (int s = 0; s < r.sectorOf.Length; s++)
                     {
-                        int p = stack.Pop(), i = p % W, j = p / W;
-                        void Try(int ni, int nj)
+                        if (r.floor[s] == short.MinValue || r.sectorOf[s] >= 0) continue;
+                        int id = floors.Count;
+                        floors.Add(r.floor[s]);
+                        r.sectorOf[s] = id;
+                        stack.Push(s);
+                        while (stack.Count > 0)
                         {
-                            if (ni < 0 || nj < 0 || ni >= W || nj >= H) return;
-                            int q = ni + nj * W;
-                            if (sectorOf[q] < 0 && floor[q] == floor[s]) { sectorOf[q] = id; stack.Push(q); }
+                            int p = stack.Pop(), i = p % r.W, j = p / r.W;
+                            void Try(int ni, int nj)
+                            {
+                                if (ni < 0 || nj < 0 || ni >= r.W || nj >= r.H) return;
+                                int q = ni + nj * r.W;
+                                if (r.sectorOf[q] < 0 && r.floor[q] == r.floor[s]) { r.sectorOf[q] = id; stack.Push(q); }
+                            }
+                            Try(i + 1, j); Try(i - 1, j); Try(i, j + 1); Try(i, j - 1);
                         }
-                        Try(i + 1, j); Try(i - 1, j); Try(i, j + 1); Try(i, j - 1);
                     }
                 }
                 int citySectors = floors.Count;
 
-                // Terrain: two sloped sectors per tile outside the flat rectangle.
-                int tx0 = -margin, tx1 = TilesPerPixel + margin, ty0 = -margin, ty1 = TilesPerPixel + margin, across = tx1 - tx0;
-                var lower = new int[across * across]; // triangle (x,y) (x+1,y+1) (x+1,y): right and bottom edges
-                var upper = new int[across * across]; // triangle (x,y) (x,y+1) (x+1,y+1): left and top edges
-                bool InFlat(int x, int y) => x >= flatX0 && x < flatX1 && y >= flatY0 && y < flatY1;
+                // Terrain: two sloped sectors per walkable tile outside the flat rectangles.
+                int across = tx1 - tx0, tall = ty1 - ty0;
+                var lower = new int[across * tall]; // triangle (x,y) (x+1,y+1) (x+1,y): right and bottom edges
+                var upper = new int[across * tall]; // triangle (x,y) (x,y+1) (x+1,y+1): left and top edges
+                var kind = new byte[across * tall]; // 0 outside, 1 terrain, 2 flat
                 int TileIndex(int x, int y) => (x - tx0) + (y - ty0) * across;
-                bool InMap(int x, int y) => x >= tx0 && x < tx1 && y >= ty0 && y < ty1;
+                for (int y = ty0; y < ty1; y++)
+                    for (int x = tx0; x < tx1; x++)
+                        kind[TileIndex(x, y)] = (byte)(sites.Any(q => q.InFlat(x, y)) ? 2 : Walkable(x, y) ? 1 : 0);
+                bool InBox(int x, int y) => x >= tx0 && x < tx1 && y >= ty0 && y < ty1;
+                bool InFlat(int x, int y) => InBox(x, y) && kind[TileIndex(x, y)] == 2;
+                bool InMap(int x, int y) => InBox(x, y) && kind[TileIndex(x, y)] == 1;
                 var sectors = new StringBuilder();
                 string F(double v) => v.ToString("R", CultureInfo.InvariantCulture);
-                double maxZ = 0;
+                double maxZ = floors.Count > 0 ? floors.Max() : 0;
                 for (int y = ty0; y <= ty1; y++)
                     for (int x = tx0; x <= tx1; x++)
-                        maxZ = Math.Max(maxZ, DoomZ(x, y));
+                        if (InMap(x, y) || InMap(x - 1, y) || InMap(x, y - 1) || InMap(x - 1, y - 1)) maxZ = Math.Max(maxZ, DoomZ(x, y));
                 int ceiling = (int)Math.Ceiling(maxZ / 64 + 1) * 64 + 2048;
                 foreach (int f in floors)
                     sectors.Append($"sector {{ heightfloor = {f}; heightceiling = {ceiling}; texturefloor = \"FLOOR0_1\"; textureceiling = \"F_SKY1\"; lightlevel = 192; }}\n");
@@ -928,8 +1016,8 @@ class DFCityHandler : EventHandler
                     for (int x = tx0; x < tx1; x++)
                     {
                         int t = TileIndex(x, y);
-                        if (InFlat(x, y)) { lower[t] = upper[t] = NoSector; continue; }
-                        double X0 = DoomXY(x), X1 = DoomXY(x + 1), Y0 = DoomXY(y), Y1 = DoomXY(y + 1);
+                        if (!InMap(x, y)) { lower[t] = upper[t] = NoSector; continue; }
+                        double X0 = DoomX(x), X1 = DoomX(x + 1), Y0 = DoomY(y), Y1 = DoomY(y + 1);
                         double z00 = DoomZ(x, y), z10 = DoomZ(x + 1, y), z01 = DoomZ(x, y + 1), z11 = DoomZ(x + 1, y + 1);
                         lower[t] = sectorCount++; Slope(X0, Y0, z00, X1, Y1, z11, X1, Y0, z10);
                         upper[t] = sectorCount++; Slope(X0, Y0, z00, X0, Y1, z01, X1, Y1, z11);
@@ -950,70 +1038,77 @@ class DFCityHandler : EventHandler
                     sides.Append(two ? $"sidedef {{ sector = {sector}; texturetop = \"STONE2\"; texturebottom = \"STONE2\"; }}\n" : $"sidedef {{ sector = {sector}; texturemiddle = \"STONE2\"; }}\n");
                     return sideCount++;
                 }
-                void Line(double ax, double ay, double bx, double by, int right, int left)
+                void Line(double ax, double ay, double bx, double by, int right, int left, bool zone = false)
                 {
                     if (right == left) return;
                     if (right < 0) { (ax, ay, bx, by) = (bx, by, ax, ay); (right, left) = (left, right); }
                     int v1 = Vertex(ax, ay), v2 = Vertex(bx, by), front = Side(right, left >= 0);
-                    lines.Append(left >= 0 ? $"linedef {{ v1 = {v1}; v2 = {v2}; sidefront = {front}; sideback = {Side(left, true)}; twosided = true; }}\n" : $"linedef {{ v1 = {v1}; v2 = {v2}; sidefront = {front}; blocking = true; }}\n");
+                    lines.Append(left >= 0 ? $"linedef {{ v1 = {v1}; v2 = {v2}; sidefront = {front}; sideback = {Side(left, true)}; twosided = true;{(zone ? " zoneboundary = true;" : "")} }}\n" : $"linedef {{ v1 = {v1}; v2 = {v2}; sidefront = {front}; blocking = true; }}\n");
                     lineCount++;
                 }
 
-                // Terrain edges. Edges against the flat rectangle are written by the raster pass below.
+                // Terrain edges. Edges against a flat rectangle are written by the raster pass below.
                 for (int y = ty0; y < ty1; y++)
                     for (int x = tx0; x < tx1; x++)
                     {
-                        if (InFlat(x, y)) continue;
+                        if (!InMap(x, y)) continue;
                         int t = TileIndex(x, y);
-                        double X0 = DoomXY(x), X1 = DoomXY(x + 1), Y0 = DoomXY(y), Y1 = DoomXY(y + 1);
+                        double X0 = DoomX(x), X1 = DoomX(x + 1), Y0 = DoomY(y), Y1 = DoomY(y + 1);
                         Line(X0, Y0, X1, Y1, lower[t], upper[t]);
-                        if (!InFlat(x + 1, y)) Line(X1, Y0, X1, Y1, InMap(x + 1, y) ? upper[TileIndex(x + 1, y)] : NoSector, lower[t]);
-                        if (!InFlat(x, y + 1)) Line(X0, Y1, X1, Y1, upper[t], InMap(x, y + 1) ? lower[TileIndex(x, y + 1)] : NoSector);
-                        if (x == tx0) Line(X0, Y0, X0, Y1, upper[t], NoSector);
-                        if (y == ty0) Line(X0, Y0, X1, Y0, NoSector, lower[t]);
+                        if (!InFlat(x + 1, y)) Line(X1, Y0, X1, Y1, InMap(x + 1, y) ? upper[TileIndex(x + 1, y)] : NoSector, lower[t], (x + 1) % ZoneTiles == 0);
+                        if (!InFlat(x, y + 1)) Line(X0, Y1, X1, Y1, upper[t], InMap(x, y + 1) ? lower[TileIndex(x, y + 1)] : NoSector, (y + 1) % ZoneTiles == 0);
+                        if (!InMap(x - 1, y) && !InFlat(x - 1, y)) Line(X0, Y0, X0, Y1, upper[t], NoSector);
+                        if (!InMap(x, y - 1) && !InFlat(x, y - 1)) Line(X0, Y0, X1, Y0, NoSector, lower[t]);
                     }
 
-                // City cell boundaries, merged along their length. Cells past the rectangle resolve to the adjoining terrain triangle.
-                int Id(int i, int j)
+                // Raster cell boundaries, merged along their length. Cells past a rectangle resolve to the adjoining terrain triangle.
+                foreach (var r in rasters)
                 {
-                    if (i >= 0 && j >= 0 && i < W && j < H) return sectorOf[i + j * W];
-                    if (i < 0) return lower[TileIndex(flatX0 - 1, flatY0 + j / perTile)];
-                    if (i >= W) return upper[TileIndex(flatX1, flatY0 + j / perTile)];
-                    if (j < 0) return upper[TileIndex(flatX0 + i / perTile, flatY0 - 1)];
-                    return lower[TileIndex(flatX0 + i / perTile, flatY1)];
-                }
-                for (int i = 0; i <= W; i++)
-                {
-                    int run = -1, runLeft = 0, runRight = 0;
-                    for (int j = 0; j <= H; j++)
+                    int W = r.W, H = r.H, cell = r.cell, perTile = r.perTile;
+                    double x0 = r.x0, y0 = r.y0;
+                    int Id(int i, int j)
                     {
-                        int l = j < H ? Id(i - 1, j) : NoSector, r = j < H ? Id(i, j) : NoSector;
-                        bool edge = j < H && l != r;
-                        if (run >= 0 && (!edge || l != runLeft || r != runRight))
-                        {
-                            Line(x0 + i * cell, y0 + run * cell, x0 + i * cell, y0 + j * cell, runRight, runLeft);
-                            run = -1;
-                        }
-                        if (edge && run < 0) { run = j; runLeft = l; runRight = r; }
+                        if (i >= 0 && j >= 0 && i < W && j < H) return r.sectorOf[i + j * W];
+                        if (i < 0) return lower[TileIndex(r.flatX0 - 1, r.flatY0 + j / perTile)];
+                        if (i >= W) return upper[TileIndex(r.flatX1, r.flatY0 + j / perTile)];
+                        if (j < 0) return upper[TileIndex(r.flatX0 + i / perTile, r.flatY0 - 1)];
+                        return lower[TileIndex(r.flatX0 + i / perTile, r.flatY1)];
                     }
-                }
-                for (int j = 0; j <= H; j++)
-                {
-                    int run = -1, runBelow = 0, runAbove = 0;
+                    bool Zone(int a, int b) => a >= citySectors || b >= citySectors; // keeps each zone to one raster or one terrain patch
                     for (int i = 0; i <= W; i++)
                     {
-                        int b = i < W ? Id(i, j - 1) : NoSector, a = i < W ? Id(i, j) : NoSector;
-                        bool edge = i < W && a != b;
-                        if (run >= 0 && (!edge || b != runBelow || a != runAbove))
+                        int run = -1, runLeft = 0, runRight = 0;
+                        for (int j = 0; j <= H; j++)
                         {
-                            Line(x0 + run * cell, y0 + j * cell, x0 + i * cell, y0 + j * cell, runBelow, runAbove);
-                            run = -1;
+                            int l = j < H ? Id(i - 1, j) : NoSector, q = j < H ? Id(i, j) : NoSector;
+                            bool edge = j < H && l != q;
+                            if (run >= 0 && (!edge || l != runLeft || q != runRight))
+                            {
+                                Line(x0 + i * cell, y0 + run * cell, x0 + i * cell, y0 + j * cell, runRight, runLeft, Zone(runLeft, runRight));
+                                run = -1;
+                            }
+                            if (edge && run < 0) { run = j; runLeft = l; runRight = q; }
                         }
-                        if (edge && run < 0) { run = i; runBelow = b; runAbove = a; }
+                    }
+                    for (int j = 0; j <= H; j++)
+                    {
+                        int run = -1, runBelow = 0, runAbove = 0;
+                        for (int i = 0; i <= W; i++)
+                        {
+                            int b = i < W ? Id(i, j - 1) : NoSector, a = i < W ? Id(i, j) : NoSector;
+                            bool edge = i < W && a != b;
+                            if (run >= 0 && (!edge || b != runBelow || a != runAbove))
+                            {
+                                Line(x0 + run * cell, y0 + j * cell, x0 + i * cell, y0 + j * cell, runBelow, runAbove, Zone(runBelow, runAbove));
+                                run = -1;
+                            }
+                            if (edge && run < 0) { run = i; runBelow = b; runAbove = a; }
+                        }
                     }
                 }
 
-                double startX = x0 + (startIndex % W + 0.5) * cell, startY = y0 + (startIndex / W + 0.5) * cell;
+                var main = rasters[0];
+                double startX = main.x0 + (main.startIndex % main.W + 0.5) * main.cell, startY = main.y0 + (main.startIndex / main.W + 0.5) * main.cell;
                 var text = new StringBuilder("namespace = \"zdoom\";\n");
                 foreach (var pair in vertices.OrderBy(p => p.Value))
                     text.Append($"vertex {{ x = {(pair.Key.Item1 / 8.0).ToString("0.0##", CultureInfo.InvariantCulture)}; y = {(pair.Key.Item2 / 8.0).ToString("0.0##", CultureInfo.InvariantCulture)}; }}\n");
@@ -1021,6 +1116,9 @@ class DFCityHandler : EventHandler
                 text.Append(FormattableString.Invariant($"thing {{ x = {startX:F1}; y = {startY:F1}; angle = 90; type = 1; skill1 = true; skill2 = true; skill3 = true; skill4 = true; skill5 = true; single = true; }}\n"));
                 return new MapText { Text = text.ToString(), Sectors = sectorCount, CitySectors = citySectors, TerrainSectors = sectorCount - citySectors, Lines = lineCount, Vertices = vertices.Count, StartX = startX, StartY = startY };
             }
+
+            const int ZoneTiles = 16;
+            int[] sectorOf;
         }
 
         sealed class MapText
