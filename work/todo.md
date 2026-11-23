@@ -44,7 +44,11 @@ Approved work that waits until the owner has reviewed the bridge core. Automated
 
 ### Position sync
 
-Doom continuously tells Daggerfall where the player is, through a deterministic coordinate transform at the 75% world scale, so Daggerfall can track the player's location for travel, transitions, and saves. This is one of the four core technical hurdles. Moving Daggerfall's position makes it stream terrain and locations. Leave that running and measure its cost. Do not disable it, because the NPC design is not settled.
+Keep Daggerfall and Doom loaded into the same area, through a deterministic coordinate transform at the 75% world scale. This is one of the four core technical hurdles.
+
+- Perfect sync is not needed. Daggerfall applying the player's position about once per second should be enough. Area changes should not wait for that update.
+- Daggerfall must keep the same world objects in memory as Doom, so leave its terrain and location streaming running and measure the cost.
+- Daggerfall's hidden player must not take fall damage, get stuck, or trigger anything from being moved this way.
 
 ### Show Daggerfall's fast travel menu in Doom
 

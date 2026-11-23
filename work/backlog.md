@@ -8,7 +8,7 @@ Work that needs owner input or depends on unfinished work. **Automated loops nev
 
 **Waiting on:** owner design for how NPCs work.
 
-Daggerfall Unity should eventually run with its 3D world rendering and entity physics turned off while its simulation loop and 2D UI keep working. This is one of the four core technical hurdles. Disabling entities and physics may break NPC behavior, so it should not start until the NPC design is settled. Normal Daggerfall Unity launches must behave as they do today.
+Daggerfall Unity should eventually run with its 3D world rendering and entity physics turned off while its simulation loop and 2D UI keep working. This is one of the four core technical hurdles. Daggerfall must still keep the same world objects in memory as Doom. Disabling entities and physics may break NPC behavior, so it should not start until the NPC design is settled. Normal Daggerfall Unity launches must behave as they do today.
 
 ## MVP
 
@@ -36,7 +36,7 @@ Owner decision (2026-11-22): for MVP, each Daggerfall enemy placement generates 
 
 **Waiting on:** the bridge core.
 
-MVP scope (owner, 2026-11-22): synchronize HP between the games. This does not commit to the full damage system. Damage scale, armor, and resistances come later.
+MVP scope (owner, 2026-11-22): synchronize HP between the games. This is not the permanent solution and does not commit to the full damage system. Damage scale, armor, and resistances are covered by "Revisit damage and resistances".
 
 - Daggerfall owns the player's HP value and death.
 - Doom sends each hit or heal to Daggerfall as a numbered event through the queue. Daggerfall applies them in order. Damage that starts in Daggerfall is applied there directly.
