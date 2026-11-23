@@ -193,11 +193,12 @@ static partial class Program
         return badTextures == 0 && missing == 0 ? 0 : 1;
     }
 
-    static void WriteTexturePng(Stream output, DFBitmap image, DFPalette palette)
+    // transparentZero writes RGBA with palette index 0 clear, as Daggerfall Unity does for billboards (alphaIndex 0).
+    static void WriteTexturePng(Stream output, DFBitmap image, DFPalette palette, bool transparentZero = false)
     {
         byte[] buffer = palette.PaletteBuffer;
-        int head = palette.HeaderLength, w = image.Width, h = image.Height;
-        var raw = new byte[(w * 3 + 1) * h];
+        int head = palette.HeaderLength, w = image.Width, h = image.Height, bytes = transparentZero ? 4 : 3;
+        var raw = new byte[(w * bytes + 1) * h];
         for (int y = 0, at = 0; y < h; y++)
         {
             raw[at++] = 0;
@@ -205,6 +206,7 @@ static partial class Program
             {
                 int c = image.Data[y * w + x] * 3 + head;
                 raw[at++] = buffer[c]; raw[at++] = buffer[c + 1]; raw[at++] = buffer[c + 2];
+                if (transparentZero) raw[at++] = image.Data[y * w + x] == 0 ? (byte)0 : (byte)255;
             }
         }
         var packed = new MemoryStream();
@@ -220,7 +222,7 @@ static partial class Program
         var header = new byte[13];
         header[0] = (byte)(w >> 24); header[1] = (byte)(w >> 16); header[2] = (byte)(w >> 8); header[3] = (byte)w;
         header[4] = (byte)(h >> 24); header[5] = (byte)(h >> 16); header[6] = (byte)(h >> 8); header[7] = (byte)h;
-        header[8] = 8; header[9] = 2;
+        header[8] = 8; header[9] = (byte)(transparentZero ? 6 : 2);
         Chunk("IHDR", header);
         Chunk("IDAT", packed.ToArray());
         Chunk("IEND", new byte[0]);

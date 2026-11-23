@@ -147,7 +147,7 @@ static partial class Program
             var file = archive(fa);
             var image = file.GetDFBitmap(fr, 0);
             string sprite = "DFA" + (char)('A' + i);
-            using (var s = zip.CreateEntry($"dfaction/f{i}.png", CompressionLevel.Fastest).Open()) WriteTexturePng(s, image, file.Palette);
+            using (var s = zip.CreateEntry($"dfaction/f{i}.png", CompressionLevel.Fastest).Open()) WriteTexturePng(s, image, file.Palette, true); // sprites: index 0 is clear
             double scale = PlayerScale.DoomUnitsPerDaggerfallUnit;
             sprites.Append(FormattableString.Invariant($"Sprite \"{sprite}A0\", {image.Width}, {image.Height}\n{{\n\tXScale {1 / scale:F4}\n\tYScale {1 / scale:F4}\n\tOffset {image.Width / 2}, {image.Height / 2}\n\tPatch \"dfaction/f{i}.png\", 0, 0\n}}\n"));
             classes.Append($"\nclass DFActionFlat{i} : DFActionFlat {{ States {{ Spawn: {sprite} A -1 Bright; Stop; }} }}\n");
