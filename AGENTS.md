@@ -22,10 +22,18 @@ Two pillars must survive every decision:
 | `gamedesign.md` | Game design rules. |
 | `architecture.md` | Milestones, technical hurdles, and engine ownership. |
 | `designgoals.md` | Original design goals. |
-| `work/goal.md` | The current overnight goal. Written with the owner and not committed. |
+| `work/goal.md` | The current goal. Written with the owner and not committed. |
+| `work/todo.md` | Owner-approved work that is ready to do automatically. |
+| `work/backlog.md` | Work that needs owner input or depends on unfinished work. |
 | `work/notes/` | Plans, findings, and play-test lists, one file per run. |
 | `work/questions.md` | Open questions for the owner. Managed by the loop and not committed. |
 | `GameResources/` | Local copyrighted game data. Never commit it. |
+
+## Work tracking
+
+- **Todo** is ready: approved by the owner, with no owner input or unfinished dependency needed. Automated loops take work only from `work/todo.md`.
+- **Backlog** is not ready. Never start backlog work unless the owner asks. New ideas and discovered work go here.
+- Only the owner approves moving an item from backlog to todo. If a todo item turns out to be blocked, move it to the backlog and say what it is waiting on.
 
 ## Current milestone
 

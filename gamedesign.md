@@ -28,7 +28,7 @@ Play through one Daggerfall dungeon (e.g., Privateer's Hold) and one town, fast-
 | **Stealth & Detection** | **Doom (spatial) + Daggerfall (stats)** | Real line-of-sight, lighting, and gunfire noise alert monsters; Daggerfall's stealth skill adjusts detection thresholds and backstab damage. |
 | **Resting & Loitering** | **Daggerfall** | Resting advances time and restores vitals, blocked when Doom monsters are nearby and interrupted by Doom ambush packs. |
 | **Progression & Skill XP** | **Daggerfall** | Combat, spellcasting, and traversal drive Daggerfall's use-based skill leveling; DRLX progression remains gear-centric. |
-| **Audio & Music** | **Doom (music/combat) + Daggerfall (UI/NPCs)** | Doom supplies music and combat SFX; Daggerfall supplies UI sounds and NPC barks. |
+| **Audio & Music** | **Daggerfall (music/UI/NPCs) + Doom (combat)** | Daggerfall supplies music, UI sounds, and NPC barks; Doom supplies combat SFX. |
 
 Handling multiple enemies:
 Enemy placements in Daggerfall are now encounters.

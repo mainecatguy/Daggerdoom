@@ -2,7 +2,7 @@
 ## Pre-Mininimum Viable Product Goals
 1. Doom Running.
 2. In the daggerfall world.
-3. With exterior world travel at full scale (going anywhere in the world).
+3. With exterior travel across the full world (going anywhere in the world).
 4. And the daggerfall map.
 5. And working combat.
 (Nothing fancy beyond that).
@@ -58,7 +58,7 @@ The Daggerfall world is at **75% scale** in Doom (owner decision, 2026-11-22): 1
 | **Process Lifecycle & Mod Loading** | **Launcher** | UZDoom, DFU | Spawns both processes inside a Job Object / process group, passes mod load orders and IPC session ID, and enforces clean teardown on exit or crash. |
 | **Canonical World, Time & Weather** | **DFU** | UZDoom | DFU owns calendar, seasons, regions, and weather; pushes ambient lighting, skybox, and weather states to UZDoom. |
 | **Geometry & Asset Conversion** | **DFU** (source) -> **UZDoom** (render/sim) | — | DFU exports location geometry (UDMF), textures, 3D prop/building models, and skyboxes on first visit (cached on disk). UZDoom owns 3D rendering, BSP, collision, and raycasts. |
-| **Wilderness Streaming & Fast Travel** | **DFU** | UZDoom | DFU owns the overworld grid, fast travel, and ship/horse travel; triggers UZDoom map teardowns and chunk loads at cell boundaries or fast-travel arrivals. |
+| **Wilderness Streaming & Fast Travel** | **DFU** | UZDoom | DFU owns the overworld grid, fast travel, and ship/horse travel. UZDoom rewrites exterior terrain in place around the player (the "treadmill"), and towns load as dedicated maps. |
 | **Saves & Per-Location Persistence** | **DFU** | UZDoom | DFU owns save slots, macro-world state, and DFU mod saves. On save or area exit, DFU runs a two-phase IPC commit instructing UZDoom to serialize active level snapshots and DRLX inventory into DFU's save folder, keyed by location ID. |
 | **Window, Input & Keybinds** | **UZDoom** | DFU | UZDoom owns the single OS window, raw FPS input, and unified keybind table. In `DFU_UI` mode, UZDoom pauses playsim and routes pointer/key events into DFU's patched `InputManager` / `UserInterfaceManager`. |
 | **Menus, UI & HUD Compositing** | **DFU** (RPG menus) / **UZDoom** (combat HUD) | — | UZDoom renders Doom/DRLX HUDs and menus natively. DFU renders its UI onto a transparent buffer composited over UZDoom's viewport; DFU signals `UIStackEmpty` to resume gameplay. |
@@ -75,4 +75,4 @@ The Daggerfall world is at **75% scale** in Doom (owner decision, 2026-11-22): 1
 | **Crime, Bounties & Arrests** | **DFU** | UZDoom | UZDoom reports assaults, thefts, and weapon discharge in towns; DFU tracks bounties/reputation, flags town factions hostile, spawns guards, and runs surrender/court/jail flows. |
 | **Resting, Loitering & Ambushes** | **DFU** | UZDoom | DFU owns rest/loiter UI, time advancement, and recovery; queries UZDoom for nearby enemies before allowing rest and instructs UZDoom to spawn ambush packs on rest interrupts. |
 | **Progression & Skill XP** | **DFU** | UZDoom | UZDoom streams coarse action telemetry (kills by weapon category, hits taken, jumps, climbs); DFU maps events to native Daggerfall skill XP and level-ups. |
-| **Audio & Music** | **UZDoom** (music + combat SFX) / **DFU** (UI + barks) | — | Both processes output independently; the OS audio mixer blends streams natively. |
+| **Audio & Music** | **DFU** (music, UI + barks) / **UZDoom** (combat SFX) | — | Both processes output independently; the OS audio mixer blends streams natively. |

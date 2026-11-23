@@ -64,3 +64,4 @@ Block offsets of 2048 units are already part of `X` and `Z`. The dungeon root wa
 - A minimized UZDoom renders only 320x200, so it runs unminimized at an off-screen position without taking focus.
 - Probes are single rays. A ray can pass through a one-sided Daggerfall face, so confirm a mismatch in the image.
 - The flood fill is evidence, not proof. It treats doors as open and other moving objects as fixed, and it can leak through mesh cracks.
+- The parity test's closed-door stages were written for the old door slabs and are not meaningful with swinging door objects.

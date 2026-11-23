@@ -4,6 +4,9 @@
 /[Gg]ame[Rr]esources/**
 !/[Gg]ame[Rr]esources/.gitkeep
 
+# Doom mods live in their own private backup repo (WadBackups).
+/[Gg]ame[Mm]ods/
+
 # Unity-generated logs can contain local machine paths.
 /daggerfall-unity-master/[Ll]ogs/
 
