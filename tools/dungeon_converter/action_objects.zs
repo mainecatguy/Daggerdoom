@@ -49,6 +49,13 @@ class DFActionCell : Actor
 		RenderStyle "None";
 	}
 	States { Spawn: TNT1 A -1; Stop; }
+
+	// A resting actor is clamped to its sector's floor. An open trapdoor's cells can lie over another sector, so they must not move.
+	override void Tick()
+	{
+		if (owner && owner.freeSwing) return;
+		Super.Tick();
+	}
 }
 
 class DFAction : DFDoorListener
@@ -64,7 +71,7 @@ class DFAction : DFDoorListener
 	Array<DFActionCell> cells;
 	vector3 pivot, travel, spin, center, boxMin, boxMax;
 	double yaw, fraction, rate, cellHalf;
-	bool forwardOnly, stalled, bodyInCells;
+	bool forwardOnly, stalled, bodyInCells, freeSwing;
 	int phase, activationCount, ruleRequests, touchCooldown;
 
 	Default { +NOBLOCKMAP +NOSECTOR +NOGRAVITY +NOINTERACTION RenderStyle "None"; }
@@ -101,7 +108,7 @@ class DFAction : DFDoorListener
 		{
 			let cell = cells[i];
 			vector3 at = ToWorld((cell.lx, cell.ly, cell.lz), fraction);
-			cell.SetOrigin((at.x, at.y, at.z - cellHalf), false);
+			cell.SetOrigin((at.x, at.y, at.z - cell.height / 2), false);
 		}
 		if (!visual) return;
 		visual.SetOrigin(ToWorld(center, fraction), interpolate);
@@ -124,14 +131,15 @@ class DFAction : DFDoorListener
 			let cell = cells[i];
 			vector3 was = cell.pos;
 			vector3 at = ToWorld((cell.lx, cell.ly, cell.lz), next);
-			at.z -= cellHalf;
+			double tall = cell.height;
+			at.z -= tall / 2;
 			double reach = cellHalf + 40;
-			let it = BlockThingsIterator.CreateFromPos(at.x, at.y, at.z - 2, cellHalf * 2 + 4, reach, false);
+			let it = BlockThingsIterator.CreateFromPos(at.x, at.y, at.z - 2, tall + 4, reach, false);
 			while (it.Next())
 			{
 				Actor t = it.thing;
 				if (!t.bSOLID || t is "DFActionCell" || t is "DFDoorBlocker") continue;
-				bool onTop = abs(t.pos.z - (was.z + cellHalf * 2)) <= 2
+				bool onTop = abs(t.pos.z - (was.z + tall)) <= 2
 					&& abs(t.pos.x - was.x) < t.radius + cellHalf && abs(t.pos.y - was.y) < t.radius + cellHalf;
 				if (onTop)
 				{
@@ -144,7 +152,7 @@ class DFAction : DFDoorListener
 				}
 				if (riders.Find(t) != riders.Size()) continue;
 				if (abs(t.pos.x - at.x) >= t.radius + cellHalf || abs(t.pos.y - at.y) >= t.radius + cellHalf) continue;
-				if (t.pos.z >= at.z + cellHalf * 2 || t.pos.z + t.height <= at.z) continue;
+				if (t.pos.z >= at.z + tall || t.pos.z + t.height <= at.z) continue;
 				return false;
 			}
 		}
@@ -207,7 +215,8 @@ class DFAction : DFDoorListener
 	{
 		if (touchCooldown > 0) touchCooldown--;
 		if (isFrozen()) return;
-		if (IsSpecialDoor()) { TickSpecialDoor(); return; }
+		// A hinged trapdoor drops out from under a body. It neither carries nor waits for one, as in Daggerfall.
+		if (IsSpecialDoor() || freeSwing) { TickSpecialDoor(); return; }
 		if (phase != FORWARD && phase != REVERSE) return;
 		double next = clamp(fraction + (phase == FORWARD ? rate : -rate), 0.0, 1.0);
 		if (!TryStep(next)) { stalled = true; return; }
@@ -326,6 +335,14 @@ class DFAction : DFDoorListener
 	// 0 no contact, FROM_WALKON standing on it, FROM_WALKINTO against its side.
 	int Contact(Actor p)
 	{
+		// DaggerfallActionCollision counts walk-on only for a collider straight below the player's center, so a body beside a hung tile does not re-fire it.
+		if (freeSwing)
+		{
+			foreach (c : cells)
+				if (abs(p.pos.x - c.pos.x) <= c.radius && abs(p.pos.y - c.pos.y) <= c.radius && abs(p.pos.z - (c.pos.z + c.height)) <= 2)
+					return FROM_WALKON;
+			return 0;
+		}
 		vector3 l = ToLocal((p.pos.x, p.pos.y, p.pos.z + p.height / 2));
 		double r = p.radius + 1, feet = l.z - p.height / 2, head = l.z + p.height / 2;
 		if (l.x < boxMin.x - r || l.x > boxMax.x + r || l.y < boxMin.y - r || l.y > boxMax.y + r) return 0;
@@ -371,7 +388,8 @@ class DFActionHandler : EventHandler
 				let cell = DFActionCell(Actor.Spawn("DFActionCell", a.pivot, NO_REPLACE));
 				cell.owner = a;
 				cell.lx = f[2].ToDouble(); cell.ly = f[3].ToDouble(); cell.lz = f[4].ToDouble();
-				cell.A_SetSize(f.Size() > 5 ? f[5].ToDouble() : cellSize / 2, cellSize, false); // a thin panel gives its own half width
+				// A thin panel gives its own half width. A flat trapdoor also gives its real thickness.
+				cell.A_SetSize(f.Size() > 5 ? f[5].ToDouble() : cellSize / 2, f.Size() > 6 ? f[6].ToDouble() : cellSize, false);
 				a.cells.Push(cell);
 				cellCount++;
 			}
@@ -437,6 +455,7 @@ class DFActionHandler : EventHandler
 		a.boxMin = (f[23].ToDouble(), f[25].ToDouble(), f[27].ToDouble());
 		a.boxMax = (f[24].ToDouble(), f[26].ToDouble(), f[28].ToDouble());
 		a.index = f[29].ToInt(); a.axis = f[30].ToInt(); a.magnitude = f[31].ToInt(); a.lockValue = f[32].ToInt();
+		a.freeSwing = f[33].ToInt() != 0;
 		a.cellHalf = cellSize / 2;
 		if (visual >= 0)
 		{
