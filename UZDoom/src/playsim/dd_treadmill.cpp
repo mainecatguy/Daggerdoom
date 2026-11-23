@@ -25,6 +25,7 @@
 #include <cstring>
 #include <deque>
 #include <limits>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -141,13 +142,19 @@ namespace
 	struct Handoff
 	{
 		bool pending = false;
-		double x = 0, y = 0, z = 0, aboveFloor = 0;
+		double x = 0, y = 0, z = 0, feet = 0, aboveFloor = 0;
 		DVector3 vel;
 		DVector2 playerVel;
 		DAngle yaw, pitch;
 		std::chrono::steady_clock::time_point started;
 	} handoff;
 	int stitches;
+
+	// The town's billboards, so trees and props look the same from the overworld. Global Doom coordinates.
+	struct TownFlat { FTextureID tex; double x, y, z; float sx, sy; };
+	std::unordered_map<int64_t, std::vector<TownFlat>> townFlats;
+	bool flatsLoaded;
+	PClassActor *flatClass;
 	std::vector<float> window;
 	std::vector<Tri> tris;
 	int originX, originY, startTileX, startTileY, shifts, startAngle;
@@ -594,6 +601,44 @@ namespace
 		restoreCount++;
 	}
 
+	void LoadTownFlats()
+	{
+		if (flatsLoaded) return;
+		flatsLoaded = true;
+		flatClass = PClass::FindActor("DFCityFlat");
+		const int lump = fileSystem.CheckNumForName("DFFLATS");
+		if (lump < 0 || !flatClass || towns.empty()) return;
+		const Town &t = towns[0];
+		auto data = fileSystem.ReadFile(lump);
+		FString text((const char *)data.data(), data.size());
+		std::unordered_map<std::string, FTextureID> ids;
+		const double chunkDoom = CHUNK_TILES * double(SPACING);
+		for (auto &line : text.Split("\n"))
+		{
+			char name[32];
+			double x, y, z;
+			float sx, sy;
+			if (sscanf(line.GetChars(), "%31s %lf %lf %lf %f %f", name, &x, &y, &z, &sx, &sy) != 6) continue;
+			auto id = ids.find(name);
+			if (id == ids.end()) id = ids.emplace(name, TexMan.CheckForTexture(name, ETextureType::Any)).first;
+			const double gx = t.originX * DOOM_PER_DF + x, gy = t.originY * DOOM_PER_DF + y;
+			townFlats[ChunkKey(int(floor(gx / chunkDoom)), int(floor(gy / chunkDoom)))].push_back({ id->second, gx, gy, z + t.ground * DOOM_PER_DF - Z_BASE, sx, sy });
+		}
+	}
+
+	void SpawnFlats(FLevelLocals *Level, int cx, int cy)
+	{
+		auto found = townFlats.find(ChunkKey(cx, cy));
+		if (found == townFlats.end()) return;
+		for (const TownFlat &f : found->second)
+		{
+			AActor *mo = Spawn(Level, flatClass, DVector3(f.x - originX * double(SPACING) - HALF, f.y - originY * double(SPACING) - HALF, f.z), NO_REPLACE);
+			if (!mo) continue;
+			mo->picnum = f.tex;
+			mo->Scale = DVector2(f.sx, f.sy);
+		}
+	}
+
 	// Deterministic placeholder pack for one chunk.
 	void BuildSeeds(int cx, int cy, std::vector<SeedSpawn> &out)
 	{
@@ -645,6 +690,7 @@ namespace
 			if (!p.prepared)
 			{
 				BuildSeeds(p.cx, p.cy, p.seeds);
+				SpawnFlats(Level, p.cx, p.cy);
 				auto b = buckets.find(ChunkKey(p.cx, p.cy));
 				if (b != buckets.end()) p.recs = b->second;
 				p.prepared = true;
@@ -701,6 +747,7 @@ namespace
 			mo->Prev -= delta;
 			mo->SpawnPoint.X -= delta.X;
 			mo->SpawnPoint.Y -= delta.Y;
+			if (flatClass && mo->GetClass() == flatClass) continue;	// Billboards keep their exact height.
 			moved.push_back({ mo, onFloor });
 		}
 		for (AActor *mo : leaving) Park(mo, fromX, fromY);
@@ -878,7 +925,9 @@ namespace
 			for (auto &vbo : t.sec->vboheight)
 				vbo[sector_t::ceiling] = std::numeric_limits<double>::quiet_NaN();
 		}
-		baseFloor = tris[0].sec->GetTexture(sector_t::floor);
+		// A restored save can have this sector's floor hidden under a town mesh, so look the ground up by name.
+		baseFloor = TexMan.CheckForTexture("DFGROUND", ETextureType::Flat);
+		if (!baseFloor.isValid()) baseFloor = TexMan.CheckForTexture("RROCK19", ETextureType::Flat);
 		window.resize(size_t(VERTS) * VERTS);
 		FillWindow(0, VERTS, 0, VERTS);
 		RewriteGrid();
@@ -926,6 +975,7 @@ namespace
 		handoff.x = world.X;
 		handoff.y = world.Y;
 		handoff.z = world.Z;
+		handoff.feet = world.Z - pmo->Vel.Z / DOOM_PER_DF;
 		handoff.aboveFloor = std::max(0.0, pmo->Z() + pmo->Vel.Z - pmo->floorz);
 		handoff.vel = pmo->Vel;
 		handoff.playerVel = pmo->player->Vel;
@@ -951,7 +1001,7 @@ namespace
 		P_FindFloorCeiling(pmo, FFCF_ONLYSPAWNPOS);
 		// Keep the feet the same distance above whatever ground is here. The mismatch is reported, not shown.
 		const double z = pmo->floorz + handoff.aboveFloor;
-		const double seam = target.Z - z;
+		const double dz = z - ToLocal(handoff.x, handoff.y, handoff.feet).Z;	// Height change across the handoff, including one tic of slope.
 		pmo->SetZ(z);
 		pmo->Vel = handoff.vel;
 		player->Vel = handoff.playerVel;
@@ -961,8 +1011,8 @@ namespace
 		player->viewz = z + player->viewheight;
 		wipegamestate = gamestate;	// No screen wipe on a stitched change.
 		dd_tm_stitches = ++stitches;
-		Printf("DDSTITCH arrive %s ms=%.1f local=%.2f,%.2f,%.2f seam_z=%.3f records=%d stitches=%d\n", Level->MapName.GetChars(),
-			NsSince(handoff.started) / 1e6, target.X, target.Y, z, seam, int(table.size()), stitches);
+		Printf("DDSTITCH arrive %s ms=%.1f local=%.2f,%.2f,%.2f dz=%.3f records=%d stitches=%d\n", Level->MapName.GetChars(),
+			NsSince(handoff.started) / 1e6, target.X, target.Y, z, dz, int(table.size()), stitches);
 	}
 
 	// Compares the town map's real floors with the overworld height function across the handoff band.
@@ -1061,6 +1111,7 @@ namespace
 			originY = std::clamp(((tileY - CELLS / 2 + CHUNK_TILES / 2) / CHUNK_TILES) * CHUNK_TILES, 0, WORLD_H * PIXEL_TILES - CELLS);
 		}
 		if (!PrepareLevel(Level)) return;
+		LoadTownFlats();
 		SettleActors(Level, true);
 		if (returning) FinishHandoff(Level);
 		else if (AActor *start = Level->Players[consoleplayer]->mo) start->Angles.Yaw = DAngle::fromDeg(startAngle);
@@ -1093,13 +1144,16 @@ namespace
 		}
 		LoadConfig();
 		if (!PrepareLevel(Level)) return;
+		LoadTownFlats();
 		expected.clear();
 		auto it = Level->GetThinkerIterator<AActor>();
 		while (AActor *mo = it.Next())
 			if (mo->ddRecordId && !IsOwned(mo)) expected.insert(mo->ddRecordId);
 		SettleActors(Level, false);
 		DDTreadmill_Active = true;
-		Printf("DDTM resumed origin=%d,%d records=%d pending=%d\n", originX, originY, int(table.size()), int(pending.size()));
+		int drawn = 0;
+		for (auto &t : tris) drawn += t.sec->GetTexture(sector_t::floor) == baseFloor;
+		Printf("DDTM resumed origin=%d,%d records=%d pending=%d floors drawn=%d of %d\n", originX, originY, int(table.size()), int(pending.size()), drawn, int(tris.size()));
 	}
 
 	FString EncodeState()

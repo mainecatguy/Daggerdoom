@@ -15,22 +15,31 @@ KEYS = ("STITCH", "DDSTITCH", "DDSEAM", "DDTOWN", "DFGATES", "Script error", "FA
 
 ap = argparse.ArgumentParser()
 ap.add_argument("name")
-ap.add_argument("--mode", default="roundtrip", choices=["roundtrip", "savetown", "loadtown"])
+ap.add_argument("--mode", default="roundtrip", choices=["roundtrip", "savetown", "saveover", "loadtown"])
 ap.add_argument("--speed", default="40")
 ap.add_argument("--timeout", type=int, default=30)
 ap.add_argument("--town", default=r"D:\dev\DoomDaggerfall-build\stitch-data\town")
 ap.add_argument("--slug", default="daggerfall_city")
 ap.add_argument("--world", default=r"D:\dev\DoomDaggerfall-build\stitch-data")
-ap.add_argument("--start-tile", default="26592,36608")
+ap.add_argument("--start-tile", default=None)
+ap.add_argument("--side", default="east", choices=["east", "west", "north", "south"], help="the side of the City of Daggerfall to approach")
+ap.add_argument("--dir", help="run direction x,y, for other locations")
+ap.add_argument("--cachenodes", action="store_true", help="use the engine's default node cache, as a player would")
 args = ap.parse_args()
 
+SIDES = {"east": ("26592,36608", "-1.0", "0.0"), "west": ("26400,36608", "1.0", "0.0"), "north": ("26496,36704", "0.0", "-1.0"), "south": ("26496,36512", "0.0", "1.0")}
+start_tile, dir_x, dir_y = SIDES[args.side]
+if args.start_tile:
+    start_tile = args.start_tile
+if args.dir:
+    dir_x, dir_y = (str(float(v)) for v in args.dir.split(","))
 os.makedirs(WORK, exist_ok=True)
 over = os.path.join(WORK, args.name + "_over.pk3")
 harness = os.path.join(WORK, args.name + "_harness.pk3")
-subprocess.check_call([sys.executable, os.path.join(HERE, "gen_overworld.py"), "--out", over, "--world-dir", args.world, "--start-tile", args.start_tile,
+subprocess.check_call([sys.executable, os.path.join(HERE, "gen_overworld.py"), "--out", over, "--world-dir", args.world, "--ground-from", os.path.join(args.town, args.slug + "_mesh.pk3"), "--start-tile", start_tile,
                        "--start-angle", "180", "--packchance", "0"], stdout=subprocess.DEVNULL)
 text = open(os.path.join(HERE, "stitch_harness.zs")).read()
-text = text.replace("@SPEED@", args.speed + ".0").replace("@SAVETOWN@", "true" if args.mode == "savetown" else "false").replace("@SKIPGATE@", "true" if args.mode == "loadtown" else "false")
+text = text.replace("@DIRX@", dir_x).replace("@DIRY@", dir_y).replace("@SPEED@", args.speed + ".0").replace("@SAVETOWN@", "true" if args.mode == "savetown" else "false").replace("@SAVEOVER@", "true" if args.mode == "saveover" else "false").replace("@SKIPGATE@", "true" if args.mode == "loadtown" else "false")
 with zipfile.ZipFile(harness, "w") as z:
     z.writestr("zscript.txt", text)
     z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "StitchHarness" }\n')
@@ -42,7 +51,7 @@ saves = os.path.join(WORK, "saves")
 os.makedirs(saves, exist_ok=True)
 files = [over, os.path.join(args.town, args.slug + ".wad"), os.path.join(args.town, args.slug + "_mesh.pk3"), harness]
 game = [EXE, "-iwad", IWAD, "-file"] + files + ["-config", os.path.join(WORK, "test.ini"), "-savedir", saves, "-nosound", "-noautoload", "-skill", "3",
-        "-width", "1280", "-height", "720", "-noactivate", "-ddtmverify", "+logfile", args.name, "+vid_fullscreen", "0", "+gl_cachenodes", "0",
+        "-width", "1280", "-height", "720", "-noactivate", "-ddtmverify", "+logfile", args.name, "+vid_fullscreen", "0", "+gl_cachenodes", "1" if args.cachenodes else "0",
         "+vid_vsync", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"]
 if args.mode == "loadtown":
     newest = max(glob.glob(os.path.join(saves, "auto*.zds")), key=os.path.getmtime)

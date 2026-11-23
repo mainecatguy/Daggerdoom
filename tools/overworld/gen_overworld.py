@@ -37,7 +37,7 @@ def world_lump(woods):
     return b"DDW1" + struct.pack("<HH", W, H) + small + bytes(large)
 
 
-def build_map():
+def build_map(floor="RROCK19", scale=""):
     half = CELLS * SPACING // 2
     o = ['namespace="zdoom";']
     for j in range(CELLS + 1):
@@ -60,7 +60,7 @@ def build_map():
             a, b, c, d = vid(i, j), vid(i + 1, j), vid(i + 1, j + 1), vid(i, j + 1)
             tri(a, c, b)
             tri(a, d, c)
-    o += [f'sector{{heightfloor=0;heightceiling={CEILING};texturefloor="RROCK19";textureceiling="F_SKY1";lightlevel=192;}}'] * tris
+    o += [f'sector{{heightfloor=0;heightceiling={CEILING};texturefloor="{floor}";textureceiling="F_SKY1";lightlevel=192;{scale}}}'] * tris
     sides, lines = [], []
     for (u, v), (f, b) in edges.items():
         sf = len(sides)
@@ -97,6 +97,7 @@ def main():
     ap.add_argument("--start", default="862,442", help="starting map pixel mx,my")
     ap.add_argument("--start-tile", help="window origin in global tiles, overrides --start")
     ap.add_argument("--start-angle", type=int, default=0)
+    ap.add_argument("--ground-from", help="town mesh package: its grass tile becomes the overworld floor")
     ap.add_argument("--world-dir", help="DDWORLD and DDLOCS from the converter's --world mode. Required for towns to match.")
     ap.add_argument("--packchance", type=float, default=0.2)
     ap.add_argument("--packsize", type=int, default=12)
@@ -121,13 +122,20 @@ def main():
         handlers.append("OWHarness")
     names = ", ".join(f'"{h}"' for h in handlers)
     sky = "DFSKY" if args.world_dir else "SKY1"  # DFSKY comes from the town package
-    mapinfo = f'gameinfo {{ addeventhandlers = {names} }}\nmap DDOVER01 "Daggerfall Overworld" {{ sky1 = "{sky}" keepfullinventory }}\n'
+    mapinfo = f'gameinfo {{ addeventhandlers = {names} }}\nmap DDOVER01 "Daggerfall Overworld" {{ sky1 = "{sky}" keepfullinventory pixelratio = 1.0 }}\n'
 
     with open(args.woods, "rb") as f:
         woods = f.read()
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     with zipfile.ZipFile(args.out, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr("maps/DDOVER01.wad", build_map())
+        if args.ground_from:
+            # One Daggerfall ground tile per terrain tile, so open ground matches the town mesh it meets.
+            with zipfile.ZipFile(args.ground_from) as town:
+                tile = next(n for n in town.namelist() if n.startswith("dfmesh/a") and n.endswith("r02.png") and 302 <= int(n[8:11]) <= 402)
+                z.writestr("flats/DFGROUND.png", town.read(tile))
+            z.writestr("maps/DDOVER01.wad", build_map("DFGROUND", "xscalefloor=0.3333333;yscalefloor=0.3333333;"))
+        else:
+            z.writestr("maps/DDOVER01.wad", build_map())
         if args.world_dir:
             z.write(os.path.join(args.world_dir, "DDWORLD"), "DDWORLD")
             z.write(os.path.join(args.world_dir, "DDLOCS"), "DDLOCS")

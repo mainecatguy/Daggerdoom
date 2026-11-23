@@ -15,7 +15,7 @@ class StitchState : Inventory
 class StitchHarness : EventHandler
 {
 	StitchState st;
-	bool loaded, saveTown, skipGate;
+	bool loaded, saveTown, skipGate, saveOver;
 
 	void Pull()
 	{
@@ -38,7 +38,10 @@ class StitchHarness : EventHandler
 		if (!st) st = StitchState(pawn.FindInventory("StitchState"));
 		if (!st) st = StitchState(pawn.GiveInventoryType("StitchState"));
 		if (!st) return;
-		if (!loaded) { Pull(); loaded = true; saveTown = @SAVETOWN@; skipGate = @SKIPGATE@; } // set at run time: a constant false in an if dropped the whole function body
+		if (!loaded) { Pull(); loaded = true; }
+		saveTown = @SAVETOWN@;	// Assigned each tic: the handler itself is restored from saves, and a constant false in an if dropped the whole function body.
+		skipGate = @SKIPGATE@;
+		saveOver = @SAVEOVER@;
 		RunStitch();
 		Push();
 	}
@@ -104,17 +107,24 @@ class StitchHarness : EventHandler
 		p.angle = atan2(d.y, d.x);
 	}
 
+	static Vector2 MarkOffset(double back, double side)
+	{
+		double dx = @DIRX@, dy = @DIRY@;
+		return (-dx * back - dy * side, -dy * back + dx * side);
+	}
+
 	// Three marks beside the start: a corpse, a wounded imp, and a dropped item.
 	void Mark(Actor p)
 	{
 		startWX = WX(p);
 		startWY = WY(p);
-		let dead = Actor.Spawn("ZombieMan", p.pos + (320, 200, 0));
-		let hurt = Actor.Spawn("DoomImp", p.pos + (320, -200, 0));
-		let item = Actor.Spawn("Clip", p.pos + (200, 0, 0));
-		hurt.bDORMANT = false;
+		// Behind the run direction, so the route never collects or wakes them.
+		p.player.cheats |= CF_NOTARGET;
+		Vector2 corpseAt = MarkOffset(320, 200), impAt = MarkOffset(320, -200), itemAt = MarkOffset(200, 0);
+		let dead = Actor.Spawn("ZombieMan", p.pos + (corpseAt, 0));
+		let hurt = Actor.Spawn("DoomImp", p.pos + (impAt, 0));
+		let item = Actor.Spawn("Clip", p.pos + (itemAt, 0));
 		hurt.A_SetHealth(17);
-		hurt.bNOTARGET = true;
 		dead.DamageMobj(null, null, 100000, 'None');
 		item.bDROPPED = true;
 		marked = true;
@@ -129,9 +139,10 @@ class StitchHarness : EventHandler
 		while ((a = Actor(it.Next())))
 		{
 			double dx = WX(a) - startWX, dy = WY(a) - startWY;
-			if (a is "ZombieMan" && a.health <= 0 && (dx - 320 / S, dy - 200 / S).Length() < 64) corpses++;
-			if (a is "DoomImp" && a.health == 17 && (dx - 320 / S, dy + 200 / S).Length() < 96) wounded++;
-			if (a is "Clip" && !Inventory(a).owner && (dx - 200 / S, dy).Length() < 64) items++;
+			Vector2 at = (dx * S, dy * S);
+			if (a is "ZombieMan" && a.health <= 0 && (at - MarkOffset(320, 200)).Length() < 48) corpses++;
+			if (a is "DoomImp" && a.health == 17 && (at - MarkOffset(320, -200)).Length() < 72) wounded++;
+			if (a is "Clip" && !Inventory(a).owner && (at - MarkOffset(200, 0)).Length() < 48) items++;
 		}
 		Console.Printf("STITCHCHECK corpses=%d wounded=%d items=%d records=%d", corpses, wounded, items, CVar.FindCVar("dd_tm_records").GetInt());
 		return (corpses == 1 && wounded == 1 && items == 1) ? 1 : 0;
@@ -162,7 +173,7 @@ class StitchHarness : EventHandler
 		Vector2 normal = (-along.y, along.x);
 		if ((p.pos.xy - gateMid) dot normal < 0) normal = -normal;	// points from the gate toward the player's side
 		outside = gateMid + normal * 260;
-		inside = gateMid - normal * 420;
+		inside = gateMid - normal * 240;
 		Console.Printf("STITCHGATE mid=%.0f,%.0f outside=%.0f,%.0f inside=%.0f,%.0f", gateMid.x, gateMid.y, outside.x, outside.y, inside.x, inside.y);
 		return true;
 	}
@@ -192,17 +203,29 @@ class StitchHarness : EventHandler
 		case 0:	// Mark the table in the wilderness, then wait for the corpse to settle.
 			if (InTown()) { phase = 8; break; }	// A loaded town save starts here.
 			if (!marked) { Mark(p); wait = level.maptime + 70; }
-			if (level.maptime >= wait) phase = 1;
+			if (level.maptime >= wait)
+			{
+				if (saveOver) { Level.MakeAutoSave(); wait = level.maptime + 35; phase = 9; break; }
+				phase = 1;
+			}
 			break;
 		case 1:	// Run west into the town's entry zone.
-			p.vel.xy = (-SPEED, 0);
-			p.angle = 180;
+			p.vel.xy = (@DIRX@ * SPEED, @DIRY@ * SPEED);
+			p.angle = atan2(@DIRY@, @DIRX@);
 			if (InTown())
 			{
 				Console.Printf("STITCHENTER tic=%d", level.maptime);
 				if (saveTown) { Level.MakeAutoSave(); wait = level.maptime + 35; phase = 9; break; }
-				FindGate(p);
-				phase = 2;
+				if (FindGate(p)) phase = 2;
+				else
+				{
+					// A location without walls: turn around and leave.
+					gateMid = p.pos.xy;
+					outside = p.pos.xy - (@DIRX@, @DIRY@) * 64;
+					gateBlocked = true;
+					Console.Printf("STITCHNOGATE");
+					phase = 7;
+				}
 			}
 			break;
 		case 2:	// Reach the point in front of the closed gate.

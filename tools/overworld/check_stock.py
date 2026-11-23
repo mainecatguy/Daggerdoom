@@ -4,11 +4,11 @@ Runs DOOM.WAD E1M1, saves, reloads that save, and enters a converted dungeon dem
 """
 import glob, os, shutil, subprocess, sys, time, zipfile
 
-EXE = r"D:\dev\DoomDaggerfall-build\uzdoom-overworld\Release\uzdoom.exe"
+EXE = os.environ.get("DD_EXE", r"D:\dev\DoomDaggerfall-build\uzdoom-overworld\Release\uzdoom.exe")
 WADS = r"D:\dev\DoomDaggerfall\GameResources\wads"
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
-WORK = r"D:\dev\DoomDaggerfall-build\overworld-tests\stock"
-DOOR = r"D:\dev\DoomDaggerfall-loop\review\door-demo"
+WORK = os.environ.get("DD_WORK", r"D:\dev\DoomDaggerfall-build\overworld-tests\stock")
+DOOR = os.environ.get("DD_DOOR", r"D:\dev\DoomDaggerfall-loop\review\door-demo")
 COMMON = ["-nosound", "-noautoload", "-noactivate", "-width", "1280", "-height", "720", "+vid_fullscreen", "0", "+wipetype", "0",
           "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"]
 
