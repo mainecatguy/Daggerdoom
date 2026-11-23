@@ -33,7 +33,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         int areaX, areaY, targetX, targetZ, teleports, applies;
         bool aligned;
         float mismatchStreak, mismatchTotal, worstMismatch, alignedTime, worstFrame;
-        int slowFrames, alignedFrames;
+        int slowFrames, alignedFrames, indoorFrames;
         long nextApplyNs, areaSentNs, nextCameraCheckNs;
         double worstApplyError, worstLag;
         int startHealth = -1;
@@ -123,13 +123,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 frameMs.Add((long)((now - lastFrameTime) * 1e9f));
             lastFrameTime = now;
 
+            bool indoors = false;
             switch (peer.worldContext)
             {
                 case WorldExterior:
                     break;
                 case WorldInterior:
                 case WorldDungeon:
-                    return; // Reserved: the building and dungeon transition task moves Daggerfall indoors.
+                    indoors = true;
+                    break;
                 case WorldNone:
                 default:
                     Release();
@@ -154,6 +156,16 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             {
                 nextCameraCheckNs = nowNs + ApplyIntervalNs;
                 HideWorld(game);
+            }
+
+            // Seam for the task that moves Daggerfall indoors. Until then it stays stopped at the last
+            // outdoor position, which is the door the player used, and still answers menus.
+            if (indoors)
+            {
+                indoorFrames++;
+                if (world.DoomerfallPositionSettled)
+                    phase = PhasePlay;
+                return;
             }
 
             // Measured from the first time both games agree, so the initial load is not counted as drift.
@@ -349,12 +361,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 enemy = string.Format("{0:F3},{1:F3},{2:F3}", moved.x, moved.y, moved.z);
             }
             bridge.LogLine(string.Format(
-                "sync engaged={0} nodraw={1} gps={2},{3} pixel={4},{5} applies={6} teleports={7} wrong_pixel_s={8:F2}/{9:F1} worst_wrong_pixel_s={18:F2} worst_apply_err={10:F2} worst_lag={11:F0} health={12}/{13} enemy_moved={14} mem_mb={15} all_frames={19} over_16ms={20} worst_frame_ms={21:F1} frame {16} | area {17}",
+                "sync engaged={0} nodraw={1} gps={2},{3} pixel={4},{5} applies={6} teleports={7} wrong_pixel_s={8:F2}/{9:F1} worst_wrong_pixel_s={18:F2} worst_apply_err={10:F2} worst_lag={11:F0} health={12}/{13} enemy_moved={14} mem_mb={15} all_frames={19} over_16ms={20} worst_frame_ms={21:F1} indoor_frames={22} frame {16} | area {17}",
                 engaged, noDraw, ready ? game.PlayerGPS.WorldX : -1, ready ? game.PlayerGPS.WorldZ : -1,
                 ready ? game.StreamingWorld.MapPixelX : -1, ready ? game.StreamingWorld.MapPixelY : -1,
                 applies, teleports, mismatchTotal, alignedTime, worstApplyError, worstLag,
                 ready && game.PlayerEntity != null ? game.PlayerEntity.CurrentHealth : -1, startHealth, enemy,
-                GC.GetTotalMemory(false) / (1024 * 1024), frameMs.Summary(), areaLatency.Summary(), worstMismatch, alignedFrames, slowFrames, worstFrame * 1000f));
+                GC.GetTotalMemory(false) / (1024 * 1024), frameMs.Summary(), areaLatency.Summary(), worstMismatch, alignedFrames, slowFrames, worstFrame * 1000f, indoorFrames));
         }
     }
 }

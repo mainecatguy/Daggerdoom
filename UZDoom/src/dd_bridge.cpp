@@ -41,6 +41,7 @@ FARG_ADVANCED(dfbridgetestpause, "Doomerfall", "ext|game|menu", "Bridge test onl
 FARG_ADVANCED(dfhptest, "Doomerfall", "basic|monsters", "HP sync test only: scripts hits, heals, and a lethal hit.");
 
 CVAR(Int, dd_sync_df_phase, 0, CVAR_NOSAVE) // Read by the position sync test route.
+CVAR(Int, dd_ui_test_hold, 0, CVAR_NOSAVE | CVAR_MOD) // Test only: a route holds -dfuitest until it reaches the place to open the menu.
 
 namespace
 {
@@ -137,10 +138,17 @@ void PublishPosition()
 {
 	constexpr int WorldUnitsPerPixel = 32768, MaxPixelX = 999, MaxPixelY = 499;
 	double x = 0, y = 0, z = 0, yaw = 0;
-	const bool exterior = gamestate == GS_LEVEL && DDTreadmill_PlayerWorld(x, y, z, yaw);
-	const uint32_t context = exterior ? DFB_WORLD_EXTERIOR : DFB_WORLD_NONE;
+	const DDPlayerArea area = gamestate == GS_LEVEL ? DDTreadmill_PlayerWorld(x, y, z, yaw) : DD_AREA_NONE;
+	const uint32_t context = area == DD_AREA_EXTERIOR ? DFB_WORLD_EXTERIOR : area == DD_AREA_INTERIOR ? DFB_WORLD_INTERIOR
+		: area == DD_AREA_DUNGEON ? DFB_WORLD_DUNGEON : DFB_WORLD_NONE;
 	int pixelX = -1, pixelY = -1;
-	if (exterior)
+	if (area == DD_AREA_INTERIOR || area == DD_AREA_DUNGEON)
+	{
+		// Indoors the published position stays at the last outdoor place, which is the door the player used.
+		pixelX = ownState.map_pixel_x;
+		pixelY = ownState.map_pixel_y;
+	}
+	else if (area == DD_AREA_EXTERIOR)
 	{
 		pixelX = std::clamp(int(floor(x / WorldUnitsPerPixel)), 0, MaxPixelX);
 		pixelY = MaxPixelY - std::clamp(int(floor(y / WorldUnitsPerPixel)), 0, MaxPixelY);
@@ -159,8 +167,8 @@ void PublishPosition()
 		dfb_event e{};
 		e.kind = DFB_KIND_AREA;
 		e.tic = gametic;
-		const dfb_area area{ context, pixelX, pixelY, ownState.area_seq, dfb_now_ns() };
-		memcpy(e.payload, &area, sizeof(area));
+		const dfb_area body{ context, pixelX, pixelY, ownState.area_seq, dfb_now_ns() };
+		memcpy(e.payload, &body, sizeof(body));
 		dfb_send(session, &e);
 	}
 }
@@ -414,7 +422,7 @@ void PumpUi(int64_t now)
 
 void RunUiTest(int64_t now)
 {
-	if (uiTestRemaining <= 0 || uiState != UiClosed || gamestate != GS_LEVEL || peerState.df_phase != DFB_DF_PHASE_PLAY) return;
+	if (uiTestRemaining <= 0 || dd_ui_test_hold || uiState != UiClosed || gamestate != GS_LEVEL || peerState.df_phase != DFB_DF_PHASE_PLAY) return;
 	if (!uiTestAtNs) uiTestAtNs = now + 3000000000LL;
 	if (now < uiTestAtNs) return;
 	uiTestRemaining--;
@@ -492,7 +500,7 @@ bool DD_BridgeNetEvent(const char *name)
 		SendUiCommand(DFB_KIND_UI_CLOSE, uiId);
 		return true;
 	}
-	if (gamestate != GS_LEVEL) return true;
+	if (gamestate != GS_LEVEL || DDTreadmill_HandoffPending()) return true; // Not while going through a door or map seam.
 	if (!peerSeen || peerStale || peerState.df_phase != DFB_DF_PHASE_PLAY)
 	{
 		Printf("Daggerfall is not ready to show the travel map.\n");

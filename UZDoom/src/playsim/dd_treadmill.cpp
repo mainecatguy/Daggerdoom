@@ -178,6 +178,7 @@ namespace
 		DVector2 playerVel;
 		DAngle yaw, pitch;
 		bool atMapStart = false;	// A dungeon entry: stay on the map's start spot and only take the facing.
+		DDPlayerArea area = DD_AREA_EXTERIOR;	// What the player is arriving in.
 		std::chrono::steady_clock::time_point started;
 	} handoff;
 	int stitches;
@@ -1291,7 +1292,7 @@ namespace
 		Printf("DDTRANSITION %s from=%s to=%s\n", kind, from, to);
 	}
 
-	struct DoorTarget { double x, y, z, yaw; bool atMapStart; };
+	struct DoorTarget { double x, y, z, yaw; bool atMapStart; DDPlayerArea area; };
 
 	void BeginHandoff(FLevelLocals *Level, AActor *pmo, const char *map, const int *warpTile = nullptr, const DoorTarget *door = nullptr)
 	{
@@ -1326,8 +1327,10 @@ namespace
 			handoff.playerVel = DVector2(0, 0);
 		}
 		handoff.atMapStart = false;
+		handoff.area = DD_AREA_EXTERIOR;
 		if (door)	// Through a door: world position in the destination's coordinates, standing still.
 		{
+			handoff.area = door->area;
 			handoff.x = door->x;
 			handoff.y = door->y;
 			handoff.z = handoff.feet = door->z;
@@ -1459,7 +1462,7 @@ namespace
 			const Town &space = towns[index];
 			const SpaceLanding *landing = &space.landings[0];
 			for (const SpaceLanding &l : space.landings) if (l.index == d.index) landing = &l;
-			target = { landing->x / DOOM_PER_DF + space.originX, landing->y / DOOM_PER_DF + space.originY, landing->z / DOOM_PER_DF, landing->yaw, false };
+			target = { landing->x / DOOM_PER_DF + space.originX, landing->y / DOOM_PER_DF + space.originY, landing->z / DOOM_PER_DF, landing->yaw, false, DD_AREA_INTERIOR };
 			map = space.map;
 		}
 		else
@@ -1467,7 +1470,7 @@ namespace
 			const int index = DungeonTown(d.target);
 			if (index < 0) return false;
 			const Town &space = towns[index];
-			target = { space.originX, space.originY, 0, space.exits.empty() ? pmo->Angles.Yaw.Degrees() : atan2(space.exits[0].ny, space.exits[0].nx) * 180 / M_PI, true };
+			target = { space.originX, space.originY, 0, space.exits.empty() ? pmo->Angles.Yaw.Degrees() : atan2(space.exits[0].ny, space.exits[0].nx) * 180 / M_PI, true, DD_AREA_DUNGEON };
 			map = space.map;
 		}
 		const Town &origin = towns[currentTown];	// TownForSpace can grow the list.
@@ -1496,7 +1499,7 @@ namespace
 			for (const SpaceExit &e : t.exits)
 				if (CanUse(pmo, e.x, e.y, e.z, e.nx, e.ny, distance))
 				{
-					const DoorTarget target{ returnPoint.x, returnPoint.y, returnPoint.z, returnPoint.yaw, false };
+					const DoorTarget target{ returnPoint.x, returnPoint.y, returnPoint.z, returnPoint.yaw, false, DD_AREA_EXTERIOR };
 					const FString back = returnPoint.map;
 					returnPoint.valid = false;
 					NotifyTransition(t.spaceId >= DUNGEON_SPACE ? "exit-dungeon" : "exit-building", t.map.GetChars(), back.GetChars());
@@ -1967,24 +1970,27 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 		fprintf(shiftLog, "%d,%d,%d,%.1f,%.1f,%d,%d,%.6f\n", shifts, originX, originY, rewriteNs / 1000.0, totalNs / 1000.0, moveCount, parkCount, err);
 }
 
-bool DDTreadmill_PlayerWorld(double &x, double &y, double &z, double &yawDegrees)
+DDPlayerArea DDTreadmill_PlayerWorld(double &x, double &y, double &z, double &yawDegrees)
 {
-	if (!primaryLevel || (!DDTreadmill_Active && !townActive && !handoff.pending)) return false;
+	if (!primaryLevel || (!DDTreadmill_Active && !townActive && !handoff.pending)) return DD_AREA_NONE;
 	AActor *pmo = primaryLevel->Players[consoleplayer]->mo;
-	if (!pmo) return false;
+	if (!pmo) return DD_AREA_NONE;
+	// Interiors and dungeons sit in a private part of the world table, so their coordinates are not map positions.
+	if (handoff.pending ? handoff.area != DD_AREA_EXTERIOR : townActive && towns[currentTown].space)
+		return handoff.pending ? handoff.area : towns[currentTown].spaceId >= DUNGEON_SPACE ? DD_AREA_DUNGEON : DD_AREA_INTERIOR;
 	yawDegrees = pmo->Angles.Yaw.Degrees();
 	if (handoff.pending)	// Between maps the actor is stale, so report where the player is arriving.
 	{
 		x = handoff.x;
 		y = handoff.y;
 		z = handoff.z;
-		return true;
+		return DD_AREA_EXTERIOR;
 	}
 	const DVector3 world = ToWorld(pmo->Pos(), originX, originY);
 	x = world.X;
 	y = world.Y;
 	z = world.Z;
-	return true;
+	return DD_AREA_EXTERIOR;
 }
 
 void DDTreadmill_UploadBegin() { uploadStart = Clock::now(); }
