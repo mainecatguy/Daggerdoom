@@ -13,7 +13,7 @@ param(
     [string]$GoalFile,
     [guid]$ContinueSession,
     [string]$Model = 'sonnet',
-    [int]$Hours = 8,
+    [double]$Hours = 8,
     [int]$MaxRounds = 12,
     [int]$MaxTurnsPerRound = 150,
     [double]$MaxUsd = 20,
@@ -24,11 +24,13 @@ param(
     [string]$CheckScript = (Join-Path $PSScriptRoot 'check.ps1'),
     [string]$ClaudeExe = 'claude',
     [string]$ClaudePrefix = '',
+    [string]$Target = 'integration',
+    [string]$Lane = '',
     [switch]$Push
 )
 
 # --- Constants ---
-$Integration = 'refs/heads/integration'
+$Integration = "refs/heads/$Target"
 # Blocked up front by agent-settings.json. Rechecked here because shell subprocesses can bypass deny rules.
 $Protected = 'AGENTS.md', 'CLAUDE.md', '.claude/', '.github/', 'scripts/overnight/', '.gitignore', 'GameResources/'
 $AgentSchema = '{"type":"object","properties":{"status":{"type":"string","enum":["CONTINUE","DONE","BLOCKED"]},"summary":{"type":"string"},"questions":{"type":"array","items":{"type":"string"}},"oversights":{"type":"array","items":{"type":"string"}}},"required":["status","summary"]}'
@@ -125,7 +127,7 @@ if (-not (Test-Path $GoalFile)) { throw "Write the goal in $GoalFile first." }
 if (-not $RunDir) { $RunDir = Join-Path (Split-Path $Repo -Parent) ((Split-Path $Repo -Leaf) + '-loop') }
 $Worktree = Join-Path $RunDir 'worktree'
 $Stamp = Get-Date -Format yyyyMMdd-HHmmss
-$Branch = "agent/$Stamp"
+$Branch = if ($Lane) { "agent/$Lane-$Stamp" } else { "agent/$Stamp" }
 $Logs = Join-Path $RunDir "logs\$Stamp"
 $Settings = Join-Path $PSScriptRoot 'agent-settings.json'
 $StartedAt = Get-Date

@@ -15,6 +15,7 @@
 /work/questions.md
 /work/agent-reports.md
 /work/suspectedoversights.md
+/work/queue/
 
 __pycache__/
 *.pyc

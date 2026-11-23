@@ -12,21 +12,17 @@ Work that is ready to do automatically, in priority order. Every item here is ap
 
 ## Ready
 
-### 1. Show Daggerfall's fast travel menu in Doom
+### 1. Bridge core
 
-Pressing the Fast Travel key pauses Doom and shows Daggerfall's real travel map inside the Doom window, with input routed to it. Closing it resumes Doom. Do not recreate the menu in Doom. Build this so other Daggerfall menus, such as inventory, can use the same path. Daggerfall's 3D world should not render while this runs. Arriving at the chosen destination is a separate backlog item.
+Build the transport between the games: a small C++ bridge DLL used by both engines, two single-producer single-consumer queues, a fixed shared struct with Daggerfall-written and Doom-written halves in triple buffers, and FlatBuffers messages. The launcher creates the session. Prove a real message travels both ways between the running games. The field-level contract comes from `work/notes/bridge-contract.md`. UZDoom loads the bridge only when the launcher starts it, so regular WADs are unaffected.
 
-### 2. Synchronized saving
+### 2. Daggerfall with 3D off
 
-Saving pauses both games with a handshake, so messages in flight are not lost, then saves both. Each writes temporary files, and the real save is replaced only after both succeed. Start with player HP and position. On Daggerfall maps, Doom's save command goes through this path. Regular WADs keep normal Doom saves.
+Daggerfall Unity can run with its 3D world rendering and entity physics turned off while its simulation loop and 2D UI keep working. This is one of the four core technical hurdles. Normal Daggerfall Unity launches must behave as they do today.
 
-### 3. Synchronized loading
+### 3. Audit every dungeon (do LAST)
 
-Loading restores both games from the same save, and both confirm they are ready before resuming together. Doom's load command and death restart on Daggerfall maps go through this path. Regular WADs keep normal Doom loading.
-
-### 4. Audit every dungeon
-
-Run the converter on all dungeons and report what breaks, map size, load time, frame rate, and how often each feature appears, such as teleporters, water, lifts, climbing shafts, and special markers. Use the results to recommend priorities for the dungeon work.
+Run the converter on all non-random mainquest dungeons as well as some random dungeons (say 5) and report what breaks, map size, load time, frame rate, and how often each feature appears, such as teleporters, water, lifts, climbing shafts, and special markers. Use the results to recommend priorities for the dungeon work.
 
 Outside feedback raised these possible problems. Treat them as unverified until the audit or real data confirms them:
 
@@ -37,11 +33,11 @@ Outside feedback raised these possible problems. Treat them as unverified until 
 - Editor marker flats may carry teleporter destinations, quest anchors, fixed spawns, and ambient sounds.
 - Some original blocks have misaligned doorways, small lips that snag movement, or broken action chains.
 
-### 5. Update the parity test for swinging doors
+### 4. Update the parity test for swinging doors
 
 The parity tool's closed-door stages were written for the old door slabs and no longer mean anything. Make them meaningful for swinging door objects.
 
-### 6. Daggerfall action system
+### 5. Daggerfall action system
 
 Build a system for Daggerfall's action records, extending the swinging door pattern. Moving dungeon objects should work faithfully to Daggerfall, and the implementing agent is empowered to make the engineering decisions. This also unblocks Scourg Barrow.
 
@@ -49,6 +45,22 @@ Build a system for Daggerfall's action records, extending the swinging door patt
 - **Daggerfall owns the rules:** spells, riddles and text, trap damage, and locks. These wait for the engine sync and should not be faked in Doom.
 - Do not cull "sealed" rooms as sealed rooms as these may be the reason.
 
-### 7. Swimmable water
+### 6. Swimmable water
 
 Use each dungeon block's Daggerfall water level to create swimmable water, likely with UZDoom's swimmable 3D floors. Flooded rooms must not affect rooms above or below them.
+
+## Held for owner review
+
+Approved work that waits until the owner has reviewed the bridge core. Automated loops do not take these yet.
+
+### Show Daggerfall's fast travel menu in Doom
+
+Pressing the Fast Travel key pauses Doom and shows Daggerfall's real travel map inside the Doom window, with input routed to it. Closing it resumes Doom. Do not recreate the menu in Doom. Build this so other Daggerfall menus, such as inventory, can use the same path. Daggerfall's 3D world should not render while this runs. Arriving at the chosen destination is a separate backlog item.
+
+### Synchronized saving
+
+Saving pauses both games with a handshake, so messages in flight are not lost, then saves both. Each writes temporary files, and the real save is replaced only after both succeed. Start with player HP and position. On Daggerfall maps, Doom's save command goes through this path. Regular WADs keep normal Doom saves.
+
+### Synchronized loading
+
+Loading restores both games from the same save, and both confirm they are ready before resuming together. Doom's load command and death restart on Daggerfall maps go through this path. Regular WADs keep normal Doom loading.

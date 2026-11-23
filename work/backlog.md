@@ -2,14 +2,6 @@
 
 Work that needs owner input or depends on unfinished work. **Automated loops never take work from this file.** When an item is unblocked and the owner approves it, it moves to `work/todo.md`. Finished work moves to `CHANGELOG.md`, with details in `work/notes/`.
 
-## Engine bridge
-
-### Message channel between the games
-
-**Waiting on:** owner design. No transport has been chosen.
-
-Design how Daggerfall Unity and UZDoom talk to each other, then build it. The fast travel menu, synchronized saving, and synchronized loading in `work/todo.md` cannot start until this is done.
-
 ## Overworld and towns
 
 ### Distant terrain LOD
