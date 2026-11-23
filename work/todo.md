@@ -22,7 +22,7 @@ The parity tool's closed-door stages were written for the old door slabs and no 
 
 ### 3. Daggerfall action system
 
-Build a system for Daggerfall's action records, extending the swinging door pattern. Moving dungeon objects should work faithfully to Daggerfall, and the implementing agent is empowered to make the engineering decisions. This also unblocks Scourg Barrow.
+Build a system for Daggerfall's action records, extending the swinging door pattern. Moving dungeon objects should work faithfully to Daggerfall, and the implementing agent is empowered to make the engineering decisions. This should remove the physical blockers in Scourg Barrow. Parts may stay gated by Daggerfall rules or quests, which is an acceptable result.
 
 - **Doom handles the physical part:** moving, rotating, teleporting, triggers, and chains.
 - **Daggerfall owns the rules:** spells, riddles and text, trap damage, and locks. These wait for the engine sync and should not be faked in Doom.
@@ -34,7 +34,7 @@ Use each dungeon block's Daggerfall water level to create swimmable water, likel
 
 ### 5. Build and check main quest dungeon traversal
 
-Build the existing non-random main quest dungeons and about 5 random dungeons with the current converter, load each in UZDoom, and check that the player can physically traverse them. Report what works, what breaks, and which areas cannot be reached. This pass does not fix or test quests. Candidates named in outside feedback include Direnni Tower, Scourg Barrow, Castle Wayrest, Orsinium, and Mantellan Crux. Confirm the real list from the game's data. Do Mantellan Crux last, as the final boss, because it may be extremely hard.
+Build the existing non-random main quest dungeons and about 5 random dungeons with the current converter, load each in UZDoom, and check that the player can physically traverse them. Report what works, what breaks, and which areas cannot be reached. This pass does not fix or test quests. Some dungeons depend on systems Doom does not have yet, such as talking to a character to open a door. Classify each as traversable, gated by a named missing system, broken, or unknown. Do not build or fake those systems. Success means an honest classification, not that every dungeon can be completed. Candidates named in outside feedback include Direnni Tower, Scourg Barrow, Castle Wayrest, Orsinium, and Mantellan Crux. Confirm the real list from the game's data. Do Mantellan Crux last, as the final boss, because it may be extremely hard.
 
 Tell the owner wherever a dungeon requires climbing or levitation to progress, with the dungeon and location. Fixing what this finds is separate work.
 
