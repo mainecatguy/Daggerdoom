@@ -8,7 +8,10 @@
 #include <windows.h>
 #include <shellapi.h>
 
+#include "doomerfall_bridge.h"
+
 #include <cstdio>
+#include <cstring>
 #include <fstream>
 #include <iterator>
 #include <string>
@@ -32,7 +35,8 @@ const wchar_t Usage[] =
 	L"--uzdoom-cwd <dir>   UZDoom working directory (default: its exe folder)\n"
 	L"--grace-ms <n>       Time the other game gets to close (default 5000)\n"
 	L"--log <file>         Log file (default: doomerfall-launcher.log beside the launcher)\n"
-	L"--minimized          Keep both games minimized and unfocused, with no dialogs (for tests)\n";
+	L"--minimized          Keep both games minimized and unfocused, with no dialogs (for tests)\n"
+	L"--no-bridge          Do not create a bridge session\n";
 
 struct Options
 {
@@ -40,6 +44,7 @@ struct Options
 	std::vector<std::wstring> mods, uzdoomArgs, dfuArgs;
 	DWORD graceMs = 5000;
 	bool minimized = false;
+	bool bridge = true;
 };
 
 struct Game
@@ -187,6 +192,11 @@ bool ParseArgs(int argc, wchar_t **argv, Options &options, std::wstring &error)
 		if (arg == L"--minimized")
 		{
 			options.minimized = true;
+			continue;
+		}
+		if (arg == L"--no-bridge")
+		{
+			options.bridge = false;
 			continue;
 		}
 		if (i + 1 >= argc)
@@ -372,8 +382,25 @@ void ShutDown(HANDLE job, Game &survivor, DWORD graceMs)
 	Log(std::wstring(survivor.name) + (clean ? L" closed on request" : L" was force-ended"));
 }
 
-int Run(const Options &options)
+int Run(Options options)
 {
+	// The launcher holds the session open for the games' whole lifetime.
+	dfb_session *bridge = nullptr;
+	if (options.bridge)
+	{
+		char id[40];
+		snprintf(id, sizeof(id), "%08lx-%016llx", GetCurrentProcessId(), (unsigned long long)dfb_now_ns());
+		const int rc = dfb_create(id, &bridge);
+		if (rc != DFB_OK)
+			return Fail(ExitLaunchFailed, L"Could not create the bridge session (error " + std::to_wstring(rc) + L")");
+		const std::wstring wideId(id, id + strlen(id));
+		options.uzdoomArgs.push_back(L"-dfbridge");
+		options.uzdoomArgs.push_back(wideId);
+		options.dfuArgs.push_back(L"-dfbridge");
+		options.dfuArgs.push_back(wideId);
+		Log(L"bridge session " + wideId);
+	}
+
 	HANDLE job = CreateJobObjectW(nullptr, nullptr);
 	if (!job) return Fail(ExitLaunchFailed, L"Could not create the job object: " + LastError());
 
@@ -421,6 +448,7 @@ int Run(const Options &options)
 
 	ShutDown(job, games[1 - first], options.graceMs);
 	CloseHandle(job);
+	dfb_close(bridge);
 	Log(L"launcher done");
 	return static_cast<int>(exitCode);
 }

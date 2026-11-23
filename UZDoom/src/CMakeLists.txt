@@ -1280,6 +1280,11 @@ list( REMOVE_ITEM GAME_NONPCH_SOURCES ${PCH_SOURCES} )
 
 add_executable( zdoom MACOSX_BUNDLE ${GAME_SOURCES} )
 
+# Doomerfall bridge. Inactive unless UZDoom is started with -dfbridge.
+set( DOOMERFALL_BRIDGE_SOURCES dd_bridge.cpp ../../bridge/doomerfall_bridge.cpp )
+target_sources( zdoom PRIVATE ${DOOMERFALL_BRIDGE_SOURCES} )
+set_source_files_properties( ${DOOMERFALL_BRIDGE_SOURCES} PROPERTIES SKIP_PRECOMPILE_HEADERS TRUE )
+
 target_include_directories( zdoom PRIVATE ${CMAKE_BINARY_DIR} )
 
 option(USE_PCH "Enable Pre-compiled headers" ON)
