@@ -83,7 +83,7 @@ static partial class Program
             else if (args[a] == "--debug-row") debugRow = args[++a];
             else if (args[a] == "--debug-line") debugLine = args[++a]; // x0,y0,x1,y1,z0,z1: raw hits, spans, and faces along a line
             else if (args[a] == "--audit-points") a += 2;
-            else if (args[a] == "--no-walls" || args[a] == "--export-mesh" || args[a] == "--no-ceiling-relief" || args[a] == "--door-dump") { }
+            else if (args[a] == "--no-walls" || args[a] == "--export-mesh" || args[a] == "--no-ceiling-relief" || args[a] == "--door-dump" || args[a] == "--action-dump") { }
             else if (args[a] == "--texture-table") a++; // used by --export-mesh: six archives, comma separated
             else if (args[a] == "--grid-collision") gridCollision = true; // old axis-aligned boundaries and flat planes
             else if (args[a] == "--open-actions") openActions = true;            else if (args[a] == "--route-step") routeStep = int.Parse(args[++a]); // diagnostic: models jumping or climbing
@@ -97,6 +97,7 @@ static partial class Program
         ApplyWorldScale(args.Contains("--cell"));
         Directory.CreateDirectory(outDir);
         if (!FindDungeon(arena2, name, out DFLocation location)) { Console.Error.WriteLine("dungeon not found: " + name); return 1; }
+        if (args.Contains("--action-dump")) return DumpActions(arena2, location, outDir);
         int meshAt = Array.IndexOf(args, "--export-mesh"); // writes <slug>_mesh.pk3 (real models, textures, UVs) and exits
         if (meshAt >= 0) return ExportMesh(arena2, location, outDir, new string(name.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant(), args);
 
@@ -109,6 +110,8 @@ static partial class Program
         relaxedStairs = RelaxStairs();
         gapCells = CloseGaps();
         if (!args.Contains("--no-ceiling-relief")) RelieveCeilings();
+        int lidCells = OpenLidRims();
+        if (lidFootprints.Count > 0) Console.WriteLine($"coffin rims: {lidCells} cells regained the air above the rim, {lidFootprints.Count} lids");
         ApplyDoors(); // these spans become sight blockers only
         if (!gridCollision) AssignPlanes();
         if (args.Contains("--door-dump"))
@@ -232,7 +235,14 @@ static partial class Program
                     var action = obj.Resources.ModelResource.ActionResource;
                     if (debugRow != null && (action.Flags != 0 || isDoor))
                         Console.WriteLine($"ACTION block={dungeonBlock.BlockName} model={id} desc={reference.Description} door={isDoor} flags={action.Flags} axis={action.Axis} dur={action.Duration} mag={action.Magnitude} next={action.NextObjectOffset} pos={obj.XPos + offset.X:F0},{obj.ZPos + offset.Z:F0},{-obj.YPos}");
-                    // Diagnostic: treat lifts, lids, and moving walls as already out of the way.
+                    // Moving models are runtime objects (action_objects.zs), so they are not static collision.
+                    if (IsMovingAction(obj, isDoor))
+                    {
+                        skippedActions++;
+                        if (reference.Description == "LID") NoteLidFootprint(arch, id, obj, offset);
+                        continue;
+                    }
+                    // Diagnostic: also treat every other action model as out of the way.
                     if (openActions && !isDoor && action.Flags != 0) { skippedActions++; continue; }
                     AddModel(arch, id, obj, offset, isDoor, blockIndex);
                 }
