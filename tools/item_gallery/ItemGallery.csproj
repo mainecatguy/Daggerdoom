@@ -15,6 +15,7 @@
   <ItemGroup>
     <Compile Include="ItemGallery.cs" />
     <Compile Include="$(Converter)DfuStubs.cs" />
+    <Compile Include="$(Converter)PlayerScale.cs" />
     <!-- Daggerfall Unity's own item enums and readers, compiled unchanged. -->
     <Compile Include="..\..\daggerfall-unity-master\Assets\Scripts\Game\Items\ItemEnums.cs" />
     <Compile Include="$(DfuApi)Arch3dFile.cs;$(DfuApi)Arch3dPatch.cs;$(DfuApi)BaseImageFile.cs;$(DfuApi)BlocksFile.cs;$(DfuApi)BsaFile.cs;$(DfuApi)DFBitmap.cs;$(DfuApi)DFColor.cs;$(DfuApi)DFLocation.cs;$(DfuApi)DFPalette.cs;$(DfuApi)TextureFile.cs;$(DfuApi)DFMesh.cs;$(DfuApi)DFPosition.cs;$(DfuApi)DFRandom.cs;$(DfuApi)DFRegion.cs;$(DfuApi)DFSize.cs;$(DfuApi)FaceUVTool.cs;$(DfuApi)FileProxy.cs;$(DfuApi)MapsFile.cs;$(DfuApi)PakFile.cs;$(DfuApi)PatchList.cs;$(DfuApi)SkyFile.cs;$(DfuApi)Vector3.cs;$(DfuApi)WoodsFile.cs" LinkBase="DfuApi" />
