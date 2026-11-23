@@ -12,25 +12,27 @@ Work that is ready to do automatically, in priority order. Every item here is ap
 
 ## Ready
 
-### 1. Bridge core
+### 1. Startup and save flow research
 
-Build the transport between the games: a small C++ bridge DLL used by both engines, two single-producer single-consumer queues, a fixed shared struct with Daggerfall-written and Doom-written halves in triple buffers, and FlatBuffers messages. The launcher creates the session. Prove a real message travels both ways between the running games. The field-level contract comes from `work/notes/bridge-contract.md`. UZDoom loads the bridge only when the launcher starts it, so regular WADs are unaffected.
+Research only. Today Doom drops the player straight into a game while Daggerfall sits at its opening menu. Propose how startup, new game, loading, saving, and death should work with Doom as the controlling window and Daggerfall as the save controller, then break it into tasks. The owner's starting idea is that the player chooses Start, which goes through Daggerfall's start workflows, or Load. A save is only offered if both games have a matching save. Better ideas are welcome.
 
-### 2. Update the parity test for swinging doors
+### 2. Position sync
 
-The parity tool's closed-door stages were written for the old door slabs and no longer mean anything. Make them meaningful for swinging door objects.
+Keep Daggerfall and Doom loaded into the same area, through a deterministic coordinate transform at the 75% world scale. This is one of the four core technical hurdles.
 
-### 3. Daggerfall action system
+- Perfect sync is not needed. Daggerfall applying the player's position about once per second should be enough. Area changes should not wait for that update.
+- Daggerfall must keep the same world objects in memory as Doom, so leave its terrain and location streaming running and measure the cost.
+- Daggerfall's hidden player must not take fall damage, get stuck, or trigger anything from being moved this way.
+- Daggerfall's 3D drawing is controlled by a flag the launcher passes, such as `--nodraw`. Without the flag Daggerfall draws normally, because tests compare screenshots from both games to check areas and LODs. The simulation safeguards below apply either way.
+- The hidden Daggerfall world must not change real game state on its own. How to do that is an engineering call. The suggested approach is to stop the hidden player's motor and physics, and turn off AI and attacks for Daggerfall's enemies while keeping those objects in memory. Leave peaceful NPCs alone until the NPC design is settled.
 
-Build a system for Daggerfall's action records, extending the swinging door pattern. Moving dungeon objects should work faithfully to Daggerfall, and the implementing agent is empowered to make the engineering decisions. This should remove the physical blockers in Scourg Barrow. Parts may stay gated by Daggerfall rules or quests, which is an acceptable result.
+### 3. Show Daggerfall's fast travel menu in Doom
 
-- **Doom handles the physical part:** moving, rotating, teleporting, triggers, and chains.
-- **Daggerfall owns the rules:** spells, riddles and text, trap damage, and locks. These wait for the engine sync and should not be faked in Doom.
-- Do not cull "sealed" rooms as sealed rooms as these may be the reason.
+Pressing the Fast Travel key pauses Doom and shows Daggerfall's real travel map inside the Doom window, with input routed to it. Closing it resumes Doom. Do not recreate the menu in Doom. Build this so other Daggerfall menus, such as inventory, can use the same path. Daggerfall's 3D drawing follows the launcher's `--nodraw` flag from position sync. Keep its entities and physics running, apart from the position sync safeguards, because how NPCs will work is not designed yet. Arriving at the chosen destination is a separate backlog item.
 
-### 4. Swimmable water
+### 4. Fix the tilted door export crash
 
-Use each dungeon block's Daggerfall water level to create swimmable water, likely with UZDoom's swimmable 3D floors. Flooded rooms must not affect rooms above or below them.
+Mesh export crashes on the main quest Daggerfall castle with `door 55004 is tilted; only yaw is supported` at `MeshExport.cs:94`. Fix it, and check whether other dungeons use tilted doors.
 
 ### 5. Build and check main quest dungeon traversal
 
@@ -46,23 +48,17 @@ Building colliders in towns currently stretch up forever instead of ending at ro
 - Go up from the sides and stop at the top of the building.
 - If the roof is sloped, apply the correct slope to the Doom collider.
 
+### 7. One random enemy per placement
+
+For MVP, each Daggerfall enemy placement generates one random Doom enemy, the same one each time. Mook packs come later.
+
+### 8. Dungeon texture second pass
+
+The owner found bugged textures in the Scourg Barrow action demo. Do a second pass that finds and fixes textures that do not match Daggerfall.
+
 ## Held for owner review
 
-Approved work that waits until the owner has reviewed the bridge core. Automated loops do not take these yet.
-
-### Position sync
-
-Keep Daggerfall and Doom loaded into the same area, through a deterministic coordinate transform at the 75% world scale. This is one of the four core technical hurdles.
-
-- Perfect sync is not needed. Daggerfall applying the player's position about once per second should be enough. Area changes should not wait for that update.
-- Daggerfall must keep the same world objects in memory as Doom, so leave its terrain and location streaming running and measure the cost.
-- Daggerfall's hidden player must not take fall damage, get stuck, or trigger anything from being moved this way.
-- Daggerfall's 3D drawing is controlled by a flag the launcher passes, such as `--nodraw`. Without the flag Daggerfall draws normally, because tests compare screenshots from both games to check areas and LODs. The simulation safeguards below apply either way.
-- The hidden Daggerfall world must not change real game state on its own. How to do that is an engineering call. The suggested approach is to stop the hidden player's motor and physics, and turn off AI and attacks for Daggerfall's enemies while keeping those objects in memory. Leave peaceful NPCs alone until the NPC design is settled. 
-
-### Show Daggerfall's fast travel menu in Doom
-
-Pressing the Fast Travel key pauses Doom and shows Daggerfall's real travel map inside the Doom window, with input routed to it. Closing it resumes Doom. Do not recreate the menu in Doom. Build this so other Daggerfall menus, such as inventory, can use the same path. Daggerfall's 3D drawing follows the launcher's `--nodraw` flag from position sync. Keep its entities and physics running, apart from the position sync safeguards, because how NPCs will work is not designed yet. Arriving at the chosen destination is a separate backlog item.
+Approved work that waits until the owner has reviewed the startup and save flow research. Automated loops do not take these yet.
 
 ### Synchronized saving
 

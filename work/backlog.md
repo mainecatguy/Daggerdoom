@@ -26,12 +26,6 @@ Daggerfall owns travel cost, time, and destination. Doom reports the player's wo
 
 The player can go through a door into a building interior and back out, and can enter and exit dungeons from the overworld or a town, arriving where Daggerfall would place them.
 
-### One random enemy per placement
-
-**Waiting on:** owner approval to move to `work/todo.md`.
-
-Owner decision (2026-11-22): for MVP, each Daggerfall enemy placement generates one random Doom enemy. Mook packs come later.
-
 ### Synchronize player HP
 
 **Waiting on:** the bridge core.

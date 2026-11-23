@@ -12,6 +12,12 @@ What is done on the project, newest first. Agents do not need to read this unles
 
 ## 2026-11-22
 
+### Bridge core (`overnight/engine`, not merged)
+- UZDoom and Daggerfall Unity exchange messages and shared state through the launcher. The owner confirmed the IPC demo works.
+
+### Parity test, action system, and water (`overnight/dungeon`, not merged)
+- Closed-door parity stages use swinging doors, dungeon water is swimmable, and Daggerfall action objects move. The owner confirmed the Scourg Barrow coffin works, and textures need a second pass.
+
 ### Launcher (`7e80862`)
 - A native launcher runs both games in one Job Object and closes both when either exits or is killed. It passes an ordered mod list to UZDoom. There is no message channel yet.
 - The owner tested it and confirmed it works. Doom had no sound because the launcher build lacked `sndfile.dll` and `soft_oal.dll`. They were copied in, and OpenAL now initializes.
