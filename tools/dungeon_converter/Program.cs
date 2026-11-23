@@ -73,6 +73,7 @@ static partial class Program
         string name = null, outDir = null, arena2 = @"D:\dev\DoomDaggerfall\GameResources\DAGGER\ARENA2";
         if (args.Contains("--list-water")) return ListWater(arena2);
         if (args.Contains("--list-tilted-doors")) return ListTiltedDoors(arena2);
+        if (args.Contains("--list-main")) return ListMain(arena2, args.Contains("--list-all"));
         for (int a = 0; a < args.Length; a++)
         {
             if (args[a] == "--out") outDir = args[++a];
@@ -165,6 +166,27 @@ static partial class Program
         return 0;
     }
 
+    // The ids in DaggerfallDungeon.IsMainStoryDungeon, copied because that class needs Unity.
+    static readonly int[] MainStoryIds = { 187853213, 630439035, 1291010263, 6634853, 19021260, 728811286, 701948302, 83032363, 1001, 207828842, 9570447, 2352284, 336619236, 43196334 };
+
+    static int ListMain(string arena2, bool all)
+    {
+        var maps = new MapsFile(Path.Combine(arena2, "MAPS.BSA"), FileUsage.UseMemory, true);
+        for (int r = 0; r < maps.RegionCount; r++)
+        {
+            if (!maps.LoadRegion(r)) continue;
+            var region = maps.GetRegion(r);
+            if (region.MapNames == null) continue;
+            for (int l = 0; l < region.LocationCount; l++)
+            {
+                var loc = maps.GetLocation(r, l);
+                if (!MainStoryIds.Contains(loc.MapTableData.MapId) && !all) continue; // --list-all lists every location with a dungeon
+                Console.WriteLine($"MAIN {loc.MapTableData.MapId} {region.Name}/{region.MapNames[l]} hasDungeon={loc.HasDungeon} blocks={(loc.HasDungeon ? loc.Dungeon.Blocks.Length : 0)}");
+            }
+        }
+        return 0;
+    }
+
     static bool FindDungeon(string arena2, string name, out DFLocation location)
     {
         var maps = new MapsFile(Path.Combine(arena2, "MAPS.BSA"), FileUsage.UseMemory, true);
@@ -175,8 +197,10 @@ static partial class Program
             if (region.MapNames == null) continue;
             for (int l = 0; l < region.LocationCount; l++)
             {
-                if (!string.Equals(region.MapNames[l], name, StringComparison.OrdinalIgnoreCase)) continue;
+                bool byId = name.StartsWith("#"); // "#<map id>" picks the exact location, because names repeat across regions
+                if (!byId && !string.Equals(region.MapNames[l], name, StringComparison.OrdinalIgnoreCase)) continue;
                 var candidate = maps.GetLocation(r, l);
+                if (byId && candidate.MapTableData.MapId.ToString() != name.Substring(1)) continue;
                 if (candidate.HasDungeon) { location = candidate; return true; }
             }
         }
