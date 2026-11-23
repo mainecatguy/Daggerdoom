@@ -50,12 +50,11 @@ namespace
 	std::vector<double> benchFrames;
 	int benchMinTriangles = INT_MAX, benchMaxTriangles;
 
-	void Load(int lump)
+	// A key identifies the loaded mesh: a lump number, or a generated location's key from the town cache.
+	void LoadBytes(const uint8_t *bytes, int key)
 	{
 		uint64_t start = I_nsTime();
-		loadedLump = lump;
-		auto data = fileSystem.ReadFile(lump);
-		auto bytes = data.bytes();
+		loadedLump = key;
 		int textures, batchCount, vertices;
 		memcpy(&textures, bytes + 12, 4);
 		memcpy(&batchCount, bytes + 16, 4);
@@ -92,9 +91,26 @@ namespace
 		Printf("DFMesh: loaded %d triangles, %d draw batches in %.1f ms\n", triangles, batchCount, (I_nsTime() - start) / 1e6);
 	}
 
+	void Load(int lump)
+	{
+		auto data = fileSystem.ReadFile(lump);
+		LoadBytes(data.bytes(), lump);
+	}
+
 	bool Active(FLevelLocals *level)
 	{
 		if (level != primaryLevel) return false;
+		if (DDTreadmill_RuntimeTowns())
+		{
+			const uint8_t *data;
+			size_t size;
+			int key;
+			if (DDTreadmill_MapMesh(level->MapName.GetChars(), data, size, key))
+			{
+				if (!buffer || loadedLump != key || bufferOwner != screen) LoadBytes(data, key);
+				return true;
+			}
+		}
 		if (!checked || checkedMap.CompareNoCase(level->MapName) != 0)
 		{
 			checked = true;
@@ -164,9 +180,20 @@ void DFMesh_DrawLod(FLevelLocals *level, FRenderState &state)
 {
 	double x, y, z;
 	if (level != primaryLevel || !dfmesh_view || !DDTreadmill_MeshOffset(x, y, z)) return;
-	const int lump = fileSystem.CheckNumForName("DFMESH");
-	if (lump < 0) return;
-	if (!buffer || loadedLump != lump || bufferOwner != screen) Load(lump);
+	if (DDTreadmill_RuntimeTowns())
+	{
+		const uint8_t *data;
+		size_t size;
+		int key;
+		if (!DDTreadmill_LodMesh(data, size, key)) return;
+		if (!buffer || loadedLump != key || bufferOwner != screen) LoadBytes(data, key);
+	}
+	else
+	{
+		const int lump = fileSystem.CheckNumForName("DFMESH");
+		if (lump < 0) return;
+		if (!buffer || loadedLump != lump || bufferOwner != screen) Load(lump);
+	}
 	state.mModelMatrix.loadIdentity();
 	state.mModelMatrix.translate(float(x), float(z), float(y));
 	state.EnableModelMatrix(true);

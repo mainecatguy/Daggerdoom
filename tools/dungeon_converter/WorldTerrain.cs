@@ -245,6 +245,21 @@ static class WorldTerrain
         return group;
     }
 
+    // Every location group in a fixed order. The list index is the group's id, and its first place is the map's primary location.
+    public static List<List<Place>> Groups()
+    {
+        var groups = new List<List<Place>>();
+        var seen = new HashSet<(int, int)>();
+        foreach (var place in Places.Values.OrderBy(p => p.Y).ThenBy(p => p.X))
+        {
+            if (seen.Contains((place.X, place.Y))) continue;
+            var group = GroupOf(place);
+            foreach (var member in group) seen.Add((member.X, member.Y));
+            groups.Add(group);
+        }
+        return groups;
+    }
+
     public static int RunExport(string[] args)
     {
         string Arg(string name, string fallback) { int at = Array.IndexOf(args, name); return at >= 0 ? args[at + 1] : fallback; }

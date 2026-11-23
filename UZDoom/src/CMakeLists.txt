@@ -832,6 +832,7 @@ set (PCH_SOURCES
 	playsim/p_things.cpp
 	p_tick.cpp
 	playsim/dd_treadmill.cpp # [DoomDaggerfall]
+	playsim/dd_towncache.cpp # [DoomDaggerfall]
 	playsim/p_user.cpp
 	rendering/r_utility.cpp
 	rendering/r_sky.cpp

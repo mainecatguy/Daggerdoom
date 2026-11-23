@@ -41,6 +41,7 @@
 #include "i_system.h"
 #include "screenjob.h"
 #include "texturemanager.h"
+#include "playsim/dd_treadmill.h" // [DoomDaggerfall]
 
 static TArray<cluster_info_t> wadclusterinfos;
 TArray<level_info_t> wadlevelinfos;
@@ -81,6 +82,10 @@ level_info_t *FindLevelInfo (const char *mapname, bool allowdefault)
 	if ((i = FindWadLevelInfo (mapname)) > -1)
 	{
 		return &wadlevelinfos[i];
+	}
+	else if (level_info_t *ddTown = DDTreadmill_FindLevelInfo(mapname)) // [DoomDaggerfall] generated locations have no MAPINFO entry
+	{
+		return ddTown;
 	}
 	else if (allowdefault)
 	{
