@@ -273,6 +273,8 @@ Owner design (2026-11-22):
 - Some random dungeons may also lead to Doom maps.
 - Daggerfall idles while the player is inside and keeps mediating damage dealt and taken. Portal maps have random drops.
 
+**Likely approach, if we build see-through rifts (owner, 2026-11-22):** generate a map from the WAD map that also includes the surrounding Daggerfall exterior and the portal, joined by a UZDoom line portal. The overworld treadmill hands off to it the way it does to a town, because the treadmill itself cannot host linked portals. Generate this as a separate cached map and never modify the player's WAD. Start with a proof using one classic Doom map. Maps that cannot merge, such as heavily scripted ones, fall back to a normal load.
+
 **To work out when this starts:**
 
 - Most WADs are already supported. The risk is WADs that change core monsters or rules, because UZDoom mounts WADs at startup and those changes could reach Daggerfall maps. Map names such as MAP01 can also collide between WADs.
