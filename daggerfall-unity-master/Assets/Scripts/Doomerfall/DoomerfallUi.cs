@@ -208,7 +208,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
     [DefaultExecutionOrder(-32000)]
     public sealed class DoomerfallUi : MonoBehaviour
     {
-        const uint UiTravelMap = 1;
+        const uint UiTravelMap = 1, UiInventory = 2;
+        const int HudFramesToClose = 2; // A window can post the next window as it closes, which appears a frame later.
         const uint StateClosed = 0, StateOpened = 1;
         const uint ReasonUser = 1, ReasonRefused = 2, ReasonResult = 3, ReasonDoom = 4;
         const ushort KindUiState = 9, KindUiResult = 10, KindTravel = 20;
@@ -227,7 +228,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         bool waitingForWindow, windowOpen, travelArriving;
         float travelWaitUntil;
         uint closeReason;
-        int waitFrames, pending, surfaceWidth, surfaceHeight;
+        int waitFrames, hudFrames, pending, surfaceWidth, surfaceHeight;
         uint frameId;
         byte[] pixels;
         readonly Queue<long> capturedTimes = new Queue<long>(), inputTimes = new Queue<long>();
@@ -294,7 +295,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
             else if (windowOpen && atHud)
             {
-                Finish(closeReason != 0 ? closeReason : ReasonUser);
+                if (++hudFrames >= HudFramesToClose)
+                    Finish(closeReason != 0 ? closeReason : ReasonUser);
+            }
+            else
+            {
+                hudFrames = 0;
             }
         }
 
@@ -304,8 +310,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return;
             openId = id;
             closeReason = 0;
-            waitFrames = 0;
-            if (id != UiTravelMap || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
+            waitFrames = hudFrames = 0;
+            if ((id != UiTravelMap && id != UiInventory) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
             {
                 Finish(ReasonRefused);
                 return;
@@ -323,7 +329,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DoomerfallInput.Begin();
             waitingForWindow = true;
             LogWorldState("before");
-            DaggerfallUI.PostMessage(DaggerfallUIMessages.dfuiOpenTravelMapWindow);
+            DaggerfallUI.PostMessage(id == UiInventory ? DaggerfallUIMessages.dfuiOpenInventoryWindow : DaggerfallUIMessages.dfuiOpenTravelMapWindow);
         }
 
         public void OnClose(uint id)
@@ -359,6 +365,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             GameManager game = GameManager.Instance;
             bridge.LogLine(string.Format("ui: world {0}: pixel {1},{2} gold {3} game_minutes {4}", when, game.PlayerGPS.CurrentMapPixel.X,
                 game.PlayerGPS.CurrentMapPixel.Y, game.PlayerEntity.GoldPieces, DaggerfallUnity.Instance.WorldTime.DaggerfallDateTime.ToClassicDaggerfallTime()));
+
+            var items = new StringBuilder();
+            DaggerfallWorkshop.Game.Items.ItemCollection carried = game.PlayerEntity.Items;
+            for (int i = 0; i < carried.Count; i++)
+            {
+                DaggerfallWorkshop.Game.Items.DaggerfallUnityItem item = carried.GetItem(i);
+                items.Append(i == 0 ? "" : ", ").Append(item.LongName).Append(item.IsEquipped ? " (equipped)" : "");
+            }
+            bridge.LogLine(string.Format("ui: inventory {0}: {1} carried, {2} in wagon: {3}", when, carried.Count, game.PlayerEntity.WagonItems.Count, items));
         }
 
         void SendState(uint state, uint reason, uint id = 0)

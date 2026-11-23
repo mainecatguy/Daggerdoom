@@ -99,6 +99,7 @@ extern "C" {
 /* Daggerfall screens Doom can ask for. Add new menus here. */
 #define DFB_UI_NONE        0u
 #define DFB_UI_TRAVEL_MAP  1u
+#define DFB_UI_INVENTORY   2u
 
 #define DFB_UI_CLOSED      0u
 #define DFB_UI_OPENED      1u

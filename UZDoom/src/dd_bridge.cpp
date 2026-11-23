@@ -63,6 +63,7 @@ FARG_ADVANCED(dfhptest, "Doomerfall", "basic|monsters", "HP sync test only: scri
 
 CVAR(Int, dd_sync_df_phase, 0, CVAR_NOSAVE) // Read by the position sync test route.
 CVAR(Int, dd_ui_test_hold, 0, CVAR_NOSAVE | CVAR_MOD) // Test only: a route holds -dfuitest until it reaches the place to open the menu.
+CVAR(Int, dd_ui_test_menu, 1, CVAR_NOSAVE) // Test only: the menu -dfuitest opens. 1 is the travel map, 2 the inventory.
 
 namespace
 {
@@ -474,7 +475,7 @@ void RunUiTest(int64_t now)
 	if (now < uiTestAtNs) return;
 	uiTestRemaining--;
 	uiTestAtNs = 0;
-	C_DoCommand("netevent df_fast_travel");
+	C_DoCommand(dd_ui_test_menu == DFB_UI_INVENTORY ? "netevent df_inventory" : "netevent df_fast_travel");
 }
 
 void UiRect(int &x, int &y, int &w, int &h)
@@ -524,11 +525,12 @@ int SidedVirtualKey(uint64_t vk, long long lParam)
 	}
 }
 
-bool IsFastTravelKey(long long lParam)
+// The control that opened the open menu also closes it, on whatever key the player bound.
+bool IsOpenMenuKey(long long lParam)
 {
 	int key = int((lParam >> 16) & 0xFF);
 	if ((lParam >> 24) & 1) key |= 0x80;
-	return Bindings.GetBinding(key).CompareNoCase("netevent df_fast_travel") == 0;
+	return Bindings.GetBinding(key).CompareNoCase(uiId == DFB_UI_INVENTORY ? "netevent df_inventory" : "netevent df_fast_travel") == 0;
 }
 }
 
@@ -555,7 +557,9 @@ bool DD_BridgeNetEvent(const char *name)
 		SendText("hptest damage 15");
 		return true;
 	}
-	if (!session || strcmp(name, "df_fast_travel")) return false;
+	if (!session) return false;
+	const bool inventory = !strcmp(name, "df_inventory");
+	if (!inventory && strcmp(name, "df_fast_travel")) return false;
 	if (uiState != UiClosed)
 	{
 		SendUiCommand(DFB_KIND_UI_CLOSE, uiId);
@@ -564,8 +568,13 @@ bool DD_BridgeNetEvent(const char *name)
 	if (gamestate != GS_LEVEL || flowHold || players[consoleplayer].health <= 0 || DDTreadmill_HandoffPending() || DD_BridgeSaveActive()) return true; // Not while going through a door or map seam, or saving.
 	if (!peerSeen || peerStale || peerState.df_phase != DFB_DF_PHASE_PLAY)
 	{
-		Printf("Daggerfall is not ready to show the travel map.\n");
+		Printf("Daggerfall is not ready to show that menu.\n");
 		Log("ui: open refused, Daggerfall phase %u", peerState.df_phase);
+		return true;
+	}
+	if (inventory)
+	{
+		OpenUi(DFB_UI_INVENTORY);
 		return true;
 	}
 	// Daggerfall's own indoor check cannot see this: its hidden player waits outside the door Doom used.
@@ -609,7 +618,7 @@ bool DD_BridgeUiWndProc(unsigned int message, unsigned long long wParam, long lo
 		[[fallthrough]];
 	case WmKeyDown:
 		if (lParam & 0x40000000) return true; // Auto-repeat. Daggerfall tracks held keys itself.
-		if (IsFastTravelKey(lParam))
+		if (IsOpenMenuKey(lParam))
 		{
 			SendUiCommand(DFB_KIND_UI_CLOSE, uiId);
 			return true;

@@ -109,6 +109,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             player.GoldPieces = 5000; // Lets the travel menu test afford any trip.
             if (player.SkillUses == null) // The blank test character has none, and travel's skill check reads them.
                 player.SkillUses = new short[DaggerfallSkills.Count];
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfinventorytest") >= 0) // Something to equip and move in the inventory test.
+            {
+                // The blank test character's career can forbid every weapon.
+                player.Career.ForbiddenProficiencies = 0;
+                player.Career.ForbiddenMaterials = 0;
+                player.Items.AddItem(DaggerfallWorkshop.Game.Items.ItemBuilder.CreateWeapon(DaggerfallWorkshop.Game.Items.Weapons.Longsword, DaggerfallWorkshop.Game.Items.WeaponMaterialTypes.Iron));
+                player.Items.AddItem(DaggerfallWorkshop.Game.Items.ItemBuilder.CreateWeapon(DaggerfallWorkshop.Game.Items.Weapons.Dagger, DaggerfallWorkshop.Game.Items.WeaponMaterialTypes.Steel));
+            }
             startHealth = player.CurrentHealth;
             testWorldReady = true;
             bridge.LogLine("sync test: entered the world, health " + startHealth);
