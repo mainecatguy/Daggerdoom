@@ -1,6 +1,6 @@
 """Checks that nothing changes without a bridge session, and that a killed game is handled.
 
-Usage: python no_session_check.py doom | dfu | kill-uz | kill-df
+Usage: python no_session_check.py doom | dfu | kill-uz | kill-df [demo folder]
 """
 import re
 import subprocess
@@ -8,7 +8,8 @@ import sys
 import time
 from pathlib import Path
 
-REVIEW = Path(__file__).resolve().parents[2] / "daggerfall-unity-master" / "Builds" / "bridge-core"
+# An optional second argument names the assembled demo folder to test.
+REVIEW = Path(sys.argv[2]) if len(sys.argv) > 2 else Path(__file__).resolve().parents[2] / "daggerfall-unity-master" / "Builds" / "bridge-core"
 RUN = REVIEW / "run"
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 IWAD = r"D:\dev\DoomDaggerfall\GameResources\wads\DOOM.WAD"

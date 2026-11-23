@@ -5,10 +5,12 @@
 
 #include <algorithm>
 #include <cstdarg>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 
 #include "../../bridge/doomerfall_bridge.h"
+#include "c_cvars.h"
 #include "c_dispatch.h"
 #include "doomstat.h"
 #include "engineerrors.h"
@@ -17,11 +19,14 @@
 #include "i_interface.h"
 #include "m_argv.h"
 #include "menu.h"
+#include "playsim/dd_treadmill.h"
 #include "printf.h"
 
 FARG_ADVANCED(dfbridge, "Doomerfall", "session", "Attaches to the Doomerfall bridge session created by the launcher.");
 FARG_ADVANCED(dfbridgelog, "Doomerfall", "file", "Appends Doomerfall bridge traffic and latency to a log file.");
 FARG_ADVANCED(dfbridgetestpause, "Doomerfall", "ext|game|menu", "Bridge test only: enters a pause state for six seconds.");
+
+CVAR(Int, dd_sync_df_phase, 0, CVAR_NOSAVE) // Read by the position sync test route.
 
 namespace
 {
@@ -112,6 +117,40 @@ void SendText(const char *text)
 	dfb_send(session, &e);
 }
 
+// Publishes the player's Daggerfall world position. An area change also goes out as an event, so
+// Daggerfall can act on it at once instead of waiting for its next position update.
+void PublishPosition()
+{
+	constexpr int WorldUnitsPerPixel = 32768, MaxPixelX = 999, MaxPixelY = 499;
+	double x = 0, y = 0, z = 0, yaw = 0;
+	const bool exterior = gamestate == GS_LEVEL && DDTreadmill_PlayerWorld(x, y, z, yaw);
+	const uint32_t context = exterior ? DFB_WORLD_EXTERIOR : DFB_WORLD_NONE;
+	int pixelX = -1, pixelY = -1;
+	if (exterior)
+	{
+		pixelX = std::clamp(int(floor(x / WorldUnitsPerPixel)), 0, MaxPixelX);
+		pixelY = MaxPixelY - std::clamp(int(floor(y / WorldUnitsPerPixel)), 0, MaxPixelY);
+		ownState.world_x = x;
+		ownState.world_z = y;
+		ownState.world_height = z;
+		ownState.yaw_degrees = float(yaw);
+	}
+	if (context != ownState.world_context || pixelX != ownState.map_pixel_x || pixelY != ownState.map_pixel_y)
+	{
+		ownState.world_context = context;
+		ownState.map_pixel_x = pixelX;
+		ownState.map_pixel_y = pixelY;
+		ownState.area_seq++;
+
+		dfb_event e{};
+		e.kind = DFB_KIND_AREA;
+		e.tic = gametic;
+		const dfb_area area{ context, pixelX, pixelY, ownState.area_seq, dfb_now_ns() };
+		memcpy(e.payload, &area, sizeof(area));
+		dfb_send(session, &e);
+	}
+}
+
 void HandleEvent(const dfb_event &e, int64_t now)
 {
 	switch (e.kind)
@@ -192,6 +231,9 @@ void DD_BridgeFrame()
 
 	if (dfb_read_state(session, &peerState, sizeof(peerState)) == DFB_GOT)
 		stateAge.Add(dfb_now_ns() - peerState.published_ns);
+
+	if (int(peerState.df_phase) != *dd_sync_df_phase) dd_sync_df_phase = int(peerState.df_phase);
+	PublishPosition();
 
 	ownState.uz_heartbeat++;
 	ownState.uz_tic = gametic;

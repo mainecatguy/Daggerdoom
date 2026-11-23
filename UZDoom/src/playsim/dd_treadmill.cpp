@@ -1670,6 +1670,26 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 		fprintf(shiftLog, "%d,%d,%d,%.1f,%.1f,%d,%d,%.6f\n", shifts, originX, originY, rewriteNs / 1000.0, totalNs / 1000.0, moveCount, parkCount, err);
 }
 
+bool DDTreadmill_PlayerWorld(double &x, double &y, double &z, double &yawDegrees)
+{
+	if (!primaryLevel || (!DDTreadmill_Active && !townActive && !handoff.pending)) return false;
+	AActor *pmo = primaryLevel->Players[consoleplayer]->mo;
+	if (!pmo) return false;
+	yawDegrees = pmo->Angles.Yaw.Degrees();
+	if (handoff.pending)	// Between maps the actor is stale, so report where the player is arriving.
+	{
+		x = handoff.x;
+		y = handoff.y;
+		z = handoff.z;
+		return true;
+	}
+	const DVector3 world = ToWorld(pmo->Pos(), originX, originY);
+	x = world.X;
+	y = world.Y;
+	z = world.Z;
+	return true;
+}
+
 void DDTreadmill_UploadBegin() { uploadStart = Clock::now(); }
 void DDTreadmill_UploadEnd() { uploadNs += NsSince(uploadStart); uploadCount++; }
 

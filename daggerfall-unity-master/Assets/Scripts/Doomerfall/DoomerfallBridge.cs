@@ -42,6 +42,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public long publishedNs;
         public uint uzTic;
         public uint demoValue;
+        public double worldX, worldZ, worldHeight; // Daggerfall world units
+        public float yawDegrees;
+        public uint worldContext;
+        public int mapPixelX, mapPixelY;
+        public uint areaSeq;
+        public uint pad0;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -72,14 +78,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
     public sealed class DoomerfallBridge : MonoBehaviour
     {
-        const uint ProtocolVersion = 1;
+        const uint ProtocolVersion = 2;
         const int SideDf = 1;
         const int Got = 1;
-        const ushort KindHello = 1, KindPing = 2, KindPong = 3, KindText = 4;
+        const ushort KindHello = 1, KindPing = 2, KindPong = 3, KindText = 4, KindArea = 5;
         const long PingIntervalNs = 50000000, LogIntervalNs = 2000000000, StaleNs = 1000000000;
         const int SampleCount = 1024;
 
-        sealed class Samples
+        internal sealed class Samples
         {
             readonly long[] values = new long[SampleCount];
             readonly long[] sorted = new long[SampleCount];
@@ -112,6 +118,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DfbDfState own;
         DfbUzState peer;
         DfbStats stats;
+        DoomerfallPositionSync sync;
         uint ownSize, peerSize, nextPing = 1;
         ulong pingsAnswered, pongsReceived, unknownKinds;
         long nextPingNs, nextLogNs;
@@ -173,7 +180,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             ev = new DfbEvent { kind = KindHello };
             DfbNative.dfb_send(session, ref ev);
             SendText("hello from Daggerfall Unity");
+
+            sync = gameObject.AddComponent<DoomerfallPositionSync>();
+            sync.Init(this, Environment.GetCommandLineArgs());
         }
+
+        internal bool LogEnabled { get { return log != null; } }
+        internal void LogLine(string line) { Log(line); }
 
         void Fail(string message)
         {
@@ -253,6 +266,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     case KindHello:
                         Log("hello from UZDoom (seq " + ev.seq + ")");
                         break;
+                    case KindArea: // payload: context, pixel x, pixel y, sequence, sent_ns
+                        sync.OnAreaEvent((uint)ev.p0, (int)(ev.p0 >> 32), (int)(uint)ev.p1, (long)ev.p2);
+                        break;
                     default:
                         unknownKinds++; // contract rule 7: skip, never fatal
                         break;
@@ -262,6 +278,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (DfbNative.dfb_read_state(session, ref peer, peerSize) == Got)
                 stateAge.Add(DfbNative.dfb_now_ns() - peer.publishedNs);
 
+            sync.Tick(ref peer);
+            own.dfPhase = sync.Phase;
             own.dfHeartbeat++;
             own.dfFrame = (uint)Time.frameCount;
             own.demoValue = (uint)Time.frameCount;
@@ -312,6 +330,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     stats.seqGaps, unknownKinds, stats.outboxCount, measuredFrames, allocatingFrames, allocatedBytes));
                 Log("latency rtt " + rtt.Summary() + " | df->uz " + oneWayOut.Summary() + " | uz->df " + oneWayIn.Summary() +
                     " | uz state age " + stateAge.Summary());
+                sync.LogStatus();
             }
         }
 

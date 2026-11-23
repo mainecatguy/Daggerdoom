@@ -280,6 +280,9 @@ uint64_t ComputeLayoutHash()
 		sizeof(dfb_uz_state), offsetof(dfb_uz_state, publish_seq), offsetof(dfb_uz_state, uz_phase),
 		offsetof(dfb_uz_state, uz_heartbeat), offsetof(dfb_uz_state, published_ns),
 		offsetof(dfb_uz_state, uz_tic), offsetof(dfb_uz_state, demo_value),
+		offsetof(dfb_uz_state, world_x), offsetof(dfb_uz_state, world_z), offsetof(dfb_uz_state, world_height),
+		offsetof(dfb_uz_state, yaw_degrees), offsetof(dfb_uz_state, world_context), offsetof(dfb_uz_state, map_pixel_x),
+		offsetof(dfb_uz_state, map_pixel_y), offsetof(dfb_uz_state, area_seq), sizeof(dfb_area),
 		sizeof(dfb_ping), sizeof(dfb_hello),
 	};
 	for (uint64_t v : values) h = FnvU64(h, v);

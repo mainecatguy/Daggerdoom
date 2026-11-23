@@ -15,6 +15,7 @@ extern bool DDTreadmill_Active;
 void DDTreadmill_BeginMap(FLevelLocals *Level);
 void DDTreadmill_Tick(FLevelLocals *Level);
 bool DDTreadmill_MeshOffset(double &x, double &y, double &z);
+bool DDTreadmill_PlayerWorld(double &x, double &y, double &z, double &yawDegrees);	// Daggerfall world units. False off the Daggerfall exterior.
 
 // Generated locations. All of these return false or null unless the map name is DDT<5 digits> and the runtime package is loaded.
 level_info_t *DDTreadmill_FindLevelInfo(const char *mapname);

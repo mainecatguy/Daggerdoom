@@ -184,6 +184,16 @@ namespace DaggerfallWorkshop
 
         public bool IsRepositioningPlayer { get; private set; }
 
+        // Doomerfall: true once this world has consumed the player's last move, so GPS can be trusted.
+        public bool DoomerfallPositionSettled
+        {
+            get
+            {
+                return !init && !terrainUpdateRunning && autoRepositionMethod == RepositionMethods.None &&
+                    LocalPlayerGPS && lastPlayerPos == LocalPlayerGPS.transform.position;
+            }
+        }
+
         #endregion
 
         #region Structs/Enums

@@ -27,7 +27,7 @@ extern "C" {
 #endif
 
 #define DFB_MAGIC            0x42464444u /* "DDFB" */
-#define DFB_PROTOCOL_VERSION 1u
+#define DFB_PROTOCOL_VERSION 2u
 
 #define DFB_RING_SLOTS     4096u   /* power of two */
 #define DFB_OUTBOX_SLOTS   16384u  /* local, per process; hard cap before a bridge fault */
@@ -61,6 +61,14 @@ extern "C" {
 #define DFB_KIND_PING       2   /* payload: dfb_ping */
 #define DFB_KIND_PONG       3   /* payload: dfb_ping, echoed with the replier's receive time */
 #define DFB_KIND_TEXT       4   /* payload: up to 48 bytes of UTF-8, not terminated if full */
+#define DFB_KIND_AREA       5   /* UZ to DF, sent at once when the context or map pixel changes; payload: dfb_area */
+
+/* Where the Doom player is. Position alone cannot move Daggerfall indoors: INTERIOR and DUNGEON are
+   reserved for the explicit transition work, and Daggerfall holds its position while they are set. */
+#define DFB_WORLD_NONE     0u  /* not on a Daggerfall map, so Daggerfall ignores the position */
+#define DFB_WORLD_EXTERIOR 1u
+#define DFB_WORLD_INTERIOR 2u
+#define DFB_WORLD_DUNGEON  3u
 
 /* Phases (contract 4.1) */
 #define DFB_DF_PHASE_BOOT    0
@@ -95,6 +103,15 @@ typedef struct dfb_ping
 	int64_t replier_ns;   /* PONG only: replier's dfb_now_ns() when it received the PING */
 } dfb_ping;
 
+typedef struct dfb_area
+{
+	uint32_t world_context;
+	int32_t map_pixel_x;
+	int32_t map_pixel_y;
+	uint32_t area_seq;
+	int64_t sent_ns;
+} dfb_area;
+
 typedef struct dfb_hello
 {
 	uint32_t pid;
@@ -123,7 +140,16 @@ typedef struct dfb_uz_state
 	int64_t published_ns;
 	uint32_t uz_tic;          /* gametic */
 	uint32_t demo_value;      /* bridge demo only */
-	uint8_t reserved[DFB_STATE_BYTES - 32];
+	double world_x;           /* player position in Daggerfall world units: doom / 0.75 + window origin */
+	double world_z;           /* Daggerfall's north axis, which is Doom's +Y */
+	double world_height;      /* Daggerfall units; informational, Daggerfall stands on its own terrain */
+	float yaw_degrees;        /* Doom angle: 0 is east, counterclockwise */
+	uint32_t world_context;   /* DFB_WORLD_* */
+	int32_t map_pixel_x;
+	int32_t map_pixel_y;      /* Daggerfall convention: 499 - floor(world_z / 32768) */
+	uint32_t area_seq;        /* increments with each DFB_KIND_AREA */
+	uint32_t pad0;
+	uint8_t reserved[DFB_STATE_BYTES - 80];
 } dfb_uz_state;
 
 typedef struct dfb_stats

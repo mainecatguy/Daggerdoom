@@ -36,7 +36,8 @@ const wchar_t Usage[] =
 	L"--grace-ms <n>       Time the other game gets to close (default 5000)\n"
 	L"--log <file>         Log file (default: doomerfall-launcher.log beside the launcher)\n"
 	L"--minimized          Keep both games minimized and unfocused, with no dialogs (for tests)\n"
-	L"--no-bridge          Do not create a bridge session\n";
+	L"--no-bridge          Do not create a bridge session\n"
+	L"--nodraw             Daggerfall keeps its world loaded but does not draw it in 3D\n";
 
 struct Options
 {
@@ -197,6 +198,11 @@ bool ParseArgs(int argc, wchar_t **argv, Options &options, std::wstring &error)
 		if (arg == L"--no-bridge")
 		{
 			options.bridge = false;
+			continue;
+		}
+		if (arg == L"--nodraw")
+		{
+			options.dfuArgs.push_back(L"-dfnodraw");
 			continue;
 		}
 		if (i + 1 >= argc)
