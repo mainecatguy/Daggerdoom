@@ -17,7 +17,7 @@ struct V3
 }
 
 struct Tri { public V3 A, B, C, N; public uint Model; public int Instance; }
-class Span { public int F, C, Door = -1, FP = -1, CP = -1; } // FP, CP: real sloped plane, or -1 for flat
+class Span { public int F, C, Door = -1, FP = -1, CP = -1, Water = Program.NoWater; } // FP, CP: real sloped plane, or -1 for flat
 class DoorInfo
 {
     public int Id, Block; public double MinX, MaxX, MinY, MaxY, MinZ, MaxZ; public int Control, Height;
@@ -71,6 +71,7 @@ static partial class Program
         if (args.Contains("--runtime-assets")) return City.RuntimeAssets(args); // the shared package for locations converted during play
         if (args.Contains("--city") || args.Contains("--group")) return City.Run(args); // cities have their own pipeline in CityExport.cs
         string name = null, outDir = null, arena2 = @"D:\dev\DoomDaggerfall\GameResources\DAGGER\ARENA2";
+        if (args.Contains("--list-water")) return ListWater(arena2);
         for (int a = 0; a < args.Length; a++)
         {
             if (args[a] == "--out") outDir = args[++a];
@@ -83,7 +84,7 @@ static partial class Program
             else if (args[a] == "--debug-row") debugRow = args[++a];
             else if (args[a] == "--debug-line") debugLine = args[++a]; // x0,y0,x1,y1,z0,z1: raw hits, spans, and faces along a line
             else if (args[a] == "--audit-points") a += 2;
-            else if (args[a] == "--no-walls" || args[a] == "--export-mesh" || args[a] == "--no-ceiling-relief" || args[a] == "--door-dump") { }
+            else if (args[a] == "--no-walls" || args[a] == "--export-mesh" || args[a] == "--no-ceiling-relief" || args[a] == "--door-dump" || args[a] == "--action-dump") { }
             else if (args[a] == "--texture-table") a++; // used by --export-mesh: six archives, comma separated
             else if (args[a] == "--grid-collision") gridCollision = true; // old axis-aligned boundaries and flat planes
             else if (args[a] == "--open-actions") openActions = true;            else if (args[a] == "--route-step") routeStep = int.Parse(args[++a]); // diagnostic: models jumping or climbing
@@ -97,6 +98,7 @@ static partial class Program
         ApplyWorldScale(args.Contains("--cell"));
         Directory.CreateDirectory(outDir);
         if (!FindDungeon(arena2, name, out DFLocation location)) { Console.Error.WriteLine("dungeon not found: " + name); return 1; }
+        if (args.Contains("--action-dump")) return DumpActions(arena2, location, outDir);
         int meshAt = Array.IndexOf(args, "--export-mesh"); // writes <slug>_mesh.pk3 (real models, textures, UVs) and exits
         if (meshAt >= 0) return ExportMesh(arena2, location, outDir, new string(name.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant(), args);
 
@@ -109,8 +111,11 @@ static partial class Program
         relaxedStairs = RelaxStairs();
         gapCells = CloseGaps();
         if (!args.Contains("--no-ceiling-relief")) RelieveCeilings();
+        int lidCells = OpenLidRims();
+        if (lidFootprints.Count > 0) Console.WriteLine($"coffin rims: {lidCells} cells regained the air above the rim, {lidFootprints.Count} lids");
         ApplyDoors(); // these spans become sight blockers only
         if (!gridCollision) AssignPlanes();
+        AssignWater();
         if (args.Contains("--door-dump"))
         {
             foreach (var d in doors)
@@ -150,6 +155,7 @@ static partial class Program
         var points = WritePoints(nodes, edges, start);
         var mapStats = WriteMap(Path.Combine(outDir, slug + ".wad"), nodes[start], points);
         File.WriteAllText(Path.Combine(outDir, slug + ".points.txt"), points);
+        WriteWaterProbes(outDir, slug, nodes[start]);
         if (PlayerScale.DaggerfallBody) PlayerScale.WritePackage(outDir, slug);
         if (parityDir != null) return RunParity(parityDir, entrance);
         WriteStats(Path.Combine(outDir, slug + ".stats.txt"), name, location, nodes, edges, start, walled, mapStats);
@@ -206,6 +212,7 @@ static partial class Program
             var block = blocks.GetBlock(dungeonBlock.BlockName);
             var offset = new V3(dungeonBlock.X * BlockSide, 0, dungeonBlock.Z * BlockSide);
             blockRects.Add((dungeonBlock.BlockName, (int)Math.Round(dungeonBlock.X * BlockSide * PlayerScale.DoomUnitsPerDaggerfallUnit), (int)Math.Round(dungeonBlock.Z * BlockSide * PlayerScale.DoomUnitsPerDaggerfallUnit)));
+            blockWater.Add(BlockWaterHeight(block));
             if (block.RdbBlock.ObjectRootList == null) continue;
             foreach (var group in block.RdbBlock.ObjectRootList)
             {
@@ -232,7 +239,14 @@ static partial class Program
                     var action = obj.Resources.ModelResource.ActionResource;
                     if (debugRow != null && (action.Flags != 0 || isDoor))
                         Console.WriteLine($"ACTION block={dungeonBlock.BlockName} model={id} desc={reference.Description} door={isDoor} flags={action.Flags} axis={action.Axis} dur={action.Duration} mag={action.Magnitude} next={action.NextObjectOffset} pos={obj.XPos + offset.X:F0},{obj.ZPos + offset.Z:F0},{-obj.YPos}");
-                    // Diagnostic: treat lifts, lids, and moving walls as already out of the way.
+                    // Moving models are runtime objects (action_objects.zs), so they are not static collision.
+                    if (IsMovingAction(obj, isDoor))
+                    {
+                        skippedActions++;
+                        if (reference.Description == "LID") NoteLidFootprint(arch, id, obj, offset);
+                        continue;
+                    }
+                    // Diagnostic: also treat every other action model as out of the way.
                     if (openActions && !isDoor && action.Flags != 0) { skippedActions++; continue; }
                     AddModel(arch, id, obj, offset, isDoor, blockIndex);
                 }
@@ -836,7 +850,7 @@ static partial class Program
         return text.ToString();
     }
 
-    static string Signature(List<Span> spans) => string.Join("|", spans.Select(s => $"{(s.FP >= 0 ? "p" + s.FP : s.F.ToString())}:{(s.CP >= 0 ? "p" + s.CP : s.C.ToString())}:{s.Door}"));
+    static string Signature(List<Span> spans) => string.Join("|", spans.Select(s => $"{(s.FP >= 0 ? "p" + s.FP : s.F.ToString())}:{(s.CP >= 0 ? "p" + s.CP : s.C.ToString())}:{s.Door}{(s.Water != NoWater ? ":w" + s.Water : "")}"));
 
     static (int sectors, int lines, int controls, int doorsUsed) WriteMap(string path, Node start, string points)
     {
@@ -884,7 +898,7 @@ static partial class Program
         for (int s = 0; s < sectorSpans.Count; s++)
         {
             var spans = sectorSpans[s];
-            bool needsTag = spans.Count > 1 || spans.Any(x => x.Door >= 0);
+            bool needsTag = spans.Count > 1 || spans.Any(x => x.Door >= 0 || x.Water != NoWater);
             if (needsTag)
             {
                 string signature = Signature(spans);
@@ -896,11 +910,11 @@ static partial class Program
 
         int doorControlBase = nextTag + 1000;
         foreach (var d in doors) d.Control = doorControlBase + d.Id;
-        int Side(int sector, bool twoSided)
+        int Side(int sector, bool twoSided, string middle = "STONE2")
         {
             sideText.Append(twoSided
                 ? $"sidedef {{ sector = {sector}; texturetop = \"STONE2\"; texturebottom = \"STONE2\"; }}\n"
-                : $"sidedef {{ sector = {sector}; texturemiddle = \"STONE2\"; }}\n");
+                : $"sidedef {{ sector = {sector}; texturemiddle = \"{middle}\"; }}\n");
             return sides++;
         }
         void Line(double x0, double y0, double x1, double y1, int front, int back)
@@ -973,16 +987,17 @@ static partial class Program
 
         // Control sectors for solid slabs between stacked rooms, and for closed doors.
         int controls = 0, controlX = minX, controlY = minY - 64;
-        void Control(int floor, int ceiling, int targetTag, int id, int type = 1, int alpha = 255, int floorPlane = -1, int ceilingPlane = -1)
+        void Control(int floor, int ceiling, int targetTag, int id, int type = 1, int alpha = 255, int floorPlane = -1, int ceilingPlane = -1,
+            int flags = 0, string middle = "STONE2", string floorTexture = "FLOOR0_1", string ceilingTexture = "CEIL3_5")
         {
             int s = sectors++;
-            sectorText.Append($"sector {{ heightfloor = {floor}; heightceiling = {ceiling}; texturefloor = \"FLOOR0_1\"; textureceiling = \"CEIL3_5\"; lightlevel = 176;{(id > 0 ? $" id = {id};" : "")}{PlaneText(floorPlane, false)}{PlaneText(ceilingPlane, true)} }}\n");
+            sectorText.Append($"sector {{ heightfloor = {floor}; heightceiling = {ceiling}; texturefloor = \"{floorTexture}\"; textureceiling = \"{ceilingTexture}\"; lightlevel = 176;{(id > 0 ? $" id = {id};" : "")}{PlaneText(floorPlane, false)}{PlaneText(ceilingPlane, true)} }}\n");
             int x = controlX, y = controlY, size = 8;
             int[] v = { Vertex(x, y), Vertex(x, y + size), Vertex(x + size, y + size), Vertex(x + size, y) };
             for (int e = 0; e < 4; e++)
             {
-                int side = Side(s, false);
-                string special = e == 0 ? $" special = 160; arg0 = {targetTag}; arg1 = {type}; arg2 = 0; arg3 = {alpha};" : "";
+                int side = Side(s, false, middle);
+                string special = e == 0 ? $" special = 160; arg0 = {targetTag}; arg1 = {type}; arg2 = {flags}; arg3 = {alpha};" : "";
                 lineText.Append($"linedef {{ v1 = {v[e]}; v2 = {v[(e + 1) % 4]}; sidefront = {side}; blocking = true;{special} }}\n");
                 lines++;
             }
@@ -1005,6 +1020,13 @@ static partial class Program
                 // Type 3 (non-solid, shoot-through) + 16 (not see-through): blocks sight only. Collision is the door object.
                 Control(span.F, top, tag, door.Control, 19, 0);
                 usedDoors.Add(door.Id);
+            }
+            // One swimmable volume per flooded span, so the rooms stacked around it stay as they are.
+            foreach (var span in spans.Where(x => x.Water != NoWater))
+            {
+                bool toCeiling = span.Water == WaterToCeiling;
+                Control(span.F, toCeiling ? span.C : span.Water, tag, 0, WaterFloorType, WaterAlpha, span.FP, toCeiling ? span.CP : -1,
+                    WaterFloorFlags, "-", "-", toCeiling ? "-" : WaterTexture);
             }
         }
 

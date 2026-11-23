@@ -4,7 +4,7 @@ version "4.10"
 
 class DFParityProbe : Actor
 {
-	Default { +NOGRAVITY; +THRUACTORS; }
+	Default { +NOGRAVITY; +SOLID; } // solid, so the door objects' collision actors block it
 	States { Spawn: TNT1 A -1; Stop; }
 }
 
@@ -26,6 +26,9 @@ class DFParity : EventHandler
 	int stage, seedAt, queueAt, wait;
 	bool active, shotsFired;
 	String pending;
+	Array<Actor> links;
+	Array<double> linkX0, linkY0;
+	int linksTotal;
 	int pendingCount;
 
 	static const String modeNames[] = { "stand_closed", "crouch_closed", "stand_open", "crouch_open" };
@@ -55,6 +58,8 @@ class DFParity : EventHandler
 		probe.A_SetSize(radius, standHeight);
 		probe.MaxStepHeight = step;
 		probe.MaxDropoffHeight = 32767;
+		// The player start would block the probe. Door collision actors are the only actors the test should meet.
+		for (int i = 0; i < MAXPLAYERS; i++) if (playeringame[i] && players[i].mo) players[i].mo.bSOLID = false;
 		active = true;
 		wait = 10;
 		BeginMode();
@@ -120,7 +125,15 @@ class DFParity : EventHandler
 	{
 		if (!active) return;
 		if (wait > 0) { wait--; return; }
-		if (!shotsFired) { shotsFired = true; FireShots(); AnswerQueries(); }
+		if (!shotsFired)
+		{
+			shotsFired = true;
+			let it = ThinkerIterator.Create("DFDoorBlocker", Thinker.STAT_DEFAULT);
+			Actor a;
+			while (a = Actor(it.Next())) { links.Push(a); linkX0.Push(a.pos.x); linkY0.Push(a.pos.y); }
+			ReportDoors("closed");
+			FireShots(); AnswerQueries();
+		}
 		int budget = ChecksPerTic;
 		while (budget > 0)
 		{
@@ -148,7 +161,7 @@ class DFParity : EventHandler
 					double tx = x + dx[d] * Pitch * s / SubSteps, ty = y + dy[d] * Pitch * s / SubSteps;
 					probe.SetOrigin((cx, cy, cz), false);
 					budget--;
-					if (!probe.CheckMove((tx, ty), PCM_DROPOFF | PCM_NOACTORS, tm)) { ok = false; break; }
+					if (!probe.CheckMove((tx, ty), PCM_DROPOFF, tm)) { ok = false; break; }
 					cx = tx; cy = ty; cz = tm.floorz;
 				}
 				if (ok) Push(cx, cy, cz);
@@ -156,14 +169,37 @@ class DFParity : EventHandler
 		}
 	}
 
+	// Door objects are DFDoorBlocker actors from the doors package. Use on any link swings its whole door.
+	void OpenDoors()
+	{
+		for (int i = 0; i < links.Size(); i++)
+		{
+			// The real use path, as the player takes it: DFDoorBlocker.Used asks its door to swing.
+			// The user stands at the link's height, because a door ignores a user on another floor.
+			probe.SetOrigin((originX, originY, links[i].pos.z + 1), false);
+			links[i].Used(probe);
+		}
+		probe.SetOrigin((originX, originY, originZ), false);
+		Console.Printf("DFDOORSTATE using %d links", links.Size());
+	}
+
+	void ReportDoors(String when)
+	{
+		int moved = 0;
+		for (int i = 0; i < links.Size(); i++)
+			if (abs(links[i].pos.x - linkX0[i]) + abs(links[i].pos.y - linkY0[i]) > 1) moved++;
+		Console.Printf("DFDOORSTATE %s links %d moved %d", when, links.Size(), moved);
+	}
+
 	bool AdvanceMode()
 	{
 		stage++;
 		if (stage == 2)
 		{
-			for (int i = 0; i < doorIds.Size(); i++) level.ExecuteSpecial(254, null, null, 0, doorIds[i], 64);
+			OpenDoors();
 			wait = DoorWait;
 		}
+		if (stage == 3) ReportDoors("opened");
 		if (stage >= 4)
 		{
 			active = false;
@@ -179,6 +215,7 @@ class DFParity : EventHandler
 	void AnswerQueries()
 	{
 		probe.A_SetSize(radius, standHeight);
+		probe.bTHRUACTORS = true; // asks about the map alone, as before doors were objects
 		for (int n = 0; n < queryX.Size(); n++)
 		{
 			FCheckPosition tm;
@@ -186,6 +223,7 @@ class DFParity : EventHandler
 			bool fits = probe.CheckPosition((queryX[n], queryY[n]), false, tm) && tm.ceilingz - tm.floorz >= standHeight;
 			Console.Printf("DFQ %d %.0f %.0f %.1f floor %.1f ceiling %.1f", fits ? 1 : 0, queryX[n], queryY[n], queryZ[n], tm.floorz, tm.ceilingz);
 		}
+		probe.bTHRUACTORS = false;
 	}
 
 	void FireShots()
@@ -194,7 +232,7 @@ class DFParity : EventHandler
 		{
 			FLineTraceData data;
 			probe.SetOrigin((shotX[n], shotY[n], shotZ[n]), false);
-			bool hit = probe.LineTrace(shotAngle[n], 4096, shotPitch[n], TRF_THRUACTORS, 0, 0, 0, data);
+			bool hit = probe.LineTrace(shotAngle[n], 4096, shotPitch[n], 0, 0, 0, 0, data);
 			Console.Printf("DFB %d %d %.2f %.2f %.2f", n, hit ? 1 : 0, data.HitLocation.X, data.HitLocation.Y, data.HitLocation.Z);
 		}
 	}

@@ -69,6 +69,16 @@ def main():
     log = os.path.join(parity, "log-parity.txt")
     if os.path.exists(log):
         os.remove(log)
+    # The doors are separate objects in <slug>_doors.pk3, written by --export-mesh at the same scale.
+    doors_dir = os.path.join(out, "doors")
+    os.makedirs(doors_dir, exist_ok=True)
+    doors_pk3 = os.path.join(doors_dir, slug + "_doors.pk3")
+    if os.path.exists(doors_pk3):
+        os.remove(doors_pk3)
+    result = subprocess.run(["dotnet", "run", "-c", "Release", "-v", "q", "--project", PROJECT, "--", args.dungeon, "--out", doors_dir,
+                             "--export-mesh", "--world-scale", str(args.world_scale)], capture_output=True, text=True, errors="replace")
+    if result.returncode or not os.path.exists(doors_pk3):
+        sys.exit("door package export failed:\n" +result.stdout[-1000:] + result.stderr[-1000:])
     doom_started = time.time()
     player = [os.path.join(out, slug + "_player.pk3")] if args.daggerfall_player else []
     # A private config keeps this launch windowed from the first frame, so it cannot interrupt the owner.
@@ -79,7 +89,7 @@ def main():
     startup.wShowWindow = SW_SHOWMINNOACTIVE
     # ZScript cannot quit the engine, so this stops the one process it started once the log reports completion.
     process = subprocess.Popen([args.uzdoom,
-                                "-iwad", IWAD, "-file", os.path.join(out, slug + ".wad"), *player,
+                                "-iwad", IWAD, "-file", os.path.join(out, slug + ".wad"), doors_pk3, *player,
                                 os.path.join(HERE, "parity_doom"), os.path.join(parity, "lumps"),
                                 "-config", os.path.join(parity, "doom.ini"), "-noactivate", "-nosound", "-nomonsters", "-skill", "3",
                                 "+vid_fullscreen", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0",
@@ -100,6 +110,12 @@ def main():
     if not os.path.exists(log):
         sys.exit("UZDoom wrote no log")
     lines = [l for l in open(log, errors="replace") if l.startswith(("DFF ", "DFB ", "DFSEEDFAIL", "DFPARITYDONE"))]
+    state = [l.strip() for l in open(log, errors="replace") if l.startswith(("DFDOORS", "DFDOORSTATE"))]
+    print("\n".join(state))
+    if not any("closed links" in l and not l.endswith("links 0 moved 0") for l in state):
+        sys.exit("no door objects loaded; the closed-door stages would mean nothing")
+    if not any(l.startswith("DFDOORSTATE opened") and not l.endswith("moved 0") for l in state):
+        sys.exit("no door moved when used; the open-door stages would mean nothing")
     if not finished:
         sys.exit("UZDoom did not finish the test; see " + log)
     with open(flood, "w") as f:
