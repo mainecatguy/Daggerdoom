@@ -24,7 +24,8 @@ Two pillars must survive every decision:
 | `designgoals.md` | Original design goals. |
 | `work/goal.md` | The current goal. Written with the owner and not committed. |
 | `work/todo.md` | Owner-approved work that is ready to do automatically. |
-| `work/backlog.md` | Work that needs owner input or depends on unfinished work. |
+| `work/backlog.md` | One-line index of work that needs owner input or depends on unfinished work. |
+| `work/backlog/` | One detail file per backlog item. Open only the items you need. |
 | `work/future-ideas.md` | Unplanned ideas for after the initial release. Never start these unless the owner asks. |
 | `work/notes/` | Plans, findings, and play-test lists, one file per run. |
 | `work/agent-reports.md` | Raw questions and oversights from overnight agents, awaiting orchestrator triage. Not committed. |
@@ -35,7 +36,7 @@ Two pillars must survive every decision:
 ## Work tracking
 
 - **Todo** is ready: approved by the owner, needing no owner input, and depending only on finished work or earlier todo items. Automated loops take work only from `work/todo.md`.
-- **Backlog** is not ready. Never start backlog work unless the owner asks. New ideas and owner-accepted discovered work go here.
+- **Backlog** is not ready. Never start backlog work unless the owner asks. New ideas and owner-accepted discovered work go here, as one index line in `work/backlog.md` plus a detail file in `work/backlog/`.
 - Only the owner approves moving an item from backlog to todo. If a todo item turns out to be blocked, move it to the backlog and say what it is waiting on.
 
 ## Current milestone

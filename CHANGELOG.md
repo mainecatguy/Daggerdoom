@@ -7,8 +7,19 @@ What is done on the project, newest first. Agents do not need to read this unles
 - **Playable demo:** Privateer's Hold with Daggerfall visuals, Doom movement and combat, 42 Doom monsters, swinging doors, and angled collision. Run `D:\dev\DoomDaggerfall-loop\review\angled-demo\play.bat`.
 - **Other demos:** City of Daggerfall at `D:\dev\DoomDaggerfall-loop\review\city-texture-fix\play.bat`, overworld at `D:\dev\DoomDaggerfall-loop\review\overworld-demo\play.bat`, and DRLAX on E1M1 at `D:\dev\DoomDaggerfall\play_drlax.bat`.
 - **Launcher:** starts Daggerfall Unity and UZDoom as one package. Run `D:\dev\DoomDaggerfall-loop\review\launcher\play.bat`.
-- **Branches:** `integration` is at `26dc6b8`, with the city, overworld, town stitch, runtime towns, launcher, and Doomerfall mod.
+- **Branches:** `integration` is at `3e74e18`, with both overnight lanes, the bridge and door fixes, and the first version of synchronized saving. `main` has not been updated.
 - **Roughest spots:** some walls still bend where they stayed tied to the grid, and false walls and openings remain.
+
+## 2026-11-23
+
+### Merged to `integration` (`3e74e18`)
+UZDoom and Daggerfall Unity both build from this merge, and UZDoom passes its startup check. Most tests were scripted, and nobody has hand-played the combined build.
+
+- **Startup and save research:** full proposal, with the owner's decisions recorded in `work/todo.md`.
+- **Bridge:** position sync, Daggerfall's real travel map inside Doom, and HP sync. Daggerfall now stays at the door while Doom is indoors.
+- **Dungeons:** tilted and flipped doors, doors that block like Daggerfall's, a traversal report for 19 dungeons, one random enemy per placement, and a texture pass. None of the 19 is proven fully traversable.
+- **Towns:** roof-height building colliders with real slopes, and Doom-side entry and exit for buildings and Privateer's Hold.
+- **Synchronized saving, not proven:** merged at the owner's request. It passed 45 of 45 checks against a scripted Daggerfall stand-in, but no real Daggerfall save has gone through it.
 
 ## 2026-11-22
 

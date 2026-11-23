@@ -9,7 +9,7 @@
       "Bash(cmake *)", "Bash(ctest *)", "Bash(dotnet *)", "Bash(msbuild *)", "Bash(Unity.exe *)", "Bash(uzdoom.exe *)"
     ],
     "deny": [
-      "Edit(AGENTS.md)", "Edit(CLAUDE.md)", "Edit(.claude/**)", "Edit(.github/**)", "Edit(scripts/overnight/**)", "Edit(.gitignore)", "Edit(GameResources/**)", "NotebookEdit",
+      "Edit(AGENTS.md)", "Edit(CLAUDE.md)", "Edit(.claude/**)", "Edit(.github/**)", "Edit(scripts/overnight/**)", "Edit(.gitignore)", "Edit(GameResources/**)", "Edit(//d/dev/DoomDaggerfall/GameResources/**)", "Edit(//d/dev/DoomDaggerfall/GameMods/**)", "Edit(//d/dev/DoomDaggerfall-build/**)", "NotebookEdit",
       "PowerShell(git push*)", "PowerShell(git merge*)", "PowerShell(git rebase*)", "PowerShell(git reset*)", "PowerShell(git checkout*)", "PowerShell(git switch*)", "PowerShell(git branch*)", "PowerShell(git worktree*)", "PowerShell(git config*)", "PowerShell(git remote*)", "PowerShell(git update-ref*)", "PowerShell(git credential*)", "PowerShell(git -c*)", "PowerShell(git -C*)", "PowerShell(gh *)",
       "Bash(git push*)", "Bash(git merge*)", "Bash(git rebase*)", "Bash(git reset*)", "Bash(git checkout*)", "Bash(git switch*)", "Bash(git branch*)", "Bash(git worktree*)", "Bash(git config*)", "Bash(git remote*)", "Bash(git update-ref*)", "Bash(git credential*)", "Bash(git -c*)", "Bash(git -C*)", "Bash(gh *)"
     ]

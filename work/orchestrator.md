@@ -4,7 +4,7 @@ You are the project manager session for Doomerfall. You work with the owner, tur
 
 ## Start of a session
 
-1. Read `AGENTS.md`, this file, `work/goal.md`, `work/todo.md`, `work/backlog.md`, the top of `CHANGELOG.md`, `work/questions.md`, `work/suspectedoversights.md`, and `work/agent-reports.md`.
+1. Read `AGENTS.md`, this file, `work/goal.md`, `work/todo.md`, the `work/backlog.md` index, the top of `CHANGELOG.md`, `work/questions.md`, `work/suspectedoversights.md`, and `work/agent-reports.md`. Open files in `work/backlog/` only when an item is relevant.
 2. Check `git status`, `git worktree list`, the `integration` and `agent/*` branches, running agents, and plan usage.
 3. Triage agent reports, as described below.
 4. Give the owner a short status and present any open questions and suspected oversights that are not marked on hold.
@@ -16,7 +16,7 @@ You mediate everything agents raise for the owner. Reports arrive in `work/agent
 - Merge duplicates, drop anything already answered or documented, and drop reports that are minor or have no evidence.
 - Move real owner decisions to `work/questions.md` and major out-of-scope problems to `work/suspectedoversights.md`.
 - Remove each report from `work/agent-reports.md` once it is handled.
-- Move an oversight to `work/backlog.md` only when the owner accepts it. Delete it if they reject it.
+- Move an oversight to the backlog (an index line and a detail file) only when the owner accepts it. Delete it if they reject it.
 
 Do not read every file in `work/notes/`. Read a note only when the current task needs it.
 
@@ -26,7 +26,8 @@ Do not read every file in `work/notes/`. Read a note only when the current task 
 |---|---|
 | `work/goal.md` | What is happening now. |
 | `work/todo.md` | Owner-approved work that is ready to run. Automated work comes only from here. |
-| `work/backlog.md` | Work that needs owner input or depends on unfinished work. Each item says what it is waiting on. |
+| `work/backlog.md` | One-line index of work that needs owner input or depends on unfinished work. |
+| `work/backlog/` | One detail file per backlog item, starting with what it is waiting on. |
 | `work/questions.md` | Decisions waiting on the owner. |
 | `CHANGELOG.md` | What is done. Update it when work is reviewed. |
 | `work/notes/` | Detailed results from each run. |
@@ -120,11 +121,10 @@ The owner has a Pro plan with extra usage off. Check usage before dispatching an
 
 Replace this section as the state changes.
 
-- **Running:** nothing until the owner starts `scripts/overnight/overnight.ps1` from a PowerShell window.
-- **Merged to `integration`:** bridge core, parity test, swimmable water, and the action system. `main` has not been updated. Demos: `D:\dev\DoomDaggerfall-loop\review\bridge-core\play.bat` and `D:\dev\DoomDaggerfall-loop\review\action-system\play.bat`.
-- **Queued cards:** `work/queue/engine` has startup and save research, position sync, the fast travel menu, and HP sync. `work/queue/dungeon` has the tilted door fix, traversal check, town colliders, one random enemy, the texture pass, and Doom-side building and dungeon entry.
-- **Lane branches:** verified work lands on `overnight/engine` and `overnight/dungeon`, which start from `integration`. Merge them only when the owner approves.
-- **Held:** synchronized saving and loading wait on the startup and save research.
-- **Usage:** weekly was 5% at last check and resets on 2026-11-25 at 08:00 UTC. The stop line is 95%.
+- **Running:** lane `engine_r3` from `3e74e18`, and lane `dungeon_r2` from `6cb87da`. Both were started directly through `queue.ps1`, so neither has the supervisor's crash restart.
+- **Merged to `integration`:** `3e74e18`, recorded in `CHANGELOG.md`. `main` has not been updated. Synchronized saving is merged but unproven with real Daggerfall.
+- **Queued cards:** `work/queue/engine` has saving proof, loading and death, fast travel arrival, transitions, and inventory. `work/queue/dungeon` has animated textures and flats, and Daggerfall items. The owner reviews new cards before launch.
+- **Lane branches:** verified work lands on `overnight/engine_r3` and `overnight/dungeon_r2`. The owner wants finished work merged to `integration` regularly when it does not make things worse and does not interrupt running work.
+- **Usage:** weekly was 9% at last check and resets on 2026-11-25 at 08:00 UTC. The stop line is 95%.
 - **Inventory:** Daggerfall's existing inventory stays. The owner is working out Doom weapon hotkeys separately, and the design is in the backlog.
 - **Local build notes:** `uzdoom-launcher` is the current engine build. `sndfile.dll` and `soft_oal.dll` must sit beside the exe for sound.

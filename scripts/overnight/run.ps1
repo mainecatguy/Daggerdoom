@@ -140,6 +140,10 @@ $Settings = Join-Path $PSScriptRoot 'agent-settings.json'
 # Agents leave their one-click demos here, outside the repo, because demos contain files derived from game data.
 $ReviewDir = Join-Path (Split-Path $Repo -Parent) ((Split-Path $Repo -Leaf) + '-loop\review')
 New-Item -ItemType Directory -Force $ReviewDir | Out-Null
+# Agents need the game data and shared engine builds for real tests. agent-settings.json denies edits to both.
+$GameDataDir = Join-Path $Repo 'GameResources'
+$GameModsDir = Join-Path $Repo 'GameMods'
+$SharedBuildDir = Join-Path (Split-Path $Repo -Parent) ((Split-Path $Repo -Leaf) + '-build')
 $StartedAt = Get-Date
 $Deadline = $StartedAt.AddHours($Hours)
 
@@ -187,7 +191,7 @@ try {
         $resume = if ($started) { "--resume $session" } elseif ($ContinueSession) { "--resume $ContinueSession --fork-session" } else { "--session-id $session" }
         $budget = $remaining.ToString('0.####', [Globalization.CultureInfo]::InvariantCulture)
         Write-Output "[round $round] $Model, `$$budget left"
-        $line = ("$ClaudePrefix -p --setting-sources project --strict-mcp-config --model $Model --permission-mode acceptEdits --settings `"$Settings`" --add-dir `"$ReviewDir`" $resume --max-turns $MaxTurnsPerRound --max-budget-usd $budget --output-format json $(Get-SchemaArg $AgentSchema)").Trim()
+        $line = ("$ClaudePrefix -p --setting-sources project --strict-mcp-config --model $Model --permission-mode acceptEdits --settings `"$Settings`" --add-dir `"$ReviewDir`" --add-dir `"$GameDataDir`" --add-dir `"$GameModsDir`" --add-dir `"$SharedBuildDir`" $resume --max-turns $MaxTurnsPerRound --max-budget-usd $budget --output-format json $(Get-SchemaArg $AgentSchema)").Trim()
         $code = Invoke-Logged $ClaudeExe $line $next "$tag.log"
         Save-Work
 
