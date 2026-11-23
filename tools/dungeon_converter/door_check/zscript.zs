@@ -55,6 +55,15 @@ class DFDoorCheck : EventHandler
 
 	PlayerPawn Pawn() { return PlayerPawn(players[consoleplayer].mo); }
 
+	// A flipped door hangs below its pivot, so its pivot is at the top of the doorway.
+	double FloorOf(DFDoor d) { return d.swingDir < 0 ? d.bottom : d.pivotZ; }
+
+	// A flipped panel may extend either way from its hinge. Its tip sweeps toward this side of the closed door's normal.
+	// Unflipped doors keep the original probe, so their results stay comparable with earlier runs.
+	double PanelSide(DFDoor d) { return d.swingDir < 0 && d.centerX < 0 ? -1 : 1; }
+	double SwingSide(DFDoor d) { return PanelSide(d) * d.swingDir; }
+	vector2 SwingPoint(DFDoor d) { return d.ToWorld(20 * PanelSide(d), 20 * SwingSide(d), d.closedAngle); }
+
 	void LoadRows()
 	{
 		let it = ThinkerIterator.Create("DFDoor");
@@ -97,10 +106,10 @@ class DFDoorCheck : EventHandler
 	bool Stand(PlayerPawn p, DFDoorRow r, double x, double y)
 	{
 		if (!NearWalkable(x, y)) return false;
-		p.SetOrigin((x, y, r.door.pivotZ + 2), false);
+		p.SetOrigin((x, y, FloorOf(r.door) + 2), false);
 		p.vel = (0, 0, 0);
 		p.FindFloorCeiling();
-		if (abs(p.floorz - r.door.pivotZ) > 24 || p.ceilingz - p.floorz < p.height) return false;
+		if (abs(p.floorz - FloorOf(r.door)) > 24 || p.ceilingz - p.floorz < p.height) return false;
 		p.SetZ(p.floorz);
 		return p.TestMobjLocation();
 	}
@@ -185,7 +194,7 @@ class DFDoorCheck : EventHandler
 	{
 		foreach (r : rows)
 		{
-			double a = r.door.closedAngle + r.door.swung;
+			double a = r.door.closedAngle + r.door.swung * r.door.swingDir;
 			vector2 mid = r.door.ToWorld(r.door.centerX, r.door.centerY, a);
 			double nx = -sin(a), ny = cos(a), z = r.door.bottom + 30;
 			for (int s = 0; s < 2; s++)
@@ -230,7 +239,7 @@ class DFDoorCheck : EventHandler
 				foreach (l : r.door.links) l.bSOLID = true;
 			}
 			// Approach the open panel's face from each side with real moves. A side inside a wall has no result.
-			double a = r.door.closedAngle + 90;
+			double a = r.door.closedAngle + 90 * r.door.swingDir;
 			vector2 mid = r.door.ToWorld(r.door.centerX, r.door.centerY, a);
 			double fx = -sin(a), fy = cos(a);
 			r.openBlock = ""; r.traceOpen = "";
@@ -289,7 +298,7 @@ class DFDoorCheck : EventHandler
 		foreach (r : rows)
 		{
 			// In the swing path, clear of the closed door. A body the same size as the player.
-			vector2 at = r.door.ToWorld(20, 20, r.door.closedAngle);
+			vector2 at = SwingPoint(r.door);
 			if (!NearWalkable(at.x, at.y)) { r.stall = "-"; continue; } // swings into solid rock, where no body can stand
 			r.imp = Actor.Spawn("DFTestBody", (at.x, at.y, r.door.bottom), NO_REPLACE);
 		}
@@ -303,7 +312,7 @@ class DFDoorCheck : EventHandler
 		bool imp = stallIndex >= 4;
 		let r = rows[proto[stallIndex % 4]];
 		int step = t - stallTic;
-		vector2 at = r.door.ToWorld(20, 20, r.door.closedAngle);
+		vector2 at = SwingPoint(r.door);
 		if (step == 0 && !NearWalkable(at.x, at.y))
 		{
 			playerResult = playerResult .. String.Format(" %s%d:swings-into-rock", imp ? "imp" : "player", proto[stallIndex % 4]);
@@ -314,10 +323,10 @@ class DFDoorCheck : EventHandler
 		if (step == 0)
 		{
 			r.door.swung = 0; r.door.moving = 0; r.door.stalled = false; r.door.Place(false);
-			p.SetOrigin((r.cx - r.nx * 24, r.cy - r.ny * 24, r.door.pivotZ), false);
+			p.SetOrigin((r.cx - r.nx * 24 * SwingSide(r.door), r.cy - r.ny * 24 * SwingSide(r.door), FloorOf(r.door)), false);
 			if (imp)
 			{
-				r.imp = Actor.Spawn("DoomImp", (at.x, at.y, r.door.pivotZ), NO_REPLACE);
+				r.imp = Actor.Spawn("DoomImp", (at.x, at.y, FloorOf(r.door)), NO_REPLACE);
 				if (r.imp) { r.imp.bDORMANT = true; r.imp.A_SetSize(10.5, 56, false); }
 			}
 			else
@@ -338,7 +347,7 @@ class DFDoorCheck : EventHandler
 			bool held = r.door.stalled && r.door.swung < 90 && !r.overlapped;
 			playerResult = playerResult .. String.Format(" %s%d:%s(swung%.0f)", imp ? "imp" : "player", proto[stallIndex % 4], held ? "held" : "FAILED", r.door.swung);
 			if (imp) { if (r.imp) r.imp.Destroy(); }
-			else p.SetOrigin((r.cx - r.nx * 24, r.cy - r.ny * 24, r.door.pivotZ), false);
+			else p.SetOrigin((r.cx - r.nx * 24 * SwingSide(r.door), r.cy - r.ny * 24 * SwingSide(r.door), FloorOf(r.door)), false);
 			r.imp = null;
 		}
 		if (step == 24 + FULL_SWING)

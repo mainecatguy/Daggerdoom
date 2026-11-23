@@ -86,6 +86,7 @@ static partial class Program
         var blocks = new BlocksFile(Path.Combine(arena2, "BLOCKS.BSA"), FileUsage.UseMemory, true);
         var arch = new Arch3dFile(Path.Combine(arena2, "ARCH3D.BSA"), FileUsage.UseMemory, true);
         int doors = 0, tilted = 0;
+        var tiltedBlocks = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         for (int i = 0; i < blocks.Count; i++)
         {
             string name = blocks.GetBlockName(i);
@@ -103,12 +104,28 @@ static partial class Program
                     if (m.XRotation != 0 || m.ZRotation != 0)
                     {
                         tilted++;
+                        tiltedBlocks.Add(name);
                         Console.WriteLine($"{name} door {reference.ModelIdNum} rot {m.XRotation / BlocksFile.RotationDivisor:F1},{m.YRotation / BlocksFile.RotationDivisor:F1},{m.ZRotation / BlocksFile.RotationDivisor:F1}");
                     }
                 }
             blocks.DiscardBlock(i);
         }
         Console.WriteLine($"{doors} door objects in RDB blocks, {tilted} tilted");
+        // Which dungeons use those blocks, so the doors can be checked in a real map.
+        var maps = new MapsFile(Path.Combine(arena2, "MAPS.BSA"), FileUsage.UseMemory, true);
+        for (int r = 0; r < maps.RegionCount; r++)
+        {
+            if (!maps.LoadRegion(r)) continue;
+            var region = maps.GetRegion(r);
+            if (region.MapNames == null) continue;
+            for (int l = 0; l < region.LocationCount; l++)
+            {
+                var location = maps.GetLocation(r, l);
+                if (!location.HasDungeon) continue;
+                var used = location.Dungeon.Blocks.Select(b => b.BlockName).Where(tiltedBlocks.Contains).Distinct().ToList();
+                if (used.Count > 0) Console.WriteLine($"TILTEDIN #{location.MapTableData.MapId} {region.Name}/{region.MapNames[l]} blocks={location.Dungeon.Blocks.Length} {string.Join(",", used)}");
+            }
+        }
         return 0;
     }
 
@@ -130,7 +147,7 @@ static partial class Program
         foreach (var m in models)
         {
             classes.Append($"\nclass DFDoorVisual{m.Slot} : DFDoorVisual {{}}\n");
-            modeldef.Append($"Model DFDoorVisual{m.Slot}\n{{\n\tPath \"models/dfdoors\"\n\tDONTCULLBACKFACES\n\tModel 0 \"m{m.Id}.obj\"\n\tFrameIndex DFDR A 0 0\n}}\n");
+            modeldef.Append($"Model DFDoorVisual{m.Slot}\n{{\n\tPath \"models/dfdoors\"\n\tDONTCULLBACKFACES\n\tModel 0 \"{m.Name}.obj\"\n\tFrameIndex DFDR A 0 0\n}}\n");
         }
         classes.Append(File.ReadAllText(Path.Combine(SourceDirectory(), "action_objects.zs")));
         var actionModels = actions.Models.Values.OrderBy(m => m.Slot).ToList();
