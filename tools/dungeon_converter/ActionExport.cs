@@ -147,6 +147,7 @@ static partial class Program
         public readonly Dictionary<uint, DoorModel> Models = new Dictionary<uint, DoorModel>();
         public readonly Dictionary<uint, List<V3>> Cells = new Dictionary<uint, List<V3>>();
         public readonly List<(int archive, int record)> Flats = new List<(int, int)>();
+        public readonly List<(int archive, int record, V3 at)> Ordinary = new List<(int, int, V3)>();
     }
 
     // Fills the placement, bounds, and collision of one model record during --export-mesh.
@@ -184,7 +185,8 @@ static partial class Program
                 }
     }
 
-    // Flats have no mesh. A flat that moves or starts a chain is drawn so the player can find it.
+    // Flats have no mesh. Daggerfall Unity draws every action flat except editor markers, which keep working while hidden.
+    // Treasure and NPC flats are drawn only when they move or start a chain, so the player can still find a working switch.
     static void PrepareActionFlats(ActionPackage package, Func<int, TextureFile> archive)
     {
         double scale = PlayerScale.DoomUnitsPerDaggerfallUnit;
@@ -194,7 +196,8 @@ static partial class Program
             var file = archive(r.FlatArchive);
             double w = Math.Max(8, file.GetWidth(r.FlatRecord) * scale) / 2, h = Math.Max(8, file.GetHeight(r.FlatRecord) * scale) / 2;
             (r.X0, r.X1, r.Y0, r.Y1, r.Z0, r.Z1) = (-w, w, -w, w, -h, h);
-            if (r.Flag is < 1 or > 8 && r.Next < 0) continue;
+            if (r.FlatArchive == EditorFlatArchive) continue;
+            if (!IsOrdinaryFlat(r.FlatArchive) && r.Flag is < 1 or > 8 && r.Next < 0) continue;
             int slot = package.Flats.IndexOf((r.FlatArchive, r.FlatRecord));
             if (slot < 0) { slot = package.Flats.Count; package.Flats.Add((r.FlatArchive, r.FlatRecord)); }
             r.Visual = slot;

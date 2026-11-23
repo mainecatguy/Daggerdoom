@@ -11,6 +11,10 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 EXE = r"D:\dev\DoomDaggerfall-build\uzdoom-mesh\Release\uzdoom.exe"
+if "--exe" in sys.argv:  # test a private build
+    at = sys.argv.index("--exe")
+    EXE = sys.argv[at + 1]
+    del sys.argv[at:at + 2]
 WADS = r"D:\dev\DoomDaggerfall\GameResources\wads"
 MODS = r"D:\dev\DoomDaggerfall\GameMods"
 DRLA = [os.path.join(MODS, n) for n in ("DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3")]
