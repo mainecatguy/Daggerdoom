@@ -23,6 +23,9 @@
 #include "i_interface.h"
 #include "m_argv.h"
 #include "menu.h"
+#include "d_player.h"
+#include "gamedata/g_mapinfo.h"
+#include "p_local.h"
 #include "playsim/dd_treadmill.h"
 #include "printf.h"
 #include "texturemanager.h"
@@ -34,6 +37,8 @@ FARG_ADVANCED(dfbridge, "Doomerfall", "session", "Attaches to the Doomerfall bri
 FARG_ADVANCED(dfbridgelog, "Doomerfall", "file", "Appends Doomerfall bridge traffic and latency to a log file.");
 FARG_ADVANCED(dfuitest, "Doomerfall", "count", "Bridge test only: opens the fast travel menu this many times.");
 FARG_ADVANCED(dfbridgetestpause, "Doomerfall", "ext|game|menu", "Bridge test only: enters a pause state for six seconds.");
+
+FARG_ADVANCED(dfhptest, "Doomerfall", "basic|monsters", "HP sync test only: scripts hits, heals, and a lethal hit.");
 
 CVAR(Int, dd_sync_df_phase, 0, CVAR_NOSAVE) // Read by the position sync test route.
 
@@ -476,6 +481,11 @@ bool DD_BridgeUiActive() { return uiState != UiClosed; }
 
 bool DD_BridgeNetEvent(const char *name)
 {
+	if (session && !strcmp(name, "df_hp_damage")) // Demo only: stands in for a Daggerfall-side attacker
+	{
+		SendText("hptest damage 15");
+		return true;
+	}
 	if (!session || strcmp(name, "df_fast_travel")) return false;
 	if (uiState != UiClosed)
 	{
@@ -557,6 +567,216 @@ bool DD_BridgeUiWndProc(unsigned int message, unsigned long long wParam, long lo
 	return false;
 }
 
+//==========================================================================
+// Player HP. Daggerfall owns the value. Doom reports each hit or heal as a numbered event, shows
+// Daggerfall's confirmed HP on the pawn, and only dies when Daggerfall reports death.
+// Every function here does nothing outside a bridge session, or while Daggerfall has no live player.
+//==========================================================================
+
+namespace
+{
+constexpr int HpPendingRing = 4096;
+constexpr int HpLogLimit = 600; // Per-event log lines; the summary line is not limited.
+
+uint32_t hpNextEvent = 1;
+uint32_t hpSeenApplied;
+uint64_t hpHits, hpHeals, hpDirect, hpSendFailed, hpKills, hpLogged;
+int64_t hpSentNs[HpPendingRing];
+Samples hpConfirm;
+AActor *hpMirroredPawn;
+int hpMirrored;
+bool hpAllowKill;
+int hpTestPending; // Test only: a step that must run inside a tic. Outside a tic the player is a prediction copy.
+void HpTestTicStep();
+
+bool HpActive()
+{
+	return session && peerSeen && (peerState.hp_flags & DFB_HPF_VALID) && !hpAllowKill;
+}
+
+bool HpIsBridgedPlayer(player_t *player)
+{
+	return player && player == &players[consoleplayer] && !(player->cheats & CF_PREDICTING);
+}
+
+void HpSend(uint32_t type, int amount, const char *source)
+{
+	dfb_event e{};
+	e.kind = DFB_KIND_HP;
+	e.tic = gametic;
+	dfb_hp_event body{};
+	body.event_no = hpNextEvent;
+	body.type = type;
+	body.amount = amount;
+	body.sent_ns = dfb_now_ns();
+	memcpy(e.payload, &body, sizeof(body));
+	if (dfb_send(session, &e) != DFB_OK)
+	{
+		hpSendFailed++;
+		Log("hp: event %u (%s %d) was refused by the bridge", hpNextEvent, type == DFB_HP_HIT ? "hit" : "heal", amount);
+		return;
+	}
+	hpSentNs[hpNextEvent % HpPendingRing] = body.sent_ns;
+	(type == DFB_HP_HIT ? hpHits : hpHeals)++;
+	if (hpLogged++ < HpLogLimit)
+		Log("hp: sent event %u: %s %d (%s), shown hp %d, confirmed hp %d, applied through %u", hpNextEvent,
+			type == DFB_HP_HIT ? "hit" : "heal", amount, source, players[consoleplayer].health, peerState.hp_current,
+			peerState.hp_applied_event);
+	hpNextEvent++;
+}
+
+void HpTrackConfirmations()
+{
+	const uint32_t applied = peerState.hp_applied_event;
+	const int64_t now = dfb_now_ns();
+	for (; hpSeenApplied < applied && hpSeenApplied + 1 < hpNextEvent; hpSeenApplied++)
+		hpConfirm.Add(now - hpSentNs[(hpSeenApplied + 1) % HpPendingRing]);
+}
+}
+
+// P_DamageMobj, where the player's health would drop. True means the hit was reported and Doom must not
+// change the player's health or run its own death.
+bool DD_BridgeHpHit(player_t *player, int damage)
+{
+	if (!HpActive() || !HpIsBridgedPlayer(player) || damage <= 0) return false;
+	HpSend(DFB_HP_HIT, damage, "damage");
+	return true;
+}
+
+// P_GiveBody. True means the heal was reported instead of applied; *accepted is what P_GiveBody returns.
+bool DD_BridgeHpHeal(player_t *player, int num, int max, bool *accepted)
+{
+	if (!HpActive() || !HpIsBridgedPlayer(player)) return false;
+	max = std::min(max, peerState.hp_max); // Do not consume a pickup Daggerfall could not use.
+	int amount = 0;
+	if (num < 0)
+	{
+		const int target = max * -num / 100; // Strife style: raise to a percentage of full health
+		if (player->health < target) amount = target - player->health;
+	}
+	else if (num > 0 && player->health < max)
+	{
+		num = std::max(1, int(num * G_SkillProperty(SKILLP_HealthFactor)));
+		amount = std::min(num, max - player->health);
+	}
+	*accepted = amount > 0;
+	if (amount > 0) HpSend(DFB_HP_HEAL, amount, "heal");
+	return true;
+}
+
+// Start of P_PlayerThink: report health changes made by paths with no hook of their own (a script that
+// assigns health, for example), then show Daggerfall's confirmed HP. Kills the pawn once Daggerfall says dead.
+void DD_BridgeHpThink(player_t *player)
+{
+	if (!HpActive()) { hpMirroredPawn = nullptr; return; } // Re-adopt Daggerfall's value if it comes back
+	if (!HpIsBridgedPlayer(player) || !player->mo || player->playerstate != PST_LIVE) return;
+	if (hpTestPending) HpTestTicStep();
+	if (peerState.hp_flags & DFB_HPF_DEAD)
+	{
+		hpKills++;
+		Log("hp: Daggerfall reports death, killing the player (shown hp %d, applied through event %u)", player->health,
+			peerState.hp_applied_event);
+		hpAllowKill = true;
+		P_DamageMobj(player->mo, nullptr, nullptr, 1000000, NAME_None, DMG_FORCED);
+		hpAllowKill = false;
+		return;
+	}
+	if (hpMirroredPawn == player->mo && player->health != hpMirrored)
+	{
+		const int delta = player->health - hpMirrored;
+		hpDirect++;
+		HpSend(delta < 0 ? DFB_HP_HIT : DFB_HP_HEAL, std::abs(delta), "direct assignment");
+	}
+	const int confirmed = std::max(1, peerState.hp_current); // 0 without the dead flag cannot be shown as alive
+	player->health = player->mo->health = confirmed;
+	hpMirrored = confirmed;
+	hpMirroredPawn = player->mo;
+}
+
+//==========================================================================
+// Test only (-dfhptest basic|monsters): drives hits, heals, rapid hits, Daggerfall-side damage, a direct
+// health assignment, and a lethal hit through Doom's real code, logging what the player shows at each step.
+//==========================================================================
+
+namespace
+{
+const char *hpTestMode;
+int hpTestStep;
+int64_t hpTestNextNs;
+
+void HpTestLog(const char *what)
+{
+	const player_t &p = players[consoleplayer];
+	Log("hp test: %s | shown=%d confirmed=%d/%d state=%d sent=%u applied=%u", what, p.health, peerState.hp_current,
+		peerState.hp_max, int(p.playerstate), hpNextEvent - 1, peerState.hp_applied_event);
+}
+
+void RunHpTest(int64_t now)
+{
+	if (!hpTestMode || hpTestStep < 0 || gamestate != GS_LEVEL || !(peerState.hp_flags & DFB_HPF_VALID) || !players[consoleplayer].mo) return;
+	if (hpTestPending) return;
+	if (!hpTestNextNs) hpTestNextNs = now + 2000000000LL;
+	if (now < hpTestNextNs) return;
+	const bool settled = peerState.hp_applied_event + 1 >= hpNextEvent;
+	if (!settled && now < hpTestNextNs + 3000000000LL) return; // Wait for Daggerfall to confirm the last step.
+	if (!strcmp(hpTestMode, "monsters"))
+	{
+		if (hpTestStep == 0)
+		{
+			C_DoCommand("summon DoomImp");
+			C_DoCommand("summon DoomImp");
+			C_DoCommand("summon DoomImp");
+			HpTestLog("summoned three imps");
+		}
+		else if (hpTestStep % 4 == 0) HpTestLog("monsters");
+		hpTestStep++;
+		hpTestNextNs = now + 500000000LL;
+		return;
+	}
+
+	if (hpTestStep >= 1 && hpTestStep <= 7)
+	{
+		hpTestPending = hpTestStep; // Done at the next player tic by HpTestTicStep
+		return;
+	}
+	switch (hpTestStep)
+	{
+	case 0: HpTestLog("start"); break;
+	case 8: HpTestLog("after Daggerfall reported death"); break;
+	case 9: HpTestLog("finished"); hpTestStep = -1; C_DoCommand("quit"); return;
+	}
+	hpTestStep++;
+	hpTestNextNs = now + (hpTestStep == 8 ? 1500000000LL : 600000000LL);
+}
+
+void HpTestTicStep()
+{
+	player_t &p = players[consoleplayer];
+	AActor *mo = p.mo;
+	char note[96];
+	switch (hpTestPending)
+	{
+	case 1: P_DamageMobj(mo, nullptr, nullptr, 40, NAME_None); HpTestLog("after one hit of 40 (same tic)"); break;
+	case 2: P_GiveBody(mo, 25, 100); HpTestLog("after a heal of 25 (same tic)"); break;
+	case 3:
+		for (int i = 0; i < 20; i++) P_DamageMobj(mo, nullptr, nullptr, 1 + i % 3, NAME_None);
+		HpTestLog("after 20 rapid hits in one tic");
+		break;
+	case 4: SendText("hptest damage 15"); HpTestLog("asked Daggerfall for 15 damage"); break;
+	case 5: p.health -= 6; HpTestLog("after a direct health assignment of -6"); break;
+	case 6: C_DoCommand("give medikit"); HpTestLog("queued give medikit"); break;
+	case 7:
+		P_DamageMobj(mo, nullptr, nullptr, 500, NAME_None);
+		snprintf(note, sizeof(note), "after a lethal hit of 500 (same tic), player alive=%d", p.playerstate == PST_LIVE);
+		HpTestLog(note);
+		break;
+	}
+	hpTestStep = hpTestPending + 1;
+	hpTestPending = 0;
+	hpTestNextNs = dfb_now_ns() + (hpTestStep == 8 ? 1500000000LL : 600000000LL);
+}
+}
+
 void DD_BridgeInit()
 {
 	if (session) return;
@@ -570,6 +790,7 @@ void DD_BridgeInit()
 	if (const char *path = Args->CheckValue(FArg_dfbridgelog))
 		logFile = fopen(path, "ab");
 	testPause = Args->CheckValue(FArg_dfbridgetestpause);
+	hpTestMode = Args->CheckValue(FArg_dfhptest);
 	if (const char *count = Args->CheckValue(FArg_dfuitest)) uiTestRemaining = atoi(count);
 	else uiTestRemaining = -1;
 	Log("attached to session %s, protocol %u, layout %016llx", id, dfb_protocol_version(),
@@ -595,6 +816,7 @@ void DD_BridgeFrame()
 
 	if (dfb_read_state(session, &peerState, sizeof(peerState)) == DFB_GOT)
 		stateAge.Add(dfb_now_ns() - peerState.published_ns);
+	HpTrackConfirmations();
 
 	if (int(peerState.df_phase) != *dd_sync_df_phase) dd_sync_df_phase = int(peerState.df_phase);
 	PublishPosition();
@@ -633,6 +855,7 @@ void DD_BridgeFrame()
 	}
 	PumpUi(now);
 	RunUiTest(now);
+	RunHpTest(now);
 	dfb_flush(session);
 	RunTestPause(now);
 
@@ -652,6 +875,16 @@ void DD_BridgeFrame()
 			(unsigned long long)pingsAnswered, (unsigned long long)pongsReceived, (unsigned long long)stats.seq_gaps,
 			(unsigned long long)unknownKinds, stats.outbox_count);
 		Log("latency rtt %s | uz->df %s | df->uz %s | df state age %s", a, b, c, d);
+		if (peerState.hp_flags & DFB_HPF_VALID)
+		{
+			char h[96];
+			hpConfirm.Format(h, sizeof(h));
+			Log("hp: shown=%d confirmed=%d/%d dead=%d sent=%u applied=%u hits=%llu heals=%llu direct=%llu refused=%llu kills=%llu | event to confirmed %s",
+				players[consoleplayer].health, peerState.hp_current, peerState.hp_max, (peerState.hp_flags & DFB_HPF_DEAD) ? 1 : 0,
+				hpNextEvent - 1, peerState.hp_applied_event, (unsigned long long)hpHits, (unsigned long long)hpHeals,
+				(unsigned long long)hpDirect, (unsigned long long)hpSendFailed, (unsigned long long)hpKills, h);
+			hpConfirm.count = hpConfirm.next = 0;
+		}
 		rtt.count = rtt.next = oneWayOut.count = oneWayOut.next = 0; // each line covers one window
 		oneWayIn.count = oneWayIn.next = stateAge.count = stateAge.next = 0;
 	}

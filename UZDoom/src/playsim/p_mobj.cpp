@@ -1230,6 +1230,8 @@ int P_GetRealMaxHealth(AActor *actor, int max)
 //
 //---------------------------------------------------------------------------
 
+bool DD_BridgeHpHeal(player_t *player, int num, int max, bool *accepted); // [Doomerfall] false outside a bridge session
+
 bool P_GiveBody(AActor *actor, int num, int max)
 {
 	if (actor->health <= 0 || (actor->player != NULL && actor->player->playerstate == PST_DEAD))
@@ -1238,6 +1240,12 @@ bool P_GiveBody(AActor *actor, int num, int max)
 	}
 
 	player_t *player = actor->player;
+	if (player != NULL && player->mo == actor)
+	{
+		// [Doomerfall] In a bridge session Daggerfall owns HP: the heal is reported, not applied.
+		bool accepted = false;
+		if (DD_BridgeHpHeal(player, num, P_GetRealMaxHealth(actor, max), &accepted)) return accepted;
+	}
 
 	num = clamp(num, -65536, 65536);	// prevent overflows for bad values
 	if (player != NULL)

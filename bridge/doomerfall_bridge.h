@@ -27,7 +27,7 @@ extern "C" {
 #endif
 
 #define DFB_MAGIC            0x42464444u /* "DDFB" */
-#define DFB_PROTOCOL_VERSION 3u
+#define DFB_PROTOCOL_VERSION 4u
 
 #define DFB_RING_SLOTS     4096u   /* power of two */
 #define DFB_OUTBOX_SLOTS   16384u  /* local, per process; hard cap before a bridge fault */
@@ -69,6 +69,12 @@ extern "C" {
 #define DFB_KIND_UI_INPUT   8   /* UZ to DF; payload: dfb_ui_input */
 #define DFB_KIND_UI_STATE   9   /* DF to UZ; payload: dfb_ui_state */
 #define DFB_KIND_UI_RESULT  10  /* DF to UZ; payload: dfb_ui_result */
+#define DFB_KIND_HP         11  /* UZ to DF; one numbered hit or heal on the player; payload: dfb_hp_event */
+
+#define DFB_HP_HIT    1u
+#define DFB_HP_HEAL   2u
+#define DFB_HPF_VALID 1u  /* dfb_df_state.hp_current and hp_max describe a live Daggerfall player */
+#define DFB_HPF_DEAD  2u  /* Daggerfall reports the player dead */
 
 /* Daggerfall screens Doom can ask for. Add new menus here. */
 #define DFB_UI_NONE        0u
@@ -187,6 +193,17 @@ typedef struct dfb_surface_frame
 	int64_t published_ns;
 } dfb_surface_frame;
 
+/* Player HP (MVP). Doom numbers each hit or heal from 1 and sends it unchanged. Daggerfall applies them in
+   order and publishes the number of the last one it applied in dfb_df_state.hp_applied_event. */
+typedef struct dfb_hp_event
+{
+	uint32_t event_no;
+	uint32_t type;        /* DFB_HP_HIT or DFB_HP_HEAL */
+	int32_t amount;       /* always positive */
+	uint32_t pad;
+	int64_t sent_ns;
+} dfb_hp_event;
+
 typedef struct dfb_hello
 {
 	uint32_t pid;
@@ -203,7 +220,11 @@ typedef struct dfb_df_state
 	int64_t published_ns;     /* stamped by dfb_publish_state */
 	uint32_t df_frame;
 	uint32_t demo_value;      /* bridge demo only: a value Daggerfall changes for Doom to read */
-	uint8_t reserved[DFB_STATE_BYTES - 32];
+	int32_t hp_current;       /* Daggerfall's confirmed player HP; meaningful when DFB_HPF_VALID is set */
+	int32_t hp_max;
+	uint32_t hp_applied_event;/* event_no of the last dfb_hp_event Daggerfall applied */
+	uint32_t hp_flags;        /* DFB_HPF_* */
+	uint8_t reserved[DFB_STATE_BYTES - 48];
 } dfb_df_state;
 
 /* State half written by UZDoom (S-UZ). */

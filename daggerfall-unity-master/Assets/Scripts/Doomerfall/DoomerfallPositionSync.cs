@@ -46,6 +46,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         public uint Phase { get { return phase; } }
 
+        // True once the test start has put Daggerfall in a game. The real startup flow replaces this.
+        public bool InGame { get { return testWorldReady; } }
+
         public void Init(DoomerfallBridge owner, string[] args)
         {
             bridge = owner;

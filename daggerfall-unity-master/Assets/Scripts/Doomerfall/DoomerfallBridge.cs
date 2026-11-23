@@ -31,6 +31,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public long publishedNs;
         public uint dfFrame;
         public uint demoValue;
+        public int hpCurrent, hpMax;
+        public uint hpApplied, hpFlags;
     }
 
     [StructLayout(LayoutKind.Sequential, Size = 256)]
@@ -79,10 +81,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
     public sealed class DoomerfallBridge : MonoBehaviour
     {
-        const uint ProtocolVersion = 3;
+        const uint ProtocolVersion = 4;
         const int SideDf = 1;
         const int Got = 1;
-        const ushort KindHello = 1, KindPing = 2, KindPong = 3, KindText = 4, KindArea = 5, KindUiOpen = 6, KindUiClose = 7, KindUiInput = 8;
+        const ushort KindHello = 1, KindPing = 2, KindPong = 3, KindText = 4, KindArea = 5, KindUiOpen = 6, KindUiClose = 7, KindUiInput = 8, KindHp = 11;
         const long PingIntervalNs = 50000000, LogIntervalNs = 2000000000, StaleNs = 1000000000;
         const int SampleCount = 1024;
 
@@ -121,6 +123,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DfbStats stats;
         DoomerfallPositionSync sync;
         DoomerfallUi ui;
+        DoomerfallHp hp;
         bool textFrame;
         uint ownSize, peerSize, nextPing = 1;
         ulong pingsAnswered, pongsReceived, unknownKinds;
@@ -186,7 +189,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
             sync = gameObject.AddComponent<DoomerfallPositionSync>();
             sync.Init(this, Environment.GetCommandLineArgs());
-            ui = gameObject.AddComponent<DoomerfallUi>();
+            hp = new DoomerfallHp(this, sync, Environment.GetCommandLineArgs());
+            ui =gameObject.AddComponent<DoomerfallUi>();
             ui.Init(this);
         }
 
@@ -276,7 +280,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         pongsReceived++;
                         break;
                     case KindText:
-                        Log("message from UZDoom: \"" + ReadText() + "\" (seq " + ev.seq + ")");
+                    {
+                        string text = ReadText();
+                        Log("message from UZDoom: \"" + text + "\" (seq " + ev.seq + ")");
+                        hp.OnText(text);
+                        break;
+                    }
+                    case KindHp: // payload: event number, type, amount, pad, sent_ns
+                        hp.OnEvent((uint)ev.p0, (uint)(ev.p0 >> 32), (int)(uint)ev.p1);
                         break;
                     case KindHello:
                         Log("hello from UZDoom (seq " + ev.seq + ")");
@@ -310,6 +321,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             own.dfHeartbeat++;
             own.dfFrame = (uint)Time.frameCount;
             own.demoValue = (uint)Time.frameCount;
+            hp.Fill(ref own);
             DfbNative.dfb_publish_state(session, ref own, ownSize);
 
             long now = DfbNative.dfb_now_ns();
