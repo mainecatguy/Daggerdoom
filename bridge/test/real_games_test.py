@@ -15,6 +15,7 @@ SECONDS = 30
 
 SCENARIOS = {
     "play": ["+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"],
+    "drla": ["+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"],
     "ext": ["-dfbridgetestpause", "ext", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"],
     "game": ["-dfbridgetestpause", "game", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"],
     "menu": ["-dfbridgetestpause", "menu", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"],
@@ -52,6 +53,8 @@ def main():
     command = [sys.executable, QUIET, "--timeout", str(SECONDS), "--", str(REVIEW / "doomerfall-launcher.exe"),
                "--minimized", "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"),
                "--iwad", IWAD, "--uzdoom-cwd", str(run), "--log", str(run / f"t-{name}-launcher.log")]
+    if name == "drla":
+        command += ["--mod-list", str(REVIEW / "mods.txt")]
     for arg in uz_args:
         command += ["--uzdoom-arg", arg]
     for arg in dfu_args:
@@ -71,7 +74,7 @@ def main():
         print("\n".join(key[:8]))
         print("\n".join(status[:1] + status[-2:]))
         print("\n".join(latency[-1:]))
-        if label == "UZDoom" and name != "play":
+        if label == "UZDoom" and name in ("ext", "game", "menu"):
             pause_report(lines)
         steady = latency[3:]  # skip the startup windows, which include Daggerfall's scene load
         for channel in ("rtt", "uz->df", "df->uz"):
