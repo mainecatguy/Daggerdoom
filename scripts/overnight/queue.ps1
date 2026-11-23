@@ -13,7 +13,7 @@ param(
     [string]$From = 'integration',
     [datetime]$Until,
     [double]$MaxUsd = 30,
-    [double]$MaxUsdPerGoal = 15,
+    [double]$MaxUsdPerGoal = 10,
     [string]$ClaudeExe = 'claude',
     [string]$ClaudePrefix = ''
 )
