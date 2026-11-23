@@ -49,11 +49,12 @@ Keep Daggerfall and Doom loaded into the same area, through a deterministic coor
 - Perfect sync is not needed. Daggerfall applying the player's position about once per second should be enough. Area changes should not wait for that update.
 - Daggerfall must keep the same world objects in memory as Doom, so leave its terrain and location streaming running and measure the cost.
 - Daggerfall's hidden player must not take fall damage, get stuck, or trigger anything from being moved this way.
-- The hidden Daggerfall world must not change real game state on its own. How to do that is an engineering call. The suggested approach is to stop drawing, stop the hidden player's motor and physics, and turn off AI and attacks for Daggerfall's enemies while keeping those objects in memory. Leave peaceful NPCs alone until the NPC design is settled. Avoid a blanket god mode, because it would also block legitimate Daggerfall effects such as poison and could hide bugs.
+- Daggerfall's 3D drawing is controlled by a flag the launcher passes, such as `--nodraw`. Without the flag Daggerfall draws normally, because tests compare screenshots from both games to check areas and LODs. The simulation safeguards below apply either way.
+- The hidden Daggerfall world must not change real game state on its own. How to do that is an engineering call. The suggested approach is to stop the hidden player's motor and physics, and turn off AI and attacks for Daggerfall's enemies while keeping those objects in memory. Leave peaceful NPCs alone until the NPC design is settled. Avoid a blanket god mode, because it would also block legitimate Daggerfall effects such as poison and could hide bugs.
 
 ### Show Daggerfall's fast travel menu in Doom
 
-Pressing the Fast Travel key pauses Doom and shows Daggerfall's real travel map inside the Doom window, with input routed to it. Closing it resumes Doom. Do not recreate the menu in Doom. Build this so other Daggerfall menus, such as inventory, can use the same path. Daggerfall should stop drawing its 3D world while this runs, but keep its entities and physics running, because how NPCs will work is not designed yet. Arriving at the chosen destination is a separate backlog item.
+Pressing the Fast Travel key pauses Doom and shows Daggerfall's real travel map inside the Doom window, with input routed to it. Closing it resumes Doom. Do not recreate the menu in Doom. Build this so other Daggerfall menus, such as inventory, can use the same path. Daggerfall's 3D drawing follows the launcher's `--nodraw` flag from position sync. Keep its entities and physics running, apart from the position sync safeguards, because how NPCs will work is not designed yet. Arriving at the chosen destination is a separate backlog item.
 
 ### Synchronized saving
 
