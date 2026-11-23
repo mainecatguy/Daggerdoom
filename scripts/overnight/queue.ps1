@@ -42,7 +42,13 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $spent = 0.0; $misses = 0
-foreach ($file in (Get-ChildItem -LiteralPath $GoalDir -File -Filter '*.md' | Sort-Object Name)) {
+# Recheck the folder before each task, so cards added during a run are picked up. Each card runs once per lane start.
+$attempted = @{}
+while ($true) {
+    $file = Get-ChildItem -LiteralPath $GoalDir -File -Filter '*.md' | Sort-Object Name |
+        Where-Object { -not $attempted.ContainsKey($_.Name) } | Select-Object -First 1
+    if (-not $file) { break }
+    $attempted[$file.Name] = $true
     $hours = [Math]::Min(($Until - (Get-Date)).TotalHours, 168)
     if ($hours -le 0) { Write-Queue 'Stopping: reached the deadline.'; break }
     $left = $MaxUsd - $spent
