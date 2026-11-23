@@ -532,6 +532,19 @@ bool IsFastTravelKey(long long lParam)
 }
 }
 
+void DD_BridgeTransition(int action, double x, double y, int target)
+{
+	if (!session) return;
+	static uint32_t transitionSeq;
+	dfb_event e{};
+	e.kind = DFB_KIND_TRANSITION;
+	e.tic = gametic;
+	const dfb_transition body{ uint32_t(action), ++transitionSeq, x, y, target, 0 };
+	memcpy(e.payload, &body, sizeof(body));
+	dfb_send(session, &e);
+	Log("transition %u: action %d, door %.1f,%.1f, target %d", body.seq, action, x, y, target);
+}
+
 bool DD_BridgeUiActive() { return uiState != UiClosed; }
 bool DD_BridgeSaveActive();
 
@@ -1431,6 +1444,10 @@ void LoadRestoreDoom()
 		Printf(PRINT_HIGH, "%s\n", error.GetMessage());
 	}
 	LoadRemoveStage();
+	// Before the done event, so Daggerfall knows which side of the door Doom restored before it resumes.
+	int doorAction, doorTarget;
+	double doorX, doorY;
+	if (ok && DDTreadmill_CurrentDoor(doorAction, doorX, doorY, doorTarget)) DD_BridgeTransition(doorAction, doorX, doorY, doorTarget);
 	SendLoadDone(ok);
 	if (!ok)
 	{

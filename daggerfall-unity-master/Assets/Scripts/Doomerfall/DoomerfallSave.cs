@@ -128,6 +128,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return;
             }
             loading = true;
+            sync.LoadRunning = true;
             loadRestored = false;
             activeTxn = txn;
             bridge.LogLine("load " + txn + ": restoring Daggerfall from the bundle");
@@ -147,16 +148,17 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bool started = saves.LoadFromFolder(folder);
             while (started && !loadRestored && Time.unscaledTime < deadline)
                 yield return null;
-            while (started && loadRestored && !GameManager.Instance.StreamingWorld.DoomerfallPositionSettled && Time.unscaledTime < deadline)
+            while (started && loadRestored && !sync.PositionSettled && Time.unscaledTime < deadline)
                 yield return null;
             SaveLoadManager.OnLoad -= LoadFinished;
 
-            bool settled = started && loadRestored && GameManager.Instance.StreamingWorld.DoomerfallPositionSettled;
+            bool settled = started && loadRestored && sync.PositionSettled;
             GameManager.Instance.PauseGame(true); // Held until Doom has restored its half too.
             if (!settled)
             {
                 saves.AbortLoadFromFolder();
                 loading = false;
+                sync.LoadRunning = false;
                 bridge.LogLine("load " + txn + ": failed, Daggerfall's game is no longer valid");
                 Reply(txn, StatusFailed, 0, 0, KindLoadReady);
                 yield break;
@@ -172,6 +174,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (!loading || txn != activeTxn)
                 return;
             loading = false;
+            sync.LoadRunning = false;
             if (!restored)
             {
                 bridge.LogLine("load " + txn + ": Doom could not restore, holding paused");
