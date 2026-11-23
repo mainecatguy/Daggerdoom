@@ -36,6 +36,7 @@ $Protected = 'AGENTS.md', 'CLAUDE.md', '.claude/', '.github/', 'scripts/overnigh
 $AgentSchema = '{"type":"object","properties":{"status":{"type":"string","enum":["CONTINUE","DONE","BLOCKED"]},"summary":{"type":"string"},"questions":{"type":"array","items":{"type":"string"}},"oversights":{"type":"array","items":{"type":"string"}}},"required":["status","summary"]}'
 $VerifierSchema = '{"type":"object","properties":{"verdict":{"type":"string","enum":["PASS","FAIL"]},"problems":{"type":"string"}},"required":["verdict","problems"]}'
 $MaxDiffChars = 60000
+$UnityArtifacts = @('daggerfall-unity-master/Assets/AddressableAssetsData/Windows/addressables_content_state.bin')
 
 # --- Helpers ---
 function RepoGit {
@@ -71,6 +72,12 @@ function Get-SchemaArg([string]$Schema) { "--json-schema `"$($Schema.Replace('"'
 function Get-Spent { $script:PriorSessionUsd + $script:SessionUsd + $script:VerifierUsd }
 
 function Save-Work {
+    # Every Unity build rewrites these files, so they must never ride along in an automatic commit.
+    foreach ($artifact in $UnityArtifacts) {
+        if (RepoGit $Worktree status --porcelain -- $artifact) {
+            RepoGit $Worktree restore --source=HEAD --staged --worktree -- $artifact | Out-Null
+        }
+    }
     if (RepoGit $Worktree status --porcelain) {
         RepoGit $Worktree add -A | Out-Null
         RepoGit $Worktree commit -q -m "overnight: save work in progress" | Out-Null
@@ -130,6 +137,9 @@ $Stamp = Get-Date -Format yyyyMMdd-HHmmss
 $Branch = if ($Lane) { "agent/$Lane-$Stamp" } else { "agent/$Stamp" }
 $Logs = Join-Path $RunDir "logs\$Stamp"
 $Settings = Join-Path $PSScriptRoot 'agent-settings.json'
+# Agents leave their one-click demos here, outside the repo, because demos contain files derived from game data.
+$ReviewDir = Join-Path (Split-Path $Repo -Parent) ((Split-Path $Repo -Leaf) + '-loop\review')
+New-Item -ItemType Directory -Force $ReviewDir | Out-Null
 $StartedAt = Get-Date
 $Deadline = $StartedAt.AddHours($Hours)
 
@@ -177,7 +187,7 @@ try {
         $resume = if ($started) { "--resume $session" } elseif ($ContinueSession) { "--resume $ContinueSession --fork-session" } else { "--session-id $session" }
         $budget = $remaining.ToString('0.####', [Globalization.CultureInfo]::InvariantCulture)
         Write-Output "[round $round] $Model, `$$budget left"
-        $line = ("$ClaudePrefix -p --setting-sources project --strict-mcp-config --model $Model --permission-mode acceptEdits --settings `"$Settings`" $resume --max-turns $MaxTurnsPerRound --max-budget-usd $budget --output-format json $(Get-SchemaArg $AgentSchema)").Trim()
+        $line = ("$ClaudePrefix -p --setting-sources project --strict-mcp-config --model $Model --permission-mode acceptEdits --settings `"$Settings`" --add-dir `"$ReviewDir`" $resume --max-turns $MaxTurnsPerRound --max-budget-usd $budget --output-format json $(Get-SchemaArg $AgentSchema)").Trim()
         $code = Invoke-Logged $ClaudeExe $line $next "$tag.log"
         Save-Work
 

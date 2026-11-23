@@ -120,10 +120,10 @@ The owner has a Pro plan with extra usage off. Check usage before dispatching an
 
 Replace this section as the state changes.
 
-- **Running:** nothing.
-- **Reviewed but not merged:** `agent/doomerfall-controls-submenu` at `8865bd3`. `integration` can fast-forward to it. Merge only when the owner approves. Demo: `D:\dev\DoomDaggerfall-loop\review\doomerfall-controls-submenu\play.bat`.
-- **`integration`:** `26dc6b8`, with the launcher and Doomerfall mod merged. `main` is `e2181f0`.
-- **Message channel:** not designed and no transport chosen. The fast travel menu, synchronized saving, and synchronized loading wait on it.
+- **Running:** nothing. The owner asked to stop the dungeon check because the action system had not landed.
+- **Reviewed but not merged:** `overnight/engine` (bridge core) and `overnight/dungeon` (parity test, swimmable water, action system). Merge to `integration` only when the owner approves. Demos: `D:\dev\DoomDaggerfall-loop\review\bridge-core\play.bat` and `D:\dev\DoomDaggerfall-loop\review\action-system\play.bat`.
+- **Queued cards:** `work/queue/dungeon` holds the dungeon traversal check and town colliders. Partial check work is on `agent/dungeon-20261122-230401`.
+- **Bridge:** built and proven between the real games on `overnight/engine`. Position sync, the fast travel menu, and synchronized saving and loading wait on the owner's review.
 - **Usage:** weekly was 0% at last check and resets on 2026-11-25 at 08:00 UTC. The stop line is 90%.
 - **Next planned work:** design the message channel with the owner, then the fast travel menu, synchronized saving, and synchronized loading.
 - **Inventory:** Daggerfall's existing inventory stays. The owner is working out Doom weapon hotkeys separately, and the design is in the backlog.
