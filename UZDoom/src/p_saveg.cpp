@@ -23,6 +23,7 @@
 */
 
 
+#include "playsim/dd_treadmill.h" // [DoomDaggerfall]
 #include "p_local.h"
 #include "p_spec.h"
 
@@ -1008,6 +1009,7 @@ void FLevelLocals::Serialize(FSerializer &arc, bool hubload)
 	arc("zones", Zones);
 	arc("lineportals", linePortals);
 	arc("sectorportals", sectorPortals);
+	DDTreadmill_Serialize(this, arc); // [DoomDaggerfall] no key unless the overworld is active
 	if (arc.isReading())
 	{
 		FinalizePortals();

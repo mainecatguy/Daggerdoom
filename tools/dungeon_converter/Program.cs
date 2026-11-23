@@ -67,6 +67,8 @@ static partial class Program
     static int Main(string[] args)
     {
         CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
+        if (args.Contains("--world")) return WorldTerrain.RunExport(args); // shared height data for the overworld and town maps
+        if (args.Contains("--city")) return City.Run(args); // cities have their own pipeline in CityExport.cs
         string name = null, outDir = null, arena2 = @"D:\dev\DoomDaggerfall\GameResources\DAGGER\ARENA2";
         for (int a = 0; a < args.Length; a++)
         {
@@ -1023,11 +1025,11 @@ static partial class Program
         return spans.Count > 0 ? spans[0].F : n.F;
     }
 
-    static void WriteWad(string path, string textmap, string points)
+    static void WriteWad(string path, string textmap, string points, string mapName = "MAP01")
     {
         var lumps = new (string name, byte[] data)[]
         {
-            ("MAP01", Array.Empty<byte>()), ("TEXTMAP", Encoding.ASCII.GetBytes(textmap)), ("ENDMAP", Array.Empty<byte>()),
+            (mapName, Array.Empty<byte>()), ("TEXTMAP", Encoding.ASCII.GetBytes(textmap)), ("ENDMAP", Array.Empty<byte>()),
             ("DFPOINTS", Encoding.ASCII.GetBytes(points)),
         };
         using var file = new BinaryWriter(File.Create(path));

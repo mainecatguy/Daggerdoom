@@ -123,16 +123,30 @@ const double			r_Yaspect = 200.0;		// Why did I make this a variable? It's never
 //
 //==========================================================================
 
-inline constexpr int R_PointOnSide (fixed_t x, fixed_t y, const node_t *node)
+// [DoomDaggerfall] A generated town can span more than 32768 units, which wraps the stock 32-bit
+// deltas below. This flag is true only while such a map is loaded, so every other map runs the stock test.
+extern bool DDTreadmill_WideNodes;
+inline int DDWidePointOnSide(fixed_t x, fixed_t y, const node_t *node)
 {
+	const int64_t a = int64_t(y) - node->y, c = int64_t(node->x) - x;
+	const double approx = double(a) * node->dx + double(c) * node->dy;
+	if (approx > 4e18 || approx < -4e18) return approx > 0;	// Far from the line, so the sign is certain.
+	return (int64_t(uint64_t(a) * uint64_t(int64_t(node->dx)) + uint64_t(c) * uint64_t(int64_t(node->dy))) >> 32) > 0;
+}
+
+inline int R_PointOnSide (fixed_t x, fixed_t y, const node_t *node)
+{
+	if (DDTreadmill_WideNodes) return DDWidePointOnSide(x, y, node); // [DoomDaggerfall]
 	return DMulScale (y-node->y, node->dx, node->x-x, node->dy, 32) > 0;
 }
 inline int R_PointOnSide(double x, double y, const node_t *node)
 {
+	if (DDTreadmill_WideNodes) return DDWidePointOnSide(FLOAT2FIXED(x), FLOAT2FIXED(y), node); // [DoomDaggerfall]
 	return DMulScale(FLOAT2FIXED(y) - node->y, node->dx, node->x - FLOAT2FIXED(x), node->dy, 32) > 0;
 }
 inline int R_PointOnSide(const DVector2 &pos, const node_t *node)
 {
+	if (DDTreadmill_WideNodes) return DDWidePointOnSide(FLOAT2FIXED(pos.X), FLOAT2FIXED(pos.Y), node); // [DoomDaggerfall]
 	return DMulScale(FLOAT2FIXED(pos.Y) - node->y, node->dx, node->x - FLOAT2FIXED(pos.X), node->dy, 32) > 0;
 }
 

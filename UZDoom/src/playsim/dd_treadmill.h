@@ -1,12 +1,16 @@
-// [DoomDaggerfall] Terrain treadmill kill test. Inactive unless the map is
-// TREADM01 and the game was started with -ddtreadmill <heights.bin>.
+// [DoomDaggerfall] Overworld terrain treadmill. Inactive unless the current map
+// is DDOVER01 and a loaded file provides the DDWORLD terrain lump.
 #pragma once
 
 struct FLevelLocals;
+class FSerializer;
 
 extern bool DDTreadmill_Active;
 
+void DDTreadmill_BeginMap(FLevelLocals *Level);
 void DDTreadmill_Tick(FLevelLocals *Level);
+bool DDTreadmill_MeshOffset(double &x, double &y, double &z);
+void DDTreadmill_Serialize(FLevelLocals *Level, FSerializer &arc);
 void DDTreadmill_FrameEnd();
 void DDTreadmill_UploadBegin();
 void DDTreadmill_UploadEnd();
