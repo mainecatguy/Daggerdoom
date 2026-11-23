@@ -42,6 +42,10 @@ Tell the owner wherever a dungeon requires climbing or levitation to progress, w
 
 Approved work that waits until the owner has reviewed the bridge core. Automated loops do not take these yet.
 
+### Position sync
+
+Doom continuously tells Daggerfall where the player is, through a deterministic coordinate transform at the 75% world scale, so Daggerfall can track the player's location for travel, transitions, and saves. This is one of the four core technical hurdles.
+
 ### Show Daggerfall's fast travel menu in Doom
 
 Pressing the Fast Travel key pauses Doom and shows Daggerfall's real travel map inside the Doom window, with input routed to it. Closing it resumes Doom. Do not recreate the menu in Doom. Build this so other Daggerfall menus, such as inventory, can use the same path. Daggerfall should stop drawing its 3D world while this runs, but keep its entities and physics running, because how NPCs will work is not designed yet. Arriving at the chosen destination is a separate backlog item.

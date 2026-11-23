@@ -10,6 +10,47 @@ Work that needs owner input or depends on unfinished work. **Automated loops nev
 
 Daggerfall Unity should eventually run with its 3D world rendering and entity physics turned off while its simulation loop and 2D UI keep working. This is one of the four core technical hurdles. Disabling entities and physics may break NPC behavior, so it should not start until the NPC design is settled. Normal Daggerfall Unity launches must behave as they do today.
 
+## MVP
+
+The MVP target is that the player can run around the world, kill enemies, enter and exit towns, use the fast travel menu, and do other basic things. Position sync, the fast travel menu, and synchronized saving and loading are in `work/todo.md`.
+
+### Fast travel arrival
+
+**Waiting on:** position sync and the fast travel menu in `work/todo.md`.
+
+Daggerfall owns travel cost, time, and destination. Doom reports the player's world position to Daggerfall, then loads the chosen town or overworld position and places the player where Daggerfall would.
+
+### Building and dungeon entry and exit
+
+**Waiting on:** position sync.
+
+The player can go through a door into a building interior and back out, and can enter and exit dungeons from the overworld or a town, arriving where Daggerfall would place them.
+
+### One random enemy per placement
+
+**Waiting on:** owner approval to move to `work/todo.md`.
+
+Owner decision (2026-11-22): for MVP, each Daggerfall enemy placement generates one random Doom enemy. Mook packs come later.
+
+### Player HP, damage, and death
+
+**Waiting on:** the bridge core, and owner answers on the damage scale, armor, and health pickups. See the owner questions in `work/notes/bridge-contract.md` on `agent/bridge-contract`.
+
+Doom sends damage to Daggerfall, Daggerfall stays final for the player's HP and death, and Doom shows the result.
+
+### Daggerfall items in the world
+
+**Waiting on:** the bridge core and position sync.
+
+Owner design (2026-11-22): Doom must be tolerant of Daggerfall items. Doom is the dominant client, so it must show them and let the player interact with them.
+
+- All Daggerfall items can drop in the world or appear in the world, including static placed items.
+- Doom shows these items in the game, whether or not they have a Doom equivalent.
+- The player presses E to interact with an item and pick it up into their Daggerfall inventory.
+- Picked-up items stay gone, following the permanent location state rules.
+
+**Open question for the owner:** Daggerfall loot piles and containers can hold several items. Should E open Daggerfall's loot window through the Doom menu path, or take everything at once?
+
 ## Overworld and towns
 
 ### Distant terrain LOD
@@ -25,12 +66,6 @@ Check whether UZDoom's sky viewpoints or the existing static-mesh pass is the be
 **Waiting on:** the town stitching task and distant terrain LOD.
 
 Show a real town from outside its playable area and capture screenshots for the owner to judge.
-
-### Fast travel arrival
-
-**Waiting on:** the town stitching task and the fast travel menu in `work/todo.md`.
-
-Daggerfall owns travel cost, time, and destination. Doom reports the player's world position to Daggerfall, then loads the chosen town or overworld position and places the player where Daggerfall would.
 
 ### Town gates follow day and night
 
@@ -195,6 +230,12 @@ Check whether Daggerfall has quest or other scripts that move NPCs and depend on
 **Waiting on:** owner design.
 
 Decide how randomly wandering NPCs work across both games. The question is whether their positions need syncing at all, or whether it is enough to sync if they are alive or dead.
+
+### Mook packs
+
+**Waiting on:** MVP, and the owner defining the point-buy system.
+
+Post-MVP, but before initial release. Replace the one random enemy per placement with the mook pack design in `gamedesign.md`: encounters generate packs of Doom enemies from fixed seeds, and only deaths are tracked. Research found that `RandomSpawner` uses a shared random number generator, so packs must be expanded into concrete monster classes from the seed before spawning.
 
 ### Quest targets in mook packs
 
