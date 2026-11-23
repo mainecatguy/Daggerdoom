@@ -211,7 +211,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         const uint UiTravelMap = 1;
         const uint StateClosed = 0, StateOpened = 1;
         const uint ReasonUser = 1, ReasonRefused = 2, ReasonResult = 3, ReasonDoom = 4;
-        const ushort KindUiState = 9, KindUiResult = 10;
+        const ushort KindUiState = 9, KindUiResult = 10, KindTravel = 20;
+        const float TravelSettleSeconds = 20f;
         const int MaxSurfaceWidth = 1920, MaxSurfaceHeight = 1200;
         const int OpenWaitFrames = 30;
         const int MaxPendingReadbacks = 3;
@@ -223,7 +224,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         IUserInterfaceWindow lastTop;
         RenderTexture scaled;
         uint openId;
-        bool waitingForWindow, windowOpen;
+        bool waitingForWindow, windowOpen, travelArriving;
+        float travelWaitUntil;
         uint closeReason;
         int waitFrames, pending, surfaceWidth, surfaceHeight;
         uint frameId;
@@ -236,6 +238,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bridge = owner;
             instance = this;
             onReadback = OnReadback;
+            DaggerfallTravelPopUp.OnPostFastTravel += OnPostFastTravel;
             StartCoroutine(CaptureLoop());
         }
 
@@ -272,6 +275,21 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 else if (++waitFrames > OpenWaitFrames)
                 {
                     Finish(ReasonRefused);
+                }
+            }
+            else if (travelArriving)
+            {
+                if (GameManager.Instance.StreamingWorld.DoomerfallPositionSettled)
+                {
+                    FinishTravel();
+                    Finish(ReasonResult);
+                }
+                else if (Time.realtimeSinceStartup > travelWaitUntil)
+                {
+                    bridge.LogLine("error: Daggerfall's world did not settle after fast travel");
+                    travelArriving = false;
+                    bridge.PositionSync.EndTravelHold();
+                    Finish(ReasonResult);
                 }
             }
             else if (windowOpen && atHud)
@@ -356,17 +374,53 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bridge.Send(ref e);
         }
 
-        /// <summary>
-        /// Called when the player confirms a destination. Returns true if Doomerfall owns the journey,
-        /// in which case the caller must not move the player, advance time, or charge anything.
-        /// </summary>
-        public static bool TryInterceptTravel(int mapPixelX, int mapPixelY)
+        // Daggerfall's own travel has charged, advanced time, and started moving the player. Its placement
+        // finishes over the next frames, so Doom stays paused behind the menu until it has settled.
+        void OnPostFastTravel()
         {
-            if (!instance || instance.openId != UiTravelMap)
-                return false;
-            instance.closeReason = ReasonResult;
-            instance.SendTravelResult(mapPixelX, mapPixelY);
-            return true;
+            if (openId != UiTravelMap)
+                return;
+            GameManager game = GameManager.Instance;
+            StreamingWorld world = game.StreamingWorld;
+            travelArriving = true;
+            travelWaitUntil = Time.realtimeSinceStartup + TravelSettleSeconds;
+            closeReason = ReasonResult;
+            // Placement only sets this when a location has a facing to give. Otherwise the player keeps Doom's.
+            game.PlayerMouseLook.Yaw = game.PlayerObject.transform.eulerAngles.y;
+            bridge.PositionSync.BeginTravelHold(world.MapPixelX, world.MapPixelY);
+            LogWorldState("travelled");
+        }
+
+        void FinishTravel()
+        {
+            travelArriving = false;
+            GameManager game = GameManager.Instance;
+            PlayerGPS gps = game.PlayerGPS;
+            StreamingWorld world = game.StreamingWorld;
+            SendTravelResult(world.MapPixelX, world.MapPixelY);
+
+            // Placement outside a location's edge can cross into the next map pixel, so use the exact position.
+            var arrival = DaggerfallConnect.Arena2.MapsFile.WorldCoordToMapPixel(gps.WorldX, gps.WorldZ);
+            bridge.PositionSync.BeginTravelHold(arrival.X, arrival.Y);
+
+            float yaw = Mathf.Repeat(90f - game.PlayerMouseLook.Yaw, 360f);
+            byte[] bytes = new byte[32];
+            Buffer.BlockCopy(BitConverter.GetBytes((double)gps.WorldX), 0, bytes, 0, 8);
+            Buffer.BlockCopy(BitConverter.GetBytes((double)gps.WorldZ), 0, bytes, 8, 8);
+            Buffer.BlockCopy(BitConverter.GetBytes(yaw), 0, bytes, 16, 4);
+            Buffer.BlockCopy(BitConverter.GetBytes(arrival.X), 0, bytes, 20, 4);
+            Buffer.BlockCopy(BitConverter.GetBytes(arrival.Y), 0, bytes, 24, 4);
+            var e = new DfbEvent
+            {
+                kind = KindTravel,
+                tic = (uint)Time.frameCount,
+                p0 = BitConverter.ToUInt64(bytes, 0),
+                p1 = BitConverter.ToUInt64(bytes, 8),
+                p2 = BitConverter.ToUInt64(bytes, 16),
+                p3 = BitConverter.ToUInt64(bytes, 24),
+            };
+            bridge.Send(ref e);
+            bridge.LogLine(string.Format("travel: arrived at world {0},{1} pixel {2},{3} yaw {4:F1}", gps.WorldX, gps.WorldZ, world.MapPixelX, world.MapPixelY, yaw));
         }
 
         void SendTravelResult(int x, int y)
@@ -377,7 +431,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             ContentReader reader = DaggerfallUnity.Instance.ContentReader;
             if (reader.HasLocation(x, y, out summary) && reader.GetLocation(summary.RegionIndex, summary.MapIndex, out location))
                 name = location.Name;
-            bridge.LogLine(string.Format("ui: destination chosen: {0} at map pixel {1},{2} (not applied)", name, x, y));
+            bridge.LogLine(string.Format("ui: travelled to {0} at map pixel {1},{2}", name, x, y));
 
             byte[] bytes = new byte[48];
             Buffer.BlockCopy(BitConverter.GetBytes(UiTravelMap), 0, bytes, 0, 4);
@@ -469,6 +523,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         void OnDestroy()
         {
+            DaggerfallTravelPopUp.OnPostFastTravel -= OnPostFastTravel;
             DoomerfallInput.End();
             if (scaled)
                 scaled.Release();

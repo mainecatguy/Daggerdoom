@@ -463,14 +463,6 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                 return;
             }
             
-            // Doomerfall: arrival is not built yet, so Doom's menu records the choice and changes nothing.
-            if (Doomerfall.DoomerfallUi.TryInterceptTravel((int)endPos.X, (int)endPos.Y))
-            {
-                DaggerfallUI.Instance.UserInterfaceManager.PopWindow();
-                travelWindow.CloseTravelWindows(true);
-                return;
-            }
-
             doFastTravel = true; // initiate fast travel (Update() function will perform fast travel when this flag is true)
         }
 
