@@ -78,7 +78,7 @@ static partial class Program
 
     static string SourceDirectory([CallerFilePath] string file = "") => Path.GetDirectoryName(file);
 
-    static void WriteDoorPackage(string path, List<DoorModel> models, List<string> placements, Func<int, TextureFile> archive)
+    static void WriteDoorPackage(string path, List<DoorModel> models, List<string> placements, Func<int, TextureFile> archive, ActionPackage actions)
     {
         if (File.Exists(path)) File.Delete(path);
         using var zip = ZipFile.Open(path, ZipArchiveMode.Create);
@@ -95,12 +95,35 @@ static partial class Program
             classes.Append($"\nclass DFDoorVisual{m.Slot} : DFDoorVisual {{}}\n");
             modeldef.Append($"Model DFDoorVisual{m.Slot}\n{{\n\tPath \"models/dfdoors\"\n\tDONTCULLBACKFACES\n\tModel 0 \"m{m.Id}.obj\"\n\tFrameIndex DFDR A 0 0\n}}\n");
         }
+        classes.Append(File.ReadAllText(Path.Combine(SourceDirectory(), "action_objects.zs")));
+        var actionModels = actions.Models.Values.OrderBy(m => m.Slot).ToList();
+        foreach (var m in actionModels)
+        {
+            classes.Append($"\nclass DFActionVisual{m.Slot} : DFActionVisual {{}}\n");
+            modeldef.Append($"Model DFActionVisual{m.Slot}\n{{\n\tPath \"models/dfactions\"\n\tDONTCULLBACKFACES\n\tUSEACTORPITCH\n\tUSEACTORROLL\n\tModel 0 \"m{m.Id}.obj\"\n\tFrameIndex DFAC A 0 0\n}}\n");
+            Text($"models/dfactions/m{m.Id}.obj", m.Obj);
+        }
+        // Flat sprites: DFA + one letter per texture, so up to 26 distinct switch flats per dungeon.
+        var sprites = new StringBuilder();
+        for (int i = 0; i < actions.Flats.Count && i < 26; i++)
+        {
+            var (fa, fr) = actions.Flats[i];
+            var file = archive(fa);
+            var image = file.GetDFBitmap(fr, 0);
+            string sprite = "DFA" + (char)('A' + i);
+            using (var s = zip.CreateEntry($"dfaction/f{i}.png", CompressionLevel.Fastest).Open()) WriteTexturePng(s, image, file.Palette);
+            double scale = PlayerScale.DoomUnitsPerDaggerfallUnit;
+            sprites.Append(FormattableString.Invariant($"Sprite \"{sprite}A0\", {image.Width}, {image.Height}\n{{\n\tXScale {1 / scale:F4}\n\tYScale {1 / scale:F4}\n\tOffset {image.Width / 2}, {image.Height / 2}\n\tPatch \"dfaction/f{i}.png\", 0, 0\n}}\n"));
+            classes.Append($"\nclass DFActionFlat{i} : DFActionFlat {{ States {{ Spawn: {sprite} A -1 Bright; Stop; }} }}\n");
+        }
+        if (sprites.Length > 0) Text("TEXTURES", sprites.ToString());
+        Text("DFACTIONS", ActionLump(actions));
         Text("zscript.zs", classes.ToString());
-        Text("MAPINFO", "GameInfo\n{\n\tAddEventHandlers = \"DFDoorHandler\"\n}\n");
+        Text("MAPINFO", "GameInfo\n{\n\tAddEventHandlers = \"DFDoorHandler\", \"DFActionHandler\"\n}\n");
         Text("DFDOORS", string.Join("\n", placements) + "\n");
         Text("MODELDEF", modeldef.ToString());
         foreach (var m in models) Text($"models/dfdoors/m{m.Id}.obj", m.Obj);
-        foreach (var (a, r) in models.SelectMany(m => m.Textures).Distinct())
+        foreach (var (a, r) in models.Concat(actionModels).SelectMany(m => m.Textures).Distinct())
         {
             var file = archive(a);
             var image = r < file.RecordCount ? file.GetDFBitmap(r, 0) : null;

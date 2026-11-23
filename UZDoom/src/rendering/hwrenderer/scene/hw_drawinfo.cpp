@@ -39,7 +39,7 @@
 #include "texturemanager.h"
 #include "actorinlines.h"
 #include "g_levellocals.h"
-#include "hw_dfmesh.h" // [DoomDaggerfall]
+#include "hw_dfmesh.h" // [Doomerfall]
 
 EXTERN_CVAR(Float, r_visibility)
 CVAR(Bool, gl_bandedswlight, false, CVAR_ARCHIVE)
@@ -545,7 +545,7 @@ void HWDrawInfo::RenderScene(FRenderState &state)
 
 	state.EnableTexture(gl_texture);
 	state.EnableBrightmap(true);
-	// [DoomDaggerfall] In mesh view the Daggerfall mesh replaces the map's walls, flats, and decals.
+	// [Doomerfall] In mesh view the Daggerfall mesh replaces the map's walls, flats, and decals.
 	DFMesh_FrameTick(Level);
 	const bool dfMeshView = DFMesh_HideCollider(Level);
 	if (dfMeshView) DFMesh_Draw(state);
@@ -575,7 +575,7 @@ void HWDrawInfo::RenderScene(FRenderState &state)
 
 	// Part 4: Draw decals (not a real pass)
 	state.SetDepthFunc(DF_LEqual);
-	if (!dfMeshView) DrawDecals(state, Decals[0]); // [DoomDaggerfall] decals sit on the hidden collider
+	if (!dfMeshView) DrawDecals(state, Decals[0]); // [Doomerfall] decals sit on the hidden collider
 
 	RenderAll.Unclock();
 }

@@ -695,7 +695,7 @@ set( FASTMATH_SOURCES
 	rendering/hwrenderer/scene/hw_fakeflat.cpp
 	rendering/hwrenderer/scene/hw_decal.cpp
 	rendering/hwrenderer/scene/hw_drawinfo.cpp
-	rendering/hwrenderer/scene/hw_dfmesh.cpp # [DoomDaggerfall]
+	rendering/hwrenderer/scene/hw_dfmesh.cpp # [Doomerfall]
 	rendering/hwrenderer/scene/hw_drawlist.cpp
 	rendering/hwrenderer/scene/hw_clipper.cpp
 	rendering/hwrenderer/scene/hw_flats.cpp
@@ -831,8 +831,8 @@ set (PCH_SOURCES
 	p_states.cpp
 	playsim/p_things.cpp
 	p_tick.cpp
-	playsim/dd_treadmill.cpp # [DoomDaggerfall]
-	playsim/dd_towncache.cpp # [DoomDaggerfall]
+	playsim/dd_treadmill.cpp # [Doomerfall]
+	playsim/dd_towncache.cpp # [Doomerfall]
 	playsim/p_user.cpp
 	rendering/r_utility.cpp
 	rendering/r_sky.cpp
@@ -1279,6 +1279,11 @@ set( GAME_NONPCH_SOURCES ${GAME_SOURCES} )
 list( REMOVE_ITEM GAME_NONPCH_SOURCES ${PCH_SOURCES} )
 
 add_executable( zdoom MACOSX_BUNDLE ${GAME_SOURCES} )
+
+# Doomerfall bridge. Inactive unless UZDoom is started with -dfbridge.
+set( DOOMERFALL_BRIDGE_SOURCES dd_bridge.cpp ../../bridge/doomerfall_bridge.cpp )
+target_sources( zdoom PRIVATE ${DOOMERFALL_BRIDGE_SOURCES} )
+set_source_files_properties( ${DOOMERFALL_BRIDGE_SOURCES} PROPERTIES SKIP_PRECOMPILE_HEADERS TRUE )
 
 target_include_directories( zdoom PRIVATE ${CMAKE_BINARY_DIR} )
 

@@ -1,0 +1,14 @@
+// Defines the Doomerfall Controls submenu. Its entry in Options > Customize Controls is inserted
+// next to the other submenus by Doomerfall_Events.UiTick (zscript/Doomerfall.zs), because
+// AddOptionMenu can only append (below "Reset to defaults").
+// All actions are unbound by default; bindings are saved in the player's config like any other.
+OptionMenu "DoomerfallControlsMenu"
+{
+	Title "Doomerfall Controls"
+	ScrollTop 2
+	StaticTextSwitchable "$CNTRLMNU_SWITCHTEXT1", "$CNTRLMNU_SWITCHTEXT2", "ControlMessage"
+
+	StaticText ""
+	Control "Open Fast Travel", "netevent df_fast_travel"
+	Control "Open Inventory", "netevent df_inventory"
+}

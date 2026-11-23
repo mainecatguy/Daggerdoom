@@ -1,4 +1,4 @@
-// [DoomDaggerfall] Overworld terrain treadmill.
+// [Doomerfall] Overworld terrain treadmill.
 //
 // A fixed 128x128 triangle grid shows a window of real Daggerfall terrain. When
 // the player nears the window edge, the floor planes are rewritten and live

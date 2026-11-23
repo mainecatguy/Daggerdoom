@@ -53,7 +53,7 @@ EXTERN_CVAR(Int, vid_defheight)
 FARG(0, "Debug", "Resets window position.", "",
 	"Resets the window position to the top-left corner of the screen.");
 
-// DoomDaggerfall: -noactivate runs unattended: windowed, off-screen, and without taking focus.
+// Doomerfall: -noactivate runs unattended: windowed, off-screen, and without taking focus.
 FARG(noactivate, "Debug", "Run unattended without taking focus.", "",
 	"Keeps a windowed game off-screen, does not activate it, and logs fatal errors instead of showing a dialog.");
 bool I_NoActivateParm() { return Args && Args->CheckParm(FArg_noactivate); }

@@ -68,8 +68,13 @@ static partial class Program
         var doorModels = new Dictionary<uint, DoorModel>();
         var doorPlacements = new List<string>();
         const double toRad = Math.PI / 180;
+        var actions = new ActionPackage();
+        actions.Records.AddRange(ReadActionRecords(arena2, location));
+        var actionAt = actions.Records.ToDictionary(r => (r.Block, r.FilePosition));
+        int blockNumber = -1;
         foreach (var dungeonBlock in location.Dungeon.Blocks)
         {
+            blockNumber++;
             var block = blocks.GetBlock(dungeonBlock.BlockName);
             var offset = new V3(dungeonBlock.X * BlockSide, 0, dungeonBlock.Z * BlockSide);
             if (block.RdbBlock.ObjectRootList == null) continue;
@@ -89,6 +94,13 @@ static partial class Program
                     double ry = -obj.Resources.ModelResource.YRotation / BlocksFile.RotationDivisor * toRad;
                     double rz = -obj.Resources.ModelResource.ZRotation / BlocksFile.RotationDivisor * toRad;
                     var position = new V3(obj.XPos, -obj.YPos, obj.ZPos) + offset;
+                    actionAt.TryGetValue((blockNumber, obj.Position), out var actionRecord);
+                    if (actionRecord != null)
+                    {
+                        PrepareActionModel(actions, actionRecord, obj, mesh, -ry / toRad, Archive, table, location);
+                        if (actionRecord.IsDoor) actionRecord.Door = doorPlacements.Count;
+                        else if (actionRecord.Kind == 1) continue; // drawn and collided by its action object
+                    }
                     if (IsActionDoorModel(id, reference.Description))
                     {
                         if (rx != 0 || rz != 0) throw new InvalidDataException($"door {id} is tilted; only yaw is supported");
@@ -165,8 +177,10 @@ static partial class Program
                 WriteTexturePng(s, image, file.Palette);
             }
         }
-        WriteDoorPackage(Path.Combine(outDir, slug + "_doors.pk3"), doorModels.Values.OrderBy(m => m.Slot).ToList(), doorPlacements, Archive);
+        PrepareActionFlats(actions, Archive);
+        WriteDoorPackage(Path.Combine(outDir, slug + "_doors.pk3"), doorModels.Values.OrderBy(m => m.Slot).ToList(), doorPlacements, Archive, actions);
         Console.WriteLine($"doors: {doorPlacements.Count} placed, {doorModels.Count} models");
+        Console.WriteLine($"actions: {actions.Records.Count} records, {actions.Records.Count(r => r.Kind == 1)} moving models, {actions.Models.Count} models, {actions.Records.Where(r => r.Kind == 1).Sum(r => actions.Cells[r.Model].Count)} collision cells, {actions.Flats.Count} flat sprites");
         Console.WriteLine($"mesh: {models} models ({missing} missing), {vertices / 3} triangles, {keys.Count} textures/batches ({badTextures} unreadable), {new FileInfo(path).Length / 1024} KiB -> {path}");
         return badTextures == 0 && missing == 0 ? 0 : 1;
     }

@@ -1,4 +1,4 @@
-// [DoomDaggerfall] Opt-in static mesh layer for converted Daggerfall maps.
+// [Doomerfall] Opt-in static mesh layer for converted Daggerfall maps.
 //
 // A map has this layer only when a loaded DFMESH lump names it. The whole mesh is one static vertex
 // buffer, batched by texture and drawn every frame, so it does not depend on Doom sector visibility.

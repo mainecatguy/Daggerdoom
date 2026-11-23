@@ -1,4 +1,4 @@
-// [DoomDaggerfall] Disk cache and background converter for generated Daggerfall locations.
+// [Doomerfall] Disk cache and background converter for generated Daggerfall locations.
 // Inactive unless the game is started with -ddtowncache <dir> and -ddconverter <exe>.
 #pragma once
 

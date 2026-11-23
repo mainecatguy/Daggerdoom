@@ -24,8 +24,16 @@ class DFDoorBlocker : Actor
 	override bool Used(Actor user) { return door && door.TryUse(user); }
 }
 
+// Lets a Daggerfall action record react when its door is used. See action_objects.zs.
+class DFDoorListener : Actor
+{
+	virtual void DoorUsed(DFDoor door, Actor user) {}
+}
+
 class DFDoor : Actor
 {
+	DFDoorListener listener;
+
 	const SWING = 90.0;				// DaggerfallActionDoor.OpenAngle -90 is counterclockwise from above
 	const RATE = 90.0 / (1.5 * 35);	// OpenDuration 1.5 s
 
@@ -130,11 +138,20 @@ class DFDoor : Actor
 	bool TryUse(Actor user)
 	{
 		if (user.pos.z >= top || user.pos.z + user.height <= bottom) return false;	// another floor
+		if (listener) listener.DoorUsed(self, user);
 		if (moving != 0 && !stalled) return true;									// as ToggleDoor: ignored while moving
 		moving = stalled ? -moving : (swung > 0 ? -1 : 1);
 		stalled = false;
 		A_StartSound(moving > 0 ? "doors/dr1_open" : "doors/dr1_clos", CHAN_BODY);
 		return true;
+	}
+
+	// Action types 18 and 20: open or close, and do nothing if already there or moving.
+	void ActionSet(bool open)
+	{
+		if (moving != 0 || (swung > 0) == open) return;
+		moving = open ? 1 : -1;
+		A_StartSound(open ? "doors/dr1_open" : "doors/dr1_clos", CHAN_BODY);
 	}
 
 	override void Tick()
