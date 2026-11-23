@@ -44,7 +44,7 @@ Approved work that waits until the owner has reviewed the bridge core. Automated
 
 ### Position sync
 
-Doom continuously tells Daggerfall where the player is, through a deterministic coordinate transform at the 75% world scale, so Daggerfall can track the player's location for travel, transitions, and saves. This is one of the four core technical hurdles.
+Doom continuously tells Daggerfall where the player is, through a deterministic coordinate transform at the 75% world scale, so Daggerfall can track the player's location for travel, transitions, and saves. This is one of the four core technical hurdles. Moving Daggerfall's position makes it stream terrain and locations. Leave that running and measure its cost. Do not disable it, because the NPC design is not settled.
 
 ### Show Daggerfall's fast travel menu in Doom
 

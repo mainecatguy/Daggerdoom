@@ -32,11 +32,17 @@ The player can go through a door into a building interior and back out, and can 
 
 Owner decision (2026-11-22): for MVP, each Daggerfall enemy placement generates one random Doom enemy. Mook packs come later.
 
-### Player HP, damage, and death
+### Synchronize player HP
 
-**Waiting on:** the bridge core, and owner answers on the damage scale, armor, and health pickups. See the owner questions in `work/notes/bridge-contract.md` on `agent/bridge-contract`.
+**Waiting on:** the bridge core.
 
-Doom sends damage to Daggerfall, Daggerfall stays final for the player's HP and death, and Doom shows the result.
+MVP scope (owner, 2026-11-22): synchronize HP between the games. This does not commit to the full damage system. Damage scale, armor, and resistances come later.
+
+- Daggerfall owns the player's HP value and death.
+- Doom sends each hit or heal to Daggerfall as a numbered event through the queue. Daggerfall applies them in order. Damage that starts in Daggerfall is applied there directly.
+- Damage values pass through unchanged for now.
+- Daggerfall publishes current HP, max HP, and the last event number it applied in its half of the shared state.
+- Doom shows that HP on the player and does not kill the player until Daggerfall reports death.
 
 ### Open the inventory menu from Doom
 
@@ -52,16 +58,16 @@ Owner design (2026-11-22): Doom must be tolerant of Daggerfall items. Doom is th
 
 - All Daggerfall items can drop in the world or appear in the world, including static placed items.
 - Doom shows these items in the game, whether or not they have a Doom equivalent.
-- The player presses E to interact with an item and pick it up into their Daggerfall inventory.
+- The player presses the Interact keybind to pick an item up into their Daggerfall inventory. Interact is a bindable action in the existing Doomerfall Controls definitions, never a hardcoded key.
 - Picked-up items stay gone, following the permanent location state rules.
 
-Working plan: for loot piles and containers holding several items, E opens Daggerfall's real loot window through the Doom menu path.
+- For loot piles and containers holding several items, Interact opens Daggerfall's real loot window through the Doom menu path.
 
-### Reduce or rework Doom autopickup
+### Rework Doom autopickup
 
-**Waiting on:** Daggerfall items in the world, and an owner decision on what still picks up by touch.
+**Waiting on:** Daggerfall items in the world.
 
-Required before MVP. Doom's walk-over pickup bypasses Daggerfall's inventory, which conflicts with items being picked up with E into the Daggerfall inventory. Reduce or rework it on Daggerfall maps only. Regular WADs and mods keep normal Doom pickup.
+Required before MVP. Owner decision (2026-11-22): on Daggerfall maps, only health and ammo pick up by touch. Everything else uses the Interact keybind, because items now have weight. Regular WADs and mods keep normal Doom pickup.
 
 ## Overworld and towns
 
