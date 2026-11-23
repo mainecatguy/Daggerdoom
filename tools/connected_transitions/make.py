@@ -34,7 +34,7 @@ def main():
     base_assemble.main()
     for name in DUNGEON:
         shutil.copy2(DATA / name, REVIEW)
-    (REVIEW / "town-cache").mkdir(exist_ok=True)
+    shutil.copytree(DATA / "cache", REVIEW / "town-cache", dirs_exist_ok=True)  # The demo's first doors open without a conversion wait.
     (REVIEW / "play.bat").write_text(PLAY.replace("\n", "\r\n"), newline="")
 
 

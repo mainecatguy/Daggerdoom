@@ -44,8 +44,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             target = targetId;
             pending = true;
             attempted = teleported = false;
-            startedAt = Time.unscaledTime;
-            deadline = startedAt + TimeoutSeconds;
+            deadline = 0; // Starts at the first update, because Daggerfall may still be loading its world.
         }
 
         static uint Actual(PlayerEnterExit enter)
@@ -61,6 +60,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return true;
             if (!pending)
                 return enter.IsPlayerInside;
+            if (deadline == 0)
+            {
+                startedAt = Time.unscaledTime;
+                deadline = startedAt + TimeoutSeconds;
+            }
 
             uint actual = Actual(enter);
             if (actual == want)

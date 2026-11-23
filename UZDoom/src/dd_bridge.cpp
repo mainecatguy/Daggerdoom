@@ -1562,6 +1562,15 @@ void LoadTestLog(const char *what)
 void RunLoadTest(int64_t now)
 {
 	if (!loadTestMode || loadTestStep < 0 || now < loadTestAtNs) return;
+	if (!strcmp(loadTestMode, "resume")) // Loads once both games are playing, then lets the map's own test continue.
+	{
+		if (gamestate != GS_LEVEL || !SaveReady()) return;
+		if (!loadTestAtNs) { loadTestAtNs = now + 3000000000LL; return; } // Lets the first terrain streaming finish.
+		G_LoadGame(loadTestFile.GetChars());
+		dd_ui_test_hold = 0;
+		loadTestStep = -1;
+		return;
+	}
 	const bool settled = loadState == LoadIdle && saveState == SaveIdle && !saveStartPending;
 	const bool bad = !strcmp(loadTestMode, "bad"), death = !strcmp(loadTestMode, "death"), menu = !strcmp(loadTestMode, "menu");
 	const player_t &player = players[consoleplayer];

@@ -99,19 +99,22 @@ text = text.replace("@DOORS@", ", ".join(v for d in chosen for v in d[3:8])).rep
 text = text.replace("@MODE@", "save" if args.mode == "save" else "route")
 text = text.replace("EXITS.Size() >= FIELDS", "HasExit()").replace("const FIELDS = 5;", "const FIELDS = 5;\n\tbool HasExit() { int i = level.maptime * 0 + 3; return EXITS[i] != 0 || EXITS[i + 1] != 0; }")
 # Doors wait until Daggerfall is playing, because the test is about both games.
-text = text.replace("if (inside || level.maptime < 4) break;", 'if (inside || level.maptime < 4 || CVar.FindCVar("dd_sync_df_phase").GetInt() != 3) break;')
+text = text.replace("if (inside || level.maptime < 4) break;", 'if (inside || level.maptime < 4 || CVar.FindCVar("dd_sync_df_phase").GetInt() != 3 || CVar.FindCVar("dd_ui_test_hold").GetInt()) break;')
+if args.mode == "saveout":  # Autosaves three tics after coming back out, while Daggerfall may still be settling.
+    text = text.replace('Console.Printf("DTRETURN', 'level.MakeAutoSave(); Console.Printf("DTRETURN')
 harness = run / "harness.pk3"
-if not args.resume:  # A resumed save must see the same harness.
-    with zipfile.ZipFile(harness, "w") as z:
-        z.writestr("zscript.txt", text)
-        z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "DTHarness" }\n')
-else:
-    shutil.copy2(Path(args.resume).parents[1] / "harness.pk3", harness)
+with zipfile.ZipFile(harness, "w") as z:  # Same classes as the saved run, so a resumed save continues its route.
+    z.writestr("zscript.txt", text)
+    z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "DTHarness" }\n')
+if args.resume:
+    shutil.copy2(args.resume, run / "saves" / "resume.zds")
 
 uz = ["-noactivate", "-config", str(run / "uz.ini"), "-savedir", str(run / "saves"), "-dfbridgelog", str(uz_log), "-nosound", "-ddtowncache", str(CACHE),
       "-ddconverter", str(REVIEW / "converter" / "DungeonConverter.exe"), "-ddarena2", str(GAME / "DAGGER" / "ARENA2"), "-noautoload", "-skill", "3",
       "+logfile", "console", "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+autosavecount", "1"]
-uz += ["-loadgame", args.resume] if args.resume else ["+map", f"DDT{args.group:05d}"]
+uz += ["+map", f"DDT{args.group:05d}"]
+if args.resume:  # Waits for both games, as the in-game load menu would.
+    uz += ["-dfloadtest", "resume:" + str(run / "saves" / "resume.zds"), "+dd_ui_test_hold", "1"]
 df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
 command = [sys.executable, QUIET, "--timeout", str(args.timeout), "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
            "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
@@ -136,7 +139,7 @@ while time.time() < end:
     if any(k in log for k in FATAL):
         reason = "fatal"
         break
-    if "DTDONE" in log or (args.mode == "save" and uz_log.exists() and "autosave committed" in uz_log.read_text(errors="replace")):
+    if "DTDONE" in log or (args.mode in ("save", "saveout") and uz_log.exists() and "autosave committed" in uz_log.read_text(errors="replace")):
         reason = "finished"
         time.sleep(2.5)  # Lets Daggerfall finish following the last door.
         break
@@ -149,9 +152,24 @@ for line in console.read_text(errors="replace").splitlines() if console.exists()
     if line.startswith(("DTFAIL", "DTDONE")) or any(k in line for k in FATAL) or (not args.brief and line.startswith(("DTARRIVE", "DTRETURN", "DDTRANSITION"))):
         print("doom", line[:170])
 for line in df_log.read_text(errors="replace").splitlines() if df_log.exists() else []:
-    if ("transition" in line and not (args.brief and "door found" in line)) or "error" in line or re.search(r"load \d+:|save \d+:", line):
+    if ("transition" in line and not (args.brief and ("door found" in line or (len(targets) > 3 and "error" not in line)))) or "error" in line or re.search(r"load \d+:|save \d+:", line):
         print("df  ", line[:210])
 for line in uz_log.read_text(errors="replace").splitlines() if uz_log.exists() else []:
     if re.search(r"(save|load) \d+:", line):
         print("uz  ", line[:170])
+console_text = console.read_text(errors="replace") if console.exists() else ""
+df_text = df_log.read_text(errors="replace") if df_log.exists() else ""
+entered = re.findall(r"Daggerfall is in building \d+ type (\w+) in .*?, target (\d+),", df_text)
+wrong = [(t, target, types.get(target)) for t, target in entered if types.get(target) != t]
+door_errors = [float(e) for e in re.findall(r"door found in .*?, error ([\d.]+) units", df_text)]
+exits = [float(e) for e in re.findall(r"after the exit, off by ([\d.]+) units", df_text)]
+healths = {int(h) for h in re.findall(r"health (-?\d+)", df_text)}
+print(f"summary: {len(entered)} building entries, {len(set(t for t, _ in entered))} types, wrong type {wrong}, worst door match {max(door_errors, default=-1)} units, "
+      f"exits back on Doom's position {len(exits)} (worst {max(exits, default=-1)} units), Daggerfall health values {sorted(healths)}, failed transitions {df_text.count('failed,')}")
+player_log = REVIEW / "dfu" / "PortableAppdata" / "Player.log"
+player_text = player_log.read_text(errors="replace") if player_log.exists() else ""
+lines = player_text.splitlines()
+where = [next((l.strip()[:90] for l in lines[i + 1:i + 4] if "DaggerfallWorkshop" in l), "unknown") for i, l in enumerate(lines) if "Exception" in l]
+other = [w for w in where if "DaggerfallUI.SetupSingleton" not in w]  # This one is logged at every bridge startup, also on earlier builds.
+print(f"Daggerfall exceptions: {len(other)} new, {len(where) - len(other)} known startup", other[:3])
 print("owner registry key unchanged:", before == registry_hash())

@@ -32,6 +32,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         long travelHoldUntilNs;
         DoomerfallBridge bridge;
         DoomerfallTransition transition;
+        bool logAfterExit;
         bool engaged, savedDisableAI, savedMotor, savedController, savedLook, savedActivate, savedWeapons;
         bool areaDirty, areaPending, verifyPending, noDraw, testWorldReady, testEnemySpawned, testImageTaken;
         uint phase = PhaseBoot;
@@ -244,6 +245,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             {
                 verifyPending = false;
                 worstApplyError = Math.Max(worstApplyError, Distance(gps.WorldX - targetX, gps.WorldZ - targetZ));
+                if (logAfterExit)
+                {
+                    logAfterExit = false;
+                    bridge.LogLine(string.Format("transition: back on Doom's position after the exit, off by {0:F1} units, gps {1},{2}, health {3}",
+                        Distance(gps.WorldX - targetX, gps.WorldZ - targetZ), gps.WorldX, gps.WorldZ, game.PlayerEntity.CurrentHealth));
+                }
             }
             if (areaPending && world.MapPixelX == areaX && world.MapPixelY == areaY)
             {
@@ -305,6 +312,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         internal void OnTransitionEvent(uint action, uint seq, double x, double z, int target)
         {
             transition.OnEvent(action, seq, x, z, target);
+            logAfterExit = action == 2 || action == 4;
+            verifyPending = false; // A check still waiting from before the door would compare against an old target.
+            areaDirty = true; // Apply Doom's outdoor position as soon as the world allows it.
         }
 
         // Daggerfall has moved the player itself. Holds until Doom reports the same map pixel.
