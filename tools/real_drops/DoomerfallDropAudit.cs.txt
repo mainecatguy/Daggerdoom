@@ -1,0 +1,229 @@
+// Audit build only. real_drops.py copies this into the Unity project, builds a separate audit game, and removes it.
+// It checks the drop code against Daggerfall's real encounter tables, loot tables, and equipment code.
+
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using DaggerfallConnect;
+using DaggerfallWorkshop.Game.Entity;
+using DaggerfallWorkshop.Game.Items;
+using DaggerfallWorkshop.Utility;
+using UnityEngine;
+using Key = System.Tuple<ulong, int>;
+
+namespace DaggerfallWorkshop.Game.Doomerfall
+{
+    internal sealed class DoomerfallDropAudit : MonoBehaviour
+    {
+        const int RollsPerType = 120;
+        static readonly int[] Levels = { 0, 1, 5, 10, 20, 30 };
+        string path;
+        int failures;
+        StreamWriter output;
+
+        [RuntimeInitializeOnLoadMethod]
+        static void Boot()
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            int at = Array.IndexOf(args, "-dfdropaudit");
+            if (at < 0 || at + 1 >= args.Length)
+                return;
+            GameObject go = new GameObject("Doomerfall drop audit");
+            DontDestroyOnLoad(go);
+            go.AddComponent<DoomerfallDropAudit>().path = args[at + 1];
+        }
+
+        void Update()
+        {
+            if (!GameManager.HasInstance || !GameManager.Instance.IsPlayingGame() || Time.realtimeSinceStartup < 20)
+                return;
+            enabled = false;
+            using (output = new StreamWriter(path, false))
+            {
+                try
+                {
+                    Placements();
+                    Loot();
+                    Materials();
+                }
+                catch (Exception e)
+                {
+                    Fail("exception " + e);
+                }
+                Line(failures == 0 ? "AUDIT PASS" : "AUDIT FAIL " + failures);
+            }
+        }
+
+        void Line(string text) { output.WriteLine(text); output.Flush(); }
+        void Fail(string text) { failures++; Line("FAIL " + text); }
+
+        void Placements()
+        {
+            DFLocation location;
+            if (!DaggerfallUnity.Instance.ContentReader.GetLocation("Daggerfall", "Privateer's Hold", out location))
+            {
+                Fail("could not read Privateer's Hold");
+                return;
+            }
+            for (int b = 0; b < location.Dungeon.Blocks.Length; b++)
+                location.Dungeon.Blocks[b].WaterLevel = BlockWater(location.Dungeon.Blocks[b].BlockName);
+            DFRegion.DungeonTypes dungeonType = location.MapTableData.DungeonType;
+            int id = location.Dungeon.RecordElement.Header.LocationId;
+            PlayerEntity player = GameManager.Instance.PlayerEntity;
+            int realLevel = player.Level;
+            MethodInfo stock = typeof(RDBLayout).GetMethod("ChooseRandomEnemyType", BindingFlags.NonPublic | BindingFlags.Static, null, new[] { typeof(RandomEncounterTable) }, null);
+            RandomEncounterTable table = RandomEncounters.EncounterTables[(int)dungeonType];
+            RandomEncounterTable waterTable = RandomEncounters.EncounterTables[19];
+            Line(string.Format("dungeon {0} type {1}, alternate setting {2}", location.Name, dungeonType, DaggerfallUnity.Settings.AlternateRandomEnemySelection));
+            foreach (bool alternate in new[] { false, true })
+                foreach (int level in Levels)
+                {
+                    var first = Pick(location, level, alternate);
+                    player.Level = 19;
+                    var second = Pick(location, level, alternate);
+                    player.Level = realLevel;
+                    if (!first.SequenceEqual(second))
+                        Fail("type changed with player level at area " + level);
+                    int random = 0, none = 0;
+                    foreach (var row in first)
+                    {
+                        if (row.Key.Item2 != 15) continue;
+                        random++;
+                        if (row.Value == MobileTypes.None) { none++; continue; }
+                        if (!table.Enemies.Contains(row.Value) && !waterTable.Enemies.Contains(row.Value))
+                            Fail("type outside the encounter tables: " + row.Value);
+                    }
+                    if (!alternate)
+                    {
+                        int use = Mathf.Max(1, level);
+                        var picker = new DoomerfallDrops.EnemyPicker(id, dungeonType, level, 4, false);
+                        var list = (MobileTypes[])typeof(DoomerfallDrops.EnemyPicker).GetField("classicLand", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(picker);
+                        player.Level = use;
+                        uint seed = DFRandom.Seed;
+                        DFRandom.srand(id);
+                        for (int i = 0; i < 256; i++)
+                            if ((MobileTypes)stock.Invoke(null, new object[] { table }) != list[i])
+                            {
+                                Fail("classic list differs from Daggerfall at slot " + i);
+                                break;
+                            }
+                        DFRandom.Seed = seed;
+                        player.Level = realLevel;
+                    }
+                    string mix = string.Join(", ", first.Where(r => r.Key.Item2 == 15).GroupBy(r => r.Value).OrderByDescending(g => g.Count()).Take(5).Select(g => g.Key + " " + g.Count()));
+                    Line(string.Format("placements {0} area {1}: {2} random, {3} none, top {4}", alternate ? "alternate" : "classic", level, random, none, mix));
+                }
+        }
+
+        // As DaggerfallBillboard reads a block's start marker.
+        static short BlockWater(string blockName)
+        {
+            DFBlock data = DaggerfallUnity.Instance.ContentReader.BlockFileReader.GetBlock(blockName);
+            if (data.RdbBlock.ObjectRootList != null)
+                foreach (DFBlock.RdbObjectRoot group in data.RdbBlock.ObjectRootList)
+                    if (group.RdbObjects != null)
+                        foreach (DFBlock.RdbObject obj in group.RdbObjects)
+                            if (obj.Type == DFBlock.RdbResourceTypes.Flat && obj.Resources.FlatResource.TextureArchive == 199 && obj.Resources.FlatResource.TextureRecord == 10)
+                                return obj.Resources.FlatResource.SoundIndex != 0 ? (short)(-8 * obj.Resources.FlatResource.SoundIndex) : (short)10000;
+            return 10000;
+        }
+
+        static List<KeyValuePair<Key, MobileTypes>> Pick(DFLocation location, int level, bool alternate)
+        {
+            var picker = new DoomerfallDrops.EnemyPicker(location.Dungeon.RecordElement.Header.LocationId, location.MapTableData.DungeonType, level, 4, alternate);
+            var rows = new List<KeyValuePair<Key, MobileTypes>>();
+            foreach (DFLocation.DungeonBlock block in location.Dungeon.Blocks)
+            {
+                DFBlock data = DaggerfallUnity.Instance.ContentReader.BlockFileReader.GetBlock(block.BlockName);
+                if (data.RdbBlock.ObjectRootList == null) continue;
+                foreach (DFBlock.RdbObjectRoot group in data.RdbBlock.ObjectRootList)
+                {
+                    if (group.RdbObjects == null) continue;
+                    foreach (DFBlock.RdbObject obj in group.RdbObjects)
+                    {
+                        if (obj.Type != DFBlock.RdbResourceTypes.Flat || obj.Resources.FlatResource.TextureArchive != 199) continue;
+                        int record = obj.Resources.FlatResource.TextureRecord;
+                        if (record != 15 && record != 16) continue;
+                        int mobile = obj.Resources.FlatResource.FactionOrMobileId;
+                        ulong hash = DoomerfallMonsters.PlacementHash(location.MapTableData.MapId, block.BlockName, block.X, block.Z, obj.XPos, obj.YPos, obj.ZPos, record, mobile);
+                        MobileTypes type = record == 15
+                            ? picker.PickRandom(hash, obj.Resources.FlatResource.Flags, obj.YPos, block.WaterLevel)
+                            : DoomerfallDrops.PickFixed(mobile, obj.Resources.FlatResource.IsCustomData, obj.YPos, block.WaterLevel);
+                        rows.Add(new KeyValuePair<Key, MobileTypes>(new Key(hash, record), type));
+                    }
+                }
+            }
+            return rows;
+        }
+
+        void Loot()
+        {
+            PlayerEntity player = GameManager.Instance.PlayerEntity;
+            int realLevel = player.Level;
+            player.Level = 17;      // Any leak of the player's level into a roll shows up in the gold bounds.
+            int types = 0, total = 0, equipment = 0;
+            foreach (MobileEnemy enemy in EnemyBasics.Enemies)
+            {
+                MobileTypes type = (MobileTypes)enemy.ID;
+                bool cls = DaggerfallEntity.IsClassEnemyId(enemy.ID);
+                bool usesGear = cls || type == MobileTypes.Orc || type == MobileTypes.OrcShaman || type == MobileTypes.OrcSergeant || type == MobileTypes.OrcWarlord || type == MobileTypes.Centaur;
+                LootChanceMatrix matrix = string.IsNullOrEmpty(enemy.LootTableKey) ? default(LootChanceMatrix) : LootTables.GetMatrix(enemy.LootTableKey);
+                types++;
+                foreach (int level in new[] { 0, 1, 20, 30 })
+                {
+                    int use = Mathf.Max(level, 1), withGold = 0, items = 0, weapons = 0;
+                    for (int n = 0; n < RollsPerType; n++)
+                    {
+                        ItemCollection bag = DoomerfallDrops.RollEnemy(type, level, null);
+                        total++;
+                        if (player.Level != 17) { Fail("player level not restored"); player.Level = 17; }
+                        bool hasWeapon = false;
+                        for (int i = 0; i < bag.Count; i++)
+                        {
+                            DaggerfallUnityItem item = bag.GetItem(i);
+                            items++;
+                            if (item.IsEquipped) Fail(type + " dropped an equipped item");
+                            if (item.ItemGroup == ItemGroups.Weapons) { hasWeapon = true; weapons++; }
+                            if (item.IsOfTemplate(ItemGroups.Currency, (int)Currency.Gold_pieces))
+                            {
+                                withGold++;
+                                if (item.stackCount < matrix.MinGold * use || item.stackCount > matrix.MaxGold * use)
+                                    Fail(string.Format("{0} gold {1} outside {2}-{3} at area {4}", type, item.stackCount, matrix.MinGold * use, matrix.MaxGold * use, level));
+                            }
+                        }
+                        if (usesGear && !hasWeapon) Fail(type + " rolled no equipment weapon");
+                        if (usesGear) equipment++;
+                        if (string.IsNullOrEmpty(enemy.LootTableKey) && !usesGear && enemy.MapChance == 0 && bag.Count != 0)
+                            Fail(type + " has no loot table but dropped items");
+                    }
+                    if (level == 1 || level == 30)
+                        Line(string.Format("loot {0} key {1} area {2}: {3:0.00} items per kill, gold in {4}%, weapons {5:0.00}", type, enemy.LootTableKey, level, items / (float)RollsPerType, withGold * 100 / RollsPerType, weapons / (float)RollsPerType));
+                }
+            }
+            player.Level = realLevel;
+            if (Formulas.FormulaHelper.DoomerfallMaterialRoll != null) Fail("material roll left active");
+            Line(string.Format("loot checked {0} enemy types, {1} real enemy rolls, {2} with generated equipment", types, total, equipment));
+        }
+
+        void Materials()
+        {
+            const int Samples = 400000;
+            // From the owner's approved table: Iron and Daedric shares at each level.
+            var expected = new Dictionary<int, double[]> { { 1, new[] { .5010, 0 } }, { 10, new[] { .3637, 1 / 376.0 } }, { 20, new[] { .2252, 1 / 40.0 } }, { 30, new[] { .1551, 1 / 20.0 } } };
+            foreach (var row in expected)
+            {
+                int[] counts = new int[10];
+                for (int n = 0; n < Samples; n++)
+                    counts[(int)DoomerfallDrops.RollMaterial(row.Key)]++;
+                double iron = counts[0] / (double)Samples, daedric = counts[9] / (double)Samples;
+                if (Math.Abs(iron - row.Value[0]) > 0.005) Fail("iron share " + iron + " at level " + row.Key);
+                if (Math.Abs(daedric - row.Value[1]) > Math.Max(0.002, row.Value[1] * 0.1)) Fail("daedric share " + daedric + " at level " + row.Key);
+                for (int i = 1; i < 9; i++)
+                    if (counts[i] > counts[i - 1]) Fail("tier " + i + " more common than the tier below at level " + row.Key);
+                Line(string.Format("materials level {0}: iron {1:P2}, daedric {2:P3}", row.Key, iron, daedric));
+            }
+        }
+    }
+}

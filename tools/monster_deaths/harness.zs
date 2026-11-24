@@ -76,6 +76,7 @@ class MDHarness : EventHandler
 		vector3 door = (DOORDATA[0], DOORDATA[1], DOORDATA[2]);
 		vector2 normal = (DOORDATA[3], DOORDATA[4]);
 		st.timer++;
+		if (level.maptime % 350 == 1) Console.Printf("MDSTATUS step %d, timer %d, map %s, Daggerfall phase %d", st.phase, st.timer, level.MapName, CVar.FindCVar("dd_sync_df_phase").GetInt());
 		switch (st.phase)
 		{
 		case 0: // Outside: use the door once Daggerfall is in play and has started the quest.
