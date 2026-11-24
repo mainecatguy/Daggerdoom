@@ -8,9 +8,10 @@ This software project combines Daggerfall Unity with UZDoom. The design goal is 
 
 For gameplay work, see `gamedesign.md`. For planned design changes, see `architecture.md`. If you are not working on gameplay or designing a system, it is not necessary to review these files.
 
-Two pillars must survive every decision:
+These pillars must survive every decision:
 
-- **Daggerfall's world is the place the player will visit, and its engine needs to be the mediator and controller of most permanent game state.** What the player does stays done.
+- **Daggerfall's world is the place the player visits. Daggerfall owns permanent state everywhere except the live state of the current area: the world, other places, inventory, quests, deaths, time, and saves. It also owns the game rules, character sheet, skills, resistances, and damage multipliers, and passes them to Doom for fast calculation.** What the player does stays done.
+- **Doom owns moment-to-moment combat in the current area: monster positions and behavior, projectiles, the immediate environment, and the equipped weapon and its live ammo. It applies Daggerfall's rules when Daggerfall is running. Doom still runs without Daggerfall and keeps standard WAD support.**
 - **Combat and movement are Doom Engine based.** Fast, real-time, and tactical. We will use the Doom Roguelike Arsenal Extended mod.
 
 ## Repository map
