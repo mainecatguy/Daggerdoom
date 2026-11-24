@@ -1,7 +1,9 @@
 # Lightweight location record (replaces location ledger cards 2-3)
 
-**Waiting on:** the owner's approval to move it to todo, and a decision on card 1 of
-`agent/locationledger-20261124-141035` (keep and merge it first, recommended). Designed with the owner on 2026-11-24.
+**Status:** started 2026-11-24 in its own session, by the owner's request. Card 1 of the location ledger branch is
+merged into integration (`69a48fd`); cards 2-3 (`agent/locationledger-20261124-141035`) are replaced by this design.
+Designed with the owner on 2026-11-24. The high-level rules are in `architecture.md`, "State ownership: live and
+permanent".
 
 ## Why
 
@@ -28,6 +30,10 @@ every place the player is not in. (Same pattern as ammo: Doom owns the live load
 - **Every other place:** Daggerfall's record. When the player leaves a map, Doom distills it into record entries.
 - **At save time** Doom also sends the current place's record entries (small), so if the snapshot cannot be restored
   (mod or map change), the place can still be rebuilt from the record, losing only live combat details.
+- **Daggerfall objects on the current map** (loot piles, containers, NPCs, townspeople) stay Daggerfall's even there.
+  Doom only draws their markers (picture, position, count; `dd_items.cpp` 710-737) and forwards Use. On load they
+  must follow Daggerfall's list, not the snapshot. Not yet checked: whether a pile emptied before a save can come back
+  from the snapshot.
 - **The snapshot skips what Doom generates from Daggerfall's data.** On the overworld 88% of a save is the
   treadmill's terrain sectors (`ddover01.map.json`: 4.77 MB of 5.45 MB raw, 1.33 MB packed, measured in
   `review/locledger2/run/saves/resume.zds`). Those are regenerated on load like they are while walking. Needs a small
