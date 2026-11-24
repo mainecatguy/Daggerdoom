@@ -508,13 +508,39 @@ const char *const AmmoClasses[] = { "Clip", "Shell", "RocketAmmo", "Cell" };
 constexpr int AmmoKinds = 4;
 int sentAmmo[AmmoKinds] = { -1, -1, -1, -1 };
 uint32_t ammoAddApplied, sentAmmoAck;
+int sentReadyAmmo = -2; // AmmoClasses index the ready weapon uses, -1 for none, -2 before any report.
+
+// The reserve ammo the ready weapon uses: the first of its ammo types (DRLA's magazine is AmmoType1, so its reserve
+// is AmmoType2) that is or derives from one of AmmoClasses. -1 for none, such as fists.
+int ReadyAmmo(player_t *player)
+{
+	AActor *w = player->ReadyWeapon;
+	if (!w) return -1;
+	for (FName field : { NAME_AmmoType1, NAME_AmmoType2 })
+	{
+		PClassActor *type = w->PointerVar<PClassActor>(field);
+		if (!type) continue;
+		for (int i = 0; i < AmmoKinds; i++)
+			if (type->IsDescendantOf(FName(AmmoClasses[i]))) return i;
+	}
+	return -1;
+}
 
 // Sends every count that changed since the last report, and all of them after an AMMO_ADD so its answer carries the ack.
+// Also tells Daggerfall when the ready weapon's reserve ammo changes, so it can load that ammo and its damage bonus.
 void ReportAmmo()
 {
 	if (!itemSession || gamestate != GS_LEVEL || consoleplayer < 0) return;
 	player_t *player = &players[consoleplayer];
 	if (!player->mo || player->playerstate != PST_LIVE || player->health <= 0) return;
+	const int ready = ReadyAmmo(player);
+	if (ready != sentReadyAmmo)
+	{
+		SendDoomItem(DFB_KIND_AMMO_READY, 0, 0, ready >= 0 ? AmmoClasses[ready] : "");
+		Printf(PRINT_LOG, "doomitems: ready weapon %s uses %s\n", player->ReadyWeapon ? player->ReadyWeapon->GetClass()->TypeName.GetChars() : "none",
+			ready >= 0 ? AmmoClasses[ready] : "no reserve ammo");
+		sentReadyAmmo = ready;
+	}
 	const bool ackChanged = sentAmmoAck != ammoAddApplied;
 	for (int i = 0; i < AmmoKinds; i++)
 	{
@@ -700,6 +726,7 @@ void DD_ItemsResync()
 {
 	wantList = spaceValid;
 	for (int &count : sentAmmo) count = -1; // Daggerfall forgot its reports when it loaded.
+	sentReadyAmmo = -2;
 }
 
 // True when this item must wait for the Use button. False for everything outside a generated map.

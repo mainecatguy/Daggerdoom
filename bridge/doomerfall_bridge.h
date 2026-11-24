@@ -152,6 +152,7 @@ extern "C" {
    numbered deltas. Payloads: dfb_doom_item, cls is Doom's ammo class (Clip, Shell, RocketAmmo, Cell). */
 #define DFB_KIND_AMMO          171  /* UZ to DF; status is Doom's count; request is the last AMMO_ADD Doom applied */
 #define DFB_KIND_AMMO_ADD      172  /* DF to UZ; status is a signed 32-bit delta to add (Doom's count stops at 0) */
+#define DFB_KIND_AMMO_READY    173  /* UZ to DF; the ready weapon changed; cls is the reserve ammo class it uses, or empty for none */
 
 /* Use on an NPC Doom draws. Daggerfall runs its own activation of that NPC (Grab, or Steal while crouching). Any HUD
    message it shows comes back as DFB_KIND_INFO_TEXT with the same request number. */

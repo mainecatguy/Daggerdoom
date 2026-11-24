@@ -168,6 +168,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DoomerfallAmmo.Register();
             ammo = gameObject.AddComponent<DoomerfallAmmo>();
             ammo.Init(this, sync);
+            damageBonus.Ammo = ammo;
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfequiptest") >= 0)
+                gameObject.AddComponent<DoomerfallEquipAmmoTest>().Init(this, ammo);
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfammotest") >= 0)
                 gameObject.AddComponent<DoomerfallAmmoTest>().Init(this, ammo);
             newGame = gameObject.AddComponent<DoomerfallNewGame>();
@@ -404,6 +407,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         break;
                     case Dfb.KIND_AMMO:
                         ammo.OnReport(ev.doomItem.request, ev.doomItem.status, DoomerfallDoomItems.ClassOf(ev.doomItem));
+                        break;
+                    case Dfb.KIND_AMMO_READY:
+                        ammo.OnReady(DoomerfallDoomItems.ClassOf(ev.doomItem));
                         break;
                     case Dfb.KIND_CLIMB_USES:
                         DoomerfallClimb.OnUses(this, ev.climbUses.uses);

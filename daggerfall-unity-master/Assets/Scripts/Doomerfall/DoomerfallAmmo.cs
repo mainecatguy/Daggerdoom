@@ -6,6 +6,12 @@
 // (DFB_KIND_AMMO_ADD). Each report carries the last delta Doom applied, so a delta still in flight is never counted twice.
 // Doom's ammo is in its own save and Daggerfall's stacks in its own, both in the bundled save. After a load Doom
 // reports again and its count wins any difference.
+//
+// Loaded ammo. Doom's counter for an ammo type stands for the stacks of that type that are loaded (IsLoaded). Doom
+// reports which ammo type its ready gun uses (DFB_KIND_AMMO_READY) whenever a gun is equipped or raised. Daggerfall
+// then tells Doom how many loaded rounds it holds, and the damage bonus (DoomerfallDamageBonus) takes that ammo's
+// material. Today every stack of a type is loaded. Once ammo has tiers, changing the loaded tier changes IsLoaded and
+// calls Reload, and Update sends Doom the difference through the same delta path.
 
 using System;
 using System.Collections.Generic;
@@ -91,6 +97,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         readonly Track[] tracks = new Track[Types.Length];
         bool ready;
         uint nextAdd = 1;
+        int readyType = -2;  // The ammo type Doom's ready gun uses: -1 none (fists), -2 not reported yet.
+        bool tellWanted;     // The ready gun or its loaded ammo changed: tell Doom the loaded count.
+
+        // Test only (DoomerfallAmmoTest.ApplyBonusTest): a material bonus per ammo type in place of the loaded ammo's.
+        internal static double[] TestBonus;
 
         internal static int TypeOfTemplate(int template)
         {
@@ -164,7 +175,61 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 t.pending.Clear();
             }
             ready = false;
+            readyType = -2; // Doom reports its ready gun again after the load.
+            tellWanted = false;
             bridge.LogLine("ammo: after load Daggerfall holds" + Totals());
+        }
+
+        // DFB_KIND_AMMO_READY: Doom's ready weapon changed and uses this reserve ammo ("" for none).
+        internal void OnReady(string cls)
+        {
+            readyType = string.IsNullOrEmpty(cls) ? -1 : TypeOfClass(cls);
+            tellWanted = true;
+            bridge.LogLine(string.Format("ammo: Doom's ready gun uses {0}", readyType >= 0 ? Types[readyType].doomClass : "no reserve ammo"));
+        }
+
+        // The loaded ammo changed (a later change ammo key): tell Doom the new loaded count. Same path as equipping a gun.
+        internal void Reload()
+        {
+            tellWanted = true;
+        }
+
+        internal int ReadyType { get { return readyType; } }
+
+        // True for a stack Doom's counter of this type stands for. Today every stack of the type is loaded; tiered ammo
+        // narrows this to the loaded tier.
+        internal static bool IsLoaded(DoomerfallAmmoItem item, int type)
+        {
+            return item.AmmoType == type;
+        }
+
+        // A new stack of the loaded ammo, for rounds Doom gained.
+        static DoomerfallAmmoItem NewLoaded(int type, int count)
+        {
+            return new DoomerfallAmmoItem(type, count);
+        }
+
+        // The material bonus of the ammo loaded in Doom's ready gun, as a fraction (0.5 is +50%). 0 for no ready gun.
+        // Ammo has no material tiers yet, so the loaded ammo's bonus is 0.
+        internal double LoadedMaterialBonus()
+        {
+            if (readyType < 0)
+                return 0.0;
+            if (TestBonus != null && readyType < TestBonus.Length)
+                return TestBonus[readyType];
+            return 0.0;
+        }
+
+        internal static int LoadedTotal(ItemCollection items, int type)
+        {
+            int total = 0;
+            for (int i = 0; i < items.Count; i++)
+            {
+                DoomerfallAmmoItem item = items.GetItem(i) as DoomerfallAmmoItem;
+                if (item != null && IsLoaded(item, type))
+                    total += item.stackCount;
+            }
+            return total;
         }
 
         // One DFB_KIND_AMMO report. Applied in Update, once Daggerfall is in a game.
@@ -188,9 +253,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     return false;
                 PlayerEntity player = GameManager.Instance.PlayerEntity;
                 for (int i = 0; i < tracks.Length; i++)
-                    if (tracks[i].report < 0 || tracks[i].pending.Count > 0 || tracks[i].report != tracks[i].synced || Total(player.Items, i) != tracks[i].synced)
+                    if (tracks[i].report < 0 || tracks[i].pending.Count > 0 || tracks[i].report != tracks[i].synced || LoadedTotal(player.Items, i) != tracks[i].synced)
                         return false;
-                return true;
+                return !tellWanted;
             }
         }
 
@@ -224,18 +289,18 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return text;
         }
 
-        // Adds (or removes, for a negative change) rounds of one type in the player's inventory.
+        // Adds (or removes, for a negative change) loaded rounds of one type in the player's inventory.
         internal static void Change(ItemCollection items, int type, int change)
         {
             if (change > 0)
             {
-                items.AddItem(new DoomerfallAmmoItem(type, change));
+                items.AddItem(NewLoaded(type, change));
                 return;
             }
             for (int i = items.Count - 1; i >= 0 && change < 0; i--)
             {
                 DoomerfallAmmoItem item = items.GetItem(i) as DoomerfallAmmoItem;
-                if (item == null || item.AmmoType != type)
+                if (item == null || !IsLoaded(item, type))
                     continue;
                 int take = Math.Min(item.stackCount, -change);
                 change += take;
@@ -261,7 +326,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 // Whatever Daggerfall holds now is its side; the next report brings Doom's side.
                 for (int i = 0; i < tracks.Length; i++)
                 {
-                    tracks[i].synced = Total(items, i);
+                    tracks[i].synced = LoadedTotal(items, i);
                     tracks[i].pending.Clear();
                 }
                 ready = true;
@@ -285,18 +350,17 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         changed = true;
                     }
                 }
-                int total = Total(items, i);
+                int total = LoadedTotal(items, i);
                 if (total != t.synced && t.report >= 0)
                 {
-                    // Daggerfall's side changed: a drop, a trade, a pile, or a stack that could not go below zero.
-                    int delta = total - t.synced;
-                    uint id = nextAdd++;
-                    t.pending.Add(new KeyValuePair<uint, int>(id, delta));
+                    // Daggerfall's side changed: a drop, a trade, a pile, a stack that could not go below zero, or a
+                    // change of the loaded ammo.
+                    SendDelta(t, i, total - t.synced, "sent to Doom");
                     t.synced = total;
-                    Send(id, delta, Types[i].doomClass);
-                    bridge.LogLine(string.Format("ammo: add {0} {1} {2:+0;-0} sent to Doom, Daggerfall holds {3}", id, Types[i].doomClass, delta, total));
                 }
             }
+            if (tellWanted)
+                Tell(items);
             if (changed)
             {
                 DaggerfallWorkshop.Game.UserInterfaceWindows.DaggerfallInventoryWindow window =
@@ -305,6 +369,45 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     window.Refresh(false);
                 bridge.LogLine("ammo: Doom changed the count, Daggerfall holds" + Totals());
             }
+        }
+
+        // Doom's ready gun was equipped or raised, or its loaded ammo changed: Daggerfall tells Doom how many loaded rounds
+        // of the gun's ammo type it holds, and the damage bonus follows the loaded ammo (DoomerfallDamageBonus reads
+        // LoadedMaterialBonus every frame). Doom's counter is set to Daggerfall's count with a delta from what Doom is
+        // believed to hold, so a round Doom spends meanwhile is still counted once. Waits for Doom's first count report.
+        void Tell(ItemCollection items)
+        {
+            if (readyType == -2)
+                return;
+            double bonus = LoadedMaterialBonus();
+            if (readyType < 0)
+            {
+                tellWanted = false;
+                bridge.LogLine(string.Format("ammo: equip: the ready weapon uses no reserve ammo; ammo damage bonus {0:+0.##%;-0.##%;0%}", bonus));
+                return;
+            }
+            Track t = tracks[readyType];
+            if (t.report < 0)
+                return;
+            tellWanted = false;
+            int believed = t.report;
+            foreach (KeyValuePair<uint, int> p in t.pending)
+                believed += p.Value;
+            believed = Math.Max(0, believed);
+            int loaded = LoadedTotal(items, readyType);
+            if (loaded != believed)
+                SendDelta(t, readyType, loaded - believed, "to load the gun");
+            t.synced = loaded;
+            bridge.LogLine(string.Format("ammo: equip: the ready gun loads {0}; Daggerfall holds {1}, Doom held {2}; ammo damage bonus {3:+0.##%;-0.##%;0%}",
+                Types[readyType].doomClass, loaded, believed, bonus));
+        }
+
+        void SendDelta(Track t, int type, int delta, string why)
+        {
+            uint id = nextAdd++;
+            t.pending.Add(new KeyValuePair<uint, int>(id, delta));
+            Send(id, delta, Types[type].doomClass);
+            bridge.LogLine(string.Format("ammo: add {0} {1} {2:+0;-0} {3}, Daggerfall holds {4}", id, Types[type].doomClass, delta, why, LoadedTotal(GameManager.Instance.PlayerEntity.Items, type)));
         }
 
         void Send(uint request, int delta, string cls)

@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x17fc474cb2b680ebUL;
+        public const ulong SchemaHash = 0x34e24455dd21de74UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -101,6 +101,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_CLIMB_USES = 170;  // UZ to DF; Daggerfall tallies this many Climbing skill uses; payload: dfb_climb_uses
         public const ushort KIND_AMMO = 171;  // UZ to DF; status is Doom's count; request is the last AMMO_ADD Doom applied
         public const ushort KIND_AMMO_ADD = 172;  // DF to UZ; status is a signed 32-bit delta to add (Doom's count stops at 0)
+        public const ushort KIND_AMMO_READY = 173;  // UZ to DF; the ready weapon changed; cls is the reserve ammo class it uses, or empty for none
         public const ushort KIND_NPC_USE = 100;  // UZ to DF; payload: dfb_npc_use
         public const ushort KIND_NPC_USE_RESULT = 101;  // DF to UZ; payload: dfb_npc_use_result
         public const ushort KIND_MONSTER_DEATH = 50;  // UZ to DF; a tagged monster died; payload: dfb_monster_death

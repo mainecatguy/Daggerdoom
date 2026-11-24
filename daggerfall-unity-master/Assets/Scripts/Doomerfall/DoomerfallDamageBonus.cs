@@ -2,7 +2,8 @@
 // dfb_df_state.damage_bonus_bp; Doom multiplies the damage the player deals by it. Elements multiply with each other:
 // a +100% material and a +20% skill bonus give 2.0 x 1.2 = 2.4 times base damage.
 //
-// The only element so far is the loaded ammo's material, which is 0% until tiered ammo exists. Add an element only
+// The only element so far is the material of the ammo loaded in the ready gun (DoomerfallAmmo.LoadedMaterialBonus),
+// which is 0% until tiered ammo exists. Add an element only
 // when the owner decides it.
 
 using System;
@@ -24,10 +25,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             sync = positionSync;
         }
 
-        // The loaded ammo's material bonus, as a fraction (0.5 is +50%). Tiered ammo does not exist yet.
-        static double AmmoMaterialBonus()
+        // Where the loaded ammo comes from. Set once the ammo tracker exists.
+        internal DoomerfallAmmo Ammo;
+
+        // The material bonus of the ammo loaded in the ready gun, as a fraction (0.5 is +50%). It follows the ready gun,
+        // so it changes when a gun is equipped or the loaded ammo changes. 0 until tiered ammo exists.
+        double AmmoMaterialBonus()
         {
-            return 0.0;
+            return Ammo != null ? Ammo.LoadedMaterialBonus() : 0.0;
         }
 
         // Every element multiplied together. 1.0 means no bonus.

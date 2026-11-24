@@ -9,6 +9,7 @@ class AMHarness : EventHandler
 	static const String AMMO[] = { "Clip", "Shell", "RocketAmmo", "Cell" };
 	const LIMIT = 35 * 20;
 	const LOADRUN = @LOADRUN@;
+	const EQUIPRUN = @EQUIPRUN@; // The equip run: guns equipped from Daggerfall set the damage bonus of their loaded ammo.
 	const SAVED = 10;
 
 	int phase, timer, startClip, startShell;
@@ -40,6 +41,48 @@ class AMHarness : EventHandler
 		Console.Printf("%s", line);
 	}
 
+	static String ReserveOf(class<Inventory> c)
+	{
+		if (!c) return "none";
+		let def = GetDefaultByType(c);
+		if (def is "Clip") return "Clip";
+		if (def is "Shell") return "Shell";
+		if (def is "RocketAmmo") return "RocketAmmo";
+		if (def is "Cell") return "Cell";
+		return "none";
+	}
+
+	// Hurts a fresh stock Cyberdemon for 10 with the player as the source, as a shot does, and reports the health lost.
+	// Daggerfall's damage bonus (from the ready gun's loaded ammo) scales it in Doom.
+	void Hit(String label)
+	{
+		let p = players[0].mo;
+		let w = players[0].ReadyWeapon;
+		String ammo = "none";
+		if (w) { ammo = ReserveOf(w.AmmoType1); if (ammo == "none") ammo = ReserveOf(w.AmmoType2); }
+		let t = Actor.Spawn("Cyberdemon", p.Vec3Angle(200, p.angle), NO_REPLACE);
+		if (!t) { Console.Printf("AMHIT %s no target", label); return; }
+		int before = t.health;
+		t.DamageMobj(null, p, 10, 'None');
+		int lost = before - t.health;
+		t.Destroy();
+		Console.Printf("AMHIT %s weapon=%s ammo=%s lost=%d", label, w ? w.GetClassName() : 'none', ammo, lost);
+	}
+
+	// Lowers the gun for a weapon that uses no ammo, such as fists.
+	void SelectMelee(Actor p)
+	{
+		for (Inventory i = p.Inv; i; i = i.Inv)
+		{
+			let w = Weapon(i);
+			if (w && !w.AmmoType1 && !w.AmmoType2) { players[0].PendingWeapon = w; Console.Printf("AMNOTE melee %s", w.GetClassName()); return; }
+		}
+		p.GiveInventory("Fist", 1);
+		let f = Weapon(p.FindInventory("Fist"));
+		if (f) players[0].PendingWeapon = f;
+		Console.Printf("AMNOTE melee Fist given");
+	}
+
 	bool AnyPile()
 	{
 		let it = ThinkerIterator.Create("DoomerfallWorldItem");
@@ -66,7 +109,7 @@ class AMHarness : EventHandler
 		timer++;
 		if (LOADRUN && phase == SAVED) { phase = 20; timer = 0; Report("loaded"); }
 		if (LOADRUN && phase < SAVED) return;
-		if (!LOADRUN && phase < SAVED) WatchDaggerfall(p);
+		if (!LOADRUN && !EQUIPRUN && phase < SAVED) WatchDaggerfall(p);
 
 		switch (phase)
 		{
@@ -88,6 +131,7 @@ class AMHarness : EventHandler
 			startShell = p.CountInv("Shell");
 			Report("start");
 			Next();
+			if (EQUIPRUN) phase = 30; // No break inside this constant if: one with a break crashed UZDoom's compiler.
 			break;
 		case 2: // A box of bullets by touch. Stock ClipBox, not DRLA's spawner, so the amount is known.
 		{
@@ -122,11 +166,31 @@ class AMHarness : EventHandler
 			phase = SAVED;
 			timer = 0;
 			break;
+		case 30: // Daggerfall adopts the starting gun onto key 2 and its test hook adds a shotgun on key 3.
+			if (timer == 35 * 5) { Hit("start gun"); Report("start gun"); Next(); }
+			break;
+		case 31:
+			if (timer == 1) SelectMelee(p);
+			if (timer == 105) { Hit("melee"); Next(); }
+			break;
+		case 32: // Daggerfall's hotkey raises the starting gun again (DFB_GUN_SELECT).
+			if (timer == 1) EventHandler.SendNetworkEvent("dd_hotkey:2");
+			if (timer == 105) { Hit("hotkey 2"); Next(); }
+			break;
+		case 33: // Daggerfall's hotkey equips the shotgun it holds (DFB_GUN_GIVE).
+			if (timer == 1) EventHandler.SendNetworkEvent("dd_hotkey:3");
+			if (timer == 140) { Hit("hotkey 3"); Report("shotgun equipped"); Next(); }
+			break;
+		case 34: // Spend 3 shells, as firing would, then save.
+			if (timer == 1) p.TakeInventory("Shell", 3);
+			if (timer == 70) { Report("after spending 3 shells"); phase = 7; timer = 0; }
+			break;
 		case SAVED:
 			if (timer > 35 * 8) Finish("saved");
 			break;
 		case 20: // Loaded: give Doom's report time to reach Daggerfall.
-			if (timer == 35 * 20) Finish("loaded"); // Long enough for Daggerfall's hook, window test included, to run again.
+			if (EQUIPRUN && timer == 105) { Hit("loaded"); Report("loaded"); }
+			if (timer == 35 * (EQUIPRUN ? 6 : 20)) Finish("loaded"); // Long enough for Daggerfall's hook, window test included, to run again.
 			break;
 		}
 	}
