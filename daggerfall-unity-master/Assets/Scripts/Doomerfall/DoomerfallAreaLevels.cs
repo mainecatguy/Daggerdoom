@@ -129,6 +129,20 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return string.Format("area levels: {0} locations ranked in {1} ms on a worker, main thread waited {2} ms", t.byMapId.Count, t.milliseconds, waitedMs);
         }
 
+        /// <summary>True once the ranking has finished (or failed), so lookups no longer wait. Starts it if needed; never blocks.</summary>
+        internal static bool IsFinished
+        {
+            get { Warm(); return table != null; }
+        }
+
+        /// <summary>Levels of a classic location by its full MapId. False for a mod-added location or if the table could not be built.</summary>
+        internal static bool ForMapId(int mapId, out Level level)
+        {
+            level = default(Level);
+            Table t = Ready();
+            return t != null && t.error == null && t.byMapId.TryGetValue(mapId, out level);
+        }
+
         /// <summary>Levels of a location. Returns false if the table could not be built.</summary>
         internal static bool ForLocation(in DFLocation location, out Level level)
         {
