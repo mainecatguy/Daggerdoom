@@ -103,7 +103,7 @@ def counts_doom(body):
 
 
 def counts_df(body):
-    lines = [l for l in body.splitlines() if "Daggerfall holds" in l]
+    lines = [l for l in body.splitlines() if "holds Clip" in l and "stacks" in l]
     return dict(re.findall(r"(Clip|Shell|RocketAmmo|Cell) (\d+);", lines[-1])) if lines else {}
 
 

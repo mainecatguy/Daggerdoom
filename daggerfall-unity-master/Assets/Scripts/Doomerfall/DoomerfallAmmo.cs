@@ -25,13 +25,18 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
         }
 
+        // Daggerfall reloads its item templates after the bridge registers custom ones, so the custom templates are gone by
+        // play time. The item carries its own weight and value, saved with it, and its group index names its type.
         public DoomerfallAmmoItem(int type, int count) : base(ItemGroups.MiscItems, DoomerfallAmmo.Types[type].template)
         {
             stackCount = Math.Max(1, count);
+            shortName = DoomerfallAmmo.Types[type].name;
+            weightInKg = DoomerfallAmmo.Types[type].weightKg;
+            value = DoomerfallAmmo.Types[type].price;
         }
 
-        // -1 for a template that is not ammo.
-        public int AmmoType { get { return DoomerfallAmmo.TypeOfTemplate(TemplateIndex); } }
+        // -1 for an item that is not ammo.
+        public int AmmoType { get { return DoomerfallAmmo.TypeOfTemplate(GroupIndex); } }
         public string DoomClass { get { int t = AmmoType; return t < 0 ? "" : DoomerfallAmmo.Types[t].doomClass; } }
         public override string ItemName { get { int t = AmmoType; return t < 0 ? base.ItemName : DoomerfallAmmo.Types[t].name; } }
         public override string LongName { get { return ItemName; } }
@@ -107,6 +112,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (registered)
                 return;
             registered = true;
+            AddTemplates();
+            // A class registers for loading only once. A save names the class, and the item's own data names its type.
+            DaggerfallUnity.Instance.ItemHelper.RegisterCustomItem(Types[0].template, ItemGroups.None, typeof(DoomerfallAmmoItem));
+        }
+
+        // Adds any ammo template Daggerfall does not hold. Its template list is rebuilt after Register runs.
+        static void AddTemplates()
+        {
             ItemHelper helper = DaggerfallUnity.Instance.ItemHelper;
             ItemTemplate placeholder = helper.GetItemTemplate((int)MiscItems.Letter_of_credit); // Shown until Doom sends the sprite.
             foreach (AmmoType type in Types)
@@ -123,7 +136,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     playerTextureArchive = placeholder.playerTextureArchive,
                     playerTextureRecord = placeholder.playerTextureRecord,
                 });
-                helper.RegisterCustomItem(type.template, ItemGroups.None, typeof(DoomerfallAmmoItem));
             }
         }
 
@@ -185,7 +197,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             string text = "";
             for (int i = 0; i < Types.Length; i++)
                 text += string.Format(" {0} {1};", Types[i].doomClass, Total(player.Items, i));
-            return text + string.Format(" carried {0:F2} kg", player.CarriedWeight);
+            text += string.Format(" carried {0:F2} kg; stacks", player.CarriedWeight);
+            for (int i = 0; i < player.Items.Count; i++)
+            {
+                DoomerfallAmmoItem item = player.Items.GetItem(i) as DoomerfallAmmoItem;
+                if (item != null)
+                    text += string.Format(" [{0} x{1} {2} kg {3} gold each]", item.ItemName, item.stackCount, item.weightInKg, item.value);
+            }
+            return text;
         }
 
         // Adds (or removes, for a negative change) rounds of one type in the player's inventory.
@@ -221,6 +240,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             ItemCollection items = player.Items;
             if (!ready)
             {
+                AddTemplates();
                 // Whatever Daggerfall holds now is its side; the next report brings Doom's side.
                 for (int i = 0; i < tracks.Length; i++)
                 {

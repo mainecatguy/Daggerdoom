@@ -11,6 +11,12 @@ What is done on the project, newest first. Agents do not need to read this unles
 - **Branches:** `integration` is at `dc90a52`, with steal mode, real enemy drops, the fixed dungeon harness, the area level proposal, automatic hinged trapdoors, container windows, quiet agent launches, the reported location recheck, Use-button pickup, character sheet publishing, stationary NPCs, the DRLA launcher, monster deaths, the first town door fix, New Game, the transition speedup, Daggerfall item pickup, the dungeon re-entry fix, generated bridge definitions, main quest trapdoors, 10 Hz position sync, the wilderness height fix, the Daggerfall map command, door route fixes, both overnight lanes, the bridge and door fixes, dungeon flats, Daggerfall items, synchronized saving and loading, the death screen, fast travel arrival, connected door transitions, and the inventory menu.
 - **Roughest spots:** some walls still bend where they stayed tied to the grid, and false walls and openings remain.
 
+## 2026-11-24
+
+### On branch `agent/ammo-20261124-075147` (not merged)
+
+- **Doom ammo in Daggerfall's inventory, and arrow weight:** bullets, shells, rockets, and cells are stacks in Daggerfall's inventory at the owner's weights (0.02, 0.1, 0.2, 0.02 kg) and base prices (1, 3, 10, 5). Doom's ammo stays the live counter. Bridge kinds 171 and 172 sync both ways with numbered deltas, so drops, wagon moves, and piles in Daggerfall reach Doom, and Doom pickups and shots reach Daggerfall. Arrows now weigh 0.01 kg each and count toward carried weight (they had been weightless). Paired take and load runs matched counts on both sides across save and load. Stock and DRLA E1M1 load cleanly. Notes: `work/notes/20261124-075147.md`.
+
 ## 2026-11-23
 
 ### Merged to `integration` (`e85e351`)
