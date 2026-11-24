@@ -109,8 +109,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         // Doom's sprite recoloured along the material's ramp by brightness, as Daggerfall dyes metal items.
         internal static Texture2D Tinted(Texture2D source, int type, int tier)
         {
-            if (!source)
-                return null;
+            if (!source || !source.isReadable)
+                return null; // The untinted picture is shown instead.
             long key = ((long)source.GetInstanceID() << 8) | (long)(type * 16 + tier);
             Texture2D cached;
             if (tinted.TryGetValue(key, out cached) && cached)

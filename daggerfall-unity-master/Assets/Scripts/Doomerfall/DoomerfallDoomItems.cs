@@ -372,7 +372,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             texture.filterMode = FilterMode.Point;
             texture.wrapMode = TextureWrapMode.Clamp;
             texture.LoadRawTextureData(rgba);
-            texture.Apply(false, testFolder == null);
+            texture.Apply(false, false); // Kept readable: tiered ammo tints a copy (DoomerfallAmmoTiers.Tinted). Icons are small.
             known.texture = texture;
             known.tag = Text(slot, 80, 64);
             float scale = Mathf.Min(1f, (float)MaxIconSize / Mathf.Max(width, height));

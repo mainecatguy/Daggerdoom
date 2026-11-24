@@ -279,6 +279,8 @@ class AMHarness : EventHandler
 			break;
 		case 20: // Loaded: give Doom's report time to reach Daggerfall.
 			if (EQUIPRUN && timer == 105) { Hit("loaded"); Report("loaded"); }
+			if (TIERRUN && timer == 35) TierCensus("after load", DoomerfallAmmoTiers.Get().areaLevel);
+			if (TIERRUN && timer == 35 * 19) TierCensus("end of load run", DoomerfallAmmoTiers.Get().areaLevel);
 			if (timer == 35 * (EQUIPRUN ? 6 : 20)) Finish("loaded"); // Long enough for Daggerfall's hook, window test included, to run again.
 			break;
 		}

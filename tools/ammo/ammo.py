@@ -95,6 +95,11 @@ def assemble():
     if (REVIEW / "data").exists():
         shutil.rmtree(REVIEW / "data")
     shutil.copytree(SOURCE / "data", REVIEW / "data", ignore=shutil.ignore_patterns("work"))
+    # The tiers run needs the converter's placed pickups, which the doom-items dungeon predates.
+    pickups = REVIEW.parent / "pickups" / "data"
+    for name in ("privateershold.wad", "privateershold_mesh.pk3", "privateershold_doors.pk3"):
+        if (pickups / name).exists():
+            shutil.copy2(pickups / name, REVIEW / "data" / name)
     shutil.copy2(LAUNCHER, REVIEW / "doomerfall-launcher.exe")
     shutil.copy2(SOURCE / "dfitems.pk3", REVIEW / "dfitems.pk3")
     subprocess.check_call([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), str(REVIEW / "doomerfall.pk3")])

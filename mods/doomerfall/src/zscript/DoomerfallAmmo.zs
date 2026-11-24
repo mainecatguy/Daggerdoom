@@ -18,6 +18,7 @@ class DoomerfallAmmoTiers : StaticEventHandler
 	bool rules;
 	Array<Inventory> pending;
 	Array<int> pendingTic;
+	Array<double> pendingX, pendingY, pendingZ; // Where each spawned: the roll uses this, not where it fell.
 
 
 	override void OnRegister()
@@ -40,6 +41,9 @@ class DoomerfallAmmoTiers : StaticEventHandler
 	{
 		pending.Clear();
 		pendingTic.Clear();
+		pendingX.Clear();
+		pendingY.Clear();
+		pendingZ.Clear();
 	}
 
 	// 0 bullets, 1 shells, 2 rockets, 3 cells, or -1 for anything that is not a loose ammo pickup.
@@ -64,6 +68,9 @@ class DoomerfallAmmoTiers : StaticEventHandler
 		if (inv == null || PlainType(inv) < 0) return;
 		pending.Push(inv);
 		pendingTic.Push(level.maptime);
+		pendingX.Push(inv.pos.x);
+		pendingY.Push(inv.pos.y);
+		pendingZ.Push(inv.pos.z);
 	}
 
 	override void WorldTick()
@@ -82,7 +89,7 @@ class DoomerfallAmmoTiers : StaticEventHandler
 				continue;
 			}
 			if (areaLevel < 0) continue;
-			Convert(inv, PlainType(inv));
+			Convert(inv, PlainType(inv), (pendingX[i], pendingY[i], pendingZ[i]));
 			Forget(i);
 		}
 	}
@@ -91,6 +98,9 @@ class DoomerfallAmmoTiers : StaticEventHandler
 	{
 		pending.Delete(i);
 		pendingTic.Delete(i);
+		pendingX.Delete(i);
+		pendingY.Delete(i);
+		pendingZ.Delete(i);
 	}
 
 	// ---- The roll ----------------------------------------------------------------------------------------------
@@ -112,14 +122,14 @@ class DoomerfallAmmoTiers : StaticEventHandler
 		return (x & 0xFFFFFF) / 16777216.0;
 	}
 
-	static int Seed(Actor a, int type)
+	static int Seed(vector3 at, int type)
 	{
 		int h = 0x011c9dc5;
 		String map = level.MapName;
 		for (int i = 0; i < map.Length(); i++) h = Mix(h, map.ByteAt(i));
-		h = Mix(h, int(floor(a.pos.x / 16)));
-		h = Mix(h, int(floor(a.pos.y / 16)));
-		h = Mix(h, int(floor(a.pos.z / 16)));
+		h = Mix(h, int(floor(at.x / 16)));
+		h = Mix(h, int(floor(at.y / 16)));
+		h = Mix(h, int(floor(at.z / 16)));
 		return Mix(h, type + 1);
 	}
 
@@ -159,11 +169,11 @@ class DoomerfallAmmoTiers : StaticEventHandler
 		return RollTiers[3];
 	}
 
-	void Convert(Inventory plain, int type)
+	void Convert(Inventory plain, int type, vector3 spawned)
 	{
 		static const int TownTiers[] = { 1, 3, 4, 6, 7 }; // Steel, Moonstone, Dwemer, Orichalcum, Mithril
 		static const String TypeNames[] = { "Clip", "Shell", "Rocket", "Cell" };
-		int seed = Seed(plain, type);
+		int seed = Seed(spawned, type);
 		if (Unit(seed, 1) < JackpotChance)
 		{
 			int tier = TownTiers[min(4, int(Unit(seed, 2) * 5))];

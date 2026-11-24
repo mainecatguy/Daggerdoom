@@ -522,9 +522,12 @@ int askedLevelTic, sentLevel = -2;
 void PublishAreaLevel()
 {
 	int level = -1, x, y;
-	if (useRules && DD_BridgeMapPixel(x, y))
+	if (useRules)
 	{
-		const uint32_t key = uint32_t(y * 1000 + x) + (currentContext == DFB_WORLD_DUNGEON ? 1000000u : 0u);
+		// After a load straight into a space Doom has not seen the outdoor pixel yet, so it asks for "where Daggerfall's
+		// player is" (key 2000000), which DD_ItemsFrame forgets on every change of place.
+		const uint32_t key = !DD_BridgeMapPixel(x, y) ? 2000000u
+			: uint32_t(y * 1000 + x) + (currentContext == DFB_WORLD_DUNGEON ? 1000000u : 0u);
 		auto known = areaLevels.find(key);
 		if (known != areaLevels.end()) level = known->second;
 		else if (key != askedLevelKey || gametic < askedLevelTic || gametic - askedLevelTic > 2 * TICRATE)
@@ -739,6 +742,7 @@ void DD_ItemsFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t
 		outgoing.push_back(useRules ? "dfi_rules:1" : "dfi_rules:0");
 		wantList = inSpace;
 		sentLevel = -2;
+		areaLevels.erase(2000000u);
 	}
 	PublishAreaLevel();
 	if (wantList && gamestate == GS_LEVEL)

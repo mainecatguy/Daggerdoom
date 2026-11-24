@@ -287,10 +287,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return;
             foreach (uint key in levelRequests)
             {
-                bool dungeon = key >= 1000000;
+                bool dungeon = key >= 1000000 && key < 2000000;
                 int pixel = (int)(key % 1000000), x = pixel % 1000, y = pixel / 1000;
                 int level = test;
-                if (level < 0)
+                if (level < 0 && key == 2000000)
+                    level = DoomerfallAreaLevels.ForCurrentPlace(); // Doom does not know the pixel yet: where Daggerfall's player is.
+                else if (level < 0)
                 {
                     level = 0;
                     DaggerfallWorkshop.Utility.ContentReader.MapSummary summary;
@@ -327,6 +329,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     tier == loadedTier[type] ? " (loaded tier, goes to Doom)" : ""));
             }
             takes.Clear();
+            bridge.LogLine("ammo: after tiered pickups Daggerfall holds" + Totals());
             DaggerfallWorkshop.Game.UserInterfaceWindows.DaggerfallInventoryWindow window =
                 DaggerfallUI.UIManager.TopWindow as DaggerfallWorkshop.Game.UserInterfaceWindows.DaggerfallInventoryWindow;
             if (window != null)
@@ -391,7 +394,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return " (no player)";
             string text = "";
             for (int i = 0; i < Types.Length; i++)
-                text += string.Format(" {0} {1};", Types[i].doomClass, Total(player.Items, i));
+                text += string.Format(" {0} {1};", Types[i].doomClass, LoadedTotal(player.Items, i)); // What Doom's counter mirrors.
             text += string.Format(" carried {0:F2} kg; stacks", player.CarriedWeight);
             for (int i = 0; i < player.Items.Count; i++)
             {
