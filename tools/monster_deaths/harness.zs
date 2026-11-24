@@ -17,6 +17,12 @@ class MDHarness : EventHandler
 	const LIMIT = 35 * 16;
 	const MAXKILLS = 12;
 	bool done;
+	bool presave;
+
+	// The mode must be a runtime value. A literal comparison such as ("normal" == "presave") folds to a constant
+	// false, and a constant-false "if" that holds a "break" inside the switch made the whole WorldTick silently
+	// never run (UZDoom 5.0.3 ZScript codegen), so every normal-mode route timed out at the town door.
+	override void OnRegister() { presave = "@MODE@" ~== "presave"; }
 
 	void Finish(String why) { Console.Printf("MDDONE %s", why); done = true; }
 
@@ -70,6 +76,7 @@ class MDHarness : EventHandler
 		vector3 door = (DOORDATA[0], DOORDATA[1], DOORDATA[2]);
 		vector2 normal = (DOORDATA[3], DOORDATA[4]);
 		st.timer++;
+		if (level.maptime % 350 == 1) Console.Printf("MDSTATUS step %d, timer %d, map %s, Daggerfall phase %d", st.phase, st.timer, level.MapName, CVar.FindCVar("dd_sync_df_phase").GetInt());
 		switch (st.phase)
 		{
 		case 0: // Outside: use the door once Daggerfall is in play and has started the quest.
@@ -87,7 +94,7 @@ class MDHarness : EventHandler
 		case 1: // Inside: let the ids and Daggerfall's list arrive, then kill the quest foe.
 			if (!inside) { if (st.timer > LIMIT) { Console.Printf("MDFAIL no entry"); Finish("failed"); } break; }
 			if (st.timer < 140) break;
-			if ("@MODE@" == "presave" && !st.saved) // Save before the kill, so a load must undo it and allow it once more.
+			if (presave && !st.saved) // Save before the kill, so a load must undo it and allow it once more.
 			{
 				st.saved = true;
 				st.timer = 60;
