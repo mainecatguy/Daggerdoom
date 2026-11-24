@@ -43,7 +43,7 @@ TRY = [
     " 4. Look at a ground item or monster and press Q for Info, like Daggerfall's Info mode.",
     " 5. Climb a wall: walk into it and keep pressing forward. Back climbs down; holding still lets you shoot.",
     " 6. Leave the dungeon and walk into town. Townspeople walk the streets; at night they are inside their homes.",
-    " 7. Use on a townsperson to talk. Use on a shopkeeper for Daggerfall's shop menu.",
+    " 7. Inside a shop, Use on the shopkeeper for Daggerfall's shop menu, and on other standing NPCs to talk. Walking townspeople cannot be talked to yet.",
     " 8. Crouch and Use on shop goods to steal. If you are seen, guards come and fight you, Doom style.",
     " 9. Press K for the travel map. Hover a place to see its danger hint. Places have fixed area levels.",
     "10. Save from Doom's menu, quit, start play.bat again, and load: both games come back together.",
