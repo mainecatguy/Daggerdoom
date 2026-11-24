@@ -90,7 +90,7 @@ class DIHarness : EventHandler
 		let p = players[0].mo;
 		p.bNOTARGET = true;
 		players[0].cheats |= CF_GODMODE;
-		bool inside = level.MapName.Left(3) ~== "DDS";
+		bool inside = level.MapName.Left(3) ~== "DDS" || level.MapName ~== "MAP01";
 		vector3 door = (DOORDATA[0], DOORDATA[1], DOORDATA[2]);
 		vector2 normal = (DOORDATA[3], DOORDATA[4]);
 		timer++;

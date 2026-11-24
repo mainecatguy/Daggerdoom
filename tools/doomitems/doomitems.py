@@ -53,7 +53,10 @@ def lumps(path):
 
 
 def harness():
-    door = next(l.split() for l in lumps(REVIEW / "data" / "cache" / f"T{GROUP:05d}.ddt")["DDDOORS"].decode().splitlines() if l.startswith("1 187853213"))
+    cache = REVIEW / "data" / "cache" / f"T{GROUP:05d}.ddt"
+    if not cache.exists():  # UZDoom may rebuild the town cache during a run.
+        cache = SOURCE / "data" / "cache" / cache.name
+    door = next(l.split() for l in lumps(cache)["DDDOORS"].decode().splitlines() if l.startswith("1 187853213"))
     text = (HERE / "harness.zs").read_text()
     text = text.replace("@DOOR@", ", ".join(door[3:8])).replace("@USE@", ", ".join(f'"{n}"' for n in USE))
     path = REVIEW / "run" / "harness.pk3"
@@ -125,7 +128,7 @@ def run(name):
     shutil.rmtree(pictures, ignore_errors=True)
     uz = ["-noactivate", "-config", str(runs / f"{name}.ini"), "-savedir", str(saves), "-dfbridgelog", str(uz_log), "-nosound", "-noautoload", "-skill", "3",
           "-ddtowncache", str(REVIEW / "data" / "cache"), "-ddconverter", str(REVIEW / "data" / "converter" / "DungeonConverter.exe"), "-ddarena2", str(GAME / "DAGGER" / "ARENA2"),
-          "+logfile", console.name, "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{GROUP:05d}"]
+          "+logfile", name, "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{GROUP:05d}"]
     if name == "load":
         uz += ["-dfloadtest", f"resume:{autosaves[-1]}"]
     df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), "-dfdoomitemstest", str(pictures), "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
