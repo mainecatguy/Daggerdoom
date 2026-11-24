@@ -89,26 +89,38 @@ def act(hwnd, top, tries):
     if top == "CreateCharRaceSelect":
         click(hwnd, *[(90, 70), (120, 100), (200, 80), (60, 120)][tries % 4])
     elif top == "CreateCharGenderSelect":
-        key(hwnd, 0x4D)  # M
+        # The box is centered and its height depends on the text, so step down the two buttons' column.
+        click(hwnd, 135, 92 + (tries % 12) * 4)
     elif top == "CreateCharChooseClassGen":
-        click(hwnd, 90, 60)  # Choose from a list
+        click(hwnd, 158, 85)  # Choose from a list, in the centered panel
     elif top == "CreateCharClassSelect":
         click(hwnd, 100, 64, 2)
     elif top == "CreateCharChooseBio":
-        click(hwnd, 90, 65)  # Generate
+        click(hwnd, 158, 75)  # Generate, in the centered panel
     elif top == "CreateCharNameSelect":
         click(hwnd, 297, 8)  # Random name
         click(hwnd, *OK)
-    elif top in ("CreateCharFaceSelect", "CreateCharAddBonusStats", "CreateCharAddBonusSkills", "CreateCharReflexSelect", "CreateCharSummary"):
+    elif top == "CreateCharAddBonusStats":
+        click(hwnd, 51, 24, 16)  # Strength's up arrow, until the bonus pool is spent.
+        click(hwnd, *OK)
+    elif top == "CreateCharAddBonusSkills":
+        for arrow_y in (35, 84, 133):  # The right arrow of the primary, major, and minor groups.
+            click(hwnd, 234, arrow_y, 6)
+        click(hwnd, *OK)
+    elif top in ("CreateCharFaceSelect", "CreateCharReflexSelect", "CreateCharSummary"):
         click(hwnd, *OK)
     elif top == "DaggerfallVidPlayerWindow":
-        time.sleep(0.8)  # Lets real frames of the cinematic reach Doom before skipping it.
+        time.sleep(6.0 if tries == 0 and not act.watched else 0.8)  # The first one plays long enough to see real frames in Doom.
+        act.watched = True
         key(hwnd, 0x1B)
     elif "MessageBox" in top or top == "DaggerfallPopupWindow":
         key(hwnd, 0x59)  # Y
         key(hwnd, 0x0D)
     else:
         time.sleep(0.1)
+
+
+act.watched = False
 
 
 def main():
@@ -139,8 +151,10 @@ def main():
     for arg in dfu_args:
         command += ["--dfu-arg", arg]
 
+    limit = 85 if load == "again" else TIMEOUT  # Two characters are made in this run.
+    command[command.index("--timeout") + 1] = str(limit)
     proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    deadline = time.time() + TIMEOUT
+    deadline = time.time() + limit
     result, hwnd, tries, last = "timeout", None, 0, ""
     goal = "backed out" if mode == "back" else "both games running"
     try:
@@ -152,6 +166,10 @@ def main():
             if goal in uz and not load:
                 result = "reached"
                 time.sleep(2.5)  # Both games run together briefly before the check.
+                break
+            if load == "again" and uz.count(goal) >= 2:
+                result = "second character reached"
+                time.sleep(2.5)
                 break
             if load and re.search(r"load test: (PASS|FAIL)", uz):
                 result = re.search(r"load test: (PASS|FAIL)", uz).group(1)

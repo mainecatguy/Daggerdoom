@@ -555,7 +555,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (!engaged)
                 return;
             engaged = false;
-            phase = Dfb.DF_PHASE_BOOT;
+            phase = (uint)(DoomerfallNewGame.HoldsNewCharacter ? Dfb.DF_PHASE_MENU : Dfb.DF_PHASE_BOOT); // Doom's title can start a new game.
             GameManager game = GameManager.Instance;
             game.DisableAI = savedDisableAI;
             game.PlayerObject.GetComponent<CharacterController>().enabled = savedController;

@@ -1676,7 +1676,7 @@ void RunLoadTest(int64_t now)
 		return;
 	}
 	const bool settled = loadState == LoadIdle && saveState == SaveIdle && !saveStartPending;
-	const bool bad = !strcmp(loadTestMode, "bad"), death = !strcmp(loadTestMode, "death"), menu = !strcmp(loadTestMode, "menu");
+	const bool bad = !strcmp(loadTestMode, "bad"), death = !strcmp(loadTestMode, "death"), menu = !strcmp(loadTestMode, "menu") || !strcmp(loadTestMode, "again");
 	const player_t &player = players[consoleplayer];
 	double x = 0, y = 0, z = 0, yaw = 0;
 	const auto finish = [&]()
@@ -1762,6 +1762,12 @@ void RunLoadTest(int64_t now)
 		return;
 	case 6:
 		LoadTestLog("at the title");
+		if (!strcmp(loadTestMode, "again")) // A second character in the same session, after the first one died.
+		{
+			ngTest = "once";
+			loadTestStep = -1;
+			return;
+		}
 		C_DoCommand("map DDT09183"); // Must be refused while no game is loaded.
 		loadTestStep = 7;
 		loadTestAtNs = now + 1500000000LL;
@@ -1943,7 +1949,7 @@ void PumpNewGame(int64_t now)
 	if (ngState == NgIdle)
 	{
 		// Test only: goes through the real New Game menu entry once Daggerfall is ready.
-		if (ngTest && atTitle && gamestate != GS_STARTUP && peerSeen && peerState.df_phase == DFB_DF_PHASE_MENU)
+		if (ngTest && atTitle && gamestate != GS_STARTUP && peerSeen && peerState.df_phase != DFB_DF_PHASE_BOOT && peerState.df_phase != DFB_DF_PHASE_LOADING)
 		{
 			if (!ngTestAt) ngTestAt = now + 1000000000LL;
 			if (now >= ngTestAt)
@@ -1971,7 +1977,7 @@ void PumpNewGame(int64_t now)
 	switch (ngState)
 	{
 	case NgWaitDf:
-		if (peerSeen && !peerStale && (peerState.df_phase == DFB_DF_PHASE_MENU || peerState.df_phase == DFB_DF_PHASE_PLAY))
+		if (peerSeen && !peerStale && peerState.df_phase != DFB_DF_PHASE_BOOT && peerState.df_phase != DFB_DF_PHASE_LOADING) // After a death it may still report play or dead.
 		{
 			ngState = NgCreating;
 			ngHaveWorld = ngResult = false;
