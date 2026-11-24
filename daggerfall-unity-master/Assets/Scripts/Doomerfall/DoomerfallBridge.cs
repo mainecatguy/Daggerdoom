@@ -58,6 +58,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         internal DoomerfallPositionSync PositionSync { get { return sync; } }
         DoomerfallUi ui;
         DoomerfallHp hp;
+        DoomerfallDamageBonus damageBonus;
         DoomerfallSave save;
         DoomerfallItems items;
         DoomerfallDoomItems doomItems;
@@ -141,6 +142,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             sync.Init(this, Environment.GetCommandLineArgs());
             hp = new DoomerfallHp(this, sync, Environment.GetCommandLineArgs());
             sheet = new DoomerfallSheet(this, sync, Environment.GetCommandLineArgs());
+            damageBonus = new DoomerfallDamageBonus(this, sync);
+            DoomerfallDamageBonusTest.Apply(this, damageBonus, Environment.GetCommandLineArgs()); // Test only, does nothing without -dfdamagetest
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfsheettest") >= 0)
                 gameObject.AddComponent<DoomerfallSheetTest>().Init(this, sync);
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfloottest") >= 0)
@@ -165,8 +168,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DoomerfallAmmo.Register();
             ammo = gameObject.AddComponent<DoomerfallAmmo>();
             ammo.Init(this, sync);
+            damageBonus.Ammo = ammo;
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfequiptest") >= 0)
+                gameObject.AddComponent<DoomerfallEquipAmmoTest>().Init(this, ammo);
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfammotest") >= 0)
                 gameObject.AddComponent<DoomerfallAmmoTest>().Init(this, ammo);
+            DoomerfallShopStockTest.Attach(this); // test only: -dfshoptest
+            DoomerfallChangeAmmoTest.Attach(this, ammo); // test only: -dfchangeammotest
             newGame = gameObject.AddComponent<DoomerfallNewGame>();
             newGame.Init(this, sync, Environment.GetCommandLineArgs());
             newGame.Items = items;
@@ -225,6 +233,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             own.dfPhase = sync.Phase;
             own.dfHeartbeat++;
             hp.Fill(ref own);
+            damageBonus.Fill(ref own);
             sheet.Publish();
             DfbNative.dfb_publish_state(session, ref own, ownSize);
         }
@@ -401,6 +410,21 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     case Dfb.KIND_AMMO:
                         ammo.OnReport(ev.doomItem.request, ev.doomItem.status, DoomerfallDoomItems.ClassOf(ev.doomItem));
                         break;
+                    case Dfb.KIND_AMMO_READY:
+                        ammo.OnReady(DoomerfallDoomItems.ClassOf(ev.doomItem));
+                        break;
+                    case Dfb.KIND_AMMO_TAKE:
+                        ammo.OnTake(DoomerfallDoomItems.ClassOf(ev.doomItem), (int)ev.doomItem.request, ev.doomItem.status);
+                        break;
+                    case Dfb.KIND_AMMO_CHANGE:
+                        ammo.OnChangeKey();
+                        break;
+                    case Dfb.KIND_AMMO_UNLOADED:
+                        ammo.OnUnloaded(ev.doomItem.request, ev.doomItem.status);
+                        break;
+                    case Dfb.KIND_AREA_LEVEL_REQUEST:
+                        ammo.OnAreaLevelRequest(ev.doomItem.request);
+                        break;
                     case Dfb.KIND_CLIMB_USES:
                         DoomerfallClimb.OnUses(this, ev.climbUses.uses);
                         break;
@@ -425,6 +449,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             own.dfFrame = (uint)Time.frameCount;
             own.demoValue = (uint)Time.frameCount;
             hp.Fill(ref own);
+            damageBonus.Fill(ref own);
             sheet.Publish();
             DfbNative.dfb_publish_state(session, ref own, ownSize);
 

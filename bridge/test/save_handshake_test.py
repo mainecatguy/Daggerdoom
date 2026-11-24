@@ -21,7 +21,8 @@ class Event(C.Structure):
 class DfState(C.Structure):
     _fields_ = [("publish_seq", C.c_uint32), ("df_phase", C.c_uint32), ("heartbeat", C.c_uint64), ("published_ns", C.c_int64),
                 ("df_frame", C.c_uint32), ("demo", C.c_uint32), ("hp_current", C.c_int32), ("hp_max", C.c_int32),
-                ("hp_applied", C.c_uint32), ("hp_flags", C.c_uint32), ("reserved", C.c_ubyte * 208)]
+                ("hp_applied", C.c_uint32), ("hp_flags", C.c_uint32), ("damage_bonus_bp", C.c_int32), ("pad0", C.c_uint32),
+                ("reserved", C.c_ubyte * 200)]
 
 
 def make_iwad(path):

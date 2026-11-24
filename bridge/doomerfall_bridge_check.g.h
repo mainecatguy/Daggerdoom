@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0xbcf1d6fac3c0183fULL
+#define DFB_SCHEMA_HASH 0x0a4168b58a1b39c8ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -101,6 +101,14 @@ static_assert((DFB_GUN_SELECT) == (3u), DFB_STALE);
 static_assert((DFB_KIND_CLIMB_USES) == (170), DFB_STALE);
 static_assert((DFB_KIND_AMMO) == (171), DFB_STALE);
 static_assert((DFB_KIND_AMMO_ADD) == (172), DFB_STALE);
+static_assert((DFB_KIND_AMMO_READY) == (173), DFB_STALE);
+static_assert((DFB_KIND_AMMO_TAKE) == (174), DFB_STALE);
+static_assert((DFB_KIND_AREA_LEVEL_REQUEST) == (175), DFB_STALE);
+static_assert((DFB_KIND_AREA_LEVEL) == (176), DFB_STALE);
+static_assert((DFB_KIND_AMMO_CHANGE) == (177), DFB_STALE);
+static_assert((DFB_KIND_AMMO_UNLOAD) == (178), DFB_STALE);
+static_assert((DFB_KIND_AMMO_UNLOADED) == (179), DFB_STALE);
+static_assert((DFB_KIND_AMMO_LOADED) == (180), DFB_STALE);
 static_assert((DFB_KIND_NPC_USE) == (100), DFB_STALE);
 static_assert((DFB_KIND_NPC_USE_RESULT) == (101), DFB_STALE);
 static_assert((DFB_KIND_MONSTER_DEATH) == (50), DFB_STALE);
@@ -716,8 +724,12 @@ static_assert(offsetof(dfb_df_state, hp_applied_event) == 40, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_df_state::hp_applied_event), uint32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_df_state, hp_flags) == 44, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_df_state::hp_flags), uint32_t>::value, DFB_STALE);
-static_assert(offsetof(dfb_df_state, reserved) == 48, DFB_STALE);
-static_assert(std::is_same<decltype(dfb_df_state::reserved), uint8_t[208]>::value, DFB_STALE);
+static_assert(offsetof(dfb_df_state, damage_bonus_bp) == 48, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_df_state::damage_bonus_bp), int32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_df_state, pad0) == 52, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_df_state::pad0), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_df_state, reserved) == 56, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_df_state::reserved), uint8_t[200]>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_uz_state) == 256, DFB_STALE);
 static_assert(offsetof(dfb_uz_state, publish_seq) == 0, DFB_STALE);

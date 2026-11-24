@@ -99,7 +99,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             pendingDraw = null;
         }
 
-        void OnNewGame() { ResetState(); Log("new game: table cleared, the starting gun will be adopted"); }
+        // The gun Doom holds, or null. Its loaded ammo tier is DoomerfallAmmo's business.
+        internal DoomerfallDoomItem ActiveGun { get { return activeItem as DoomerfallDoomItem; } }
+
+        void OnNewGame() { ResetState(); DoomerfallAmmo.LoadTiers(null); Log("new game: table cleared, the starting gun will be adopted"); }
         void OnStartLoad(SaveData_v1 data) { request = 0; stashLines.Clear(); }
 
         // ---- Save ----
@@ -115,19 +118,23 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     if (sq != null)
                         s.AppendFormat("square {0} {1} {2} {3} {4}\n", k, q, sq.uid, sq.kind, sq.identity ?? "-");
                 }
+            s.Append(DoomerfallAmmo.SaveTiers()).Append('\n'); // The tier Doom's counter of each ammo type stands for.
             return s.ToString();
         }
 
         void LoadText(string text)
         {
             ResetState();
+            string[] tiers = null;
             if (!string.IsNullOrEmpty(text))
                 foreach (string line in text.Split('\n'))
                 {
                     string[] f = line.Trim().Split(' ');
                     try
                     {
-                        if (f[0] == "active" && f.Length >= 4)
+                        if (f[0] == "ammotiers")
+                            tiers = f;
+                        else if (f[0] == "active" && f.Length >= 4)
                         {
                             loadedActiveUid = ulong.Parse(f[1]);
                             activeKey = int.Parse(f[2]);
@@ -138,6 +145,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     }
                     catch (Exception e) { Log("bad save line \"" + line + "\": " + e.Message); }
                 }
+            DoomerfallAmmo.LoadTiers(tiers); // An older save has none: every type loads Regular.
             ItemCollection items = GameManager.Instance.PlayerEntity.Items;
             activeItem = loadedActiveUid != 0 ? items.GetItem(loadedActiveUid) : null;
             adoptWanted = activeItem == null; // An older save, or a lost gun: take what Doom holds.
@@ -257,6 +265,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         // From DaggerfallInventoryWindow.EquipItem. True when Daggerfall must not equip this item.
         internal static bool BlockEquip(DaggerfallUnityItem item)
         {
+            if (item is DoomerfallAmmoItem) return true; // Nothing to equip, and its zero condition would read as "broken".
             DoomerfallDoomItem doom = item as DoomerfallDoomItem;
             if (doom == null) return false;
             DaggerfallUI.MessageBox(doom.IsWearable ? DoomerfallDoomItem.WearMessage : EquipMessage);
@@ -401,8 +410,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             Log(string.Format("draw \"{0}\" with state \"{1}\" (request {2}), putting away \"{3}\"", gun.ItemName, state, req, activeItem != null ? activeItem.ItemName : "nothing"));
         }
 
+        // Counts gun requests, so DoomerfallAmmo knows which ready reports came after a swap began.
+        internal int SwapCount { get; private set; }
+        internal bool SwapInFlight { get { return request != 0; } }
+
         uint Begin(uint flags, DoomerfallDoomItem gun, int key, int square)
         {
+            SwapCount++;
             request = nextRequest++;
             requestFlags = flags;
             requestItem = gun;

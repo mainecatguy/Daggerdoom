@@ -1,11 +1,18 @@
 """Reserve ammo in Daggerfall's inventory, with both real games, minimized. Based on tools/gun_icons/gun_icons.py.
 
-usage: ammo.py assemble | uzdoom | take | load | check
+usage: ammo.py assemble | uzdoom | take | load | equip | equipload | check
 assemble: builds the review folder from this worktree's builds (UZDoom, bridge, launcher, Daggerfall Unity).
 uzdoom:   copies only a fresh UZDoom build into the review folder.
 take:     touch-picks a box of bullets, spends 5, lets Daggerfall's -dfammotest hook drop 7 bullets and add 20 shells,
           then autosaves. Compares Doom's and Daggerfall's counts at the end.
 load:     loads that autosave in fresh copies of both games and compares the counts again.
+equip:    with stand-in ammo bonuses (-dfequiptest: bullets +50%, shells +25%), hurts a monster for 10 with the starting
+          gun, fists, the starting gun raised by hotkey 2, and a shotgun equipped from Daggerfall by hotkey 3, spends 3
+          shells, autosaves, and checks the damage and the counts.
+equipload: loads that autosave and checks the damage and the counts again.
+change:   (-dfchangeammotest) draws a DRLA pistol with 10 in its magazine, presses the change ammo key (magazine back to
+          Daggerfall, Steel loads), spends every loaded round (Silver loads by itself), and autosaves.
+changeload: loads that autosave and checks that Silver is still loaded.
 check:    DOOM.WAD E1M1 with no bridge, stock and with the DRLA set.
 """
 import argparse
@@ -26,7 +33,7 @@ argv, sys.argv = sys.argv, sys.argv[:1]
 import install  # noqa: E402  (only for its registry isolation)
 sys.argv = argv
 
-REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\ammo")
+REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\ammo-change")  # Was review\ammo, ammo-pickup, ammo-equip, then ammo-tiers, for earlier ammo runs.
 SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\doom-items")  # Data, sprite package, and demo items.
 BUILD = Path(r"D:\dev\DoomDaggerfall-build")
 UZ_BUILD = BUILD / "uzdoom-doomitems" / "Release"  # Built from this worktree.
@@ -55,13 +62,13 @@ def lumps(path):
         return {name: zlib.decompress(f.read(packed)) if raw else b"" for name, raw, packed in heads}
 
 
-def harness(load):
+def harness(load, equip=False, tiers=False, change=False):
     cache = REVIEW / "data" / "cache" / f"T{GROUP:05d}.ddt"
     for other in cache.parent.glob("T*.ddt"):
         other.unlink()
     shutil.copy(SOURCE / "data" / "cache" / cache.name, cache)
     door = next(l.split() for l in lumps(cache)["DDDOORS"].decode().splitlines() if l.startswith("1 187853213"))
-    text = (HERE / "harness.zs").read_text().replace("@DOOR@", ", ".join(door[3:8])).replace("@LOADRUN@", "1" if load else "0")
+    text = (HERE / "harness.zs").read_text().replace("@DOOR@", ", ".join(door[3:8])).replace("@LOADRUN@", "1" if load else "0").replace("@EQUIPRUN@", "1" if equip else "0").replace("@TIERRUN@", "1" if tiers else "0").replace("@CHANGERUN@", "1" if change else "0")
     path = REVIEW / "run" / "harness.pk3"
     with zipfile.ZipFile(path, "w") as z:
         z.writestr("zscript.txt", text)
@@ -91,6 +98,11 @@ def assemble():
     if (REVIEW / "data").exists():
         shutil.rmtree(REVIEW / "data")
     shutil.copytree(SOURCE / "data", REVIEW / "data", ignore=shutil.ignore_patterns("work"))
+    # The tiers run needs the converter's placed pickups, which the doom-items dungeon predates.
+    pickups = REVIEW.parent / "pickups" / "data"
+    for name in ("privateershold.wad", "privateershold_mesh.pk3", "privateershold_doors.pk3"):
+        if (pickups / name).exists():
+            shutil.copy2(pickups / name, REVIEW / "data" / name)
     shutil.copy2(LAUNCHER, REVIEW / "doomerfall-launcher.exe")
     shutil.copy2(SOURCE / "dfitems.pk3", REVIEW / "dfitems.pk3")
     subprocess.check_call([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), str(REVIEW / "doomerfall.pk3")])
@@ -112,11 +124,13 @@ def run(name):
     runs.mkdir(parents=True, exist_ok=True)
     saves = runs / "saves"
     saves.mkdir(exist_ok=True)
-    if name == "take":
+    load, equip, tiers = name in ("load", "equipload", "tierload", "changeload"), name in ("equip", "equipload"), name in ("tiers", "tierload")
+    change = name in ("change", "changeload")
+    if name in ("take", "equip", "tiers", "change"):
         for old in saves.glob("*.zds"):
             old.unlink()
     autosaves = sorted(saves.glob("auto*.zds"), key=lambda p: p.stat().st_mtime)
-    if name == "load" and not autosaves:
+    if load and not autosaves:
         sys.exit("no autosave from the take run")
     uz_log, df_log, console, launcher = runs / f"{name}-uz.log", runs / f"{name}-df.log", runs / f"log-{name}.txt", runs / f"{name}-launcher.log"
     for path in (uz_log, df_log, console, launcher):
@@ -124,14 +138,14 @@ def run(name):
     uz = ["-noactivate", "-config", str(runs / f"{name}.ini"), "-savedir", str(saves), "-dfbridgelog", str(uz_log), "-nosound", "-noautoload", "-skill", "3",
           "-ddtowncache", str(REVIEW / "data" / "cache"), "-ddconverter", str(REVIEW / "data" / "converter" / "DungeonConverter.exe"), "-ddarena2", str(GAME / "DAGGER" / "ARENA2"),
           "+logfile", name, "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{GROUP:05d}"]
-    if name == "load":
+    if load:
         uz += ["-dfloadtest", f"resume:{autosaves[-1]}"]
-    df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), "-dfammotest", "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
+    df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), *(["-dfequiptest"] if equip else ["-dfshoptest"] if tiers else ["-dfchangeammotest"] if change else ["-dfammotest"]), "-dfarealevel", "20", "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
     timeout = 120
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
                "--uzdoom-cwd", str(runs), "--log", str(launcher)]
-    for mod in [MODS / n for n in DRLA] + [REVIEW / "data" / n for n in DATA] + [REVIEW / "dfitems.pk3", REVIEW / "doomerfall.pk3", harness(name == "load")]:
+    for mod in [MODS / n for n in DRLA] + [REVIEW / "data" / n for n in DATA] + [REVIEW / "dfitems.pk3", REVIEW / "doomerfall.pk3", harness(load, equip, tiers, change)]:
         command += ["--mod", str(mod)]
     for arg in uz:
         command += ["--uzdoom-arg", arg]
@@ -154,18 +168,38 @@ def run(name):
         proc.wait()
     print("stopped:", reason)
     for line in read(console).splitlines():
-        if re.match(r"AM[A-Z]+ ", line) or "ammo add" in line or "Script error" in line or any(k in line for k in FATAL):
+        if re.match(r"AM[A-Z]+ ", line) or "loaded ammo" in line or "ammo unload" in line or "change ammo" in line or "DFAMMO jackpot" in line or "ammo add" in line or "ready weapon" in line or "damage bonus" in line or "Script error" in line or any(k in line for k in FATAL):
             print("uz", line[:220])
     for line in read(uz_log).splitlines():
         if re.search(r"save|load test", line, re.I):
             print("uz-bridge", line[:200])
     df_body = read(df_log)
     for line in df_body.splitlines():
-        if "ammo" in line or re.search(r"\bsave\b|load", line):
+        if ("ammo" in line and "area level" not in line) or "damage bonus" in line or "equiptest" in line or re.search(r"\bsave\b|load", line):
             print("df", line[:300])
     doom, dagger = counts_doom(read(console)), counts_df(df_body)
     print("final Doom:", doom)
     print("final Daggerfall:", dagger)
+    if equip or change:
+        # The bridge logs what Daggerfall's bonus made of each hit ("10 -> 15 (5000 bp)"), or nothing with no bonus.
+        # Health lost is shown too, but DRLA X starting perks can multiply it further after the bonus.
+        want = {"Clip": "10 -> 15 (5000 bp)", "Shell": "10 -> 12 (2500 bp)"}
+        if change:  # By hit label: Regular +0%, Steel +20%, Silver +10% (the automatic change, the pistol again, after the load).
+            want = {"regular": None, "steel": "10 -> 12 (2000 bp)", "automatic": "10 -> 11 (1000 bp)", "other gun": None, "pistol again": "10 -> 11 (1000 bp)", "loaded": "10 -> 11 (1000 bp)"}
+        scaled, hits = None, 0
+        for line in read(console).splitlines():
+            m = re.search(r"damage bonus: .* hit by the player, (.+)$", line)
+            if m:
+                scaled = m.group(1).strip()
+            m = re.match(r"AMHIT (.+?) weapon=(\S+) ammo=(\S+) lost=(\d+)", line)
+            if m:
+                label, weapon, ammo, lost = m.groups()
+                hits += 1
+                expect = want.get(label) if change else want.get(ammo)
+                ok = scaled == expect
+                print("hit", label, weapon, ammo, "bridge", scaled or "unscaled", "expected", expect or "unscaled", "lost", lost, "PASS" if ok else "FAIL")
+                scaled = None
+        print("hits", hits)
     print("MATCH" if doom and all(doom.get(c) == dagger.get(c) for c in CLASSES) else "MISMATCH")
 
 
@@ -176,7 +210,7 @@ def check():
         log = runs / f"log-check-{label}.txt"  # UZDoom writes +logfile NAME to log-NAME.txt.
         log.unlink(missing_ok=True)
         command = [sys.executable, QUIET, "--timeout", "30", "--cwd", str(runs), "--", str(REVIEW / "uzdoom" / "uzdoom.exe"), "-noactivate", "-iwad", str(GAME / "wads" / "DOOM.WAD"), "-config", str(runs / f"check-{label}.ini"),
-                   "-nosound", "-noautoload", "-skill", "3", *(["-file", *mods] if mods else []), "+logfile", f"check-{label}", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+vid_fullscreen", "0",
+                   "-nosound", "-noautoload", "-skill", "3", "-file", *mods, str(REVIEW / "doomerfall.pk3"), "+logfile", f"check-{label}", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+vid_fullscreen", "0",
                    "+map", "E1M1", "+wait 140;quit"]
         code = subprocess.call(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         body = read(log)
@@ -188,7 +222,7 @@ def check():
 
 
 ap = argparse.ArgumentParser()
-ap.add_argument("command", choices=("assemble", "uzdoom", "take", "load", "check"))
+ap.add_argument("command", choices=("assemble", "uzdoom", "take", "load", "equip", "equipload", "tiers", "tierload", "change", "changeload", "check"))
 args = ap.parse_args()
 if args.command == "assemble":
     assemble()

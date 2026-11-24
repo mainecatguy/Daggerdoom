@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0xbcf1d6fac3c0183fUL;
+        public const ulong SchemaHash = 0x0a4168b58a1b39c8UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -101,6 +101,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_CLIMB_USES = 170;  // UZ to DF; Daggerfall tallies this many Climbing skill uses; payload: dfb_climb_uses
         public const ushort KIND_AMMO = 171;  // UZ to DF; status is Doom's count; request is the last AMMO_ADD Doom applied
         public const ushort KIND_AMMO_ADD = 172;  // DF to UZ; status is a signed 32-bit delta to add (Doom's count stops at 0)
+        public const ushort KIND_AMMO_READY = 173;  // UZ to DF; the ready weapon changed; cls is the reserve ammo class it uses, or empty for none
+        public const ushort KIND_AMMO_TAKE = 174;  // UZ to DF; the player touched a tiered ammo pickup; cls is the reserve class, status the rounds, request the tier (0 Regular to 9 Daedric)
+        public const ushort KIND_AREA_LEVEL_REQUEST = 175;  // UZ to DF; request is a map pixel, y * 1000 + x; Daggerfall answers with AREA_LEVEL
+        public const ushort KIND_AREA_LEVEL = 176;  // DF to UZ; request is the map pixel, status the area level there (Doom rolls ammo drop tiers with it)
+        public const ushort KIND_AMMO_CHANGE = 177;  // UZ to DF; the player pressed the change ammo key
+        public const ushort KIND_AMMO_UNLOAD = 178;  // DF to UZ; request is a number; status 1 is automatic (refused while the magazine holds rounds); cls is the reserve class
+        public const ushort KIND_AMMO_UNLOADED = 179;  // UZ to DF; request echoes AMMO_UNLOAD; status is the rounds taken out of the magazine, or 0xFFFFFFFF refused
+        public const ushort KIND_AMMO_LOADED = 180;  // DF to UZ; request is the loaded tier (0xFFFFFFFF none), status the ammo type (0 Clip to 3 Cell); cls is the ammo's tags, comma separated
         public const ushort KIND_NPC_USE = 100;  // UZ to DF; payload: dfb_npc_use
         public const ushort KIND_NPC_USE_RESULT = 101;  // DF to UZ; payload: dfb_npc_use_result
         public const ushort KIND_MONSTER_DEATH = 50;  // UZ to DF; a tagged monster died; payload: dfb_monster_death
@@ -880,7 +888,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(36)] public int hpMax;
         [FieldOffset(40)] public uint hpAppliedEvent;  // event_no of the last dfb_hp_event Daggerfall applied
         [FieldOffset(44)] public uint hpFlags;  // DFB_HPF_*
-        // 208 reserved bytes at offset 48
+        [FieldOffset(48)] public int damageBonusBp;
+        [FieldOffset(52)] public uint pad0;
+        // 200 reserved bytes at offset 56
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 256)]

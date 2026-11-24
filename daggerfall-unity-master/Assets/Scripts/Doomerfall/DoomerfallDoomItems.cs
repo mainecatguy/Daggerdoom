@@ -62,6 +62,16 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             get { int at = shortName.IndexOf("|gun|"); return at < 0 ? "" : shortName.Substring(at + 5); }
             set { shortName = DoomClass + "|gun|" + (value ?? ""); }
         }
+        // The ammo tier this gun loads (card ammotiers/05: each gun remembers its own), with the reserve ammo type it was
+        // recorded for, or false when the gun has none yet. Kept in typeDependentData (saved; Daggerfall uses it only for
+        // potions and arrows) as (type + 1) * 16 + tier.
+        internal bool TryGetAmmoTier(out int type, out int tier)
+        {
+            type = typeDependentData / 16 - 1;
+            tier = typeDependentData % 16;
+            return IsGun && type >= 0;
+        }
+        internal void SetAmmoTier(int type, int tier) { typeDependentData = (byte)((type + 1) * 16 + tier); }
         public override string ItemName { get { return DoomerfallDoomItems.NameFor(DoomClass); } }
         public override string LongName { get { return ItemName; } }
         public override bool IsStackable() { return false; }
@@ -372,7 +382,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             texture.filterMode = FilterMode.Point;
             texture.wrapMode = TextureWrapMode.Clamp;
             texture.LoadRawTextureData(rgba);
-            texture.Apply(false, testFolder == null);
+            texture.Apply(false, false); // Kept readable: tiered ammo tints a copy (DoomerfallAmmoTiers.Tinted). Icons are small.
             known.texture = texture;
             known.tag = Text(slot, 80, 64);
             float scale = Mathf.Min(1f, (float)MaxIconSize / Mathf.Max(width, height));

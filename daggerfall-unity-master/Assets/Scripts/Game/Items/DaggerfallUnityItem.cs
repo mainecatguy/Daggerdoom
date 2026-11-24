@@ -711,9 +711,18 @@ namespace DaggerfallWorkshop.Game.Items
         /// Determines if item is a stack.
         /// </summary>
         /// <returns><c>true</c> if item is a stack, <c>false</c> otherwise.</returns>
-        public bool IsAStack() 
+        public bool IsAStack()
         {
             return stackCount > 1;
+        }
+
+        /// <summary>
+        /// [Doomerfall] A new item of the same kind, for ItemCollection.SplitStack. A custom item class overrides this
+        /// when its template alone does not say what it is.
+        /// </summary>
+        public virtual DaggerfallUnityItem CreateStackPart()
+        {
+            return ItemBuilder.CreateItem(ItemGroup, TemplateIndex);
         }
 
         /// <summary>
