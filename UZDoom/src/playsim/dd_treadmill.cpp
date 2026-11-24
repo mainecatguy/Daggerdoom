@@ -663,11 +663,10 @@ namespace
 		return Parked::Stored;
 	}
 
-	void Park(AActor *mo, int fromX, int fromY)
+	void ParkAs(AActor *mo, Parked decided, Record &r)
 	{
 		if (mo->ddRecordId) expected.erase(mo->ddRecordId);
-		Record r;
-		switch (MakeRecord(mo, fromX, fromY, r))
+		switch (decided)
 		{
 		case Parked::Unchanged:
 			unchangedCount++;
@@ -684,6 +683,22 @@ namespace
 			break;
 		}
 		mo->Destroy();
+	}
+
+	void Park(AActor *mo, int fromX, int fromY)
+	{
+		Record r;
+		const Parked decided = MakeRecord(mo, fromX, fromY, r);
+		ParkAs(mo, decided, r);
+	}
+
+	// Decides every row before destroying anything: destroying a monster clears other monsters' target pointers, which
+	// would turn alerted monsters "unchanged" partway through, unlike the location ledger's snapshot of the same moment.
+	void ParkAll(const std::vector<AActor *> &actors, int fromX, int fromY)
+	{
+		std::vector<std::pair<Parked, Record>> decided(actors.size());
+		for (size_t n = 0; n < actors.size(); n++) decided[n].first = MakeRecord(actors[n], fromX, fromY, decided[n].second);
+		for (size_t n = 0; n < actors.size(); n++) ParkAs(actors[n], decided[n].first, decided[n].second);
 	}
 
 	void Restore(FLevelLocals *Level, const Record &r)
@@ -1427,7 +1442,7 @@ namespace
 				keep.push_back(mo);
 		unchangedCount = 0;
 		const int parkedBefore = parkCount;
-		for (AActor *mo : keep) Park(mo, originX, originY);
+		ParkAll(keep, originX, originY);
 		Printf("DDTM left %s: %d stored as changed, %d unchanged not stored, table rows %d\n", Level->MapName.GetChars(), parkCount - parkedBefore, unchangedCount, int(table.size()));
 
 		// This tic's move still happens on the old map, so the arrival point is one tic ahead.

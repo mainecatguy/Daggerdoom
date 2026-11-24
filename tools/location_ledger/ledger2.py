@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import sys
 import zipfile
+from collections import Counter
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -57,11 +58,32 @@ def signature(name, when):
     return head, [r for r in rows if not r.startswith(("begin", "end"))]
 
 
+def parse(row):
+    state, cls, spot, _, hp, *rest = row.split(" ")
+    return (state, cls, hp, bool(rest)), tuple(int(v) for v in spot.split(","))
+
+
 def compare(a, b, label):
+    """Row by row as multisets. A row that differs must match one on the other side with the same kind, class, health
+    and drop flag, within one 8-unit cell across, and at the same or a lower height: Doom's physics may settle it by a
+    unit or let it fall (a corpse that rested on a living monster comes back before the pack is rebuilt under it)."""
     (ha, ra), (hb, rb) = a, b
     print(f"{label}: {ha} | {hb} | identical {ra == rb}")
-    for row in sorted(set(ra) ^ set(rb))[:15]:
-        print("   only in", "first " if row in ra else "second", row)
+    ca, cb = Counter(ra), Counter(rb)
+    only_a = [parse(r) for r in (ca - cb).elements()]
+    only_b = [parse(r) for r in (cb - ca).elements()]
+    unmatched, fell = [], 0
+    for key, (x, y, z) in only_a:
+        hit = next((i for i, (k2, (x2, y2, z2)) in enumerate(only_b) if k2 == key and abs(x - x2) <= 1 and abs(y - y2) <= 1 and z2 <= z + 1), None)
+        if hit is None:
+            unmatched.append(("first ", key, (x, y, z)))
+        else:
+            fell += only_b[hit][1][2] < z - 4
+            only_b.pop(hit)
+    unmatched += [("second", key, spot) for key, spot in only_b]
+    print(f"   rows that differ: {len(only_a)}; matched by settling or falling: {len(only_a) - len(unmatched)} ({fell} fell more than 32 units); unmatched: {len(unmatched)}")
+    for side, key, spot in unmatched[:15]:
+        print("   unmatched in", side, key, spot)
 
 
 def report(name, first=None):

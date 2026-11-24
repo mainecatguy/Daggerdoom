@@ -61,7 +61,7 @@ class MDHarness : EventHandler
 		let it = ThinkerIterator.Create("Actor");
 		Actor mo;
 		while (mo = Actor(it.Next()))
-			if (mo.bISMONSTER && mo.health > 0 && !mo.player) { mo.vel = (0, 0, 0); mo.tics = -1; }
+			if (mo.bISMONSTER && mo.health > 0 && !mo.player) { mo.vel.xy = (0, 0); mo.tics = -1; }	// gravity still lands it
 	}
 
 	static bool NeverKept(Actor mo) { return mo is "Archvile" || mo is "PainElemental" || mo is "LostSoul"; }
@@ -90,13 +90,8 @@ class MDHarness : EventHandler
 		p.vel = (0, 0, 0);
 	}
 
-	// True once the planner has placed the pack: the living count held still for a second.
-	static bool Settled(MDState st)
-	{
-		int now = Living();
-		if (now != st.lastLiving) { st.lastLiving = now; st.stable = 0; return false; }
-		return ++st.stable >= 35 && st.timer >= 140;
-	}
+	// True once the planner has placed the pack (the slaughter pack infights, so the count never holds still).
+	static bool Settled(MDState st) { return st.timer >= 175 && Living() > 0; }
 
 	override void WorldTick()
 	{
@@ -105,6 +100,7 @@ class MDHarness : EventHandler
 		let st = MDState(p.FindInventory("MDState"));
 		if (!st) st = MDState(p.GiveInventoryType("MDState"));
 		if (!st) return;
+		if (loadRoute && st.phase == 9) { st.phase = 0; st.timer = 0; }	// the save carries the first route's state
 		p.bNOTARGET = true;
 		players[0].cheats |= CF_GODMODE;
 		bool inside = level.MapName ~== "MAP01" || level.MapName.Left(3) ~== "DDS";
@@ -137,7 +133,7 @@ class MDHarness : EventHandler
 				{
 					if (!mo.bISMONSTER || mo.health <= 0 || mo.player) continue;
 					st.pack.Push(mo);
-					if (!NeverKept(mo) && mo.Distance3D(p) < best) { best = mo.Distance3D(p); st.wounded = mo; }
+					if (!NeverKept(mo) && mo.SpawnHealth() >= 400 && !mo.bFLOAT && mo.Distance3D(p) < best) { best = mo.Distance3D(p); st.wounded = mo; }
 				}
 			}
 			Console.Printf("LLINSIDE living %d", st.pack.Size());
@@ -177,7 +173,8 @@ class MDHarness : EventHandler
 		}
 		case 3: // Let the wounded one chase for three seconds, then stop the place and leave.
 			if (st.timer < 105) break;
-			Freeze();
+			Freeze();	// and a second for anything in the air to land and any projectile to hit
+			if (st.timer < 140) break;
 			if (st.wounded) Console.Printf("LLWOUNDED %s hp %d now at %d,%d", st.wounded.GetClassName(), st.wounded.health, int(st.wounded.pos.x), int(st.wounded.pos.y));
 			Signature("leave");
 			GoToExit(p);
@@ -193,17 +190,25 @@ class MDHarness : EventHandler
 			break;
 		case 6: // Back inside (or loaded and entered): print the place.
 			if (!inside) { if (st.timer > LIMIT) { Console.Printf("MDFAIL no re-entry"); Finish("failed"); } break; }
+			Freeze();	// from the first tic, so what is checked is what came back, not what it did afterwards
 			if (!Settled(st) || st.timer < 35 * 5) break;
-			Freeze();
 			Signature(loadRoute ? "loaded" : "reentry");
 			if (loadRoute) { Finish("passed"); break; }
+			Console.Printf("MDSAVE inside");
+			level.MakeAutoSave();	// Doom reports the place ahead of the save request
+			st.phase = 10;
+			st.timer = 0;
+			break;
+		case 10: // After the save inside, leave again.
+			Freeze();
+			if (st.timer < 70) break;
 			GoToExit(p);
 			st.phase = 8;
 			st.timer = 0;
 			break;
 		case 9: // Outside: save, so the dungeon's history lives only in Daggerfall's ledger and Doom's table.
 			if (st.timer == 35) { Console.Printf("MDSAVE outside"); level.MakeAutoSave(); }
-			if (st.timer > 35 * 4) Finish("passed");
+			if (st.timer > 35 * 2) Finish("passed");
 			break;
 		}
 	}
