@@ -127,6 +127,7 @@ def run(name, stock_mods, night=False):
     data, runs = REVIEW / "data", REVIEW / "run"
     saves = runs / "saves"
     saves.mkdir(parents=True, exist_ok=True)
+    (runs / f"{name}-shots").mkdir(exist_ok=True)
     uz_log, df_log, console, launcher = runs / f"{name}-uz.log", runs / f"{name}-df.log", runs / f"log-{name}.txt", runs / f"{name}-launcher.log"
     for path in (uz_log, df_log, console, launcher):
         path.unlink(missing_ok=True)
@@ -138,7 +139,7 @@ def run(name, stock_mods, night=False):
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "IMHarness" }\n')
     uz = ["-noactivate", "-config", str(runs / f"{name}.ini"), "-savedir", str(saves), "-dfbridgelog", str(uz_log), "-nosound", "-noautoload", "-skill", "3",
           "-ddtowncache", str(data / "cache"), "-ddconverter", str(data / "converter" / "DungeonConverter.exe"), "-ddarena2", str(GAME / "DAGGER" / "ARENA2"),
-          "+logfile", name, "+screenshot_dir", str(runs / f"{name}-shots"),"+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{GROUP:05d}"]
+          "+logfile", name, "-shotdir", str(runs / f"{name}-shots"), "+enablescriptscreenshot", "1", "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{GROUP:05d}"]
     df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), "-dfloottest", "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"] + (["-dfnpcreport", "-dfnpcnight"] if night else [])
     timeout = 90
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
