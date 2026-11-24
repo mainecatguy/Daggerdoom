@@ -59,9 +59,7 @@ def harness():
     for other in cache.parent.glob("T*.ddt"):
         if other.name != cache.name:
             other.unlink()
-    shutil.copy2(SOURCE / "data" / "cache" / cache.name, cache)
-    cache.touch()
-    door = next(l.split() for l in lumps(cache)["DDDOORS"].decode().splitlines() if l.startswith("1 187853213"))
+    door = next(l.split() for l in lumps(SOURCE / "data" / "cache" / cache.name)["DDDOORS"].decode().splitlines() if l.startswith("1 187853213"))
     text = (HERE / "harness.zs").read_text()
     text = text.replace("@DOOR@", ", ".join(door[3:8])).replace("@USE@", ", ".join(f'"{n}"' for n in USE))
     path = REVIEW / "run" / "harness.pk3"
