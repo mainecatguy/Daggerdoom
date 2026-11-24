@@ -72,6 +72,7 @@ void DD_TownsfolkDied(dfb_session *session, AActor *mo);
 void DD_ClimbFrame(dfb_session *session);
 bool DD_ClimbNetEvent(dfb_session *session, const char *name);
 bool DD_GuardsEvent(const dfb_event &e);
+void DD_LightsSetCity(bool on);	// playsim/dd_lights.cpp
 void DD_GuardsFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t target);
 void DD_GuardDied(dfb_session *session, AActor *mo);
 
@@ -328,6 +329,8 @@ void HandleEvent(const dfb_event &e, int64_t now)
 	{
 		char text[sizeof(e.payload) + 1] = {};
 		memcpy(text, e.payload, sizeof(e.payload));
+		int lampsOn;
+		if (sscanf(text, "citylights %d", &lampsOn) == 1) { DD_LightsSetCity(lampsOn != 0); break; }	// Daggerfall's clock, for town lamps
 		Log("message from Daggerfall: \"%s\" (seq %u)", text, e.seq);
 		break;
 	}

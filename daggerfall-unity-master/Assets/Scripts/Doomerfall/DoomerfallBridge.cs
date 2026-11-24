@@ -199,6 +199,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             newGame.Townspeople = townspeople;
             guards = gameObject.AddComponent<DoomerfallGuards>();
             guards.Init(this, sync);
+            gameObject.AddComponent<DoomerfallCityLights>().Init(this);
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfguardtest") >= 0)
                 gameObject.AddComponent<DoomerfallGuardsTest>().Init(this, sync);
         }
@@ -260,7 +261,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             log.WriteLine((session != IntPtr.Zero ? (DfbNative.dfb_now_ns() / 1e9).ToString("F3") : "-") + " " + line);
         }
 
-        void SendText(string text)
+        internal void SendText(string text)
         {
             byte[] bytes = new byte[48];
             Encoding.UTF8.GetBytes(text, 0, Math.Min(text.Length, 48), bytes, 0);

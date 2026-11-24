@@ -833,6 +833,7 @@ set (PCH_SOURCES
 	p_tick.cpp
 	playsim/dd_treadmill.cpp # [Doomerfall]
 	playsim/dd_towncache.cpp # [Doomerfall]
+	playsim/dd_lights.cpp # [Doomerfall]
 	playsim/p_user.cpp
 	rendering/r_utility.cpp
 	rendering/r_sky.cpp

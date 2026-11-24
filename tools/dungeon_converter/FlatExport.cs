@@ -82,6 +82,12 @@ static partial class Program
                 if (group.RdbObjects == null) continue;
                 foreach (var obj in group.RdbObjects)
                 {
+                    // RDBLayout.AddLight: a point light whose Unity range is the record's radius times 3.
+                    if (obj.Type == DFBlock.RdbResourceTypes.Light)
+                    {
+                        package.Lights.Add((ToDoom(new V3(obj.XPos, -obj.YPos, obj.ZPos) + offset), obj.Resources.LightResource.Radius * 3 * PlayerScale.DoomUnitsPerDaggerfallUnit));
+                        continue;
+                    }
                     if (obj.Type != DFBlock.RdbResourceTypes.Flat) continue;
                     var flat = obj.Resources.FlatResource;
                     // RDBLayout.AddFlat makes a StaticNPC of every flat in these archives.
@@ -107,7 +113,12 @@ static partial class Program
             }
         }
         var kinds = package.Ordinary.GroupBy(f => f.archive).OrderBy(g => g.Key).Select(g => $"{g.Key}:{g.Count()}");
-        Console.WriteLine($"flats: {package.Ordinary.Count} ordinary, {package.Ordinary.Select(f => (f.archive, f.record)).Distinct().Count()} distinct, by archive {string.Join(" ", kinds)}; not drawn by archive {string.Join(" ", hidden.Select(p => $"{p.Key}:{p.Value}"))}");
+        if (package.Lights.Count > 0)
+        {
+            var ranges = package.Lights.Select(l => l.range).OrderBy(r => r).ToList();
+            Console.WriteLine(FormattableString.Invariant($"lights: {ranges.Count}, Doom range min {ranges[0]:F0} median {ranges[ranges.Count / 2]:F0} max {ranges[^1]:F0}"));
+        }
+        Console.WriteLine($"flats: {package.Ordinary.Count} ordinary,{package.Ordinary.Select(f => (f.archive, f.record)).Distinct().Count()} distinct, by archive {string.Join(" ", kinds)}; not drawn by archive {string.Join(" ", hidden.Select(p => $"{p.Key}:{p.Value}"))}");
     }
 
     // --list-flats: the dungeons with the most ordinary billboards, to choose a worst case for frame cost.
@@ -145,6 +156,10 @@ static partial class Program
         Console.WriteLine($"dungeons {totals.Count}, median {totals.Select(t => t.flats).OrderBy(n => n).ElementAt(totals.Count / 2)} ordinary flats");
         return 0;
     }
+
+    // DFDLIGHTS: one "x y z range" line per RDB light record, in Doom units. The range is Daggerfall Unity's light range.
+    static string DungeonLightLump(ActionPackage package) =>
+        string.Concat(package.Lights.Select(l => FormattableString.Invariant($"{l.at.X:F1} {l.at.Y:F1} {l.at.Z:F1} {l.range:F1}\n")));
 
     // DFDFLATS: one "texture x y z scaleX scaleY [npc id]" line per billboard.
     static string DungeonFlatLump(ActionPackage package, Func<int, TextureFile> archive)
