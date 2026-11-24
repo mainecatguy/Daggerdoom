@@ -2,6 +2,7 @@
 // world time, and lists the ones near the player with their motion. This keeps one passive actor per listed person,
 // moves it between lists, and picks Daggerfall's facing sprite. The id lives in ddRecordId, so a death reaches
 // Daggerfall through the same hook as a monster's. Nothing here runs until Daggerfall sends a townsfolk list.
+// Inside a building, Daggerfall lists the people at home there instead, already in the interior map's units.
 
 #include <cinttypes>
 #include <cmath>
@@ -30,7 +31,7 @@ constexpr double DoomPerDf = 0.75;
 constexpr double SnapDistance = 128;
 constexpr int Records = 16;
 
-struct Row { uint16_t archive, flags; double x, y, vx, vy; float facing; };
+struct Row { uint16_t archive, flags; double x, y, vx, vy; float facing, z; };
 struct Look { FTextureID tex[Records]; DVector2 scale[Records]; };
 
 std::unordered_map<uint64_t, Row> accepted, rows;
@@ -40,7 +41,7 @@ std::unordered_map<int64_t, DVector2> mobileScales;
 uint32_t acceptedGeneration;
 double acceptedOx, acceptedOz, originX, originZ;
 int listTic;
-bool listPending, everListed, wantList, scalesLoaded;
+bool listPending, everListed, wantList, scalesLoaded, acceptedIndoors, indoors;
 uint32_t currentContext;
 
 bool IsTownspersonId(uint64_t id) { return (id >> 61) == DFB_TOWNSPERSON_TAG; }
@@ -111,10 +112,11 @@ void ChooseSprite(AActor *mo, const Row &r, AActor *camera, bool walking)
 bool Target(const Row &r, int tics, DVector2 &out)
 {
 	const double dt = tics / double(TICRATE);
+	if (indoors) { out = DVector2(r.x, r.y); return true; }
 	return DDTreadmill_WorldToLocal(originX + r.x + r.vx * dt, originZ + r.y + r.vy * dt, out.X, out.Y);
 }
 
-void Place(AActor *mo, const DVector2 &at, bool snap)
+void Place(AActor *mo, const DVector2 &at, bool snap, double z)
 {
 	DVector2 to = at;
 	if (!snap)
@@ -122,7 +124,8 @@ void Place(AActor *mo, const DVector2 &at, bool snap)
 		const DVector2 d = at - mo->Pos().XY();
 		if (d.LengthSquared() < SnapDistance * SnapDistance) to = mo->Pos().XY() + d * 0.35;
 	}
-	mo->SetOrigin(DVector3(to, mo->Z()), !snap);
+	// Indoors, start from the spot's height so a storey above or below is not picked.
+	mo->SetOrigin(DVector3(to, indoors ? z + 8 : mo->Z()), !snap);
 	P_FindFloorCeiling(mo, FFCF_ONLYSPAWNPOS);
 	mo->SetZ(mo->floorz);
 	if (snap) mo->ClearInterpolation();
@@ -139,6 +142,7 @@ void DD_TownsfolkTick(FLevelLocals *Level)
 		accepted.clear();
 		originX = acceptedOx;
 		originZ = acceptedOz;
+		indoors = acceptedIndoors;
 		listTic = Level->maptime;
 	}
 	PClassActor *cls = PClass::FindActor("DFTownsperson");
@@ -158,7 +162,7 @@ void DD_TownsfolkTick(FLevelLocals *Level)
 			mo->Destroy();
 			continue;
 		}
-		Place(mo, at, false);
+		Place(mo, at, false, row->second.z);
 		ChooseSprite(mo, row->second, camera, row->second.vx != 0 || row->second.vy != 0);
 	}
 	int spawned = 0;
@@ -171,7 +175,7 @@ void DD_TownsfolkTick(FLevelLocals *Level)
 		mo->ddRecordId = id;
 		mo->args[0] = int(uint32_t(id));
 		mo->args[1] = int(uint32_t(id >> 32));
-		Place(mo, at, true);
+		Place(mo, at, true, r.z);
 		ChooseSprite(mo, r, camera, r.vx != 0 || r.vy != 0);
 		spawned++;
 	}
@@ -189,6 +193,7 @@ bool DD_TownsfolkEvent(const dfb_event &e)
 		acceptedGeneration = b.generation;
 		acceptedOx = b.origin_x;
 		acceptedOz = b.origin_z;
+		acceptedIndoors = b.space == DFB_TOWNSFOLK_INTERIOR;
 		accepted.clear();
 		return true;
 	}
@@ -196,14 +201,16 @@ bool DD_TownsfolkEvent(const dfb_event &e)
 	{
 		dfb_townsperson p;
 		memcpy(&p, e.payload, sizeof(p));
-		if (p.generation == acceptedGeneration) accepted[p.id] = { p.archive, p.flags, p.x, p.y, p.vx, p.vy, p.facing };
+		if (p.generation == acceptedGeneration) accepted[p.id] = { p.archive, p.flags, p.x, p.y, p.vx, p.vy, p.facing, p.z };
 		return true;
 	}
 	case DFB_KIND_TOWNSFOLK_END:
 	{
 		dfb_townsfolk b;
 		memcpy(&b, e.payload, sizeof(b));
-		if (b.generation == acceptedGeneration) { listPending = true; everListed = true; }
+		// A list for the other side of a door is stale: the street list must not land in a house, nor the reverse.
+		const uint32_t want = acceptedIndoors ? DFB_WORLD_INTERIOR : DFB_WORLD_EXTERIOR;
+		if (b.generation == acceptedGeneration && (currentContext == want || b.count == 0)) { listPending = true; everListed = true; }
 		return true;
 	}
 	default:
@@ -219,7 +226,7 @@ void DD_TownsfolkFrame(dfb_session *session, uint32_t context)
 		accepted.clear();
 		rows.clear();
 		listPending = false;
-		wantList = context == DFB_WORLD_EXTERIOR;
+		wantList = context == DFB_WORLD_EXTERIOR || context == DFB_WORLD_INTERIOR;
 	}
 	if (wantList && gamestate == GS_LEVEL)
 	{
@@ -235,7 +242,7 @@ void DD_TownsfolkResync()
 	accepted.clear();
 	listPending = false;
 	killed.clear();
-	wantList = currentContext == DFB_WORLD_EXTERIOR;
+	wantList = currentContext == DFB_WORLD_EXTERIOR || currentContext == DFB_WORLD_INTERIOR;
 }
 
 void DD_TownsfolkDied(dfb_session *session, AActor *mo)
@@ -243,7 +250,7 @@ void DD_TownsfolkDied(dfb_session *session, AActor *mo)
 	if (!IsTownspersonId(mo->ddRecordId) || !killed.insert(mo->ddRecordId).second) return;
 	dfb_townsperson_death death{ mo->ddRecordId, 0, 0 };
 	auto row = rows.find(mo->ddRecordId);
-	if (row != rows.end()) { death.world_x = originX + row->second.x; death.world_z = originZ + row->second.y; }
+	if (row != rows.end() && !indoors) { death.world_x = originX + row->second.x; death.world_z = originZ + row->second.y; }
 	dfb_event e{};
 	e.kind = DFB_KIND_TOWNSPERSON_DEATH;
 	e.tic = gametic;

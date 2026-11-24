@@ -529,13 +529,17 @@ typedef struct dfb_npc
 	uint32_t pad;
 } dfb_npc;
 
-/* One townsfolk list. Rows are Daggerfall world units relative to origin, so floats keep their precision. */
+/* One townsfolk list. Rows are Daggerfall world units relative to origin, so floats keep their precision.
+   An interior list (space DFB_TOWNSFOLK_INTERIOR) holds the people at home in the building the player is in; its rows
+   are Doom map units in that interior's map, and the origin is unused. */
+#define DFB_TOWNSFOLK_STREETS  0u
+#define DFB_TOWNSFOLK_INTERIOR 1u
 typedef struct dfb_townsfolk
 {
 	uint32_t generation;
 	uint32_t count;
 	int32_t map_id;       /* the town's Daggerfall map id, or 0 for an empty list away from towns */
-	uint32_t pad;
+	uint32_t space;       /* DFB_TOWNSFOLK_STREETS or DFB_TOWNSFOLK_INTERIOR */
 	double origin_x;      /* Daggerfall world units */
 	double origin_z;
 } dfb_townsfolk;
@@ -552,7 +556,7 @@ typedef struct dfb_townsperson
 	float vx;
 	float vy;
 	float facing;         /* Doom angle in degrees: 0 is east, counterclockwise */
-	uint32_t pad;
+	float z;              /* interior lists: Doom height of the spot, so the right storey is found; else 0 */
 } dfb_townsperson;
 
 /* Position is Daggerfall world units, for logs. */
