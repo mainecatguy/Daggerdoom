@@ -15,6 +15,7 @@ using System.Text;
 using DaggerfallConnect;
 using DaggerfallConnect.Arena2;
 using DaggerfallWorkshop.Game.Entity;
+using DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects;
 using DaggerfallWorkshop.Game.Serialization;
 using DaggerfallWorkshop.Utility;
 using FullSerializer;
@@ -450,7 +451,76 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             ledger.dead.Add(id.ToString("x16"));
             TownPerson p = FindPersonAnyState(id);
             bridge.LogLine(string.Format("town: death {0:x16} {1} at {2:F0},{3:F0}; {4} dead in all", id, p != null ? p.Name + " (" + p.habit + ")" : "not in this town", worldX, worldZ, dead.Count));
+            if (p != null && GameManager.HasInstance)
+                ApplyCrime(p, worldX, worldZ);
             nextPoll = 0;
+        }
+
+        // What Daggerfall does when the player's weapon hits a mobile townsperson (WeaponManager.WeaponDamage): a commoner
+        // dies, which is murder and calls the guards; a guard becomes a city watch knight on that spot, which is assault.
+        void ApplyCrime(TownPerson p, double worldX, double worldZ)
+        {
+            PlayerEntity player = GameManager.Instance.PlayerEntity;
+            if (!p.guard)
+            {
+                player.TallyCrimeGuildRequirements(false, 5);
+                player.CrimeCommitted = PlayerEntity.Crimes.Murder;
+                player.SpawnCityGuards(true);
+                FeedRacialOverride(player);
+                bridge.LogLine(string.Format("town: murder; crime {0}, Dark Brotherhood tally {1}", player.CrimeCommitted, player.DarkBrotherhoodRequirementTally));
+                return;
+            }
+            player.CrimeCommitted = PlayerEntity.Crimes.Assault;
+            Vector3 at;
+            if (!GuardSpot(worldX, worldZ, out at))
+            {
+                bridge.LogLine("town: assault on a guard, but there is no spot for the city watch");
+                return;
+            }
+            player.SpawnCityGuard(at, Vector3.forward);
+            bridge.LogLine(string.Format("town: assault on a guard; crime {0}, city watch spawned", player.CrimeCommitted));
+        }
+
+        // Outdoors, the dead guard's spot relative to Daggerfall's player. Inside, Daggerfall's player does not follow
+        // Doom, so the watch comes in at the lowest outer door, as PlayerEntity.SpawnCityGuards does indoors.
+        static bool GuardSpot(double worldX, double worldZ, out Vector3 at)
+        {
+            at = Vector3.zero;
+            PlayerEnterExit enterExit = GameManager.Instance.PlayerEnterExit;
+            if (enterExit.IsPlayerInside)
+            {
+                Vector3 normal;
+                if (enterExit.Interior == null || !enterExit.Interior.FindLowestOuterInteriorDoor(out at, out normal))
+                    return false;
+                at += normal * (GameManager.Instance.PlayerController.radius + 0.1f);
+                return true;
+            }
+            PlayerGPS gps = GameManager.Instance.PlayerGPS;
+            at = GameManager.Instance.PlayerObject.transform.position
+                + new Vector3((float)(worldX - gps.WorldX), 0, (float)(worldZ - gps.WorldZ)) * MeshReader.GlobalScale;
+            return true;
+        }
+
+        // A vampire feeds and a lycanthrope sates its hunger by killing an innocent. Daggerfall passes the mobile's own
+        // civilian entity, which Doomerfall does not keep, so a stand-in dead civilian is made for the call.
+        static void FeedRacialOverride(PlayerEntity player)
+        {
+            RacialOverrideEffect racialOverride = GameManager.Instance.PlayerEffectManager.GetRacialOverrideEffect();
+            if (racialOverride == null)
+                return;
+            GameObject standIn = new GameObject("DoomerfallDeadTownsperson");
+            try
+            {
+                DaggerfallEntityBehaviour behaviour = standIn.AddComponent<DaggerfallEntityBehaviour>();
+                behaviour.EntityType = EntityTypes.CivilianNPC;
+                behaviour.Entity = new CivilianEntity(behaviour);
+                behaviour.Entity.SetHealth(0);
+                racialOverride.OnWeaponHitEntity(player, behaviour.Entity);
+            }
+            finally
+            {
+                DestroyImmediate(standIn);
+            }
         }
 
         TownPerson FindPersonAnyState(ulong id)

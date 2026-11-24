@@ -1086,6 +1086,7 @@ static int hasBuddha(player_t *player)
 // the damage was cancelled.
 bool DD_BridgeHpHit(player_t *player, int damage); // [Doomerfall] false outside a bridge session
 int DD_BridgeDamageBonus(AActor *source, AActor *target, int damage); // [Doomerfall] damage unchanged outside a bridge session
+bool DD_TownsfolkRefuseDamage(AActor *target, AActor *source); // [Doomerfall] dd_townsfolk.cpp
 
 static int DamageMobj (AActor *target, AActor *inflictor, AActor *source, int damage, FName mod, int flags, DAngle angle, bool& needevent)
 {
@@ -1126,6 +1127,7 @@ static int DamageMobj (AActor *target, AActor *inflictor, AActor *source, int da
 		}
 		return -1;
 	}
+	if (target->ddRecordId && DD_TownsfolkRefuseDamage(target, source)) return -1; // [Doomerfall] only the player hurts townspeople
 	if (target == source && (!telefragDamage || target->flags7 & MF7_LAXTELEFRAGDMG))
 	{
 		damage = int(damage * target->SelfDamageFactor);
