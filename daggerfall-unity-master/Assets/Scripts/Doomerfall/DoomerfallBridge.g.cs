@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x76ab3edef99cf4acUL;
+        public const ulong SchemaHash = 0x1b1759bd02feaac9UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -92,6 +92,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint GUN_ADOPT = 1;  // cls is empty; keep the ready gun as the active one and take the rest
         public const uint GUN_CLEAR = 2;  // cls is empty; take every gun
         public const uint GUN_SELECT = 3;  // Doom already holds cls as the active gun; raise it
+        public const ushort KIND_CLIMB_USES = 170;  // UZ to DF; Daggerfall tallies this many Climbing skill uses; payload: dfb_climb_uses
         public const ushort KIND_NPC_USE = 100;  // UZ to DF; payload: dfb_npc_use
         public const ushort KIND_NPC_USE_RESULT = 101;  // DF to UZ; payload: dfb_npc_use_result
         public const ushort KIND_MONSTER_DEATH = 50;  // UZ to DF; a tagged monster died; payload: dfb_monster_death
@@ -148,8 +149,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint HPF_VALID = 1;  // dfb_df_state.hp_current and hp_max describe a live Daggerfall player
         public const uint HPF_DEAD = 2;  // Daggerfall reports the player dead
         public const uint SHEET_SLOT = 0;
-        public const int SHEET_FORMAT_VERSION = 1;
-        public const int SHEET_INTS = 150;
+        public const int SHEET_FORMAT_VERSION = 2;
+        public const int SHEET_INTS = 155;
         public const int SHEET_FORMAT = 0;  // DFB_SHEET_FORMAT_VERSION
         public const int SHEET_EPOCH = 1;
         public const int SHEET_VALID = 2;  // 1 when this describes the current, fully loaded character
@@ -179,6 +180,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const int SHEET_BIO_MAGIC = 147;  // biography saving throw modifiers
         public const int SHEET_BIO_POISON = 148;
         public const int SHEET_BIO_DISEASE = 149;
+        public const int SHEET_CLIMB_CHANCE = 150;  // 4: percent chances from FormulaHelper.CalculateClimbingChance, in DFB_CLIMB_* order
+        public const int SHEET_CLIMB_ENHANCED = 154;  // 1 while a Climbing effect doubles climbing speed
+        public const int CLIMB_START = 0;  // start from the ground; Daggerfall's base 70
+        public const int CLIMB_GRASP = 1;  // grab a wall while airborne; base 40
+        public const int CLIMB_CONTINUE = 2;  // keep climbing; base 50
+        public const int CLIMB_REGAIN = 3;  // regain a hold while slipping; base 20
         public const uint UI_NONE = 0;
         public const uint UI_TRAVEL_MAP = 1;
         public const uint UI_INVENTORY = 2;
@@ -217,8 +224,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const int UZ_PHASE_SAVING = 4;
 
         // Native size of every generated struct, for the attach check.
-        public static readonly Type[] StructTypes = { typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbWorldContainer), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbInfoRequest), typeof(DfbInfoText), typeof(DfbDoomItem), typeof(DfbItemArt), typeof(DfbNpcUse), typeof(DfbNpcUseResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbNpc), typeof(DfbTownsfolk), typeof(DfbTownsperson), typeof(DfbTownspersonDeath), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
-        public static readonly int[] StructSizes = { 64, 24, 24, 16, 24, 24, 48, 32, 32, 32, 16, 48, 40, 16, 48, 32, 48, 48, 144, 24, 16, 32, 32, 16, 32, 40, 24, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
+        public static readonly Type[] StructTypes = { typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbWorldContainer), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbInfoRequest), typeof(DfbInfoText), typeof(DfbDoomItem), typeof(DfbItemArt), typeof(DfbClimbUses), typeof(DfbNpcUse), typeof(DfbNpcUseResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbNpc), typeof(DfbTownsfolk), typeof(DfbTownsperson), typeof(DfbTownspersonDeath), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
+        public static readonly int[] StructSizes = { 64, 24, 24, 16, 24, 24, 48, 32, 32, 32, 16, 48, 40, 16, 48, 32, 48, 48, 144, 8, 24, 16, 32, 32, 16, 32, 40, 24, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
     }
 
     static class DfbBytes
@@ -299,6 +306,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public DfbInfoRequest infoRequest;  // INFO
         [FieldOffset(16)] public DfbInfoText infoText;  // INFO_TEXT, INFO_NAME
         [FieldOffset(16)] public DfbDoomItem doomItem;  // DOOM_ITEM_TAKE, DOOM_ITEM_RESULT, DOOM_ITEM_USE, DOOM_ITEM_USED, DOOM_ITEM_ART_REQUEST, DOOM_ITEM_ART
+        [FieldOffset(16)] public DfbClimbUses climbUses;  // CLIMB_USES
         [FieldOffset(16)] public DfbNpcUse npcUse;  // NPC_USE
         [FieldOffset(16)] public DfbNpcUseResult npcUseResult;  // NPC_USE_RESULT
         [FieldOffset(16)] public DfbMonsterDeath monsterDeath;  // MONSTER_DEATH
@@ -660,6 +668,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DfbBytes.Write(destination, 48, 8, tag6);
             DfbBytes.Write(destination, 56, 8, tag7);
         }
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 8)]
+    struct DfbClimbUses
+    {
+        [FieldOffset(0)] public uint uses;  // skill rolls since the last event, pass or fail
+        [FieldOffset(4)] public uint pad;
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 24)]

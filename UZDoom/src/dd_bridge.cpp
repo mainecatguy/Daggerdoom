@@ -69,6 +69,8 @@ bool DD_TownsfolkEvent(const dfb_event &e);
 void DD_TownsfolkFrame(dfb_session *session, uint32_t context);
 void DD_TownsfolkResync();
 void DD_TownsfolkDied(dfb_session *session, AActor *mo);
+void DD_ClimbFrame(dfb_session *session);
+bool DD_ClimbNetEvent(dfb_session *session, const char *name);
 
 FARG_ADVANCED(dfbridge, "Doomerfall", "session", "Attaches to the Doomerfall bridge session created by the launcher.");
 FARG_ADVANCED(dfbridgelog, "Doomerfall", "file", "Appends Doomerfall bridge traffic and latency to a log file.");
@@ -709,7 +711,7 @@ void DD_BridgeMonsterDied(AActor *mo)
 // A ZScript pickup request, seen as its network event runs. False for every other event and outside a session.
 bool DD_BridgeItemNetEvent(const char *name)
 {
-	return session && (DD_ItemsNetEvent(session, name) || DD_InfoNetEvent(session, name));
+	return session && (DD_ItemsNetEvent(session, name) || DD_InfoNetEvent(session, name) || DD_ClimbNetEvent(session, name));
 }
 
 bool DD_BridgeNetEvent(const char *name)
@@ -2244,6 +2246,7 @@ void DD_BridgeFrame()
 	DD_MonstersFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
 	DD_NpcsFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
 	DD_TownsfolkFrame(session, ownState.world_context);
+	DD_ClimbFrame(session);
 
 	ownState.uz_heartbeat++;
 	ownState.uz_tic = gametic;
