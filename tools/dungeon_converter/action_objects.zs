@@ -50,12 +50,9 @@ class DFActionCell : Actor
 	}
 	States { Spawn: TNT1 A -1; Stop; }
 
-	// A resting actor is clamped to its sector's floor. An open trapdoor's cells can lie over another sector, so they must not move.
-	override void Tick()
-	{
-		if (owner && owner.freeSwing) return;
-		Super.Tick();
-	}
+	// A resting actor is clamped to its sector's floor. Cells can lie over another sector or below the floor, as with an open
+	// trapdoor or a pillar hidden under one, so only DFAction.Place moves them.
+	override void Tick() {}
 }
 
 class DFAction : DFDoorListener
