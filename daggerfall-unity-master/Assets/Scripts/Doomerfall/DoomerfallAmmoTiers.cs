@@ -82,6 +82,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return Math.Max(1, (int)Math.Round(BaseStack[type] * Tiers[tier].stackMul, MidpointRounding.AwayFromZero));
         }
 
+        // An ammo's tags (such as reduced_noise), shown as player state while it is loaded (owner, 2026-11-24). None exist
+        // yet: Silver's creature bonus and the quiet tag are backlog items. They show under Doom's loaded ammo icon.
+        static readonly string[] NoTags = new string[0];
+        internal static string[] Tags(int type, int tier) { return NoTags; }
+
         internal static string BonusText(int tier)
         {
             double b = Tiers[tier].bonus;

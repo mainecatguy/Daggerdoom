@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x78d40735dde9e66dULL
+#define DFB_SCHEMA_HASH 0x0a4168b58a1b39c8ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -105,6 +105,10 @@ static_assert((DFB_KIND_AMMO_READY) == (173), DFB_STALE);
 static_assert((DFB_KIND_AMMO_TAKE) == (174), DFB_STALE);
 static_assert((DFB_KIND_AREA_LEVEL_REQUEST) == (175), DFB_STALE);
 static_assert((DFB_KIND_AREA_LEVEL) == (176), DFB_STALE);
+static_assert((DFB_KIND_AMMO_CHANGE) == (177), DFB_STALE);
+static_assert((DFB_KIND_AMMO_UNLOAD) == (178), DFB_STALE);
+static_assert((DFB_KIND_AMMO_UNLOADED) == (179), DFB_STALE);
+static_assert((DFB_KIND_AMMO_LOADED) == (180), DFB_STALE);
 static_assert((DFB_KIND_NPC_USE) == (100), DFB_STALE);
 static_assert((DFB_KIND_NPC_USE_RESULT) == (101), DFB_STALE);
 static_assert((DFB_KIND_MONSTER_DEATH) == (50), DFB_STALE);

@@ -13,4 +13,5 @@ OptionMenu "DoomerfallControlsMenu"
 	Control "Open Inventory", "netevent df_inventory"
 	Control "Interact", "netevent df_interact"
 	Control "Info", "netevent df_info"
+	Control "Change Ammo", "netevent df_change_ammo"
 }

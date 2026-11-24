@@ -567,8 +567,12 @@ void ReportAmmo()
 	player_t *player = &players[consoleplayer];
 	if (!player->mo || player->playerstate != PST_LIVE || player->health <= 0) return;
 	const int ready = ReadyAmmo(player);
-	if (ready != sentReadyAmmo)
+	// Also on a new ready weapon with the same ammo, so Daggerfall knows when a gun it handed over is up (each gun
+	// remembers its own loaded tier). The pointer is only compared.
+	static const void *sentReadyWeapon;
+	if (ready != sentReadyAmmo || (sentReadyAmmo >= 0 && player->ReadyWeapon != sentReadyWeapon))
 	{
+		sentReadyWeapon = player->ReadyWeapon;
 		SendDoomItem(DFB_KIND_AMMO_READY, 0, 0, ready >= 0 ? AmmoClasses[ready] : "");
 		Printf(PRINT_LOG, "doomitems: ready weapon %s uses %s\n", player->ReadyWeapon ? player->ReadyWeapon->GetClass()->TypeName.GetChars() : "none",
 			ready >= 0 ? AmmoClasses[ready] : "no reserve ammo");
@@ -607,6 +611,66 @@ void AddAmmo(uint32_t request, int delta, const char *name)
 	// Acknowledged either way, so Daggerfall takes the next report as the truth.
 	ammoAddApplied = std::max(ammoAddApplied, request);
 	Printf(PRINT_LOG, "doomitems: ammo add %u %s %+d: %d -> %d\n", request, name, delta, before, after);
+}
+
+// The reserve ammo index (AmmoClasses) a weapon uses, and its magazine: the other ammo type, when that is not reserve
+// ammo (DRLA guns load AmmoType1 from AmmoType2). Stock guns have no magazine.
+int WeaponAmmo(AActor *w, PClassActor **magazine)
+{
+	*magazine = nullptr;
+	int reserve = -1;
+	PClassActor *other = nullptr;
+	for (FName field : { NAME_AmmoType1, NAME_AmmoType2 })
+	{
+		PClassActor *type = w->PointerVar<PClassActor>(field);
+		if (!type) continue;
+		int kind = -1;
+		for (int i = 0; i < AmmoKinds; i++)
+			if (type->IsDescendantOf(FName(AmmoClasses[i]))) kind = i;
+		if (kind >= 0 && reserve < 0) reserve = kind;
+		else if (kind < 0 && !other) other = type;
+	}
+	if (reserve >= 0) *magazine = other;
+	return reserve;
+}
+
+// DFB_KIND_AMMO_UNLOAD: Daggerfall changes the tier a gun loads. The gun (the ready weapon, else the first held gun that
+// uses this reserve ammo) gives up its magazine, and Daggerfall puts those rounds back as the old tier. An automatic
+// change (the reserve ran out) is refused while the magazine still holds rounds. Runs inside the playsim.
+void UnloadMagazine(uint32_t request, bool automatic, const char *name)
+{
+	player_t *player = consoleplayer >= 0 ? &players[consoleplayer] : nullptr;
+	uint32_t rounds = 0;
+	const char *gun = "none", *mag = "none";
+	if (player && player->mo && player->health > 0)
+	{
+		AActor *found = nullptr;
+		PClassActor *magazine = nullptr;
+		auto matches = [&](AActor *w) { return w && w->IsKindOf(NAME_Weapon) && WeaponAmmo(w, &magazine) >= 0 && !strcmp(AmmoClasses[WeaponAmmo(w, &magazine)], name); };
+		if (matches(player->ReadyWeapon)) found = player->ReadyWeapon;
+		for (AActor *inv = player->mo->Inventory; inv && !found; inv = inv->Inventory)
+			if (matches(inv)) found = inv;
+		if (found)
+		{
+			gun = found->GetClass()->TypeName.GetChars();
+			WeaponAmmo(found, &magazine);
+			AActor *held = magazine ? player->mo->FindInventory(magazine) : nullptr;
+			if (held)
+			{
+				mag = magazine->TypeName.GetChars();
+				int &amount = held->IntVar(NAME_Amount);
+				if (automatic && amount > 0) rounds = 0xFFFFFFFFu;
+				else
+				{
+					rounds = uint32_t(std::max(0, amount));
+					amount = 0;
+				}
+			}
+		}
+	}
+	SendDoomItem(DFB_KIND_AMMO_UNLOADED, request, rounds, name);
+	Printf(PRINT_LOG, "doomitems: ammo unload %u%s %s: gun %s magazine %s, %s\n", request, automatic ? " (automatic)" : "", name, gun, mag,
+		rounds == 0xFFFFFFFFu ? "refused, the magazine still holds rounds" : FStringf("%u rounds back to Daggerfall", rounds).GetChars());
 }
 
 void SendHotkey(int slot, uint32_t mod)
@@ -704,6 +768,16 @@ bool DD_ItemsEvent(const dfb_event &e)
 		dfb_doom_item d;
 		memcpy(&d, e.payload, sizeof(d));
 		doomOutgoing.push_back(FStringf("dfa_add:%u:%d:%s", d.request, int32_t(d.status), ClassOf(d).GetChars()));
+		return true;
+	}
+	case DFB_KIND_AMMO_UNLOAD:
+	case DFB_KIND_AMMO_LOADED:
+	{
+		dfb_doom_item d;
+		memcpy(&d, e.payload, sizeof(d));
+		// The loaded ammo goes to DoomerfallAmmo.zs for the HUD: dfa_loaded:<tier or -1>:<type>:<tags>.
+		if (e.kind == DFB_KIND_AMMO_LOADED) doomOutgoing.push_back(FStringf("dfa_loaded:%d:%u:%s", int32_t(d.request), d.status, ClassOf(d).GetChars()));
+		else doomOutgoing.push_back(FStringf("dfa_unload:%u:%u:%s", d.request, d.status, ClassOf(d).GetChars()));
 		return true;
 	}
 	case DFB_KIND_AREA_LEVEL:
@@ -852,6 +926,27 @@ bool DD_ItemsNetEvent(dfb_session *session, const char *name)
 		{
 			const int delta = int(strtol(end + 1, &end, 10));
 			if (*end == ':') AddAmmo(request, delta, end + 1);
+		}
+		return true;
+	}
+	if (!strncmp(name, "dfa_unload:", 11))
+	{
+		char *end;
+		const uint32_t request = uint32_t(strtoul(name + 11, &end, 10));
+		if (*end == ':')
+		{
+			const uint32_t flags = uint32_t(strtoul(end + 1, &end, 10));
+			if (*end == ':') UnloadMagazine(request, flags & 1, end + 1);
+		}
+		return true;
+	}
+	// The change ammo key (Doomerfall Controls). Daggerfall decides what changes. Harnesses send the same event.
+	if (!strcmp(name, "df_change_ammo"))
+	{
+		if (useRules && session)
+		{
+			SendDoomItem(DFB_KIND_AMMO_CHANGE, 0, 0, "");
+			Printf(PRINT_LOG, "doomitems: change ammo key\n");
 		}
 		return true;
 	}

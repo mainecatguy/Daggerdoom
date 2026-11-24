@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x78d40735dde9e66dUL;
+        public const ulong SchemaHash = 0x0a4168b58a1b39c8UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -105,6 +105,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_AMMO_TAKE = 174;  // UZ to DF; the player touched a tiered ammo pickup; cls is the reserve class, status the rounds, request the tier (0 Regular to 9 Daedric)
         public const ushort KIND_AREA_LEVEL_REQUEST = 175;  // UZ to DF; request is a map pixel, y * 1000 + x; Daggerfall answers with AREA_LEVEL
         public const ushort KIND_AREA_LEVEL = 176;  // DF to UZ; request is the map pixel, status the area level there (Doom rolls ammo drop tiers with it)
+        public const ushort KIND_AMMO_CHANGE = 177;  // UZ to DF; the player pressed the change ammo key
+        public const ushort KIND_AMMO_UNLOAD = 178;  // DF to UZ; request is a number; status 1 is automatic (refused while the magazine holds rounds); cls is the reserve class
+        public const ushort KIND_AMMO_UNLOADED = 179;  // UZ to DF; request echoes AMMO_UNLOAD; status is the rounds taken out of the magazine, or 0xFFFFFFFF refused
+        public const ushort KIND_AMMO_LOADED = 180;  // DF to UZ; request is the loaded tier (0xFFFFFFFF none), status the ammo type (0 Clip to 3 Cell); cls is the ammo's tags, comma separated
         public const ushort KIND_NPC_USE = 100;  // UZ to DF; payload: dfb_npc_use
         public const ushort KIND_NPC_USE_RESULT = 101;  // DF to UZ; payload: dfb_npc_use_result
         public const ushort KIND_MONSTER_DEATH = 50;  // UZ to DF; a tagged monster died; payload: dfb_monster_death

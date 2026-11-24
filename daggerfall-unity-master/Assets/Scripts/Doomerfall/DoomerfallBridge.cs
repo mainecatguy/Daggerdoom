@@ -174,6 +174,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfammotest") >= 0)
                 gameObject.AddComponent<DoomerfallAmmoTest>().Init(this, ammo);
             DoomerfallShopStockTest.Attach(this); // test only: -dfshoptest
+            DoomerfallChangeAmmoTest.Attach(this, ammo); // test only: -dfchangeammotest
             newGame = gameObject.AddComponent<DoomerfallNewGame>();
             newGame.Init(this, sync, Environment.GetCommandLineArgs());
             newGame.Items = items;
@@ -414,6 +415,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         break;
                     case Dfb.KIND_AMMO_TAKE:
                         ammo.OnTake(DoomerfallDoomItems.ClassOf(ev.doomItem), (int)ev.doomItem.request, ev.doomItem.status);
+                        break;
+                    case Dfb.KIND_AMMO_CHANGE:
+                        ammo.OnChangeKey();
+                        break;
+                    case Dfb.KIND_AMMO_UNLOADED:
+                        ammo.OnUnloaded(ev.doomItem.request, ev.doomItem.status);
                         break;
                     case Dfb.KIND_AREA_LEVEL_REQUEST:
                         ammo.OnAreaLevelRequest(ev.doomItem.request);

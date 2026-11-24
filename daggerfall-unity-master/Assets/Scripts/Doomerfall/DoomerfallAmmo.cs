@@ -106,9 +106,40 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         internal static bool IsRegistered { get { return registered; } }
 
-        // The tier each ammo type's guns load (an index into DoomerfallAmmoTiers.Tiers). Regular until the change ammo
-        // key (card 05) decides where this lives and saves it.
+        // The tier Doom's counter of each ammo type stands for (an index into DoomerfallAmmoTiers.Tiers). Each gun remembers
+        // its own tier (DoomerfallDoomItem.TryGetAmmoTier), which becomes its type's loaded tier while Doom holds it.
+        // Saved in DoomerfallHotkeys.txt, so a load restores it before Doom's restored counts are mirrored.
         static readonly int[] loadedTier = new int[4];
+
+        internal static string SaveTiers() { return "ammotiers " + string.Join(" ", Array.ConvertAll(loadedTier, t => t.ToString())); }
+
+        // From the save's "ammotiers" line, or null (an older save, or a new game): Regular.
+        internal static void LoadTiers(string[] fields)
+        {
+            for (int i = 0; i < loadedTier.Length; i++)
+            {
+                int tier;
+                loadedTier[i] = fields != null && fields.Length > i + 1 && int.TryParse(fields[i + 1], out tier)
+                    && tier >= 0 && tier < DoomerfallAmmoTiers.Tiers.Length ? tier : DoomerfallAmmoTiers.Regular;
+            }
+        }
+
+        // The loaded ammo's tags, a kind of player state (owner, 2026-11-24). Empty with no gun ready. None exist yet.
+        internal static string[] LoadedTags = new string[0];
+
+        // The change ammo key (card ammotiers/05). One magazine unload in flight at a time.
+        const float UnloadTimeout = 5f, AutoInterval = 0.5f;
+        bool changeWanted;
+        uint nextUnload = 1, unloadRequest, unloadedRounds;
+        bool unloadAuto, unloadedArrived;
+        int unloadType, unloadFrom, unloadTo;
+        float unloadDeadline, nextAuto;
+        int readySeq;                      // Counts AMMO_READY reports.
+        DoomerfallDoomItem boundGun;       // The active gun last seen, and whether Doom has reported it ready since.
+        int boundSeq, seenSwap, swapSeq;
+        bool boundReady;
+        int gunType = -1;                  // The ammo type of the bound gun, kept while Doom lowers it to fists.
+        string sentLoaded;                 // What Doom's HUD shows, so it is sent only on a change.
 
         // Tiered pickups Doom reported before Daggerfall was in a game, and area level questions not yet answered.
         readonly List<KeyValuePair<int, KeyValuePair<int, int>>> takes = new List<KeyValuePair<int, KeyValuePair<int, int>>>();
@@ -204,13 +235,20 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             readyType = -2; // Doom reports its ready gun again after the load.
             tellWanted = false;
             takes.Clear(); // Pickups from the game being replaced.
-            bridge.LogLine("ammo: after load Daggerfall holds" + Totals());
+            changeWanted = unloadedArrived = false;
+            unloadRequest = 0;
+            boundGun = null;
+            boundReady = false;
+            gunType = -1;
+            sentLoaded = null; // Doom shows the loaded ammo again once it reports its ready gun.
+            bridge.LogLine("ammo: after load Daggerfall holds" + Totals() + "; " + SaveTiers());
         }
 
         // DFB_KIND_AMMO_READY: Doom's ready weapon changed and uses this reserve ammo ("" for none).
         internal void OnReady(string cls)
         {
             readyType = string.IsNullOrEmpty(cls) ? -1 : TypeOfClass(cls);
+            readySeq++;
             tellWanted = true;
             bridge.LogLine(string.Format("ammo: Doom's ready gun uses {0}", readyType >= 0 ? Types[readyType].doomClass : "no reserve ammo"));
         }
@@ -222,6 +260,200 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         }
 
         internal int ReadyType { get { return readyType; } }
+
+        // DFB_KIND_AMMO_CHANGE: the change ammo key.
+        internal void OnChangeKey() { changeWanted = true; }
+
+        // DFB_KIND_AMMO_UNLOADED: Doom emptied the gun's magazine (or refused an automatic change).
+        internal void OnUnloaded(uint request, uint rounds)
+        {
+            if (request != unloadRequest || request == 0)
+                return;
+            unloadedArrived = true;
+            unloadedRounds = rounds;
+        }
+
+        static int TierTotal(ItemCollection items, int type, int tier)
+        {
+            int total = 0;
+            for (int i = 0; i < items.Count; i++)
+            {
+                DoomerfallAmmoItem item = items.GetItem(i) as DoomerfallAmmoItem;
+                if (item != null && item.AmmoType == type && item.Tier == tier)
+                    total += item.stackCount;
+            }
+            return total;
+        }
+
+        // The next tier after this one, in the owner's tier order and wrapping round, that the inventory holds; -1 for none.
+        static int NextTier(ItemCollection items, int type, int from)
+        {
+            for (int k = 1; k < DoomerfallAmmoTiers.Tiers.Length; k++)
+            {
+                int tier = (from + k) % DoomerfallAmmoTiers.Tiers.Length;
+                if (TierTotal(items, type, tier) > 0)
+                    return tier;
+            }
+            return -1;
+        }
+
+        // Each gun loads its own tier. Once Doom reports the active gun ready, its recorded tier becomes its ammo type's
+        // loaded tier; a gun with no record (or one for another ammo type) records the type's current tier. Until then
+        // Doom may still hold the gun being put away, so nothing changes.
+        void SyncGunTier()
+        {
+            DoomerfallHotkeys hotkeys = DoomerfallHotkeys.Instance;
+            DoomerfallDoomItem gun = hotkeys != null ? hotkeys.ActiveGun : null;
+            // Doom can report the new gun ready before its swap is confirmed, so the reports that count are those after
+            // the swap request began.
+            if (hotkeys != null && hotkeys.SwapCount != seenSwap)
+            {
+                seenSwap = hotkeys.SwapCount;
+                swapSeq = readySeq;
+            }
+            // Mid-swap, Doom may already hold the new gun while the active gun is still the old one.
+            if (hotkeys != null && hotkeys.SwapInFlight)
+                return;
+            if (gun != boundGun)
+            {
+                boundReady = boundGun == null && gun != null; // With no gun before there is nothing to wait for.
+                boundGun = gun;
+                boundSeq = swapSeq;
+                gunType = -1;
+            }
+            if (!boundReady && readySeq > boundSeq)
+                boundReady = true;
+            if (gun == null || !boundReady || readyType < 0)
+                return;
+            gunType = readyType;
+            int type, tier;
+            if (!gun.TryGetAmmoTier(out type, out tier) || type != readyType || tier >= DoomerfallAmmoTiers.Tiers.Length)
+            {
+                gun.SetAmmoTier(readyType, loadedTier[readyType]);
+                bridge.LogLine(string.Format("ammo: \"{0}\" now remembers {1}", gun.ItemName, DoomerfallAmmoTiers.Name(readyType, loadedTier[readyType])));
+            }
+            else if (tier != loadedTier[readyType])
+                SetLoadedTier(readyType, tier);
+        }
+
+        // The change ammo key, and the automatic change when the loaded tier runs out with the gun's magazine empty. Either
+        // asks Doom to empty the magazine first (AMMO_UNLOAD); ApplyUnloaded makes the change.
+        void HandleChange(ItemCollection items)
+        {
+            if (unloadRequest != 0)
+            {
+                if (Time.unscaledTime > unloadDeadline)
+                {
+                    bridge.LogLine("ammo: change: Doom never answered unload " + unloadRequest);
+                    unloadRequest = 0;
+                }
+                return;
+            }
+            if (changeWanted)
+            {
+                changeWanted = false;
+                if (readyType < 0)
+                {
+                    Hud("This weapon has no ammo to change.");
+                    return;
+                }
+                int next = NextTier(items, readyType, loadedTier[readyType]);
+                if (next < 0)
+                {
+                    Hud(string.Format("You have no other {0}.", Types[readyType].lowerName));
+                    return;
+                }
+                BeginUnload(readyType, next, false);
+                return;
+            }
+            // Doom may have lowered an empty stock gun to fists already, so the bound gun's type is used then.
+            DoomerfallHotkeys hotkeys = DoomerfallHotkeys.Instance;
+            int auto = readyType >= 0 ? readyType : boundGun != null && hotkeys != null && hotkeys.ActiveGun == boundGun ? gunType : -1;
+            if (auto < 0 || Time.unscaledTime < nextAuto)
+                return;
+            Track t = tracks[auto];
+            if (t.report != 0 || t.pending.Count > 0 || t.synced != 0 || LoadedTotal(items, auto) != 0)
+                return;
+            int other = NextTier(items, auto, loadedTier[auto]);
+            if (other < 0)
+                return;
+            nextAuto = Time.unscaledTime + AutoInterval;
+            BeginUnload(auto, other, true);
+        }
+
+        void BeginUnload(int type, int to, bool automatic)
+        {
+            unloadRequest = nextUnload++;
+            unloadType = type;
+            unloadFrom = loadedTier[type];
+            unloadTo = to;
+            unloadAuto = automatic;
+            unloadDeadline = Time.unscaledTime + UnloadTimeout;
+            DfbEvent e = default(DfbEvent);
+            e.kind = Dfb.KIND_AMMO_UNLOAD;
+            e.tic = (uint)Time.frameCount;
+            e.doomItem.request = unloadRequest;
+            e.doomItem.status = automatic ? 1u : 0u;
+            byte[] name = System.Text.Encoding.UTF8.GetBytes(Types[type].doomClass);
+            e.doomItem.SetCls(name, Math.Min(name.Length, 39));
+            bridge.Send(ref e);
+            if (!automatic) // The automatic one repeats while the magazine still holds rounds, so only its result is logged.
+                bridge.LogLine(string.Format("ammo: change: {0} to {1}, unload {2}", DoomerfallAmmoTiers.Name(type, unloadFrom), DoomerfallAmmoTiers.Tiers[to].name, unloadRequest));
+        }
+
+        // Doom answered the unload: the magazine's rounds go back as the tier they were loaded as, then the new tier loads.
+        // Runs after Doom's counts are mirrored and before Daggerfall's changes are sent, so the delta loop sends Doom the
+        // new tier's rounds in place of the old ones.
+        void ApplyUnloaded(ItemCollection items)
+        {
+            if (!unloadedArrived)
+                return;
+            unloadedArrived = false;
+            uint request = unloadRequest;
+            unloadRequest = 0;
+            int type = unloadType;
+            if (unloadedRounds == 0xFFFFFFFFu)
+                return; // An automatic change waits until the magazine is empty too.
+            if (unloadedRounds > 0 && unloadedRounds < 100000)
+                items.AddItem(new DoomerfallAmmoItem(type, unloadFrom, (int)unloadedRounds));
+            int to = TierTotal(items, type, unloadTo) > 0 ? unloadTo : NextTier(items, type, loadedTier[type]);
+            if (to >= 0)
+            {
+                SetLoadedTier(type, to);
+                DoomerfallHotkeys hotkeys = DoomerfallHotkeys.Instance;
+                DoomerfallDoomItem gun = hotkeys != null ? hotkeys.ActiveGun : null;
+                if (gun != null && gun == boundGun && boundReady && gunType == type)
+                    gun.SetAmmoTier(type, to);
+                Hud(string.Format("{0} {1}.", unloadAuto ? "Out of ammo: loading" : "Loading", DoomerfallAmmoTiers.Name(type, to)));
+            }
+            bridge.LogLine(string.Format("ammo: change{0}: unload {1} gave back {2} rounds of {3}; the gun loads {4}; Daggerfall holds{5}",
+                unloadAuto ? " (automatic)" : "", request, unloadedRounds, DoomerfallAmmoTiers.Name(type, unloadFrom),
+                DoomerfallAmmoTiers.Name(type, loadedTier[type]), Totals()));
+        }
+
+        // Doom's HUD shows the loaded ammo and its tags; both clear when the ready weapon uses no reserve ammo.
+        void PublishLoaded()
+        {
+            int tier = readyType >= 0 ? loadedTier[readyType] : -1;
+            string key = readyType + ":" + tier;
+            if (key == sentLoaded)
+                return;
+            sentLoaded = key;
+            LoadedTags = readyType >= 0 ? DoomerfallAmmoTiers.Tags(readyType, tier) : new string[0];
+            string tags = string.Join(",", LoadedTags);
+            DfbEvent e = default(DfbEvent);
+            e.kind = Dfb.KIND_AMMO_LOADED;
+            e.tic = (uint)Time.frameCount;
+            e.doomItem.request = tier >= 0 ? (uint)tier : 0xFFFFFFFFu;
+            e.doomItem.status = readyType >= 0 ? (uint)readyType : 0u;
+            byte[] name = System.Text.Encoding.UTF8.GetBytes(tags);
+            e.doomItem.SetCls(name, Math.Min(name.Length, 39));
+            bridge.Send(ref e);
+            bridge.LogLine(string.Format("ammo: loaded ammo shown: {0}; tags: {1}", tier >= 0 ? DoomerfallAmmoTiers.Name(readyType, tier) : "none",
+                tags.Length > 0 ? tags : "none"));
+        }
+
+        static void Hud(string text) { DaggerfallUI.AddHUDText(text); }
 
         // True for a stack Doom's counter of this type stands for: the type's loaded tier.
         internal static bool IsLoaded(DoomerfallAmmoItem item, int type)
@@ -468,6 +700,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         changed = true;
                     }
                 }
+            }
+            SyncGunTier();
+            ApplyUnloaded(items);
+            for (int i = 0; i < tracks.Length; i++)
+            {
+                Track t = tracks[i];
                 int total = LoadedTotal(items, i);
                 if (total != t.synced && t.report >= 0)
                 {
@@ -477,8 +715,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     t.synced = total;
                 }
             }
+            HandleChange(items);
             if (tellWanted)
                 Tell(items);
+            PublishLoaded();
             if (changed)
             {
                 DaggerfallWorkshop.Game.UserInterfaceWindows.DaggerfallInventoryWindow window =

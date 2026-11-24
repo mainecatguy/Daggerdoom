@@ -156,6 +156,12 @@ extern "C" {
 #define DFB_KIND_AMMO_TAKE     174  /* UZ to DF; the player touched a tiered ammo pickup; cls is the reserve class, status the rounds, request the tier (0 Regular to 9 Daedric) */
 #define DFB_KIND_AREA_LEVEL_REQUEST 175 /* UZ to DF; request is a map pixel, y * 1000 + x; Daggerfall answers with AREA_LEVEL */
 #define DFB_KIND_AREA_LEVEL    176  /* DF to UZ; request is the map pixel, status the area level there (Doom rolls ammo drop tiers with it) */
+/* The change ammo key. Daggerfall picks the next tier it holds for the ready gun, asks Doom to empty that gun's magazine
+   (AMMO_UNLOAD), puts the emptied rounds back as the old tier, then loads the new tier through AMMO_ADD. */
+#define DFB_KIND_AMMO_CHANGE   177  /* UZ to DF; the player pressed the change ammo key */
+#define DFB_KIND_AMMO_UNLOAD   178  /* DF to UZ; request is a number; status 1 is automatic (refused while the magazine holds rounds); cls is the reserve class */
+#define DFB_KIND_AMMO_UNLOADED 179  /* UZ to DF; request echoes AMMO_UNLOAD; status is the rounds taken out of the magazine, or 0xFFFFFFFF refused */
+#define DFB_KIND_AMMO_LOADED   180  /* DF to UZ; request is the loaded tier (0xFFFFFFFF none), status the ammo type (0 Clip to 3 Cell); cls is the ammo's tags, comma separated */
 
 /* Use on an NPC Doom draws. Daggerfall runs its own activation of that NPC (Grab, or Steal while crouching). Any HUD
    message it shows comes back as DFB_KIND_INFO_TEXT with the same request number. */

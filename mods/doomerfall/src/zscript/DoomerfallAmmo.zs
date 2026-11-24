@@ -24,6 +24,7 @@ class DoomerfallAmmoTiers : StaticEventHandler
 	override void OnRegister()
 	{
 		areaLevel = -1;
+		loadedTier = -1;
 	}
 
 	static DoomerfallAmmoTiers Get()
@@ -35,6 +36,54 @@ class DoomerfallAmmoTiers : StaticEventHandler
 	{
 		if (e.Name.Left(10) == "dfa_level:") areaLevel = e.Name.Mid(10).ToInt();
 		else if (e.Name.Left(10) == "dfi_rules:") rules = e.Name.Mid(10) == "1";
+		else if (e.Name.Left(11) == "dfa_loaded:")
+		{
+			// dfa_loaded:<tier or -1>:<type>:<tags>, from Daggerfall whenever the ready gun's loaded ammo changes (card ammotiers/05).
+			Array<String> f;
+			e.Name.Mid(11).Split(f, ":");
+			loadedTier = f.Size() > 0 ? f[0].ToInt() : -1;
+			loadedType = f.Size() > 1 ? f[1].ToInt() : -1;
+			loadedTags = f.Size() > 2 ? f[2] : "";
+			if (loadedTier < 0 || loadedTier >= TIERNAMES.Size() || loadedType < 0 || loadedType >= AMMOICONS.Size()) loadedTier = -1;
+			Console.Printf("Doomerfall: loaded ammo %s", loadedTier < 0 ? "none" : String.Format("%s %s", TIERNAMES[loadedTier], AMMONAMES[loadedType]));
+		}
+	}
+
+	// The ammo loaded in the ready gun, shown at the bottom of the screen: the tier's tinted pickup sprite, its name, and
+	// its tags (none exist yet: Silver's creature bonus and the quiet tag are backlog items). Daggerfall clears it with
+	// the weapon (fists, or a gun with no reserve ammo).
+	static const String TIERNAMES[] = { "Regular", "Steel", "Silver", "Moonstone", "Dwemer", "Adamantium", "Orichalcum", "Mithril", "Ebony", "Daedric" };
+	static const String AMMONAMES[] = { "bullets", "shotgun shells", "rockets", "energy cells" };
+	static const String AMMOICONS[] = { "CLIPA0", "SHELA0", "ROCKA0", "CELLA0" };
+	int loadedTier, loadedType;
+	String loadedTags;
+
+	override void RenderOverlay(RenderEvent e)
+	{
+		if (loadedTier < 0 || !rules || automapactive || consoleplayer < 0) return;
+		let p = players[consoleplayer];
+		if (p.mo == null || p.health <= 0 || p.camera != p.mo) return;
+		int scale = max(1, CleanXfac_1);
+		int fh = SmallFont.GetHeight() * scale;
+		int bottom = min(StatusBar.GetTopOfStatusBar(), int(Screen.GetHeight() * 0.85)) - fh * 3; // Above "Sneaking".
+		String text = String.Format("%s %s", TIERNAMES[loadedTier], AMMONAMES[loadedType]);
+		int textW = SmallFont.StringWidth(text) * scale;
+		int x = Screen.GetWidth() * 3 / 4;
+		TextureID icon = TexMan.CheckForTexture(AMMOICONS[loadedType], TexMan.Type_Sprite);
+		if (loadedTags != "")
+		{
+			Screen.DrawText(SmallFont, Font.CR_GREEN, x - SmallFont.StringWidth(loadedTags) * scale / 2, bottom - fh, loadedTags, DTA_ScaleX, scale, DTA_ScaleY, scale);
+			bottom -= fh;
+		}
+		Screen.DrawText(SmallFont, Font.CR_GOLD, x - textW / 2, bottom - fh, text, DTA_ScaleX, scale, DTA_ScaleY, scale);
+		if (icon.IsValid())
+		{
+			Vector2 size = TexMan.GetScaledSize(icon);
+			double s = scale * 1.5;
+			Screen.DrawTexture(icon, false, x - size.x * s / 2, bottom - fh - 2 * scale - size.y * s,
+				DTA_DestWidthF, size.x * s, DTA_DestHeightF, size.y * s, DTA_TopOffset, 0, DTA_LeftOffset, 0,
+				DTA_TranslationIndex, Translation.GetID(String.Format("DFAmmoTier%d", loadedTier)));
+		}
 	}
 
 	override void WorldUnloaded(WorldEvent e)

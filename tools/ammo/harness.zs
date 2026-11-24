@@ -11,6 +11,7 @@ class AMHarness : EventHandler
 	const LOADRUN = @LOADRUN@;
 	const EQUIPRUN = @EQUIPRUN@; // The equip run: guns equipped from Daggerfall set the damage bonus of their loaded ammo.
 	const TIERRUN = @TIERRUN@; // The tiers run: tiered drops roll with the area level, and tiered pickups reach Daggerfall.
+	const CHANGERUN = @CHANGERUN@; // The change run: the change ammo key, the automatic change, and the magazine unload.
 	const SAVED = 10;
 	vector3 dropSpot;
 
@@ -83,6 +84,11 @@ class AMHarness : EventHandler
 		let f = Weapon(p.FindInventory("Fist"));
 		if (f) players[0].PendingWeapon = f;
 		Console.Printf("AMNOTE melee Fist given");
+	}
+
+	void Magazine(String why)
+	{
+		Console.Printf("AMMAG %s RLPistolClip=%d ready=%s", why, players[0].mo.CountInv("RLPistolClip"), players[0].ReadyWeapon ? String.Format("%s", players[0].ReadyWeapon.GetClassName()) : "none");
 	}
 
 	void TierCensus(String why, int areaLevel)
@@ -173,6 +179,7 @@ class AMHarness : EventHandler
 			Next();
 			if (EQUIPRUN) phase = 30; // No break inside this constant if: one with a break crashed UZDoom's compiler.
 			if (TIERRUN) phase = 40;
+			if (CHANGERUN) phase = 50;
 			break;
 		case 2: // A box of bullets by touch. Stock ClipBox, not DRLA's spawner, so the amount is known.
 		{
@@ -274,14 +281,35 @@ class AMHarness : EventHandler
 		case 44:
 			if (timer == 140) { Report("after tier pickups"); phase = 7; timer = 0; }
 			break;
+		case 50: // Daggerfall's test hook (-dfchangeammotest) adds tiered bullets and a DRLA pistol on key 4.
+			if (timer == 35 * 6) EventHandler.SendNetworkEvent("dd_hotkey:4");
+			if (timer == 35 * 10) { Report("pistol up"); Magazine("pistol up"); Hit("regular"); Next(); }
+			break;
+		case 51: // The change ammo key: the magazine goes back to Daggerfall, and Steel loads.
+			if (timer == 1) EventHandler.SendNetworkEvent("df_change_ammo");
+			if (timer == 105) { Report("after change"); Magazine("after change"); Hit("steel"); Next(); }
+			break;
+		case 52: // Spend every loaded round: with the magazine empty, the next tier (Silver) loads by itself.
+			if (timer == 1) p.TakeInventory("Clip", p.CountInv("Clip"));
+			if (timer == 140) { Report("after running dry"); Magazine("after running dry"); Hit("automatic"); Next(); }
+			break;
+		case 53: // Each gun remembers its own tier: the starting gun on key 2 loads its own (Regular, or no bullets at all).
+			if (timer == 1) EventHandler.SendNetworkEvent("dd_hotkey:2");
+			if (timer == 175) { Report("starting gun"); Hit("other gun"); Next(); }
+			break;
+		case 54: // Back to the pistol on key 4: Silver again.
+			if (timer == 1) EventHandler.SendNetworkEvent("dd_hotkey:4");
+			if (timer == 175) { Report("pistol again"); Magazine("pistol again"); Hit("pistol again"); phase = 7; timer = 0; }
+			break;
 		case SAVED:
 			if (timer > 35 * 8) Finish("saved");
 			break;
 		case 20: // Loaded: give Doom's report time to reach Daggerfall.
 			if (EQUIPRUN && timer == 105) { Hit("loaded"); Report("loaded"); }
+			if (CHANGERUN && timer == 105) { Hit("loaded"); Report("loaded"); Magazine("loaded"); }
 			if (TIERRUN && timer == 35) TierCensus("after load", DoomerfallAmmoTiers.Get().areaLevel);
 			if (TIERRUN && timer == 35 * 19) TierCensus("end of load run", DoomerfallAmmoTiers.Get().areaLevel);
-			if (timer == 35 * (EQUIPRUN ? 6 : 20)) Finish("loaded"); // Long enough for Daggerfall's hook, window test included, to run again.
+			if (timer == 35 * (EQUIPRUN || CHANGERUN ? 6 : 20)) Finish("loaded"); // Long enough for Daggerfall's hook, window test included, to run again.
 			break;
 		}
 	}
