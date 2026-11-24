@@ -874,6 +874,10 @@ void DD_ItemsSendStarter()
 			PClassActor *item = PClass::FindActor(di->Name);
 			if (item && item->IsDescendantOf(FName(AmmoClasses[kind]))) { amount += di->Amount; listed = true; }
 		}
+	// Some classes (DRLA X) give their start ammo by script, not Player.StartItem. Doom has been frozen since its new game
+	// started, so what the player holds now is still the class's start amount.
+	if (kind >= 0 && !listed)
+		if (AActor *inv = player->mo->FindInventory(FName(AmmoClasses[kind]))) amount = std::max(0, inv->IntVar(NAME_Amount));
 	Printf(PRINT_LOG, "doomitems: starter %s (slot %d), class %s starts with %d %s%s\n", pickup.GetChars(), slot,
 		player->mo->GetClass()->TypeName.GetChars(), amount, kind >= 0 ? AmmoClasses[kind] : "no reserve ammo", listed ? "" : " (none listed)");
 	SendDoomItem(DFB_KIND_STARTER, uint32_t(slot & 0xff) | uint32_t(kind + 1) << 8, uint32_t(amount), pickup.GetChars());
