@@ -434,6 +434,8 @@ namespace
 	}
 }
 
+bool DDProf_On() { return ProfOn(); }
+
 void DDProf_Mark(const char *phase)
 {
 	if (!ProfOn()) return;
@@ -463,6 +465,7 @@ void DDProf_Frame()
 	if (ms > 30) fflush(profLog);
 }
 #else
+bool DDProf_On() { return false; }
 void DDProf_Mark(const char *) {}
 void DDProf_Frame() {}
 #endif

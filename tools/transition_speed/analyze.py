@@ -35,6 +35,8 @@ for n, i in enumerate(starts):
     phases = defaultdict(float)
     wall = cpu = read = 0.0
     for m in marks[i + 1:last + 1]:
+        if m[1].startswith("sechash_"):  # The check itself, which only runs when profiling.
+            continue
         phases[m[1]] += m[2]
         wall += m[2]
         cpu += m[3]

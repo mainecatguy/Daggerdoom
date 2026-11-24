@@ -149,6 +149,8 @@ namespace
 //
 //===========================================================================
 
+void DDProf_Mark(const char *phase); // [Doomerfall] no-op without -ddtranslog
+
 void UDMFParserBase::Skip()
 {
 	if (developer >= DMSG_WARNING) sc.ScriptMessage("Ignoring unknown UDMF key \"%s\".", sc.String);
@@ -2617,6 +2619,7 @@ public:
 			}
 		}
 
+		DDProf_Mark("udmf_tokens"); // [Doomerfall]
 		// Catch bogus maps here rather than during nodebuilding
 		if (ParsedVertices.Size() == 0)	I_Error("Map has no vertices.");
 		if (ParsedSectors.Size() == 0)	I_Error("Map has no sectors. ");

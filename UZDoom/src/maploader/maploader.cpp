@@ -3024,8 +3024,10 @@ void MapLoader::LoadLevel(MapData *map, const char *lumpname, int position)
 	DDProf_Mark("parse_map");
 	CalcIndices();
 	PostProcessLevel(checksum);
+	DDProf_Mark("post_process");
 
 	LoopSidedefs(true);
+	DDProf_Mark("loop_sidedefs");
 
 	SummarizeMissingTextures(missingtex);
 	bool reloop = false;
@@ -3092,6 +3094,7 @@ void MapLoader::LoadLevel(MapData *map, const char *lumpname, int position)
 	}
 	else reloop = true;
 
+	DDProf_Mark("load_nodes");
 	uint64_t startTime = 0, endTime = 0;
 
 	bool BuildGLNodes;
@@ -3164,13 +3167,17 @@ void MapLoader::LoadLevel(MapData *map, const char *lumpname, int position)
 	Level->headgamenode = Level->gamenodes.Size() > 0 ? &Level->gamenodes[Level->gamenodes.Size() - 1] : Level->nodes.Size() ? &Level->nodes[Level->nodes.Size() - 1] : nullptr;
 
 	LoadBlockMap(map);
+	DDProf_Mark("blockmap");
 
 	LoadReject(map, false);
 	GroupLines(false);
+	DDProf_Mark("group_lines");
 	FloodZones();
+	DDProf_Mark("flood_zones");
 	SetRenderSector();
 	FixMinisegReferences();
 	FixHoles();
+	DDProf_Mark("render_sector_holes");
 
 	// Create the item indices, after the last function which may change the data has run.
 	CalcIndices();
