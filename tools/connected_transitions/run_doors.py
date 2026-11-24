@@ -19,7 +19,8 @@ import zlib
 from pathlib import Path
 
 HERE = Path(__file__).parent
-REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\connected-transitions")
+REVIEW = Path(os.environ.get("DD_REVIEW", r"D:\dev\DoomDaggerfall-loop\review\connected-transitions"))
+TEST_ROOT = Path(os.environ.get("DD_TEST_ROOT", str(REVIEW / "test")))  # Lets a later task keep its logs apart from this demo's evidence.
 SOURCE_CACHE = REVIEW.parent / "combined-bridge" / "data" / "cache"
 CACHE = REVIEW / "test-cache"
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
@@ -68,7 +69,7 @@ args = ap.parse_args()
 
 if not CACHE.exists():
     shutil.copytree(SOURCE_CACHE, CACHE)
-run = REVIEW / "test" / args.name
+run = TEST_ROOT / args.name
 (run / "saves").mkdir(parents=True, exist_ok=True)
 uz_log, df_log, console = run / "uz.log", run / "df.log", run / "log-console.txt"
 for path in (uz_log, df_log, console, run / "launcher.log"):
