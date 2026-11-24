@@ -20,6 +20,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         const int Tiers = (int)WeaponMaterialTypes.Daedric + 1;
         static readonly string[] Piles = { "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U" };
         static readonly DFLocation.BuildingTypes[] Shops = { DFLocation.BuildingTypes.WeaponSmith, DFLocation.BuildingTypes.Armorer, DFLocation.BuildingTypes.PawnShop, DFLocation.BuildingTypes.GeneralStore };
+        static readonly int[] HouseModels = { 0, 2, 4, 11, 15 };
         static readonly MobileTypes[] Enemies = { MobileTypes.Knight, MobileTypes.Warrior, MobileTypes.Barbarian, MobileTypes.Spellsword };
 
         sealed class Tally
@@ -103,12 +104,16 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     shops.Add(container.Items);
                 }
 
-                container.Items.Clear();
-                container.TextureRecord = 15;
-                using (new LootSeed.Scope(LootSeed.Of(7200 + level, "house", round)))
-                    container.StockHouseContainer(new PlayerGPS.DiscoveredBuilding { buildingType = DFLocation.BuildingTypes.House1, quality = 10 });
-                houses.rolls++;
-                houses.Add(container.Items);
+                // Daggerfall picks a container's item groups by building type and container model, so cycle both.
+                for (int type = 0; type <= (int)DFLocation.BuildingTypes.Town23; type++)
+                {
+                    container.Items.Clear();
+                    container.TextureRecord = HouseModels[(round + type) % HouseModels.Length];
+                    using (new LootSeed.Scope(LootSeed.Of(7200 + level, "house", round, type)))
+                        container.StockHouseContainer(new PlayerGPS.DiscoveredBuilding { buildingType = (DFLocation.BuildingTypes)type, quality = 10 });
+                    houses.rolls++;
+                    houses.Add(container.Items);
+                }
 
                 // The Mages Guild "buy magic items" stock is a run of these calls.
                 using (new LootSeed.Scope(LootSeed.Of(7300 + level, "magic", round)))

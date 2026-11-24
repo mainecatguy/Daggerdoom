@@ -140,6 +140,8 @@ def approved(level):
 
 def zscores(counts, expected):
     n = sum(counts)
+    if n == 0:
+        return [0.0] * len(counts)
     return [(c - n * p) / math.sqrt(n * p * (1 - p)) if 0 < p < 1 else (0.0 if c == 0 else float("inf")) for c, p in zip(counts, expected)]
 
 
