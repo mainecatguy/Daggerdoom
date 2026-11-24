@@ -9,6 +9,18 @@ Watches the command's process tree for:
   flash     a taskbar flash request (HSHELL_FLASH)
   audio     a Windows audio session, and its peak level (above 0 means real sound)
 
+and, for the whole desktop (the mouse is shared, so these are tagged "tree" when they can be tied to the
+command's windows, otherwise "other"):
+  clip      the cursor confined to less than the whole screen (GetClipCursor)
+  move      the cursor moved with no mouse input behind it (SetCursorPos and the like): a cursor change with no
+            low-level mouse event (WH_MOUSE_LL) since the previous 4 ms sample or in the last 50 ms. A program
+            move made while the mouse itself is moving is missed.
+  hidden    the cursor hidden (GetCursorInfo)
+  capture   a window of the tree, or the foreground thread, holding mouse capture (GetGUIThreadInfo)
+  injected  synthetic mouse input (SendInput, mouse_event): it moves the user's real pointer
+Raw input registrations (RIDEV_NOLEGACY, RIDEV_CAPTUREMOUSE) of other processes cannot be read; their effect only
+reaches the user through focus, which is checked.
+
 Exits with the command's exit code. Prints a summary to stderr and writes details to --json.
 --timeout ends the whole tree and exits with 124.
 """
@@ -25,10 +37,15 @@ TIMED_OUT = 124
 POLL_SECONDS = 0.05
 AUDIBLE_PEAK = 0.0001
 
+MOUSE_POLL_SECONDS = 0.004
+
 user32 = ctypes.WinDLL("user32", use_last_error=True)
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 ole32 = ctypes.WinDLL("ole32")
 dwmapi = ctypes.WinDLL("dwmapi")
+# Physical pixels everywhere, so cursor, clip and window rectangles agree on scaled monitors.
+user32.SetProcessDpiAwarenessContext.argtypes = [ctypes.c_void_p]
+user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))  # PER_MONITOR_AWARE_V2
 
 HWINEVENTHOOK = wintypes.HANDLE
 WinEventProc = ctypes.WINFUNCTYPE(None, HWINEVENTHOOK, wintypes.DWORD, wintypes.HWND, wintypes.LONG,
@@ -85,7 +102,27 @@ class PROCESSENTRY32W(ctypes.Structure):
                 ("pcPriClassBase", ctypes.c_long), ("dwFlags", wintypes.DWORD), ("szExeFile", ctypes.c_wchar * 260)]
 
 
+class CURSORINFO(ctypes.Structure):
+    _fields_ = [("cbSize", wintypes.DWORD), ("flags", wintypes.DWORD), ("hCursor", wintypes.HANDLE),
+                ("ptScreenPos", wintypes.POINT)]
+
+
+class GUITHREADINFO(ctypes.Structure):
+    _fields_ = [("cbSize", wintypes.DWORD), ("flags", wintypes.DWORD), ("hwndActive", wintypes.HWND),
+                ("hwndFocus", wintypes.HWND), ("hwndCapture", wintypes.HWND), ("hwndMenuOwner", wintypes.HWND),
+                ("hwndMoveSize", wintypes.HWND), ("hwndCaret", wintypes.HWND), ("rcCaret", wintypes.RECT)]
+
+
 user32.RegisterClassW.argtypes = [ctypes.POINTER(WNDCLASSW)]
+user32.GetCursorPos.argtypes = [ctypes.POINTER(wintypes.POINT)]
+user32.GetClipCursor.argtypes = [ctypes.POINTER(wintypes.RECT)]
+user32.GetCursorInfo.argtypes = [ctypes.POINTER(CURSORINFO)]
+user32.GetGUIThreadInfo.argtypes = [wintypes.DWORD, ctypes.POINTER(GUITHREADINFO)]
+user32.WindowFromPoint.restype = wintypes.HWND
+user32.WindowFromPoint.argtypes = [wintypes.POINT]
+user32.GetForegroundWindow.restype = wintypes.HWND
+user32.GetClientRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+user32.ClientToScreen.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.POINT)]
 kernel32.Process32FirstW.argtypes = [wintypes.HANDLE, ctypes.POINTER(PROCESSENTRY32W)]
 kernel32.Process32NextW.argtypes = [wintypes.HANDLE, ctypes.POINTER(PROCESSENTRY32W)]
 
@@ -186,6 +223,91 @@ def on_screen(hwnd):
     return rect.left < right and rect.right > left and rect.top < bottom and rect.bottom > top
 
 
+def virtual_screen():
+    left, top = user32.GetSystemMetrics(76), user32.GetSystemMetrics(77)
+    return (left, top, left + user32.GetSystemMetrics(78), top + user32.GetSystemMetrics(79))
+
+
+def rect_tuple(rect):
+    return (rect.left, rect.top, rect.right, rect.bottom)
+
+
+def window_rects(hwnd):
+    """The window and client rectangles of a window, in screen pixels."""
+    found = []
+    rect = wintypes.RECT()
+    if user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+        found.append(rect_tuple(rect))
+    client = wintypes.RECT()
+    origin = wintypes.POINT(0, 0)
+    if user32.GetClientRect(hwnd, ctypes.byref(client)) and user32.ClientToScreen(hwnd, ctypes.byref(origin)):
+        found.append((origin.x, origin.y, origin.x + client.right, origin.y + client.bottom))
+    return found
+
+
+class MSLLHOOKSTRUCT(ctypes.Structure):
+    _fields_ = [("pt", wintypes.POINT), ("mouseData", wintypes.DWORD), ("flags", wintypes.DWORD),
+                ("time", wintypes.DWORD), ("dwExtraInfo", ctypes.c_size_t)]
+
+
+LowLevelMouseProc = ctypes.WINFUNCTYPE(ctypes.c_ssize_t, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
+user32.SetWindowsHookExW.restype = wintypes.HANDLE
+user32.SetWindowsHookExW.argtypes = [ctypes.c_int, LowLevelMouseProc, wintypes.HINSTANCE, wintypes.DWORD]
+user32.CallNextHookEx.restype = ctypes.c_ssize_t
+user32.CallNextHookEx.argtypes = [wintypes.HANDLE, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM]
+user32.UnhookWindowsHookEx.argtypes = [wintypes.HANDLE]
+WH_MOUSE_LL = 14
+WM_MOUSEMOVE = 0x0200
+LLMHF_INJECTED = 1
+MOUSE_SETTLE_SECONDS = 0.05
+
+
+class MouseInput:
+    """Low-level mouse hook on its own thread. It only notes when mouse movement arrived, so the user's mouse is
+    not slowed; the hook is skipped by Windows if it ever stalls (LowLevelHooksTimeout)."""
+
+    def __init__(self):
+        self.count = 0  # low-level mouse move events so far
+        self.last = -1.0  # monotonic time of the latest one
+        self.injected = []  # monotonic times of injected movement (SendInput, mouse_event)
+        self.ok = False
+        self.thread_id = None
+        ready = threading.Event()
+        threading.Thread(target=self.run, args=(ready,), daemon=True).start()
+        ready.wait(5)
+
+    def run(self, ready):
+        self.thread_id = kernel32.GetCurrentThreadId()
+
+        def on_mouse(code, wparam, lparam):
+            if code == 0 and wparam == WM_MOUSEMOVE:
+                info = ctypes.cast(lparam, ctypes.POINTER(MSLLHOOKSTRUCT)).contents
+                now = time.monotonic()
+                self.count += 1
+                self.last = now
+                if info.flags & LLMHF_INJECTED:
+                    self.injected.append(now)
+            return user32.CallNextHookEx(None, code, wparam, lparam)
+
+        self._proc = LowLevelMouseProc(on_mouse)
+        hook = user32.SetWindowsHookExW(WH_MOUSE_LL, self._proc, kernel32.GetModuleHandleW(None), 0)
+        self.ok = bool(hook)
+        ready.set()
+        msg = wintypes.MSG()
+        while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
+            pass
+        if hook:
+            user32.UnhookWindowsHookEx(hook)
+
+    def stop(self):
+        if self.thread_id:
+            user32.PostThreadMessageW(self.thread_id, WM_QUIT, 0, 0)
+
+
+kernel32.GetModuleHandleW.restype = wintypes.HMODULE
+kernel32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
+
+
 class Probe:
     def __init__(self, tree, start):
         self.tree = tree
@@ -194,6 +316,111 @@ class Probe:
         self.events = []
         self.onscreen = {}
         self.audio = {}
+        self.mouse = []
+        self.tree_windows = {}  # hwnd -> (pid, thread id), refreshed by poll_windows
+        self.stopping = threading.Event()
+
+    # Mouse: the cursor is shared by the whole desktop, so these watch globally and tag what can be tied to the tree.
+    def tree_hwnd(self, hwnd):
+        if not hwnd:
+            return False
+        root = user32.GetAncestor(hwnd, GA_ROOT) or hwnd
+        return self.tree.name(window_pid(root)) is not None
+
+    def owner(self, point=None, rect=None):
+        if self.tree_hwnd(user32.GetForegroundWindow()):
+            return "tree"
+        if point is not None and self.tree_hwnd(user32.WindowFromPoint(wintypes.POINT(*point))):
+            return "tree"
+        if rect is not None:
+            with self.lock:
+                hwnds = list(self.tree_windows)
+            for hwnd in hwnds:
+                for candidate in window_rects(hwnd):
+                    if all(abs(a - b) <= 2 for a, b in zip(candidate, rect)):
+                        return "tree"
+            center = ((rect[0] + rect[2]) // 2, (rect[1] + rect[3]) // 2)
+            if self.tree_hwnd(user32.WindowFromPoint(wintypes.POINT(*center))):
+                return "tree"
+        return "other"
+
+    def mouse_event(self, kind, owner, **extra):
+        event = {"t": round(time.monotonic() - self.start, 3), "kind": kind, "owner": owner}
+        event.update(extra)
+        with self.lock:
+            self.mouse.append(event)
+        return event
+
+    def watch_mouse(self, mouse_input):
+        screen = virtual_screen()
+        last = None
+        clip = hidden = None
+        injected_seen = 0
+        moves_seen = mouse_input.count
+        while not self.stopping.is_set():
+            now = round(time.monotonic() - self.start, 3)
+            point = wintypes.POINT()
+            # The hook runs before Windows moves the cursor, so read its count first: a cursor change with no
+            # mouse event since the previous sample, nor in the last 50 ms, was made by a program (SetCursorPos
+            # makes no mouse event). The 50 ms covers small cursor steps seen without a hook event while the
+            # mouse is in use (measured: about one a second, 1 to 3 pixels).
+            moves_now = mouse_input.count
+            quiet_mouse = time.monotonic() - mouse_input.last > MOUSE_SETTLE_SECONDS
+            if user32.GetCursorPos(ctypes.byref(point)):
+                current = (point.x, point.y)
+                if last is not None and current != last and moves_now == moves_seen and quiet_mouse:
+                    self.mouse_event("move", self.owner(point=current), to=current, frm=last)
+                last = current
+            moves_seen = moves_now
+            if len(mouse_input.injected) > injected_seen:
+                injected_seen = len(mouse_input.injected)
+                episode = next((e for e in reversed(self.mouse) if e["kind"] == "injected"), None)
+                if episode and now - episode["until"] < 0.5:
+                    episode["until"] = now
+                else:
+                    self.mouse_event("injected", self.owner(point=last), until=now)
+            rect = wintypes.RECT()
+            if user32.GetClipCursor(ctypes.byref(rect)):
+                confined = rect_tuple(rect)
+                if confined != screen and clip is None:
+                    clip = self.mouse_event("clip", self.owner(point=last, rect=confined), rect=confined, until=now)
+                elif confined != screen:
+                    clip["until"] = now
+                elif clip is not None:
+                    clip = None
+            info = CURSORINFO(cbSize=ctypes.sizeof(CURSORINFO))
+            if user32.GetCursorInfo(ctypes.byref(info)):
+                gone = not (info.flags & 1) or not info.hCursor
+                if gone and hidden is None:
+                    hidden = self.mouse_event("hidden", self.owner(point=last), until=now)
+                elif gone:
+                    hidden["until"] = now
+                elif hidden is not None:
+                    hidden = None
+            time.sleep(MOUSE_POLL_SECONDS)
+
+    def poll_capture(self):
+        """Mouse capture held by any thread that owns a window of the tree, or by the foreground thread."""
+        with self.lock:
+            threads = {tid: pid for pid, tid in self.tree_windows.values()}
+        threads.setdefault(0, None)
+        for tid, pid in threads.items():
+            info = GUITHREADINFO(cbSize=ctypes.sizeof(GUITHREADINFO))
+            if not user32.GetGUIThreadInfo(tid, ctypes.byref(info)) or not info.hwndCapture:
+                continue
+            if not self.tree_hwnd(info.hwndCapture):
+                continue
+            hwnd = info.hwndCapture
+            now = round(time.monotonic() - self.start, 3)
+            with self.lock:
+                open_episode = next((e for e in self.mouse if e["kind"] == "capture" and e["hwnd"] == hex(hwnd)
+                                     and now - e["until"] < 0.2), None)
+                if open_episode:
+                    open_episode["until"] = now
+                    continue
+            self.mouse_event("capture", "tree", hwnd=hex(hwnd), pid=window_pid(hwnd),
+                             exe=self.tree.name(window_pid(hwnd)), cls=window_text(user32.GetClassNameW, hwnd),
+                             until=now)
 
     def record(self, kind, hwnd, pid, **extra):
         exe = self.tree.name(pid)
@@ -259,10 +486,15 @@ class Probe:
 
     def poll_windows(self):
         now = round(time.monotonic() - self.start, 3)
+        found = {}
 
         def visit(hwnd, _):
-            pid = window_pid(hwnd)
+            pid = wintypes.DWORD()
+            tid = user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+            pid = pid.value
             exe = self.tree.name(pid)
+            if exe is not None:
+                found[hwnd] = (pid, tid)
             if exe is not None and on_screen(hwnd):
                 key = (pid, hwnd)
                 with self.lock:
@@ -274,6 +506,9 @@ class Probe:
             return True
 
         user32.EnumWindows(EnumWindowsProc(visit), 0)
+        with self.lock:
+            self.tree_windows = found
+        self.poll_capture()
 
     def poll_audio(self, sessions):
         now = round(time.monotonic() - self.start, 3)
@@ -380,6 +615,8 @@ def summarize(probe, exit_code, timed_out):
     lines = [f"quiet_probe: exit {exit_code}{' (timed out)' if timed_out else ''}"]
     if not getattr(probe, "hooks_ok", False):
         lines.append("quiet_probe: WARNING some window or shell hooks failed; window results may be incomplete")
+    if not getattr(probe, "mouse_hook_ok", False):
+        lines.append("quiet_probe: WARNING mouse hook failed; every cursor change will look like a program move")
     if probe.audio_ok is False:
         lines.append("quiet_probe: WARNING could not read audio sessions")
     for kind in ("shown", "focus", "flash"):
@@ -394,7 +631,28 @@ def summarize(probe, exit_code, timed_out):
     lines.append(f"quiet_probe: audio sessions: {len(probe.audio)}, audible: {len(audible)}")
     for pid, a in probe.audio.items():
         lines.append(f"  {a['exe']} pid {pid} max peak {a['max_peak']:.4f}, active {a['active_s']}s, audible {a['audible_s']}s")
+    for kind in MOUSE_KINDS:
+        hits = [e for e in probe.mouse if e["kind"] == kind]
+        mine = [e for e in hits if e["owner"] == "tree"]
+        lines.append(f"quiet_probe: mouse {kind}: {len(mine)} (other programs: {len(hits) - len(mine)})")
+        for e in hits[:10]:
+            detail = {k: v for k, v in e.items() if k not in ("t", "kind")}
+            lines.append(f"  {e['t']:8.3f}s {detail}")
     return lines
+
+
+MOUSE_KINDS = ("clip", "move", "hidden", "capture", "injected")
+
+
+def counts(probe):
+    """One number per check, counting only what is tied to the command's tree. The table in the notes uses this."""
+    result = {kind: sum(1 for e in probe.events if e["kind"] == kind) for kind in ("shown", "focus", "flash")}
+    result["onscreen"] = len(probe.onscreen)
+    result["audible"] = sum(1 for a in probe.audio.values() if a["max_peak"] > AUDIBLE_PEAK)
+    for kind in MOUSE_KINDS:
+        result[kind] = sum(1 for e in probe.mouse if e["kind"] == kind and e["owner"] == "tree")
+        result[kind + "_other"] = sum(1 for e in probe.mouse if e["kind"] == kind and e["owner"] != "tree")
+    return result
 
 
 def main():
@@ -414,6 +672,10 @@ def main():
     ready = threading.Event()
     threading.Thread(target=probe.watch_windows, args=(ready,), daemon=True).start()
     ready.wait(5)
+    mouse_input = MouseInput()
+    probe.mouse_hook_ok = mouse_input.ok
+    mouse_thread = threading.Thread(target=probe.watch_mouse, args=(mouse_input,), daemon=True)
+    mouse_thread.start()
 
     sessions = audio_sessions_reader()
     probe.audio_ok = sessions is not None
@@ -431,6 +693,9 @@ def main():
             break
         time.sleep(POLL_SECONDS)
     probe.stop_windows()
+    probe.stopping.set()
+    mouse_thread.join(1)
+    mouse_input.stop()
     exit_code = TIMED_OUT if timed_out else process.returncode
 
     for line in summarize(probe, exit_code, timed_out):
@@ -438,7 +703,8 @@ def main():
     if options.json:
         with open(options.json, "w", encoding="utf-8") as out:
             json.dump({"exit": exit_code, "timed_out": timed_out, "events": probe.events,
-                       "onscreen": list(probe.onscreen.values()),
+                       "onscreen": list(probe.onscreen.values()), "mouse": probe.mouse,
+                       "counts": counts(probe),
                        "audio": {str(pid): a for pid, a in probe.audio.items()},
                        "processes": dict((str(k), v) for k, v in tree.members.items())}, out, indent=1)
     sys.exit(exit_code)
