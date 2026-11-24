@@ -140,7 +140,7 @@ def pick_door(home):
         census = [c for c in census if c[0] < len(order) and order[c[0]][0] in doors]
         if census:
             home = max(census, key=lambda c: c[2])[0]
-    if home is None:
+    if home is None or home < 0:  # --home -1: the tavern, for the stationary NPC check
         types = dict(order)
         return next(r for r in rows if types.get(int(r[1])) == "Tavern"), "tavern"
     space, kind = order[home]
