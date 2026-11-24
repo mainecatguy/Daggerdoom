@@ -24,7 +24,10 @@ import install  # noqa: E402  (only for its registry isolation)
 sys.argv = argv
 
 REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\doom-items")
-SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\autopickup")  # Generated dungeon data and the item sprite package.
+SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\autopickup")  # The item sprite package and the demo items.
+# Generated dungeon data, town cache, and converter. These must write the DDT3 town format the current UZDoom reads;
+# review\autopickup's converter writes the older DDT2 format, which UZDoom rejects and then falls back to MAP01.
+DATA_SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\stationary-npcs")
 BUILD = Path(r"D:\dev\DoomDaggerfall-build")
 UZ_BUILD = BUILD / "uzdoom-doomitems" / "Release"
 SOUND = BUILD / "uzdoom-launcher" / "Release"
@@ -52,16 +55,17 @@ def lumps(path):
         return {name: zlib.decompress(f.read(packed)) if raw else b"" for name, raw, packed in heads}
 
 
-def harness():
+def harness(load):
     # UZDoom trims the town cache to a size cap, oldest first, which removed this test's town from the copied cache.
     # Keep only the one town the test needs, freshly dated.
+    # Copy the town in fresh each run (copy, not copy2, so it gets a new date).
     cache = REVIEW / "data" / "cache" / f"T{GROUP:05d}.ddt"
     for other in cache.parent.glob("T*.ddt"):
-        if other.name != cache.name:
-            other.unlink()
-    door = next(l.split() for l in lumps(SOURCE / "data" / "cache" / cache.name)["DDDOORS"].decode().splitlines() if l.startswith("1 187853213"))
+        other.unlink()
+    shutil.copy(DATA_SOURCE / "data" / "cache" / cache.name, cache)
+    door = next(l.split() for l in lumps(cache)["DDDOORS"].decode().splitlines() if l.startswith("1 187853213"))
     text = (HERE / "harness.zs").read_text()
-    text = text.replace("@DOOR@", ", ".join(door[3:8])).replace("@USE@", ", ".join(f'"{n}"' for n in USE))
+    text = text.replace("@DOOR@", ", ".join(door[3:8])).replace("@LOADRUN@", "1" if load else "0").replace("@USE@", ", ".join(f'"{n}"' for n in USE))
     path = REVIEW / "run" / "harness.pk3"
     with zipfile.ZipFile(path, "w") as z:
         z.writestr("zscript.txt", text)
@@ -82,8 +86,9 @@ def assemble():
     shutil.copy2(BRIDGE_DLL, plugins / "doomerfall_bridge.dll")
     (REVIEW / "dfu" / "Portable.txt").write_text("")
     install.isolate_registry(REVIEW / "dfu")
-    if not (REVIEW / "data").exists():
-        shutil.copytree(SOURCE / "data", REVIEW / "data")
+    if (REVIEW / "data").exists():
+        shutil.rmtree(REVIEW / "data")
+    shutil.copytree(DATA_SOURCE / "data", REVIEW / "data", ignore=shutil.ignore_patterns("work"))
     shutil.copy2(LAUNCHER, REVIEW / "doomerfall-launcher.exe")
     shutil.copy2(SOURCE / "dfitems.pk3", REVIEW / "dfitems.pk3")
     shutil.copy2(SOURCE / "demo_items.pk3", REVIEW / "demo_items.pk3")  # Pistol, vest, and blur sphere just inside the dungeon.
@@ -139,7 +144,7 @@ def run(name):
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
                "--uzdoom-cwd", str(runs), "--log", str(launcher)]
-    for mod in [MODS / n for n in DRLA] + [REVIEW / "data" / n for n in DATA] + [REVIEW / "dfitems.pk3", REVIEW / "doomerfall.pk3", harness()]:
+    for mod in [MODS / n for n in DRLA] + [REVIEW / "data" / n for n in DATA] + [REVIEW / "dfitems.pk3", REVIEW / "doomerfall.pk3", harness(name == "load")]:
         command += ["--mod", str(mod)]
     for arg in uz:
         command += ["--uzdoom-arg", arg]
@@ -154,7 +159,7 @@ def run(name):
             reason = "harness finished"
             time.sleep(2)
             break
-        if any(k in body for k in FATAL):
+        if any(k in body for k in FATAL) or re.search(r"[1-9]\d* errors?, \d+ warnings? while compiling", body):
             reason = "fatal"
             break
     if proc.poll() is None:
@@ -181,10 +186,10 @@ def check():
     runs = REVIEW / "run"
     runs.mkdir(parents=True, exist_ok=True)
     for label, mods in (("stock", []), ("drla", [str(MODS / n) for n in DRLA])):
-        log = runs / f"check-{label}.txt"
+        log = runs / f"log-check-{label}.txt"  # UZDoom writes +logfile NAME to log-NAME.txt.
         log.unlink(missing_ok=True)
         command = [sys.executable, QUIET, "--timeout", "30", "--cwd", str(runs), "--", str(REVIEW / "uzdoom" / "uzdoom.exe"), "-noactivate", "-iwad", str(GAME / "wads" / "DOOM.WAD"), "-config", str(runs / f"check-{label}.ini"),
-                   "-nosound", "-noautoload", "-skill", "3", *(["-file", *mods] if mods else []), "+logfile", log.name, "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+vid_fullscreen", "0",
+                   "-nosound", "-noautoload", "-skill", "3", *(["-file", *mods] if mods else []), "+logfile", f"check-{label}", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+vid_fullscreen", "0",
                    "+map", "E1M1", "+give chaingun", "+wait 140;quit"]
         code = subprocess.call(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         body = read(log)

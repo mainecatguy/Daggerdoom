@@ -8,6 +8,7 @@ class DIHarness : EventHandler
 	static const double DOORDATA[] = { @DOOR@ };
 	static const String USE[] = { @USE@ };
 	const LIMIT = 35 * 20;
+	const LOADRUN = @LOADRUN@; // The load run takes nothing. It waits for the bridge to load the take run's autosave.
 
 	int phase, timer, index, step, passed, failed;
 	bool done;
@@ -15,9 +16,10 @@ class DIHarness : EventHandler
 	vector3 home;
 	vector2 ahead;
 
-	override void WorldLoaded(WorldEvent e)
+	// Loading a save restores this handler's fields from the save (phase 3), so in the load run reaching phase 3
+	// means the load happened. WorldLoaded is not used: the restored fields replace whatever it set.
+	void AfterLoad()
 	{
-		if (!e.IsSaveGame) return;
 		phase = 10;
 		timer = 0;
 		done = false;
@@ -94,6 +96,9 @@ class DIHarness : EventHandler
 		vector3 door = (DOORDATA[0], DOORDATA[1], DOORDATA[2]);
 		vector2 normal = (DOORDATA[3], DOORDATA[4]);
 		timer++;
+		// Kept outside the switch: a constant-false "if (LOADRUN) break;" inside a case hung UZDoom's script VM.
+		if (LOADRUN && phase == 3) AfterLoad();
+		if (LOADRUN && phase < 3) return;
 
 		switch (phase)
 		{

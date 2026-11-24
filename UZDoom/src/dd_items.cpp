@@ -18,6 +18,7 @@
 #include "doomstat.h"
 #include "events.h"
 #include "g_levellocals.h"
+#include "gstrings.h"
 #include "gamestate.h"
 #include "info.h"
 #include "p_local.h"
@@ -216,6 +217,19 @@ FString CleanTag(const char *tag)
 	return out;
 }
 
+// The item's tag, or its pickup message when it has none (DRLA's RLBlurSphere says "Partial Invisibility").
+FString ItemName(AActor *mo)
+{
+	const char *tag = mo->GetTag("");
+	if (!tag[0] && mo->IsKindOf(NAME_Inventory))
+	{
+		const FString &msg = mo->StringVar(NAME_PickupMsg);
+		tag = msg.GetChars();
+		if (tag[0] == '$') tag = GStrings.GetString(tag + 1);
+	}
+	return CleanTag(tag[0] ? tag : mo->GetClass()->TypeName.GetChars());
+}
+
 // Writes the sprite and name of one class to the art slot. Larger sprites are shrunk to fit the slot.
 void SendArt(uint32_t request, const FString &name)
 {
@@ -244,7 +258,7 @@ void SendArt(uint32_t request, const FString &name)
 	header.width = w;
 	header.height = h;
 	strncpy(header.cls, name.GetChars(), sizeof(header.cls) - 1);
-	strncpy(header.tag, CleanTag(GetDefaultByType(cls)->GetTag()).GetChars(), sizeof(header.tag) - 1);
+	strncpy(header.tag, ItemName(GetDefaultByType(cls)).GetChars(), sizeof(header.tag) - 1);
 	memcpy(buffer.Data(), &header, sizeof(header));
 	const uint8_t *src = bmp.GetPixels();
 	uint8_t *dst = buffer.Data() + DFB_ITEM_ART_HEADER;
@@ -277,7 +291,7 @@ void FinishTake(uint32_t request, uint32_t status)
 		const double d = (mo->Pos() - take.pos).Length();
 		if (d < best) { best = d; item = mo; }
 	}
-	FString tag = CleanTag(item ? item->GetTag() : take.cls.GetChars());
+	FString tag = item ? ItemName(item) : CleanTag(take.cls.GetChars());
 	if (item && IsGun(item->GetClass()))
 	{
 		item->CallTouch(pmo); // Doom's normal pickup gives the gun, or only ammo when it is already held.

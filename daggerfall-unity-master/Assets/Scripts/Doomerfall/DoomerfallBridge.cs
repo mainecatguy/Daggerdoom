@@ -148,7 +148,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DoomerfallDoomItems.Register();
             doomItems = gameObject.AddComponent<DoomerfallDoomItems>();
             doomItems.Init(this, sync);
-            newGame =gameObject.AddComponent<DoomerfallNewGame>();
+            newGame = gameObject.AddComponent<DoomerfallNewGame>();
             newGame.Init(this, sync, Environment.GetCommandLineArgs());
             newGame.Items = items;
             ui.NewGame = newGame;
