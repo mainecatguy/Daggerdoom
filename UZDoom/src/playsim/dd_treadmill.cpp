@@ -1377,6 +1377,8 @@ namespace
 	// player never stands in the overworld's flattened copy of a town.
 	struct TravelRequest { bool pending = false; double x = 0, y = 0, yaw = 0; } travel;
 	int dungeonRequest = -1;
+	bool dungeonRequestHasStart = false;
+	double dungeonRequestStart[4];
 
 	void BeginTravel(FLevelLocals *Level, AActor *pmo)
 	{
@@ -1510,7 +1512,7 @@ namespace
 	}
 
 	// Goes through a town door. False means the destination is not ready yet.
-	bool EnterDoor(FLevelLocals *Level, AActor *pmo, const DoorSpot &d)
+	bool EnterDoor(FLevelLocals *Level, AActor *pmo, const DoorSpot &d, const double *dungeonStart = nullptr)
 	{
 		const Town &from = towns[currentTown];
 		const FString fromMap = from.map;
@@ -1533,6 +1535,11 @@ namespace
 			if (index < 0) return false;
 			const Town &space = towns[index];
 			target = { space.originX, space.originY, 0, space.exits.empty() ? pmo->Angles.Yaw.Degrees() : atan2(space.exits[0].ny, space.exits[0].nx) * 180 / M_PI, true, DD_AREA_DUNGEON };
+			if (dungeonStart)	// [Doomerfall] New Game: where Daggerfall placed the character, not the entrance.
+			{
+				target = { dungeonStart[0] + space.originX, dungeonStart[1] + space.originY, dungeonStart[2], dungeonStart[3], false, DD_AREA_DUNGEON };
+				Printf("DDNEWGAME dungeon start %.1f,%.1f,%.1f yaw %.1f\n", dungeonStart[0], dungeonStart[1], dungeonStart[2], dungeonStart[3]);
+			}
 			map = space.map;
 		}
 		const Town &origin = towns[currentTown];	// TownForSpace can grow the list.
@@ -1987,7 +1994,7 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 		for (const DoorSpot &d : townDoors)
 			if (d.kind != 0 && d.target == wanted)
 			{
-				if (EnterDoor(Level, pmo, d)) return;
+				if (EnterDoor(Level, pmo, d, dungeonRequestHasStart ? dungeonRequestStart : nullptr)) return;
 				break;
 			}
 		Printf("DDTRAVEL no door to dungeon %d in %s\n", wanted, Level->MapName.GetChars());
@@ -2082,7 +2089,12 @@ bool DDTreadmill_RequestTravel(double x, double y, double yawDegrees)
 	return true;
 }
 
-void DDTreadmill_RequestDungeon(int mapId) { dungeonRequest = mapId; }
+void DDTreadmill_RequestDungeon(int mapId, const double *start)
+{
+	dungeonRequest = mapId;
+	dungeonRequestHasStart = start != nullptr;
+	if (start) memcpy(dungeonRequestStart, start, sizeof(dungeonRequestStart));
+}
 
 bool DDTreadmill_CurrentDoor(int &action, double &x, double &y, int &target)
 {

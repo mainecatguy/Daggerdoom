@@ -2145,6 +2145,30 @@ void NgFail(const char *why)
 	if (inLevel) D_StartTitle();
 }
 
+// Which live monsters the new character starts near, and whether the nearest can see the player.
+void LogMonstersNearStart()
+{
+	AActor *pmo = players[consoleplayer].mo;
+	if (!pmo) return;
+	constexpr double Radius = 1024;	// Doom units
+	int near = 0, seen = 0, total = 0;
+	AActor *nearest = nullptr;
+	double best = 1e30;
+	auto it = primaryLevel->GetThinkerIterator<AActor>();
+	while (AActor *mo = it.Next())
+	{
+		if (!(mo->flags3 & MF3_ISMONSTER) || mo->health <= 0) continue;
+		total++;
+		const double d = (mo->Pos() - pmo->Pos()).Length();
+		if (d > Radius) continue;
+		near++;
+		if (P_CheckSight(mo, pmo, SF_IGNOREVISIBILITY)) seen++;
+		if (d < best) { best = d; nearest = mo; }
+	}
+	Log("new game: %d monsters on the map, %d within %.0f units of the start, %d of those can see the player%s%s%s", total, near, Radius, seen,
+		nearest ? ", nearest " : "", nearest ? nearest->GetClass()->TypeName.GetChars() : "", nearest ? FStringf(" at %.0f", best).GetChars() : "");
+}
+
 void PumpNewGame(int64_t now)
 {
 	if (!flowMode) return;
@@ -2231,8 +2255,15 @@ void PumpNewGame(int64_t now)
 			return;
 		}
 		if (primaryLevel->MapName.CompareNoCase("DDOVER01") == 0) return; // Still on the overworld.
-		Log("new game: at the entrance in %s, going inside dungeon %d", primaryLevel->MapName.GetChars(), ngWorld.dungeon_map_id);
-		DDTreadmill_RequestDungeon(ngWorld.dungeon_map_id);
+		{
+			Log("new game: at the entrance in %s, going inside dungeon %d", primaryLevel->MapName.GetChars(), ngWorld.dungeon_map_id);
+			// Daggerfall's start marker. Without one (not a number), Doom keeps the map start, the entrance.
+			const double start[4] = { ngWorld.start_x, ngWorld.start_y, ngWorld.start_z, ngWorld.start_yaw };
+			const bool haveStart = std::isfinite(start[0]) && std::isfinite(start[1]) && std::isfinite(start[2]) && std::isfinite(start[3]);
+			if (haveStart) Log("new game: Daggerfall's start point is %.1f,%.1f,%.1f yaw %.1f", start[0], start[1], start[2], start[3]);
+			else Log("new game: Daggerfall sent no start point, using the map start");
+			DDTreadmill_RequestDungeon(ngWorld.dungeon_map_id, haveStart ? start : nullptr);
+		}
 		ngState = NgDoor;
 		return;
 	case NgDoor:
@@ -2240,6 +2271,11 @@ void PumpNewGame(int64_t now)
 		if (gamestate != GS_LEVEL || gameaction != ga_nothing || DDTreadmill_HandoffPending() || primaryLevel->maptime < 2) return;
 		double x, y, z, yaw;
 		if (DDTreadmill_PlayerWorld(x, y, z, yaw) != DD_AREA_DUNGEON) return;
+		int target;
+		if (DDTreadmill_PlayerSpace(x, y, z, yaw, target))
+			Log("new game: Doom player at %.1f,%.1f,%.1f yaw %.1f in dungeon %d, %.1f units from Daggerfall's start point", x, y, z, yaw, target,
+				std::isfinite(ngWorld.start_x) ? sqrt((x - ngWorld.start_x) * (x - ngWorld.start_x) + (y - ngWorld.start_y) * (y - ngWorld.start_y)) : -1.0);
+		LogMonstersNearStart();
 		Log("new game: Doom is inside the dungeon on %s, telling Daggerfall", primaryLevel->MapName.GetChars());
 		NgSendArrived(true);
 		ngState = NgWaitGo;

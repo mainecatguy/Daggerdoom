@@ -457,6 +457,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     Vector3 start = space.InverseTransformPoint(enter.Dungeon.StartMarker.transform.position);
                     marker = string.Format(", Doom is {0:F1} units from Daggerfall's start marker", Distance(start.x / scale - peer.spaceX, start.z / scale - peer.spaceY));
                 }
+                if (enter.IsPlayerInsideDungeon && enter.Dungeon.EnterMarker)
+                {
+                    Vector3 start = space.InverseTransformPoint(enter.Dungeon.EnterMarker.transform.position);
+                    marker += string.Format(" and {0:F1} from its enter marker (new character start)", Distance(start.x / scale - peer.spaceX, start.z / scale - peer.spaceY));
+                }
                 bridge.LogLine(string.Format("sync indoor: Daggerfall landing is {0:F1} units from Doom's, target {1}{2}",
                     Distance(landing.x / scale - peer.spaceX, landing.z / scale - peer.spaceY), peer.spaceTarget, marker));
             }

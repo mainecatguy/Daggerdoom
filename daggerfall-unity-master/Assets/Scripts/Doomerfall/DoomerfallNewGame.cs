@@ -131,6 +131,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             int pixelX = DaggerfallUnity.Settings.StartCellX, pixelY = DaggerfallUnity.Settings.StartCellY;
             DFPosition origin = MapsFile.MapPixelToWorldCoord(pixelX, pixelY);
             bool dungeon = game.PlayerEnterExit.IsPlayerInsideDungeon;
+            // Not a number means no start point, so Doom keeps its map start, the entrance.
+            Vector3 start = new Vector3(float.NaN, float.NaN, float.NaN);
+            float startYaw = 90;
+            string startNote = ", no start marker";
+            if (dungeon)
+                StartPoint(game, ref start, out startYaw, ref startNote);
             var e = new DfbEvent
             {
                 kind = Dfb.KIND_NEWGAME,
@@ -144,12 +150,38 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     mapPixelX = pixelX,
                     mapPixelY = pixelY,
                     dungeonMapId = dungeon ? gps.CurrentLocation.MapTableData.MapId : -1,
+                    startX = start.x,
+                    startY = start.y,
+                    startZ = start.z,
+                    startYaw = startYaw,
                 },
             };
             bridge.Send(ref e);
-            bridge.LogLine(string.Format("new game: {0} held at pixel {1},{2}, {3}, health {4}/{5}, reflexes {6}", game.PlayerEntity.Name, pixelX, pixelY,
+            bridge.LogLine(string.Format("new game: {0} held at pixel {1},{2}, {3}, health {4}/{5}, reflexes {6}{7}", game.PlayerEntity.Name, pixelX, pixelY,
                 dungeon ? "dungeon " + gps.CurrentLocation.Name : "outdoors", game.PlayerEntity.CurrentHealth, game.PlayerEntity.MaxHealth,
-                game.PlayerEntity.Reflexes));
+                game.PlayerEntity.Reflexes, startNote));
+        }
+
+        // The marker StartDungeonInterior placed the new character at (StartGameBehaviour asks for the Enter marker
+        // when the dungeon has one, else the Start marker), in Doom's space coordinates, and the facing it gave.
+        static void StartPoint(GameManager game, ref Vector3 start, out float yaw, ref string note)
+        {
+            yaw = 90;
+            DaggerfallDungeon dungeon = game.PlayerEnterExit.Dungeon;
+            if (!dungeon)
+                return;
+            GameObject marker = dungeon.EnterMarker ? dungeon.EnterMarker : dungeon.StartMarker;
+            if (!marker)
+                return;
+            float scale = MeshReader.GlobalScale;
+            Vector3 local = dungeon.transform.InverseTransformPoint(marker.transform.position);
+            start = new Vector3(local.x / scale, local.z / scale, local.y / scale);
+            // Unity yaw 0 is north (+z, Doom's +y), turning clockwise; Doom yaw 90 is north, turning anticlockwise.
+            yaw = Mathf.Repeat(90f - game.PlayerMouseLook.Yaw, 360f);
+            Vector3 player = dungeon.transform.InverseTransformPoint(game.PlayerObject.transform.position);
+            float apart = new Vector2(player.x - local.x, player.z - local.z).magnitude / scale;
+            note = string.Format(", start {0} marker at {1:F1},{2:F1},{3:F1} yaw {4:F0}, hidden player {5:F1} units from it",
+                marker == dungeon.EnterMarker ? "Enter" : "Start", start.x, start.y, start.z, yaw, apart);
         }
 
         internal void OnArrived(bool ok)
