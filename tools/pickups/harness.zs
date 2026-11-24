@@ -3,13 +3,14 @@ version "4.14"
 // Pickups in Privateer's Hold with DRLA and both real games. Enters by the test door hook, counts the converter's
 // pickups, takes the nearest by touch, leaves, comes back, checks it stayed taken, and autosaves. A load run loads
 // that autosave and checks again. The handler is saved with the game, so the load run still knows the taken spot.
-class PKHarness : EventHandler
+class PKHarness : StaticEventHandler
 {
 	static const double DOORDATA[] = { @DOOR@ };
 	static const double EXITSPOT[] = { @EXIT@ };
 	const LIMIT = 35 * 25;
 	const LOADRUN = @LOADRUN@;
 	const SAVED = 7;
+	static const double EXPECT[] = { @EXPECT@ }; // Load run: pickups after the take, and the taken spot x, y, z.
 
 	int phase, timer, passed, failed, firstCount, afterTake, healthBefore, ammoBefore;
 	bool done;
@@ -107,8 +108,15 @@ class PKHarness : EventHandler
 		players[0].cheats |= CF_GODMODE;
 		bool inside = level.MapName ~== "MAP01" || level.MapName.Left(3) ~== "DDS";
 		timer++;
-		if (LOADRUN && phase == SAVED) { phase = 10; timer = 0; passed = failed = 0; }
-		if (LOADRUN && phase < SAVED) return;
+		if (LOADRUN && phase < 10)
+		{
+			// A static handler is not saved, so the first run's results arrive through EXPECT.
+			if (!inside || level.maptime < 35) return;
+			phase = 10;
+			timer = 0;
+			afterTake = int(EXPECT[0]);
+			takenSpot = (EXPECT[1], EXPECT[2], EXPECT[3]);
+		}
 		if (timer > LIMIT && phase != SAVED) { Report(false, String.Format("phase %d timed out", phase)); Finish(); return; }
 
 		switch (phase)
@@ -138,8 +146,8 @@ class PKHarness : EventHandler
 			Next();
 			break;
 		case 2: // Touch it.
-			if (timer == 1) { p.SetOrigin(takenSpot + (2, 0, 0), false); p.vel = (0, 0, 0); p.TryMove(takenSpot.xy, 0); }
-			if (timer < 10) break;
+			if (timer == 1 || timer == 20) { p.SetOrigin(takenSpot + (2, 0, 0), false); p.vel = (0, 0, 0); p.TryMove(takenSpot.xy, 0); }
+			if (timer < 30) break;
 			Console.Printf("PKTOOK %s: item %s, health %d -> %d, Clip+Shell %d -> %d", takenClass, target ? "still there" : "gone", healthBefore, p.health, ammoBefore, Ammo(p));
 			Report(!target || Inventory(target).Owner, "touch took the pickup");
 			Report(p.health > healthBefore || Ammo(p) > ammoBefore, "the player got its health or ammo");

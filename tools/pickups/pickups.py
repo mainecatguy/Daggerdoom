@@ -164,7 +164,15 @@ def harness(load):
     door = next(l.split() for l in ddt_lumps(cache)["DDDOORS"].decode().splitlines() if l.startswith("1 187853213"))
     exits = [l.split() for l in wad_lumps(REVIEW / "data" / "privateershold.wad").get("DDDUNGN", b"").decode().splitlines() if l.startswith("exit ")]
     exit_spot = exits[0][1:6] if exits else ["0"] * 5
-    text = (HERE / "harness.zs").read_text().replace("@DOOR@", ", ".join(door[3:8])).replace("@EXIT@", ", ".join(exit_spot)).replace("@LOADRUN@", "1" if load else "0")
+    expect = "0, 0, 0, 0"
+    if load:  # The first run's count after the take and the taken spot.
+        first = read(REVIEW / "run" / "log-first.txt")
+        spot = re.search(r"PKTARGET \S+ at ([-\d.]+),([-\d.]+),([-\d.]+)", first)
+        after = re.search(r"PKTOOK[^\n]*\n(?:[^\n]*\n)*?PKCOUNT map=\S+ pickups=(\d+)", first)
+        if not spot or not after:
+            sys.exit("the first run's log has no take")
+        expect = ", ".join((after.group(1), *spot.groups()))
+    text = (HERE / "harness.zs").read_text().replace("@DOOR@", ", ".join(door[3:8])).replace("@EXIT@", ", ".join(exit_spot)).replace("@LOADRUN@", "1" if load else "0").replace("@EXPECT@", expect)
     path = REVIEW / "run" / "harness.pk3"
     with zipfile.ZipFile(path, "w") as z:
         z.writestr("zscript.txt", text)
