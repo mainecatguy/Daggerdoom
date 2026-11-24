@@ -20,7 +20,7 @@ static partial class Program
     const double PickupSpacing = 96;      // Doom units between pickups in one room.
     const ulong PickupSalt = 0x5049434B55505331UL; // Keeps the loot seed apart from encounter seeds.
 
-    static ulong pickupPlace;             // The place's identity: the dungeon map id, or the interior space id.
+    static ulong pickupPlace;             // The place's identity: the dungeon map id, or the interior's map id and building key.
     static readonly List<int> pickupRoomCounts = new List<int>(); // Pickups in each room of the last map, for reports.
 
     const int PickupDungeon = 1, PickupInterior = 2;

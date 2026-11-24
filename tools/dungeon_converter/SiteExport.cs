@@ -1,7 +1,9 @@
 // Building interiors converted during play, and the door data that links them to towns.
 //
 // A space id is SpaceBase + group * SpacePerGroup + building, where building counts every RMB subrecord of the
-// group in site, block, record order. The map name is DDS plus the id's offset in five base-36 digits.
+// group in site, block, record order. The map name is DDS plus the id's offset in five base-36 digits. Both change
+// when the grouping changes, so nothing permanent may be keyed by them: the DDTOWN "place" line carries Daggerfall's
+// key (map id and building key), and Doom keys the building's history by that.
 // Placement follows PlayerEnterExit.TransitionInterior: closest enter marker to the exterior door, then the closest
 // interior door to that marker, then a step along the door's normal.
 using System;
@@ -152,7 +154,10 @@ static partial class Program
             if (scene.Colliders.Count == 0 || (interiorDoors.Count == 0 && markers.Count == 0)) { Console.Error.WriteLine("building has no usable interior"); return 1; }
 
             // One landing for each exterior door of this building, in the exterior door order the town uses.
-            var info = new StringBuilder("space\n");
+            // "place" is Daggerfall's own key for the building (map id and BuildingDirectory key), which Doom's world
+            // table uses instead of the space id, because the space id changes when the location groups change.
+            int buildingKey = (layoutX << 16) | (layoutY << 8) | recordIndex;
+            var info = new StringBuilder($"space\nplace {location.MapTableData.MapId} {buildingKey}\n");
             int entryIndex = 0;
             V3? firstLanding = null;
             foreach (var o in record.Exterior.Block3dObjectRecords)
@@ -204,7 +209,7 @@ static partial class Program
             var nodes = BuildNodes(out var edges);
             int startNode = FindStart(nodes, entranceMarker);
             string wad = Path.Combine(outDir, "interior.wad");
-            SetPickupPlace(PickupInterior, id);
+            SetPickupPlace(PickupInterior, ((long)(location.MapTableData.MapId & 0xFFFFF) << 24) | (uint)buildingKey);
             var stats = WriteMap(wad, nodes[startNode], WritePoints(nodes, edges, startNode), nodes, edges);
             scene.WriteRuntimeEntry(ddtPath, wad, info.ToString(), OutputMapName);
             File.Delete(wad);
