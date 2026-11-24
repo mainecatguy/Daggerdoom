@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x0a4168b58a1b39c8UL;
+        public const ulong SchemaHash = 0x511cf051cf7eb88fUL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -247,7 +247,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         // Native size of every generated struct, for the attach check.
         public static readonly Type[] StructTypes = { typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbWorldContainer), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbInfoRequest), typeof(DfbInfoText), typeof(DfbDoomItem), typeof(DfbItemArt), typeof(DfbClimbUses), typeof(DfbNpcUse), typeof(DfbNpcUseResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbNpc), typeof(DfbTownsfolk), typeof(DfbTownsperson), typeof(DfbTownspersonDeath), typeof(DfbGuardSpawn), typeof(DfbGuardDeath), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
-        public static readonly int[] StructSizes = { 64, 24, 24, 16, 24, 24, 48, 32, 32, 32, 16, 48, 40, 16, 48, 32, 48, 48, 144, 8, 24, 16, 32, 32, 16, 32, 40, 24, 40, 8, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
+        public static readonly int[] StructSizes = { 64, 24, 24, 16, 24, 24, 48, 32, 48, 32, 16, 48, 40, 16, 48, 32, 48, 48, 144, 8, 24, 16, 32, 32, 16, 32, 40, 24, 40, 8, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
     }
 
     static class DfbBytes
@@ -445,7 +445,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(28)] public uint pad;
     }
 
-    [StructLayout(LayoutKind.Explicit, Size = 32)]
+    [StructLayout(LayoutKind.Explicit, Size = 48)]
     struct DfbNewGame
     {
         [FieldOffset(0)] public double worldX;
@@ -454,6 +454,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(20)] public int mapPixelX;
         [FieldOffset(24)] public int mapPixelY;
         [FieldOffset(28)] public int dungeonMapId;
+        [FieldOffset(32)] public float startX;
+        [FieldOffset(36)] public float startY;
+        [FieldOffset(40)] public float startZ;
+        [FieldOffset(44)] public float startYaw;
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 32)]

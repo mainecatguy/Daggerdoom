@@ -526,6 +526,8 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             {
                 characterDocument.startingSkills.Copy(createCharAddBonusSkillsWindow.StartingSkills);
                 characterDocument.workingSkills.Copy(createCharAddBonusSkillsWindow.WorkingSkills);
+                if (Doomerfall.DoomerfallNewGame.FixedReflexes) { characterDocument.reflexes = Doomerfall.DoomerfallNewGame.NormalReflexes; SetSummaryWindow(); } // Doomerfall: no Reflexes step
+                else
                 SetSelectReflexesWindow();
                 skillsNeedReroll = false;
             }
@@ -573,6 +575,8 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                 var bonusSkillPoints = createCharSummaryWindow.BonusSkillPoints;
                 createCharAddBonusSkillsWindow.SetBonusSkillPoints(bonusSkillPoints.Item1, bonusSkillPoints.Item2, bonusSkillPoints.Item3);
                 characterDocument.faceIndex = createCharSummaryWindow.FaceIndex;
+                if (Doomerfall.DoomerfallNewGame.FixedReflexes) SetAddBonusSkillsWindow(); // Doomerfall: back skips the Reflexes step
+                else
                 SetSelectReflexesWindow();
             }
         }

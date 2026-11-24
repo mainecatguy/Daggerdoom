@@ -409,7 +409,9 @@ typedef struct dfb_travel
 	uint32_t pad;
 } dfb_travel;
 
-/* Where a new character starts. World units inside the start map pixel. dungeon_map_id is -1 outdoors. */
+/* Where a new character starts. World units inside the start map pixel. dungeon_map_id is -1 outdoors.
+   In a dungeon, start_* is the marker Daggerfall placed the character at, in Daggerfall units relative to the
+   dungeon (Doom's space coordinates: x east, y north, z up), and start_yaw is the facing in Doom degrees. */
 typedef struct dfb_new_game
 {
 	double world_x;
@@ -418,6 +420,10 @@ typedef struct dfb_new_game
 	int32_t map_pixel_x;
 	int32_t map_pixel_y;
 	int32_t dungeon_map_id;
+	float start_x;
+	float start_y;
+	float start_z;
+	float start_yaw;
 } dfb_new_game;
 
 /* The outside door used, in Daggerfall world units. target is Doom's interior space or dungeon map id, for logs. */

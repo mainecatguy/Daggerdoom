@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x0a4168b58a1b39c8ULL
+#define DFB_SCHEMA_HASH 0x511cf051cf7eb88fULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -339,7 +339,7 @@ static_assert(std::is_same<decltype(dfb_travel::map_pixel_y), int32_t>::value, D
 static_assert(offsetof(dfb_travel, pad) == 28, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_travel::pad), uint32_t>::value, DFB_STALE);
 
-static_assert(sizeof(dfb_new_game) == 32, DFB_STALE);
+static_assert(sizeof(dfb_new_game) == 48, DFB_STALE);
 static_assert(offsetof(dfb_new_game, world_x) == 0, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_new_game::world_x), double>::value, DFB_STALE);
 static_assert(offsetof(dfb_new_game, world_z) == 8, DFB_STALE);
@@ -352,6 +352,14 @@ static_assert(offsetof(dfb_new_game, map_pixel_y) == 24, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_new_game::map_pixel_y), int32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_new_game, dungeon_map_id) == 28, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_new_game::dungeon_map_id), int32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_new_game, start_x) == 32, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_new_game::start_x), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_new_game, start_y) == 36, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_new_game::start_y), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_new_game, start_z) == 40, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_new_game::start_z), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_new_game, start_yaw) == 44, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_new_game::start_yaw), float>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_transition) == 32, DFB_STALE);
 static_assert(offsetof(dfb_transition, action) == 0, DFB_STALE);
