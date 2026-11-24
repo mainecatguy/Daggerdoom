@@ -41,6 +41,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public override string ItemName { get { int t = AmmoType; return t < 0 ? base.ItemName : DoomerfallAmmo.Types[t].name; } }
         public override string LongName { get { return ItemName; } }
         public override bool IsStackable() { return true; }
+        // Daggerfall's split would build the part from the template, which is gone at play time, or registered only for bullets.
+        public override DaggerfallUnityItem CreateStackPart() { int t = AmmoType; return t < 0 ? base.CreateStackPart() : new DoomerfallAmmoItem(t, 1); }
         public override bool UseItem(ItemCollection collection)
         {
             DaggerfallUI.MessageBox("Your guns load this ammo by themselves.");
@@ -176,6 +178,21 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         }
 
         internal bool Ready { get { return ready; } }
+
+        // Both sides agree: every type has a report, no delta is in flight, and the inventory matches.
+        internal bool Settled
+        {
+            get
+            {
+                if (!ready)
+                    return false;
+                PlayerEntity player = GameManager.Instance.PlayerEntity;
+                for (int i = 0; i < tracks.Length; i++)
+                    if (tracks[i].report < 0 || tracks[i].pending.Count > 0 || tracks[i].report != tracks[i].synced || Total(player.Items, i) != tracks[i].synced)
+                        return false;
+                return true;
+            }
+        }
 
         internal static int Total(ItemCollection items, int type)
         {

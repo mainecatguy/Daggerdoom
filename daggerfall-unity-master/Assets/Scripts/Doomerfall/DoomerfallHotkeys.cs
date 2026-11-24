@@ -257,6 +257,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         // From DaggerfallInventoryWindow.EquipItem. True when Daggerfall must not equip this item.
         internal static bool BlockEquip(DaggerfallUnityItem item)
         {
+            if (item is DoomerfallAmmoItem) return true; // Nothing to equip, and its zero condition would read as "broken".
             DoomerfallDoomItem doom = item as DoomerfallDoomItem;
             if (doom == null) return false;
             DaggerfallUI.MessageBox(doom.IsWearable ? DoomerfallDoomItem.WearMessage : EquipMessage);

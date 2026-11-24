@@ -12,7 +12,15 @@ class AMHarness : EventHandler
 	const SAVED = 10;
 
 	int phase, timer, startClip, startShell;
-	bool done;
+	bool done, sawShells, windowDrop, windowBack;
+
+	// Shells arrive with Daggerfall's first change, the bullets go to 0 with its window drop, and come back with its pickup.
+	void WatchDaggerfall(Actor p)
+	{
+		if (!sawShells && p.CountInv("Shell") > 0) { sawShells = true; Report("Daggerfall's change arrived"); }
+		if (sawShells && !windowDrop && p.CountInv("Clip") == 0) { windowDrop = true; Report("bullets dropped in Daggerfall's window"); }
+		if (windowDrop && !windowBack && p.CountInv("Clip") > 0) { windowBack = true; Report("bullets taken back in Daggerfall's window"); }
+	}
 
 	void Finish(String why)
 	{
@@ -58,6 +66,7 @@ class AMHarness : EventHandler
 		timer++;
 		if (LOADRUN && phase == SAVED) { phase = 20; timer = 0; Report("loaded"); }
 		if (LOADRUN && phase < SAVED) return;
+		if (!LOADRUN && phase < SAVED) WatchDaggerfall(p);
 
 		switch (phase)
 		{
@@ -98,13 +107,14 @@ class AMHarness : EventHandler
 			Report("after spending 5");
 			Next();
 			break;
-		case 4: // Daggerfall's test hook drops 7 bullets and adds 20 shells on its side.
+		case 4: // Daggerfall's test hook drops 7 bullets and adds 20 shells on its side, then drops all bullets and 5
+			// shells through its inventory window and takes them back from the pile. It may run before the boxes if
+			// Doom started with 60 or more bullets, so the steps are watched from the start (WatchDaggerfall).
 			if (timer % 35 == 0) Report("waiting");
-			// The hook may already have run if Doom started with 60 or more bullets.
-			if (p.CountInv("Shell") >= 20) { Report("after Daggerfall change"); Next(); }
-			else if (timer > LIMIT) { Finish("Daggerfall's change never arrived"); }
+			if (windowBack) { Report("after Daggerfall's window test"); phase = 7; timer = 0; }
+			else if (timer > LIMIT) { Report("Daggerfall's window test never finished"); phase = 7; timer = 0; }
 			break;
-		case 5:
+		case 7:
 			if (timer < 70) break;
 			Report("before save");
 			Console.Printf("AMSAVE autosave");
@@ -116,7 +126,7 @@ class AMHarness : EventHandler
 			if (timer > 35 * 8) Finish("saved");
 			break;
 		case 20: // Loaded: give Doom's report time to reach Daggerfall.
-			if (timer == 35 * 6) Finish("loaded");
+			if (timer == 35 * 20) Finish("loaded"); // Long enough for Daggerfall's hook, window test included, to run again.
 			break;
 		}
 	}
