@@ -420,7 +420,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             string state = string.Join(";", stashLines.ToArray());
             stashLines.Clear();
             DoomerfallDoomItem active = activeItem as DoomerfallDoomItem;
-            if (active != null && !activeStored && active.DoomClass == cls)
+            // Doom names a put-away gun by its plain pickup, so a gun taken from DRLA's RL<Weapon>PickupModded comes back as RL<Weapon>Pickup.
+            if (active != null && !activeStored && (active.DoomClass == cls || active.DoomClass == cls + "Modded"))
             {
                 active.GunState = state;
                 activeStored = true;

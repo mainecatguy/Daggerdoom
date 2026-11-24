@@ -175,6 +175,7 @@ def run(name):
         for what, pattern in (("stock armor is stored as armor (Weapons & Armor tab)", r'take \d+ "GreenArmor".*stored as "GreenArmor\|armor\|"'),
                               ("DRLA armor is stored as armor that cannot be worn yet", r'take \d+ "RLGenericArmorPickup".*stored as "RLGenericArmorPickup\|wear\|"'),
                               ("the modded pistol is stored with its mods", r'take \d+ "RLPistolPickupModded".*stored as "RLPistolPickupModded\|gun\|(?=[^"]*RLPistolPowerMod=2)(?=[^"]*RLPistolModLimit=2)'),
+                              ("putting the modded pistol away stores its mods on its Daggerfall item", r'put away "[^"]*" with state "[^"]*RLPistolPowerMod=2'),
                               ("the shotgun went on its free slot key 3 and was drawn", r'key 3 was free: drawing the new "RLShotgunPickup"'),
                               ("the modded pistol stayed in the inventory because key 2 had hotkeys", r'took "RLPistolPickupModded"; key 2 already has hotkeys')):
             print("DFCASE", "pass" if re.search(pattern, body) else "FAIL", what)
