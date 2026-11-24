@@ -1,4 +1,4 @@
 gameinfo
 {
-	AddEventHandlers = "Doomerfall_Events"
+	AddEventHandlers = "Doomerfall_Events", "DoomerfallItems"
 }

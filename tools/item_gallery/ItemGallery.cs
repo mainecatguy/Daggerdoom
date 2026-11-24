@@ -20,6 +20,7 @@ static class ItemGallery
     const int ArtifactMaleArchive = 432;
     const int Spacing = 128, Columns = 36, Margin = 192; // The largest item is 169 pixels, 127 world units at 75%, so the grid never overlaps.
     const string Placeholder = "DINOSPR";
+    static readonly int[] LootArchives = { 204, 205, 207, 209, 211, 216 }; // DaggerfallLootDataTables: every pile and dropped-item icon.
 
     static readonly (ItemGroups group, Type type)[] Groups =
     {
@@ -157,6 +158,43 @@ static class ItemGallery
             using (var s = zip.CreateEntry($"graphics/dfitems/{Placeholder}.png", CompressionLevel.Fastest).Open())
                 WritePng(s, 32, 32, (x, y) => x == y || x == 31 - y || x == 0 || y == 0 || x == 31 || y == 31
                     ? ((byte)255, (byte)0, (byte)255, (byte)255) : ((byte)0, (byte)0, (byte)0, (byte)0));
+
+            // Loot pile icons, centered like Daggerfall's billboards. DoomerfallWorldItem draws these.
+            var pileTextures = new StringBuilder($"graphic \"DPNOSPR\", 32, 32\n{{\n\tOffset 16, 16\n\tPatch \"{Placeholder}\", 0, 0\n}}\n");
+            int pileIcons = 0;
+            foreach (int archive in LootArchives)
+            {
+                var file = Open(archive);
+                if (file == null) continue;
+                for (int record = 0; record < file.RecordCount; record++)
+                {
+                    var key = (archive, record);
+                    if (!written.TryGetValue(key, out var size))
+                    {
+                        size = null;
+                        var image = file.GetDFBitmap(record, 0);
+                        if (image?.Data != null && image.Width > 0 && image.Height > 0 && image.Data.Any(p => p != 0 && p != 0xff))
+                        {
+                            using var s = zip.CreateEntry($"graphics/dfitems/{TextureName(archive, record)}.png", CompressionLevel.Fastest).Open();
+                            WritePng(s, image.Width, image.Height, (x, y) =>
+                            {
+                                int p = image.Data[y * image.Width + x], c = p * 3 + file.Palette.HeaderLength;
+                                var b = file.Palette.PaletteBuffer;
+                                return (b[c], b[c + 1], b[c + 2], (byte)(p == 0 || p == 0xff ? 0 : 255));
+                            });
+                            size = (image.Width, image.Height);
+                        }
+                        written[key] = size;
+                    }
+                    if (size is (int w, int h))
+                    {
+                        pileTextures.Append($"graphic \"DP{archive:D3}{record:D3}\", {w}, {h}\n{{\n\tOffset {w / 2}, {h / 2}\n\tPatch \"{TextureName(archive, record)}\", 0, 0\n}}\n");
+                        pileIcons++;
+                    }
+                }
+            }
+            WriteText(zip, "textures.dfitems", pileTextures.ToString());
+            Console.WriteLine($"ITEMS pileIcons={pileIcons}");
 
             int rows = (entries.Count + Columns - 1) / Columns;
             for (int i = 0; i < entries.Count; i++)

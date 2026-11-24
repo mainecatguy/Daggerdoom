@@ -13,8 +13,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     public sealed class DoomerfallSave : MonoBehaviour
     {
-        const ushort KindSavePrepared = 13, KindLoadReady = 16, KindLoadResume = 18;
-        const uint StatusOk = 0, StatusRefused = 1, StatusFailed = 2, PathSlot = 4, PhasePlay = 3;
         const float SettleSeconds = 5f, DoneSeconds = 15f, LoadSeconds = 20f;
 
         DoomerfallBridge bridge;
@@ -23,6 +21,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         bool busy, pausedBySave, testFail, loading, loadRestored;
         uint activeTxn;
         float doneDeadline;
+
+        internal DoomerfallItems Items { get; set; }
 
         internal void Init(DoomerfallBridge owner, DoomerfallPositionSync positionSync, DoomerfallHp playerHp, string[] args)
         {
@@ -41,7 +41,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         // Test only: loads a Daggerfall half taken out of a bundle, through Daggerfall's normal loader.
         IEnumerator LoadSaveTest(string saveName)
         {
-            while (!sync.InGame || sync.Phase != PhasePlay)
+            while (!sync.InGame || sync.Phase != Dfb.DF_PHASE_PLAY)
                 yield return null;
             yield return new WaitForSecondsRealtime(1f);
             SaveLoadManager saves = GameManager.Instance.SaveLoadManager;
@@ -60,7 +60,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         // Test only: a normal Daggerfall save through its own entry point, into the private portable folder.
         IEnumerator PlainSaveTest()
         {
-            while (!sync.InGame || sync.Phase != PhasePlay)
+            while (!sync.InGame || sync.Phase != Dfb.DF_PHASE_PLAY)
                 yield return null;
             yield return new WaitForSecondsRealtime(1f);
             SaveLoadManager saves = GameManager.Instance.SaveLoadManager;
@@ -76,14 +76,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             if (busy)
             {
-                Reply(txn, StatusRefused, 0, 0);
+                Reply(txn, Dfb.SAVE_REFUSED, 0, 0);
                 return;
             }
             string refusal = RefusalReason(hpSentThrough);
             if (refusal != null)
             {
                 bridge.LogLine("save " + txn + ": refused, " + refusal);
-                Reply(txn, StatusRefused, 0, 0);
+                Reply(txn, Dfb.SAVE_REFUSED, 0, 0);
                 return;
             }
             busy = true;
@@ -124,7 +124,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (refusal != null)
             {
                 bridge.LogLine("load " + txn + ": refused, " + refusal);
-                Reply(txn, StatusRefused, 0, 0, KindLoadReady);
+                Reply(txn, Dfb.SAVE_REFUSED, 0, 0, Dfb.KIND_LOAD_READY);
                 return;
             }
             loading = true;
@@ -145,6 +145,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             float deadline = Time.unscaledTime + LoadSeconds;
             SaveLoadManager.OnLoad += LoadFinished;
             GameManager.Instance.DisableAI = true;
+            Items.ReadLedger(folder);
             bool started = saves.LoadFromFolder(folder);
             while (started && !loadRestored && Time.unscaledTime < deadline)
                 yield return null;
@@ -160,13 +161,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 loading = false;
                 sync.LoadRunning = false;
                 bridge.LogLine("load " + txn + ": failed, Daggerfall's game is no longer valid");
-                Reply(txn, StatusFailed, 0, 0, KindLoadReady);
+                Reply(txn, Dfb.SAVE_FAILED, 0, 0, Dfb.KIND_LOAD_READY);
                 yield break;
             }
             bridge.PublishNow();
             bridge.LogLine(string.Format("load {0}: Daggerfall ready, hp {1}/{2}, position {3},{4}", txn, GameManager.Instance.PlayerEntity.CurrentHealth,
                 GameManager.Instance.PlayerEntity.MaxHealth, GameManager.Instance.PlayerGPS.WorldX, GameManager.Instance.PlayerGPS.WorldZ));
-            Reply(txn, StatusOk, 0, 0, KindLoadReady);
+            Reply(txn, Dfb.SAVE_OK, 0, 0, Dfb.KIND_LOAD_READY);
         }
 
         public void OnLoadDone(uint txn, bool restored)
@@ -183,9 +184,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             GameManager.Instance.PauseGame(false);
             bridge.LogLine(string.Format("load {0}: both games ready, resuming, hp {1}, paused {2}", txn, GameManager.Instance.PlayerEntity.CurrentHealth, GameManager.IsGamePaused));
             DfbEvent e = default(DfbEvent);
-            e.kind = KindLoadResume;
+            e.kind = Dfb.KIND_LOAD_RESUME;
             e.tic = (uint)Time.frameCount;
-            e.p0 = txn | 1UL << 32;
+            e.saveDone.txn = txn;
+            e.saveDone.committed = 1;
             bridge.Send(ref e);
         }
 
@@ -218,7 +220,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         string RefusalReason(uint hpSentThrough)
         {
-            if (!GameManager.HasInstance || !sync.InGame || sync.Phase != PhasePlay)
+            if (!GameManager.HasInstance || !sync.InGame || sync.Phase != Dfb.DF_PHASE_PLAY)
                 return "not in play";
             SaveLoadManager saves = GameManager.Instance.SaveLoadManager;
             if (saves.IsSavingPrevented || saves.LoadInProgress)
@@ -269,6 +271,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             try
             {
                 GameManager.Instance.SaveLoadManager.SaveToFolder(folder, "Doomerfall");
+                Items.WriteLedger(folder);
                 if (testFail)
                     throw new IOException("test failure after writing the files");
                 foreach (string file in Directory.GetFiles(folder, "*", SearchOption.AllDirectories))
@@ -285,14 +288,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bridge.LogLine(string.Format("save {0}: wrote {1} files, {2} bytes, hp {3}, position {4},{5}", txn, files, bytes,
                 GameManager.Instance.PlayerEntity.CurrentHealth, GameManager.Instance.PlayerGPS.WorldX, GameManager.Instance.PlayerGPS.WorldZ));
             doneDeadline = Time.unscaledTime + DoneSeconds;
-            Reply(txn, StatusOk, files, bytes);
+            Reply(txn, Dfb.SAVE_OK, files, bytes);
         }
 
         string ReadStagingFolder()
         {
             byte[] data = new byte[4096];
             uint size, version;
-            if (DfbNative.dfb_bulk_read(bridge.Session, PathSlot, data, (uint)data.Length, out size, out version) != 1 || size < 2)
+            if (DfbNative.dfb_bulk_read(bridge.Session, Dfb.SAVE_PATH_SLOT, data, (uint)data.Length, out size, out version) != 1 || size < 2)
                 return null;
             string folder = Encoding.UTF8.GetString(data, 0, (int)size - 1);
             return folder.EndsWith(".dfstage", StringComparison.Ordinal) && Directory.Exists(folder) ? folder : null;
@@ -301,24 +304,32 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         void Fail(uint txn, string why)
         {
             bridge.LogLine("save " + txn + ": failed, " + why);
-            Reply(txn, StatusFailed, 0, 0);
+            Reply(txn, Dfb.SAVE_FAILED, 0, 0);
             Resume();
         }
 
-        void Reply(uint txn, uint status, int files, long bytes, ushort kind = KindSavePrepared)
+        void Reply(uint txn, uint status, int files, long bytes, ushort kind = Dfb.KIND_SAVE_PREPARED)
         {
             PlayerEntity player = GameManager.HasInstance ? GameManager.Instance.PlayerEntity : null;
             PlayerGPS gps = GameManager.HasInstance ? GameManager.Instance.PlayerGPS : null;
             DfbEvent e = default(DfbEvent);
             e.kind = kind;
             e.tic = (uint)Time.frameCount;
-            e.p0 = txn | (ulong)status << 32;
+            e.saveReply.txn = txn;
+            e.saveReply.status = status;
             if (player != null)
-                e.p1 = (uint)player.CurrentHealth | (ulong)(uint)player.MaxHealth << 32;
-            e.p2 = hp.Applied | (ulong)(uint)files << 32;
+            {
+                e.saveReply.hpCurrent = player.CurrentHealth;
+                e.saveReply.hpMax = player.MaxHealth;
+            }
+            e.saveReply.hpApplied = hp.Applied;
+            e.saveReply.fileCount = (uint)files;
             if (gps != null)
-                e.p3 = (uint)gps.WorldX | (ulong)(uint)gps.WorldZ << 32;
-            e.p4 = (ulong)bytes;
+            {
+                e.saveReply.worldX = gps.WorldX;
+                e.saveReply.worldZ = gps.WorldZ;
+            }
+            e.saveReply.totalBytes = (ulong)bytes;
             bridge.Send(ref e);
         }
     }

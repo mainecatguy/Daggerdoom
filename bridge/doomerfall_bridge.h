@@ -10,6 +10,13 @@
 //
 // The launcher creates the session and passes its ID to both games. Both sides check the magic
 // value, protocol version, and layout hash when they attach.
+//
+// THIS HEADER IS THE ONLY DEFINITION OF THE BRIDGE. After changing it, run:
+//     python bridge/generate_bindings.py
+// That rewrites the C# constants, structs, and imports (DoomerfallBridge.g.cs) and the compile-time
+// checks (doomerfall_bridge_check.g.h). Builds fail while they are stale. Never edit those files.
+// An event kind's "payload: dfb_x" comment is read by the generator and creates its typed C# view.
+// Daggerfall handles events in DoomerfallBridge.DrainEvents, and UZDoom in UZDoom/src/dd_bridge.cpp.
 
 #ifndef DOOMERFALL_BRIDGE_H
 #define DOOMERFALL_BRIDGE_H
@@ -27,7 +34,7 @@ extern "C" {
 #endif
 
 #define DFB_MAGIC            0x42464444u /* "DDFB" */
-#define DFB_PROTOCOL_VERSION 4u
+#define DFB_PROTOCOL_VERSION 5u
 
 #define DFB_RING_SLOTS     4096u   /* power of two */
 #define DFB_OUTBOX_SLOTS   16384u  /* local, per process; hard cap before a bridge fault */
@@ -59,10 +66,10 @@ extern "C" {
 
 /* Event kinds. Unknown kinds must be skipped by the receiver, never treated as fatal. */
 #define DFB_KIND_NONE       0
-#define DFB_KIND_HELLO      1   /* sent once after attach; payload: dfb_hello */
-#define DFB_KIND_PING       2   /* payload: dfb_ping */
-#define DFB_KIND_PONG       3   /* payload: dfb_ping, echoed with the replier's receive time */
-#define DFB_KIND_TEXT       4   /* payload: up to 48 bytes of UTF-8, not terminated if full */
+#define DFB_KIND_HELLO      1   /* both ways; sent once after attach; payload: dfb_hello */
+#define DFB_KIND_PING       2   /* both ways; latency probe; payload: dfb_ping */
+#define DFB_KIND_PONG       3   /* both ways; echoed with the replier's receive time; payload: dfb_ping */
+#define DFB_KIND_TEXT       4   /* both ways; logs and test commands; up to 48 bytes of UTF-8, not terminated if full */
 #define DFB_KIND_AREA       5   /* UZ to DF, sent at once when the context or map pixel changes; payload: dfb_area */
 #define DFB_KIND_UI_OPEN    6   /* UZ to DF; payload: dfb_ui_command */
 #define DFB_KIND_UI_CLOSE   7   /* UZ to DF; payload: dfb_ui_command */
@@ -77,9 +84,26 @@ extern "C" {
 #define DFB_KIND_LOAD_READY    16  /* DF to UZ; Daggerfall restored the save, or left its game untouched; payload: dfb_save_reply */
 #define DFB_KIND_LOAD_DONE     17  /* UZ to DF; Doom restored its half, or could not; payload: dfb_save_done */
 #define DFB_KIND_LOAD_RESUME   18  /* DF to UZ; both games are ready and play continues; payload: dfb_save_done */
-#define DFB_KIND_HOLD          19  /* UZ to DF; p0 is 1 to hold Daggerfall paused at Doom's title, 0 to release */
+#define DFB_KIND_HOLD          19  /* UZ to DF; the payload's first 8 bytes are 1 to hold Daggerfall paused at Doom's title, 0 to release */
 #define DFB_KIND_TRAVEL        20  /* DF to UZ; Daggerfall finished a fast travel, sent before the menu closes; payload: dfb_travel */
 #define DFB_KIND_TRANSITION    21  /* UZ to DF; the player went through a door, or a load restored this place; payload: dfb_transition */
+#define DFB_KIND_NEWGAME       22  /* DF to UZ; a character is made and Daggerfall is held at its start; payload: dfb_new_game */
+#define DFB_KIND_NEWGAME_ARRIVED 23 /* UZ to DF; the payload's first 8 bytes are 1 when Doom is in the same place, 0 if it could not get there */
+#define DFB_KIND_NEWGAME_GO    24  /* DF to UZ; Daggerfall started its quests and clock, so both games run */
+
+/* World items. Daggerfall owns them: it lists what is in the current space and performs every pickup. */
+#define DFB_KIND_ITEMS_BEGIN   40  /* DF to UZ; starts one full list for a space; payload: dfb_world_items */
+#define DFB_KIND_ITEM          41  /* DF to UZ; one pile in that list; payload: dfb_world_item */
+#define DFB_KIND_ITEMS_END     42  /* DF to UZ; the list is complete, and anything not in it is gone; payload: dfb_world_items */
+#define DFB_KIND_ITEM_TAKE     43  /* UZ to DF; the player pressed Interact on a pile; payload: dfb_item_take */
+#define DFB_KIND_ITEM_RESULT   44  /* DF to UZ; what Daggerfall did with that request; payload: dfb_item_result */
+#define DFB_KIND_ITEMS_REQUEST 45  /* UZ to DF; send the current list again; payload: dfb_world_items */
+
+#define DFB_ITEM_TAKEN     0u  /* everything in the pile moved to the player */
+#define DFB_ITEM_PARTIAL   1u  /* some moved; the rest stays in the pile */
+#define DFB_ITEM_TOO_HEAVY 2u  /* nothing moved, because of the weight limit */
+#define DFB_ITEM_GONE      3u  /* no such pile here */
+#define DFB_ITEM_REFUSED   4u  /* Daggerfall cannot do this now, or the player is too far away */
 
 #define DFB_TRANSITION_ENTER_BUILDING 1u
 #define DFB_TRANSITION_EXIT_BUILDING  2u
@@ -101,6 +125,7 @@ extern "C" {
 #define DFB_UI_TRAVEL_MAP  1u
 #define DFB_UI_INVENTORY   2u
 #define DFB_UI_MAP         3u  /* the map for where the player is; dfb_ui_command.context is Doom's DFB_WORLD_* */
+#define DFB_UI_NEW_GAME    4u  /* Daggerfall's character creation and new game cinematics */
 
 #define DFB_UI_CLOSED      0u
 #define DFB_UI_OPENED      1u
@@ -214,6 +239,17 @@ typedef struct dfb_travel
 	uint32_t pad;
 } dfb_travel;
 
+/* Where a new character starts. World units inside the start map pixel. dungeon_map_id is -1 outdoors. */
+typedef struct dfb_new_game
+{
+	double world_x;
+	double world_z;
+	float yaw_degrees;
+	int32_t map_pixel_x;
+	int32_t map_pixel_y;
+	int32_t dungeon_map_id;
+} dfb_new_game;
+
 /* The outside door used, in Daggerfall world units. target is Doom's interior space or dungeon map id, for logs. */
 typedef struct dfb_transition
 {
@@ -224,6 +260,48 @@ typedef struct dfb_transition
 	int32_t target;
 	uint32_t pad;
 } dfb_transition;
+
+/* One list of world items for one space. target is the space id Doom reports in dfb_uz_state.space_target. */
+typedef struct dfb_world_items
+{
+	uint32_t generation;
+	uint32_t context;     /* DFB_WORLD_* */
+	int32_t target;
+	uint32_t count;
+} dfb_world_items;
+
+/* One pile. Position and size are Doom units within the space; the position is the sprite's center. */
+typedef struct dfb_world_item
+{
+	uint64_t id;
+	uint32_t generation;
+	int32_t archive;
+	int32_t record;
+	int32_t item_count;
+	float x;
+	float y;
+	float z;
+	float width;
+	float height;
+	uint32_t pad;
+} dfb_world_item;
+
+typedef struct dfb_item_take
+{
+	uint64_t id;
+	uint32_t request;
+	uint32_t pad;
+} dfb_item_take;
+
+typedef struct dfb_item_result
+{
+	uint64_t id;
+	uint32_t request;
+	uint32_t status;      /* DFB_ITEM_* */
+	int32_t taken;
+	int32_t remaining;
+	char name[24];        /* UTF-8, terminated: the first item taken */
+} dfb_item_result;
 
 /* Describes one frame in the UI surface. Pixels are BGRA, top row first, width * 4 bytes per row. */
 typedef struct dfb_surface_frame
@@ -327,7 +405,16 @@ typedef struct dfb_uz_state
 	int32_t map_pixel_y;      /* Daggerfall convention: 499 - floor(world_z / 32768) */
 	uint32_t area_seq;        /* increments with each DFB_KIND_AREA */
 	uint32_t pad0;
-	uint8_t reserved[DFB_STATE_BYTES - 80];
+	/* Indoors: the Doom player in the space's own Daggerfall units (doom / 0.75), x east, y north, z up.
+	   Daggerfall's interior or dungeon local position is (x, z, y) / 40. */
+	double space_x;
+	double space_y;
+	double space_z;
+	float space_yaw;          /* Doom angle within the space */
+	int32_t space_target;     /* the target of the door event for this space */
+	uint32_t space_valid;     /* 0 outdoors and between maps */
+	uint32_t pad1;
+	uint8_t reserved[DFB_STATE_BYTES - 120];
 } dfb_uz_state;
 
 typedef struct dfb_stats
@@ -349,6 +436,7 @@ typedef struct dfb_session dfb_session;
 /* Library identity, for the attach check on the Unity side (struct sizes must match its own). */
 DFB_API uint32_t dfb_protocol_version(void);
 DFB_API uint64_t dfb_layout_hash(void);
+DFB_API uint64_t dfb_schema_hash(void); /* hash of this header's definitions; C# compares it with its generated copy */
 DFB_API uint32_t dfb_struct_size(int which); /* 0 event, 1 df_state, 2 uz_state, 3 stats, 4 ping */
 
 /* Monotonic clock in nanoseconds, comparable across processes on the same machine. */

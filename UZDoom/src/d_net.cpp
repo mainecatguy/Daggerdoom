@@ -3113,7 +3113,9 @@ void Net_DoCommand(int cmd, TArrayView<uint8_t>& stream, int player)
 			for (int i = 0; i < 3; i++)
 				arg[i] = ReadInt32(stream);
 			bool manual = !!ReadInt8(stream);
-			primaryLevel->localEventManager->Console(player, s, arg[0], arg[1], arg[2], manual, false);
+			extern bool DD_BridgeItemNetEvent(const char *name); // [Doomerfall] false outside a bridge session
+			if (!DD_BridgeItemNetEvent(s))
+				primaryLevel->localEventManager->Console(player, s, arg[0], arg[1], arg[2], manual, false);
 		}
 		break;
 

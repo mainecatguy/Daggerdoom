@@ -9,6 +9,7 @@
 // and the process ID.
 
 #include "doomerfall_bridge.h"
+#include "doomerfall_bridge_check.g.h"
 
 #include <atomic>
 #include <cstddef>
@@ -300,9 +301,11 @@ uint64_t ComputeLayoutHash()
 		offsetof(dfb_uz_state, world_x), offsetof(dfb_uz_state, world_z), offsetof(dfb_uz_state, world_height),
 		offsetof(dfb_uz_state, yaw_degrees), offsetof(dfb_uz_state, world_context), offsetof(dfb_uz_state, map_pixel_x),
 		offsetof(dfb_uz_state, map_pixel_y), offsetof(dfb_uz_state, area_seq), sizeof(dfb_area),
+		offsetof(dfb_uz_state, space_x), offsetof(dfb_uz_state, space_yaw), offsetof(dfb_uz_state, space_target), offsetof(dfb_uz_state, space_valid),
 		sizeof(dfb_ping), sizeof(dfb_hello), sizeof(SurfaceShared), sizeof(dfb_surface_frame),
 		sizeof(dfb_ui_command), sizeof(dfb_ui_input), sizeof(dfb_ui_state), sizeof(dfb_ui_result),
 		DFB_SURFACE_MAX_W, DFB_SURFACE_MAX_H,
+		DFB_SCHEMA_HASH, // every constant, struct field, and function in the header
 	};
 	for (uint64_t v : values) h = FnvU64(h, v);
 	return h;
@@ -424,6 +427,7 @@ extern "C" {
 
 DFB_API uint32_t dfb_protocol_version(void) { return DFB_PROTOCOL_VERSION; }
 DFB_API uint64_t dfb_layout_hash(void) { return LayoutHash; }
+DFB_API uint64_t dfb_schema_hash(void) { return DFB_SCHEMA_HASH; }
 
 DFB_API uint32_t dfb_struct_size(int which)
 {

@@ -1,7 +1,7 @@
 """Converts the two dungeons with secret door panels (non-door models on door actions) and checks all 3 in the running game.
 
 Usage: python tools/dungeon_converter/special_door_regress.py --converter <DungeonConverter.exe> --overworld <overworld.pk3> --out <dir outside the repo>
-Panels must block closed and pass open, and must not carry or trap a body. The 4 trapdoor tiles stay static, so they are not tested here.
+Panels must block closed and pass open, and must not carry or trap a body. The 4 flat trapdoor tiles are tested by trapdoor_regress.py.
 """
 import argparse
 import os

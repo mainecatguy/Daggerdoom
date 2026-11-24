@@ -1,13 +1,17 @@
 // Doomerfall: keeps the hidden Daggerfall player in the same exterior area as the Doom player, so the
 // world objects Doom asks about are loaded. This is not a matching simulation.
 //
-// UZDoom publishes Daggerfall world units (doom / 0.75 + window origin). Position is applied about once
-// per second. An area change is applied as soon as its event arrives.
+// UZDoom publishes Daggerfall world units (doom / 0.75 + window origin). Position is applied about ten
+// times per second. An area change is applied as soon as its event arrives.
 //
-// Only active in a bridge session, and only while Doom reports the Daggerfall exterior.
+// Indoors, Doom's map is the interior or dungeon's own layout at 75%, so the Daggerfall local position is
+// (doomX, doomZ, doomY) / 0.75 / 40, placed through that space's transform.
+//
+// Only active in a bridge session, and only while Doom reports a Daggerfall place.
 
 using System;
 using System.Collections;
+using DaggerfallConnect;
 using DaggerfallConnect.Arena2;
 using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop.Game.Utility;
@@ -19,14 +23,19 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     public sealed class DoomerfallPositionSync : MonoBehaviour
     {
-        const uint WorldNone = 0, WorldExterior = 1, WorldInterior = 2, WorldDungeon = 3;
-        const uint PhaseBoot = 0, PhasePlay = 3;
-        const long ApplyIntervalNs = 1000000000;
+        const long CameraCheckNs = 1000000000;
+        const int DefaultSyncHz = 10;
+        const float IndoorFootClearance = 0.05f;
         const int TeleportPixels = 2; // Farther than this, streaming would have nothing loaded at the target.
         const int GameSceneIndex = 1;
         const int TestStartPixelX = 207, TestStartPixelY = 213;
         const long TravelHoldNs = 30000000000;
 
+        long applyIntervalNs = 1000000000L / DefaultSyncHz;
+        long nextIndoorApplyNs;
+        bool indoorLandingPending, savedFootsteps, testWaterBlocks, sawSwimming, sawSubmerged;
+        int testSink; // Test only. 1 aims into flooded water with the guard on, 2 with it off.
+        readonly SyncStats outdoorStats = new SyncStats(), indoorStats = new SyncStats();
         bool travelHold;
         int travelX, travelY;
         long travelHoldUntilNs;
@@ -35,7 +44,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         bool logAfterExit;
         bool engaged, savedDisableAI, savedMotor, savedController, savedLook, savedActivate, savedWeapons;
         bool areaDirty, areaPending, verifyPending, noDraw, testWorldReady, testEnemySpawned, testImageTaken;
-        uint phase = PhaseBoot;
+        uint phase = Dfb.DF_PHASE_BOOT;
         int areaX, areaY, targetX, targetZ, teleports, applies;
         bool aligned;
         float mismatchStreak, mismatchTotal, worstMismatch, alignedTime, worstFrame;
@@ -60,6 +69,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bridge = owner;
             transition = new DoomerfallTransition(owner);
             noDraw = Array.IndexOf(args, "-dfnodraw") >= 0;
+            int rate = Array.IndexOf(args, "-dfsynchz"); // Measurement only: compares update rates.
+            int hz;
+            if (rate >= 0 && rate + 1 < args.Length && int.TryParse(args[rate + 1], out hz) && hz > 0)
+                applyIntervalNs = 1000000000L / hz;
+            if (DaggerfallUnityApplication.IsPortableInstall)
+                testSink = Array.IndexOf(args, "-dfsynctestsink") >= 0 ? 1 : Array.IndexOf(args, "-dfsynctestsinknoguard") >= 0 ? 2 : 0;
             int test = Array.IndexOf(args, "-dfsynctest");
             if (test < 0)
                 return;
@@ -124,7 +139,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         public void OnAreaEvent(uint context, int pixelX, int pixelY, long sentNs)
         {
-            if (context != WorldExterior)
+            if (context != Dfb.WORLD_EXTERIOR)
                 return;
             areaX = pixelX;
             areaY = pixelY;
@@ -143,13 +158,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bool indoors = false;
             switch (peer.worldContext)
             {
-                case WorldExterior:
+                case Dfb.WORLD_EXTERIOR:
                     break;
-                case WorldInterior:
-                case WorldDungeon:
+                case Dfb.WORLD_INTERIOR:
+                case Dfb.WORLD_DUNGEON:
                     indoors = true;
                     break;
-                case WorldNone:
+                case Dfb.WORLD_NONE:
                 default:
                     Release();
                     return;
@@ -173,11 +188,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 long indoorNowNs = DfbNative.dfb_now_ns();
                 if (noDraw && indoorNowNs >= nextCameraCheckNs)
                 {
-                    nextCameraCheckNs = indoorNowNs + ApplyIntervalNs;
+                    nextCameraCheckNs = indoorNowNs + CameraCheckNs;
                     HideWorld(game);
                 }
                 if (!game.PlayerEnterExit.IsRespawning)
-                    phase = PhasePlay;
+                    phase = Dfb.DF_PHASE_PLAY;
+                if (indoorNowNs >= nextIndoorApplyNs && ApplyIndoor(game, ref peer))
+                    nextIndoorApplyNs = indoorNowNs + applyIntervalNs;
+                MeasureIndoor(game, ref peer);
                 return;
             }
 
@@ -191,7 +209,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             long nowNs = DfbNative.dfb_now_ns();
             if (noDraw && nowNs >= nextCameraCheckNs)
             {
-                nextCameraCheckNs = nowNs + ApplyIntervalNs;
+                nextCameraCheckNs = nowNs + CameraCheckNs;
                 HideWorld(game);
             }
 
@@ -201,7 +219,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             {
                 indoorFrames++;
                 if (world.DoomerfallPositionSettled)
-                    phase = PhasePlay;
+                    phase = Dfb.DF_PHASE_PLAY;
                 return;
             }
 
@@ -234,11 +252,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 worstFrame = Mathf.Max(worstFrame, Time.unscaledDeltaTime);
                 if (Time.unscaledDeltaTime > 1f / 60f) slowFrames++;
                 alignedFrames++;
+                if (bridge.LogEnabled && !indoors)
+                    outdoorStats.AddFrame(Distance(peer.worldX - game.PlayerGPS.WorldX, peer.worldZ - game.PlayerGPS.WorldZ), Time.unscaledDeltaTime);
             }
 
             if (!world.DoomerfallPositionSettled)
                 return;
-            phase = PhasePlay;
+            phase = Dfb.DF_PHASE_PLAY;
 
             if (!aligned && samePixel)
             {
@@ -278,8 +298,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (!areaDirty && nowNs < nextApplyNs)
                 return;
             areaDirty = false;
-            nextApplyNs = nowNs + ApplyIntervalNs;
+            nextApplyNs = nowNs + applyIntervalNs;
+            long applyStart = System.Diagnostics.Stopwatch.GetTimestamp();
             Apply(game, world, gps, ref peer);
+            outdoorStats.AddApply(System.Diagnostics.Stopwatch.GetTimestamp() - applyStart);
         }
 
         // Save handshake: moves Daggerfall to Doom's frozen position now instead of at the next update.
@@ -291,10 +313,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return false;
             GameManager game = GameManager.Instance;
             if (game.PlayerEnterExit.IsPlayerInside)
-                return !game.PlayerEnterExit.IsRespawning; // Really indoors, so the outdoor position does not apply.
+            {
+                if (game.PlayerEnterExit.IsRespawning)
+                    return false;
+                ApplyIndoor(game, ref peer); // The save records where Doom's player really stands in the room.
+                return true;
+            }
             StreamingWorld world = game.StreamingWorld;
-            bool known = peer.worldContext == WorldExterior ||
-                ((peer.worldContext == WorldInterior || peer.worldContext == WorldDungeon) && peer.mapPixelX >= 0 && peer.mapPixelY >= 0);
+            bool known = peer.worldContext == Dfb.WORLD_EXTERIOR ||
+                ((peer.worldContext == Dfb.WORLD_INTERIOR || peer.worldContext == Dfb.WORLD_DUNGEON) && peer.mapPixelX >= 0 && peer.mapPixelY >= 0);
             if (known)
             {
                 if (!world.DoomerfallPositionSettled)
@@ -317,11 +344,16 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         // A load replaces Daggerfall's place. Doom reports its restored side of the door before the load ends.
         internal bool LoadRunning { get; set; }
 
+        // Daggerfall has booted and waits behind Doom's title with no game.
+        internal void SetMenuPhase() { phase = Dfb.DF_PHASE_MENU; }
+
         internal void OnTransitionEvent(uint action, uint seq, double x, double z, int target)
         {
             transition.OnEvent(action, seq, x, z, target);
-            logAfterExit = action == 2 || action == 4;
+            logAfterExit = action == Dfb.TRANSITION_EXIT_BUILDING || action == Dfb.TRANSITION_EXIT_DUNGEON;
             verifyPending = false; // A check still waiting from before the door would compare against an old target.
+            indoorLandingPending = action == Dfb.TRANSITION_ENTER_BUILDING || action == Dfb.TRANSITION_ENTER_DUNGEON;
+            nextIndoorApplyNs = 0;
             areaDirty = true; // Apply Doom's outdoor position as soon as the world allows it.
         }
 
@@ -372,6 +404,95 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             verifyPending = true;
         }
 
+        // The transform of the space Doom reports, once Daggerfall has finished entering that same space.
+        Transform IndoorSpace(GameManager game, ref DfbUzState peer)
+        {
+            PlayerEnterExit enter = game.PlayerEnterExit;
+            if (peer.spaceValid == 0 || !transition.IsIn(enter, peer.worldContext, peer.spaceTarget))
+                return null;
+            if (peer.worldContext == Dfb.WORLD_DUNGEON)
+                return enter.Dungeon ? enter.Dungeon.transform : null;
+            return peer.worldContext == Dfb.WORLD_INTERIOR && enter.Interior ? enter.Interior.transform : null;
+        }
+
+        // The indoor space Doom and Daggerfall are both in, or null. World items are listed relative to it.
+        internal Transform ItemSpace(ref DfbUzState peer)
+        {
+            return GameManager.HasInstance && InGame ? IndoorSpace(GameManager.Instance, ref peer) : null;
+        }
+
+        // Moves the hidden player to Doom's place in the room. Its controller is off, so nothing here collides,
+        // falls, or triggers. False means Daggerfall is not in Doom's space yet.
+        bool ApplyIndoor(GameManager game, ref DfbUzState peer)
+        {
+            Transform space = IndoorSpace(game, ref peer);
+            if (!space)
+                return false;
+            long applyStart = System.Diagnostics.Stopwatch.GetTimestamp();
+            Transform player = game.PlayerObject.transform;
+            float scale = MeshReader.GlobalScale;
+            Vector3 feet = space.TransformPoint((float)peer.spaceX * scale, (float)peer.spaceZ * scale, (float)peer.spaceY * scale);
+            Vector3 position = feet;
+            position.y += player.GetComponent<CharacterController>().height / 2f + IndoorFootClearance;
+
+            // Daggerfall would start its swimming and drowning rules from this height. Doom owns water now.
+            PlayerEnterExit enter = game.PlayerEnterExit;
+            if (enter.IsPlayerInsideDungeon)
+            {
+                if (testSink != 0)
+                    SinkIntoWater(enter, space, ref position);
+                DFLocation.DungeonBlock block;
+                int index = enter.Dungeon.GetPlayerBlockIndex(position);
+                if (testSink != 2 && index >= 0 && enter.Dungeon.GetBlockData(index, out block) && block.WaterLevel != 10000)
+                    position.y = Mathf.Max(position.y, (-block.WaterLevel - 50) * scale + 0.95f + 0.01f);
+            }
+
+            if (indoorLandingPending)
+            {
+                indoorLandingPending = false;
+                Vector3 landing = space.InverseTransformPoint(player.position);
+                string marker = "";
+                if (enter.IsPlayerInsideDungeon && enter.Dungeon.StartMarker)
+                {
+                    Vector3 start = space.InverseTransformPoint(enter.Dungeon.StartMarker.transform.position);
+                    marker = string.Format(", Doom is {0:F1} units from Daggerfall's start marker", Distance(start.x / scale - peer.spaceX, start.z / scale - peer.spaceY));
+                }
+                bridge.LogLine(string.Format("sync indoor: Daggerfall landing is {0:F1} units from Doom's, target {1}{2}",
+                    Distance(landing.x / scale - peer.spaceX, landing.z / scale - peer.spaceY), peer.spaceTarget, marker));
+            }
+            player.position = position;
+            player.rotation = space.rotation * Quaternion.Euler(0, 90f - peer.spaceYaw, 0);
+            applies++;
+            indoorStats.AddApply(System.Diagnostics.Stopwatch.GetTimestamp() - applyStart);
+            return true;
+        }
+
+        // Test only: floods the player's block in memory and aims the move deep under it, to prove the water guard works.
+        void SinkIntoWater(PlayerEnterExit enter, Transform space, ref Vector3 position)
+        {
+            const short TestWaterLevel = 100;
+            int index = enter.Dungeon.GetPlayerBlockIndex(position);
+            if (index < 0)
+                return;
+            enter.Dungeon.Summary.LocationData.Dungeon.Blocks[index].WaterLevel = TestWaterLevel;
+            enter.blockWaterLevel = TestWaterLevel;
+            testWaterBlocks = true;
+            position.y = (-TestWaterLevel - 400) * MeshReader.GlobalScale;
+        }
+
+        void MeasureIndoor(GameManager game, ref DfbUzState peer)
+        {
+            sawSwimming |= game.PlayerEnterExit.IsPlayerSwimming;
+            sawSubmerged |= game.PlayerEnterExit.IsPlayerSubmerged;
+            if (!bridge.LogEnabled || indoorLandingPending || testSink != 0)
+                return;
+            Transform space = IndoorSpace(game, ref peer);
+            if (!space)
+                return;
+            Vector3 local = space.InverseTransformPoint(game.PlayerObject.transform.position);
+            indoorStats.AddFrame(Distance(local.x / MeshReader.GlobalScale - peer.spaceX, local.z / MeshReader.GlobalScale - peer.spaceY), Time.unscaledDeltaTime);
+        }
+
         // Stops what would let the moved player act on the world. Effects such as poison keep running.
         void Engage(GameManager game)
         {
@@ -385,6 +506,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             savedLook = game.PlayerMouseLook.enabled;
             savedActivate = game.PlayerActivate.enabled;
             savedWeapons = game.WeaponManager.enabled;
+            PlayerFootsteps footsteps = game.PlayerObject.GetComponent<PlayerFootsteps>();
+            savedFootsteps = footsteps && footsteps.enabled;
+            if (footsteps) footsteps.enabled = false; // Doom plays the player's sounds, and these moves are not steps.
             controller.enabled = false;
             game.PlayerMotor.enabled = false;
             game.PlayerMouseLook.enabled = false;
@@ -437,7 +561,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (!engaged)
                 return;
             engaged = false;
-            phase = PhaseBoot;
+            phase = (uint)(DoomerfallNewGame.HoldsNewCharacter ? Dfb.DF_PHASE_MENU : Dfb.DF_PHASE_BOOT); // Doom's title can start a new game.
             GameManager game = GameManager.Instance;
             game.DisableAI = savedDisableAI;
             game.PlayerObject.GetComponent<CharacterController>().enabled = savedController;
@@ -445,6 +569,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             game.PlayerMouseLook.enabled = savedLook;
             game.PlayerActivate.enabled = savedActivate;
             game.WeaponManager.enabled = savedWeapons;
+            PlayerFootsteps footsteps = game.PlayerObject.GetComponent<PlayerFootsteps>();
+            if (footsteps) footsteps.enabled = savedFootsteps;
             bridge.LogLine("sync: released");
         }
 
@@ -484,6 +610,56 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 applies, teleports, mismatchTotal, alignedTime, worstApplyError, worstLag,
                 ready && game.PlayerEntity != null ? game.PlayerEntity.CurrentHealth : -1, startHealth, enemy,
                 GC.GetTotalMemory(false) / (1024 * 1024), frameMs.Summary(), areaLatency.Summary(), worstMismatch, alignedFrames, slowFrames, worstFrame * 1000f, indoorFrames));
+            bridge.LogLine("syncstat hz=" + (1000000000L / applyIntervalNs) + " outdoor " + outdoorStats.Summary() + " | indoor " + indoorStats.Summary() +
+                " | water test=" + testSink + " flooded_block=" + testWaterBlocks + " saw_swimming=" + sawSwimming + " saw_submerged=" + sawSubmerged);
+        }
+
+        // Whole-run position error and cost. The error is how far Daggerfall is behind Doom on each frame.
+        sealed class SyncStats
+        {
+            const double BucketUnits = 4;
+            readonly int[] buckets = new int[4096];
+            long frames, applies, applyTicks, maxApplyTicks;
+            double errorSum, errorMax, frameSeconds, frameMax;
+
+            public void AddFrame(double error, float seconds)
+            {
+                frames++;
+                errorSum += error;
+                errorMax = Math.Max(errorMax, error);
+                frameSeconds += seconds;
+                frameMax = Math.Max(frameMax, seconds);
+                buckets[Math.Min((int)(error / BucketUnits), buckets.Length - 1)]++;
+            }
+
+            public void AddApply(long ticks)
+            {
+                applies++;
+                applyTicks += ticks;
+                maxApplyTicks = Math.Max(maxApplyTicks, ticks);
+            }
+
+            double Percentile(double fraction)
+            {
+                long wanted = (long)(frames * fraction), seen = 0;
+                for (int i = 0; i < buckets.Length; i++)
+                {
+                    seen += buckets[i];
+                    if (seen > wanted)
+                        return (i + 1) * BucketUnits;
+                }
+                return errorMax;
+            }
+
+            public string Summary()
+            {
+                double tickMs = 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+                return string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                    "frames={0} err_mean={1:F1} err_p95={2:F0} err_max={3:F0} frame_mean_ms={4:F3} frame_max_ms={5:F1} applies={6} apply_mean_us={7:F1} apply_max_ms={8:F2} apply_share={9:F4}%",
+                    frames, frames > 0 ? errorSum / frames : 0, Percentile(0.95), errorMax, frames > 0 ? frameSeconds * 1000 / frames : 0, frameMax * 1000,
+                    applies, applies > 0 ? applyTicks * tickMs * 1000 / applies : 0, maxApplyTicks * tickMs,
+                    frameSeconds > 0 ? applyTicks * tickMs / (frameSeconds * 1000) * 100 : 0);
+            }
         }
     }
 }

@@ -398,7 +398,7 @@ namespace DaggerfallWorkshop.Game.Utility
                         streamingWorld.suppressWorld = true;
                     }
                     playerEnterExit.EnableDungeonParent();
-                    playerEnterExit.StartDungeonInterior(location);
+                    playerEnterExit.StartDungeonInterior(location, true, Doomerfall.DoomerfallNewGame.ImportEnemies); // Doomerfall: Doom owns the monsters
                 }
                 else
                 {
@@ -435,6 +435,20 @@ namespace DaggerfallWorkshop.Game.Utility
             // Randomize weathers
             GameManager.Instance.WeatherManager.SetClimateWeathers();
 
+            // Doomerfall: the clock and quests wait until Doom has arrived in the same place
+            if (Doomerfall.DoomerfallNewGame.HoldsNewCharacter)
+            {
+                DaggerfallUI.Instance.PopToHUD();
+                lastStartMethod = StartMethods.NewCharacter;
+                Doomerfall.DoomerfallNewGame.CharacterPlaced();
+                return;
+            }
+            FinishNewCharacterStart();
+        }
+
+        /// <summary>The last part of a new character's start: the clock, the main quests, and the start events.</summary>
+        public void FinishNewCharacterStart()
+        {
             // Start game
             GameManager.Instance.PauseGame(false);
             DaggerfallUI.Instance.FadeBehaviour.FadeHUDFromBlack();

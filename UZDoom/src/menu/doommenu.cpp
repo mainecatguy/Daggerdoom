@@ -149,8 +149,23 @@ DEFINE_ACTION_FUNCTION_NATIVE(DMenu, StartGameDirect, StartGameDirect)
 	return 0;
 }
 
+bool DD_BridgeNewGameMenu(); // Doomerfall
+bool DD_BridgeEndGame(); // Doomerfall
+
+// Doomerfall: the difficulty prompt after character creation, with one fixed class for now.
+void M_DDOpenSkillMenu()
+{
+	NewGameStartupInfo.hasPlayerClass = PlayerClasses.Size() > 0;
+	if (NewGameStartupInfo.hasPlayerClass) NewGameStartupInfo.PlayerClass = PlayerClasses[0].Type->GetDisplayName();
+	M_StartControlPanel(false);
+	M_SetMenu(NAME_SkillMenu, 0);
+}
+
 bool M_SetSpecialMenu(FName& menu, int param)
 {
+	// Doomerfall: New Game goes to Daggerfall's character creation. No effect without -dfflow.
+	if ((menu.GetIndex() == NAME_PlayerclassMenu || menu.GetIndex() == NAME_EpisodeMenu) && DD_BridgeNewGameMenu()) return false;
+
 	// some menus need some special treatment
 	switch (menu.GetIndex())
 	{
@@ -457,6 +472,7 @@ void ActivateEndGameMenu()
 	DMenu *newmenu = CreateMessageBoxMenu(CurrentMenu, tempstring.GetChars(), 0, false, NAME_None, []()
 	{
 		M_ClearMenus();
+		if (DD_BridgeEndGame()) return; // Doomerfall: both games go to the title together
 		if (!netgame)
 		{
 			if (demorecording)

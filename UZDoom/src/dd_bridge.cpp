@@ -45,14 +45,23 @@
 #include "texturemanager.h"
 #include "textures.h"
 #include "v_draw.h"
+#include "v_font.h"
 #include "v_video.h"
 
 void G_SaveGame(const char *filename, const char *description, bool quick);
 extern FString savename;
 
+// World items: see dd_items.cpp.
+bool DD_ItemsEvent(const dfb_event &e);
+void DD_ItemsFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t target);
+void DD_ItemsResync();
+bool DD_ItemsNetEvent(dfb_session *session, const char *name);
+
 FARG_ADVANCED(dfbridge, "Doomerfall", "session", "Attaches to the Doomerfall bridge session created by the launcher.");
 FARG_ADVANCED(dfbridgelog, "Doomerfall", "file", "Appends Doomerfall bridge traffic and latency to a log file.");
 FARG_ADVANCED(dfuitest, "Doomerfall", "count", "Bridge test only: opens the fast travel menu this many times.");
+FARG(dfflow, "Doomerfall", "Starts at Doom's title with New Game and Load Game driving both games.", "", "");
+FARG_ADVANCED(dfnewgametest, "Doomerfall", "once|twice", "Bridge test only: chooses New Game and a difficulty through the real menu path.");
 FARG_ADVANCED(dfbridgetestpause, "Doomerfall", "ext|game|menu", "Bridge test only: enters a pause state for six seconds.");
 
 FARG_ADVANCED(dfsavetest, "Doomerfall", "file|autoN", "Save test only: makes one synchronized save to this file, or N real autosaves, then quits.");
@@ -107,6 +116,7 @@ uint32_t nextPing = 1;
 uint64_t pingsAnswered, pongsReceived, unknownKinds;
 int64_t nextPingNs, nextLogNs;
 bool peerSeen, peerStale;
+int64_t peerStaleAt;
 
 void Log(const char *format, ...)
 {
@@ -182,6 +192,13 @@ void PublishPosition()
 		ownState.world_height = z;
 		ownState.yaw_degrees = float(yaw);
 	}
+	double spaceYaw = 0;
+	int spaceTarget = 0;
+	const bool inSpace = (area == DD_AREA_INTERIOR || area == DD_AREA_DUNGEON) &&
+		DDTreadmill_PlayerSpace(ownState.space_x, ownState.space_y, ownState.space_z, spaceYaw, spaceTarget);
+	ownState.space_yaw = float(spaceYaw);
+	ownState.space_target = spaceTarget;
+	ownState.space_valid = inSpace ? 1 : 0;
 	if (context != ownState.world_context || pixelX != ownState.map_pixel_x || pixelY != ownState.map_pixel_y)
 	{
 		ownState.world_context = context;
@@ -206,6 +223,18 @@ void HandleLoadReady(const dfb_event &e);
 void HandleLoadResume(const dfb_event &e);
 bool flowHold; // A load is running, or a failed load or the title left no game both halves agree on.
 
+// New Game (-dfflow). Doom's menu opens Daggerfall's character creation, asks for a difficulty, walks into
+// the start location, and only then lets Daggerfall start its clock and quests.
+enum NewGameState { NgIdle, NgWaitDf, NgCreating, NgDifficulty, NgLoading, NgTravel, NgDoor, NgWaitGo };
+bool flowMode, ngHaveWorld, ngResult;
+NewGameState ngState = NgIdle;
+dfb_new_game ngWorld;
+int64_t ngDeadline, ngTravelAt, ngTestAt;
+constexpr int64_t NgStallNs = 30000000000LL; // Daggerfall stalls for seconds while it builds a new character's world.
+const char *ngTest;
+FString campaignId, loadCampaign; // Keeps each character's auto and quick slots apart.
+void HandleNewGameGo();
+
 void HandleEvent(const dfb_event &e, int64_t now)
 {
 	switch (e.kind)
@@ -227,6 +256,14 @@ void HandleEvent(const dfb_event &e, int64_t now)
 		break;
 	case DFB_KIND_LOAD_RESUME:
 		HandleLoadResume(e);
+		break;
+	case DFB_KIND_NEWGAME:
+		memcpy(&ngWorld, e.payload, sizeof(ngWorld));
+		ngHaveWorld = ngState == NgCreating;
+		Log("new game: Daggerfall holds a character at pixel %d,%d, dungeon %d", ngWorld.map_pixel_x, ngWorld.map_pixel_y, ngWorld.dungeon_map_id);
+		break;
+	case DFB_KIND_NEWGAME_GO:
+		HandleNewGameGo();
 		break;
 	case DFB_KIND_PING:
 	{
@@ -262,7 +299,7 @@ void HandleEvent(const dfb_event &e, int64_t now)
 		Log("hello from Daggerfall (seq %u)", e.seq);
 		break;
 	default:
-		unknownKinds++; // contract rule 7: skip, never fatal
+		if (!DD_ItemsEvent(e)) unknownKinds++; // contract rule 7: skip, never fatal
 		break;
 	}
 }
@@ -395,6 +432,11 @@ void HandleUiState(const dfb_event &e)
 	}
 	static const char *const reasons[] = { "none", "player closed it", "Daggerfall refused", "choice made", "Doom asked" };
 	if (body.reason == DFB_UI_REASON_REFUSED) Printf("Daggerfall cannot open that menu here.\n");
+	if (body.ui_id == DFB_UI_NEW_GAME && body.reason == DFB_UI_REASON_RESULT)
+	{
+		ngResult = true;
+		ngDeadline = dfb_now_ns() + 20000000000LL;
+	}
 	FinishUi(body.reason < 5 ? reasons[body.reason] : "unknown");
 }
 
@@ -432,7 +474,7 @@ void PumpUi(int64_t now)
 		FinishUi("no answer from Daggerfall");
 		return;
 	}
-	if (peerStale)
+	if (peerStale && (ngState != NgCreating || now - peerStaleAt > NgStallNs))
 	{
 		Printf("Daggerfall stopped responding, closing its menu.\n");
 		FinishUi("Daggerfall heartbeat stale");
@@ -597,6 +639,12 @@ bool DD_BridgeToggleMap()
 	return true;
 }
 
+// A ZScript pickup request, seen as its network event runs. False for every other event and outside a session.
+bool DD_BridgeItemNetEvent(const char *name)
+{
+	return session && DD_ItemsNetEvent(session, name);
+}
+
 bool DD_BridgeNetEvent(const char *name)
 {
 	if (session && !strcmp(name, "df_hp_damage")) // Demo only: stands in for a Daggerfall-side attacker
@@ -631,6 +679,13 @@ bool DD_BridgeNetEvent(const char *name)
 
 void DD_BridgeDrawUi()
 {
+	if (ngState >= NgLoading) // The trip to the start location happens behind this.
+	{
+		Dim(twod, 0, 1.f, 0, 0, twod->GetWidth(), twod->GetHeight());
+		const char *text = "Entering Daggerfall...";
+		DrawText(twod, NewSmallFont, CR_GOLD, (twod->GetWidth() - NewSmallFont->StringWidth(text) * CleanXfac) / 2, twod->GetHeight() / 2, text, DTA_CleanNoMove, true, TAG_DONE);
+		return;
+	}
 	if (uiState == UiClosed) return;
 	Dim(twod, 0, 1.f, 0, 0, twod->GetWidth(), twod->GetHeight());
 	if (!uiHasFrame) return;
@@ -1242,10 +1297,10 @@ bool DD_BridgeSaveAddFiles(TArray<FCompressedBuffer> &content, TArray<FString> &
 	}
 	FString manifest;
 	manifest.Format("{\"format\":%d,\"txn\":%u,\"hp\":%d,\"hp_max\":%d,\"hp_applied\":%u,\"doom_hp\":%d,"
-		"\"df_world\":[%d,%d],\"doom_world\":[%.3f,%.3f,%.3f],\"yaw\":%.3f,\"context\":%u,\"map_pixel\":[%d,%d],\"map\":\"%s\",\"files\":[%s]}\n",
+		"\"df_world\":[%d,%d],\"doom_world\":[%.3f,%.3f,%.3f],\"yaw\":%.3f,\"context\":%u,\"map_pixel\":[%d,%d],\"map\":\"%s\",\"campaign\":\"%s\",\"files\":[%s]}\n",
 		SaveFormat, saveTxn, saveReply.hp_current, saveReply.hp_max, saveReply.hp_applied, players[consoleplayer].health,
 		saveReply.world_x, saveReply.world_z, ownState.world_x, ownState.world_z, ownState.world_height, ownState.yaw_degrees,
-		ownState.world_context, ownState.map_pixel_x, ownState.map_pixel_y, primaryLevel->MapName.GetChars(), list.GetChars());
+		ownState.world_context, ownState.map_pixel_x, ownState.map_pixel_y, primaryLevel->MapName.GetChars(), campaignId.GetChars(), list.GetChars());
 	if (!SaveAddEntry(content, names, "doomerfall/manifest.json", reinterpret_cast<const uint8_t *>(manifest.GetChars()), manifest.Len())) return false;
 	return !(saveTestFail && !strcmp(saveTestFail, "uz_zip"));
 }
@@ -1297,7 +1352,7 @@ struct BundleInfo
 {
 	int hp = 0, hpMax = 0, x = 0, z = 0;
 	uint32_t files = 0;
-	FString map;
+	FString map, campaign;
 };
 
 bool ManifestInt(const std::string &text, const char *key, int &out)
@@ -1375,6 +1430,12 @@ bool BundleCheck(const char *file, BundleInfo &info, FString &why, const fs::pat
 		if (mapAt == std::string::npos || listAt == std::string::npos) { why = "the manifest is incomplete"; return false; }
 		const size_t mapEnd = manifest.find('"', mapAt + 7);
 		const std::string manifestMap = manifest.substr(mapAt + 7, mapEnd - mapAt - 7);
+		const size_t campaignAt = manifest.find("\"campaign\":\""); // Absent in saves made before New Game existed.
+		if (campaignAt != std::string::npos)
+		{
+			const size_t campaignEnd = manifest.find('"', campaignAt + 12);
+			if (campaignEnd != std::string::npos) info.campaign = manifest.substr(campaignAt + 12, campaignEnd - campaignAt - 12).c_str();
+		}
 		std::vector<std::string> listed;
 		const size_t listEnd = manifest.find(']', listAt);
 		for (size_t at = manifest.find('"', listAt + 9); at != std::string::npos && at < listEnd;)
@@ -1449,6 +1510,7 @@ void LoadStart()
 	fs::create_directories(stage, error);
 	if (error) { LoadRefuse("could not prepare the staging folder"); return; }
 	if (!BundleCheck(loadFile.GetChars(), info, why, &stage)) { LoadRefuse(why.GetChars()); return; }
+	loadCampaign = info.campaign;
 	uint32_t version;
 	if (dfb_bulk_write(session, DFB_SAVE_PATH_SLOT, loadStage.GetChars(), uint32_t(loadStage.Len() + 1), &version) != DFB_OK)
 	{
@@ -1528,9 +1590,11 @@ void HandleLoadResume(const dfb_event &e)
 	if (loadState != LoadWaitResume || body.txn != loadTxn) return;
 	loadState = LoadIdle;
 	loadBroken = atTitle = flowHold = false;
+	campaignId = loadCampaign;
 	deathState = DeathNone;
 	pauseext = false;
 	M_ClearMenus();
+	DD_ItemsResync();
 	Log("load %u: both games resumed, %.1f ms frozen", loadTxn, (dfb_now_ns() - loadStartNs) / 1e6);
 }
 
@@ -1549,7 +1613,12 @@ bool NewestBundle(FString &out)
 		const FString name(reinterpret_cast<const char *>(text.c_str()));
 		BundleInfo info;
 		FString why;
-		if (BundleCheck(name.GetChars(), info, why, nullptr)) { out = name; return true; }
+		if (BundleCheck(name.GetChars(), info, why, nullptr))
+		{
+			if (campaignId.IsNotEmpty() && info.campaign.Compare(campaignId.GetChars())) continue; // Another character's save.
+			out = name;
+			return true;
+		}
 		Log("load: skipping %s: %s", name.GetChars(), why.GetChars());
 	}
 	return false;
@@ -1622,7 +1691,7 @@ void RunLoadTest(int64_t now)
 		return;
 	}
 	const bool settled = loadState == LoadIdle && saveState == SaveIdle && !saveStartPending;
-	const bool bad = !strcmp(loadTestMode, "bad"), death = !strcmp(loadTestMode, "death"), menu = !strcmp(loadTestMode, "menu");
+	const bool bad = !strcmp(loadTestMode, "bad"), death = !strcmp(loadTestMode, "death"), menu = !strcmp(loadTestMode, "menu") || !strcmp(loadTestMode, "again");
 	const player_t &player = players[consoleplayer];
 	double x = 0, y = 0, z = 0, yaw = 0;
 	const auto finish = [&]()
@@ -1708,6 +1777,12 @@ void RunLoadTest(int64_t now)
 		return;
 	case 6:
 		LoadTestLog("at the title");
+		if (!strcmp(loadTestMode, "again")) // A second character in the same session, after the first one died.
+		{
+			ngTest = "once";
+			loadTestStep = -1;
+			return;
+		}
 		C_DoCommand("map DDT09183"); // Must be refused while no game is loaded.
 		loadTestStep = 7;
 		loadTestAtNs = now + 1500000000LL;
@@ -1737,6 +1812,13 @@ void RunLoadTest(int64_t now)
 bool DD_BridgeBlocksNewGame()
 {
 	if (!session || !atTitle) return false;
+	if (ngState == NgDifficulty)
+	{
+		ngState = NgLoading;
+		ngDeadline = dfb_now_ns() + 60000000000LL;
+		Log("new game: difficulty chosen, loading the start map");
+		return false;
+	}
 	Printf(PRINT_HIGH, "Load a save to continue.\n");
 	Log("title: refused a new game, no Daggerfall game is loaded");
 	return true;
@@ -1773,7 +1855,7 @@ bool DD_BridgeLoadBegin(const char *filename)
 		Printf(PRINT_HIGH, "Cannot load that save: it is not a Doomerfall save.\n");
 		return true;
 	}
-	if (loadState != LoadIdle || saveState != SaveIdle || saveStartPending || uiState != UiClosed)
+	if (loadState != LoadIdle || saveState != SaveIdle || saveStartPending || uiState != UiClosed || ngState != NgIdle)
 	{
 		Printf(PRINT_HIGH, "Cannot load right now.\n");
 		return true;
@@ -1799,9 +1881,24 @@ CCMD(dd_death_loadlast)
 	DD_BridgeLoadBegin(newest.GetChars());
 }
 
+static void ReturnToTitle();
+
 CCMD(dd_death_mainmenu)
 {
 	if (!session || deathState == DeathNone || loadState != LoadIdle) return;
+	ReturnToTitle();
+}
+
+// Doom's End Game option in a Doomerfall game. Daggerfall holds, so neither half runs on alone.
+bool DD_BridgeEndGame()
+{
+	if (!session || !flowMode) return false;
+	if (!atTitle && loadState == LoadIdle && saveState == SaveIdle && ngState == NgIdle) ReturnToTitle();
+	return true;
+}
+
+static void ReturnToTitle()
+{
 	dfb_event e{};
 	e.kind = DFB_KIND_HOLD;
 	e.tic = gametic;
@@ -1814,8 +1911,196 @@ CCMD(dd_death_mainmenu)
 	loadBroken = false;
 	atTitle = flowHold = true;
 	pauseext = false;
+	campaignId = "";
 	Log("death: returning to the title, Daggerfall held until a save is loaded");
 	D_StartTitle();
+}
+
+//==========================================================================
+// New Game. Only runs with -dfflow.
+//==========================================================================
+
+void M_DDOpenSkillMenu();
+
+namespace
+{
+void NgFreeze(bool on)
+{
+	player_t &player = players[consoleplayer];
+	if (!player.mo) return;
+	if (on) player.cheats |= CF_TOTALLYFROZEN | CF_GODMODE;
+	else player.cheats &= ~(CF_TOTALLYFROZEN | CF_GODMODE);
+}
+
+void NgSendArrived(bool ok)
+{
+	dfb_event e{};
+	e.kind = DFB_KIND_NEWGAME_ARRIVED;
+	e.tic = gametic;
+	const uint64_t value = ok ? 1 : 0;
+	memcpy(e.payload, &value, sizeof(value));
+	dfb_send(session, &e);
+	dfb_flush(session);
+}
+
+void NgFail(const char *why)
+{
+	Log("new game: FAILED, %s", why);
+	Printf(PRINT_HIGH, "Could not start the game: %s.\n", why);
+	const bool started = ngState >= NgDifficulty || ngHaveWorld || ngResult;
+	const bool inLevel = ngState >= NgLoading && gamestate == GS_LEVEL;
+	if (inLevel) NgFreeze(false);
+	if (started) NgSendArrived(false);
+	ngState = NgIdle;
+	ngHaveWorld = ngResult = false;
+	atTitle = flowHold = true;
+	M_ClearMenus();
+	if (inLevel) D_StartTitle();
+}
+
+void PumpNewGame(int64_t now)
+{
+	if (!flowMode) return;
+	if (ngState == NgIdle)
+	{
+		// Test only: goes through the real New Game menu entry once Daggerfall is ready.
+		if (ngTest && atTitle && gamestate != GS_STARTUP && peerSeen && peerState.df_phase != DFB_DF_PHASE_BOOT && peerState.df_phase != DFB_DF_PHASE_LOADING)
+		{
+			if (!ngTestAt) ngTestAt = now + 1000000000LL;
+			if (now >= ngTestAt)
+			{
+				const char *mode = ngTest;
+				ngTest = strcmp(mode, "twice") ? nullptr : "once";
+				ngTestAt = 0;
+				Log("new game test: choosing New Game");
+				M_StartControlPanel(false);
+				M_SetMenu(FName("PlayerclassMenu"), -1);
+			}
+		}
+		return;
+	}
+	if (ngState != NgWaitDf && peerStale)
+	{
+		if (uiState == UiClosed && now - peerStaleAt > NgStallNs) NgFail("Daggerfall stopped responding");
+		return;
+	}
+	if (ngState >= NgLoading)
+	{
+		if (now > ngDeadline) { NgFail("the start location did not load"); return; }
+		if (gamestate == GS_LEVEL) NgFreeze(true);
+	}
+	switch (ngState)
+	{
+	case NgWaitDf:
+		if (peerSeen && !peerStale && peerState.df_phase != DFB_DF_PHASE_BOOT && peerState.df_phase != DFB_DF_PHASE_LOADING) // After a death it may still report play or dead.
+		{
+			ngState = NgCreating;
+			ngHaveWorld = ngResult = false;
+			M_ClearMenus();
+			OpenUi(DFB_UI_NEW_GAME);
+		}
+		else if (now > ngDeadline) NgFail("Daggerfall is not ready");
+		return;
+	case NgCreating:
+		if (uiState != UiClosed) return;
+		if (ngHaveWorld)
+		{
+			ngState = NgDifficulty;
+			ngTestAt = now + 1000000000LL;
+			M_DDOpenSkillMenu();
+			Log("new game: asking for a difficulty");
+		}
+		else if (!ngResult)
+		{
+			ngState = NgIdle;
+			Log("new game: backed out of character creation, at the title");
+		}
+		else if (now > ngDeadline) NgFail("Daggerfall did not place the character");
+		return;
+	case NgDifficulty:
+		if (!menuactive && gameaction == ga_nothing) M_DDOpenSkillMenu(); // A difficulty is required once the character exists.
+		else if (Args->CheckValue(FArg_dfnewgametest) && menuactive && now >= ngTestAt)
+		{
+			ngTestAt = now + 5000000000LL;
+			Log("new game test: choosing difficulty 2");
+			M_SetMenu(FName("Startgame"), 2);
+		}
+		return;
+	case NgLoading:
+		if (gamestate == GS_LEVEL && gameaction == ga_nothing && !DDTreadmill_HandoffPending() && primaryLevel->maptime >= 2 &&
+			DDTreadmill_RequestTravel(ngWorld.world_x, ngWorld.world_z, ngWorld.yaw_degrees))
+		{
+			ngState = NgTravel;
+			ngTravelAt = now + 1000000000LL;
+			Log("new game: travelling to pixel %d,%d", ngWorld.map_pixel_x, ngWorld.map_pixel_y);
+		}
+		return;
+	case NgTravel:
+		if (now < ngTravelAt || gamestate != GS_LEVEL || gameaction != ga_nothing || DDTreadmill_HandoffPending() || primaryLevel->maptime < 2) return;
+		if (ngWorld.dungeon_map_id < 0)
+		{
+			NgSendArrived(true);
+			ngState = NgWaitGo;
+			return;
+		}
+		if (primaryLevel->MapName.CompareNoCase("DDOVER01") == 0) return; // Still on the overworld.
+		Log("new game: at the entrance in %s, going inside dungeon %d", primaryLevel->MapName.GetChars(), ngWorld.dungeon_map_id);
+		DDTreadmill_RequestDungeon(ngWorld.dungeon_map_id);
+		ngState = NgDoor;
+		return;
+	case NgDoor:
+	{
+		if (gamestate != GS_LEVEL || gameaction != ga_nothing || DDTreadmill_HandoffPending() || primaryLevel->maptime < 2) return;
+		double x, y, z, yaw;
+		if (DDTreadmill_PlayerWorld(x, y, z, yaw) != DD_AREA_DUNGEON) return;
+		Log("new game: Doom is inside the dungeon on %s, telling Daggerfall", primaryLevel->MapName.GetChars());
+		NgSendArrived(true);
+		ngState = NgWaitGo;
+		return;
+	}
+	default:
+		return;
+	}
+}
+
+void HandleNewGameGo()
+{
+	if (ngState != NgWaitGo) return;
+	NgFreeze(false);
+	ngState = NgIdle;
+	ngHaveWorld = ngResult = false;
+	atTitle = flowHold = false;
+	campaignId.Format("%016llx", (unsigned long long)dfb_now_ns() ^ (unsigned long long)(uintptr_t)&ngWorld);
+	Log("new game: both games running, campaign %s, hp %d/%d", campaignId.GetChars(), peerState.hp_current, peerState.hp_max);
+}
+}
+
+// Called for the first menu in Doom's new game chain. True means this flow took it.
+bool DD_BridgeNewGameMenu()
+{
+	if (!session || !flowMode || ngState == NgDifficulty) return false;
+	if (ngState == NgIdle && atTitle && loadState == LoadIdle)
+	{
+		ngState = NgWaitDf;
+		ngDeadline = dfb_now_ns() + 30000000000LL;
+		M_ClearMenus();
+		Log("new game: chosen in Doom's menu");
+	}
+	else if (!atTitle) Printf(PRINT_HIGH, "End the current game before starting a new one.\n");
+	return true;
+}
+
+// The next map for G_DoNewGame, or null for Doom's own.
+const char *DD_BridgeNewGameMap()
+{
+	return session && ngState == NgLoading ? "DDOVER01" : nullptr;
+}
+
+// Keeps each character's auto and quick slots apart. Unchanged outside a Doomerfall campaign.
+FString DD_BridgeSlotName(const char *slot)
+{
+	if (!session || campaignId.IsEmpty()) return slot;
+	return FStringf("%s-%s", campaignId.GetChars(), slot);
 }
 
 void DD_BridgeInit()
@@ -1845,6 +2130,9 @@ void DD_BridgeInit()
 			loadTestMode = mode.c_str();
 		}
 	}
+	flowMode = Args->CheckParm(FArg_dfflow) != 0;
+	if (flowMode) atTitle = flowHold = true; // No game exists until New Game or Load Game makes one.
+	ngTest = Args->CheckValue(FArg_dfnewgametest);
 	if (const char *count = Args->CheckValue(FArg_dfuitest)) uiTestRemaining = atoi(count);
 	else uiTestRemaining = -1;
 	Log("attached to session %s, protocol %u, layout %016llx", id, dfb_protocol_version(),
@@ -1881,6 +2169,7 @@ void DD_BridgeFrame()
 
 	if (int(peerState.df_phase) != *dd_sync_df_phase) dd_sync_df_phase = int(peerState.df_phase);
 	PublishPosition();
+	DD_ItemsFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
 
 	ownState.uz_heartbeat++;
 	ownState.uz_tic = gametic;
@@ -1899,6 +2188,7 @@ void DD_BridgeFrame()
 	if (peerSeen && alive == peerStale)
 	{
 		peerStale = !alive;
+		if (!alive) peerStaleAt = now;
 		Log(alive ? "Daggerfall heartbeat resumed" : "Daggerfall heartbeat stale (logged only, gameplay unchanged)");
 	}
 
@@ -1917,6 +2207,7 @@ void DD_BridgeFrame()
 	PumpUi(now);
 	PumpSave(now);
 	PumpLoad(now);
+	PumpNewGame(now);
 	RunUiTest(now);
 	RunHpTest(now);
 	dfb_flush(session);

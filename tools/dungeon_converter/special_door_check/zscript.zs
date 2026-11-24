@@ -71,7 +71,8 @@ class DFSpecialDoorCheck : EventHandler
 		{
 			let it = ThinkerIterator.Create("DFAction");
 			DFAction a;
-			while (a = DFAction(it.Next())) if (a.IsSpecialDoor()) specials.Push(a);
+			// Flat trapdoors have their own test in trapdoor_check.
+			while (a = DFAction(it.Next())) if (a.IsSpecialDoor() && a.boxMax.z - a.boxMin.z > 16) specials.Push(a);
 			Console.Printf("SDSTART specials=%d radius=%.1f", specials.Size(), p.radius);
 			startTic = t + 1;
 			if (specials.Size() == 0) { Console.Printf("SDDONE"); finished = true; }
