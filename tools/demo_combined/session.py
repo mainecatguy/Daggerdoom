@@ -35,7 +35,8 @@ def steps(play):
         "theft": (containers + ["run", "theft", "--building", "GeneralStore", "--target", "box", "--crouch", "--stay", "--df-arg=-dfguardtest"], r"guard"),
         "census": (rt + [str(TOOLS / "townhomes" / "townhomes.py"), "run", "census"], r"townhome|census"),
         "homes": (rt + [str(TOOLS / "townhomes" / "townhomes.py"), "run", "homes"], r"at home|home"),
-        "drops": (rt + [str(TOOLS / "real_drops" / "real_drops.py"), "run", "drops", "--drla"], r"MD[A-Z]+ .*(drop|PASS)"),
+        # Use on a pile now opens Daggerfall's loot window, which pauses Doom; -dfloottest takes the item in it.
+        "drops": (rt + ["--set", "EXTRA_DF=[\"-dfloottest\"]", str(TOOLS / "monster_deaths" / "monster_deaths.py"), "run", "drops", "--drla"], r"MDDONE passed"),
         "climb": ([PY, str(TOOLS / "climb" / "run_paired_probe.py"), str(TOOLS / "climb" / "paired_probe.zs"), str(tests / "climb"), "--demo", str(tests)], r"climb"),
     }
 
@@ -45,6 +46,8 @@ def town_bat(play):
     bat = (play / "play.bat").read_text()
     bat = bat.replace("--uzdoom-arg -dfflow", "--uzdoom-arg -skill --uzdoom-arg 3 --uzdoom-arg +map --uzdoom-arg DDT07154")
     bat = bat.replace("--dfu-arg -dfflow", "--dfu-arg -dfsynctest").replace("%HERE%run\\", "%HERE%play\\").replace('"%HERE%run"', '"%HERE%play"')
+    dagger = re.search(r'set "DF=([^"]*)"', bat).group(1)  # The probe reads the command line only, without the set lines.
+    bat = bat.replace("%DATA%", "%HERE%data").replace("%DF%", dagger).replace(" %BINDS%", "")
     (play / "run-tests" / "play.bat").write_text(bat)
 
 
