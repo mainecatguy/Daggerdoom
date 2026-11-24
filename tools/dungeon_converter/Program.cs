@@ -80,6 +80,7 @@ static partial class Program
         if (args.Contains("--list-main")) return ListMain(arena2, args.Contains("--list-all"));
         if (args.Contains("--list-flats")) return ListFlats(arena2);
         if (args.Contains("--list-door-actions")) return ListDoorActions(arena2);
+        if (args.Contains("--list-trapdoors")) return ListTrapdoors(arena2);
         for (int a = 0; a < args.Length; a++)
         {
             if (args[a] == "--out") outDir = args[++a];
@@ -285,6 +286,7 @@ static partial class Program
                     {
                         skippedActions++;
                         if (reference.Description == "LID") NoteLidFootprint(arch, id, obj, offset);
+                        NoteTrapdoorFootprint(arch, id, obj, offset, reference.Description);
                         continue;
                     }
                     // Diagnostic: also treat every other action model as out of the way.
@@ -393,6 +395,8 @@ static partial class Program
                     (hits[Index(i, j)] ??= new List<(double, bool)>()).Add((u * t.A.Z + v * t.B.Z + w * t.C.Z, t.N.Z > 0));
                 }
         }
+        int pitCells = FloorBottomlessPits(hits);
+        if (pitCells > 0) Console.WriteLine($"bottomless trapdoor pits: {pitCells} cells floored {BottomlessPitDepth} below their tile");
         rawHits = hits;
         grid = new List<Span>[width * height];
         if (debugRow != null)
