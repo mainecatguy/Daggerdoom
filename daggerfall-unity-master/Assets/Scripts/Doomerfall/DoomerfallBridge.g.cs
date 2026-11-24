@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x76ab3edef99cf4acUL;
+        public const ulong SchemaHash = 0x6c3a589c08c916a6UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -78,7 +78,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_DOOM_ITEM_ART = 145;  // UZ to DF; DFB_ITEM_ART_SLOT holds the answer, or status DFB_ITEM_GONE for no such class; payload: dfb_doom_item
         public const uint ITEM_ART_SLOT = 5;  // bulk slot written by UZ: one dfb_item_art header, then width * height BGRA pixels, top row first
         public const uint ITEM_ART_HEADER = 144;
+        public const ushort KIND_DOOM_ITEM_GUN_STATE = 146;  // UZ to DF; one state line (status amount, cls class) the gun in the next DOOM_ITEM_TAKE with this request carried, such as a DRLA modded pickup's mods
         public const uint DOOM_ITEM_GUN = 1;
+        public const uint DOOM_ITEM_ARMOR = 2;
+        public const uint DOOM_ITEM_WEARABLE = 4;
+        public const uint DOOM_ITEM_SLOT_SHIFT = 8;
+        public const uint DOOM_ITEM_SLOT_MASK = 0xf00;
         public const ushort KIND_HOTKEY = 150;  // UZ to DF; a hotkey press on a generated map; request is the key 0-9, status DFB_HOTKEY_PLAIN, _CTRL, or _ALT
         public const ushort KIND_GUN_STATE = 151;  // both ways; one state line of the gun named by the next GUN_EQUIP (DF to UZ) or GUN_STASHED (UZ to DF) with the same request
         public const ushort KIND_GUN_EQUIP = 152;  // DF to UZ; take every gun Doom holds and give this one (a world pickup class), without changing ammo; status DFB_GUN_*

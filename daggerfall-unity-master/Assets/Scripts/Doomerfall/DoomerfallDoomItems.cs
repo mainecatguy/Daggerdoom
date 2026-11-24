@@ -33,10 +33,30 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             weightInKg = DefaultWeightKg;
         }
 
-        // shortName is "<class>" or, for a gun, "<class>|gun|<state>", where state is the gun's Doom per-class
+        // From the DFB_DOOM_ITEM_* flags Doom sends when the player takes the item.
+        public DoomerfallDoomItem(string doomClass, uint flags) : this(doomClass, (flags & Dfb.DOOM_ITEM_GUN) != 0)
+        {
+            if ((flags & Dfb.DOOM_ITEM_GUN) == 0 && (flags & Dfb.DOOM_ITEM_WEARABLE) != 0)
+                shortName = doomClass + "|wear|";
+            else if ((flags & Dfb.DOOM_ITEM_GUN) == 0 && (flags & Dfb.DOOM_ITEM_ARMOR) != 0)
+                shortName = doomClass + "|armor|";
+        }
+
+        // shortName is "<class>", "<class>|armor|" (Doom armor, used up when used), "<class>|wear|" (DRLA armor or boots,
+        // which cannot be worn yet), or, for a gun, "<class>|gun|<state>", where state is the gun's Doom per-class
         // inventory while Doom does not hold it ("RLPistolClip=5;RLPistolModLimit=1"). Saved with the item.
         public string DoomClass { get { int bar = shortName.IndexOf('|'); return bar < 0 ? shortName : shortName.Substring(0, bar); } }
         public bool IsGun { get { return shortName.Contains("|gun|"); } }
+        public bool IsWearable { get { return shortName.EndsWith("|wear|"); } }
+        public bool IsArmor { get { return IsWearable || shortName.EndsWith("|armor|"); } }
+        internal const string WearMessage = "Doom armor and boots cannot be worn yet.";
+
+        // Doom guns and armor are listed with Daggerfall's weapons and armor.
+        public static bool InWeaponsAndArmorTab(DaggerfallUnityItem item)
+        {
+            DoomerfallDoomItem doom = item as DoomerfallDoomItem;
+            return doom != null && (doom.IsGun || doom.IsArmor);
+        }
         public string GunState
         {
             get { int at = shortName.IndexOf("|gun|"); return at < 0 ? "" : shortName.Substring(at + 5); }
@@ -50,6 +70,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (IsGun)
             {
                 DaggerfallUI.MessageBox(DoomerfallHotkeys.EquipMessage);
+                return true;
+            }
+            if (IsWearable)
+            {
+                DaggerfallUI.MessageBox(WearMessage);
                 return true;
             }
             return DoomerfallDoomItems.Use(this);
@@ -86,6 +111,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         readonly Dictionary<uint, ulong> pendingUses = new Dictionary<uint, ulong>();
         readonly byte[] slot = new byte[Dfb.BULK_BYTES];
         uint nextRequest = 1, artRequest;
+        readonly List<string> takeState = new List<string>();
+        uint takeStateRequest;
         string testFolder; // -dfdoomitemstest FOLDER: writes each inventory picture there and uses a taken RLBlurSphere at once.
         DoomerfallDoomItem testUse;
         string artClass;
@@ -165,6 +192,17 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return Math.Min(available, (Mathf.RoundToInt(capacityKg * 400f) - Mathf.RoundToInt(loadKg * 400f)) / unit);
         }
 
+        // One state line of the gun in the next take request (DFB_KIND_DOOM_ITEM_GUN_STATE).
+        internal void OnTakeState(uint request, uint amount, string cls)
+        {
+            if (request != takeStateRequest)
+            {
+                takeState.Clear();
+                takeStateRequest = request;
+            }
+            takeState.Add(cls + "=" + amount);
+        }
+
         // The player pressed Use on a Doom item. Daggerfall's weight rule decides.
         internal void OnTake(uint request, uint flags, string cls)
         {
@@ -174,17 +212,25 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 status = Dfb.ITEM_REFUSED;
             else if (CanHold(1, DoomerfallDoomItem.DefaultWeightKg, player.MaxEncumbrance, player.CarriedWeight) <= 0)
                 status = Dfb.ITEM_TOO_HEAVY;
-            else
+            DoomerfallDoomItem taken = null;
+            if (status == Dfb.ITEM_TAKEN)
             {
-                DoomerfallDoomItem item = new DoomerfallDoomItem(cls, (flags & Dfb.DOOM_ITEM_GUN) != 0);
-                player.Items.AddItem(item);
+                taken = new DoomerfallDoomItem(cls, flags);
+                if (taken.IsGun && takeStateRequest == request)
+                    taken.GunState = string.Join(";", takeState.ToArray()); // A DRLA modded pickup's mods.
+                player.Items.AddItem(taken);
                 RequestArt(cls);
                 if (testFolder != null && cls == "RLBlurSphere")
-                    testUse = item;
+                    testUse = taken;
             }
+            takeState.Clear();
+            takeStateRequest = 0;
             Send(Dfb.KIND_DOOM_ITEM_RESULT, request, status, cls);
-            bridge.LogLine(string.Format("doomitems: take {0} \"{1}\": status {2}, carried {3:F2}/{4} kg, doom items {5}",
-                request, cls, status, player != null ? player.CarriedWeight : 0, player != null ? player.MaxEncumbrance : 0, player != null ? Count(player.Items) : 0));
+            if (taken != null && taken.IsGun && DoomerfallHotkeys.Instance != null)
+                DoomerfallHotkeys.Instance.OnGunTaken(taken, (int)((flags & Dfb.DOOM_ITEM_SLOT_MASK) >> (int)Dfb.DOOM_ITEM_SLOT_SHIFT) - 1);
+            bridge.LogLine(string.Format("doomitems: take {0} \"{1}\" flags 0x{6:x}: status {2}, carried {3:F2}/{4} kg, doom items {5}{7}",
+                request, cls, status, player != null ? player.CarriedWeight : 0, player != null ? player.MaxEncumbrance : 0, player != null ? Count(player.Items) : 0,
+                flags, taken != null ? ", stored as \"" + taken.shortName + "\"" : ""));
         }
 
         static int Count(ItemCollection items)

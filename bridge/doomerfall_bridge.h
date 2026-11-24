@@ -116,8 +116,15 @@ extern "C" {
 #define DFB_KIND_DOOM_ITEM_ART     145  /* UZ to DF; DFB_ITEM_ART_SLOT holds the answer, or status DFB_ITEM_GONE for no such class; payload: dfb_doom_item */
 #define DFB_ITEM_ART_SLOT   5u   /* bulk slot written by UZ: one dfb_item_art header, then width * height BGRA pixels, top row first */
 #define DFB_ITEM_ART_HEADER 144u
-/* In DFB_KIND_DOOM_ITEM_TAKE, status DFB_DOOM_ITEM_GUN marks a gun. */
+#define DFB_KIND_DOOM_ITEM_GUN_STATE 146 /* UZ to DF; one state line (status amount, cls class) the gun in the next DOOM_ITEM_TAKE with this request carried, such as a DRLA modded pickup's mods */
+/* In DFB_KIND_DOOM_ITEM_TAKE, status DFB_DOOM_ITEM_GUN marks a gun, DFB_DOOM_ITEM_ARMOR armor (Weapons & Armor tab),
+   DFB_DOOM_ITEM_WEARABLE armor or boots Daggerfall cannot put on yet (DRLA's). For a gun, the bits under
+   DFB_DOOM_ITEM_SLOT_MASK hold its Doom weapon slot plus 1 (0: no slot). */
 #define DFB_DOOM_ITEM_GUN   1u
+#define DFB_DOOM_ITEM_ARMOR 2u
+#define DFB_DOOM_ITEM_WEARABLE 4u
+#define DFB_DOOM_ITEM_SLOT_SHIFT 8u
+#define DFB_DOOM_ITEM_SLOT_MASK 0xf00u
 
 /* Weapon hotkeys. Daggerfall holds every gun and the hotkey table. Doom holds only the active gun. A gun's per-class
    Doom inventory (DRLA's magazine RL<Weapon>Clip, mods, mod limit) travels as GUN_STATE lines: request, status is the

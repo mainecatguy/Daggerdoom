@@ -362,6 +362,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     case Dfb.KIND_INFO:
                         info.OnRequest(ev.infoRequest.request, ev.infoRequest.target, ev.infoRequest.id, ev.infoRequest.worldX, ev.infoRequest.worldZ);
                         break;
+                    case Dfb.KIND_DOOM_ITEM_GUN_STATE:
+                        doomItems.OnTakeState(ev.doomItem.request, ev.doomItem.status, DoomerfallDoomItems.ClassOf(ev.doomItem));
+                        break;
                     case Dfb.KIND_DOOM_ITEM_TAKE:
                         doomItems.OnTake(ev.doomItem.request, ev.doomItem.status, DoomerfallDoomItems.ClassOf(ev.doomItem));
                         break;
