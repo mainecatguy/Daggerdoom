@@ -701,6 +701,9 @@ const int32_t *DD_BridgeSheet()
 	return sheetVersion && sheet[DFB_SHEET_VALID] == 1 && sheet[DFB_SHEET_FORMAT] == DFB_SHEET_FORMAT_VERSION ? sheet : nullptr;
 }
 
+// One line in the bridge log (-dfbridgelog) and the console, for the other dd_*.cpp files.
+void DD_BridgeLog(const char *text) { Log("%s", text); }
+
 // From AActor::Die, for actors with a Doomerfall record id only.
 void DD_BridgeMonsterDied(AActor *mo)
 {

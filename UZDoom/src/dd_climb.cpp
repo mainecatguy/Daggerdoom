@@ -16,6 +16,7 @@
 #include "zstring.h"
 
 const int32_t *DD_BridgeSheet();
+void DD_BridgeLog(const char *text);
 
 namespace
 {
@@ -42,7 +43,7 @@ void DD_ClimbFrame(dfb_session *session)
 	if (pending.IsEmpty() || gamestate != GS_LEVEL || !primaryLevel) return;
 	if (primaryLevel->localEventManager->SendNetworkEvent(pending, 0, 0, 0, false))
 	{
-		Printf(PRINT_NONOTIFY, "[climb] sent %s\n", pending.GetChars());
+		DD_BridgeLog(FStringf("climb: sent %s", pending.GetChars()).GetChars());
 		pending = "";
 	}
 }
@@ -60,6 +61,6 @@ bool DD_ClimbNetEvent(dfb_session *session, const char *name)
 	body.uses = uint32_t(uses);
 	memcpy(e.payload, &body, sizeof(body));
 	const int rc = dfb_send(session, &e);
-	Printf(PRINT_NONOTIFY, "[climb] sent %lu Climbing uses (%d)\n", uses, rc);
+	DD_BridgeLog(FStringf("climb: sent %lu Climbing uses (%d)", uses, rc).GetChars());
 	return true;
 }
