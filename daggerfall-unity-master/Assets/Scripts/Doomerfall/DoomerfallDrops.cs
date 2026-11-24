@@ -19,8 +19,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
     {
         internal const int MinAreaLevel = 0, MaxAreaLevel = 30;
 
-        // How an area's level is defined is still the owner's decision. Until then every area is level 1,
-        // which is what a new character sees in Daggerfall and does not change as the player levels.
+        // Used only if the area level table could not be built. Level 1 is what a new character sees in Daggerfall.
         const int UndefinedAreaLevel = 1;
         const int WaterTable = 19, ClassicSlots = 256, InvalidFixedType = 99;
         const int NoWater = 10000;
@@ -28,7 +27,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         static readonly System.Random materialRandom = new System.Random();
         static int testAreaLevel = int.MinValue;
 
-        internal static int AreaLevel()
+        /// <summary>The location's area level from DoomerfallAreaLevels: its dungeon level, or the terrain level if it has no dungeon. -dfarealevel N overrides it for tests.</summary>
+        internal static int AreaLevel(in DFLocation location)
         {
             if (testAreaLevel == int.MinValue)
             {
@@ -39,7 +39,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 if (at >= 0 && at + 1 < args.Length && int.TryParse(args[at + 1], out value))
                     testAreaLevel = Mathf.Clamp(value, MinAreaLevel, MaxAreaLevel);
             }
-            return testAreaLevel >= 0 ? testAreaLevel : UndefinedAreaLevel;
+            if (testAreaLevel >= 0)
+                return testAreaLevel;
+            DoomerfallAreaLevels.Level level;
+            return DoomerfallAreaLevels.ForLocation(location, out level) ? level.Area : UndefinedAreaLevel;
         }
 
         /// <summary>Chooses enemies for one dungeon by Daggerfall's rules, with stable draws in place of its time-seeded ones.</summary>
