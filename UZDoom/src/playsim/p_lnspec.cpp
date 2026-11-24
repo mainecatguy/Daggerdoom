@@ -1359,12 +1359,19 @@ FUNC(LS_DamageThing)
 	return it ? true : false;
 }
 
+bool DD_BridgeHpOwns(player_t *player); // [Doomerfall] false outside a bridge session
+
 FUNC(LS_HealThing)
 // HealThing (amount, max)
 {
 	if (it)
 	{
 		int max = arg1;
+
+		// [Doomerfall] Daggerfall owns HP: heal through P_GiveBody (capped at Daggerfall's max HP) and fail when
+		// it could not heal, so a CustomInventory pickup that only heals is left on the floor.
+		if (it->player && DD_BridgeHpOwns(it->player))
+			return P_GiveBody(it, arg0, max == 1 ? deh.MaxSoulsphere : max);
 
 		if (max == 0 || it->player == NULL)
 		{
