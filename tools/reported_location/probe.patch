@@ -1,0 +1,41 @@
+diff --git a/daggerfall-unity-master/Assets/Scripts/Doomerfall/DoomerfallPositionSync.cs b/daggerfall-unity-master/Assets/Scripts/Doomerfall/DoomerfallPositionSync.cs
+index 1793e9c..4f4fcde 100644
+--- a/daggerfall-unity-master/Assets/Scripts/Doomerfall/DoomerfallPositionSync.cs
++++ b/daggerfall-unity-master/Assets/Scripts/Doomerfall/DoomerfallPositionSync.cs
+@@ -178,6 +178,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
+             StreamingWorld world = game.StreamingWorld;
+             if (!world || LoadRunning)
+                 return;
++            LocationProbe(game, ref peer); // TEMP-LOCATION-PROBE
+ 
+             // Daggerfall follows Doom through doors. Indoors there is no exterior position to apply.
+             if (InGame && transition.Update(game))
+@@ -304,6 +305,28 @@ namespace DaggerfallWorkshop.Game.Doomerfall
+             outdoorStats.AddApply(System.Diagnostics.Stopwatch.GetTimestamp() - applyStart);
+         }
+ 
++        // TEMP-LOCATION-PROBE-BEGIN
++        string lastProbe;
++        void LocationProbe(GameManager game, ref DfbUzState peer)
++        {
++            if (!InGame || game.PlayerEnterExit.IsRespawning)
++                return;
++            PlayerGPS gps = game.PlayerGPS;
++            TextFile.Token[] tokens = DaggerfallUnity.Instance.TextProvider.GetRSCTokens(22);
++            MacroHelper.ExpandMacros(ref tokens);
++            string shown = tokens != null && tokens.Length > 0 ? tokens[0].text : "";
++            ContentReader.MapSummary summary;
++            bool doomHasLocation = peer.mapPixelX >= 0 && DaggerfallUnity.Instance.ContentReader.HasLocation(peer.mapPixelX, peer.mapPixelY, out summary);
++            DaggerfallConnect.Utility.DFPosition pixel = gps.CurrentMapPixel;
++            string line = string.Format("locprobe: ctx={0} inside={1} doomPixel={2},{3} gpsPixel={4},{5} doomHasLocation={6} gpsHasLocation={7} inRect={8} shown=\"{9}\"",
++                peer.worldContext, game.PlayerEnterExit.IsPlayerInside, peer.mapPixelX, peer.mapPixelY, pixel.X, pixel.Y, doomHasLocation, gps.HasCurrentLocation, gps.IsPlayerInLocationRect, shown);
++            if (line == lastProbe)
++                return;
++            lastProbe = line;
++            bridge.LogLine(line + string.Format(" doomWorld={0:F0},{1:F0} gpsWorld={2},{3}", peer.worldX, peer.worldZ, gps.WorldX, gps.WorldZ));
++        }
++        // TEMP-LOCATION-PROBE-END
++
+         // Save handshake: moves Daggerfall to Doom's frozen position now instead of at the next update.
+         // Indoors Doom keeps publishing the door it used, which the once-a-second update may not have reached.
+         // False means the world cannot take the position yet.
