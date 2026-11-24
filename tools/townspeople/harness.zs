@@ -67,6 +67,7 @@ class TPHarness : StaticEventHandler
 			if (timer < 70) break;
 			Rows("afterkill");
 			if (mode.IndexOf("trip") >= 0) { phase = 4; timer = 0; break; }
+			if (mode.IndexOf("leave") >= 0) { phase = 7; timer = 0; break; }
 			if (mode.IndexOf("save") < 0) { Console.Printf("TPDONE ok"); phase = 9; break; }
 			Console.Printf("TPSAVE");
 			level.MakeAutoSave();
@@ -102,6 +103,13 @@ class TPHarness : StaticEventHandler
 		case 6:	// Back on the street: wait for Daggerfall's list, then report who is shown.
 			if (timer < 280) break;
 			Rows("return");
+			Console.Printf("TPDONE ok");
+			phase = 9;
+			break;
+		case 7:	// Leave town into the wilderness, as run_door.py does, and report who is shown there.
+			if (timer == 1) { Console.Printf("TPLEAVE from %s", level.MapName); p.SetOrigin(p.pos + (30000, 0, 0), false); }
+			if (timer < 280) break;
+			Rows("away");
 			Console.Printf("TPDONE ok");
 			phase = 9;
 			break;
