@@ -446,6 +446,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bridge.Send(ref e);
         }
 
+        internal bool IsDead(ulong id)
+        {
+            return ledger.deaths.ContainsKey(Key(id));
+        }
+
         internal void OnDeath(ulong id, int target, float x, float y, float z)
         {
             string key = Key(id);

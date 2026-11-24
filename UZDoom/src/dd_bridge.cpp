@@ -59,6 +59,7 @@ bool DD_ItemsNetEvent(dfb_session *session, const char *name);
 bool DD_MonstersEvent(const dfb_event &e);
 void DD_MonstersFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t target);
 void DD_MonstersResync();
+#include "dd_locations.h"
 void DD_MonsterDied(dfb_session *session, AActor *mo);
 bool DD_NpcsEvent(const dfb_event &e);
 void DD_NpcsFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t target);
@@ -336,7 +337,7 @@ void HandleEvent(const dfb_event &e, int64_t now)
 		Log("hello from Daggerfall (seq %u)", e.seq);
 		break;
 	default:
-		if (!DD_ItemsEvent(e) && !DD_MonstersEvent(e) && !DD_NpcsEvent(e) && !DD_InfoEvent(e) && !DD_TownsfolkEvent(e) && !DD_GuardsEvent(e)) unknownKinds++; // contract rule 7: skip, never fatal
+		if (!DD_ItemsEvent(e) && !DD_MonstersEvent(e) && !DD_LocationsEvent(e) && !DD_NpcsEvent(e) && !DD_InfoEvent(e) && !DD_TownsfolkEvent(e) && !DD_GuardsEvent(e)) unknownKinds++; // contract rule 7: skip, never fatal
 		break;
 	}
 }
@@ -1435,6 +1436,7 @@ bool SaveStart(const char *filename, const char *description, bool isAuto)
 	saveStartNs = dfb_now_ns();
 	PublishPosition();
 	dfb_publish_state(session, &ownState, sizeof(ownState)); // Daggerfall reads the frozen position after the request.
+	DD_LocationsBeforeSave(session); // The dungeon's record goes ahead of the request in the ordered ring.
 	dfb_event e{};
 	e.kind = DFB_KIND_SAVE_REQUEST;
 	e.tic = gametic;
@@ -1785,6 +1787,7 @@ void HandleLoadResume(const dfb_event &e)
 	M_ClearMenus();
 	DD_ItemsResync();
 	DD_MonstersResync();
+	DD_LocationsResync();
 	DD_NpcsResync();
 	DD_TownsfolkResync();
 	Log("load %u: both games resumed, %.1f ms frozen", loadTxn, (dfb_now_ns() - loadStartNs) / 1e6);
@@ -2497,6 +2500,7 @@ void DD_BridgeFrame()
 	PublishPosition();
 	DD_ItemsFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
 	DD_MonstersFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
+	DD_LocationsFrame(session);
 	DD_NpcsFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
 	DD_TownsfolkFrame(session, ownState.world_context);
 	DD_ClimbFrame(session);

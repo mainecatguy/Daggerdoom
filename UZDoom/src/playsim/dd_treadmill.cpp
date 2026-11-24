@@ -34,6 +34,7 @@
 #include "../../../bridge/doomerfall_bridge.h"
 #include "dd_treadmill.h"
 #include "dd_towncache.h"
+#include "../dd_locations.h"
 #include "fs_files.h"
 #include "gi.h"
 #include "vm.h"
@@ -233,6 +234,7 @@ namespace
 	std::unordered_map<uint64_t, Record> table;
 	std::unordered_map<int64_t, std::vector<uint64_t>> buckets;
 	std::unordered_set<uint64_t> expected;	// Records and seeds that currently have a live actor.
+	std::unordered_map<uint64_t, DVector3> itemSpots;	// Where each map item stood (world units), so a take's tombstone belongs to its place.
 	std::deque<PendingChunk> pending;
 	uint64_t nextDynamic;
 	bool resumePending;
@@ -529,6 +531,8 @@ namespace
 			return;
 		}
 		Record gone = it != table.end() ? it->second : Record();
+		if (it == table.end())
+			if (auto spot = itemSpots.find(id); spot != itemSpots.end()) { gone.x = spot->second.X; gone.y = spot->second.Y; gone.z = spot->second.Z; }
 		gone.id = id;
 		gone.kind = KGone;
 		Store(gone);
@@ -622,26 +626,17 @@ namespace
 
 	int unchangedCount, missingClassCount;	// For the table summary in the log.
 
-	void Park(AActor *mo, int fromX, int fromY)
+	enum class Parked { Skip, Unchanged, Stored, Gone };
+
+	// What a row for this actor would be. Shared by Park and the location ledger's snapshot (DDTreadmill_SnapshotPlace).
+	// r.id stays 0 for an actor without an id.
+	Parked MakeRecord(AActor *mo, int fromX, int fromY, Record &r)
 	{
 		const bool monster = (mo->flags3 & MF3_ISMONSTER) != 0, item = mo->IsKindOf(NAME_Inventory);
-		if (!monster && !item)
-		{
-			mo->Destroy();	// Projectiles and effects do not persist.
-			return;
-		}
-		uint64_t id = mo->ddRecordId;
-		if (id) expected.erase(id);
-		if (IsUnchanged(mo, monster))
-		{
-			unchangedCount++;
-			mo->Destroy();	// Its seed, the map, or Daggerfall's placement rebuilds it.
-			return;
-		}
-		if (!id) id = DYNAMIC_BIT | ++nextDynamic;
-
-		Record r;
-		r.id = id;
+		if (!monster && !item) return Parked::Skip;	// Projectiles and effects do not persist.
+		if (IsUnchanged(mo, monster)) return Parked::Unchanged;	// Its seed, the map, or Daggerfall's placement rebuilds it.
+		r = Record();
+		r.id = mo->ddRecordId;
 		r.cls = mo->GetClass()->TypeName;
 		const DVector3 world = ToWorld(mo->Pos(), fromX, fromY);
 		r.x = world.X;
@@ -660,18 +655,34 @@ namespace
 		{
 			// A corpse is stored as dead, with the label of its death. A death that ends in Stop leaves nothing behind.
 			FState *st = FinalFrame(mo->state);
-			if (!st)
-			{
-				mo->Destroy();
-				MarkGone(id);
-				return;
-			}
+			if (!st) return Parked::Gone;
 			r.kind = KCorpse;
 			r.death = DeathLabel(mo, st);
 		}
 		else r.kind = KMonster;
-		Store(r);
-		parkCount++;
+		return Parked::Stored;
+	}
+
+	void Park(AActor *mo, int fromX, int fromY)
+	{
+		if (mo->ddRecordId) expected.erase(mo->ddRecordId);
+		Record r;
+		switch (MakeRecord(mo, fromX, fromY, r))
+		{
+		case Parked::Unchanged:
+			unchangedCount++;
+			break;
+		case Parked::Gone:
+			if (r.id) MarkGone(r.id);
+			break;
+		case Parked::Stored:
+			if (!r.id) r.id = DYNAMIC_BIT | ++nextDynamic;
+			Store(r);
+			parkCount++;
+			break;
+		default:
+			break;
+		}
 		mo->Destroy();
 	}
 
@@ -1408,6 +1419,7 @@ namespace
 	void BeginHandoff(FLevelLocals *Level, AActor *pmo, const char *map, const int *warpTile = nullptr, const DoorTarget *door = nullptr)
 	{
 		Reconcile(Level);
+		if (int dungeon; DD_BridgeHasSession() && DDTreadmill_CurrentDungeon(dungeon)) DD_LocationsLeaving(Level);	// Daggerfall's record of the place.
 		std::vector<AActor *> keep;
 		auto it = Level->GetThinkerIterator<AActor>();
 		while (AActor *mo = it.Next())
@@ -1751,6 +1763,7 @@ namespace
 			do { id = MAP_ITEM_TAG | (h & (MAP_ITEM_TAG - 1)); h = MixId(h, 1); } while (!used.insert(id).second);	// Two alike on one spot.
 			mo->ddRecordId = id;
 			mo->SpawnPoint = mo->Pos();
+			itemSpots[id] = w;
 			expected.insert(id);	// So a take becomes a tombstone (Reconcile).
 			count++;
 		}
@@ -1797,7 +1810,9 @@ namespace
 			Restore(Level, r);
 			restored++;
 		}
-		// After the rows, so a monster the table brought back counts as present and is not placed twice.
+		// After the rows, so a monster the table brought back counts as present and is not placed twice. With a bridge,
+		// Daggerfall's record of the place is applied before any mook is planned (DD_LocationsTick, then ApplyRows).
+		if (t.space && t.spaceId >= DUNGEON_SPACE && DD_BridgeHasSession()) DD_LocationsEntered(t.dungeonMapId);
 		if (t.space && t.spaceId >= DUNGEON_SPACE) DD_MonstersEnterDungeon(Level, t.dungeonMapId, firstVisit, DD_BridgeHasSession());
 		if (t.space) Printf("DDTM place %s map %s %s: map items %d, replaced by rows %d, restored %d, missing classes %d\n", t.place.GetChars(), t.map.GetChars(),
 			firstVisit ? "first visit" : "revisit", mapItems, replaced, restored, missingClassCount);
@@ -1971,6 +1986,181 @@ namespace
 	}
 }
 
+//--------------------------------------------------------------------
+// Location ledger (dd_locations.cpp): Daggerfall holds each dungeon's record, and this table is its cache.
+//--------------------------------------------------------------------
+
+namespace
+{
+	// A Doom drop or a replacement item: an id this session made up, which means nothing to Daggerfall.
+	bool IsSessionId(uint64_t id) { return (id & TAG_MASK) == DYNAMIC_BIT; }
+	bool InPlace(const Record &r, const Town &t) { return t.Near(r.x / 256, r.y / 256, t.margin - 1); }
+
+	DDPlaceFact ToFact(const Record &r, const Town &t)
+	{
+		DDPlaceFact f;
+		f.id = r.id;
+		f.cls = r.cls;
+		f.death = r.death;
+		f.x = r.x - t.originX;
+		f.y = r.y - t.originY;
+		f.z = r.z - t.ground;
+		f.angle = r.angle;
+		f.height = r.height;
+		f.health = r.health;
+		f.kind = r.kind;
+		f.amount = r.amount;
+		f.dropped = r.dropped;
+		f.session = IsSessionId(r.id);
+		return f;
+	}
+
+	Record FromFact(const DDPlaceFact &f, const Town &t)
+	{
+		Record r;
+		r.id = f.id;
+		r.cls = f.cls;
+		r.death = f.death;
+		r.x = f.x + t.originX;
+		r.y = f.y + t.originY;
+		r.z = f.z + t.ground;
+		r.angle = f.angle;
+		r.height = f.height;
+		r.health = f.health;
+		r.kind = f.kind;
+		r.amount = f.amount;
+		r.dropped = f.dropped;
+		return r;
+	}
+
+	// A fact as the bridge carries it (floats, 65536 angle steps), so Doom's cache and Daggerfall's copy compare equal.
+	std::string Canon(const DDPlaceFact &f)
+	{
+		double turns = f.angle / 360.0;
+		turns -= floor(turns);
+		FString id = f.session ? FString("S") : FStringf("%016" PRIx64, f.id);
+		FString s = FStringf("%d %s %s %s %.2f %.2f %.2f %d %.1f %d %d %d", f.kind, id.GetChars(), f.cls.GetChars(), f.death.GetChars(),
+			double(float(f.x)), double(float(f.y)), double(float(f.z)), int(llround(turns * 65536) & 0xFFFF), double(float(f.height)), f.health, f.amount, int(f.dropped));
+		return s.GetChars();
+	}
+
+	void DDTreadmill_TestDropTable()
+	{
+		Printf("DDLOC test: loading without Doom's world table (%d rows, %d visited places dropped)\n", int(table.size()), int(visitedSpaces.size()));
+		table.clear();
+		buckets.clear();
+		visitedSpaces.clear();
+		DD_MonstersLoadPlans("");
+		dd_tm_records = 0;
+	}
+}
+
+bool DDTreadmill_CurrentDungeon(int &mapId)
+{
+	if (!townActive || currentTown < 0 || currentTown >= int(towns.size())) return false;
+	const Town &t = towns[currentTown];
+	if (!t.space || t.spaceId < DUNGEON_SPACE) return false;
+	mapId = t.dungeonMapId;
+	return true;
+}
+
+// The current dungeon's record as it stands: its cached rows, overridden by what every live actor would park as.
+void DDTreadmill_SnapshotPlace(FLevelLocals *Level, std::vector<DDPlaceFact> &out)
+{
+	out.clear();
+	int mapId;
+	if (!DDTreadmill_CurrentDungeon(mapId)) return;
+	const Town &t = towns[currentTown];
+	Reconcile(Level);
+	std::unordered_map<uint64_t, Record> rows;
+	for (auto &kv : table)
+		if (InPlace(kv.second, t)) rows[kv.first] = kv.second;
+	uint64_t temp = 0;
+	auto it = Level->GetThinkerIterator<AActor>();
+	while (AActor *mo = it.Next())
+	{
+		if (mo->player || IsOwned(mo)) continue;
+		Record r;
+		switch (MakeRecord(mo, originX, originY, r))
+		{
+		case Parked::Stored:
+			if (!r.id) r.id = DYNAMIC_BIT | (1ull << 60) | ++temp;	// Park would give it a session id too.
+			rows[r.id] = r;
+			break;
+		case Parked::Gone:	// As MarkGone: a tombstone, except for ids that are not kept.
+			if (!r.id) break;
+			if (r.id & DYNAMIC_BIT) rows.erase(r.id);
+			else
+			{
+				auto old = rows.find(r.id);
+				Record gone = old != rows.end() ? old->second : r;
+				gone.kind = KGone;
+				rows[r.id] = gone;
+			}
+			break;
+		default:
+			break;
+		}
+	}
+	out.reserve(rows.size());
+	for (auto &kv : rows) out.push_back(ToFact(kv.second, t));
+}
+
+// Daggerfall's record of the dungeon just entered. When Doom's cache already holds the same facts, nothing changes.
+// Otherwise (the cache is gone or older, as after a load without the world table) the place is rebuilt from the
+// record: what the cache restored is removed, and every fact is applied. Mooks the record does not list are spawned
+// afterwards by the encounter plan, as on any visit.
+void DDTreadmill_ApplyPlace(FLevelLocals *Level, int mapId, const std::vector<DDPlaceFact> &facts)
+{
+	int current;
+	if (!DDTreadmill_CurrentDungeon(current) || current != mapId)
+	{
+		Printf(TEXTCOLOR_ORANGE "DDLOC record of D%d arrived outside that dungeon; ignored\n", mapId);
+		return;
+	}
+	const Town &t = towns[currentTown];
+	visitedSpaces.insert(t.place.GetChars());
+	std::vector<uint64_t> oldIds;
+	std::vector<std::string> mine, theirs;
+	for (auto &kv : table)
+		if (InPlace(kv.second, t)) { oldIds.push_back(kv.first); mine.push_back(Canon(ToFact(kv.second, t))); }
+	for (const DDPlaceFact &f : facts) theirs.push_back(Canon(f));
+	std::sort(mine.begin(), mine.end());
+	std::sort(theirs.begin(), theirs.end());
+	if (mine == theirs)
+	{
+		Printf("DDLOC D%d: Doom's cache matches Daggerfall's record (%d facts)\n", mapId, int(facts.size()));
+		return;
+	}
+	std::unordered_set<uint64_t> replace(oldIds.begin(), oldIds.end());
+	for (const DDPlaceFact &f : facts) if (!f.session) replace.insert(f.id);
+	std::vector<AActor *> stale;
+	auto it = Level->GetThinkerIterator<AActor>();
+	while (AActor *mo = it.Next())
+		if (!mo->player && mo->ddRecordId && !IsOwned(mo) && replace.count(mo->ddRecordId)) stale.push_back(mo);
+	for (AActor *mo : stale) { expected.erase(mo->ddRecordId); mo->Destroy(); }
+	for (uint64_t id : oldIds)
+	{
+		auto row = table.find(id);
+		if (row == table.end()) continue;
+		if (row->second.kind != KGone) Unbucket(row->second);
+		table.erase(row);
+	}
+	int restored = 0, gone = 0;
+	missingClassCount = 0;
+	for (const DDPlaceFact &f : facts)
+	{
+		Record r = FromFact(f, t);
+		if (f.session) r.id = DYNAMIC_BIT | ++nextDynamic;
+		Store(r);
+		if (r.kind == KGone) { gone++; continue; }
+		Restore(Level, r);
+		restored++;
+	}
+	Printf("DDLOC D%d: rebuilt from Daggerfall's record (Doom's cache had %d rows, the record %d): removed %d, restored %d, gone %d, missing classes %d\n",
+		mapId, int(mine.size()), int(facts.size()), int(stale.size()), restored, gone, missingClassCount);
+}
+
 void DDTreadmill_Serialize(FLevelLocals *Level, FSerializer &arc)
 {
 	if (arc.isWriting())
@@ -2039,6 +2229,7 @@ void DDTreadmill_Serialize(FLevelLocals *Level, FSerializer &arc)
 				else if (sscanf(line.GetChars(), "V %39s", name) == 1) visitedSpaces.insert(name);
 			}
 		}
+		if (FindArg("-ddlocnotable")) DDTreadmill_TestDropTable();	// Test hook: load as if the save had no world table.
 	}
 }
 
