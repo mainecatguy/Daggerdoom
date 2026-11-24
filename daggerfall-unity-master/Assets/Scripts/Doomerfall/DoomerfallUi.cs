@@ -307,7 +307,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             waitFrames = hudFrames = 0;
             showingTravelMap = id == Dfb.UI_TRAVEL_MAP;
             bool creating = id == Dfb.UI_NEW_GAME && DoomerfallNewGame.HoldsNewCharacter;
-            if ((id != Dfb.UI_TRAVEL_MAP && id != Dfb.UI_INVENTORY && id != Dfb.UI_MAP && id != Dfb.UI_LOOT && !creating) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
+            if ((id != Dfb.UI_TRAVEL_MAP && id != Dfb.UI_INVENTORY && id != Dfb.UI_MAP && id != Dfb.UI_LOOT && id != Dfb.UI_TALK && !creating) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
             {
                 Finish(Dfb.UI_REASON_REFUSED);
                 return;
@@ -374,11 +374,21 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     Finish(Dfb.UI_REASON_RESULT);
                 return;
             }
+            if (id == Dfb.UI_TALK)
+            {
+                // Daggerfall's own activation of the NPC pushes its window: talk, or a quest offer or message.
+                if (!Talk || !Talk.OpenWindow())
+                    Finish(Dfb.UI_REASON_REFUSED);
+                else if (DaggerfallUI.UIManager.TopWindow == null || DaggerfallUI.UIManager.TopWindow is DaggerfallHUD)
+                    Finish(Dfb.UI_REASON_RESULT);
+                return;
+            }
             DaggerfallUI.PostMessage(message);
         }
 
         internal DoomerfallNewGame NewGame { get; set; }
         internal DoomerfallItems Items { get; set; }
+        internal DoomerfallTalk Talk { get; set; }
 
         /// <summary>The wizard is closing because a character was made, not because the player backed out.</summary>
         internal static void MarkResult()

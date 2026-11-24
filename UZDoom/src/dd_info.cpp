@@ -23,6 +23,7 @@
 #include "v_font.h"
 
 bool DD_ItemsInfoPress(player_t *player);
+void DD_BridgeOpenTalk();
 
 namespace
 {
@@ -106,25 +107,18 @@ void SendRequest(dfb_session *session, uint32_t target, uint64_t id, double x, d
 	pending.clear();
 }
 
-void Press(dfb_session *session, player_t *player)
+// The NPC or living monster the view ray meets first, before a wall. wall and trace tell what the ray hit instead.
+AActor *Pick(player_t *player, bool &bestNpc, double &bestDistance, bool &wall, FLineTraceData &trace)
 {
-	if (gamestate != GS_LEVEL || !player || !player->mo || player->health <= 0) return;
-	double worldX, worldY, worldZ, yaw;
-	const DDPlayerArea area = DDTreadmill_PlayerWorld(worldX, worldY, worldZ, yaw);
-	if (area == DD_AREA_NONE) return; // Only a generated Daggerfall map has anything to describe.
-	if (DD_ItemsInfoPress(player)) return;
-
 	AActor *pmo = player->mo;
 	const DAngle pitch = pmo->Angles.Pitch;
 	const DVector3 dir(pitch.Cos() * pmo->Angles.Yaw.Cos(), pitch.Cos() * pmo->Angles.Yaw.Sin(), -pitch.Sin());
 	const DVector3 eye(pmo->X(), pmo->Y(), player->viewz);
-	FLineTraceData trace;
-	const bool wall = P_LineTrace(pmo, pmo->Angles.Yaw, InfoReach, pitch, TRF_THRUACTORS, player->viewz - pmo->Z(), 0, 0, &trace);
-	const double limit = wall ? trace.Distance : InfoReach;
+	wall = P_LineTrace(pmo, pmo->Angles.Yaw, InfoReach, pitch, TRF_THRUACTORS, player->viewz - pmo->Z(), 0, 0, &trace);
 
 	AActor *best = nullptr;
-	double bestDistance = limit;
-	bool bestNpc = false;
+	bestDistance = wall ? trace.Distance : InfoReach;
+	bestNpc = false;
 	TThinkerIterator<AActor> it(pmo->Level);
 	while (AActor *mo = it.Next())
 	{
@@ -139,6 +133,22 @@ void Press(dfb_session *session, player_t *player)
 			bestNpc = npc;
 		}
 	}
+	return best;
+}
+
+void Press(dfb_session *session, player_t *player)
+{
+	if (gamestate != GS_LEVEL || !player || !player->mo || player->health <= 0) return;
+	double worldX, worldY, worldZ, yaw;
+	const DDPlayerArea area = DDTreadmill_PlayerWorld(worldX, worldY, worldZ, yaw);
+	if (area == DD_AREA_NONE) return; // Only a generated Daggerfall map has anything to describe.
+	if (DD_ItemsInfoPress(player)) return;
+
+	AActor *pmo = player->mo;
+	bool bestNpc, wall;
+	double bestDistance;
+	FLineTraceData trace;
+	AActor *best = Pick(player, bestNpc, bestDistance, wall, trace);
 	if (best && bestNpc)
 	{
 		SendRequest(session, DFB_INFO_NPC, NpcId(best), 0, 0);
@@ -162,9 +172,40 @@ void Press(dfb_session *session, player_t *player)
 }
 }
 
-// True when the event belonged to Info.
+// Use on an NPC: Daggerfall's Grab, or Steal while crouching, on the NPC the view ray meets first. Daggerfall checks
+// the reach itself, so a far NPC gets its "too far away" message. True when the press went to an NPC, so a door
+// behind it stays shut. Nothing happens without a bridge session on a generated Daggerfall map.
+bool DD_InfoUseNpc(dfb_session *session, player_t *player, bool crouching)
+{
+	if (!session || gamestate != GS_LEVEL || !player || !player->mo || player->health <= 0) return false;
+	double worldX, worldY, worldZ, yaw;
+	if (DDTreadmill_PlayerWorld(worldX, worldY, worldZ, yaw) == DD_AREA_NONE) return false;
+	bool npc, wall;
+	double distance;
+	FLineTraceData trace;
+	AActor *best = Pick(player, npc, distance, wall, trace);
+	if (!best || !npc) return false;
+	dfb_npc_use use{};
+	use.id = NpcId(best);
+	use.request = nextRequest++;
+	use.mode = crouching ? DFB_TAKE_STEAL : DFB_TAKE_GRAB;
+	use.distance = distance / DoomPerDf;
+	Send(session, DFB_KIND_NPC_USE, &use, sizeof(use));
+	textRequest = use.request;
+	pending.clear();
+	return true;
+}
+
+// True when the event belonged to Info or to Use on an NPC.
 bool DD_InfoEvent(const dfb_event &e)
 {
+	if (e.kind == DFB_KIND_NPC_USE_RESULT)
+	{
+		dfb_npc_use_result r;
+		memcpy(&r, e.payload, sizeof(r));
+		if (r.status == DFB_NPC_USE_WINDOW && r.request == textRequest) DD_BridgeOpenTalk();
+		return true;
+	}
 	if (e.kind != DFB_KIND_INFO_TEXT) return false;
 	dfb_info_text t;
 	memcpy(&t, e.payload, sizeof(t));
