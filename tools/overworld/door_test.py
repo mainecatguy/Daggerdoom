@@ -29,6 +29,7 @@ ap.add_argument("--exe", required=True)
 ap.add_argument("--dungeon-dir")
 ap.add_argument("--timeout", type=int, default=30)
 ap.add_argument("--mode", default="route", choices=["route", "save", "load", "shot"], help="save inside the first space, or load that save and walk out")
+ap.add_argument("--translog", help="write the engine's transition profile to this file")
 args = ap.parse_args()
 
 cache = os.path.join(args.build, "testcache")
@@ -47,8 +48,9 @@ for t in args.targets.split(","):
 files = [os.path.join(args.build, "ddruntime.pk3"), os.path.join(args.build, "overworld.pk3")]
 if args.dungeon_dir:
     files += [os.path.join(args.dungeon_dir, n) for n in ("privateershold.wad", "privateershold_mesh.pk3", "privateershold_doors.pk3")]
-    with zipfile.ZipFile(files[-1]) as z:
-        exits = [l.split()[1:] for l in z.read("DDDUNGN").decode().splitlines() if l.startswith("exit")][:1]
+    if "dungeon" in args.targets.split(","):  # The harness uses this exit for every door, so building routes must not get it.
+        with zipfile.ZipFile(files[-1]) as z:
+            exits = [l.split()[1:] for l in z.read("DDDUNGN").decode().splitlines() if l.startswith("exit")][:1]
 text = open(os.path.join(HERE, "door_harness.zs")).read()
 text = text.replace("@DOORS@", ", ".join(v for d in chosen for v in d[3:8])).replace("@EXITS@", ", ".join(v for e in exits for v in e) or "0, 0, 0, 0, 0")
 # Decided at run time: a constant false condition stops the whole function body from running (see town-stitch.md).
@@ -66,6 +68,8 @@ if os.path.exists(log):
 game = [args.exe, "-iwad", IWAD, "-file", *files, harness, "-config", os.path.join(work, "test.ini"), "-savedir", os.path.join(work, "saves"), "-nosound", "-noautoload", "-skill", "3",
         "-width", "1280", "-height", "720", "-noactivate", "-ddtowncache", cache, "-ddconverter", converter, "-ddarena2", ARENA2,
         "+logfile", args.name, "+vid_fullscreen", "0", "+vid_vsync", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{args.group:05d}"]
+if args.translog:
+    game[1:1] = ["-ddtranslog", args.translog]
 if args.mode == "shot":
     cfg = os.path.join(work, args.name + ".cfg")
     with open(cfg, "w") as f:

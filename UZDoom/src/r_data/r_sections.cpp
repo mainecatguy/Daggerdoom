@@ -39,6 +39,10 @@
 #include "c_dispatch.h"
 #include "memarena.h"
 
+#include <algorithm> // [Doomerfall]
+#include <vector>
+
+
 using DoublePoint = std::pair<DVector2, DVector2>;
 
 template<> struct THashTraits<DoublePoint>
@@ -109,6 +113,7 @@ class FSectionCreator
 
 	TArray<Group> groups;
 	TArray<int> groupForSection;
+	std::vector<char> inList;	// [Doomerfall] Subsectors still waiting in CompileSections.
 
 public:
 
@@ -232,12 +237,19 @@ public:
 	{
 		TArray<int> sublist;
 		TArray<seg_t *> seglist;
-		while (list.Size() > 0)
+		// [Doomerfall] A flag per subsector replaces searching the list, which was quadratic on large sectors.
+		// Each subsector is in the list once, and the visiting order is unchanged.
+		inList.resize(Level->subsectors.Size());
+		for (int entry : list) inList[entry] = 1;
+		unsigned top = list.Size();
+		for (;;)
 		{
+			while (top > 0 && !inList[list[top - 1]]) top--;
+			if (top == 0) break;
 			sublist.Clear();
 			seglist.Clear();
-			int index;
-			list.Pop(index);
+			const int index = list[--top];
+			inList[index] = 0;
 			auto sub = &Level->subsectors[index];
 
 			auto collect = [&](subsector_t *sub)
@@ -258,19 +270,15 @@ public:
 			for (unsigned i = 0; i < seglist.Size(); i++)
 			{
 				auto subi = seglist[i]->Subsector->Index();
-
-				for (unsigned j = 0; j < list.Size(); j++)
+				if (inList[subi])
 				{
-					if (subi == list[j])
-					{
-						collect(&Level->subsectors[subi]);
-						list.Delete(j);
-						j--;
-					}
+					inList[subi] = 0;
+					collect(&Level->subsectors[subi]);
 				}
 			}
 			rawsections.Push(std::move(sublist));
 		}
+		list.Clear();
 	}
 
 
@@ -339,26 +347,37 @@ public:
 		// Loop until all segs have been used.
 		seg_t *seg = nullptr;
 		unsigned startindex = 0;
-		while (outersegs.Size() > 0)
+		// [Doomerfall] Segs are found through a table sorted by start point instead of scanning all of them,
+		// which was quadratic on large sectors. Candidates are still visited in their original order.
+		struct OuterStart { double x, y; unsigned index; };
+		const unsigned outerCount = outersegs.Size();
+		std::vector<OuterStart> byStart(outerCount);
+		for (unsigned i = 0; i < outerCount; i++) byStart[i] = { outersegs[i]->v1->fX(), outersegs[i]->v1->fY(), i };
+		auto startOrder = [](const OuterStart &a, const OuterStart &b)
+		{
+			if (a.x != b.x) return a.x < b.x;
+			if (a.y != b.y) return a.y < b.y;
+			return a.index < b.index;
+		};
+		std::sort(byStart.begin(), byStart.end(), startOrder);
+		std::vector<char> used(outerCount);
+		unsigned remaining = outerCount, nextReal = 0, nextAny = 0;
+		while (remaining > 0)
 		{
 			if (seg == nullptr)
 			{
-				for (unsigned i = 0; i < outersegs.Size(); i++)
-				{
-					if (outersegs[i]->sidedef != nullptr && outersegs[i]->sidedef->V1() == outersegs[i]->v1)
-					{
-						seg = outersegs[i];
-						outersegs.Delete(i);
-						break;
-					}
-				}
-				if (seg == nullptr)
+				while (nextReal < outerCount && (used[nextReal] || outersegs[nextReal]->sidedef == nullptr || outersegs[nextReal]->sidedef->V1() != outersegs[nextReal]->v1)) nextReal++;
+				unsigned chosen = nextReal;
+				if (chosen == outerCount)
 				{
 					// There's only minisegs left. Most likely this is just node garbage.
 					// Todo: Need to check.
-					seg = outersegs[0];
-					outersegs.Delete(0);
+					while (used[nextAny]) nextAny++;
+					chosen = nextAny;
 				}
+				seg = outersegs[chosen];
+				used[chosen] = 1;
+				remaining--;
 				startindex = loopedsegs.Push(seg);
 			}
 
@@ -368,10 +387,12 @@ public:
 
 			seg_t *pick = nullptr;
 			int pickindex = -1;
-			for (unsigned i = 0; i < outersegs.Size(); i++)
+			const DVector2 segEnd = seg->v2->fPos();
+			for (auto it = std::lower_bound(byStart.begin(), byStart.end(), OuterStart{ segEnd.X, segEnd.Y, 0 }, startOrder); it != byStart.end() && it->x == segEnd.X && it->y == segEnd.Y; ++it)
 			{
+				if (used[it->index]) continue;
+				const unsigned i = it->index;
 				auto secondseg = outersegs[i];
-				if (secondseg->v1->fPos() == seg->v2->fPos())
 				{
 					// This should never choose a miniseg over a real sidedef.
 					if (pick == nullptr || (pick->sidedef == nullptr && secondseg->sidedef != nullptr))
@@ -396,7 +417,8 @@ public:
 			if (pick)
 			{
 				loopedsegs.Push(pick);
-				outersegs.Delete(pickindex);
+				used[pickindex] = 1;
+				remaining--;
 				seg = pick;
 			}
 			else

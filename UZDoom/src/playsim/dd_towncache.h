@@ -35,6 +35,7 @@ namespace DDTownCache
 
 	// Advances the converter and file reads. Never blocks.
 	void Poll();
+	void Pin(int group);	// This group is never evicted from memory. -1 clears it.
 
 	EntryPtr Get(int group);			// The data if it is ready now.
 	EntryPtr GetBlocking(int group);	// Reads or converts now. For loading a save, or a future fast-travel transition.

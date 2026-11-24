@@ -123,6 +123,8 @@ public:
 	}
 
 	void GetChecksum(uint8_t cksum[16]);
+	bool checksumKnown = false;	// [Doomerfall]
+	uint8_t checksum[16] = {};
 
 	friend class MapLoader;
 	friend MapData *P_OpenMapData(const char * mapname, bool justcheck);
