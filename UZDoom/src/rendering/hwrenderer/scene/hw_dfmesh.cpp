@@ -53,6 +53,7 @@ namespace
 	// A key identifies the loaded mesh: a lump number, or a generated location's key from the town cache.
 	void LoadBytes(const uint8_t *bytes, int key)
 	{
+		DDProf_Mark("pre_mesh_upload");
 		uint64_t start = I_nsTime();
 		loadedLump = key;
 		int textures, batchCount, vertices;
@@ -88,6 +89,7 @@ namespace
 		buffer->UnlockVertexBuffer();
 		triangles = vertices / 3;
 		Printf("DFMesh: loaded %d triangles, %d draw batches in %.1f ms\n", triangles, batchCount, (I_nsTime() - start) / 1e6);
+		DDProf_Mark("mesh_upload");
 	}
 
 	void Load(int lump)

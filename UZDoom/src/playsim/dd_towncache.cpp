@@ -387,3 +387,82 @@ namespace DDTownCache
 		return result;
 	}
 }
+
+// [Doomerfall] Transition profiler. Does nothing unless -ddtranslog <file> is given.
+// M,time_ms,phase,wall_ms,main_thread_cpu_ms,process_read_kb,working_set_mb,private_mb  and  F,time_ms,frame_ms
+#ifdef _WIN32
+#include <psapi.h>
+namespace
+{
+	using ProfClock = std::chrono::steady_clock;
+	FILE *profLog;
+	int profState;	// 0 unknown, 1 on, -1 off
+	ProfClock::time_point profStart, profLast, profFrame;
+	double profCpu;
+	uint64_t profRead;
+
+	double ThreadCpuMs()
+	{
+		FILETIME created, exited, kernel, user;
+		if (!GetThreadTimes(GetCurrentThread(), &created, &exited, &kernel, &user)) return 0;
+		const uint64_t k = (uint64_t(kernel.dwHighDateTime) << 32) | kernel.dwLowDateTime, u = (uint64_t(user.dwHighDateTime) << 32) | user.dwLowDateTime;
+		return (k + u) / 10000.0;
+	}
+
+	uint64_t ProcessReadBytes()
+	{
+		IO_COUNTERS io{};
+		return GetProcessIoCounters(GetCurrentProcess(), &io) ? io.ReadTransferCount : 0;
+	}
+
+	bool ProfOn()
+	{
+		if (profState == 0)
+		{
+			profState = -1;
+			for (int i = 1; i + 1 < Args->NumArgs(); i++)
+				if (!stricmp(Args->GetArg(i), "-ddtranslog") && (profLog = fopen(Args->GetArg(i + 1), "w")))
+				{
+					profState = 1;
+					profStart = profLast = profFrame = ProfClock::now();
+					profCpu = ThreadCpuMs();
+					profRead = ProcessReadBytes();
+					break;
+				}
+		}
+		return profState > 0;
+	}
+}
+
+void DDProf_Mark(const char *phase)
+{
+	if (!ProfOn()) return;
+	const auto now = ProfClock::now();
+	const double cpu = ThreadCpuMs();
+	const uint64_t read = ProcessReadBytes();
+	PROCESS_MEMORY_COUNTERS_EX mem{};
+	// Looked up at run time, so the engine needs no extra import library for a test-only number.
+	using MemoryInfoFn = BOOL(WINAPI *)(HANDLE, PROCESS_MEMORY_COUNTERS *, DWORD);
+	static const MemoryInfoFn memoryInfo = (MemoryInfoFn)(void *)GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "K32GetProcessMemoryInfo");
+	if (memoryInfo) memoryInfo(GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS *)&mem, sizeof(mem));
+	fprintf(profLog, "M,%.2f,%s,%.2f,%.2f,%.1f,%.1f,%.1f\n", std::chrono::duration<double, std::milli>(now - profStart).count(), phase,
+		std::chrono::duration<double, std::milli>(now - profLast).count(), cpu - profCpu, (read - profRead) / 1024.0, mem.WorkingSetSize / 1048576.0, mem.PrivateUsage / 1048576.0);
+	fflush(profLog);
+	profCpu = cpu;
+	profRead = read;
+	profLast = ProfClock::now();
+}
+
+void DDProf_Frame()
+{
+	if (!ProfOn()) return;
+	const auto now = ProfClock::now();
+	const double ms = std::chrono::duration<double, std::milli>(now - profFrame).count();
+	profFrame = now;
+	fprintf(profLog, "F,%.2f,%.2f\n", std::chrono::duration<double, std::milli>(now - profStart).count(), ms);
+	if (ms > 30) fflush(profLog);
+}
+#else
+void DDProf_Mark(const char *) {}
+void DDProf_Frame() {}
+#endif

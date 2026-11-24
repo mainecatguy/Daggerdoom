@@ -32,6 +32,7 @@
 #include "c_cvars.h"
 #include "actor.h"
 #include "g_levellocals.h"
+void DDProf_Mark(const char *phase); // [Doomerfall] no-op without -ddtranslog
 #include "p_lnspec.h"
 
 #include "v_text.h"
@@ -3020,6 +3021,7 @@ void MapLoader::LoadLevel(MapData *map, const char *lumpname, int position)
 		ParseTextMap(map, missingtex);
 	}
 
+	DDProf_Mark("parse_map");
 	CalcIndices();
 	PostProcessLevel(checksum);
 
@@ -3156,6 +3158,7 @@ void MapLoader::LoadLevel(MapData *map, const char *lumpname, int position)
 	// use in P_PointInSubsector to avoid problems with maps that depend on the specific
 	// nodes they were built with (P:AR E1M3 is a good example for a map where this is the case.)
 	reloop |= CheckNodes(map, BuildGLNodes, (uint32_t)(endTime - startTime));
+	DDProf_Mark("nodes");
 
 	// set the head node for gameplay purposes. If the separate gamenodes array is not empty, use that, otherwise use the render nodes.
 	Level->headgamenode = Level->gamenodes.Size() > 0 ? &Level->gamenodes[Level->gamenodes.Size() - 1] : Level->nodes.Size() ? &Level->nodes[Level->nodes.Size() - 1] : nullptr;
@@ -3179,7 +3182,9 @@ void MapLoader::LoadLevel(MapData *map, const char *lumpname, int position)
 	for (auto & p : Level->bodyque)
 		p = nullptr;
 
+	DDProf_Mark("blockmap_groups_zones");
 	CreateSections(Level);
+	DDProf_Mark("sections");
 
 	// [RH] Spawn slope creating things first.
 	SpawnSlopeMakers(&MapThingsConverted[0], &MapThingsConverted[MapThingsConverted.Size()], oldvertextable);
@@ -3189,6 +3194,7 @@ void MapLoader::LoadLevel(MapData *map, const char *lumpname, int position)
 	Spawn3DFloors();
 
 	SpawnThings(position);
+	DDProf_Mark("slopes_3dfloors_things");
 
 	// Load and link lightmaps - must be done after P_Spawn3DFloors (and SpawnThings? Potentially for baking static model actors?)
 	if (!ForceNodeBuild)
@@ -3227,9 +3233,12 @@ void MapLoader::LoadLevel(MapData *map, const char *lumpname, int position)
 		node.len = (float)g_sqrt(fdx * fdx + fdy * fdy);
 	}
 
+	DDProf_Mark("specials");
 	InitRenderInfo();				// create hardware independent renderer resources for the level. This must be done BEFORE the PolyObj Spawn!!!
+	DDProf_Mark("render_info");
 	Level->ClearDynamic3DFloorData();	// CreateVBO must be run on the plain 3D floor data.
 	CreateVBO(screen->mVertexData, Level->sectors);
+	DDProf_Mark("create_vbo");
 
 	screen->InitLightmap(Level->LMTextureSize, Level->LMTextureCount, Level->LMTextureData);
 
@@ -3247,8 +3256,11 @@ void MapLoader::LoadLevel(MapData *map, const char *lumpname, int position)
 	if (!Level->IsReentering())
 		Level->FinalizePortals();	// finalize line portals after polyobjects have been initialized. This info is needed for properly flagging them.
 
+	DDProf_Mark("portals_polyobjs");
 	Level->aabbTree = new DoomLevelAABBTree(Level);
+	DDProf_Mark("aabb_tree");
 	Level->levelMesh = new DoomLevelMesh(*Level);
+	DDProf_Mark("level_mesh");
 
 	// [DVR] Populate subsector->bbox for alternative space culling in orthographic projection with no fog of war
 	subsector_t* sub = &Level->subsectors[0];

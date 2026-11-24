@@ -31,6 +31,9 @@ bool DDTreadmill_RuntimeTowns();
 level_info_t *DDTreadmill_LevelInfoAt(unsigned index);	// Null past the end. Empty unless a generated location was used.
 bool DDTreadmill_HandoffPending();	// True during a stitched map change, which must not autosave and hitch.
 
+void DDProf_Mark(const char *phase);	// Transition profiler. No-op without -ddtranslog.
+void DDProf_Frame();
+
 void DDTreadmill_Serialize(FLevelLocals *Level, FSerializer &arc);
 void DDTreadmill_FrameEnd();
 void DDTreadmill_UploadBegin();
