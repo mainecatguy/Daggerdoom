@@ -59,6 +59,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DoomerfallUi ui;
         DoomerfallHp hp;
         DoomerfallSave save;
+        DoomerfallItems items;
         bool textFrame;
         uint ownSize, peerSize, nextPing = 1;
         ulong pingsAnswered, pongsReceived, unknownKinds;
@@ -132,6 +133,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             ui.Init(this);
             save = gameObject.AddComponent<DoomerfallSave>();
             save.Init(this, sync, hp, Environment.GetCommandLineArgs());
+            items = gameObject.AddComponent<DoomerfallItems>();
+            items.Init(this, sync);
+            save.Items = items;
         }
 
         // The schema hash covers every constant, struct field, and function in the header.
@@ -284,6 +288,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         break;
                     case Dfb.KIND_UI_INPUT:
                         DoomerfallInput.Enqueue(ev.uiInput.type, ev.uiInput.a, ev.uiInput.b, ev.uiInput.sentNs);
+                        break;
+                    case Dfb.KIND_ITEM_TAKE:
+                        items.OnTake(ev.itemTake.request, ev.itemTake.id);
+                        break;
+                    case Dfb.KIND_ITEMS_REQUEST:
+                        items.OnRequest();
                         break;
                     default:
                         unknownKinds++; // contract rule 7: skip, never fatal
