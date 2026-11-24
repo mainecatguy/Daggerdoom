@@ -1542,6 +1542,12 @@ namespace
 		const Town &t = towns[currentTown];
 		if (t.space)
 		{
+			if (runtimeTowns && returnPoint.valid && Level->maptime % SCAN_TICS == 0)	// After a load indoors, the town is read in the background.
+				if (const int home = GroupOfMap(returnPoint.map.GetChars()); home >= 0)
+				{
+					DDTownCache::BeginScan();
+					DDTownCache::Request(home, 0);
+				}
 			if (!pressed || !returnPoint.valid) return;
 			double distance;
 			for (const SpaceExit &e : t.exits)
@@ -1599,6 +1605,13 @@ namespace
 		Printf(PRINT_HIGH, "Opening...\n");
 	}
 
+	// Keeps the outdoor location in memory while the player is in it or in one of its interiors.
+	void PinHomeTown(const Town &t)
+	{
+		if (!runtimeTowns) return;
+		DDTownCache::Pin(t.group >= 0 ? t.group : t.space && returnPoint.valid ? GroupOfMap(returnPoint.map.GetChars()) : -1);
+	}
+
 	void StartTown(FLevelLocals *Level, int index)
 	{
 		if (multiplayer || !LoadWorld()) return;
@@ -1610,6 +1623,7 @@ namespace
 		const Town &t = towns[index];
 		pendingDoor = -1;
 		useHeld = true;	// The press that opened the door must not also use the door on the far side.
+		PinHomeTown(t);
 		LoadTownDoors(t);
 		// A revisited space comes back from the table, so what the map places by default must not return.
 		if (t.space && !visitedSpaces.insert(t.map.GetChars()).second)
@@ -1649,6 +1663,7 @@ namespace
 			return;
 		}
 		if (Level->MapName.CompareNoCase("DDOVER01") != 0) return;
+		if (runtimeTowns) DDTownCache::Pin(-1);
 		const bool returning = handoff.pending;
 		if (!returning)
 		{
@@ -1714,6 +1729,7 @@ namespace
 			dd_tm_intown = 1;
 			pendingDoor = -1;
 			useHeld = true;
+			PinHomeTown(towns[town]);
 			LoadTownDoors(towns[town]);
 			expected.clear();
 			auto it = Level->GetThinkerIterator<AActor>();

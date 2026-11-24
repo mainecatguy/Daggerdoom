@@ -63,6 +63,7 @@ ap.add_argument("--mode", default="route")
 ap.add_argument("--resume")
 ap.add_argument("--brief", action="store_true")
 ap.add_argument("--timeout", type=int, default=30)
+ap.add_argument("--exe", default=str(REVIEW / "uzdoom" / "uzdoom.exe"), help="UZDoom build to test")
 args = ap.parse_args()
 
 if not CACHE.exists():
@@ -117,7 +118,7 @@ if args.resume:  # Waits for both games, as the in-game load menu would.
     uz += ["-dfloadtest", "resume:" + str(run / "saves" / "resume.zds"), "+dd_ui_test_hold", "1"]
 df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
 command = [sys.executable, QUIET, "--timeout", str(args.timeout), "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
-           "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
+           "--uzdoom", args.exe, "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
            "--uzdoom-cwd", str(run), "--log", str(run / "launcher.log")]
 for mod in ("ddruntime.pk3", "overworld.pk3", "privateershold.wad", "privateershold_mesh.pk3", "privateershold_doors.pk3"):
     command += ["--mod", str(REVIEW / mod)]

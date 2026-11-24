@@ -395,6 +395,12 @@ bool P_CheckMapData(const char *mapname)
 
 void MapData::GetChecksum(uint8_t cksum[16])
 {
+	// [Doomerfall] One load asks for this several times, and hashing a large text map is slow. An opened map does not change.
+	if (checksumKnown)
+	{
+		memcpy(cksum, checksum, 16);
+		return;
+	}
 	MD5Context md5;
 
 	if (isText)
@@ -414,4 +420,6 @@ void MapData::GetChecksum(uint8_t cksum[16])
 		md5Update(Reader(ML_BEHAVIOR), md5, Size(ML_BEHAVIOR));
 	}
 	md5.Final(cksum);
+	memcpy(checksum, cksum, 16);
+	checksumKnown = true;
 }

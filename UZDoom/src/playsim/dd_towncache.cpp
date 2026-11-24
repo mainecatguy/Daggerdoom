@@ -52,7 +52,7 @@ namespace DDTownCache
 		uint64_t capBytes = uint64_t(2048) << 20;
 		std::unordered_map<int, Slot> slots;
 		std::map<int, double> wanted;
-		int forced = -1, activeReads;
+		int forced = -1, pinned = -1, activeReads;
 		uint64_t useClock;
 
 		int running = -1;
@@ -186,6 +186,7 @@ namespace DDTownCache
 				{
 					if (kv.second.state != State::Ready) continue;
 					ready++;
+					if (kv.first == pinned) continue;	// The town the player will walk back out to.
 					// An entry still held by the current map or the distant view stays alive through its shared pointer.
 					if (kv.second.lastUse < best) { best = kv.second.lastUse; oldest = kv.first; }
 				}
@@ -345,6 +346,7 @@ namespace DDTownCache
 		return it == slots.end() ? State::Missing : it->second.state;
 	}
 
+	void Pin(int group) { pinned = group; }
 	bool Converting() { return running >= 0; }
 	void BeginScan() { wanted.clear(); }
 	void Request(int group, double distance) { if (enabled) wanted[group] = distance; }
