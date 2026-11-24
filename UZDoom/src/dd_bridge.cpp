@@ -1783,8 +1783,15 @@ void RunLoadTest(int64_t now)
 		loadTestStep = -1;
 		return;
 	}
+	if (uiState != UiClosed)
+	{
+		// A New Game's quests open Daggerfall windows by themselves. The test answers them as a player would.
+		if (uiId == DFB_UI_DAGGERFALL && uiState == UiOpen) SendUiCommand(DFB_KIND_UI_CLOSE, uiId);
+		loadTestAtNs = now + 500000000LL;
+		return;
+	}
 	const bool settled = loadState == LoadIdle && saveState == SaveIdle && !saveStartPending;
-	const bool bad = !strcmp(loadTestMode, "bad"), death = !strcmp(loadTestMode, "death"), menu = !strcmp(loadTestMode, "menu") || !strcmp(loadTestMode, "again");
+	const bool bad =!strcmp(loadTestMode, "bad"), death = !strcmp(loadTestMode, "death"), menu = !strcmp(loadTestMode, "menu") || !strcmp(loadTestMode, "again");
 	const player_t &player = players[consoleplayer];
 	double x = 0, y = 0, z = 0, yaw = 0;
 	const auto finish = [&]()
