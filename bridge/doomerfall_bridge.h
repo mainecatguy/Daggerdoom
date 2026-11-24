@@ -166,6 +166,13 @@ extern "C" {
 #define DFB_KIND_MONSTER           52  /* DF to UZ; one quest foe to place, or one dead id; payload: dfb_monster */
 #define DFB_KIND_MONSTERS_END      53  /* DF to UZ; the list is complete; payload: dfb_world_items */
 #define DFB_KIND_MONSTERS_REQUEST  54  /* UZ to DF; send the current list again; payload: dfb_world_items */
+/* Encounters: the area facts the encounter planner needs, sent inside each monster list (between BEGIN and END).
+   Each Daggerfall enemy is one encounter whose leader is member 0; only the leader's death counts for drops and quests. */
+#define DFB_KIND_ENCOUNTER_AREA    55  /* DF to UZ; one per list; payload: dfb_encounter_area */
+#define DFB_KIND_ENCOUNTER_TEXT    56  /* DF to UZ; one name for that list's area; payload: dfb_encounter_text */
+#define DFB_ENCOUNTER_LOCATION_NAME 1u /* dfb_encounter_text.field */
+#define DFB_ENCOUNTER_REGION_NAME   2u
+#define DFB_ENCOUNTER_DUNGEON_TYPE  3u /* the DFRegion.DungeonTypes name, such as VampireHaunt */
 
 /* NPCs. An NPC id is 64 bits: tag (3, value 6) | hash of its Daggerfall layout record (61). Doom draws every NPC in a
    generated map. Inside buildings Daggerfall lists who is present, because closed shops and owned houses are empty. */
@@ -196,7 +203,7 @@ extern "C" {
 #define DFB_MONSTER_TAG         5u
 #define DFB_MONSTER_TAG_SHIFT   61u
 #define DFB_MONSTER_MEMBER_BITS 12u
-#define DFB_MONSTER_PLACE  1u  /* a living quest foe that Doom must have at this position */
+#define DFB_MONSTER_PLACE  1u  /* a living quest foe's encounter; the id is its leader (member 0), standing at this position */
 #define DFB_MONSTER_DEAD   2u  /* Daggerfall has this id as dead */
 
 #define DFB_ITEM_TAKEN     0u  /* everything in the pile moved to the player */
@@ -555,8 +562,32 @@ typedef struct dfb_monster
 	float x;
 	float y;
 	float z;
-	uint32_t pad;
+	int32_t enemy_type;   /* DFB_MONSTER_PLACE: the quest foe's Daggerfall MobileTypes value */
 } dfb_monster;
+
+/* Daggerfall's facts about the dungeon a monster list is for. generation matches the list's. */
+typedef struct dfb_encounter_area
+{
+	uint32_t generation;
+	int32_t map_id;
+	int32_t dungeon_index;  /* fixed index among Daggerfall's dungeons, in region then map table order; seeds the genome */
+	int32_t location_id;
+	int32_t region_index;
+	float world_x;          /* world map position in map pixels */
+	float world_y;
+	int32_t dungeon_type;   /* DFRegion.DungeonTypes */
+	int32_t area_level;     /* Daggerfall's computed area level */
+	int32_t seed_offset;    /* 0: fixed dungeons */
+	uint32_t pad0;
+	uint32_t pad1;
+} dfb_encounter_area;
+
+typedef struct dfb_encounter_text
+{
+	uint32_t generation;
+	uint32_t field;         /* DFB_ENCOUNTER_* */
+	char text[40];          /* UTF-8, terminated unless full */
+} dfb_encounter_text;
 
 /* One NPC present in the listed interior. */
 typedef struct dfb_npc
