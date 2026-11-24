@@ -10,6 +10,13 @@
 //
 // The launcher creates the session and passes its ID to both games. Both sides check the magic
 // value, protocol version, and layout hash when they attach.
+//
+// THIS HEADER IS THE ONLY DEFINITION OF THE BRIDGE. After changing it, run:
+//     python bridge/generate_bindings.py
+// That rewrites the C# constants, structs, and imports (DoomerfallBridge.g.cs) and the compile-time
+// checks (doomerfall_bridge_check.g.h). Builds fail while they are stale. Never edit those files.
+// An event kind's "payload: dfb_x" comment is read by the generator and creates its typed C# view.
+// Daggerfall handles events in DoomerfallBridge.DrainEvents, and UZDoom in UZDoom/src/dd_bridge.cpp.
 
 #ifndef DOOMERFALL_BRIDGE_H
 #define DOOMERFALL_BRIDGE_H
@@ -59,10 +66,10 @@ extern "C" {
 
 /* Event kinds. Unknown kinds must be skipped by the receiver, never treated as fatal. */
 #define DFB_KIND_NONE       0
-#define DFB_KIND_HELLO      1   /* sent once after attach; payload: dfb_hello */
-#define DFB_KIND_PING       2   /* payload: dfb_ping */
-#define DFB_KIND_PONG       3   /* payload: dfb_ping, echoed with the replier's receive time */
-#define DFB_KIND_TEXT       4   /* payload: up to 48 bytes of UTF-8, not terminated if full */
+#define DFB_KIND_HELLO      1   /* both ways; sent once after attach; payload: dfb_hello */
+#define DFB_KIND_PING       2   /* both ways; latency probe; payload: dfb_ping */
+#define DFB_KIND_PONG       3   /* both ways; echoed with the replier's receive time; payload: dfb_ping */
+#define DFB_KIND_TEXT       4   /* both ways; logs and test commands; up to 48 bytes of UTF-8, not terminated if full */
 #define DFB_KIND_AREA       5   /* UZ to DF, sent at once when the context or map pixel changes; payload: dfb_area */
 #define DFB_KIND_UI_OPEN    6   /* UZ to DF; payload: dfb_ui_command */
 #define DFB_KIND_UI_CLOSE   7   /* UZ to DF; payload: dfb_ui_command */
@@ -358,6 +365,7 @@ typedef struct dfb_session dfb_session;
 /* Library identity, for the attach check on the Unity side (struct sizes must match its own). */
 DFB_API uint32_t dfb_protocol_version(void);
 DFB_API uint64_t dfb_layout_hash(void);
+DFB_API uint64_t dfb_schema_hash(void); /* hash of this header's definitions; C# compares it with its generated copy */
 DFB_API uint32_t dfb_struct_size(int which); /* 0 event, 1 df_state, 2 uz_state, 3 stats, 4 ping */
 
 /* Monotonic clock in nanoseconds, comparable across processes on the same machine. */

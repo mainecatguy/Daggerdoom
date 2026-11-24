@@ -23,7 +23,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
     /// <summary>Input forwarded from Doom. Inactive unless a Daggerfall menu is open in Doom.</summary>
     public static class DoomerfallInput
     {
-        const uint Move = 1, ButtonDown = 2, ButtonUp = 3, Wheel = 4, KeyDown = 5, KeyUp = 6, Character = 7, ReleaseAll = 8;
         const int KeyCount = 512;
         const float WheelNotch = 0.1f; // One notch of Unity's "Mouse ScrollWheel" axis.
 
@@ -91,18 +90,18 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 Item item = queue.Peek();
                 switch (item.type)
                 {
-                    case Move:
+                    case Dfb.UI_INPUT_MOVE:
                         SurfaceMouse = new Vector2(item.a, item.b);
                         break;
-                    case Wheel:
+                    case Dfb.UI_INPUT_WHEEL:
                         Scroll += item.a * WheelNotch;
                         break;
-                    case Character:
+                    case Dfb.UI_INPUT_CHAR:
                         if (PendingChar != 0)
                             return;
                         PendingChar = (char)item.a;
                         break;
-                    case ReleaseAll:
+                    case Dfb.UI_INPUT_RELEASE_ALL:
                         for (int i = 0; i < KeyCount; i++)
                         {
                             if (held[i])
@@ -111,15 +110,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         }
                         heldCount = 0;
                         break;
-                    case ButtonDown:
-                    case ButtonUp:
-                        if (!SetKey((int)KeyCode.Mouse0 + item.a, item.type == ButtonDown))
+                    case Dfb.UI_INPUT_BUTTON_DOWN:
+                    case Dfb.UI_INPUT_BUTTON_UP:
+                        if (!SetKey((int)KeyCode.Mouse0 + item.a, item.type == Dfb.UI_INPUT_BUTTON_DOWN))
                             return;
                         break;
-                    case KeyDown:
-                    case KeyUp:
+                    case Dfb.UI_INPUT_KEY_DOWN:
+                    case Dfb.UI_INPUT_KEY_UP:
                         KeyCode key = FromVirtualKey(item.a);
-                        if (key != KeyCode.None && !SetKey((int)key, item.type == KeyDown))
+                        if (key != KeyCode.None && !SetKey((int)key, item.type == Dfb.UI_INPUT_KEY_DOWN))
                             return;
                         break;
                 }
@@ -208,14 +207,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
     [DefaultExecutionOrder(-32000)]
     public sealed class DoomerfallUi : MonoBehaviour
     {
-        const uint UiTravelMap = 1, UiInventory = 2, UiMap = 3;
-        const uint WorldExterior = 1, WorldInterior = 2, WorldDungeon = 3;
         const int HudFramesToClose = 2; // A window can post the next window as it closes, which appears a frame later.
-        const uint StateClosed = 0, StateOpened = 1;
-        const uint ReasonUser = 1, ReasonRefused = 2, ReasonResult = 3, ReasonDoom = 4;
-        const ushort KindUiState = 9, KindUiResult = 10, KindTravel = 20;
         const float TravelSettleSeconds = 20f;
-        const int MaxSurfaceWidth = 1920, MaxSurfaceHeight = 1200;
         const int OpenWaitFrames = 30;
         const int MaxPendingReadbacks = 3;
 
@@ -271,12 +264,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     waitingForWindow = false;
                     windowOpen = true;
                     ChooseSurfaceSize();
-                    SendState(StateOpened, 0);
+                    SendState(Dfb.UI_OPENED, 0);
                     bridge.LogLine(string.Format("ui: menu {0} opened, surface {1}x{2}", openId, surfaceWidth, surfaceHeight));
                 }
                 else if (++waitFrames > OpenWaitFrames)
                 {
-                    Finish(ReasonRefused);
+                    Finish(Dfb.UI_REASON_REFUSED);
                 }
             }
             else if (travelArriving)
@@ -284,20 +277,20 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 if (GameManager.Instance.StreamingWorld.DoomerfallPositionSettled)
                 {
                     FinishTravel();
-                    Finish(ReasonResult);
+                    Finish(Dfb.UI_REASON_RESULT);
                 }
                 else if (Time.realtimeSinceStartup > travelWaitUntil)
                 {
                     bridge.LogLine("error: Daggerfall's world did not settle after fast travel");
                     travelArriving = false;
                     bridge.PositionSync.EndTravelHold();
-                    Finish(ReasonResult);
+                    Finish(Dfb.UI_REASON_RESULT);
                 }
             }
             else if (windowOpen && atHud)
             {
                 if (++hudFrames >= HudFramesToClose)
-                    Finish(closeReason != 0 ? closeReason : ReasonUser);
+                    Finish(closeReason != 0 ? closeReason : Dfb.UI_REASON_USER);
             }
             else
             {
@@ -312,23 +305,23 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             openId = id;
             closeReason = 0;
             waitFrames = hudFrames = 0;
-            showingTravelMap = id == UiTravelMap;
-            if ((id != UiTravelMap && id != UiInventory && id != UiMap) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
+            showingTravelMap = id == Dfb.UI_TRAVEL_MAP;
+            if ((id != Dfb.UI_TRAVEL_MAP && id != Dfb.UI_INVENTORY && id != Dfb.UI_MAP) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
             {
-                Finish(ReasonRefused);
+                Finish(Dfb.UI_REASON_REFUSED);
                 return;
             }
 
-            string message = id == UiInventory ? DaggerfallUIMessages.dfuiOpenInventoryWindow : DaggerfallUIMessages.dfuiOpenTravelMapWindow;
-            if (id == UiMap)
+            string message = id == Dfb.UI_INVENTORY ? DaggerfallUIMessages.dfuiOpenInventoryWindow : DaggerfallUIMessages.dfuiOpenTravelMapWindow;
+            if (id == Dfb.UI_MAP)
             {
                 // The map must describe the place Doom is showing, so wait out a door still in progress.
                 PlayerEnterExit enter = GameManager.Instance.PlayerEnterExit;
-                uint actual = enter.IsPlayerInsideDungeon ? WorldDungeon : enter.IsPlayerInside ? WorldInterior : WorldExterior;
+                uint actual = enter.IsPlayerInsideDungeon ? Dfb.WORLD_DUNGEON : enter.IsPlayerInside ? Dfb.WORLD_INTERIOR : Dfb.WORLD_EXTERIOR;
                 if (actual != doomContext)
                 {
                     bridge.LogLine(string.Format("ui: map refused, Doom is in area {0} and Daggerfall in {1}", doomContext, actual));
-                    Finish(ReasonRefused);
+                    Finish(Dfb.UI_REASON_REFUSED);
                     return;
                 }
 
@@ -341,7 +334,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 if (!enter.IsPlayerInside && hasLocation && (!gps.HasCurrentLocation || gps.CurrentLocation.MapTableData.MapId != summary.MapID))
                 {
                     bridge.LogLine(string.Format("ui: map refused, location at pixel {0},{1} has not loaded yet", pixel.X, pixel.Y));
-                    Finish(ReasonRefused);
+                    Finish(Dfb.UI_REASON_REFUSED);
                     return;
                 }
                 bool hasAutomap = enter.IsPlayerInside || hasLocation;
@@ -370,9 +363,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             if (openId == 0 || id != openId)
                 return;
-            closeReason = ReasonDoom;
+            closeReason = Dfb.UI_REASON_DOOM;
             if (waitingForWindow)
-                Finish(ReasonDoom);
+                Finish(Dfb.UI_REASON_DOOM);
             else
                 DaggerfallUI.Instance.PopToHUD();
         }
@@ -385,9 +378,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DoomerfallInput.End();
             if (DaggerfallUI.Instance)
                 DaggerfallUI.Instance.CustomRenderTarget = null;
-            SendState(StateClosed, reason, id);
+            SendState(Dfb.UI_CLOSED, reason, id);
             bridge.LogLine("ui: menu " + id + " closed, reason " + reason);
-            if (reason != ReasonRefused)
+            if (reason != Dfb.UI_REASON_REFUSED)
                 LogWorldState("after");
         }
 
@@ -414,11 +407,16 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             var e = new DfbEvent
             {
-                kind = KindUiState,
+                kind = Dfb.KIND_UI_STATE,
                 tic = (uint)Time.frameCount,
-                p0 = (id != 0 ? id : openId) | ((ulong)state << 32),
-                p1 = reason | ((ulong)(uint)surfaceWidth << 32),
-                p2 = (uint)surfaceHeight,
+                uiState = new DfbUiState
+                {
+                    uiId = id != 0 ? id : openId,
+                    state = state,
+                    reason = reason,
+                    surfaceWidth = (uint)surfaceWidth,
+                    surfaceHeight = (uint)surfaceHeight,
+                },
             };
             bridge.Send(ref e);
         }
@@ -433,7 +431,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             StreamingWorld world = game.StreamingWorld;
             travelArriving = true;
             travelWaitUntil = Time.realtimeSinceStartup + TravelSettleSeconds;
-            closeReason = ReasonResult;
+            closeReason = Dfb.UI_REASON_RESULT;
             // Placement only sets this when a location has a facing to give. Otherwise the player keeps Doom's.
             game.PlayerMouseLook.Yaw = game.PlayerObject.transform.eulerAngles.y;
             bridge.PositionSync.BeginTravelHold(world.MapPixelX, world.MapPixelY);
@@ -453,20 +451,18 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bridge.PositionSync.BeginTravelHold(arrival.X, arrival.Y);
 
             float yaw = Mathf.Repeat(90f - game.PlayerMouseLook.Yaw, 360f);
-            byte[] bytes = new byte[32];
-            Buffer.BlockCopy(BitConverter.GetBytes((double)gps.WorldX), 0, bytes, 0, 8);
-            Buffer.BlockCopy(BitConverter.GetBytes((double)gps.WorldZ), 0, bytes, 8, 8);
-            Buffer.BlockCopy(BitConverter.GetBytes(yaw), 0, bytes, 16, 4);
-            Buffer.BlockCopy(BitConverter.GetBytes(arrival.X), 0, bytes, 20, 4);
-            Buffer.BlockCopy(BitConverter.GetBytes(arrival.Y), 0, bytes, 24, 4);
             var e = new DfbEvent
             {
-                kind = KindTravel,
+                kind = Dfb.KIND_TRAVEL,
                 tic = (uint)Time.frameCount,
-                p0 = BitConverter.ToUInt64(bytes, 0),
-                p1 = BitConverter.ToUInt64(bytes, 8),
-                p2 = BitConverter.ToUInt64(bytes, 16),
-                p3 = BitConverter.ToUInt64(bytes, 24),
+                travel = new DfbTravel
+                {
+                    worldX = gps.WorldX,
+                    worldZ = gps.WorldZ,
+                    yawDegrees = yaw,
+                    mapPixelX = arrival.X,
+                    mapPixelY = arrival.Y,
+                },
             };
             bridge.Send(ref e);
             bridge.LogLine(string.Format("travel: arrived at world {0},{1} pixel {2},{3} yaw {4:F1}", gps.WorldX, gps.WorldZ, world.MapPixelX, world.MapPixelY, yaw));
@@ -482,30 +478,21 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 name = location.Name;
             bridge.LogLine(string.Format("ui: travelled to {0} at map pixel {1},{2}", name, x, y));
 
-            byte[] bytes = new byte[48];
-            Buffer.BlockCopy(BitConverter.GetBytes(UiTravelMap), 0, bytes, 0, 4);
-            Buffer.BlockCopy(BitConverter.GetBytes(x), 0, bytes, 4, 4);
-            Buffer.BlockCopy(BitConverter.GetBytes(y), 0, bytes, 8, 4);
             byte[] text = Encoding.UTF8.GetBytes(name);
-            Buffer.BlockCopy(text, 0, bytes, 12, Math.Min(text.Length, 35));
             var e = new DfbEvent
             {
-                kind = KindUiResult,
+                kind = Dfb.KIND_UI_RESULT,
                 tic = (uint)Time.frameCount,
-                p0 = BitConverter.ToUInt64(bytes, 0),
-                p1 = BitConverter.ToUInt64(bytes, 8),
-                p2 = BitConverter.ToUInt64(bytes, 16),
-                p3 = BitConverter.ToUInt64(bytes, 24),
-                p4 = BitConverter.ToUInt64(bytes, 32),
-                p5 = BitConverter.ToUInt64(bytes, 40),
+                uiResult = new DfbUiResult { uiId = Dfb.UI_TRAVEL_MAP, mapPixelX = x, mapPixelY = y },
             };
+            e.uiResult.SetName(text, Math.Min(text.Length, 35)); // always leaves the terminator
             bridge.Send(ref e);
         }
 
         // Keeps the aspect ratio when the Daggerfall window is larger than the shared surface.
         void ChooseSurfaceSize()
         {
-            float scale = Mathf.Min(1f, Mathf.Min((float)MaxSurfaceWidth / Screen.width, (float)MaxSurfaceHeight / Screen.height));
+            float scale = Mathf.Min(1f, Mathf.Min((float)Dfb.SURFACE_MAX_W / Screen.width, (float)Dfb.SURFACE_MAX_H / Screen.height));
             surfaceWidth = Mathf.Max(1, Mathf.FloorToInt(Screen.width * scale));
             surfaceHeight = Mathf.Max(1, Mathf.FloorToInt(Screen.height * scale));
             pixels = new byte[surfaceWidth * surfaceHeight * 4];
