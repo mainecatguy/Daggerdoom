@@ -467,7 +467,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             waitingForWindow = windowOpen = false;
             if (id == Dfb.UI_NEW_GAME && NewGame)
                 NewGame.CreationClosed(reason == Dfb.UI_REASON_RESULT);
-            if (id == Dfb.UI_LOAD_GAME && PlainLoad && GameManager.HasInstance && GameManager.Instance.SaveLoadManager.LoadInProgress)
+            if (id == Dfb.UI_LOAD_GAME && PlainLoad && GameManager.HasInstance && GameManager.Instance.SaveLoadManager.LoadInProgress && reason != Dfb.UI_REASON_RESULT)
             {
                 reason = Dfb.UI_REASON_RESULT; // The window closed because a save was chosen; it is loading now.
                 PlainLoad.Arm();

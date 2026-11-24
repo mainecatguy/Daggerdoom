@@ -41,12 +41,24 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             int test = Array.IndexOf(args, "-dfplainloadtest");
             if (test >= 0 && test + 1 < args.Length)
                 testSave = args[test + 1];
+            SaveLoadManager.OnStartLoad += OnStartLoad;
             SaveLoadManager.OnLoad += OnLoad;
         }
 
         void OnDestroy()
         {
+            SaveLoadManager.OnStartLoad -= OnStartLoad;
             SaveLoadManager.OnLoad -= OnLoad;
+        }
+
+        // The save chosen in the Load window starts loading while the window is still Doom's open menu.
+        void OnStartLoad(SaveData_v1 data)
+        {
+            if (!armed && DoomerfallUi.LoadWindowOpen)
+            {
+                DoomerfallUi.MarkResult();
+                Arm();
+            }
         }
 
         // DoomerfallUi: Daggerfall's Load window is showing in Doom.
