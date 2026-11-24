@@ -101,7 +101,7 @@ void PlaceQuestFoe(FLevelLocals *Level, const Row &r)
 	PClassActor *cls = PClass::FindActor(roster[(r.id >> DFB_MONSTER_MEMBER_BITS) % countof(roster)]);
 	if (!cls) return;
 	// Member offsets keep several foes on one marker from starting stuck inside each other.
-	const int member = int(r.id & 0xff);
+	const int member = int(r.id & ((uint64_t(1) << DFB_MONSTER_MEMBER_BITS) - 1));
 	const DVector3 at(r.pos.X + (member % 3) * 48.0, r.pos.Y + (member / 3) * 48.0, r.pos.Z + 4);
 	if (!Spawn(Level, cls, at, ALLOW_REPLACE)) return;
 	claims.push_back({ r.id, at, Level->maptime + ClaimTics });

@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0xbcf1d6fac3c0183fUL;
+        public const ulong SchemaHash = 0xd555c53e476278eeUL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -126,7 +126,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint TOWNSPERSON_GUARD = 1;  // dfb_townsperson.flags: idles with the guard record
         public const uint MONSTER_TAG = 5;
         public const uint MONSTER_TAG_SHIFT = 61;
-        public const uint MONSTER_MEMBER_BITS = 8;
+        public const uint MONSTER_MEMBER_BITS = 12;
         public const uint MONSTER_PLACE = 1;  // a living quest foe that Doom must have at this position
         public const uint MONSTER_DEAD = 2;  // Daggerfall has this id as dead
         public const uint ITEM_TAKEN = 0;  // everything in the pile moved to the player

@@ -1,6 +1,6 @@
 // Doomerfall: Daggerfall's side of monster deaths. Runs only in a bridge session.
 //
-// A monster id is tag (3 bits, value 5) | placement hash (53) | pack member (8). Doom reports each death once
+// A monster id is tag (3 bits, value 5) | placement hash (49) | pack member (12). Doom reports each death once
 // per id. This ledger makes it count once across saves, loads, and re-entry. It updates the quest foe, rolls
 // the drop with Daggerfall's loot tables, and keeps the drop so a rebuilt dungeon can show it again.
 
@@ -27,7 +27,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         const float DoomPerDaggerfall = 0.75f;
         const float PopupSeconds = 4f;
         const string LedgerFile = "DoomerfallMonsters.json";
-        const ulong PlacementMask = (1UL << 53) - 1;
+        const ulong PlacementMask = (1UL << (int)(Dfb.MONSTER_TAG_SHIFT - Dfb.MONSTER_MEMBER_BITS)) - 1;
+        const ulong MemberMask = (1UL << (int)Dfb.MONSTER_MEMBER_BITS) - 1;
         const int RandomEnemyRecord = 15, FixedEnemyRecord = 16, EditorArchive = 199;
 
         public sealed class Death
@@ -130,7 +131,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         static ulong MakeId(ulong hash, int member)
         {
-            return ((ulong)Dfb.MONSTER_TAG << (int)Dfb.MONSTER_TAG_SHIFT) | ((hash & PlacementMask) << (int)Dfb.MONSTER_MEMBER_BITS) | (uint)(member & 0xff);
+            return ((ulong)Dfb.MONSTER_TAG << (int)Dfb.MONSTER_TAG_SHIFT) | ((hash & PlacementMask) << (int)Dfb.MONSTER_MEMBER_BITS) | ((ulong)member & MemberMask);
         }
 
         static ulong FoeHash(ulong questUid, string symbol)
@@ -418,7 +419,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         static int QuestFoeLootSeed(int mapId, Foe foe, ulong id)
         {
             string quest = foe.ParentQuest != null ? foe.ParentQuest.QuestName : string.Empty;
-            return LootSeed.Of(LootSeed.QuestFoe, quest + "/" + foe.Symbol.Name, mapId, (long)(id & 0xff));
+            return LootSeed.Of(LootSeed.QuestFoe, quest + "/" + foe.Symbol.Name, mapId, (long)(id & MemberMask));
         }
 
         // Test only: starts a real quest whose random dungeon resolves to the one at this location.

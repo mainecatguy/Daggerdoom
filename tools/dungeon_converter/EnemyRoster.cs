@@ -40,6 +40,7 @@ static class EnemyRoster
 
     public static int Pick(ulong hash) => Types[(int)(hash % (ulong)Types.Length)];
 
-    // Tag 5, a 53-bit placement hash, and pack member 0. See dfb_monster in the bridge header.
-    public static ulong MonsterId(ulong hash) => (5UL << 61) | ((hash & ((1UL << 53) - 1)) << 8);
+    // Tag 5, a 49-bit placement hash, and pack member 0 (12 member bits). See DFB_MONSTER_MEMBER_BITS in the bridge header.
+    public const int MemberBits = 12;
+    public static ulong MonsterId(ulong hash) => (5UL << 61) | ((hash & ((1UL << (61 - MemberBits)) - 1)) << MemberBits);
 }

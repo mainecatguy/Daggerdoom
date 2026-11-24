@@ -158,8 +158,9 @@ extern "C" {
 #define DFB_KIND_NPC_USE        100 /* UZ to DF; payload: dfb_npc_use */
 #define DFB_KIND_NPC_USE_RESULT 101 /* DF to UZ; payload: dfb_npc_use_result */
 
-/* Monsters. A monster id is 64 bits: tag (3, value 5) | placement hash (53) | pack member (8).
-   Every member of one placement shares the hash, so a pack needs no new id format. */
+/* Monsters. A monster id is 64 bits: tag (3, value 5) | placement hash (49) | pack member (12).
+   Every member of one placement shares the hash, so a pack needs no new id format. 12 member bits allow 4,096
+   mooks per placement, enough for the encounter planner's heaviest swarm packs. */
 #define DFB_KIND_MONSTER_DEATH     50  /* UZ to DF; a tagged monster died; payload: dfb_monster_death */
 #define DFB_KIND_MONSTERS_BEGIN    51  /* DF to UZ; starts one full list for a dungeon; payload: dfb_world_items */
 #define DFB_KIND_MONSTER           52  /* DF to UZ; one quest foe to place, or one dead id; payload: dfb_monster */
@@ -194,7 +195,7 @@ extern "C" {
 
 #define DFB_MONSTER_TAG         5u
 #define DFB_MONSTER_TAG_SHIFT   61u
-#define DFB_MONSTER_MEMBER_BITS 8u
+#define DFB_MONSTER_MEMBER_BITS 12u
 #define DFB_MONSTER_PLACE  1u  /* a living quest foe that Doom must have at this position */
 #define DFB_MONSTER_DEAD   2u  /* Daggerfall has this id as dead */
 
