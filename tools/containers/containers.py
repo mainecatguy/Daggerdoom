@@ -112,6 +112,7 @@ class CTDemoStart : StaticEventHandler
         "rem Starts in town facing a general store, with DRLA. Press Use on the door to go in.\r\n"
         "rem Press Use on a shelf to trade, on other furniture to search it, and on a loot pile to open it. I opens the inventory.\r\n"
         "rem Hold crouch to sneak: Sneaking shows at the bottom of the screen, and Use then acts in Daggerfall's Steal mode.\r\n"
+        "rem A theft Daggerfall catches calls the city guards: they come in at the door as hostile Doom bots.\r\n"
         "set \"HERE=%~dp0\"\r\n"
         "if not exist \"%HERE%play\" mkdir \"%HERE%play\"\r\n"
         "set BINDS=\r\n"

@@ -216,32 +216,12 @@ void DD_GuardsFrame(dfb_session *, uint32_t context, bool inSpace, int32_t targe
 	}
 	pending.clear();
 
-	// Diagnostic: a pawn whose player does not point back at it aborts in PlayerPawn.PlayerThink.
-	static int reportedOrphans;
-	if (reportedOrphans < 8)
-	{
-		auto orphans = Level->GetThinkerIterator<AActor>();
-		while (AActor *mo = orphans.Next())
-			if (mo->player && mo->player->mo != mo && reportedOrphans++ < 8)
-				Printf("DDGUARD orphan pawn %s player %d (its mo %p, this %p)\n", mo->GetClass()->TypeName.GetChars(), int(mo->player - players), (void *)mo->player->mo, (void *)mo);
-	}
 	AActor *camera = Level->Players[consoleplayer]->camera;
 	for (int i = 0; i < MAXPLAYERS; i++)
 	{
 		if (!playeringame[i] || !players[i].Bot || !DD_IsGuardBot(players[i].mo)) continue;
 		AActor *mo = players[i].mo;
 		if (mo->health <= 0) { Bury(Level, i); continue; }
-		static int lastStatus[MAXPLAYERS];	// Diagnostic: what each guard bot is doing, once a second.
-		if (Level->maptime % 35 == 0 && Level->maptime != lastStatus[i])
-		{
-			DBot *b = players[i].Bot;
-			Printf("DDGUARD status slot %d at %.0f,%.0f enemy %s weapon %s pending %s buttons %x fwd %d health %d\n", i, mo->X(), mo->Y(),
-				b->enemy ? b->enemy->GetClass()->TypeName.GetChars() : "none",
-				players[i].ReadyWeapon ? players[i].ReadyWeapon->GetClass()->TypeName.GetChars() : "none",
-				players[i].PendingWeapon && players[i].PendingWeapon != (AActor *)WP_NOCHANGE ? players[i].PendingWeapon->GetClass()->TypeName.GetChars() : "-",
-				players[i].cmd.buttons, players[i].cmd.forwardmove, mo->health);
-			lastStatus[i] = Level->maptime;
-		}
 		if (!DD_MobileSprite(mo, GuardArchive, RecordsFor(mo), mo->Angles.Yaw.Degrees(), camera))
 			DD_MobileSprite(mo, GuardArchive, MoveRecords, mo->Angles.Yaw.Degrees(), camera);
 	}
