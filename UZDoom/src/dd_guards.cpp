@@ -82,7 +82,10 @@ void Settle(AActor *mo, const DVector2 &at, int index)
 		mo->SetOrigin(DVector3(to, mo->Z()), false);
 		P_FindFloorCeiling(mo, FFCF_ONLYSPAWNPOS);
 		mo->SetZ(mo->floorz);
-		if (P_TestMobjLocation(mo)) break;
+		bool crowded = false;
+		for (int k = 0; k < MAXPLAYERS && !crowded; k++)
+			if (playeringame[k] && players[k].mo && players[k].mo != mo && (players[k].mo->Pos().XY() - to).Length() < mo->radius * 2) crowded = true;
+		if (!crowded && P_TestMobjLocation(mo)) break;
 	}
 	mo->ClearInterpolation();
 }
@@ -138,8 +141,13 @@ void Bury(FLevelLocals *Level, int slot)
 	AActor *body = players[slot].mo;
 	FTextureID corpse = TexMan.CheckForTexture("dfmesh/a380r01.png", ETextureType::Any, FTextureManager::TEXMAN_TryAny | FTextureManager::TEXMAN_ForceLookup);
 	if (corpse.isValid()) { body->picnum = corpse; body->renderflags &= ~RF_XFLIP; }
-	body->player = nullptr;
+	// Nothing may keep pointing at the slot once it is reset, or its next think reads a player with no pawn.
+	auto it = Level->GetThinkerIterator<AActor>();
+	while (AActor *mo = it.Next())
+		if (mo->player == &players[slot]) mo->player = nullptr;
 	players[slot].mo = nullptr;
+	players[slot].camera = nullptr;
+	Printf("DDGUARD buried slot %d\n", slot);
 	Level->BotInfo.ClearPlayer(slot, false);
 }
 }
@@ -171,6 +179,15 @@ void DD_GuardsFrame(dfb_session *, uint32_t context, bool inSpace, int32_t targe
 	}
 	pending.clear();
 
+	// Diagnostic: a pawn whose player does not point back at it aborts in PlayerPawn.PlayerThink.
+	static int reportedOrphans;
+	if (reportedOrphans < 8)
+	{
+		auto orphans = Level->GetThinkerIterator<AActor>();
+		while (AActor *mo = orphans.Next())
+			if (mo->player && mo->player->mo != mo && reportedOrphans++ < 8)
+				Printf("DDGUARD orphan pawn %s player %d (its mo %p, this %p)\n", mo->GetClass()->TypeName.GetChars(), int(mo->player - players), (void *)mo->player->mo, (void *)mo);
+	}
 	AActor *camera = Level->Players[consoleplayer]->camera;
 	for (int i = 0; i < MAXPLAYERS; i++)
 	{

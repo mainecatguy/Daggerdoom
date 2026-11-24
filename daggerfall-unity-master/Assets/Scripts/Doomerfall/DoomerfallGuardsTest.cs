@@ -2,6 +2,7 @@
 // it calls PlayerEntity.SpawnCityGuards(true), the same call a detected theft makes, then logs Daggerfall's HP and
 // its guard copies every two seconds, so a run shows whether Daggerfall's copies act on the player.
 
+using DaggerfallWorkshop.Game.Entity;
 using UnityEngine;
 
 namespace DaggerfallWorkshop.Game.Doomerfall
