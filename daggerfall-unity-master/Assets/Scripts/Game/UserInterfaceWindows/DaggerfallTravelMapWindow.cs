@@ -1277,7 +1277,8 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             if (RegionSelected == false)
                 regionLabel.Text = GetRegionName(mouseOverRegion);
             else if (locationSelected)
-                regionLabel.Text = string.Format("{0} : {1}", GetRegionName(mouseOverRegion), GetLocationNameInCurrentRegion(locationSummary.MapIndex, true));
+                regionLabel.Text = string.Format("{0} : {1}", GetRegionName(mouseOverRegion), GetLocationNameInCurrentRegion(locationSummary.MapIndex, true))
+                    + Doomerfall.DoomerfallTravelHint.Suffix(locationSummary); // Doomerfall: danger word
             else if (MouseOverOtherRegion)
                 regionLabel.Text = string.Format(TextManager.Instance.GetLocalizedText("switchToRegion"), GetRegionName(mouseOverRegion));
             else
@@ -1693,6 +1694,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             textTokens[2].text = textTokens[2].text.Replace(
                 "%tcn",
                 TextManager.Instance.GetLocalizedLocationName(locationSummary.MapID, GetLocationNameInCurrentRegion(locationSummary.MapIndex)));
+            textTokens = Doomerfall.DoomerfallTravelHint.AddToConfirmation(textTokens, locationSummary); // Doomerfall: danger word
 
             DaggerfallMessageBox messageBox = new DaggerfallMessageBox(uiManager, this);
             messageBox.SetTextTokens(textTokens);
