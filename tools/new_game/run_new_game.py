@@ -95,6 +95,8 @@ def act(hwnd, top, tries):
         click(hwnd, 158, 85)  # Choose from a list, in the centered panel
     elif top == "CreateCharClassSelect":
         click(hwnd, 100, 64, 2)
+        if tries % 3 == 2:  # The list also takes Enter on its selected row, when the double-click is not seen as one.
+            key(hwnd, 0x0D)
     elif top == "CreateCharChooseBio":
         click(hwnd, 158, 75)  # Generate, in the centered panel
     elif top == "CreateCharNameSelect":
