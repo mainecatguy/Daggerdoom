@@ -1970,8 +1970,10 @@ bool DDTreadmill_MeshOffset(double &x, double &y, double &z)
 	return true;
 }
 
+void DD_QaTick(FLevelLocals *Level); // [Doomerfall] QA bot (dd_qa.cpp), inactive without -ddqa
 void DDTreadmill_Tick(FLevelLocals *Level)
 {
+	DD_QaTick(Level);
 	static const bool requested = fileSystem.CheckNumForName("DDWORLD") >= 0;
 	if (!requested || Level != primaryLevel) return;
 	if (resumePending) Resume(Level);
