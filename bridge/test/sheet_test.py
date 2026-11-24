@@ -42,8 +42,8 @@ def main():
     for l in uz_lines:
         if "sheet" in l or "error" in l:
             print(l[:220])
-    published = [LINE.search(l).groups() for l in df_lines if LINE.search(l) and "published" in l]
-    read = {(m.group(2), m.group(14)) for m in (LINE.search(l) for l in uz_lines) if m and "read" in l}
+    published = [m.groups() for m in map(LINE.search, df_lines) if m and m.group(1) == "published"]
+    read = {(m.group(2), m.group(14)) for m in map(LINE.search, uz_lines) if m and m.group(1) == "read"}
     missing = [p for p in published if (p[1], p[13]) not in read]
     print(f"published {len(published)}, read by Doom {len(read)}, published versions Doom never read {len(missing)}")
     for p in missing:
