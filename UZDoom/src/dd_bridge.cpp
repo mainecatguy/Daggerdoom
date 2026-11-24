@@ -972,6 +972,25 @@ bool DD_BridgeHpHit(player_t *player, int damage)
 	return true;
 }
 
+// P_DamageMobj, next to the source's DamageMultiply: the damage the bridged player deals to anything but itself,
+// times Daggerfall's damage bonus (dfb_df_state.damage_bonus_bp). Unchanged with no session or a bonus of 0.
+int DD_BridgeDamageBonus(AActor *source, AActor *target, int damage)
+{
+	const int32_t bp = peerState.damage_bonus_bp;
+	if (!session || bp == 0 || damage <= 0 || !source || source == target || !HpIsBridgedPlayer(source->player) ||
+		source->player->mo != source)
+		return damage;
+	const int scaled = std::max(1, int(damage * (1.0 + std::max(bp, -10000) / 10000.0)));
+	static int logged;
+	if (logged < 200)
+	{
+		logged++;
+		Log("damage bonus: %s hit by the player, %d -> %d (%d bp)", target ? target->GetClass()->TypeName.GetChars() : "?",
+			damage, scaled, bp);
+	}
+	return scaled;
+}
+
 // P_GiveBody. True means the heal was reported instead of applied; *accepted is what P_GiveBody returns.
 bool DD_BridgeHpHeal(player_t *player, int num, int max, bool *accepted)
 {

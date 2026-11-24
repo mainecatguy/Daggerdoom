@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0xbcf1d6fac3c0183fUL;
+        public const ulong SchemaHash = 0x17fc474cb2b680ebUL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -880,7 +880,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(36)] public int hpMax;
         [FieldOffset(40)] public uint hpAppliedEvent;  // event_no of the last dfb_hp_event Daggerfall applied
         [FieldOffset(44)] public uint hpFlags;  // DFB_HPF_*
-        // 208 reserved bytes at offset 48
+        [FieldOffset(48)] public int damageBonusBp;
+        [FieldOffset(52)] public uint pad0;
+        // 200 reserved bytes at offset 56
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 256)]

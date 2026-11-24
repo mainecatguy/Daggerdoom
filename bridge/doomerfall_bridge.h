@@ -704,7 +704,11 @@ typedef struct dfb_df_state
 	int32_t hp_max;
 	uint32_t hp_applied_event;/* event_no of the last dfb_hp_event Daggerfall applied */
 	uint32_t hp_flags;        /* DFB_HPF_* */
-	uint8_t reserved[DFB_STATE_BYTES - 48];
+	/* The player's damage bonus, which Daggerfall tabulates (gamedesign/damage.md): 1/10000ths over base damage, so 0
+	   is none and 10000 is +100%. Doom multiplies the damage the player deals by 1 + bp / 10000. */
+	int32_t damage_bonus_bp;
+	uint32_t pad0;
+	uint8_t reserved[DFB_STATE_BYTES - 56];
 } dfb_df_state;
 
 /* State half written by UZDoom (S-UZ). */
