@@ -8,10 +8,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0xf4ef81f7964dde81UL;
+        public const ulong SchemaHash = 0x3dd5c2740e6387b9UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
-        public const uint PROTOCOL_VERSION = 6;
+        public const uint PROTOCOL_VERSION = 7;
         public const uint RING_SLOTS = 4096;  // power of two
         public const uint OUTBOX_SLOTS = 16384;  // local, per process; hard cap before a bridge fault
         public const uint BULK_SLOTS = 8;  // 0-3 written by DF, 4-7 written by UZ
@@ -66,6 +66,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_ITEM_TAKE = 43;  // UZ to DF; the player pressed Interact on a pile; payload: dfb_item_take
         public const ushort KIND_ITEM_RESULT = 44;  // DF to UZ; what Daggerfall did with that request; payload: dfb_item_result
         public const ushort KIND_ITEMS_REQUEST = 45;  // UZ to DF; send the current list again; payload: dfb_world_items
+        public const ushort KIND_DOOM_ITEM_TAKE = 140;  // UZ to DF; the player pressed Use on a Doom item, which waits for the answer; payload: dfb_doom_item
+        public const ushort KIND_DOOM_ITEM_RESULT = 141;  // DF to UZ; status DFB_ITEM_TAKEN, DFB_ITEM_TOO_HEAVY, or DFB_ITEM_REFUSED; payload: dfb_doom_item
+        public const ushort KIND_DOOM_ITEM_USE = 142;  // DF to UZ; the player used this item in Daggerfall's inventory; payload: dfb_doom_item
+        public const ushort KIND_DOOM_ITEM_USED = 143;  // UZ to DF; status DFB_ITEM_TAKEN when Doom applied it, else DFB_ITEM_REFUSED; payload: dfb_doom_item
+        public const ushort KIND_DOOM_ITEM_ART_REQUEST = 144;  // DF to UZ; send the sprite and name for this class; payload: dfb_doom_item
+        public const ushort KIND_DOOM_ITEM_ART = 145;  // UZ to DF; DFB_ITEM_ART_SLOT holds the answer, or status DFB_ITEM_GONE for no such class; payload: dfb_doom_item
+        public const uint ITEM_ART_SLOT = 5;  // bulk slot written by UZ: one dfb_item_art header, then width * height BGRA pixels, top row first
+        public const uint ITEM_ART_HEADER = 144;
         public const ushort KIND_MONSTER_DEATH = 50;  // UZ to DF; a tagged monster died; payload: dfb_monster_death
         public const ushort KIND_MONSTERS_BEGIN = 51;  // DF to UZ; starts one full list for a dungeon; payload: dfb_world_items
         public const ushort KIND_MONSTER = 52;  // DF to UZ; one quest foe to place, or one dead id; payload: dfb_monster
@@ -169,8 +177,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const int UZ_PHASE_SAVING = 4;
 
         // Native size of every generated struct, for the attach check.
-        public static readonly Type[] StructTypes = { typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbNpc), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
-        public static readonly int[] StructSizes = { 64, 24, 24, 16, 24, 24, 48, 32, 32, 32, 16, 48, 16, 48, 32, 32, 16, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
+        public static readonly Type[] StructTypes = { typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbDoomItem), typeof(DfbItemArt), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbNpc), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
+        public static readonly int[] StructSizes = { 64, 24, 24, 16, 24, 24, 48, 32, 32, 32, 16, 48, 16, 48, 48, 144, 32, 32, 16, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
     }
 
     static class DfbBytes
@@ -247,6 +255,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public DfbWorldItem worldItem;  // ITEM
         [FieldOffset(16)] public DfbItemTake itemTake;  // ITEM_TAKE
         [FieldOffset(16)] public DfbItemResult itemResult;  // ITEM_RESULT
+        [FieldOffset(16)] public DfbDoomItem doomItem;  // DOOM_ITEM_TAKE, DOOM_ITEM_RESULT, DOOM_ITEM_USE, DOOM_ITEM_USED, DOOM_ITEM_ART_REQUEST, DOOM_ITEM_ART
         [FieldOffset(16)] public DfbMonsterDeath monsterDeath;  // MONSTER_DEATH
         [FieldOffset(16)] public DfbMonster monster;  // MONSTER
         [FieldOffset(16)] public DfbNpc npc;  // NPC
@@ -437,6 +446,115 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DfbBytes.Write(destination, 0, 8, name0);
             DfbBytes.Write(destination, 8, 8, name1);
             DfbBytes.Write(destination, 16, 8, name2);
+        }
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 48)]
+    struct DfbDoomItem
+    {
+        [FieldOffset(0)] public uint request;
+        [FieldOffset(4)] public uint status;  // DFB_ITEM_*, on answers
+        [FieldOffset(8)] public ulong cls0;
+        [FieldOffset(16)] public ulong cls1;
+        [FieldOffset(24)] public ulong cls2;
+        [FieldOffset(32)] public ulong cls3;
+        [FieldOffset(40)] public ulong cls4;
+
+        // Copies up to 40 bytes in. The rest of the field becomes zero.
+        public void SetCls(byte[] source, int count)
+        {
+            cls0 = (ulong)DfbBytes.Read(source, count, 0, 8);
+            cls1 = (ulong)DfbBytes.Read(source, count, 8, 8);
+            cls2 = (ulong)DfbBytes.Read(source, count, 16, 8);
+            cls3 = (ulong)DfbBytes.Read(source, count, 24, 8);
+            cls4 = (ulong)DfbBytes.Read(source, count, 32, 8);
+        }
+
+        // Copies all 40 bytes out.
+        public void CopyCls(byte[] destination)
+        {
+            DfbBytes.Write(destination, 0, 8, cls0);
+            DfbBytes.Write(destination, 8, 8, cls1);
+            DfbBytes.Write(destination, 16, 8, cls2);
+            DfbBytes.Write(destination, 24, 8, cls3);
+            DfbBytes.Write(destination, 32, 8, cls4);
+        }
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 144)]
+    struct DfbItemArt
+    {
+        [FieldOffset(0)] public uint request;
+        [FieldOffset(4)] public uint width;
+        [FieldOffset(8)] public uint height;
+        [FieldOffset(12)] public uint pad;
+        [FieldOffset(16)] public ulong cls0;
+        [FieldOffset(24)] public ulong cls1;
+        [FieldOffset(32)] public ulong cls2;
+        [FieldOffset(40)] public ulong cls3;
+        [FieldOffset(48)] public ulong cls4;
+        [FieldOffset(56)] public ulong cls5;
+        [FieldOffset(64)] public ulong cls6;
+        [FieldOffset(72)] public ulong cls7;
+
+        // Copies up to 64 bytes in. The rest of the field becomes zero.
+        public void SetCls(byte[] source, int count)
+        {
+            cls0 = (ulong)DfbBytes.Read(source, count, 0, 8);
+            cls1 = (ulong)DfbBytes.Read(source, count, 8, 8);
+            cls2 = (ulong)DfbBytes.Read(source, count, 16, 8);
+            cls3 = (ulong)DfbBytes.Read(source, count, 24, 8);
+            cls4 = (ulong)DfbBytes.Read(source, count, 32, 8);
+            cls5 = (ulong)DfbBytes.Read(source, count, 40, 8);
+            cls6 = (ulong)DfbBytes.Read(source, count, 48, 8);
+            cls7 = (ulong)DfbBytes.Read(source, count, 56, 8);
+        }
+
+        // Copies all 64 bytes out.
+        public void CopyCls(byte[] destination)
+        {
+            DfbBytes.Write(destination, 0, 8, cls0);
+            DfbBytes.Write(destination, 8, 8, cls1);
+            DfbBytes.Write(destination, 16, 8, cls2);
+            DfbBytes.Write(destination, 24, 8, cls3);
+            DfbBytes.Write(destination, 32, 8, cls4);
+            DfbBytes.Write(destination, 40, 8, cls5);
+            DfbBytes.Write(destination, 48, 8, cls6);
+            DfbBytes.Write(destination, 56, 8, cls7);
+        }
+        [FieldOffset(80)] public ulong tag0;
+        [FieldOffset(88)] public ulong tag1;
+        [FieldOffset(96)] public ulong tag2;
+        [FieldOffset(104)] public ulong tag3;
+        [FieldOffset(112)] public ulong tag4;
+        [FieldOffset(120)] public ulong tag5;
+        [FieldOffset(128)] public ulong tag6;
+        [FieldOffset(136)] public ulong tag7;
+
+        // Copies up to 64 bytes in. The rest of the field becomes zero.
+        public void SetTag(byte[] source, int count)
+        {
+            tag0 = (ulong)DfbBytes.Read(source, count, 0, 8);
+            tag1 = (ulong)DfbBytes.Read(source, count, 8, 8);
+            tag2 = (ulong)DfbBytes.Read(source, count, 16, 8);
+            tag3 = (ulong)DfbBytes.Read(source, count, 24, 8);
+            tag4 = (ulong)DfbBytes.Read(source, count, 32, 8);
+            tag5 = (ulong)DfbBytes.Read(source, count, 40, 8);
+            tag6 = (ulong)DfbBytes.Read(source, count, 48, 8);
+            tag7 = (ulong)DfbBytes.Read(source, count, 56, 8);
+        }
+
+        // Copies all 64 bytes out.
+        public void CopyTag(byte[] destination)
+        {
+            DfbBytes.Write(destination, 0, 8, tag0);
+            DfbBytes.Write(destination, 8, 8, tag1);
+            DfbBytes.Write(destination, 16, 8, tag2);
+            DfbBytes.Write(destination, 24, 8, tag3);
+            DfbBytes.Write(destination, 32, 8, tag4);
+            DfbBytes.Write(destination, 40, 8, tag5);
+            DfbBytes.Write(destination, 48, 8, tag6);
+            DfbBytes.Write(destination, 56, 8, tag7);
         }
     }
 

@@ -421,7 +421,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         }
 
         // The same rounding as DaggerfallInventoryWindow.ComputeCanHoldAmount.
-        static int CanHold(int available, float unitKg, float capacityKg, float loadKg)
+        internal static int CanHold(int available, float unitKg, float capacityKg, float loadKg)
         {
             int unit = Mathf.RoundToInt(unitKg * 400f);
             if (unit <= 0)

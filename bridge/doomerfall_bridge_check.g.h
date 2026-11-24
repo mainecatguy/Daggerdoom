@@ -7,11 +7,11 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0xf4ef81f7964dde81ULL
+#define DFB_SCHEMA_HASH 0x3dd5c2740e6387b9ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
-static_assert((DFB_PROTOCOL_VERSION) == (6u), DFB_STALE);
+static_assert((DFB_PROTOCOL_VERSION) == (7u), DFB_STALE);
 static_assert((DFB_RING_SLOTS) == (4096u), DFB_STALE);
 static_assert((DFB_OUTBOX_SLOTS) == (16384u), DFB_STALE);
 static_assert((DFB_BULK_SLOTS) == (8u), DFB_STALE);
@@ -66,6 +66,14 @@ static_assert((DFB_KIND_ITEMS_END) == (42), DFB_STALE);
 static_assert((DFB_KIND_ITEM_TAKE) == (43), DFB_STALE);
 static_assert((DFB_KIND_ITEM_RESULT) == (44), DFB_STALE);
 static_assert((DFB_KIND_ITEMS_REQUEST) == (45), DFB_STALE);
+static_assert((DFB_KIND_DOOM_ITEM_TAKE) == (140), DFB_STALE);
+static_assert((DFB_KIND_DOOM_ITEM_RESULT) == (141), DFB_STALE);
+static_assert((DFB_KIND_DOOM_ITEM_USE) == (142), DFB_STALE);
+static_assert((DFB_KIND_DOOM_ITEM_USED) == (143), DFB_STALE);
+static_assert((DFB_KIND_DOOM_ITEM_ART_REQUEST) == (144), DFB_STALE);
+static_assert((DFB_KIND_DOOM_ITEM_ART) == (145), DFB_STALE);
+static_assert((DFB_ITEM_ART_SLOT) == (5u), DFB_STALE);
+static_assert((DFB_ITEM_ART_HEADER) == (144u), DFB_STALE);
 static_assert((DFB_KIND_MONSTER_DEATH) == (50), DFB_STALE);
 static_assert((DFB_KIND_MONSTERS_BEGIN) == (51), DFB_STALE);
 static_assert((DFB_KIND_MONSTER) == (52), DFB_STALE);
@@ -345,6 +353,28 @@ static_assert(offsetof(dfb_item_result, remaining) == 20, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_item_result::remaining), int32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_item_result, name) == 24, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_item_result::name), char[24]>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_doom_item) == 48, DFB_STALE);
+static_assert(offsetof(dfb_doom_item, request) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_doom_item::request), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_doom_item, status) == 4, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_doom_item::status), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_doom_item, cls) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_doom_item::cls), char[40]>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_item_art) == 144, DFB_STALE);
+static_assert(offsetof(dfb_item_art, request) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_item_art::request), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_item_art, width) == 4, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_item_art::width), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_item_art, height) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_item_art::height), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_item_art, pad) == 12, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_item_art::pad), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_item_art, cls) == 16, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_item_art::cls), char[64]>::value, DFB_STALE);
+static_assert(offsetof(dfb_item_art, tag) == 80, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_item_art::tag), char[64]>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_monster_death) == 32, DFB_STALE);
 static_assert(offsetof(dfb_monster_death, id) == 0, DFB_STALE);

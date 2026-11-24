@@ -30,6 +30,12 @@ using DaggerfallWorkshop.Game.Formulas;
 
 namespace DaggerfallWorkshop.Game.Items
 {
+    // [Doomerfall] An item whose inventory picture does not come from Daggerfall's texture files.
+    public interface ICustomItemImage
+    {
+        bool TryGetImage(out ImageData image);
+    }
+
     /// <summary>
     /// Helper class for working with items.
     /// </summary>
@@ -163,6 +169,15 @@ namespace DaggerfallWorkshop.Game.Items
                 }
                 DaggerfallUnity.LogMessage("RegisterCustomItem: TemplateIndex=" + templateIndex + ", Class=" + itemClassType + ", Group=" + itemGroup, true);
             }
+        }
+
+        // [Doomerfall] Adds a custom item template from code, for items that no mod file describes.
+        public bool AddCustomItemTemplate(ItemTemplate template)
+        {
+            if (template.index <= LastDFTemplate || itemTemplates.Exists(t => t.index == template.index))
+                return false;
+            itemTemplates.Add(template);
+            return true;
         }
 
         public bool GetCustomItemClass(int templateIndex, out Type itemClassType)
@@ -398,6 +413,12 @@ namespace DaggerfallWorkshop.Game.Items
         /// <returns>ImageData.</returns>
         public ImageData GetItemImage(DaggerfallUnityItem item, bool removeMask = false, bool forPaperDoll = false, bool allowAnimation = false)
         {
+            // [Doomerfall] An item that supplies its own picture, such as a Doom item.
+            ICustomItemImage customImage = item as ICustomItemImage;
+            ImageData custom;
+            if (customImage != null && customImage.TryGetImage(out custom))
+                return custom;
+
             // Get colour
             int color = (int)item.dyeColor;
 

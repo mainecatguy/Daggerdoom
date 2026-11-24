@@ -34,7 +34,7 @@ extern "C" {
 #endif
 
 #define DFB_MAGIC            0x42464444u /* "DDFB" */
-#define DFB_PROTOCOL_VERSION 6u
+#define DFB_PROTOCOL_VERSION 7u
 
 #define DFB_RING_SLOTS     4096u   /* power of two */
 #define DFB_OUTBOX_SLOTS   16384u  /* local, per process; hard cap before a bridge fault */
@@ -98,6 +98,17 @@ extern "C" {
 #define DFB_KIND_ITEM_TAKE     43  /* UZ to DF; the player pressed Interact on a pile; payload: dfb_item_take */
 #define DFB_KIND_ITEM_RESULT   44  /* DF to UZ; what Daggerfall did with that request; payload: dfb_item_result */
 #define DFB_KIND_ITEMS_REQUEST 45  /* UZ to DF; send the current list again; payload: dfb_world_items */
+
+/* Doom items held by Daggerfall. A Doom item is named by the Doom world pickup class the player took. Daggerfall
+   keeps the record in its inventory and save; Doom draws the sprite and applies the item when it is used. */
+#define DFB_KIND_DOOM_ITEM_TAKE    140  /* UZ to DF; the player pressed Use on a Doom item, which waits for the answer; payload: dfb_doom_item */
+#define DFB_KIND_DOOM_ITEM_RESULT  141  /* DF to UZ; status DFB_ITEM_TAKEN, DFB_ITEM_TOO_HEAVY, or DFB_ITEM_REFUSED; payload: dfb_doom_item */
+#define DFB_KIND_DOOM_ITEM_USE     142  /* DF to UZ; the player used this item in Daggerfall's inventory; payload: dfb_doom_item */
+#define DFB_KIND_DOOM_ITEM_USED    143  /* UZ to DF; status DFB_ITEM_TAKEN when Doom applied it, else DFB_ITEM_REFUSED; payload: dfb_doom_item */
+#define DFB_KIND_DOOM_ITEM_ART_REQUEST 144 /* DF to UZ; send the sprite and name for this class; payload: dfb_doom_item */
+#define DFB_KIND_DOOM_ITEM_ART     145  /* UZ to DF; DFB_ITEM_ART_SLOT holds the answer, or status DFB_ITEM_GONE for no such class; payload: dfb_doom_item */
+#define DFB_ITEM_ART_SLOT   5u   /* bulk slot written by UZ: one dfb_item_art header, then width * height BGRA pixels, top row first */
+#define DFB_ITEM_ART_HEADER 144u
 
 /* Monsters. A monster id is 64 bits: tag (3, value 5) | placement hash (53) | pack member (8).
    Every member of one placement shares the hash, so a pack needs no new id format. */
@@ -365,6 +376,25 @@ typedef struct dfb_item_result
 	int32_t remaining;
 	char name[24];        /* UTF-8, terminated: the first item taken */
 } dfb_item_result;
+
+/* request numbers each exchange from 1, per sender. cls is the Doom class name, UTF-8, terminated. */
+typedef struct dfb_doom_item
+{
+	uint32_t request;
+	uint32_t status;      /* DFB_ITEM_*, on answers */
+	char cls[40];
+} dfb_doom_item;
+
+/* Header of DFB_ITEM_ART_SLOT. tag is the item's display name, UTF-8, terminated. */
+typedef struct dfb_item_art
+{
+	uint32_t request;
+	uint32_t width;
+	uint32_t height;
+	uint32_t pad;
+	char cls[64];
+	char tag[64];
+} dfb_item_art;
 
 /* Position is Doom units within the space. target is the space id from dfb_uz_state.space_target. */
 typedef struct dfb_monster_death
