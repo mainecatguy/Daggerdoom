@@ -44,16 +44,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             public Dictionary<string, Death> deaths = new Dictionary<string, Death>();
         }
 
-        struct Placement
-        {
-            public int record, mobile;
-            public bool custom;
-        }
 
         DoomerfallBridge bridge;
         DoomerfallPositionSync sync;
         LedgerData ledger = new LedgerData();
-        readonly Dictionary<ulong, Placement> placements = new Dictionary<ulong, Placement>();
+        readonly Dictionary<ulong, MobileTypes> placements = new Dictionary<ulong, MobileTypes>();
         readonly HashSet<ulong> piled = new HashSet<ulong>();
         readonly List<DfbMonster> rows = new List<DfbMonster>();
         int placementsMap = -1, lastSpace;
@@ -207,7 +202,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return;
             placementsMap = map;
             placements.Clear();
-            DFLocation location = GameManager.Instance.PlayerGPS.CurrentLocation;
+            DaggerfallDungeon dungeon = GameManager.Instance.PlayerEnterExit.Dungeon;
+            DFLocation location = dungeon.Summary.LocationData;
+            int areaLevel = DoomerfallDrops.AreaLevel();
+            DoomerfallDrops.EnemyPicker picker = new DoomerfallDrops.EnemyPicker(location.Dungeon.RecordElement.Header.LocationId,
+                dungeon.Summary.DungeonType, areaLevel, dungeon.RandomMonsterVariance, DaggerfallUnity.Settings.AlternateRandomEnemySelection);
             foreach (DFLocation.DungeonBlock block in location.Dungeon.Blocks)
             {
                 DFBlock data = DaggerfallUnity.Instance.ContentReader.BlockFileReader.GetBlock(block.BlockName);
@@ -226,11 +225,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                             continue;
                         int mobile = obj.Resources.FlatResource.FactionOrMobileId;
                         ulong hash = PlacementHash(map, block.BlockName, block.X, block.Z, obj.XPos, obj.YPos, obj.ZPos, record, mobile);
-                        placements[hash & PlacementMask] = new Placement { record = record, mobile = mobile, custom = obj.Resources.FlatResource.IsCustomData };
+                        placements[hash & PlacementMask] = record == RandomEnemyRecord
+                            ? picker.PickRandom(hash, obj.Resources.FlatResource.Flags, obj.YPos, block.WaterLevel)
+                            : DoomerfallDrops.PickFixed(mobile, obj.Resources.FlatResource.IsCustomData, obj.YPos, block.WaterLevel);
                     }
                 }
             }
-            bridge.LogLine(string.Format("monsters: {0} has {1} placements", location.Name, placements.Count));
+            bridge.LogLine(string.Format("monsters: {0} has {1} placements at area level {2}", location.Name, placements.Count, areaLevel));
         }
 
         // Every foe assigned to a marker in this dungeon, by id.
@@ -390,29 +391,17 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         void Roll(Death death, ulong id)
         {
             death.rolled = true;
-            ItemCollection items = new ItemCollection();
             MobileTypes type = MobileTypes.None;
+            DaggerfallUnityItem[] queued = null;
             Foe foe = FindFoe(id);
-            Placement placement;
             if (foe != null)
             {
                 type = foe.FoeType;
-                DaggerfallUnityItem[] queued = foe.GetClonedItemQueue();
-                if (queued != null)
-                    items.AddItems(queued);
+                queued = foe.GetClonedItemQueue();
             }
-            else if (placements.TryGetValue((id >> (int)Dfb.MONSTER_MEMBER_BITS) & PlacementMask, out placement))
-            {
-                if (placement.record == RandomEnemyRecord)
-                    type = RandomEncounters.ChooseRandomEnemy(false);
-                else
-                    type = placement.custom ? (MobileTypes)placement.mobile : (MobileTypes)(placement.mobile & 0xff);
-            }
-            else
+            else if (!placements.TryGetValue((id >> (int)Dfb.MONSTER_MEMBER_BITS) & PlacementMask, out type))
                 bridge.LogLine("monsters: no Daggerfall placement for " + Key(id) + ", so no drop");
-            MobileEnemy enemy;
-            if (type != MobileTypes.None && EnemyBasics.GetEnemy(type, out enemy) && !string.IsNullOrEmpty(enemy.LootTableKey))
-                DaggerfallLoot.GenerateItems(enemy.LootTableKey, items);
+            ItemCollection items = DoomerfallDrops.RollEnemy(type, DoomerfallDrops.AreaLevel(), queued);
             death.drop = items.SerializeItems();
             bridge.LogLine(string.Format("monsters: rolled {0} as {1}, {2} items", Key(id), type, items.Count));
         }

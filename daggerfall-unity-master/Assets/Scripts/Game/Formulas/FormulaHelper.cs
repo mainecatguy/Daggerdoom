@@ -2230,6 +2230,9 @@ namespace DaggerfallWorkshop.Game.Formulas
                 return false;
         }
 
+        // Doomerfall: set only while a slain Doom enemy's drop is being rolled.
+        internal static Func<int, WeaponMaterialTypes> DoomerfallMaterialRoll;
+
         /// <summary>
         /// Gets a random material based on player level.
         /// Note, this is called by default RandomArmorMaterial function.
@@ -2238,6 +2241,9 @@ namespace DaggerfallWorkshop.Game.Formulas
         /// <returns>WeaponMaterialTypes value of material selected.</returns>
         public static WeaponMaterialTypes RandomMaterial(int playerLevel)
         {
+            if (DoomerfallMaterialRoll != null)
+                return DoomerfallMaterialRoll(playerLevel);
+
             Func<int, WeaponMaterialTypes> del;
             if (TryGetOverride("RandomMaterial", out del))
                 return del(playerLevel);
