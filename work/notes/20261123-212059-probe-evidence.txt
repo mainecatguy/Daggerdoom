@@ -1,0 +1,47 @@
+# Evidence from review/reported-location/evidence-probe
+# Daggerfall Assembly-CSharp.dll sha256 125176366513a62a (staged build that produced these logs)
+# uzdoom.exe sha256 7624b7c5641e057c
+
+## Doom route steps (log-route.txt)
+DDSTITCH arrive DDT07154 ms=744.0 local=192.00,14016.00,-45.30 dz=-45.302 records=48 stitches=1
+DDTRANSITION enter-dungeon from=DDT07154 to=MAP01 door=3592755.47,11190793.72 target=187853213
+DDSTITCH arrive MAP01 ms=237.5 local=852.00,372.00,1152.00 dz=0.000 records=48 stitches=2
+LOCSTEP 0 in the start dungeon
+DDTRANSITION exit-dungeon from=MAP01 to=DDT07154 door=3592755.47,11190793.72 target=17000000
+DDSTITCH arrive DDT07154 ms=799.4 local=3664.33,14385.02,0.00 dz=-3.143 records=90 stitches=3
+LOCSTEP 1 through the exit
+LOCSTEP 2 outside the dungeon door
+DDSTITCH arrive DDOVER01 ms=503.4 local=2508.33,369.02,-27894.63 dz=-0.000 records=90 stitches=4
+LOCSTEP 3 walked away from the entrance on DDOVER01, same pixel
+DDSTITCH arrive DDT07154 ms=642.0 local=7284.33,14385.02,-63.48 dz=-0.003 records=162 stitches=5
+LOCSTEP 4 walked back into the location on DDT07154
+DDSTITCH arrive DDOVER01 ms=526.7 local=2508.33,369.02,-27894.63 dz=-0.000 records=162 stitches=6
+LOCSTEP 5 walked out again on DDOVER01
+LOCSTEP 6 warped near the east edge from tile 14061,43713
+DDSTITCH arrive DDOVER01 ms=497.5 local=-672.00,288.00,-27442.02 dz=-31.762 records=162 stitches=7
+LOCSTEP 7 standing near the east edge
+LOCSTEP 8 walked into the next pixel
+LOCSTEP 9 ready for the fast travel menu
+DDSTITCH arrive DDT08146 ms=528.1 local=-3187.50,192.00,0.00 dz=0.000 records=210 stitches=8
+
+## Daggerfall (df.log)
+967727.428 new game: Vuct held at pixel 109,158, dungeon Privateer's Hold, health 31/31
+967730.998 new game: quests and clock started, paused False
+967730.999 locprobe: ctx=3 inside=True doomPixel=109,158 gpsPixel=109,158 doomHasLocation=True gpsHasLocation=True inRect=False shown="You are in Privateer's Hold." doomWorld=3588096,11190272 gpsWorld=3571712,11173888
+967731.001 transition 1: Daggerfall is in dungeon Privateer's Hold, target 187853213, 0 ms, gps 3571712,11173888, health 31, submerged False
+967731.233 locprobe: ctx=1 inside=True doomPixel=109,158 gpsPixel=109,158 doomHasLocation=True gpsHasLocation=True inRect=False shown="You are in Privateer's Hold." doomWorld=3592726,11190764 gpsWorld=3571712,11173888
+967731.874 locprobe: ctx=1 inside=False doomPixel=109,158 gpsPixel=109,158 doomHasLocation=True gpsHasLocation=True inRect=False shown="You are in Privateer's Hold." doomWorld=3592726,11190764 gpsWorld=3592742,11190780
+967731.874 transition 2: Daggerfall is in exterior, target 17000000, 639 ms, gps 3592742,11190780, health 31, submerged False
+967732.024 locprobe: ctx=1 inside=False doomPixel=109,158 gpsPixel=109,158 doomHasLocation=True gpsHasLocation=True inRect=True shown="You are in Privateer's Hold." doomWorld=3592726,11190764 gpsWorld=3592725,11190764
+967732.024 transition: back on Doom's position after the exit, off by 0.0 units, gps 3592725,11190764, health 31
+967739.461 locprobe: ctx=1 inside=False doomPixel=109,158 gpsPixel=109,158 doomHasLocation=True gpsHasLocation=True inRect=False shown="You are in Privateer's Hold." doomWorld=3598486,11190764 gpsWorld=3598459,11190764
+967742.276 locprobe: ctx=1 inside=False doomPixel=109,158 gpsPixel=109,158 doomHasLocation=True gpsHasLocation=True inRect=True shown="You are in Privateer's Hold." doomWorld=3598219,11190764 gpsWorld=3598245,11190764
+967743.945 locprobe: ctx=1 inside=False doomPixel=109,158 gpsPixel=109,158 doomHasLocation=True gpsHasLocation=True inRect=False shown="You are in Privateer's Hold." doomWorld=3598379,11190764 gpsWorld=3598352,11190764
+967748.817 locprobe: ctx=1 inside=False doomPixel=110,158 gpsPixel=109,158 doomHasLocation=False gpsHasLocation=True inRect=False shown="You are in Privateer's Hold." doomWorld=3604491,11190656 gpsWorld=3604384,11190656
+967748.846 locprobe: ctx=1 inside=False doomPixel=110,158 gpsPixel=110,158 doomHasLocation=False gpsHasLocation=True inRect=False shown="You are in Privateer's Hold." doomWorld=3604517,11190656 gpsWorld=3604490,11190656
+967748.855 locprobe: ctx=1 inside=False doomPixel=110,158 gpsPixel=110,158 doomHasLocation=False gpsHasLocation=False inRect=False shown="You are in Daggerfall." doomWorld=3604517,11190656 gpsWorld=3604490,11190656
+967760.061 locprobe: ctx=1 inside=False doomPixel=110,158 gpsPixel=161,183 doomHasLocation=False gpsHasLocation=True inRect=False shown="You are in Aldcart." doomWorld=3605451,11190656 gpsWorld=5275648,10354688
+967761.606 travel: arrived at world 5287526,10371072 pixel 161,183 yaw 0.0
+967761.651 locprobe: ctx=1 inside=False doomPixel=110,158 gpsPixel=161,183 doomHasLocation=False gpsHasLocation=True inRect=True shown="You are in Aldcart." doomWorld=3605451,11190656 gpsWorld=5287526,10371072
+967761.709 locprobe: ctx=1 inside=False doomPixel=161,183 gpsPixel=161,183 doomHasLocation=True gpsHasLocation=True inRect=True shown="You are in Aldcart." doomWorld=5287526,10371072 gpsWorld=5287526,10371072
+967761.709 travel: Doom reached pixel 161,183

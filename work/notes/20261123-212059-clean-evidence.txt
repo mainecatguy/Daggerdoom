@@ -1,0 +1,34 @@
+# Evidence from review/reported-location/evidence-clean
+# Daggerfall Assembly-CSharp.dll sha256 8293f0e7911bd0c6 (staged build that produced these logs)
+# uzdoom.exe sha256 7624b7c5641e057c
+
+## Doom route steps (log-route.txt)
+DDSTITCH arrive DDT07154 ms=1395.8 local=192.00,14016.00,-45.30 dz=-45.302 records=48 stitches=1
+DDTRANSITION enter-dungeon from=DDT07154 to=MAP01 door=3592755.47,11190793.72 target=187853213
+DDSTITCH arrive MAP01 ms=206.3 local=852.00,372.00,1152.00 dz=0.000 records=48 stitches=2
+LOCSTEP 0 in the start dungeon
+DDTRANSITION exit-dungeon from=MAP01 to=DDT07154 door=3592755.47,11190793.72 target=17000000
+DDSTITCH arrive DDT07154 ms=5231.3 local=3664.33,14385.02,0.00 dz=-3.143 records=90 stitches=3
+LOCSTEP 1 through the exit
+LOCSTEP 2 outside the dungeon door
+DDSTITCH arrive DDOVER01 ms=4936.6 local=2508.33,369.02,-27894.63 dz=-0.000 records=90 stitches=4
+LOCSTEP 3 walked away from the entrance on DDOVER01, same pixel
+DDSTITCH arrive DDT07154 ms=6087.2 local=7284.33,14385.02,-63.48 dz=-0.003 records=162 stitches=5
+LOCSTEP 4 walked back into the location on DDT07154
+DDSTITCH arrive DDOVER01 ms=876.8 local=2508.33,369.02,-27894.63 dz=-0.000 records=162 stitches=6
+LOCSTEP 5 walked out again on DDOVER01
+LOCSTEP 6 warped near the east edge from tile 14061,43713
+DDSTITCH arrive DDOVER01 ms=527.6 local=-672.00,288.00,-27442.02 dz=-31.762 records=162 stitches=7
+LOCSTEP 7 standing near the east edge
+LOCSTEP 8 walked into the next pixel
+LOCSTEP 9 ready for the fast travel menu
+DDSTITCH arrive DDT08146 ms=298.6 local=-3187.50,192.00,0.00 dz=0.000 records=210 stitches=8
+
+## Daggerfall (df.log)
+968536.263 new game: Blerur held at pixel 109,158, dungeon Privateer's Hold, health 31/31
+968540.666 new game: quests and clock started, paused False
+968540.667 transition 1: Daggerfall is in dungeon Privateer's Hold, target 187853213, 0 ms, gps 3571712,11173888, health 31, submerged False
+968542.431 transition 2: Daggerfall is in exterior, target 17000000, 1339 ms, gps 3592742,11190780, health 31, submerged False
+968542.796 transition: back on Doom's position after the exit, off by 0.0 units, gps 3592725,11190764, health 31
+968592.631 travel: arrived at world 5287526,10371072 pixel 161,183 yaw 0.0
+968592.740 travel: Doom reached pixel 161,183

@@ -19,9 +19,9 @@ class RLHarness : StaticEventHandler
 		timer = 0;
 	}
 
-	void Walk(PlayerPawn p)
+	void Walk(PlayerPawn p, double dir = 1)
 	{
-		Vector2 to = p.pos.xy + (WALK_STEP, 0);
+		Vector2 to = p.pos.xy + (WALK_STEP * dir, 0);
 		p.SetOrigin((to, p.CurSector.NextLowestFloorAt(to.x, to.y, p.pos.z + 64)), false);
 		p.vel = (0, 0, 0);
 	}
@@ -34,7 +34,7 @@ class RLHarness : StaticEventHandler
 		p.bNOTARGET = true;
 		bool inside = level.MapName.Left(3) ~== "DDS" || level.MapName ~== "MAP01";
 		bool ready = CVar.FindCVar("dd_sync_df_phase").GetInt() == 3;
-		CVar.FindCVar("dd_ui_test_hold").SetInt(phase < 7 ? 1 : 0);	// -dfuitest opens the travel menu once this route lets it.
+		CVar.FindCVar("dd_ui_test_hold").SetInt(phase < 9 ? 1 : 0);	// -dfuitest opens the travel menu once this route lets it.
 		timer++;
 		switch (phase)
 		{
@@ -55,7 +55,15 @@ class RLHarness : StaticEventHandler
 			if (!(level.MapName ~== "DDOVER01") && timer < 900) Walk(p);
 			else if (ready && timer > HOLD) Next(String.Format("walked away from the entrance on %s, same pixel", level.MapName));
 			break;
-		case 4:	// Close to the east edge of the start pixel.
+		case 4:	// On foot, back west into the location's own map: entering the town from open ground.
+			if (level.MapName ~== "DDOVER01" && timer < 900) Walk(p, -1);
+			else if (ready && timer > HOLD) Next(String.Format("walked back into the location on %s", level.MapName));
+			break;
+		case 5:	// And out again, so the next steps start on the overworld.
+			if (!(level.MapName ~== "DDOVER01") && timer < 900) Walk(p);
+			else if (ready && timer > HOLD) Next(String.Format("walked out again on %s", level.MapName));
+			break;
+		case 6:	// Close to the east edge of the start pixel.
 		{
 			// Doom's overworld tile under the player, from the window origin. One tile is 192 Doom units.
 			int tx = CVar.FindCVar("dd_tm_originx").GetInt() + int((p.pos.x + HALF) / SPACING);
@@ -65,14 +73,14 @@ class RLHarness : StaticEventHandler
 			break;
 		}
 			break;
-		case 5:
+		case 7:
 			if (ready && timer > HOLD) Next("standing near the east edge");
 			break;
-		case 6:	// On foot across the map pixel border.
+		case 8:	// On foot across the map pixel border.
 			if (timer <= 70) Walk(p);
 			else if (ready && timer > 70 + HOLD) Next("walked into the next pixel");
 			break;
-		case 7:
+		case 9:
 			Next("ready for the fast travel menu");	// The runner presses the bound key, as a player would.
 			break;
 		}

@@ -3,10 +3,11 @@
 The locprobe lines need a Daggerfall build with probe.patch applied (git apply), which is test-only and never committed
 to the game code. Stage with stage.py after building.
 
-usage: run_location.py [list row for fast travel]
+usage: run_location.py [list row for fast travel] [label]   A label keeps the logs in review/reported-location/evidence-<label>.
 Uses private config, saves, and the portable Daggerfall build. Stops at once on a fatal error.
 """
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -17,7 +18,7 @@ import run_new_game as ng  # noqa: E402
 
 REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\reported-location")
 MODS = Path(r"D:\dev\DoomDaggerfall\GameMods")
-TIMEOUT = 90  # Character creation with the full mod set, then the whole route.
+TIMEOUT = 150  # Character creation with the full mod set (30-55 s), then the whole route. Fatal errors still stop it at once.
 ROW_HEIGHT = 6
 # The DRLA set always logs a harmless "Script error" for one translation, so only real stops count here.
 ng.FATAL = ("VM execution aborted", "Execution could not continue", "Fatal error")
@@ -48,9 +49,13 @@ def travel(hwnd, row, df_log, uz_log, deadline, proc, console):
     ng.key(hwnd, 0x4C)  # The location list.
     time.sleep(0.6)
     boxes = ng.read(df_log).count("top window is DaggerfallMessageBox")  # Earlier boxes must not count.
-    ng.click(hwnd, 100, 64 + row * ROW_HEIGHT, 2)
-    while ng.read(df_log).count("top window is DaggerfallMessageBox") <= boxes and time.time() < deadline and proc.poll() is None:
-        time.sleep(0.05)
+    for _ in range(3):  # A double click that lands while the list is still opening is lost, so try again.
+        ng.click(hwnd, 100, 64 + row * ROW_HEIGHT, 2)
+        retry_at = time.time() + 3
+        while ng.read(df_log).count("top window is DaggerfallMessageBox") <= boxes and time.time() < min(deadline, retry_at) and proc.poll() is None:
+            time.sleep(0.05)
+        if ng.read(df_log).count("top window is DaggerfallMessageBox") > boxes:
+            break
     time.sleep(0.3)
     ng.key(hwnd, 0x59)  # Yes.
     if wait(df_log, "top window is DaggerfallTravelPopUp", deadline, proc, console):
@@ -64,6 +69,7 @@ def travel(hwnd, row, df_log, uz_log, deadline, proc, console):
 
 def main():
     row = int(sys.argv[1]) if len(sys.argv) > 1 else 3
+    label = sys.argv[2] if len(sys.argv) > 2 else ""
     run = REVIEW / "test-run"
     (run / "saves").mkdir(parents=True, exist_ok=True)
     uz_log, df_log, console, launcher = run / "uz.log", run / "df.log", run / "log-route.txt", run / "launcher.log"  # +logfile route writes log-route.txt
@@ -118,6 +124,13 @@ def main():
             time.sleep(0.15)
     finally:
         subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True)
+    if label:  # Keeps this run's logs, so a later run cannot overwrite the evidence.
+        kept = REVIEW / f"evidence-{label}"
+        kept.mkdir(exist_ok=True)
+        for path in (uz_log, df_log, console, launcher):
+            if path.exists():
+                shutil.copy2(path, kept / path.name)
+        print("kept logs in", kept)
     print("result:", result, "| last wizard window:", last)
     for line in ng.read(console).splitlines():
         if line.startswith("LOCSTEP") or any(k in line for k in ng.FATAL):
