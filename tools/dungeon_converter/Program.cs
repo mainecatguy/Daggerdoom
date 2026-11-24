@@ -163,7 +163,8 @@ static partial class Program
         int start = FindStart(nodes, entrance);
         string slug = new string(name.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
         var points = WritePoints(nodes, edges, start);
-        var mapStats = WriteMap(Path.Combine(outDir, slug + ".wad"), nodes[start], points);
+        SetPickupPlace(PickupDungeon, currentMapId);
+        var mapStats = WriteMap(Path.Combine(outDir, slug + ".wad"), nodes[start], points, nodes, edges);
         File.WriteAllText(Path.Combine(outDir, slug + ".points.txt"), points);
         WriteWaterProbes(outDir, slug, nodes[start]);
         if (PlayerScale.DaggerfallBody) PlayerScale.WritePackage(outDir, slug);
@@ -900,7 +901,7 @@ static partial class Program
 
     static string Signature(List<Span> spans) => string.Join("|", spans.Select(s => $"{(s.FP >= 0 ? "p" + s.FP : s.F.ToString())}:{(s.CP >= 0 ? "p" + s.CP : s.C.ToString())}:{s.Door}{(s.Water != NoWater ? ":w" + s.Water : "")}"));
 
-    static (int sectors, int lines, int controls, int doorsUsed) WriteMap(string path, Node start, string points)
+    static (int sectors, int lines, int controls, int doorsUsed) WriteMap(string path, Node start, string points, List<Node> pickupNodes = null, List<(int a, int b, bool door)> pickupEdges = null)
     {
         // Connected regions with the same vertical layout become one sector.
         var component = new int[width * height];
@@ -1084,6 +1085,7 @@ static partial class Program
         map.Append($"thing {{ x = {minX + start.I * cell}.0; y = {minX * 0 + minY + start.J * cell}.0; height = {start.F - BaseFloor(start)}.0; angle = 0; type = 1; skill1 = true; skill2 = true; skill3 = true; skill4 = true; skill5 = true; single = true; }}\n");
 
         AppendEnemies(map);
+        if (pickupNodes != null) AppendPickups(map, pickupNodes, pickupEdges, start.Id);
         var doorList = new StringBuilder();
         foreach (var id in usedDoors) doorList.Append($"D {doors[id].Control} {doors[id].Height} {doors[id].Block}\n");
         foreach (var d in doors) doorList.Append($"DC {d.Id} {d.Control}\n"); // door order matches DFDOORS
