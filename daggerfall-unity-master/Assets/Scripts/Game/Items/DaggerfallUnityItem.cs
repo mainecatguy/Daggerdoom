@@ -570,6 +570,7 @@ namespace DaggerfallWorkshop.Game.Items
             enchantmentPoints = itemTemplate.enchantmentPoints;
             message = (itemGroup == ItemGroups.Paintings) ? UnityEngine.Random.Range(0, 65536) : 0;
             stackCount = 1;
+            ApplyArrowWeight(); // [Doomerfall]
         }
 
         /// <summary>
@@ -662,10 +663,22 @@ namespace DaggerfallWorkshop.Game.Items
             return (TemplateIndex == templateIndex);
         }
 
+        // [Doomerfall] Each arrow weighs this much and counts against encumbrance (owner, 2026-11-24). Classic's template
+        // says 0.25 kg per arrow but marks arrows as weightless.
+        public const float ArrowWeightInKg = 0.01f;
+
+        void ApplyArrowWeight()
+        {
+            if (IsOfTemplate(ItemGroups.Weapons, (int)Weapons.Arrow))
+                weightInKg = ArrowWeightInKg;
+        }
+
         // By default horses, carts, arrows and maps are not counted against encumbrance.
         // Denoted by "hasNoEncumbrance": true in template.
         public float EffectiveUnitWeightInKg()
         {
+            if (IsOfTemplate(ItemGroups.Weapons, (int)Weapons.Arrow))
+                return ArrowWeightInKg; // [Doomerfall] Arrows count against encumbrance.
             if (ItemTemplate.hasNoEncumbrance)
                 return 0f;
             else
@@ -1685,6 +1698,7 @@ namespace DaggerfallWorkshop.Game.Items
             // This ID is present in some legacy save data and is retained for backwards compatibility only
             if (itemGroup == ItemGroups.Books && message == 10000)
                 message = 5;
+            ApplyArrowWeight(); // [Doomerfall] Saves from before the arrow weight change.
         }
 
         /// <summary>

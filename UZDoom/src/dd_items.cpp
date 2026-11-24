@@ -502,6 +502,54 @@ void AskDaggerfall(player_t *player, AActor *item)
 	SendDoomItem(DFB_KIND_DOOM_ITEM_TAKE, request, flags, cls.GetChars());
 }
 
+// Reserve ammo held by Daggerfall (DFB_KIND_AMMO). Doom's counts are the live ones that guns spend. Subclasses such as
+// DRLA's pickups add to these parent classes, and each DRLA gun's loaded magazine is gun state, not reserve ammo.
+const char *const AmmoClasses[] = { "Clip", "Shell", "RocketAmmo", "Cell" };
+constexpr int AmmoKinds = 4;
+int sentAmmo[AmmoKinds] = { -1, -1, -1, -1 };
+uint32_t ammoAddApplied, sentAmmoAck;
+
+// Sends every count that changed since the last report, and all of them after an AMMO_ADD so its answer carries the ack.
+void ReportAmmo()
+{
+	if (!itemSession || gamestate != GS_LEVEL || consoleplayer < 0) return;
+	player_t *player = &players[consoleplayer];
+	if (!player->mo || player->playerstate != PST_LIVE || player->health <= 0) return;
+	const bool ackChanged = sentAmmoAck != ammoAddApplied;
+	for (int i = 0; i < AmmoKinds; i++)
+	{
+		AActor *inv = player->mo->FindInventory(FName(AmmoClasses[i]));
+		const int count = inv ? std::max(0, inv->IntVar(NAME_Amount)) : 0;
+		if (count == sentAmmo[i] && !ackChanged) continue;
+		SendDoomItem(DFB_KIND_AMMO, ammoAddApplied, uint32_t(count), AmmoClasses[i]);
+		sentAmmo[i] = count;
+	}
+	sentAmmoAck = ammoAddApplied;
+}
+
+// Daggerfall's inventory gained or lost reserve ammo. Doom accepts more than its own maximum. Runs inside the playsim.
+void AddAmmo(uint32_t request, int delta, const char *name)
+{
+	player_t *player = consoleplayer >= 0 ? &players[consoleplayer] : nullptr;
+	PClassActor *cls = PClass::FindActor(name);
+	int before = -1, after = -1;
+	if (cls && cls->IsDescendantOf(NAME_Ammo) && player && player->mo && player->health > 0)
+	{
+		AActor *inv = player->mo->FindInventory(cls);
+		if (!inv && delta > 0 && (inv = player->mo->GiveInventoryType(cls))) inv->IntVar(NAME_Amount) = 0;
+		if (inv)
+		{
+			int &amount = inv->IntVar(NAME_Amount);
+			before = amount;
+			amount = int(std::max<int64_t>(0, int64_t(amount) + delta));
+			after = amount;
+		}
+	}
+	// Acknowledged either way, so Daggerfall takes the next report as the truth.
+	ammoAddApplied = std::max(ammoAddApplied, request);
+	Printf(PRINT_LOG, "doomitems: ammo add %u %s %+d: %d -> %d\n", request, name, delta, before, after);
+}
+
 void SendHotkey(int slot, uint32_t mod)
 {
 	SendDoomItem(DFB_KIND_HOTKEY, uint32_t(slot), mod, "");
@@ -592,6 +640,13 @@ bool DD_ItemsEvent(const dfb_event &e)
 		doomOutgoing.push_back(FStringf("%s:%u:%u:%s", e.kind == DFB_KIND_GUN_STATE ? "dfg_state" : "dfg_equip", d.request, d.status, ClassOf(d).GetChars()));
 		return true;
 	}
+	case DFB_KIND_AMMO_ADD:
+	{
+		dfb_doom_item d;
+		memcpy(&d, e.payload, sizeof(d));
+		doomOutgoing.push_back(FStringf("dfa_add:%u:%d:%s", d.request, int32_t(d.status), ClassOf(d).GetChars()));
+		return true;
+	}
 	case DFB_KIND_DOOM_ITEM_ART_REQUEST:
 	{
 		dfb_doom_item d;
@@ -637,12 +692,14 @@ void DD_ItemsFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t
 		if (!primaryLevel->localEventManager->SendNetworkEvent(doomOutgoing.front(), 0, 0, 0, false)) break;
 		doomOutgoing.pop_front();
 	}
+	ReportAmmo();
 }
 
 // After a load, Doom's restored actors may not match Daggerfall until a fresh list arrives.
 void DD_ItemsResync()
 {
 	wantList = spaceValid;
+	for (int &count : sentAmmo) count = -1; // Daggerfall forgot its reports when it loaded.
 }
 
 // True when this item must wait for the Use button. False for everything outside a generated map.
@@ -713,6 +770,17 @@ bool DD_ItemsNetEvent(dfb_session *session, const char *name)
 		{
 			if (result) FinishTake(request, uint32_t(strtoul(end + 1, nullptr, 10)));
 			else UseFromDaggerfall(request, end + 1);
+		}
+		return true;
+	}
+	if (!strncmp(name, "dfa_add:", 8))
+	{
+		char *end;
+		const uint32_t request = uint32_t(strtoul(name + 8, &end, 10));
+		if (*end == ':')
+		{
+			const int delta = int(strtol(end + 1, &end, 10));
+			if (*end == ':') AddAmmo(request, delta, end + 1);
 		}
 		return true;
 	}

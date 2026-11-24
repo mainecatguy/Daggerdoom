@@ -147,6 +147,12 @@ extern "C" {
 /* Climbing. Doom runs the climb with the DFB_SHEET_CLIMB_* chances and reports each skill roll it made. */
 #define DFB_KIND_CLIMB_USES    170  /* UZ to DF; Daggerfall tallies this many Climbing skill uses; payload: dfb_climb_uses */
 
+/* Reserve ammo. Daggerfall holds it as stacked inventory items; Doom's ammo inventory is the live counter that guns
+   spend. Doom reports each count when it changes, and Daggerfall sends its own changes (drops, trades, piles) as
+   numbered deltas. Payloads: dfb_doom_item, cls is Doom's ammo class (Clip, Shell, RocketAmmo, Cell). */
+#define DFB_KIND_AMMO          171  /* UZ to DF; status is Doom's count; request is the last AMMO_ADD Doom applied */
+#define DFB_KIND_AMMO_ADD      172  /* DF to UZ; status is a signed 32-bit delta to add (Doom's count stops at 0) */
+
 /* Use on an NPC Doom draws. Daggerfall runs its own activation of that NPC (Grab, or Steal while crouching). Any HUD
    message it shows comes back as DFB_KIND_INFO_TEXT with the same request number. */
 #define DFB_KIND_NPC_USE        100 /* UZ to DF; payload: dfb_npc_use */
