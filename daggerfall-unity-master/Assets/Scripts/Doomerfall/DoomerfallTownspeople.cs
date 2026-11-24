@@ -150,6 +150,60 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         readonly List<Vector3> homeSpots = new List<Vector3>();
         readonly List<Vector3> homeRows = new List<Vector3>();
         readonly Dictionary<ulong, Vector3> spotOf = new Dictionary<ulong, Vector3>();
+        readonly List<Vector3> homeWorld = new List<Vector3>();     // the same spots in Daggerfall's world space
+
+        // A spot a step or two around a shared marker. Daggerfall's interior colliders (built whether or not it draws)
+        // must show open floor on the same level with nothing in between; the seeded direction is tried first, then
+        // the other seven. If none is clear, the person shares the marker itself rather than stand in a wall.
+        Vector3 CrowdSpot(Vector3 marker, Vector3 markerSpot, ulong startDegrees, int crowd, Transform space, float units, ref string note)
+        {
+            float floor;
+            if (!FloorBelow(marker + Vector3.up * 0.5f, 2f, out floor))
+            {
+                note += " nofloor";
+                return markerSpot;
+            }
+            for (int step = crowd; step >= 1; step--)
+            {
+                float distance = CrowdStep * step / units;
+                for (int k = 0; k < 8; k++)
+                {
+                    float angle = (startDegrees + 45f * k) * Mathf.Deg2Rad;
+                    Vector3 dir = space.TransformDirection(new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle))).normalized;
+                    Vector3 low = new Vector3(marker.x, floor + 0.35f, marker.z), high = new Vector3(marker.x, floor + 1.3f, marker.z);
+                    if (Blocked(low, dir, distance + 0.3f) || Blocked(high, dir, distance + 0.3f))
+                        continue;
+                    Vector3 target = high + dir * distance;
+                    float there;
+                    if (!FloorBelow(target, 2f, out there) || Mathf.Abs(there - floor) > 0.25f)
+                        continue;
+                    Vector3 local = space.InverseTransformPoint(target);
+                    return new Vector3(local.x * units, local.z * units, markerSpot.z);
+                }
+            }
+            note += " shared";
+            return markerSpot;
+        }
+
+        static bool Blocked(Vector3 from, Vector3 dir, float distance)
+        {
+            GameObject player = GameManager.Instance.PlayerObject;
+            foreach (RaycastHit hit in Physics.RaycastAll(from, dir, distance, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+                if (!hit.collider.transform.IsChildOf(player.transform))
+                    return true;
+            return false;
+        }
+
+        // The highest floor below a point, ignoring the hidden player.
+        static bool FloorBelow(Vector3 from, float distance, out float y)
+        {
+            GameObject player = GameManager.Instance.PlayerObject;
+            y = float.MinValue;
+            foreach (RaycastHit hit in Physics.RaycastAll(from, Vector3.down, distance, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+                if (!hit.collider.transform.IsChildOf(player.transform) && hit.point.y > y)
+                    y = hit.point.y;
+            return y > float.MinValue;
+        }
         int homeBuilding = -1, homeSpace;
         string lastHomeLine;
 
@@ -195,6 +249,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         void FindHomeSpots(DaggerfallInterior interior, Transform space)
         {
             homeSpots.Clear();
+            homeWorld.Clear();
             Vector3[] markers = interior.FindMarkers(DaggerfallInterior.InteriorMarkerTypes.Rest);
             string kind = "rest";
             if (markers.Length == 0)
@@ -224,12 +279,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 }
                 Vector3 local = space.InverseTransformPoint(markers[i]);
                 homeSpots.Add(new Vector3(local.x * units, local.z * units, local.y * units));
+                homeWorld.Add(markers[i]);
             }
             // Every resident gets a fixed spot, alive or dead, home or out, so nobody moves when a housemate is missing.
             // Roster order settles a contested spot; once every spot is taken, people stand a step around one.
             spotOf.Clear();
             List<int> taken = new List<int>();
             int residents = 0;
+            string crowded = "";
             foreach (TownPerson p in roster.People)
             {
                 if (roster.Sites[p.home].key != homeBuilding)
@@ -247,13 +304,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 taken.Add(spot * 64 + crowd);
                 Vector3 at = homeSpots[spot];
                 if (crowd > 0)
-                {
-                    float angle = (float)((p.seed >> 20) % 360) * Mathf.Deg2Rad;
-                    at += new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0) * CrowdStep * crowd;
-                }
+                    at = CrowdSpot(homeWorld[spot], at, (p.seed >> 20) % 360, crowd, space, units, ref crowded);
                 spotOf[p.id] = at;
             }
-            bridge.LogLine(string.Format("town: building {0} has {1} residents and {2} {3} spots (left out where the player lands:{4})", homeBuilding, residents, homeSpots.Count, kind, left));
+            bridge.LogLine(string.Format("town: building {0} has {1} residents and {2} {3} spots (left out where the player lands:{4}){5}", homeBuilding, residents, homeSpots.Count, kind, left,
+                crowded.Length > 0 ? "; crowding:" + crowded : ""));
         }
 
         void PublishHome(int building)
