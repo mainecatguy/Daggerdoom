@@ -57,6 +57,15 @@ The Daggerfall world is at **75% scale** in Doom (owner decision, 2026-11-22): 1
 - **Doom WAD compatibility:** Preserve compatibility with Doom WADs and mods. UZDoom must keep reading existing WADs, maps, and mods as stock UZDoom does.
 - **Platforms:** Testing is on Windows only, but do not kill Linux support if possible. Keep OS-specific code behind small, replaceable seams.
 
+## Doomerfall PK3
+
+Doomerfall's gameplay changes to Doom and DRLA live in our own PK3, built from `mods/doomerfall/src/` by `scripts/doomerfall/build_pk3.py`.
+
+- It loads after DRLA and changes behavior from there. Never edit the original mods or `GameMods/ExtractedData/`.
+- It must still load and work when DRLA is absent.
+- Do not commit copied DRLA assets or other game data.
+- All DRLA monsters are used unchanged for now (owner, 2026-11-23). Monsters may push and move the player, because Doom owns player movement and position.
+- Possible future customization: better handling of Arch-vile resurrection. See "Handle Arch-vile resurrection" in `work/backlog.md`.
 ## Long-Term Direction:
 
 | Domain | Primary Owner | Secondary / Mirror | Boundary Contract |
@@ -77,7 +86,7 @@ The Daggerfall world is at **75% scale** in Doom (owner decision, 2026-11-22): 1
 | **Interactive Geometry & Locks** | **UZDoom** (motion) / **DFU** (checks) | — | UZDoom handles door/lift/secret-wall movement and player `Use` rays; queries DFU for lock ratings, lockpicking/bashing checks, traps, and container loot rolls. |
 | **Monsters, Slaughter Packs & AI** | **UZDoom** (behavior) / **DFU** (lifecycle) | — | DFU determines encounter composition and quest targets; UZDoom owns slaughter-pack spreading, `RandomSpawner` resolution, pathing, infighting, and combat AI. |
 | **NPCs, Dialogue & Quests** | **DFU** (logic) / **UZDoom** (actors) | — | DFU runs `QuestMachine`, dialogue, guilds, and passive `QuestResourceBehaviour` stubs. UZDoom hosts NPC actors, fires `OnUse`/`OnInjured`/`OnKilled`, and swaps attacked/hostile NPCs into ZScript Doom-bot combat AI. |
-| **Stealth, Sound & Detection** | **UZDoom** | DFU | UZDoom owns sector light levels, BSP line-of-sight, and sector sound propagation (`P_NoiseAlert`); applies DFU stealth skill modifiers to detection thresholds and backstab triggers. |
+| **Stealth, Sound & Detection** | **UZDoom** | DFU | Detection bar similar to Blood West (see `gamedesign.md`). Doom monsters stay idle until the bar fills or the player fires a gun. UZDoom owns the bar and its inputs, such as enemies facing the player with line of sight, and sounds. DFU supplies the Stealth skill, which slows how fast the bar fills. |
 | **Crime, Bounties & Arrests** | **DFU** | UZDoom | UZDoom reports assaults, thefts, and weapon discharge in towns; DFU tracks bounties/reputation, flags town factions hostile, spawns guards, and runs surrender/court/jail flows. |
 | **Resting, Loitering & Ambushes** | **DFU** | UZDoom | DFU owns rest/loiter UI, time advancement, and recovery; queries UZDoom for nearby enemies before allowing rest and instructs UZDoom to spawn ambush packs on rest interrupts. |
 | **Progression & Skill XP** | **DFU** | UZDoom | UZDoom streams coarse action telemetry (kills by weapon category, hits taken, jumps, climbs); DFU maps events to native Daggerfall skill XP and level-ups. |

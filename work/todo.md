@@ -21,15 +21,44 @@ The owner approved this work on 2026-11-23. Each item runs from its reviewed car
 - New Game temporarily uses one difficulty prompt after Daggerfall character creation and a fixed default Doom class. See "Full Daggerfall new game flow" in the backlog.
 - Leave quick keys and quit behavior alone for now.
 - Autosaves on Daggerfall maps use the bundled save. Their frequency can be revisited if they slow the game down a lot.
+- Doom's Use button is the interaction button. It triggers Daggerfall's Grab action, or Steal while crouching, as well as Doom's normal use.
+- Dungeons have a difficulty level (area level) from 0 to 30, and loot and encounter systems must be compatible with it.
 
-### Autopickup  [Rework Doom autopickup](backlog/rework-doom-autopickup.md): As long as doom and daggerfall are running together, only health and ammo pick up by touch.
-Other items need to be picked up.
+### Daggerfall holds Doom items
 
-### Enable the remaining hinged trapdoors
+Owner request (2026-11-23, very important): Daggerfall is aware of Doom items. A picked-up Doom item is held in Daggerfall's inventory and shows its Doom sprite. Plain Doom item types only for now, with a default weight. Materials and other systems come later, and real weights are in the backlog. Draft card: `work/queue/doomitems`.
 
-Owner decision (2026-11-23): getting stuck is not a concern during testing, because the owner has noclip, so this does not need to wait for climbing. Fix and enable the other 19 main quest tiles first, then the roughly 2,560 in other dungeons. Include the known broken walking surface and the Mantellan Crux record 46 chain that did not fire. Needs a card.
+### Quiet agent launches (running)
 
-### Piles and containers and trade
+Owner request (2026-11-23): windows that agents and the overnight harness start should open minimized and silent. Agent runs currently play sounds and flash windows on the owner's computer. Cut that out where possible. A window or sound that is truly necessary is permitted. Draft card: `work/queue/quietlaunch`.
+
+### Persistent townspeople (running)
+
+Owner decision (2026-11-23): wandering townspeople are persistent and deterministic. The same town always gives the same people from a fixed seed. Nothing is computed until the player first observes it. A living person's position is a periodic function of the seed and world time along a simple route around the places they hang out, so only deaths are recorded. Most people have a randomized daily schedule from the same seed, and they go home at night to a procedurally chosen house when possible. The owner's design is the intent, and a better way is welcome. Keep it simple and in its own file. Draft card: `work/queue/townspeople`. Runs before NPC Dialogue, since talking to a wanderer needs a stable identity.
+
+### NPC Dialogue (next, after Persistent townspeople)
+
+NPCs can be interacted with through Doom's Use button, which opens Daggerfall's real talk window. Draft card: `work/queue/dialogue`.
+
+### Real Daggerfall drops from slain Doom enemies
+
+Each slain Doom enemy drops what its corresponding Daggerfall enemy would have dropped, from that enemy's real drop table. Draft card: `work/queue/drops`. Blocked (2026-11-23): the code is on `agent/drops-20261123-212059` and passed a full audit against Daggerfall's tables, but the in-dungeon test harness never runs, so kills, piles, save, and re-entry are unverified. Waiting on a harness fix.
+
+### Fixed loot seeds for Daggerfall's random loot
+
+Owner decision (2026-11-23): Daggerfall's random loot rolls use a fixed loot seed, so the same place always gives the same loot. Two players who loot the same pile or kill the same enemy get the same items. See "Fixed seeds, not per-save randomness" in `gamedesign.md`. No card yet.
+
+- Cover every random loot roll: dungeon and building treasure piles (`LootTables.GenerateLoot`, `DaggerfallLoot.GenerateItems`) and enemy corpse loot (`LootTables.GenerateRandomLoot`, which today reseeds with `Random.InitState(items.GetHashCode())`, not a fixed seed).
+- Build the seed only from fixed facts about the place, such as region, location, block, and the pile's or enemy's placement. Never use the save, the time, or the player. The loot seed is its own definition, separate from the seed later used for encounter theming.
+- Restore Unity's shared random state after each seeded roll, so nothing else becomes deterministic by accident.
+- Out of scope: the player-level inputs in these rolls (gold and material level). Until "Area level replaces player level" lands, results also depend on player level, gender, and race. Record that in the notes.
+- Verify by rolling the same pile and enemy in two fresh games, or two runs of a test, and comparing the items.
+
+### Handle all hinged trapdoors automatically
+
+Owner decision (2026-11-23): the converter handles every hinged trapdoor through one automatic rule, with no per-dungeon lists, and automated tests on a representative sample. Getting stuck is not a concern during testing, because the owner has noclip. Draft card: `work/queue/trapdoors`.
+
+### Piles and containers and trade (running)
 Piles and containers open Daggerfall's real loot window as do NPCs when interacted with in modes that correspond to Daggerfall modes appropriately.
 
 ## Steal Mode
@@ -42,23 +71,7 @@ Next, make a list of features that need to be added for stealing. (E.g. can the 
 Make a doom keybind for an info interaction. This triggers inspecting an item in Info mode as Daggerfall. If necessary, pause both games while interacting. The message popup should show in doom.
 
 
-## NPC Dialogue (After Stationary NPCs)
-NPCs should be interactible. An interact key should be added to Doom. 
-
-
-### Recheck Daggerfall's reported location after New Game
-
-Owner report (2026-11-23): with the Doom player in the overworld, Daggerfall's info button said "You are in Privateers Hold" while the character appeared to be in the wilderness. The cause is unknown, and the test start may be involved. Recheck with a character made through the real New Game flow, then find and fix the cause if it still happens.
-
-### Show stationary NPCs in Doom
-
-NPCs, including wanderers, appear standing still with their real sprites and stable IDs. Talking, damage, and behavior are separate backlog tasks.
-
-### Daggerfall publishes character skills to Doom
-
-Daggerfall keeps Doom informed of the character's skills through shared memory. Daggerfall stays the authority. Depends on the generated bridge definitions.
-
 ### Climb function in Doom
 
-Initial release target, to start fairly soon. Doom gets a climb function that uses the Daggerfall character's real climbing skill and matches Daggerfall's rules for starting, continuing, and failing a climb. Start from `FrictionMotor.cs` and `ClimbingMotor.cs`. Weapons stay usable while climbing (owner, 2026-11-23). Depends on skill publishing and three remaining owner decisions in `work/questions.md`. The research is in `work/notes/20261123-171304.md` on `integration`.
+Initial release target, to start fairly soon. Doom gets a climb function that uses the Daggerfall character's real climbing skill and matches Daggerfall's rules for starting, continuing, and failing a climb. Start from `FrictionMotor.cs` and `ClimbingMotor.cs`. Weapons stay usable while climbing (owner, 2026-11-23). Skill publishing is merged. Depends on three remaining owner decisions in `work/questions.md`. The research is in `work/notes/20261123-171304.md` on `integration`.
 

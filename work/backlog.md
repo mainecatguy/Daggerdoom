@@ -11,6 +11,8 @@ This is a one-line-per-item index. Open an item's file only when you need its de
 ## MVP
 
 - [Remove the city return freeze](backlog/city-return-freeze.md): Returning to the City of Daggerfall still freezes for about 1.2 s.
+- [Run the trapdoor checks on every dungeon](backlog/run-all-trapdoors.md): Full run after the automatic converter rule lands.
+- [Decide Doom item weights](backlog/doom-item-weights.md): Replace the default weight once Doom items live in Daggerfall's inventory.
 - [Save at the start of a new game](backlog/save-at-new-game-start.md): Gives a player who dies right away something to load.
 - [Start at Daggerfall's real Privateer's Hold location](backlog/real-privateers-hold-start.md): Use the quiet cave start instead of the dungeon entrance.
 - [Remove the Reflexes option](backlog/remove-reflexes-option.md): Drop it from character creation and run as if Slow was chosen.
@@ -36,7 +38,7 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [Distant terrain LOD](backlog/distant-terrain-lod.md): Show distant mountains beyond the loaded window.
 - [Distant town view](backlog/distant-town-view.md): Show real towns from outside their playable area.
 - [Town gates follow day and night](backlog/town-gates-follow-day-and-night.md): Gates follow Daggerfall's time cycle.
-- [Permanent location state owned by Daggerfall](backlog/permanent-location-state-owned-by-daggerfall.md): Move location history from Doom saves to DF saves.
+- [Permanent location state owned by Daggerfall](backlog/permanent-location-state-owned-by-daggerfall.md): Move location history from Doom saves to DF saves, with no dungeon resets.
 - [Identify and sort problem location groups](backlog/identify-and-sort-problem-location-groups.md): List and rank locations that do not fit one map.
 - [Restore autosaves on location changes](backlog/restore-autosaves-on-location-changes.md): Bring back autosaves on stitched map changes.
 - [Revisit performance of generating fresh cities](backlog/revisit-performance-of-generating-fresh-cities.md): Profile and reduce 5 to 7 second conversions.
@@ -56,6 +58,7 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [Inventory translation](backlog/inventory-translation.md): Translate DF items and DRLA gear both ways.
 - [Ammunition system](backlog/ammunition-system.md): Add material-tiered ammo as real inventory items.
 - [What DRLA armor does](backlog/drla-armor-role.md): Decide its role beside Daggerfall armor.
+- [Area loot identity](backlog/area-loot-identity.md): Fixed per-dungeon lean on which kinds of gear drop. Never changes tier odds or fixed loot.
 - [Rework the Doom HUD](backlog/rework-doom-hud.md): Remove weapon slots and rework the HUD.
 - [Hotkey clothing](backlog/hotkey-clothing.md): Allow clothing on hotkeys later.
 - [Area level replaces player level](backlog/area-level-replaces-player-level.md): Scale by area and reroll Daedric results.
@@ -77,7 +80,9 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [Check whether quests depend on moving NPCs](backlog/check-whether-quests-depend-on-moving-npcs.md): Find scripts that need Doom to move NPCs.
 - [Mook packs](backlog/mook-packs.md): Replace single spawns with seeded Doom packs.
 - [Improve the random enemy roster](backlog/improve-the-random-enemy-roster.md): Weight or tier the uniform random roster.
+- [Random or deterministic options](backlog/random-or-deterministic-options.md): Checkboxes for random loot and random encounter theming. Deterministic is the default.
 - [Quest targets in mook packs](backlog/quest-targets-in-mook-packs.md): Decide how quest targets map onto packs.
+- [Handle Arch-vile resurrection](backlog/arch-vile-resurrection.md): Research how revived mooks affect saves and quests, then propose handling.
 - [Oblivion Portals](backlog/oblivion-portals.md): Portals that lead to Doom and custom WAD maps.
 
 ## After initial release

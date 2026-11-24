@@ -8,10 +8,28 @@ What is done on the project, newest first. Agents do not need to read this unles
 - **Other demos:** City of Daggerfall at `D:\dev\DoomDaggerfall-loop\review\city-texture-fix\play.bat`, overworld at `D:\dev\DoomDaggerfall-loop\review\overworld-demo\play.bat`, and DRLAX on E1M1 at `D:\dev\DoomDaggerfall\play_drlax.bat`.
 - **Launcher:** starts Daggerfall Unity and UZDoom as one package. Run `D:\dev\DoomDaggerfall-loop\review\launcher\play.bat`.
 - **Current game:** run `D:\dev\DoomDaggerfall-loop\play\play.bat`, then choose New Game. Rebuild that folder with `python scripts/play/install.py`.
-- **Branches:** `integration` is at `d9ed76c`, with the DRLA launcher, monster deaths, the first town door fix, New Game, the transition speedup, Daggerfall item pickup, the dungeon re-entry fix, generated bridge definitions, main quest trapdoors, 10 Hz position sync, the wilderness height fix, the Daggerfall map command, door route fixes, both overnight lanes, the bridge and door fixes, dungeon flats, Daggerfall items, synchronized saving and loading, the death screen, fast travel arrival, connected door transitions, and the inventory menu.
+- **Branches:** `integration` is at `8de998f`, with the reported location recheck, Use-button pickup, character sheet publishing, stationary NPCs, the DRLA launcher, monster deaths, the first town door fix, New Game, the transition speedup, Daggerfall item pickup, the dungeon re-entry fix, generated bridge definitions, main quest trapdoors, 10 Hz position sync, the wilderness height fix, the Daggerfall map command, door route fixes, both overnight lanes, the bridge and door fixes, dungeon flats, Daggerfall items, synchronized saving and loading, the death screen, fast travel arrival, connected door transitions, and the inventory menu.
 - **Roughest spots:** some walls still bend where they stayed tied to the grid, and false walls and openings remain.
 
 ## 2026-11-23
+
+### Merged to `integration` (`8de998f`)
+
+- **Reported location recheck (`1ca908f`):** the owner's "You are in Privateers Hold" in the wilderness is not a desync. Daggerfall Unity names the location that owns the whole map pixel, about 800 m across, and Doomerfall matches it after a real New Game, town exit on foot, a pixel border crossing, and fast travel. No game code changed. Test tools are in `tools/reported_location`. Notes: `work/notes/20261123-212059-location.md`. Whether to depart from Daggerfall here is an open question.
+
+### Merged to `integration` (`7520c8f`)
+
+- **Use-button pickup (`9979eeb`):** on generated Daggerfall maps in a bridge session, only health and ammo pick up by touch. Everything else, including DRLA weapons and armor and Daggerfall loot piles, is taken with Doom's Use button, and crouching sends Steal instead of Grab. Use still opens doors when no item is in view. Regular WADs are unchanged, stock and with DRLA. Use on a real door could not be scripted and needs a hand test. Notes: `work/notes/20261123-212059-autopickup.md`.
+- **Installer:** `scripts/play/install.py` now rebuilds UZDoom from its own checkout, so the engine always matches the bridge it ships with. The play folder is refreshed to `7520c8f`.
+
+### Merged to `integration` (`a947cfb`)
+
+- **Character sheet publishing (`e3a45db`):** Daggerfall publishes level, fatigue, magicka, stats, skills, armor, resistances, and saving throw inputs to Doom through bulk slot 0, base and live values both. Doom keeps a read-only copy and drops it when the character changes. Proven with both real games through training, level-up, armor, effects, save, load, and a new character. The real New Game wizard path was reviewed, not run. Nothing in Doom uses the values yet. Bridge protocol 6.
+
+### Merged to `integration` (`634977f`)
+
+- **Stationary NPCs (`48d9c26`):** NPCs appear in Doom with their real sprites and stable IDs. They are passive, do not block movement, and take no damage. Not yet tested: the overworld walk-in spawn path, indoor visibility after a load, idle animation, and owned houses or guild access.
+- **Play install (`634977f`):** the installer now uses the NPC converter output and replaces the whole data folder, so cached towns match it.
 
 ### Merged to `integration` (`d9ed76c`)
 UZDoom and Daggerfall Unity both build from this merge. New Game, save and load, and death passed through a test install without the DRLA mods. The main launcher with the mods was not launched, at the owner's request. Nobody has hand-played it.
