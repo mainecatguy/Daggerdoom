@@ -411,6 +411,39 @@ set theme_fitting_settings 9
 set gene_settings 13
 
 # ---------------------------------------------------------------------------------------------
+# Planner lists (section 4, 5, appendix A). Read by zscript/EncounterPlanner.zs.
+#   list <name> <comma separated values>
+# Each *_settings list has 13 entries: what a raw gene setting 0 to 12 means when the dungeon's
+# theme does not steer that gene. Neighbouring settings are similar.
+# ---------------------------------------------------------------------------------------------
+# Anchor ring: the 17 kinds ordered so neighbours are alike. Setting k covers ring positions
+# k*17/13 up to (k+1)*17/13, so every kind is reachable.
+list kind_ring ZombieMan,ShotgunGuy,ChaingunGuy,DoomImp,Demon,Spectre,LostSoul,Cacodemon,PainElemental,HellKnight,BaronOfHell,Revenant,Archvile,Fatso,Arachnotron,SpiderMastermind,Cyberdemon
+# Tier lean: the tier the anchor is chosen near. Tiers are not rarer, so each tier has about two settings.
+list tierlean_settings 1,1,2,2,3,3,4,4,5,5,6,6,7
+# Size (6.5): sin^2(pi*(k+0.5)/26) in thousandths, a U-shaped spread from huge swarm (4) to lone titan (996).
+list size_settings 4,32,89,168,268,380,500,620,732,832,911,968,996
+list placement_settings scattered,scattered,garrisoned,garrisoned,chokepoints,chokepoints,central,central,deepend,deepend,entrance,entrance,scattered
+list awareness_settings asleep,asleep,mostlyasleep,mostlyasleep,mixed,mixed,ambush,ambush,mostlyalert,mostlyalert,alert,alert,mixed
+# Factions: the last civil_war_settings settings are Civil War. Each names side A's and side B's
+# stance toward the player (appendix B): hunt (Thing_Hate 3), untilshot (1), ignore (5).
+list civilwar_stances hunt/hunt,hunt/untilshot,untilshot/untilshot,hunt/ignore,untilshot/ignore
+# DRLA families: variants of one kind with their own art, never colour locked (5.4).
+list families Standard,Nightmare,Technophobia,Armageddon
+# Titan groups: Black and White monsters. Left to the titan rule (6.3), never picked for an
+# army's anchor, core, support or wildcard, and exempt from the colour lock.
+list titangroups EX,BlackWhite
+# DRLA family spread (5.4): weights for using 1, 2, 3 or 4 families of a kind. U-shaped, and the
+# coherence gene picks the row: tight (0-4), middle (5-8) or loose (9-12).
+list spread_tight 8,2,1,2
+list spread_middle 5,2,2,4
+list spread_loose 3,1,2,7
+# Regional leaning (4.1): world map cell size in map pixels. Dungeons in one cell share a favourite kind.
+set region_cell 48
+# Share, in thousandths, given to a guaranteed theme or regional monster when the army lacked one.
+set guarantee_share 100
+
+# ---------------------------------------------------------------------------------------------
 # Theme table (section 4.1): what each Daggerfall dungeon type leans toward.
 #   theme <DungeonType> kinds=<kinds> classes=<patterns> traits=<traits> size=<..> placement=<..>
 #         awareness=<..> tierlean=<..>

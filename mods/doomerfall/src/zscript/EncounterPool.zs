@@ -77,6 +77,7 @@ class DoomerfallEncounterData
 	Array<int> levelAt;      Array<double> levelPoints;
 	Array<int> titanAt;      Array<double> titanChance;
 	Array<String> setKey;    Array<double> setValue;
+	Array<String> listKey, listValue;
 	Array<String> themeName, themeKey, themeValue; // one row per theme key; themeName repeats
 	Array<String> errors;
 
@@ -161,6 +162,7 @@ class DoomerfallEncounterData
 		else if (rule == "level" && n >= 3) { levelAt.Push(w[1].ToInt()); levelPoints.Push(w[2].ToDouble()); }
 		else if (rule == "titanchance" && n >= 3) { titanAt.Push(w[1].ToInt()); titanChance.Push(w[2].ToDouble()); }
 		else if (rule == "set" && n >= 3) { setKey.Push(w[1].MakeLower()); setValue.Push(w[2].ToDouble()); }
+		else if (rule == "list" && n >= 3) { listKey.Push(w[1].MakeLower()); listValue.Push(w[2]); }
 		else if (rule == "theme" && n >= 2)
 		{
 			themeName.Push(w[1]); themeKey.Push(""); themeValue.Push(""); // marks the theme even with no keys
@@ -181,6 +183,14 @@ class DoomerfallEncounterData
 		key = key.MakeLower();
 		for (int i = 0; i < setKey.Size(); i++) if (setKey[i] == key) return setValue[i];
 		return fallback;
+	}
+
+	// A named list from a 'list' line, split on commas into out. Empty when absent.
+	void GetList(String key, out Array<String> result)
+	{
+		result.Clear();
+		key = key.MakeLower();
+		for (int i = 0; i < listKey.Size(); i++) if (listKey[i] == key) { listValue[i].Split(result, ",", TOK_SKIPEMPTY); return; }
 	}
 
 	// Average points per encounter at an area level (section 6.1): geometric between anchors.
@@ -275,10 +285,26 @@ class DoomerfallEncounterPool play
 		let p = new("DoomerfallEncounterPool");
 		p.data = DoomerfallEncounterData.Load();
 		for (int i = 0; i < AllActorClasses.Size(); i++) p.Consider(AllActorClasses[i]);
+		p.DropShadowedStock();
 		return p;
 	}
 
 	private void Skip(String name, String why) { excludedName.Push(name); excludedWhy.Push(why); }
+
+	// The pool must not depend on the skill, so the planner gives every player the same army. Skill ReplaceActor rules
+	// can fail at some skills (DRLA's baby skill names spawner classes that do not exist, which leaves the stock Former
+	// Humans unreplaced at skill 1 only). So a stock class stays only when no other class of its kind is in the pool.
+	private void DropShadowedStock()
+	{
+		for (int i = monsters.Size() - 1; i >= 0; i--)
+		{
+			let m = monsters[i];
+			String cname = m.cls.GetClassName();
+			if (!(cname ~== data.kindStock[m.kind]) || CountKind(m.kind) < 2) continue;
+			Skip(cname, "stock-shadowed");
+			monsters.Delete(i);
+		}
+	}
 
 	private void Consider(class<Actor> cls)
 	{
