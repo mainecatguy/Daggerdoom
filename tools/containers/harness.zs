@@ -42,16 +42,24 @@ class CTHarness : EventHandler
 		return n;
 	}
 
+	// The nearest target after skipping the @PICK@ nearer ones.
 	Actor Nearest(Actor p)
 	{
 		Actor best = null;
-		double range = 1e12;
-		ThinkerIterator it = ThinkerIterator.Create(Boxes() ? "DoomerfallWorldContainer" : "DoomerfallWorldItem");
-		Actor mo;
-		while (mo = Actor(it.Next()))
+		double floorRange = -1;
+		for (int skip = 0; skip <= @PICK@; skip++)
 		{
-			double d = (mo.pos - p.pos).Length();
-			if (d < range) { range = d; best = mo; }
+			best = null;
+			double range = 1e12;
+			ThinkerIterator it = ThinkerIterator.Create(Boxes() ? "DoomerfallWorldContainer" : "DoomerfallWorldItem");
+			Actor mo;
+			while (mo = Actor(it.Next()))
+			{
+				double d = (mo.pos - p.pos).Length();
+				if (d > floorRange && d < range) { range = d; best = mo; }
+			}
+			if (!best) return null;
+			floorRange = range;
 		}
 		return best;
 	}
@@ -122,7 +130,8 @@ class CTHarness : EventHandler
 			double reach = 40;
 			let box = DoomerfallWorldContainer(mo);
 			if (box) reach += max(box.dfMaxX - box.dfMinX, box.dfMaxY - box.dfMinY) / 2;
-			p.SetOrigin((aim.xy + away * reach, aim.z + 16), false);
+			if (box) p.SetOrigin((aim.xy + away * reach, box.dfMinZ + 8), false);
+			else p.SetOrigin((aim.xy + (40, 0), aim.z - 8), false); // The pickup test's proven spot beside a pile.
 			p.vel = (0, 0, 0);
 			st.phase = 2;
 			st.timer = 0;

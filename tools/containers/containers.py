@@ -139,7 +139,7 @@ def run(name, load, building, target, stock_mods):
         with zipfile.ZipFile(data / "privateershold_doors.pk3") as z:
             exit_row = next(l.split()[1:] for l in z.read("DDDUNGN").decode().splitlines() if l.startswith("exit"))
     text = (HERE / "harness.zs").read_text()
-    for key, value in (("@DOOR@", ", ".join(door[3:8])), ("@EXIT@", ", ".join(exit_row[:5])), ("@MODE@", "building" if building else "dungeon"), ("@TARGET@", target)):
+    for key, value in (("@DOOR@", ", ".join(door[3:8])), ("@EXIT@", ", ".join(exit_row[:5])), ("@MODE@", "building" if building else "dungeon"), ("@TARGET@", target), ("@PICK@", str(args.pick))):
         text = text.replace(key, value)
     harness = runs / f"{name}_harness.pk3"
     with zipfile.ZipFile(harness, "w") as z:
@@ -206,10 +206,10 @@ def check():
     runs = REVIEW / "run"
     runs.mkdir(parents=True, exist_ok=True)
     for label, mods in (("stock", []), ("drla", [str(MODS / n) for n in DRLA])):
-        log = runs / f"check-{label}.txt"
+        log = runs / f"log-check-{label}.txt"  # UZDoom names the log file log-NAME.txt
         log.unlink(missing_ok=True)
         command = [sys.executable, QUIET, "--timeout", "30", "--cwd", str(runs), "--", str(REVIEW / "uzdoom" / "uzdoom.exe"), "-noactivate", "-iwad", str(GAME / "wads" / "DOOM.WAD"),
-                   "-config", str(runs / f"check-{label}.ini"), "-nosound", "-noautoload", "-skill", "3", "-file", *mods, "+logfile", log.name,
+                   "-config", str(runs / f"check-{label}.ini"), "-nosound", "-noautoload", "-skill", "3", "-file", *mods, "+logfile", f"check-{label}",
                    "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+vid_fullscreen", "0", "+map", "E1M1", "+wait 140;quit"]
         code = subprocess.call(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         body = read(log)
@@ -224,6 +224,7 @@ ap.add_argument("--load", action="store_true")
 ap.add_argument("--building")
 ap.add_argument("--target", choices=("pile", "box"), default="pile")
 ap.add_argument("--stock-mods", action="store_true")
+ap.add_argument("--pick", type=int, default=0, help="skip this many nearer targets")
 args = ap.parse_args()
 if args.command == "assemble":
     assemble()
