@@ -81,7 +81,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             holding = false;
             Items.ForgetWorld();
             Monsters.ForgetWorld();
-            AudioListener.volume = 1;
+            AudioListener.volume = DoomerfallQuiet.Volume(1);
             start.EnableVideos = true;
             DaggerfallUI.Instance.enableVideos = true;
             // A previous character may have died. Its death state must not carry into the new one.
