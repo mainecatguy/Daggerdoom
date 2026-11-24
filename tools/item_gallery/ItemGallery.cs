@@ -1,4 +1,6 @@
 // Builds a UZDoom package that shows every Daggerfall item as a DaggerfallItem actor.
+// Each item lies on the floor as a Daggerfall treasure pile, as items on the ground do in Daggerfall Unity. The items' own
+// inventory pictures are still packaged, for a later inventory or HUD use, but nothing in the world draws them.
 // Sprites come from the player's own game data at generation time and are never committed.
 // Usage: ItemGallery <arena2> <ItemTemplates.txt> <mod source dir> <output.pk3> <manifest.tsv>
 using System;
@@ -18,9 +20,14 @@ static class ItemGallery
     // Copied from ItemHelper so the mapping matches Daggerfall Unity.
     static readonly int[] ArtifactRecords = { 12, 13, 10, 8, 19, 16, 25, 18, 21, 2, 24, 26, 0, 15, 3, 9, 23, 17, 7, 1, 22, 20, 5 };
     const int ArtifactMaleArchive = 432;
-    const int Spacing = 128, Columns = 36, Margin = 192; // The largest item is 169 pixels, 127 world units at 75%, so the grid never overlaps.
+    const int Spacing = 128, Columns = 36, Margin = 192; // Piles are far smaller than the 128-unit grid, so it never overlaps.
     const string Placeholder = "DINOSPR";
     static readonly int[] LootArchives = { 204, 205, 207, 209, 211, 216 }; // DaggerfallLootDataTables: every pile and dropped-item icon.
+    // An item on the ground is a loot pile in Daggerfall Unity, never the item's own picture. A dropped item gets one of these
+    // treasure icons (DaggerfallLootDataTables.randomTreasureArchive and randomTreasureIconIndices). Daggerfall picks at random;
+    // the gallery picks from the item's identity so every run looks the same.
+    const int PileArchive = 216;
+    static readonly int[] PileRecords = { 0, 20, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 37, 43, 44, 45, 46, 47 };
 
     static readonly (ItemGroups group, Type type)[] Groups =
     {
@@ -38,9 +45,9 @@ static class ItemGallery
 
     class Entry
     {
-        public int Template, Variant, Artifact = -1, Archive, Record, X, Y, W, H;
+        public int Template, Variant, Artifact = -1, Archive, Record, X, Y, W, H, PileRecord;
         public ItemGroups Group;
-        public string Name, Texture, Status;
+        public string Name, Texture, Status, PileTexture;
         public double ScaleX = 1, ScaleY = 1;
     }
 
@@ -151,7 +158,6 @@ static class ItemGallery
                 if (size is (int w, int h))
                 {
                     e.Texture = TextureName(e.Archive, e.Record); e.W = w; e.H = h; e.Status = "sprite";
-                    (e.ScaleX, e.ScaleY) = WorldSpriteScale(Open(e.Archive), e.Record);
                 }
                 else { e.Texture = Placeholder; e.W = e.H = 32; e.Status = e.Archive == 0 ? "no-sprite-reference" : "bad-record"; }
             }
@@ -196,6 +202,20 @@ static class ItemGallery
             WriteText(zip, "textures.dfitems", pileTextures.ToString());
             Console.WriteLine($"ITEMS pileIcons={pileIcons}");
 
+            // Each item is shown as its treasure pile, at the pile billboard's world size, standing on the floor.
+            var pileFile = Open(PileArchive);
+            foreach (var e in entries)
+            {
+                uint h = 2166136261;
+                foreach (int part in new[] { e.Template, e.Variant, e.Artifact })
+                    h = (h ^ (uint)part) * 16777619;
+                e.PileRecord = PileRecords[h % (uint)PileRecords.Length];
+                if (pileFile == null || !written.TryGetValue((PileArchive, e.PileRecord), out var pileSize) || pileSize == null)
+                    throw new InvalidOperationException($"TEXTURE.{PileArchive} record {e.PileRecord} has no image");
+                e.PileTexture = TextureName(PileArchive, e.PileRecord);
+                (e.ScaleX, e.ScaleY) = WorldSpriteScale(pileFile, e.PileRecord);
+            }
+
             int rows = (entries.Count + Columns - 1) / Columns;
             for (int i = 0; i < entries.Count; i++)
             {
@@ -207,16 +227,18 @@ static class ItemGallery
             var table = new StringBuilder();
             foreach (var e in entries)
                 table.Append(string.Join("\t", e.Template, e.Variant, e.Artifact, (int)e.Group, e.Archive, e.Record, e.X, e.Y,
-                    e.ScaleX.ToString("0.####", CultureInfo.InvariantCulture), e.ScaleY.ToString("0.####", CultureInfo.InvariantCulture), e.Texture, e.Name.Replace('\t', ' '))).Append('\n');
+                    e.ScaleX.ToString("0.####", CultureInfo.InvariantCulture), e.ScaleY.ToString("0.####", CultureInfo.InvariantCulture), e.PileTexture, e.Name.Replace('\t', ' '),
+                    PileArchive, e.PileRecord)).Append('\n');
             WriteText(zip, "dfitems.txt", table.ToString());
             WriteMap(zip, width, height);
         }
 
         using (var w = new StreamWriter(manifest, false, new UTF8Encoding(false)))
         {
-            w.WriteLine("template\tvariant\tartifact\tgroup\tarchive\trecord\twidth\theight\ttexture\tstatus\tname");
+            // archive, record, width, height, texture, and status describe the item's own inventory picture; pile is what the world shows.
+            w.WriteLine("template\tvariant\tartifact\tgroup\tarchive\trecord\twidth\theight\ttexture\tstatus\tname\tpile");
             foreach (var e in entries)
-                w.WriteLine(string.Join("\t", e.Template, e.Variant, e.Artifact, e.Group, e.Archive, e.Record, e.W, e.H, e.Texture, e.Status, e.Name));
+                w.WriteLine(string.Join("\t", e.Template, e.Variant, e.Artifact, e.Group, e.Archive, e.Record, e.W, e.H, e.Texture, e.Status, e.Name, e.PileTexture));
         }
 
         var coveredTemplates = entries.Where(e => e.Template >= 0).Select(e => e.Template).Distinct().Count();

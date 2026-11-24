@@ -63,8 +63,10 @@ def rows(z):
         for line in z.read("dfitems.txt").decode().splitlines():
             f = line.split("\t")
             texture, sx, sy = (f[10], f[8], f[9]) if len(f) >= 12 else (f[9], f[8], f[8])  # older packages had one scale column
+            # Newer packages draw each item as a treasure pile, named in two more columns.
+            archive, record = (int(f[12]), int(f[13])) if len(f) >= 14 else (int(f[4]), int(f[5]))
             if texture != "DINOSPR":
-                yield "item", f"graphics/dfitems/{texture}.png", int(f[4]), int(f[5]), float(sx), float(sy)
+                yield "item", f"graphics/dfitems/{texture}.png", archive, record, float(sx), float(sy)
 
 
 def main():
