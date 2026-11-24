@@ -1395,7 +1395,7 @@ namespace DaggerfallWorkshop.Game.Items
 
         public void AssignEnemyStartingEquipment(PlayerEntity player, EnemyEntity enemyEntity, int variant)
         {
-            int itemLevel = player.Level;
+            int itemLevel = WorldLevel.Current;   // Doomerfall: area level in a bridge session
             Genders playerGender = player.Gender;
             Races race = player.Race;
             int chance = 0;
@@ -1488,7 +1488,7 @@ namespace DaggerfallWorkshop.Game.Items
             }
 
             // Chance for poisoned weapon
-            if (player.Level > 1)
+            if (itemLevel > 1)
             {
                 DaggerfallUnityItem weapon = enemyEntity.ItemEquipTable.GetItem(EquipSlots.RightHand);
                 if (weapon != null && (enemyEntity.EntityType == EntityTypes.EnemyClass || enemyEntity.MobileEnemy.ID == (int)MobileTypes.Orc

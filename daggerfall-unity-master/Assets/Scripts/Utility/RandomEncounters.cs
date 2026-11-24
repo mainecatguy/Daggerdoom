@@ -1469,7 +1469,7 @@ namespace DaggerfallWorkshop.Utility
             }
 
             int roll = Dice100.Roll();
-            int playerLevel = Game.GameManager.Instance.PlayerEntity.Level;
+            int playerLevel = Game.WorldLevel.Current;   // Doomerfall: area level in a bridge session
             int min;
             int max;
 

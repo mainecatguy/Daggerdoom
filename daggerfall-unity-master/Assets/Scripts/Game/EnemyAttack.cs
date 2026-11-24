@@ -114,7 +114,7 @@ namespace DaggerfallWorkshop.Game
         public void ResetMeleeTimer()
         {
             MeleeTimer = Random.Range(1500, 3000 + 1);
-            MeleeTimer -= 50 * (GameManager.Instance.PlayerEntity.Level - 10);
+            MeleeTimer -= 50 * (WorldLevel.Current - 10);   // Doomerfall: area level in a bridge session
 
             // Note: In classic, what happens here is
             // meleeTimer += 450 * (enemydata[130] - 2);

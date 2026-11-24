@@ -36,6 +36,31 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return DoomerfallAreaLevels.ForLocation(location, out level) ? level.Area : UndefinedAreaLevel;
         }
 
+        /// <summary>
+        /// WorldLevel's provider in a bridge session: the area level where the player is now (the dungeon's level
+        /// inside a dungeon, otherwise the terrain level of the map pixel). Never the player's level.
+        /// </summary>
+        internal static int CurrentWorldLevel()
+        {
+            int test = TestAreaLevel();
+            if (test >= 0)
+                return Mathf.Max(1, test);
+            int level = DoomerfallAreaLevels.ForCurrentPlace();
+            return level > 0 ? Mathf.Min(level, MaxAreaLevel) : UndefinedAreaLevel;
+        }
+
+        /// <summary>WorldLevel's dungeon provider in a bridge session: the level a dungeon is built at, before the player is inside.</summary>
+        internal static int DungeonWorldLevel(DFLocation location)
+        {
+            int test = TestAreaLevel();
+            if (test >= 0)
+                return Mathf.Max(1, test);
+            DoomerfallAreaLevels.Level level;
+            if (!DoomerfallAreaLevels.ForLocation(location, out level))
+                return UndefinedAreaLevel;
+            return Mathf.Clamp(level.Area, 1, MaxAreaLevel);
+        }
+
         /// <summary>The -dfarealevel N test override, or -1 without one.</summary>
         internal static int TestAreaLevel()
         {
@@ -137,12 +162,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             {
                 GameObject holder = new GameObject("Doomerfall drop roll");
                 holder.SetActive(false);
-                PlayerEntity player = GameManager.Instance.PlayerEntity;
-                int playerLevel = player.Level;
                 EnemyEntity enemy = new EnemyEntity(holder.AddComponent<DaggerfallEntityBehaviour>());
+                WorldLevel.Scope level = new WorldLevel.Scope(Mathf.Clamp(areaLevel, 1, MaxAreaLevel));
                 try
                 {
-                    player.Level = Mathf.Clamp(areaLevel, 1, MaxAreaLevel);
                     FormulaHelper.DoomerfallMaterialRoll = RollMaterial;
                     LootSeed.SetEnemy(lootSeed);
                     enemy.SetEnemyCareer(mobile, DaggerfallEntity.IsClassEnemyId(mobile.ID) ? EntityTypes.EnemyClass : EntityTypes.EnemyMonster);
@@ -151,7 +174,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 {
                     FormulaHelper.DoomerfallMaterialRoll = null;
                     LootSeed.ClearEnemy();
-                    player.Level = playerLevel;
+                    level.Dispose();
                     enemy.DetachFromGameEvents();
                     UnityEngine.Object.Destroy(holder);
                 }

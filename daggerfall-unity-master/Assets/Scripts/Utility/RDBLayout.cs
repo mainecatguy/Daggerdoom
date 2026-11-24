@@ -1438,7 +1438,7 @@ namespace DaggerfallWorkshop.Utility
         // Recreation of how classic chooses an enemy type from the random encounter tables
         private static MobileTypes ChooseRandomEnemyType(RandomEncounterTable table)
         {
-            return ChooseRandomEnemyType(table, GameManager.Instance.PlayerEntity.Level);
+            return ChooseRandomEnemyType(table, WorldLevel.Current);   // Doomerfall: area level in a bridge session
         }
 
         // Doomerfall passes its area level here.

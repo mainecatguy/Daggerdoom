@@ -198,8 +198,11 @@ namespace DaggerfallWorkshop.Game.Items
             if (!LootSeed.Active)
                 Random.InitState(items.GetHashCode());
 
+            // Doomerfall: the area level in a bridge session, the player's level otherwise.
+            int worldLevel = WorldLevel.Current;
+
             // Random gold
-            int goldCount = Random.Range(matrix.MinGold, matrix.MaxGold + 1) * playerEntity.Level;
+            int goldCount = Random.Range(matrix.MinGold, matrix.MaxGold + 1) * worldLevel;
             if (goldCount > 0)
             {
                 items.Add(ItemBuilder.CreateGoldPieces(goldCount));
@@ -209,7 +212,7 @@ namespace DaggerfallWorkshop.Game.Items
             chance = matrix.WP;
             while (Dice100.SuccessRoll((int)chance))
             {
-                items.Add(ItemBuilder.CreateRandomWeapon(playerEntity.Level));
+                items.Add(ItemBuilder.CreateRandomWeapon(worldLevel));
                 chance *= 0.5f;
             }
 
@@ -217,16 +220,16 @@ namespace DaggerfallWorkshop.Game.Items
             chance = matrix.AM;
             while (Dice100.SuccessRoll((int)chance))
             {
-                items.Add(ItemBuilder.CreateRandomArmor(playerEntity.Level, playerEntity.Gender, playerEntity.Race));
+                items.Add(ItemBuilder.CreateRandomArmor(worldLevel, playerEntity.Gender, playerEntity.Race));
                 chance *= 0.5f;
             }
 
             // Random ingredients
-            RandomIngredient(matrix.C1 * playerEntity.Level, ItemGroups.CreatureIngredients1, items);
-            RandomIngredient(matrix.C2 * playerEntity.Level, ItemGroups.CreatureIngredients2, items);
+            RandomIngredient(matrix.C1 * worldLevel, ItemGroups.CreatureIngredients1, items);
+            RandomIngredient(matrix.C2 * worldLevel, ItemGroups.CreatureIngredients2, items);
             RandomIngredient(matrix.C3, ItemGroups.CreatureIngredients3, items);
-            RandomIngredient(matrix.P1 * playerEntity.Level, ItemGroups.PlantIngredients1, items);
-            RandomIngredient(matrix.P2 * playerEntity.Level, ItemGroups.PlantIngredients2, items);
+            RandomIngredient(matrix.P1 * worldLevel, ItemGroups.PlantIngredients1, items);
+            RandomIngredient(matrix.P2 * worldLevel, ItemGroups.PlantIngredients2, items);
             RandomIngredient(matrix.M1, ItemGroups.MiscellaneousIngredients1, items);
             RandomIngredient(matrix.M2, ItemGroups.MiscellaneousIngredients2, items);
 
@@ -234,7 +237,7 @@ namespace DaggerfallWorkshop.Game.Items
             chance = matrix.MI;
             while (Dice100.SuccessRoll((int)chance))
             {
-                items.Add(ItemBuilder.CreateRandomMagicItem(playerEntity.Level, playerEntity.Gender, playerEntity.Race));
+                items.Add(ItemBuilder.CreateRandomMagicItem(worldLevel, playerEntity.Gender, playerEntity.Race));
                 chance *= 0.5f;
             }
 

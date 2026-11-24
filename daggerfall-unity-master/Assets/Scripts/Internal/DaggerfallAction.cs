@@ -741,7 +741,7 @@ namespace DaggerfallWorkshop
             }
 
             int damage = 0;
-            damage = UnityEngine.Random.Range(Mathf.Max(1, (int)thisAction.Magnitude), Mathf.Max(1, thisAction.Index)) * Mathf.Max(playerEntity.Level, 1);
+            damage = UnityEngine.Random.Range(Mathf.Max(1, (int)thisAction.Magnitude), Mathf.Max(1, thisAction.Index)) * Mathf.Max(Game.WorldLevel.Current, 1);   // Doomerfall: area level in a bridge session
             playerObject.SendMessage("RemoveHealth", damage);
             //DaggerfallUnity.LogMessage("DrainHealth21, damage: " + damage, true);
         }
@@ -766,10 +766,11 @@ namespace DaggerfallWorkshop
             }
 
             int damage = 0;
+            int worldLevel = Mathf.Max(Game.WorldLevel.Current, 1);   // Doomerfall: area level in a bridge session
             if(thisAction.IsFlat)
-                damage = (int)thisAction.Magnitude * Mathf.Max(playerEntity.Level, 1);
+                damage = (int)thisAction.Magnitude * worldLevel;
             else
-                damage = (int)thisAction.ActionAxisRawValue * Mathf.Max(playerEntity.Level, 1);
+                damage = (int)thisAction.ActionAxisRawValue * worldLevel;
 
             playerObject.SendMessage("RemoveHealth", damage);
 
