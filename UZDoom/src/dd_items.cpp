@@ -246,6 +246,8 @@ void DD_ItemsFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t
 		acceptedGeneration = 0;
 		outgoing.clear();
 		outgoing.push_back("dfi_clear");
+		// Tells the Doomerfall mod whether Daggerfall's rules apply here, so it shows Sneaking only on a Daggerfall map.
+		outgoing.push_back(useRules ? "dfi_rules:1" : "dfi_rules:0");
 		wantList = inSpace;
 	}
 	if (wantList && gamestate == GS_LEVEL)

@@ -23,6 +23,7 @@ class CTHarness : EventHandler
 
 	bool Dungeon() { return "@MODE@" == "dungeon"; }
 	bool Boxes() { return "@TARGET@" == "box"; }
+	bool Crouch() { return @CROUCH@; }
 
 	// The number of targets, and whether `id` is among them with its item count.
 	int Targets(String id, out bool present, out int count)
@@ -147,6 +148,8 @@ class CTHarness : EventHandler
 			break;
 		case 2: // Let the hidden Daggerfall player catch up, then press Use.
 			p.vel = (0, 0, 0);
+			// Crouch Toggle's state. The player thinks before WorldTick, so a held button set here would not crouch.
+			if (Crouch()) players[0].crouching = -1;
 			let target = Find(st.target);
 			if (target && st.timer <= 35)
 			{
@@ -157,7 +160,9 @@ class CTHarness : EventHandler
 			}
 			if (st.timer == 35)
 			{
-				Console.Printf("CTPRESS eye %.1f pitch %.1f floor %.1f", p.pos.z + players[0].viewheight, p.pitch, p.floorz);
+				let events = Doomerfall_Events(StaticEventHandler.Find("Doomerfall_Events"));
+				Console.Printf("CTPRESS eye %.1f pitch %.1f floor %.1f crouchfactor %.2f daggerfallRules %d", p.pos.z + players[0].viewheight, p.pitch, p.floorz,
+					players[0].crouchfactor, events && events.daggerfallRules);
 				EventHandler.SendNetworkEvent("df_interact");
 			}
 			// Doom pauses while Daggerfall's window is open, so these tics count after it closed.
@@ -171,6 +176,7 @@ class CTHarness : EventHandler
 			}
 			break;
 		case 3: // Save, then leave.
+			players[0].crouching = 0;
 			if (st.timer == 10 && !st.saved)
 			{
 				st.saved = true;
