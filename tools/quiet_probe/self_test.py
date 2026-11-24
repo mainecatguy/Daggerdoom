@@ -205,8 +205,11 @@ def main():
         failures.append(f"disturbing run: {moves} program moves, expected exactly 2")
 
     quiet = probe([sys.executable, "-c", "import time; time.sleep(1)"])
-    if quiet["events"] or quiet["onscreen"] or quiet["audio"] or quiet["mouse"]:
-        failures.append("quiet run: probe reported something")
+    # Other programs' mouse events (Windows hides the pointer while the user types) are not the command's; any
+    # program move at all would be a false detection, since nothing moves the cursor in this run.
+    noise = [e for e in quiet["mouse"] if e["owner"] == "tree" or e["kind"] == "move"]
+    if quiet["events"] or quiet["onscreen"] or quiet["audio"] or noise:
+        failures.append(f"quiet run: probe reported something {noise or ''}")
 
     for failure in failures:
         print("FAIL", failure)

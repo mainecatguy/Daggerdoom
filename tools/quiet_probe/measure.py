@@ -44,6 +44,10 @@ def cases(out):
         # A smoke load of a converted dungeon.
         "smoke_load": [PY, str(WORKTREE / "tools" / "dungeon_converter" / "smoke_load.py"),
                        r"D:\dev\DoomDaggerfall-loop\review\building-entry\dungeon-standalone", "privateershold"],
+        "smoke_load_in_quiet_run": [PY, QUIET, "--timeout", "90", "--", PY,
+                                    str(WORKTREE / "tools" / "dungeon_converter" / "smoke_load.py"),
+                                    r"D:\dev\DoomDaggerfall-loop\review\building-entry\dungeon-standalone",
+                                    "privateershold"],
         # check.ps1's Unity build line. Slow (minutes); run it by name.
         "unity_build": ["powershell", "-NoProfile", "-Command",
                         f"Set-Location '{WORKTREE}'; & python '{QUIET}' --timeout 1800 --desktop -- Unity.exe "

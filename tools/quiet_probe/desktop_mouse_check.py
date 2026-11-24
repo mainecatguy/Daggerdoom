@@ -46,13 +46,14 @@ def helper(mode, out_path):
         time.sleep(1.0)
         user32.ClipCursor(None)
     else:
-        start = cursor_now()
-        result["start"] = start
-        if start:
-            result["move_ok"] = bool(user32.SetCursorPos(start[0] + 1, start[1]))
-            result["move_error"] = ctypes.get_last_error()
-            time.sleep(1.0)
-            user32.SetCursorPos(*start)
+        # GetCursorPos fails on a private desktop, so the user's cursor position comes from the parent.
+        x, y = (int(v) for v in mode.split(":")[1].split(","))
+        result["start_seen_here"] = cursor_now()
+        result["move_ok"] = bool(user32.SetCursorPos(x + 1, y))
+        result["move_error"] = ctypes.get_last_error()
+        time.sleep(1.0)
+        if result["move_ok"]:
+            user32.SetCursorPos(x, y)
     with open(out_path, "w", encoding="utf-8") as out:
         json.dump(result, out)
 
@@ -65,6 +66,8 @@ def main():
         for mode in ("clip", "move"):
             out_path = os.path.join(folder, mode + ".json")
             before_clip, before_cursor = clip_now(), cursor_now()
+            if mode == "move":
+                mode = f"move:{before_cursor[0]},{before_cursor[1]}"
             child = subprocess.Popen([sys.executable, QUIET_RUN, "--desktop", "--timeout", "20", "--", sys.executable,
                                       os.path.abspath(__file__), "--helper", mode, out_path])
             seen_clips, seen_cursors = set(), set()

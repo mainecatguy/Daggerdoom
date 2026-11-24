@@ -155,6 +155,8 @@ class Tree:
         self.lock = threading.Lock()
         self.members = {root: "?"}
         self.created = {root: creation_time(root)}
+        self.start = time.monotonic()
+        self.lifetimes = {root: [0.0, None]}  # pid -> [first seen, gone] in seconds from the start
 
     def _same(self, pid):
         known = self.created.get(pid)
@@ -187,7 +189,12 @@ class Tree:
                             continue
                         self.members[pid] = exe
                         self.created[pid] = child_time
+                        self.lifetimes[pid] = [round(time.monotonic() - self.start, 3), None]
                         grew = True
+            alive = {pid for pid, _, _ in entries}
+            for pid, life in self.lifetimes.items():
+                if life[1] is None and pid not in alive:
+                    life[1] = round(time.monotonic() - self.start, 3)
 
     def name(self, pid):
         with self.lock:
@@ -232,12 +239,47 @@ def rect_tuple(rect):
     return (rect.left, rect.top, rect.right, rect.bottom)
 
 
+class WINDOWPLACEMENT(ctypes.Structure):
+    _fields_ = [("length", wintypes.UINT), ("flags", wintypes.UINT), ("showCmd", wintypes.UINT),
+                ("ptMinPosition", wintypes.POINT), ("ptMaxPosition", wintypes.POINT),
+                ("rcNormalPosition", wintypes.RECT)]
+
+
+EnumDesktopsProc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.LPWSTR, wintypes.LPARAM)
+user32.EnumDesktopsW.argtypes = [wintypes.HANDLE, EnumDesktopsProc, wintypes.LPARAM]
+user32.GetProcessWindowStation.restype = wintypes.HANDLE
+user32.OpenDesktopW.restype = wintypes.HANDLE
+user32.OpenDesktopW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+user32.EnumDesktopWindows.argtypes = [wintypes.HANDLE, EnumWindowsProc, wintypes.LPARAM]
+user32.CloseDesktop.argtypes = [wintypes.HANDLE]
+user32.GetWindowPlacement.argtypes = [wintypes.HWND, ctypes.POINTER(WINDOWPLACEMENT)]
+
+
+def other_desktop_windows():
+    """Top-level windows on the window station's other desktops (private desktops of quiet_run and the launcher)."""
+    names = []
+    user32.EnumDesktopsW(user32.GetProcessWindowStation(), EnumDesktopsProc(lambda name, _: names.append(name) or True),
+                         0)
+    found = []
+    for name in names:
+        if name.lower() in ("default", "winlogon", "disconnect"):
+            continue
+        desktop = user32.OpenDesktopW(name, 0, False, 0x0001 | 0x0040)  # DESKTOP_READOBJECTS | DESKTOP_ENUMERATE
+        if desktop:
+            user32.EnumDesktopWindows(desktop, EnumWindowsProc(lambda hwnd, _: found.append(hwnd) or True), 0)
+            user32.CloseDesktop(desktop)
+    return found
+
+
 def window_rects(hwnd):
-    """The window and client rectangles of a window, in screen pixels."""
+    """The window, client, and restored (for a minimized window) rectangles of a window, in screen pixels."""
     found = []
     rect = wintypes.RECT()
     if user32.GetWindowRect(hwnd, ctypes.byref(rect)):
         found.append(rect_tuple(rect))
+    placement = WINDOWPLACEMENT(length=ctypes.sizeof(WINDOWPLACEMENT))
+    if user32.GetWindowPlacement(hwnd, ctypes.byref(placement)):
+        found.append(rect_tuple(placement.rcNormalPosition))
     client = wintypes.RECT()
     origin = wintypes.POINT(0, 0)
     if user32.GetClientRect(hwnd, ctypes.byref(client)) and user32.ClientToScreen(hwnd, ctypes.byref(origin)):
@@ -317,7 +359,8 @@ class Probe:
         self.onscreen = {}
         self.audio = {}
         self.mouse = []
-        self.tree_windows = {}  # hwnd -> (pid, thread id), refreshed by poll_windows
+        self.tree_windows = {}  # hwnd -> (pid, thread id) on this desktop, refreshed by poll_windows
+        self.private_windows = []  # the tree's windows on other (private) desktops
         self.stopping = threading.Event()
 
     # Mouse: the cursor is shared by the whole desktop, so these watch globally and tag what can be tied to the tree.
@@ -334,12 +377,16 @@ class Probe:
             return "tree"
         if rect is not None:
             with self.lock:
-                hwnds = list(self.tree_windows)
+                hwnds = list(self.tree_windows) + list(self.private_windows)
+            center = ((rect[0] + rect[2]) // 2, (rect[1] + rect[3]) // 2)
             for hwnd in hwnds:
                 for candidate in window_rects(hwnd):
                     if all(abs(a - b) <= 2 for a, b in zip(candidate, rect)):
                         return "tree"
-            center = ((rect[0] + rect[2]) // 2, (rect[1] + rect[3]) // 2)
+                    # A locked game cursor is a one-point clip at the centre of the game's window.
+                    middle = ((candidate[0] + candidate[2]) // 2, (candidate[1] + candidate[3]) // 2)
+                    if abs(middle[0] - center[0]) <= 2 and abs(middle[1] - center[1]) <= 2:
+                        return "tree"
             if self.tree_hwnd(user32.WindowFromPoint(wintypes.POINT(*center))):
                 return "tree"
         return "other"
@@ -369,7 +416,8 @@ class Probe:
             if user32.GetCursorPos(ctypes.byref(point)):
                 current = (point.x, point.y)
                 if last is not None and current != last and moves_now == moves_seen and quiet_mouse:
-                    self.mouse_event("move", self.owner(point=current), to=current, frm=last)
+                    # rect: a move to a tree window's centre (a one-point clip drags the cursor there) is the tree's.
+                    self.mouse_event("move", self.owner(point=current, rect=current + current), to=current, frm=last)
                 last = current
             moves_seen = moves_now
             if len(mouse_input.injected) > injected_seen:
@@ -506,8 +554,16 @@ class Probe:
             return True
 
         user32.EnumWindows(EnumWindowsProc(visit), 0)
+        # Windows on private desktops cannot be seen, but a clip they make still reaches the user's pointer.
+        private = []
+        for hwnd in other_desktop_windows():
+            pid = wintypes.DWORD()
+            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+            if self.tree.name(pid.value) is not None:
+                private.append(hwnd)
         with self.lock:
             self.tree_windows = found
+            self.private_windows = private
         self.poll_capture()
 
     def poll_audio(self, sessions):
@@ -610,7 +666,19 @@ def audio_sessions_reader():
     return sessions
 
 
+def link_clips_to_exits(probe):
+    """Windows on private desktops cannot be queried, so a clip they make looks like another program's. A clip that
+    ends within half a second of one of the tree's processes exiting is marked with that process (ended_with)."""
+    for event in probe.mouse:
+        if event["kind"] != "clip" or event["owner"] == "tree":
+            continue
+        for pid, (first, gone) in probe.tree.lifetimes.items():
+            if gone is not None and first <= event["t"] and abs(gone - event["until"]) <= 0.5:
+                event["ended_with"] = f"{probe.tree.members.get(pid, '?')} pid {pid}"
+
+
 def summarize(probe, exit_code, timed_out):
+    link_clips_to_exits(probe)
     events = probe.events
     lines = [f"quiet_probe: exit {exit_code}{' (timed out)' if timed_out else ''}"]
     if not getattr(probe, "hooks_ok", False):
@@ -652,6 +720,7 @@ def counts(probe):
     for kind in MOUSE_KINDS:
         result[kind] = sum(1 for e in probe.mouse if e["kind"] == kind and e["owner"] == "tree")
         result[kind + "_other"] = sum(1 for e in probe.mouse if e["kind"] == kind and e["owner"] != "tree")
+    result["clip_ended_with_tree_exit"] = sum(1 for e in probe.mouse if e.get("ended_with"))
     return result
 
 
@@ -692,6 +761,7 @@ def main():
             timed_out = True
             break
         time.sleep(POLL_SECONDS)
+    tree.refresh()  # notes when the last processes exited
     probe.stop_windows()
     probe.stopping.set()
     mouse_thread.join(1)
@@ -706,7 +776,8 @@ def main():
                        "onscreen": list(probe.onscreen.values()), "mouse": probe.mouse,
                        "counts": counts(probe),
                        "audio": {str(pid): a for pid, a in probe.audio.items()},
-                       "processes": dict((str(k), v) for k, v in tree.members.items())}, out, indent=1)
+                       "processes": dict((str(k), v) for k, v in tree.members.items()),
+                       "lifetimes": dict((str(k), v) for k, v in tree.lifetimes.items())}, out, indent=1)
     sys.exit(exit_code)
 
 
