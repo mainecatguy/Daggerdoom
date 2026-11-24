@@ -149,6 +149,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         const float CrowdStep = 28f;                // Doom units between people who share one spot
         readonly List<Vector3> homeSpots = new List<Vector3>();
         readonly List<Vector3> homeRows = new List<Vector3>();
+        readonly Dictionary<ulong, Vector3> spotOf = new Dictionary<ulong, Vector3>();
         int homeBuilding = -1, homeSpace;
         string lastHomeLine;
 
@@ -178,31 +179,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             double hours = DaggerfallUnity.Instance.WorldTime.Now.ToSeconds() / 3600.0;
             candidates.Clear();
             homeRows.Clear();
-            if (homeSpots.Count > 0)
+            foreach (TownPerson p in roster.People)
             {
-                // Roster order settles who gets a contested spot, so a person keeps theirs whenever the earlier ones are out.
-                List<int> taken = new List<int>();
-                foreach (TownPerson p in roster.People)
-                {
-                    if (roster.Sites[p.home].key != building || dead.Contains(p.id) || !AtHome(p, hours))
-                        continue;
-                    int first = (int)(p.seed % (ulong)homeSpots.Count), spot = first, crowd = 0;
-                    while (taken.Contains(spot * 64 + crowd))
-                    {
-                        spot = (spot + 1) % homeSpots.Count;
-                        if (spot == first)
-                            crowd++;
-                    }
-                    taken.Add(spot * 64 + crowd);
-                    Vector3 at = homeSpots[spot];
-                    if (crowd > 0)
-                    {
-                        float angle = (float)((p.seed >> 20) % 360) * Mathf.Deg2Rad;
-                        at += new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0) * CrowdStep * crowd;
-                    }
-                    candidates.Add(new Candidate { person = p });
-                    homeRows.Add(at);
-                }
+                Vector3 at;
+                if (!spotOf.TryGetValue(p.id, out at) || dead.Contains(p.id) || !AtHome(p, hours))
+                    continue;
+                candidates.Add(new Candidate { person = p });
+                homeRows.Add(at);
             }
             PublishHome(building);
         }
@@ -220,16 +203,57 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 kind = "enter";
             }
             float units = DoomPerDaggerfall / MeshReader.GlobalScale;
-            foreach (Vector3 m in markers)
+            // Leave out the marker Daggerfall lands the player on (the one nearest the street door used, as
+            // PlayerEnterExit does), so nobody stands inside the player on the way in. At least one spot stays.
+            HashSet<int> skipped = new HashSet<int>();
+            Vector3 landing;
+            if (markers.Length > 1 && interior.FindClosestEnterMarker(DaggerfallStaticDoors.GetDoorPosition(interior.EntryDoor), out landing))
+                for (int i = 0; i < markers.Length; i++)
+                    if ((markers[i] - landing).sqrMagnitude < 0.01f)
+                        skipped.Add(i);
+            if (skipped.Count >= markers.Length)
+                skipped.Clear();
+            StringBuilder left = new StringBuilder();
+            for (int i = 0; i < markers.Length; i++)
             {
-                Vector3 local = space.InverseTransformPoint(m);
+                if (skipped.Contains(i))
+                {
+                    Vector3 by = space.InverseTransformPoint(markers[i]);
+                    left.AppendFormat(" {0:F0},{1:F0},{2:F0}", by.x * units, by.z * units, by.y * units);
+                    continue;
+                }
+                Vector3 local = space.InverseTransformPoint(markers[i]);
                 homeSpots.Add(new Vector3(local.x * units, local.z * units, local.y * units));
             }
+            // Every resident gets a fixed spot, alive or dead, home or out, so nobody moves when a housemate is missing.
+            // Roster order settles a contested spot; once every spot is taken, people stand a step around one.
+            spotOf.Clear();
+            List<int> taken = new List<int>();
             int residents = 0;
             foreach (TownPerson p in roster.People)
-                if (roster.Sites[p.home].key == homeBuilding)
-                    residents++;
-            bridge.LogLine(string.Format("town: building {0} has {1} residents and {2} {3} spots", homeBuilding, residents, homeSpots.Count, kind));
+            {
+                if (roster.Sites[p.home].key != homeBuilding)
+                    continue;
+                residents++;
+                if (homeSpots.Count == 0)
+                    continue;
+                int first = (int)(p.seed % (ulong)homeSpots.Count), spot = first, crowd = 0;
+                while (taken.Contains(spot * 64 + crowd))
+                {
+                    spot = (spot + 1) % homeSpots.Count;
+                    if (spot == first)
+                        crowd++;
+                }
+                taken.Add(spot * 64 + crowd);
+                Vector3 at = homeSpots[spot];
+                if (crowd > 0)
+                {
+                    float angle = (float)((p.seed >> 20) % 360) * Mathf.Deg2Rad;
+                    at += new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0) * CrowdStep * crowd;
+                }
+                spotOf[p.id] = at;
+            }
+            bridge.LogLine(string.Format("town: building {0} has {1} residents and {2} {3} spots (left out where the player lands:{4})", homeBuilding, residents, homeSpots.Count, kind, left));
         }
 
         void PublishHome(int building)

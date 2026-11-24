@@ -9,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
+using DaggerfallConnect;
 using DaggerfallWorkshop.Utility;
 using UnityEngine;
 
@@ -103,6 +104,35 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         string.Join(",", Array.ConvertAll(p.haunts, s => roster.Sites[s].type.ToString())), p.wake, p.sleep, close, seen));
             }
             bridge.LogLine(string.Format("town: first 40 people were at one of their own places in {0} of {1} daytime samples", near, samples));
+            HomeOrdinals(bridge, roster);
+        }
+
+        // Each lived-in home as "townhome ordinal key residents". The ordinal counts building records block by block,
+        // rows then columns, as the converter's --list-buildings does, so a harness can find the home's door.
+        static void HomeOrdinals(DoomerfallBridge bridge, TownRoster roster)
+        {
+            DFLocation location = GameManager.Instance.PlayerGPS.CurrentLocation;
+            DFBlock[] blocks = RMBLayout.GetLocationBuildingData(location);
+            int width = location.Exterior.ExteriorData.Width, height = location.Exterior.ExteriorData.Height;
+            Dictionary<int, int> residents = new Dictionary<int, int>();
+            foreach (TownPerson p in roster.People)
+            {
+                int key = roster.Sites[p.home].key, n;
+                residents.TryGetValue(key, out n);
+                residents[key] = n + 1;
+            }
+            int ordinal = 0;
+            for (int y = 0; y < height; y++)
+                for (int x = 0; x < width; x++)
+                {
+                    int records = blocks[y * width + x].RmbBlock.SubRecords.Length;
+                    for (int r = 0; r < records; r++, ordinal++)
+                    {
+                        int key = BuildingDirectory.MakeBuildingKey((byte)x, (byte)y, (byte)r), n;
+                        if (residents.TryGetValue(key, out n))
+                            bridge.LogLine(string.Format("townhome {0} {1} {2}", ordinal, key, n));
+                    }
+                }
         }
 
         static ulong Fnv(string s)
