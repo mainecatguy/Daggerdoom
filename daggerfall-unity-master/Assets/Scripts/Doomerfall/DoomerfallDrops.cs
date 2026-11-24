@@ -25,7 +25,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         const int WaterTable = 19, ClassicSlots = 256, InvalidFixedType = 99;
         const int NoWater = 10000;
 
-        static readonly System.Random materialRandom = new System.Random();
         static int testAreaLevel = int.MinValue;
 
         internal static int AreaLevel()
@@ -118,8 +117,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         /// <summary>
         /// Builds a real Daggerfall enemy of this type at the area level and returns everything its corpse would hold:
         /// loot table items, generated equipment, map, potion, recipe, and any items a quest queued on it.
+        /// The roll uses the fixed loot seed (LootSeed), so the same enemy gives the same drop in every game.
         /// </summary>
-        internal static ItemCollection RollEnemy(MobileTypes type, int areaLevel, DaggerfallUnityItem[] queued)
+        internal static ItemCollection RollEnemy(MobileTypes type, int areaLevel, DaggerfallUnityItem[] queued, int lootSeed)
         {
             ItemCollection result = new ItemCollection();
             MobileEnemy mobile;
@@ -134,11 +134,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 {
                     player.Level = Mathf.Clamp(areaLevel, 1, MaxAreaLevel);
                     FormulaHelper.DoomerfallMaterialRoll = RollMaterial;
+                    LootSeed.SetEnemy(lootSeed);
                     enemy.SetEnemyCareer(mobile, DaggerfallEntity.IsClassEnemyId(mobile.ID) ? EntityTypes.EnemyClass : EntityTypes.EnemyMonster);
                 }
                 finally
                 {
                     FormulaHelper.DoomerfallMaterialRoll = null;
+                    LootSeed.ClearEnemy();
                     player.Level = playerLevel;
                     enemy.DetachFromGameEvents();
                     UnityEngine.Object.Destroy(holder);
@@ -154,16 +156,19 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return result;
         }
 
-        /// <summary>The owner's approved material odds: a separate Daedric check, then a falling share per tier.</summary>
+        /// <summary>
+        /// The owner's approved material odds: a separate Daedric check, then a falling share per tier.
+        /// Draws from Unity's generator, which the enemy's loot seed has seeded during a drop roll.
+        /// </summary>
         internal static WeaponMaterialTypes RollMaterial(int level)
         {
-            if (materialRandom.NextDouble() < DaedricChance(level))
+            if (UnityEngine.Random.value < DaedricChance(level))
                 return WeaponMaterialTypes.Daedric;
             double falloff = TierFalloff(level), weight = 1, total = 0;
             const int Tiers = (int)WeaponMaterialTypes.Orcish + 1;
             for (int i = 0; i < Tiers; i++, weight *= falloff)
                 total += weight;
-            double roll = materialRandom.NextDouble() * total;
+            double roll = UnityEngine.Random.value * total;
             weight = 1;
             for (int i = 0; i < Tiers - 1; i++, weight *= falloff)
             {

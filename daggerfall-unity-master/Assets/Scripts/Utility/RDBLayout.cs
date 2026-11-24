@@ -1558,8 +1558,10 @@ namespace DaggerfallWorkshop.Utility
             SetupDemoEnemy setupEnemy = go.GetComponent<SetupDemoEnemy>();
             if (setupEnemy != null)
             {
-                // Configure enemy
-                setupEnemy.ApplyEnemySettings(type, reaction, gender, classicSpawnDistanceType);
+                // Configure enemy. Doomerfall: its corpse loot rolls from a fixed loot seed for this placement.
+                LootSeed.SetEnemy(LootSeed.ForDungeonObject(LootSeed.DungeonEnemy, null, obj.XPos, obj.YPos, obj.ZPos));
+                try { setupEnemy.ApplyEnemySettings(type, reaction, gender, classicSpawnDistanceType); }
+                finally { LootSeed.ClearEnemy(); }
 
                 // Align non-flying units with ground
                 MobileUnit mobileUnit = setupEnemy.GetMobileBillboardChild();
@@ -1642,7 +1644,8 @@ namespace DaggerfallWorkshop.Utility
             // Get dungeon type index
             int dungeonIndex = (int)dungeonType;
 
-            if (!LootTables.GenerateLoot(loot, dungeonIndex))
+            int lootSeed = LootSeed.ForDungeonObject(LootSeed.DungeonPile, blockData.Name, obj.XPos, obj.YPos, obj.ZPos);
+            if (!LootTables.GenerateLoot(loot, dungeonIndex, lootSeed))
                 DaggerfallUnity.LogMessage(string.Format("RDBLayout: Dungeon type {0} is out of range or unknown.", dungeonType), true);
 
             return loot;
