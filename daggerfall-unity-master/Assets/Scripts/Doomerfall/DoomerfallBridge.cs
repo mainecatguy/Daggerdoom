@@ -129,6 +129,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
 
             SessionActive = true;
+            WorldLevel.CurrentPlaceProvider = DoomerfallDrops.CurrentWorldLevel;   // the world scales to area level, never the player
+            WorldLevel.DungeonProvider = DoomerfallDrops.DungeonWorldLevel;
             ownSize = (uint)Marshal.SizeOf(typeof(DfbDfState));
             peerSize = (uint)Marshal.SizeOf(typeof(DfbUzState));
             Log(string.Format("attached to session {0}, protocol {1}, layout {2:x16}", pendingSession,
@@ -174,6 +176,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfammotest") >= 0)
                 gameObject.AddComponent<DoomerfallAmmoTest>().Init(this, ammo);
             DoomerfallShopStockTest.Attach(this); // test only: -dfshoptest
+            DoomerfallWorldLevelTest.Attach(this); // test only: -dfworldleveltest N
             DoomerfallChangeAmmoTest.Attach(this, ammo); // test only: -dfchangeammotest
             newGame = gameObject.AddComponent<DoomerfallNewGame>();
             newGame.Init(this, sync, Environment.GetCommandLineArgs());
@@ -505,6 +508,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         void OnDestroy()
         {
             SessionActive = false;
+            WorldLevel.CurrentPlaceProvider = null;
+            WorldLevel.DungeonProvider = null;
             if (sheet != null) sheet.Dispose();
             if (session != IntPtr.Zero) DfbNative.dfb_close(session);
             session = IntPtr.Zero;

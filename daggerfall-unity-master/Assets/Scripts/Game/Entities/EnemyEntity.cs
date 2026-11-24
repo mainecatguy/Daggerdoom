@@ -273,7 +273,7 @@ namespace DaggerfallWorkshop.Game.Entity
                 else
                 {
                     // Default like a class enemy
-                    level = GameManager.Instance.PlayerEntity.Level;
+                    level = WorldLevel.Current;   // Doomerfall: area level in a bridge session
                     maxHealth = FormulaHelper.RollEnemyClassMaxHealth(level, career.HitPointsPerLevel);
                 }
             }
@@ -300,7 +300,8 @@ namespace DaggerfallWorkshop.Game.Entity
 
                 // Enemy class is levelled to player and uses similar health rules
                 // City guards are 3 to 6 levels above the player
-                level = GameManager.Instance.PlayerEntity.Level;
+                // Doomerfall: in a bridge session both are measured from the area level instead
+                level = WorldLevel.Current;
                 if (careerIndex == (int)MobileTypes.Knight_CityWatch - 128)
                     level += UnityEngine.Random.Range(3, 7);
 

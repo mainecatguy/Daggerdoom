@@ -238,7 +238,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                 for (int i = 0; i <= numOfItems; i++)
                 {
                     // Create magic item which is already identified
-                    DaggerfallUnityItem magicItem = ItemBuilder.CreateRandomMagicItem(playerEntity.Level, playerEntity.Gender, playerEntity.Race);
+                    DaggerfallUnityItem magicItem = ItemBuilder.CreateRandomMagicItem(WorldLevel.Current, playerEntity.Gender, playerEntity.Race);   // Doomerfall: area level in a bridge session
                     magicItem.IdentifyItem();
                     items.AddItem(magicItem);
                 }

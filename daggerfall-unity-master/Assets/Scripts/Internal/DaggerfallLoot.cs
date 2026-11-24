@@ -224,9 +224,9 @@ namespace DaggerfallWorkshop
                                 {
                                     DaggerfallUnityItem item = null;
                                     if (itemGroup == ItemGroups.Weapons)
-                                        item = ItemBuilder.CreateWeapon(j + Weapons.Dagger, FormulaHelper.RandomMaterial(playerEntity.Level));
+                                        item = ItemBuilder.CreateWeapon(j + Weapons.Dagger, FormulaHelper.RandomMaterial(Game.WorldLevel.Current));
                                     else if (itemGroup == ItemGroups.Armor)
-                                        item = ItemBuilder.CreateArmor(playerEntity.Gender, playerEntity.Race, j + Armor.Cuirass, FormulaHelper.RandomArmorMaterial(playerEntity.Level));
+                                        item = ItemBuilder.CreateArmor(playerEntity.Gender, playerEntity.Race, j + Armor.Cuirass, FormulaHelper.RandomArmorMaterial(Game.WorldLevel.Current));
                                     else if (itemGroup == ItemGroups.MensClothing)
                                     {
                                         item = ItemBuilder.CreateMensClothing(j + MensClothing.Straps, playerEntity.Race);
@@ -239,7 +239,7 @@ namespace DaggerfallWorkshop
                                     }
                                     else if (itemGroup == ItemGroups.MagicItems)
                                     {
-                                        item = ItemBuilder.CreateRandomMagicItem(playerEntity.Level, playerEntity.Gender, playerEntity.Race);
+                                        item = ItemBuilder.CreateRandomMagicItem(Game.WorldLevel.Current, playerEntity.Gender, playerEntity.Race);
                                     }
                                     else
                                     {
@@ -270,12 +270,12 @@ namespace DaggerfallWorkshop
                                     // Setup specific group stats
                                     if (itemGroup == ItemGroups.Weapons)
                                     {
-                                        WeaponMaterialTypes material = FormulaHelper.RandomMaterial(playerEntity.Level);
+                                        WeaponMaterialTypes material = FormulaHelper.RandomMaterial(Game.WorldLevel.Current);
                                         ItemBuilder.ApplyWeaponMaterial(item, material);
                                     }
                                     else if (itemGroup == ItemGroups.Armor)
                                     {
-                                        ArmorMaterialTypes material = FormulaHelper.RandomArmorMaterial(playerEntity.Level);
+                                        ArmorMaterialTypes material = FormulaHelper.RandomArmorMaterial(Game.WorldLevel.Current);
                                         ItemBuilder.ApplyArmorSettings(item, playerEntity.Gender, playerEntity.Race, material);
                                     }
 
@@ -344,7 +344,7 @@ namespace DaggerfallWorkshop
                     {
                         if (itemGroup == ItemGroups.MagicItems)
                         {
-                            item = ItemBuilder.CreateRandomMagicItem(playerEntity.Level, playerEntity.Gender, playerEntity.Race);
+                            item = ItemBuilder.CreateRandomMagicItem(Game.WorldLevel.Current, playerEntity.Gender, playerEntity.Race);
                         }
                         else if (itemGroup == ItemGroups.Books)
                         {
@@ -353,9 +353,9 @@ namespace DaggerfallWorkshop
                         else
                         {
                             if (itemGroup == ItemGroups.Weapons)
-                                item = ItemBuilder.CreateRandomWeapon(playerEntity.Level);
+                                item = ItemBuilder.CreateRandomWeapon(Game.WorldLevel.Current);
                             else if (itemGroup == ItemGroups.Armor)
-                                item = ItemBuilder.CreateRandomArmor(playerEntity.Level, playerEntity.Gender, playerEntity.Race);
+                                item = ItemBuilder.CreateRandomArmor(Game.WorldLevel.Current, playerEntity.Gender, playerEntity.Race);
                             else
                             {
                                 System.Array enumArray = DaggerfallUnity.Instance.ItemHelper.GetEnumArray(itemGroup);
