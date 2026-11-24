@@ -142,6 +142,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 gameObject.AddComponent<DoomerfallSheetTest>().Init(this, sync);
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfloottest") >= 0)
                 gameObject.AddComponent<DoomerfallLootTest>().Init(this);
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dftalktest") >= 0)
+                gameObject.AddComponent<DoomerfallTalkTest>().Init(this);
             ui =gameObject.AddComponent<DoomerfallUi>();
             ui.Init(this);
             save = gameObject.AddComponent<DoomerfallSave>();
@@ -165,6 +167,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             npcs.Init(this, sync);
             info = gameObject.AddComponent<DoomerfallInfo>();
             info.Init(this, sync);
+            DoomerfallTalk talk = gameObject.AddComponent<DoomerfallTalk>();
+            talk.Init(this, sync, info);
+            ui.Talk = talk;
             townspeople = gameObject.AddComponent<DoomerfallTownspeople>();
             townspeople.Init(this, sync);
             save.Townspeople = townspeople;
@@ -362,6 +367,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         break;
                     case Dfb.KIND_DOOM_ITEM_ART:
                         doomItems.OnArt(ev.doomItem.request, ev.doomItem.status, DoomerfallDoomItems.ClassOf(ev.doomItem));
+                        break;
+                    case Dfb.KIND_NPC_USE:
+                        ui.Talk.OnUse(ev.npcUse.request, ev.npcUse.id, ev.npcUse.mode, ev.npcUse.distance);
                         break;
                     default:
                         unknownKinds++; // contract rule 7: skip, never fatal

@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0xb7d26e42076c2455ULL
+#define DFB_SCHEMA_HASH 0x5daf5e385c305657ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -78,6 +78,8 @@ static_assert((DFB_KIND_DOOM_ITEM_ART_REQUEST) == (144), DFB_STALE);
 static_assert((DFB_KIND_DOOM_ITEM_ART) == (145), DFB_STALE);
 static_assert((DFB_ITEM_ART_SLOT) == (5u), DFB_STALE);
 static_assert((DFB_ITEM_ART_HEADER) == (144u), DFB_STALE);
+static_assert((DFB_KIND_NPC_USE) == (100), DFB_STALE);
+static_assert((DFB_KIND_NPC_USE_RESULT) == (101), DFB_STALE);
 static_assert((DFB_KIND_MONSTER_DEATH) == (50), DFB_STALE);
 static_assert((DFB_KIND_MONSTERS_BEGIN) == (51), DFB_STALE);
 static_assert((DFB_KIND_MONSTER) == (52), DFB_STALE);
@@ -115,6 +117,10 @@ static_assert((DFB_INFO_MONSTER) == (3u), DFB_STALE);
 static_assert((DFB_INFO_HUD) == (0u), DFB_STALE);
 static_assert((DFB_INFO_MID) == (1u), DFB_STALE);
 static_assert((DFB_INFO_MORE) == (1u), DFB_STALE);
+static_assert((DFB_NPC_USE_WINDOW) == (0u), DFB_STALE);
+static_assert((DFB_NPC_USE_DONE) == (1u), DFB_STALE);
+static_assert((DFB_NPC_USE_GONE) == (2u), DFB_STALE);
+static_assert((DFB_NPC_USE_REFUSED) == (3u), DFB_STALE);
 static_assert((DFB_TRANSITION_ENTER_BUILDING) == (1u), DFB_STALE);
 static_assert((DFB_TRANSITION_EXIT_BUILDING) == (2u), DFB_STALE);
 static_assert((DFB_TRANSITION_ENTER_DUNGEON) == (3u), DFB_STALE);
@@ -165,6 +171,7 @@ static_assert((DFB_UI_INVENTORY) == (2u), DFB_STALE);
 static_assert((DFB_UI_MAP) == (3u), DFB_STALE);
 static_assert((DFB_UI_NEW_GAME) == (4u), DFB_STALE);
 static_assert((DFB_UI_LOOT) == (5u), DFB_STALE);
+static_assert((DFB_UI_TALK) == (6u), DFB_STALE);
 static_assert((DFB_UI_CLOSED) == (0u), DFB_STALE);
 static_assert((DFB_UI_OPENED) == (1u), DFB_STALE);
 static_assert((DFB_UI_REASON_NONE) == (0u), DFB_STALE);
@@ -434,6 +441,24 @@ static_assert(offsetof(dfb_item_art, cls) == 16, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_item_art::cls), char[64]>::value, DFB_STALE);
 static_assert(offsetof(dfb_item_art, tag) == 80, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_item_art::tag), char[64]>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_npc_use) == 24, DFB_STALE);
+static_assert(offsetof(dfb_npc_use, id) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_npc_use::id), uint64_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_npc_use, request) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_npc_use::request), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_npc_use, mode) == 12, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_npc_use::mode), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_npc_use, distance) == 16, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_npc_use::distance), double>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_npc_use_result) == 16, DFB_STALE);
+static_assert(offsetof(dfb_npc_use_result, id) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_npc_use_result::id), uint64_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_npc_use_result, request) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_npc_use_result::request), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_npc_use_result, status) == 12, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_npc_use_result::status), uint32_t>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_monster_death) == 32, DFB_STALE);
 static_assert(offsetof(dfb_monster_death, id) == 0, DFB_STALE);

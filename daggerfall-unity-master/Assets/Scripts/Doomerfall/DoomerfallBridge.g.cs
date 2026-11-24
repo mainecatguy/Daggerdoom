@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0xb7d26e42076c2455UL;
+        public const ulong SchemaHash = 0x5daf5e385c305657UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -78,6 +78,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_DOOM_ITEM_ART = 145;  // UZ to DF; DFB_ITEM_ART_SLOT holds the answer, or status DFB_ITEM_GONE for no such class; payload: dfb_doom_item
         public const uint ITEM_ART_SLOT = 5;  // bulk slot written by UZ: one dfb_item_art header, then width * height BGRA pixels, top row first
         public const uint ITEM_ART_HEADER = 144;
+        public const ushort KIND_NPC_USE = 100;  // UZ to DF; payload: dfb_npc_use
+        public const ushort KIND_NPC_USE_RESULT = 101;  // DF to UZ; payload: dfb_npc_use_result
         public const ushort KIND_MONSTER_DEATH = 50;  // UZ to DF; a tagged monster died; payload: dfb_monster_death
         public const ushort KIND_MONSTERS_BEGIN = 51;  // DF to UZ; starts one full list for a dungeon; payload: dfb_world_items
         public const ushort KIND_MONSTER = 52;  // DF to UZ; one quest foe to place, or one dead id; payload: dfb_monster
@@ -115,6 +117,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint INFO_HUD = 0;  // dfb_info_text.style: Daggerfall's scrolling HUD message
         public const uint INFO_MID = 1;  // dfb_info_text.style: Daggerfall's mid-screen message
         public const uint INFO_MORE = 1;  // dfb_event.flags on DFB_KIND_INFO_TEXT
+        public const uint NPC_USE_WINDOW = 0;  // Daggerfall will activate the NPC once Doom opens DFB_UI_TALK
+        public const uint NPC_USE_DONE = 1;  // Daggerfall handled it without a window, such as "You are too far away"
+        public const uint NPC_USE_GONE = 2;  // Daggerfall has no such NPC loaded
+        public const uint NPC_USE_REFUSED = 3;  // Daggerfall cannot do this now
         public const uint TRANSITION_ENTER_BUILDING = 1;
         public const uint TRANSITION_EXIT_BUILDING = 2;
         public const uint TRANSITION_ENTER_DUNGEON = 3;
@@ -165,6 +171,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint UI_MAP = 3;  // the map for where the player is; dfb_ui_command.context is Doom's DFB_WORLD_*
         public const uint UI_NEW_GAME = 4;  // Daggerfall's character creation and new game cinematics
         public const uint UI_LOOT = 5;  // the window for the container Daggerfall just answered DFB_ITEM_WINDOW for
+        public const uint UI_TALK = 6;  // whatever Daggerfall opens for the NPC it just answered DFB_NPC_USE_WINDOW for
         public const uint UI_CLOSED = 0;
         public const uint UI_OPENED = 1;
         public const uint UI_REASON_NONE = 0;
@@ -196,8 +203,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const int UZ_PHASE_SAVING = 4;
 
         // Native size of every generated struct, for the attach check.
-        public static readonly Type[] StructTypes = { typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbWorldContainer), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbInfoRequest), typeof(DfbInfoText), typeof(DfbDoomItem), typeof(DfbItemArt), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbNpc), typeof(DfbTownsfolk), typeof(DfbTownsperson), typeof(DfbTownspersonDeath), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
-        public static readonly int[] StructSizes = { 64, 24, 24, 16, 24, 24, 48, 32, 32, 32, 16, 48, 40, 16, 48, 32, 48, 48, 144, 32, 32, 16, 32, 40, 24, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
+        public static readonly Type[] StructTypes = { typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbWorldContainer), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbInfoRequest), typeof(DfbInfoText), typeof(DfbDoomItem), typeof(DfbItemArt), typeof(DfbNpcUse), typeof(DfbNpcUseResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbNpc), typeof(DfbTownsfolk), typeof(DfbTownsperson), typeof(DfbTownspersonDeath), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
+        public static readonly int[] StructSizes = { 64, 24, 24, 16, 24, 24, 48, 32, 32, 32, 16, 48, 40, 16, 48, 32, 48, 48, 144, 24, 16, 32, 32, 16, 32, 40, 24, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
     }
 
     static class DfbBytes
@@ -278,6 +285,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public DfbInfoRequest infoRequest;  // INFO
         [FieldOffset(16)] public DfbInfoText infoText;  // INFO_TEXT, INFO_NAME
         [FieldOffset(16)] public DfbDoomItem doomItem;  // DOOM_ITEM_TAKE, DOOM_ITEM_RESULT, DOOM_ITEM_USE, DOOM_ITEM_USED, DOOM_ITEM_ART_REQUEST, DOOM_ITEM_ART
+        [FieldOffset(16)] public DfbNpcUse npcUse;  // NPC_USE
+        [FieldOffset(16)] public DfbNpcUseResult npcUseResult;  // NPC_USE_RESULT
         [FieldOffset(16)] public DfbMonsterDeath monsterDeath;  // MONSTER_DEATH
         [FieldOffset(16)] public DfbMonster monster;  // MONSTER
         [FieldOffset(16)] public DfbNpc npc;  // NPC
@@ -637,6 +646,23 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DfbBytes.Write(destination, 48, 8, tag6);
             DfbBytes.Write(destination, 56, 8, tag7);
         }
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 24)]
+    struct DfbNpcUse
+    {
+        [FieldOffset(0)] public ulong id;  // the NPC id, as in dfb_npc
+        [FieldOffset(8)] public uint request;
+        [FieldOffset(12)] public uint mode;  // DFB_TAKE_GRAB or DFB_TAKE_STEAL
+        [FieldOffset(16)] public double distance;  // Daggerfall classic units from Doom's eye to where its view ray meets the NPC
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 16)]
+    struct DfbNpcUseResult
+    {
+        [FieldOffset(0)] public ulong id;
+        [FieldOffset(8)] public uint request;
+        [FieldOffset(12)] public uint status;  // DFB_NPC_USE_*
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 32)]

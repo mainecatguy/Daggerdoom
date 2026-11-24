@@ -535,6 +535,7 @@ void PumpUi(int64_t now)
 
 const char *UiCommandName(uint32_t id)
 {
+	if (id == DFB_UI_TALK) return "+use";
 	return id == DFB_UI_INVENTORY || id == DFB_UI_LOOT ? "netevent df_inventory" : id == DFB_UI_MAP ? "togglemap" : "netevent df_fast_travel";
 }
 
@@ -605,7 +606,9 @@ bool IsOpenMenuKey(long long lParam)
 {
 	int key = int((lParam >> 16) & 0xFF);
 	if ((lParam >> 24) & 1) key |= 0x80;
-	return Bindings.GetBinding(key).CompareNoCase(UiCommandName(uiId)) == 0;
+	const FString &bound = Bindings.GetBinding(key);
+	if (uiId == DFB_UI_TALK && bound.CompareNoCase("netevent df_interact") == 0) return true; // Interact opens talk too.
+	return bound.CompareNoCase(UiCommandName(uiId)) == 0;
 }
 }
 
@@ -660,6 +663,12 @@ bool DD_BridgeHasSession() { return session != nullptr; }
 void DD_BridgeOpenLoot()
 {
 	if (session && uiState == UiClosed && UiCanOpen()) OpenUi(DFB_UI_LOOT);
+}
+
+// Daggerfall answered Use on an NPC with its own activation, which shows the talk window or whatever it opens.
+void DD_BridgeOpenTalk()
+{
+	if (session && uiState == UiClosed && UiCanOpen()) OpenUi(DFB_UI_TALK);
 }
 
 static void RefreshSheet()

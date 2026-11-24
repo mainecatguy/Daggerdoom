@@ -28,6 +28,7 @@
 
 bool DD_BridgeHasSession();
 void DD_BridgeOpenLoot();
+bool DD_InfoUseNpc(dfb_session *session, player_t *player, bool crouching);
 bool DD_PickupNeedsUse(AActor *special);
 
 namespace
@@ -563,12 +564,12 @@ bool DD_UsePress(player_t *player)
 	lastResult = false;
 
 	AActor *pmo = player->mo, *best = ItemInView(player, true);
-	if (!best) return false;
+	const bool crouching = (player->cmd.buttons & BT_CROUCH) || player->crouchfactor < 1;
+	if (!best) return lastResult = DD_InfoUseNpc(itemSession, player, crouching);
 
 	if (IsWorldPile(best) || IsWorldContainer(best))
 	{
 		const uint64_t id = strtoull(best->StringVar(FName("dfId")).GetChars(), nullptr, 16);
-		const bool crouching = (player->cmd.buttons & BT_CROUCH) || player->crouchfactor < 1;
 		SendTake(id, crouching ? DFB_TAKE_STEAL : DFB_TAKE_GRAB);
 		lastResult = id != refusedPile;
 		return lastResult;

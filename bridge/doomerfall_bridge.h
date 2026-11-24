@@ -117,6 +117,11 @@ extern "C" {
 #define DFB_ITEM_ART_SLOT   5u   /* bulk slot written by UZ: one dfb_item_art header, then width * height BGRA pixels, top row first */
 #define DFB_ITEM_ART_HEADER 144u
 
+/* Use on an NPC Doom draws. Daggerfall runs its own activation of that NPC (Grab, or Steal while crouching). Any HUD
+   message it shows comes back as DFB_KIND_INFO_TEXT with the same request number. */
+#define DFB_KIND_NPC_USE        100 /* UZ to DF; payload: dfb_npc_use */
+#define DFB_KIND_NPC_USE_RESULT 101 /* DF to UZ; payload: dfb_npc_use_result */
+
 /* Monsters. A monster id is 64 bits: tag (3, value 5) | placement hash (53) | pack member (8).
    Every member of one placement shares the hash, so a pack needs no new id format. */
 #define DFB_KIND_MONSTER_DEATH     50  /* UZ to DF; a tagged monster died; payload: dfb_monster_death */
@@ -166,6 +171,11 @@ extern "C" {
 #define DFB_INFO_HUD       0u  /* dfb_info_text.style: Daggerfall's scrolling HUD message */
 #define DFB_INFO_MID       1u  /* dfb_info_text.style: Daggerfall's mid-screen message */
 #define DFB_INFO_MORE      1u  /* dfb_event.flags on DFB_KIND_INFO_TEXT */
+
+#define DFB_NPC_USE_WINDOW   0u  /* Daggerfall will activate the NPC once Doom opens DFB_UI_TALK */
+#define DFB_NPC_USE_DONE     1u  /* Daggerfall handled it without a window, such as "You are too far away" */
+#define DFB_NPC_USE_GONE     2u  /* Daggerfall has no such NPC loaded */
+#define DFB_NPC_USE_REFUSED  3u  /* Daggerfall cannot do this now */
 
 #define DFB_TRANSITION_ENTER_BUILDING 1u
 #define DFB_TRANSITION_EXIT_BUILDING  2u
@@ -226,6 +236,7 @@ extern "C" {
 #define DFB_UI_MAP         3u  /* the map for where the player is; dfb_ui_command.context is Doom's DFB_WORLD_* */
 #define DFB_UI_NEW_GAME    4u  /* Daggerfall's character creation and new game cinematics */
 #define DFB_UI_LOOT        5u  /* the window for the container Daggerfall just answered DFB_ITEM_WINDOW for */
+#define DFB_UI_TALK        6u  /* whatever Daggerfall opens for the NPC it just answered DFB_NPC_USE_WINDOW for */
 
 #define DFB_UI_CLOSED      0u
 #define DFB_UI_OPENED      1u
@@ -452,6 +463,21 @@ typedef struct dfb_item_art
 	char cls[64];
 	char tag[64];
 } dfb_item_art;
+
+typedef struct dfb_npc_use
+{
+	uint64_t id;          /* the NPC id, as in dfb_npc */
+	uint32_t request;
+	uint32_t mode;        /* DFB_TAKE_GRAB or DFB_TAKE_STEAL */
+	double distance;      /* Daggerfall classic units from Doom's eye to where its view ray meets the NPC */
+} dfb_npc_use;
+
+typedef struct dfb_npc_use_result
+{
+	uint64_t id;
+	uint32_t request;
+	uint32_t status;      /* DFB_NPC_USE_* */
+} dfb_npc_use_result;
 
 /* Position is Doom units within the space. target is the space id from dfb_uz_state.space_target. */
 typedef struct dfb_monster_death

@@ -124,6 +124,23 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return any;
         }
 
+        // Runs a Daggerfall interaction and sends every HUD message it shows to Doom as the answer to this request.
+        internal void Capture(uint request, Action run, string what)
+        {
+            lines.Clear();
+            DaggerfallUI.DoomerfallHudText = capture;
+            try { run(); }
+            finally { DaggerfallUI.DoomerfallHudText = null; }
+            var log = new StringBuilder();
+            log.AppendFormat("{0}: {1} messages", what, lines.Count);
+            foreach (KeyValuePair<string, bool> line in lines)
+            {
+                Send(request, line.Key, line.Value);
+                log.Append(line.Value ? " | mid: " : " | ").Append(line.Key);
+            }
+            bridge.LogLine(log.ToString());
+        }
+
         // Long messages go out in parts. Doom joins them until an event without DFB_INFO_MORE.
         void Send(uint request, string text, bool mid)
         {
