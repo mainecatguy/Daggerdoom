@@ -403,6 +403,8 @@ CCMD(slot)
 			Printf("Invalid weapon slot %s\n", argv[1]);
 			return;
 		}
+		extern bool DD_HotkeySlot(int slot); // [Doomerfall] On a generated map the key is a Daggerfall hotkey.
+		if (DD_HotkeySlot(slot)) return;
 
 		if (slot >= 0 && slot < NUM_WEAPON_SLOTS)
 			SendWeaponSlot = slot;

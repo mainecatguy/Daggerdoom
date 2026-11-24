@@ -61,6 +61,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DoomerfallSave save;
         DoomerfallItems items;
         DoomerfallDoomItems doomItems;
+        DoomerfallHotkeys hotkeys;
         DoomerfallNewGame newGame;
         DoomerfallMonsters monsters;
         DoomerfallNpcs npcs;
@@ -153,6 +154,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DoomerfallDoomItems.Register();
             doomItems = gameObject.AddComponent<DoomerfallDoomItems>();
             doomItems.Init(this, sync);
+            hotkeys = gameObject.AddComponent<DoomerfallHotkeys>();
+            hotkeys.Init(this, sync);
             newGame = gameObject.AddComponent<DoomerfallNewGame>();
             newGame.Init(this, sync, Environment.GetCommandLineArgs());
             newGame.Items = items;
@@ -355,7 +358,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         info.OnRequest(ev.infoRequest.request, ev.infoRequest.target, ev.infoRequest.id, ev.infoRequest.worldX, ev.infoRequest.worldZ);
                         break;
                     case Dfb.KIND_DOOM_ITEM_TAKE:
-                        doomItems.OnTake(ev.doomItem.request, DoomerfallDoomItems.ClassOf(ev.doomItem));
+                        doomItems.OnTake(ev.doomItem.request, ev.doomItem.status, DoomerfallDoomItems.ClassOf(ev.doomItem));
+                        break;
+                    case Dfb.KIND_HOTKEY:
+                    case Dfb.KIND_GUN_STATE:
+                    case Dfb.KIND_GUN_STASHED:
+                    case Dfb.KIND_GUN_KEPT:
+                    case Dfb.KIND_GUN_EQUIPPED:
+                        hotkeys.OnEvent(ev.kind, ev.doomItem.request, ev.doomItem.status, DoomerfallDoomItems.ClassOf(ev.doomItem));
                         break;
                     case Dfb.KIND_DOOM_ITEM_USED:
                         doomItems.OnUsed(ev.doomItem.request, ev.doomItem.status, DoomerfallDoomItems.ClassOf(ev.doomItem));

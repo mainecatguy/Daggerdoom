@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0xb7d26e42076c2455ULL
+#define DFB_SCHEMA_HASH 0x046296428152ef8aULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -78,6 +78,20 @@ static_assert((DFB_KIND_DOOM_ITEM_ART_REQUEST) == (144), DFB_STALE);
 static_assert((DFB_KIND_DOOM_ITEM_ART) == (145), DFB_STALE);
 static_assert((DFB_ITEM_ART_SLOT) == (5u), DFB_STALE);
 static_assert((DFB_ITEM_ART_HEADER) == (144u), DFB_STALE);
+static_assert((DFB_DOOM_ITEM_GUN) == (1u), DFB_STALE);
+static_assert((DFB_KIND_HOTKEY) == (150), DFB_STALE);
+static_assert((DFB_KIND_GUN_STATE) == (151), DFB_STALE);
+static_assert((DFB_KIND_GUN_EQUIP) == (152), DFB_STALE);
+static_assert((DFB_KIND_GUN_STASHED) == (153), DFB_STALE);
+static_assert((DFB_KIND_GUN_KEPT) == (154), DFB_STALE);
+static_assert((DFB_KIND_GUN_EQUIPPED) == (155), DFB_STALE);
+static_assert((DFB_HOTKEY_PLAIN) == (0u), DFB_STALE);
+static_assert((DFB_HOTKEY_CTRL) == (1u), DFB_STALE);
+static_assert((DFB_HOTKEY_ALT) == (2u), DFB_STALE);
+static_assert((DFB_GUN_GIVE) == (0u), DFB_STALE);
+static_assert((DFB_GUN_ADOPT) == (1u), DFB_STALE);
+static_assert((DFB_GUN_CLEAR) == (2u), DFB_STALE);
+static_assert((DFB_GUN_SELECT) == (3u), DFB_STALE);
 static_assert((DFB_KIND_MONSTER_DEATH) == (50), DFB_STALE);
 static_assert((DFB_KIND_MONSTERS_BEGIN) == (51), DFB_STALE);
 static_assert((DFB_KIND_MONSTER) == (52), DFB_STALE);

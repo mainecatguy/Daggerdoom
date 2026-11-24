@@ -25,6 +25,11 @@
 #include "p_linetracedata.h"
 #include "p_local.h"
 #include "printf.h"
+#include "c_dispatch.h"
+
+#ifdef _WIN32
+extern "C" __declspec(dllimport) short __stdcall GetKeyState(int key); // Avoids windows.h in this file.
+#endif
 
 bool DD_BridgeHasSession();
 void DD_BridgeOpenLoot();
@@ -380,8 +385,10 @@ void FinishTake(uint32_t request, uint32_t status)
 	FString tag = item ? ItemName(item) : CleanTag(take.cls.GetChars());
 	if (item && IsGun(item->GetClass()))
 	{
-		item->CallTouch(pmo); // Doom's normal pickup gives the gun, or only ammo when it is already held.
-		if (!(item->ObjectFlags & OF_EuthanizeMe) && (item->flags & MF_SPECIAL)) item->Destroy();
+		// Daggerfall holds the gun and a hotkey draws it. Doom gives only the ammo the gun comes with (DoomerfallGuns.zs).
+		doomOutgoing.push_back(FStringf("dfg_ammo:%s", take.cls.GetChars()));
+		S_Sound(pmo, CHAN_ITEM, 0, "misc/w_pkup", 1, ATTN_NORM);
+		item->Destroy();
 	}
 	else if (item)
 	{
@@ -429,8 +436,34 @@ void AskDaggerfall(AActor *item)
 	if (seen.isValid()) seenArt[cls] = seen;
 	const uint32_t request = nextDoomRequest++;
 	pendingTakes.push_back({ request, cls, item->Pos(), gametic });
-	SendDoomItem(DFB_KIND_DOOM_ITEM_TAKE, request, 0, cls.GetChars());
+	SendDoomItem(DFB_KIND_DOOM_ITEM_TAKE, request, IsGun(item->GetClass()) ? DFB_DOOM_ITEM_GUN : 0, cls.GetChars());
 }
+
+void SendHotkey(int slot, uint32_t mod)
+{
+	SendDoomItem(DFB_KIND_HOTKEY, uint32_t(slot), mod, "");
+	Printf(PRINT_LOG, "doomitems: hotkey %d modifier %u\n", slot, mod);
+}
+}
+
+// A weapon slot key on a generated map is a Daggerfall hotkey. Ctrl and Alt pick the square, however they are bound.
+bool DD_HotkeySlot(int slot)
+{
+	if (!useRules || !itemSession || !DD_BridgeHasSession() || slot < 0 || slot > 9) return false;
+	uint32_t mod = DFB_HOTKEY_PLAIN;
+#ifdef _WIN32
+	if (GetKeyState(0x11 /* VK_CONTROL */) & 0x8000) mod = DFB_HOTKEY_CTRL;
+	else if (GetKeyState(0x12 /* VK_MENU */) & 0x8000) mod = DFB_HOTKEY_ALT;
+#endif
+	SendHotkey(slot, mod);
+	return true;
+}
+
+// Test and console form: dd_hotkey <key 0-9> [0 plain, 1 Ctrl, 2 Alt].
+CCMD(dd_hotkey)
+{
+	if (argv.argc() < 2 || !itemSession || !DD_BridgeHasSession()) return;
+	SendHotkey(atoi(argv[1]) % 10, argv.argc() > 2 ? uint32_t(atoi(argv[2])) : DFB_HOTKEY_PLAIN);
 }
 
 // True when the event belonged to world items.
@@ -486,6 +519,14 @@ bool DD_ItemsEvent(const dfb_event &e)
 		memcpy(&d, e.payload, sizeof(d));
 		if (e.kind == DFB_KIND_DOOM_ITEM_RESULT) doomOutgoing.push_back(FStringf("dfd_result:%u:%u", d.request, d.status));
 		else doomOutgoing.push_back(FStringf("dfd_use:%u:%s", d.request, ClassOf(d).GetChars()));
+		return true;
+	}
+	case DFB_KIND_GUN_STATE:
+	case DFB_KIND_GUN_EQUIP:
+	{
+		dfb_doom_item d;
+		memcpy(&d, e.payload, sizeof(d));
+		doomOutgoing.push_back(FStringf("%s:%u:%u:%s", e.kind == DFB_KIND_GUN_STATE ? "dfg_state" : "dfg_equip", d.request, d.status, ClassOf(d).GetChars()));
 		return true;
 	}
 	case DFB_KIND_DOOM_ITEM_ART_REQUEST:
@@ -609,6 +650,34 @@ bool DD_ItemsNetEvent(dfb_session *session, const char *name)
 		{
 			if (result) FinishTake(request, uint32_t(strtoul(end + 1, nullptr, 10)));
 			else UseFromDaggerfall(request, end + 1);
+		}
+		return true;
+	}
+	// Test harnesses press a hotkey as dd_hotkey:<key>:<modifier>, since ZScript cannot run the console command.
+	if (!strncmp(name, "dd_hotkey:", 10))
+	{
+		char *end;
+		const int key = int(strtol(name + 10, &end, 10));
+		if (useRules && key >= 0 && key <= 9) SendHotkey(key, *end == ':' ? uint32_t(strtoul(end + 1, nullptr, 10)) : DFB_HOTKEY_PLAIN);
+		return true;
+	}
+	// DoomerfallGuns.zs reports a gun swap: dfg_out:<state|stashed|kept|done>:<request>:<status>:<class>.
+	if (!strncmp(name, "dfg_out:", 8))
+	{
+		static const struct { const char *word; uint16_t kind; } kinds[] = {
+			{ "state:", DFB_KIND_GUN_STATE }, { "stashed:", DFB_KIND_GUN_STASHED }, { "kept:", DFB_KIND_GUN_KEPT }, { "done:", DFB_KIND_GUN_EQUIPPED } };
+		for (auto &k : kinds)
+		{
+			const size_t n = strlen(k.word);
+			if (strncmp(name + 8, k.word, n)) continue;
+			char *end;
+			const uint32_t request = uint32_t(strtoul(name + 8 + n, &end, 10));
+			if (*end != ':') break;
+			const uint32_t status = uint32_t(strtoul(end + 1, &end, 10));
+			if (*end != ':') break;
+			SendDoomItem(k.kind, request, status, end + 1);
+			if (k.kind != DFB_KIND_GUN_STATE) Printf(PRINT_LOG, "doomitems: gun %s%u status %u %s\n", k.word, request, status, end + 1);
+			break;
 		}
 		return true;
 	}
