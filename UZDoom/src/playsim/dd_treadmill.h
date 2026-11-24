@@ -17,6 +17,7 @@ void DDTreadmill_Tick(FLevelLocals *Level);
 bool DDTreadmill_MeshOffset(double &x, double &y, double &z);
 enum DDPlayerArea { DD_AREA_NONE, DD_AREA_EXTERIOR, DD_AREA_INTERIOR, DD_AREA_DUNGEON };	// Same values as the bridge's DFB_WORLD_*.
 DDPlayerArea DDTreadmill_PlayerWorld(double &x, double &y, double &z, double &yawDegrees);	// Position is Daggerfall world units, set only for DD_AREA_EXTERIOR.
+bool DDTreadmill_WorldToLocal(double x, double y, double &doomX, double &doomY);	// Outdoors only: Daggerfall world units to Doom.
 bool DDTreadmill_PlayerSpace(double &x, double &y, double &z, double &yawDegrees, int &target);	// Inside a building or dungeon: position in its own Daggerfall units. False between maps.
 bool DDTreadmill_RequestTravel(double x, double y, double yawDegrees);	// Daggerfall world units. Moves the player on the next tic.
 void DDTreadmill_RequestDungeon(int mapId);	// Doomerfall New Game: enters this dungeon through the current town's door on the next tic.
