@@ -53,9 +53,14 @@ def lumps(path):
 
 
 def harness():
+    # UZDoom trims the town cache to a size cap, oldest first, which removed this test's town from the copied cache.
+    # Keep only the one town the test needs, freshly dated.
     cache = REVIEW / "data" / "cache" / f"T{GROUP:05d}.ddt"
-    if not cache.exists():  # UZDoom may rebuild the town cache during a run.
-        cache = SOURCE / "data" / "cache" / cache.name
+    for other in cache.parent.glob("T*.ddt"):
+        if other.name != cache.name:
+            other.unlink()
+    shutil.copy2(SOURCE / "data" / "cache" / cache.name, cache)
+    cache.touch()
     door = next(l.split() for l in lumps(cache)["DDDOORS"].decode().splitlines() if l.startswith("1 187853213"))
     text = (HERE / "harness.zs").read_text()
     text = text.replace("@DOOR@", ", ".join(door[3:8])).replace("@USE@", ", ".join(f'"{n}"' for n in USE))
