@@ -6,7 +6,7 @@ version "4.14"
 class CTState : Inventory
 {
 	Default { Inventory.MaxAmount 1; +INVENTORY.UNDROPPABLE +INVENTORY.UNTOSSABLE }
-	int phase, timer, before, count;
+	int phase, timer, before, count, startHealth, killed;
 	bool saved, landed;
 	double landX, landY, landZ, landAngle;
 	String target;
@@ -24,6 +24,26 @@ class CTHarness : EventHandler
 	bool Dungeon() { return "@MODE@" == "dungeon"; }
 	bool Boxes() { return "@TARGET@" == "box"; }
 	bool Crouch() { return @CROUCH@; }
+	bool Stay() { return @STAY@; } // Stay in the building after the target (guard test): no god mode, then kill the guard bots.
+
+	override void WorldThingDamaged(WorldEvent e)
+	{
+		if (Stay() && players[0].mo && e.Thing == players[0].mo)
+			Console.Printf("CTHIT %d %s from %s by %s, armor %d", e.Damage, e.DamageType, e.DamageSource ? e.DamageSource.GetClassName() : 'none', e.Inflictor ? e.Inflictor.GetClassName() : 'none', players[0].mo.CountInv("BasicArmor"));
+	}
+
+	// Living players other than player 0 (the guard bots). With kill, the player kills them.
+	int Guards(bool kill)
+	{
+		int n = 0;
+		for (int i = 1; i < MAXPLAYERS; i++)
+		{
+			if (!playeringame[i] || !players[i].mo || players[i].mo.health <= 0) continue;
+			n++;
+			if (kill) players[i].mo.DamageMobj(players[0].mo, players[0].mo, 1000000, 'None', DMG_FORCED);
+		}
+		return n;
+	}
 
 	// The number of targets, and whether `id` is among them with its item count.
 	int Targets(String id, out bool present, out int count)
@@ -94,8 +114,9 @@ class CTHarness : EventHandler
 		let st = CTState(p.FindInventory("CTState"));
 		if (!st) st = CTState(p.GiveInventoryType("CTState"));
 		if (!st) return;
-		p.bNOTARGET = true;
-		players[0].cheats |= CF_GODMODE;
+		p.bNOTARGET = st.phase != 7;
+		if (st.phase != 7) players[0].cheats |= CF_GODMODE;
+		else players[0].cheats &= ~CF_GODMODE;
 		bool inside = level.MapName.Left(3) ~== "DDS" || level.MapName ~== "MAP01";
 		vector3 door = (DOORDATA[0], DOORDATA[1], DOORDATA[2]);
 		vector2 normal = (DOORDATA[3], DOORDATA[4]);
@@ -176,6 +197,7 @@ class CTHarness : EventHandler
 			}
 			break;
 		case 3: // Save, then leave.
+			if (Stay()) { st.phase = 7; st.timer = 0; st.startHealth = players[0].health; Console.Printf("CTSTAY health %d", st.startHealth); break; }
 			players[0].crouching = 0;
 			if (st.timer == 10 && !st.saved)
 			{
@@ -211,6 +233,38 @@ class CTHarness : EventHandler
 			Console.Printf("CTREENTRY target present=%d count %d, expected %d", present, count, st.count);
 			if (Boxes()) { Finish(present ? "reentered" : "failed"); break; } // A box's contents are checked in Daggerfall's log.
 			Finish(st.count > 0 ? (present && count == st.count ? "passed" : "failed") : (!present ? "passed" : "failed"));
+			break;
+		case 7: // Stay: let the guard bots fight until the player is hit (or 8 seconds), then kill them as the player.
+			if (st.timer % 35 == 0) Console.Printf("CTSTAY t=%d health %d guards %d", st.timer / 35, players[0].health, Guards(false));
+			if (st.timer % 70 == 0 && !st.killed)
+				for (int k = 1; k < MAXPLAYERS; k++)
+					if (playeringame[k] && players[k].mo && players[k].ReadyWeapon)
+					{
+						let w = players[k].ReadyWeapon;
+						let ps = players[k].GetPSprite(PSP_WEAPON);
+						Console.Printf("CTGUARD %d %s ammo %d state %s attackdown %d refire %d", k, w.GetClassName(), w.Ammo1 ? w.Ammo1.Amount : -1, ps && ps.CurState ? ps.CurState.DistanceTo(w.FindState("Ready")) .. "" : "none", players[k].attackdown, players[k].refire);
+					}
+			if (st.timer == 1 && !st.killed && playeringame[1] && players[1].mo)
+			{
+				let g = players[1].mo;
+				for (int k = 1; k < MAXPLAYERS; k++) if (playeringame[k] && players[k].mo) Console.Printf("CTPROBE guard %d at %.0f,%.0f, %.0f from the player at %.0f,%.0f, sees %d", k, players[k].mo.pos.x, players[k].mo.pos.y, players[k].mo.Distance2D(p), p.pos.x, p.pos.y, players[k].mo.CheckSight(p));
+				Console.Printf("CTPROBE player friendly %d shootable %d, guard friendly %d, teammate %d friend %d", p.bFRIENDLY, p.bSHOOTABLE, g.bFRIENDLY, p.IsTeammate(g), p.IsFriend(g));
+				for (Inventory i = p.Inv; i; i = i.Inv) if (i is "Powerup" || i is "PowerupGiver") Console.Printf("CTPROBE power %s", i.GetClassName());
+				int got = p.DamageMobj(g, g, 10, 'None');
+				Console.Printf("CTPROBE guard hits player for 10: returned %d, health %d", got, p.health);
+			}
+			if (!st.killed && (players[0].health < st.startHealth - 50 || st.timer >= 35 * 8))
+			{
+				st.killed = Guards(true);
+				st.timer = 0;
+				Console.Printf("CTKILL %d guards, player health %d (was %d)", st.killed, players[0].health, st.startHealth);
+			}
+			else if (st.killed && st.timer >= 35 * 3)
+			{
+				int left = Guards(false);
+				Console.Printf("CTGUARDS left %d", left);
+				Finish(left == 0 ? "guards killed" : "guards left");
+			}
 			break;
 		}
 	}

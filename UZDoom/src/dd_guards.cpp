@@ -22,11 +22,13 @@
 #include "gamestate.h"
 #include "m_random.h"
 #include "p_local.h"
+#include "p_maputl.h"
 #include "printf.h"
 #include "r_data/r_translate.h"
 #include "texturemanager.h"
 
 bool DD_MobileSprite(AActor *mo, int archive, int base, double facing, AActor *camera);
+void P_UnPredictClient();
 
 static FRandom pr_ddguard("DDGuard");
 
@@ -71,22 +73,46 @@ void Arm(AActor *mo, const struct Arm &arm)
 	if (weapon) p->PendingWeapon = weapon;
 }
 
-// A free spot near the requested one that does not overlap a wall, a guard, or the player.
+// Whether a pawn could walk straight from `from` to `to`: no one-sided or blocking line, and every opening on the way
+// tall enough and within a step. Without this a spot past the door line (a closed door or the void) can pass.
+bool Reachable(FLevelLocals *Level, AActor *mo, const DVector2 &from, const DVector2 &to)
+{
+	sector_t *start = Level->PointInSector(from);
+	const double floor = start->floorplane.ZatPoint(from);
+	FPathTraverse it(Level, from.X, from.Y, to.X, to.Y, PT_ADDLINES);
+	while (intercept_t *in = it.Next())
+	{
+		const line_t *ld = in->d.line;
+		if (!ld->backsector || (ld->flags & (ML_BLOCKING | ML_BLOCK_PLAYERS | ML_BLOCKEVERYTHING))) return false;
+		FLineOpening open;
+		P_LineOpening(open, mo, ld, it.InterceptPoint(in));
+		if (open.range < mo->Height || open.bottom - floor > mo->MaxStepHeight || open.top - floor < mo->Height) return false;
+	}
+	return true;
+}
+
+// A free spot near the requested one that does not overlap a wall, a guard, or the player, and that a guard could
+// walk to from the requested one.
 void Settle(AActor *mo, const DVector2 &at, int index)
 {
 	static const DVector2 rings[] = { {0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {-1, -1}, {1, -1}, {-1, 1}, {2, 0}, {-2, 0}, {0, 2}, {0, -2} };
 	const int n = int(sizeof(rings) / sizeof(rings[0]));
-	for (int i = 0; i < n; i++)
-	{
-		const DVector2 to = at + rings[(i + index) % n] * Spread;
+	auto place = [mo](const DVector2 &to) {
 		mo->SetOrigin(DVector3(to, mo->Z()), false);
 		P_FindFloorCeiling(mo, FFCF_ONLYSPAWNPOS);
 		mo->SetZ(mo->floorz);
+	};
+	bool placed = false;
+	for (int i = 0; i < n && !placed; i++)
+	{
+		const DVector2 to = at + rings[(i + index) % n] * Spread;
+		place(to);
 		bool crowded = false;
 		for (int k = 0; k < MAXPLAYERS && !crowded; k++)
 			if (playeringame[k] && players[k].mo && players[k].mo != mo && (players[k].mo->Pos().XY() - to).Length() < mo->radius * 2) crowded = true;
-		if (!crowded && P_TestMobjLocation(mo)) break;
+		placed = !crowded && P_TestMobjLocation(mo) && Reachable(mo->Level, mo, at, to);
 	}
+	if (!placed) place(at);	// Overlapping inside the room beats standing outside it.
 	mo->ClearInterpolation();
 }
 
@@ -108,6 +134,10 @@ void Spawn(FLevelLocals *Level, const Pending &g)
 	playeringame[slot] = true;
 	p.mo = nullptr;
 	p.playerstate = PST_ENTER;
+	// A plain Doom pawn, not the human's class: a DRLA class pawn aims and holds fire with a vanilla weapon but never
+	// shoots. SpawnPlayer keeps a class that is already set.
+	if (PClassActor *doomPlayer = PClass::FindActor("DoomPlayer"); doomPlayer && doomPlayer->IsDescendantOf(NAME_PlayerPawn))
+		p.cls = doomPlayer;
 	FPlayerStart start;
 	start.pos = DVector3(g.pos, 0);
 	start.angle = 0;
@@ -168,6 +198,13 @@ void DD_GuardsFrame(dfb_session *, uint32_t context, bool inSpace, int32_t targe
 	currentTarget = inSpace ? target : -1;
 	if (gamestate != GS_LEVEL || !primaryLevel) return;
 	FLevelLocals *Level = primaryLevel;
+	// This runs between tics, while UZDoom's client prediction is active: anything spawned now would be destroyed when
+	// the prediction rolls back, and the rollback restores the player from its snapshot. End the prediction first, as
+	// the save code does. The next tic predicts again.
+	bool dead = false;
+	for (int i = 0; i < MAXPLAYERS && !dead; i++)
+		dead = playeringame[i] && players[i].Bot && DD_IsGuardBot(players[i].mo) && players[i].mo->health <= 0;
+	if (!pending.empty() || dead) P_UnPredictClient();
 	for (const Pending &g : pending)
 	{
 		if (g.context != DFB_WORLD_INTERIOR || !spaceValid || g.context != currentContext || g.target != currentTarget)
@@ -194,6 +231,17 @@ void DD_GuardsFrame(dfb_session *, uint32_t context, bool inSpace, int32_t targe
 		if (!playeringame[i] || !players[i].Bot || !DD_IsGuardBot(players[i].mo)) continue;
 		AActor *mo = players[i].mo;
 		if (mo->health <= 0) { Bury(Level, i); continue; }
+		static int lastStatus[MAXPLAYERS];	// Diagnostic: what each guard bot is doing, once a second.
+		if (Level->maptime % 35 == 0 && Level->maptime != lastStatus[i])
+		{
+			DBot *b = players[i].Bot;
+			Printf("DDGUARD status slot %d at %.0f,%.0f enemy %s weapon %s pending %s buttons %x fwd %d health %d\n", i, mo->X(), mo->Y(),
+				b->enemy ? b->enemy->GetClass()->TypeName.GetChars() : "none",
+				players[i].ReadyWeapon ? players[i].ReadyWeapon->GetClass()->TypeName.GetChars() : "none",
+				players[i].PendingWeapon && players[i].PendingWeapon != (AActor *)WP_NOCHANGE ? players[i].PendingWeapon->GetClass()->TypeName.GetChars() : "-",
+				players[i].cmd.buttons, players[i].cmd.forwardmove, mo->health);
+			lastStatus[i] = Level->maptime;
+		}
 		if (!DD_MobileSprite(mo, GuardArchive, RecordsFor(mo), mo->Angles.Yaw.Degrees(), camera))
 			DD_MobileSprite(mo, GuardArchive, MoveRecords, mo->Angles.Yaw.Degrees(), camera);
 	}

@@ -141,7 +141,7 @@ def run(name, load, building, target, stock_mods):
         with zipfile.ZipFile(data / "privateershold_doors.pk3") as z:
             exit_row = next(l.split()[1:] for l in z.read("DDDUNGN").decode().splitlines() if l.startswith("exit"))
     text = (HERE / "harness.zs").read_text()
-    for key, value in (("@DOOR@", ", ".join(door[3:8])), ("@EXIT@", ", ".join(exit_row[:5])), ("@MODE@", "building" if building else "dungeon"), ("@TARGET@", target), ("@PICK@", str(args.pick)), ("@CROUCH@", "true" if args.crouch else "false")):
+    for key, value in (("@DOOR@", ", ".join(door[3:8])), ("@EXIT@", ", ".join(exit_row[:5])), ("@MODE@", "building" if building else "dungeon"), ("@TARGET@", target), ("@PICK@", str(args.pick)), ("@CROUCH@", "true" if args.crouch else "false"), ("@STAY@", "true" if args.stay else "false")):
         text = text.replace(key, value)
     harness = runs / f"{name}_harness.pk3"
     with zipfile.ZipFile(harness, "w") as z:
@@ -234,6 +234,7 @@ ap.add_argument("--source", type=Path, default=SOURCE, help="the review folder t
 ap.add_argument("--bridge-dll", type=Path, default=BRIDGE_DLL, help="the bridge DLL to assemble with")
 ap.add_argument("--launcher", type=Path, default=LAUNCHER, help="the launcher to assemble with")
 ap.add_argument("--df-arg", action="append", default=[], help="an extra Daggerfall Unity argument, such as -dfguardtest")
+ap.add_argument("--stay", action="store_true", help="building mode: stay after the target, without god mode, then kill the guard bots (with -dfguardtest)")
 ap.add_argument("--until", help="keep running after the route until the UZDoom console shows this text")
 ap.add_argument("--show", default="", help="also print UZDoom console and Daggerfall log lines matching this regular expression")
 args = ap.parse_args()
