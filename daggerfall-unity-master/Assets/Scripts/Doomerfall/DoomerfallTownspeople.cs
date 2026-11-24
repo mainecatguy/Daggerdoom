@@ -3,6 +3,9 @@
 // Townsfolk.cs generates each town's people from its map id and the world time. This lists the ones near the Doom
 // player, with their motion, so Doom can draw them. The only saved state is who has died. A death that Doom reports
 // goes in this ledger, and that person is never listed again.
+//
+// Inside a house, this lists the people whose schedule has them at home there (asleep, or indoors at home), each on
+// a spot picked from their own seed, so they are found in the same place on every visit.
 
 using System;
 using System.Collections.Generic;
@@ -106,18 +109,17 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DfbUzState peer;
             bridge.ReadPeerState(out peer);
             PlayerGPS gps = GameManager.Instance.PlayerGPS;
+            if (peer.worldContext == Dfb.WORLD_INTERIOR && gps.HasCurrentLocation && TownRoster.HasTownsfolk(gps.CurrentLocation))
+            {
+                UpdateIndoors(ref peer, gps);
+                return;
+            }
             if (peer.worldContext != Dfb.WORLD_EXTERIOR || !gps.HasCurrentLocation || !TownRoster.HasTownsfolk(gps.CurrentLocation))
             {
                 PublishEmpty();
                 return;
             }
-            DFLocation location = gps.CurrentLocation;
-            if (roster == null || roster.MapId != location.MapTableData.MapId)
-            {
-                Stopwatch clock = Stopwatch.StartNew();
-                roster = new TownRoster(location, PopulationRace(gps));
-                bridge.LogLine(string.Format("town: {0} map {1} has {2} people and {3} places, built in {4} ms", location.Name, roster.MapId, roster.People.Length, roster.Sites.Count, clock.ElapsedMilliseconds));
-            }
+            EnsureRoster(gps);
             double px = peer.worldX - roster.OriginX, pz = peer.worldZ - roster.OriginZ;
             double width = roster.GridW * TownRoster.Cell, height = roster.GridH * TownRoster.Cell;
             if (px < -OutsideRect || pz < -OutsideRect || px > width + OutsideRect || pz > height + OutsideRect)
@@ -129,6 +131,225 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             Collect(hours, px, pz);
             Publish();
             if (test != null) test.AfterPublish(bridge, roster, candidates, hours, px, pz, dead.Count);
+        }
+
+        void EnsureRoster(PlayerGPS gps)
+        {
+            DFLocation location = gps.CurrentLocation;
+            if (roster != null && roster.MapId == location.MapTableData.MapId)
+                return;
+            Stopwatch clock = Stopwatch.StartNew();
+            roster = new TownRoster(location, PopulationRace(gps));
+            bridge.LogLine(string.Format("town: {0} map {1} has {2} people and {3} places, built in {4} ms", location.Name, roster.MapId, roster.People.Length, roster.Sites.Count, clock.ElapsedMilliseconds));
+        }
+
+        // ---- At home ----
+
+        const float DoomPerDaggerfall = 0.75f;
+        const float CrowdStep = 28f;                // Doom units between people who share one spot
+        readonly List<Vector3> homeSpots = new List<Vector3>();
+        readonly List<Vector3> homeRows = new List<Vector3>();
+        readonly Dictionary<ulong, Vector3> spotOf = new Dictionary<ulong, Vector3>();
+        readonly List<Vector3> homeWorld = new List<Vector3>();     // the same spots in Daggerfall's world space
+
+        // A spot a step or two around a shared marker. Daggerfall's interior colliders (built whether or not it draws)
+        // must show open floor on the same level with nothing in between; the seeded direction is tried first, then
+        // the other seven. If none is clear, the person shares the marker itself rather than stand in a wall.
+        Vector3 CrowdSpot(Vector3 marker, Vector3 markerSpot, ulong startDegrees, int crowd, Transform space, float units, ref string note)
+        {
+            float floor;
+            if (!FloorBelow(marker + Vector3.up * 0.5f, 2f, out floor))
+            {
+                note += " nofloor";
+                return markerSpot;
+            }
+            for (int step = crowd; step >= 1; step--)
+            {
+                float distance = CrowdStep * step / units;
+                for (int k = 0; k < 8; k++)
+                {
+                    float angle = (startDegrees + 45f * k) * Mathf.Deg2Rad;
+                    Vector3 dir = space.TransformDirection(new Vector3(Mathf.Cos(angle), 0, Mathf.Sin(angle))).normalized;
+                    Vector3 low = new Vector3(marker.x, floor + 0.35f, marker.z), high = new Vector3(marker.x, floor + 1.3f, marker.z);
+                    if (Blocked(low, dir, distance + 0.3f) || Blocked(high, dir, distance + 0.3f))
+                        continue;
+                    Vector3 target = high + dir * distance;
+                    float there;
+                    if (!FloorBelow(target, 2f, out there) || Mathf.Abs(there - floor) > 0.25f)
+                        continue;
+                    Vector3 local = space.InverseTransformPoint(target);
+                    return new Vector3(local.x * units, local.z * units, markerSpot.z);
+                }
+            }
+            note += " shared";
+            return markerSpot;
+        }
+
+        static bool Blocked(Vector3 from, Vector3 dir, float distance)
+        {
+            GameObject player = GameManager.Instance.PlayerObject;
+            foreach (RaycastHit hit in Physics.RaycastAll(from, dir, distance, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+                if (!hit.collider.transform.IsChildOf(player.transform))
+                    return true;
+            return false;
+        }
+
+        // The highest floor below a point, ignoring the hidden player.
+        static bool FloorBelow(Vector3 from, float distance, out float y)
+        {
+            GameObject player = GameManager.Instance.PlayerObject;
+            y = float.MinValue;
+            foreach (RaycastHit hit in Physics.RaycastAll(from, Vector3.down, distance, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+                if (!hit.collider.transform.IsChildOf(player.transform) && hit.point.y > y)
+                    y = hit.point.y;
+            return y > float.MinValue;
+        }
+        int homeBuilding = -1, homeSpace;
+        string lastHomeLine;
+
+        // True when the schedule has the person inside their own home: asleep between days, or a stretch indoors at home.
+        internal bool AtHome(TownPerson p, double hours)
+        {
+            TownRoster.Step step;
+            if (!roster.FindStep(p, hours, out step))
+                return true;
+            return step.kind == 0 && step.a == p.home;
+        }
+
+        void UpdateIndoors(ref DfbUzState peer, PlayerGPS gps)
+        {
+            PlayerEnterExit enter = GameManager.Instance.PlayerEnterExit;
+            Transform space = sync.ItemSpace(ref peer);
+            if (!space || !enter.IsPlayerInsideBuilding || !enter.Interior)
+                return;     // Daggerfall is not in the same room as Doom yet, so keep whatever Doom has.
+            EnsureRoster(gps);
+            int building = enter.BuildingDiscoveryData.buildingKey;
+            if (building != homeBuilding || space.GetInstanceID() != homeSpace)
+            {
+                homeBuilding = building;
+                homeSpace = space.GetInstanceID();
+                FindHomeSpots(enter.Interior, space);
+            }
+            double hours = DaggerfallUnity.Instance.WorldTime.Now.ToSeconds() / 3600.0;
+            candidates.Clear();
+            homeRows.Clear();
+            foreach (TownPerson p in roster.People)
+            {
+                Vector3 at;
+                if (!spotOf.TryGetValue(p.id, out at) || dead.Contains(p.id) || !AtHome(p, hours))
+                    continue;
+                candidates.Add(new Candidate { person = p });
+                homeRows.Add(at);
+            }
+            PublishHome(building);
+        }
+
+        // Daggerfall's rest markers are where it places quest people in a building; the entry markers are the fallback.
+        // Each spot is Doom map units (x east, y north, z height) in the interior map.
+        void FindHomeSpots(DaggerfallInterior interior, Transform space)
+        {
+            homeSpots.Clear();
+            homeWorld.Clear();
+            Vector3[] markers = interior.FindMarkers(DaggerfallInterior.InteriorMarkerTypes.Rest);
+            string kind = "rest";
+            if (markers.Length == 0)
+            {
+                markers = interior.FindMarkers(DaggerfallInterior.InteriorMarkerTypes.Enter);
+                kind = "enter";
+            }
+            float units = DoomPerDaggerfall / MeshReader.GlobalScale;
+            // Leave out the marker Daggerfall lands the player on (the one nearest the street door used, as
+            // PlayerEnterExit does), so nobody stands inside the player on the way in. At least one spot stays.
+            HashSet<int> skipped = new HashSet<int>();
+            Vector3 landing;
+            if (markers.Length > 1 && interior.FindClosestEnterMarker(DaggerfallStaticDoors.GetDoorPosition(interior.EntryDoor), out landing))
+                for (int i = 0; i < markers.Length; i++)
+                    if ((markers[i] - landing).sqrMagnitude < 0.01f)
+                        skipped.Add(i);
+            if (skipped.Count >= markers.Length)
+                skipped.Clear();
+            StringBuilder left = new StringBuilder();
+            for (int i = 0; i < markers.Length; i++)
+            {
+                if (skipped.Contains(i))
+                {
+                    Vector3 by = space.InverseTransformPoint(markers[i]);
+                    left.AppendFormat(" {0:F0},{1:F0},{2:F0}", by.x * units, by.z * units, by.y * units);
+                    continue;
+                }
+                Vector3 local = space.InverseTransformPoint(markers[i]);
+                homeSpots.Add(new Vector3(local.x * units, local.z * units, local.y * units));
+                homeWorld.Add(markers[i]);
+            }
+            // Every resident gets a fixed spot, alive or dead, home or out, so nobody moves when a housemate is missing.
+            // Roster order settles a contested spot; once every spot is taken, people stand a step around one.
+            spotOf.Clear();
+            List<int> taken = new List<int>();
+            int residents = 0;
+            string crowded = "";
+            foreach (TownPerson p in roster.People)
+            {
+                if (roster.Sites[p.home].key != homeBuilding)
+                    continue;
+                residents++;
+                if (homeSpots.Count == 0)
+                    continue;
+                int first = (int)(p.seed % (ulong)homeSpots.Count), spot = first, crowd = 0;
+                while (taken.Contains(spot * 64 + crowd))
+                {
+                    spot = (spot + 1) % homeSpots.Count;
+                    if (spot == first)
+                        crowd++;
+                }
+                taken.Add(spot * 64 + crowd);
+                Vector3 at = homeSpots[spot];
+                if (crowd > 0)
+                    at = CrowdSpot(homeWorld[spot], at, (p.seed >> 20) % 360, crowd, space, units, ref crowded);
+                spotOf[p.id] = at;
+            }
+            bridge.LogLine(string.Format("town: building {0} has {1} residents and {2} {3} spots (left out where the player lands:{4}){5}", homeBuilding, residents, homeSpots.Count, kind, left,
+                crowded.Length > 0 ? "; crowding:" + crowded : ""));
+        }
+
+        void PublishHome(int building)
+        {
+            generation++;
+            DfbEvent e = default(DfbEvent);
+            e.kind = Dfb.KIND_TOWNSFOLK_BEGIN;
+            e.tic = (uint)Time.frameCount;
+            e.townsfolk.generation = generation;
+            e.townsfolk.count = (uint)candidates.Count;
+            e.townsfolk.mapId = roster.MapId;
+            e.townsfolk.space = Dfb.TOWNSFOLK_INTERIOR;
+            bridge.Send(ref e);
+            StringBuilder line = new StringBuilder();
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                TownPerson p = candidates[i].person;
+                Vector3 at = homeRows[i];
+                DfbEvent row = default(DfbEvent);
+                row.kind = Dfb.KIND_TOWNSPERSON;
+                row.tic = (uint)Time.frameCount;
+                row.townsperson.id = p.id;
+                row.townsperson.generation = generation;
+                row.townsperson.archive = (ushort)p.archive;
+                row.townsperson.flags = (ushort)(p.guard ? Dfb.TOWNSPERSON_GUARD : 0);
+                row.townsperson.x = at.x;
+                row.townsperson.y = at.y;
+                row.townsperson.z = at.z;
+                row.townsperson.facing = (float)((p.seed >> 40) % 360);
+                bridge.Send(ref row);
+                line.AppendFormat(" {0:x16}@{1:F0},{2:F0},{3:F0}", p.id, at.x, at.y, at.z);
+            }
+            e.kind = Dfb.KIND_TOWNSFOLK_END;
+            bridge.Send(ref e);
+            listedEmpty = candidates.Count == 0;
+            string text = string.Format("town: at home in building {0}: {1}{2}", building, candidates.Count, line);
+            if (text != lastHomeLine)
+            {
+                lastHomeLine = text;
+                bridge.LogLine(text);
+            }
         }
 
         void Collect(double hours, double px, double pz)

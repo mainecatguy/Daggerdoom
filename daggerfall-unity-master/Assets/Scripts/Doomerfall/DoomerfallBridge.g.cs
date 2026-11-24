@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0xa35ab3cac870f53bUL;
+        public const ulong SchemaHash = 0xd4059a6c7bfc66b4UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -230,6 +230,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const int UZ_PHASE_PLAY = 2;
         public const int UZ_PHASE_PAUSED = 3;
         public const int UZ_PHASE_SAVING = 4;
+        public const uint TOWNSFOLK_STREETS = 0;
+        public const uint TOWNSFOLK_INTERIOR = 1;
 
         // Native size of every generated struct, for the attach check.
         public static readonly Type[] StructTypes = { typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbWorldContainer), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbInfoRequest), typeof(DfbInfoText), typeof(DfbDoomItem), typeof(DfbItemArt), typeof(DfbClimbUses), typeof(DfbNpcUse), typeof(DfbNpcUseResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbNpc), typeof(DfbTownsfolk), typeof(DfbTownsperson), typeof(DfbTownspersonDeath), typeof(DfbGuardSpawn), typeof(DfbGuardDeath), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
@@ -742,7 +744,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(0)] public uint generation;
         [FieldOffset(4)] public uint count;
         [FieldOffset(8)] public int mapId;  // the town's Daggerfall map id, or 0 for an empty list away from towns
-        [FieldOffset(12)] public uint pad;
+        [FieldOffset(12)] public uint space;  // DFB_TOWNSFOLK_STREETS or DFB_TOWNSFOLK_INTERIOR
         [FieldOffset(16)] public double originX;  // Daggerfall world units
         [FieldOffset(24)] public double originZ;
     }
@@ -759,7 +761,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(24)] public float vx;
         [FieldOffset(28)] public float vy;
         [FieldOffset(32)] public float facing;  // Doom angle in degrees: 0 is east, counterclockwise
-        [FieldOffset(36)] public uint pad;
+        [FieldOffset(36)] public float z;  // interior lists: Doom height of the spot, so the right storey is found; else 0
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 24)]
