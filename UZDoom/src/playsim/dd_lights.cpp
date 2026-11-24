@@ -25,9 +25,9 @@ int AttachLightDirect(AActor *self, int _lightid, int type, int color, int radiu
 int RemoveLight(AActor *self, int _lightid);
 
 CVAR(Bool, dd_lights, true, CVAR_ARCHIVE)				// Daggerfall's lights in generated places.
-CVAR(Float, dd_light_range, 0.5f, CVAR_ARCHIVE)			// Doom light reach per Daggerfall Unity light range.
+CVAR(Float, dd_light_range, 0.4f, CVAR_ARCHIVE)			// Doom light reach per Daggerfall Unity light range.
 CVAR(Int, dd_dungeon_light, 112, CVAR_ARCHIVE)			// Sector light in dungeons that have light records (was 176).
-CVAR(Int, dd_interior_light, 144, CVAR_ARCHIVE)			// Sector light in building interiors (was 176).
+CVAR(Int, dd_interior_light, 48, CVAR_ARCHIVE)			// Sector light in building interiors (was 176).
 CVAR(Int, dd_citylights, -1, CVAR_NOSAVE)				// -1 follows Daggerfall's clock, 0 forces town lamps off, 1 on.
 
 namespace
@@ -72,22 +72,13 @@ LampKind InteriorLamp(int record)
 std::unordered_map<int, int> lampRecords;	// texture id to archive 210 record, or -1
 bool cityLightsFromDaggerfall = false;
 int appliedCity = -1;						// what town lamps were last switched to
+int interiorLamps = 0;						// lamps lit since the last interior entry, for the log
 
-// The archive 210 record a billboard texture shows, or -1. Names are dfflat/F210R05.png or F210R05.
+// The archive 210 record a billboard texture shows, or -1. DD_LightsTextureName registers names as they resolve.
 int LampRecord(FTextureID tex)
 {
 	auto found = lampRecords.find(tex.GetIndex());
-	if (found != lampRecords.end()) return found->second;
-	int record = -1;
-	if (auto *t = TexMan.GetGameTexture(tex))
-	{
-		const char *name = t->GetName().GetChars();
-		const char *at = strstr(name, "F210R");
-		if (!at) at = strstr(name, "f210r");
-		if (at && (at == name || at[-1] == '/')) record = atoi(at + 5);
-	}
-	lampRecords.emplace(tex.GetIndex(), record);
-	return record;
+	return found != lampRecords.end() ? found->second : -1;
 }
 
 double Height(AActor *mo)
@@ -116,6 +107,14 @@ void AttachTownLamp(AActor *mo)
 }
 }
 
+// The treadmill resolved a DFFLATS texture name (dfflat/F210R05.png in the cache, F210R05 in a city package).
+void DD_LightsTextureName(const char *name, FTextureID tex)
+{
+	if (!tex.isValid()) return;
+	const char *at = strstr(name, "F210R");
+	if (at && (at == name || at[-1] == '/')) lampRecords[tex.GetIndex()] = atoi(at + 5);
+}
+
 // A billboard was just spawned in a generated town or interior. Lamps get their light.
 void DD_LightsFlat(AActor *mo, bool interior)
 {
@@ -129,6 +128,7 @@ void DD_LightsFlat(AActor *mo, bool interior)
 		return;
 	}
 	// Interior billboards stand on their base, so the center is half their height up.
+	interiorLamps++;
 	const LampKind k = InteriorLamp(record);
 	const double h = Height(mo), z = h / 2 + k.offset * DOOM_PER_METER + k.heightFraction * h;
 	AttachLightDirect(mo, FName("ddlamp").GetIndex(), 0, Color(k.r, k.g, k.b), int(k.range * DOOM_PER_METER * dd_light_range / 2 + 0.5), 0,
@@ -140,6 +140,15 @@ void DD_LightsInterior(FLevelLocals *Level)
 {
 	if (!*dd_lights) return;
 	for (auto &sec : Level->sectors) sec.SetLightLevel(*dd_interior_light);
+	Printf("DDLIGHTS interior lamps %d, sector light %d\n", interiorLamps, *dd_interior_light);
+	interiorLamps = 0;
+}
+
+CCMD(dd_lights_status)
+{
+	int n = 0, active = 0;
+	for (FDynamicLight *l = primaryLevel->lights; l; l = l->next) { n++; if (l->IsActive()) active++; }
+	Printf("DDLIGHTS status lights=%d active=%d\n", n, active);
 }
 
 // From the bridge: Daggerfall's WorldTime.Now.IsCityLightsOn.

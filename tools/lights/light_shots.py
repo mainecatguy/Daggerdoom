@@ -92,7 +92,12 @@ def main():
     ap.add_argument("--size", default="960x720", help="scene size (vid_scalemode 5); 'window' renders at the window size")
     ap.add_argument("--start-wait", type=int, default=140, help="tics before the first view")
     ap.add_argument("--timeout", type=int, default=0)
+    ap.add_argument("--cache", help="runtime town cache folder (-ddtowncache), for generated towns and interiors")
+    ap.add_argument("--converter", help="DungeonConverter.exe the engine runs for uncached places (-ddconverter)")
     args = ap.parse_args()
+    if args.cache:
+        args.doom_args = ["-ddtowncache", os.path.abspath(args.cache), "-ddarena2", r"D:\dev\DoomDaggerfall\GameResources\DAGGER\ARENA2"] + \
+            (["-ddconverter", os.path.abspath(args.converter)] if args.converter else []) + args.doom_args
 
     out = os.path.abspath(args.out)
     os.makedirs(out, exist_ok=True)
@@ -107,7 +112,7 @@ def main():
         for i, v in enumerate(views):
             shot = os.path.join(out, v[0] + ".png").replace("\\", "/")
             f.write(f'alias ltstep{i} "netevent lt_view {i}; wait {settle - 5}; screenshot \\"{shot}\\"; wait {measure + 15}; ltstep{i + 1}"\n')
-        f.write(f'alias ltstep{len(views)} "quit"\nwait {args.start_wait}; ltstep0\n')
+        f.write(f'alias ltstep{len(views)} "quit"\nwait {args.start_wait}; dd_lights_status; ltstep0\n')
     width, height = (960, 720) if args.size == "window" else map(int, args.size.split("x"))
     with open(os.path.join(out, "lt.ini"), "w", newline="\n") as f:
         f.write(f"[GlobalSettings]\nqueryiwad=false\nvid_fullscreen=false\nwin_maximized=false\nvid_defwidth={width}\nvid_defheight={height}\n"

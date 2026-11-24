@@ -144,7 +144,9 @@ static partial class Program
                     if (f.TextureRecord == EnterMarker || f.TextureRecord == RestMarker) markers.Add(new V3(f.XPos, -f.YPos, f.ZPos));
                     continue;
                 }
-                if (f.FactionID == 0) scene.AddFlat(f.TextureArchive, f.TextureRecord, f.XPos, -f.YPos, f.ZPos, true);
+                // DaggerfallInterior.AddFlats draws every flat whatever its FactionID, standing on its position
+                // (the billboard's center is half its height above it), and lights the archive 210 ones.
+                scene.AddFlat(f.TextureArchive, f.TextureRecord, f.XPos, -f.YPos, f.ZPos);
             }
             // DaggerfallInterior.AddPeople stands each person on their position.
             foreach (var p in record.Interior.BlockPeopleRecords)

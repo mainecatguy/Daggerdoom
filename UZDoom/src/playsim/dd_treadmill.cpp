@@ -80,6 +80,7 @@ void DD_LightsFlat(AActor *mo, bool interior);	// dd_lights.cpp
 void DD_LightsInterior(FLevelLocals *Level);
 void DD_LightsTick(FLevelLocals *Level);
 void DD_LightsReset();
+void DD_LightsTextureName(const char *name, FTextureID tex);
 
 bool DDTreadmill_Active = false;
 bool DDTreadmill_WideNodes = false;
@@ -678,7 +679,7 @@ namespace
 			float sx, sy;
 			if (sscanf(line.GetChars(), "%31s %lf %lf %lf %f %f", name, &x, &y, &z, &sx, &sy) != 6) continue;
 			auto id = ids.find(name);
-			if (id == ids.end()) id = ids.emplace(name, TexMan.CheckForTexture(name, ETextureType::Any)).first;
+			if (id == ids.end()) { id = ids.emplace(name, TexMan.CheckForTexture(name, ETextureType::Any)).first; DD_LightsTextureName(name, id->second); }
 			const double gx = t.originX * DOOM_PER_DF + x, gy = t.originY * DOOM_PER_DF + y;
 			townFlats[ChunkKey(int(floor(gx / chunkDoom)), int(floor(gy / chunkDoom)))].push_back({ id->second, gx, gy, z + t.ground * DOOM_PER_DF - Z_BASE, sx, sy, 0 });
 		}
@@ -1067,7 +1068,10 @@ namespace
 	{
 		auto id = flatTextures.find(name);
 		if (id == flatTextures.end())
+		{
 			id = flatTextures.emplace(name, TexMan.CheckForTexture(name, ETextureType::Any, FTextureManager::TEXMAN_TryAny | FTextureManager::TEXMAN_ForceLookup)).first;
+			DD_LightsTextureName(name, id->second);
+		}
 		return id->second;
 	}
 

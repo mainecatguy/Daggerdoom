@@ -465,7 +465,7 @@ class DFActionHandler : EventHandler
 	{
 		int lump = Wads.CheckNumForFullName("DFDLIGHTS");
 		if (lump < 0 || CVarOr('dd_lights', 1) == 0) return;
-		double scale = CVarOr('dd_light_range', 0.5);
+		double scale = CVarOr('dd_light_range', 0.4);
 		Array<String> rows;
 		Wads.ReadLump(lump).Split(rows, "\n", TOK_SKIPEMPTY);
 		int spawned = 0;
