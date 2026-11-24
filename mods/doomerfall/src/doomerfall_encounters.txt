@@ -1,0 +1,409 @@
+# Doomerfall encounter data: every tunable number in the encounter design
+# (work/notes/20261123-205402-fractal-encounter-variety.md). Read once by zscript/EncounterPool.zs.
+#
+# One rule per line. '#' starts a comment. Class and kind names ignore case.
+# A pattern is a class name with optional '*' wildcards, such as RLCC*, *Reborn or White*EX*.
+# Rule lists marked "first match wins" are checked from the top.
+# Points are this project's own estimates, not values copied from any mod.
+
+# ---------------------------------------------------------------------------------------------
+# Kinds: the 17 stock Doom monsters (section 8.3). Every pool monster belongs to one.
+#   kind <name> <stock class> <base points> <default traits, comma separated>
+# Traits: hitscan projectile melee flies summons stealthy homing explosive
+# ---------------------------------------------------------------------------------------------
+kind ZombieMan        ZombieMan         1.0   hitscan
+kind ShotgunGuy       ShotgunGuy        1.9   hitscan
+kind ChaingunGuy      ChaingunGuy       4.5   hitscan
+kind DoomImp          DoomImp           1.3   projectile,melee
+kind Demon            Demon             2.9   melee
+kind Spectre          Spectre           3.2   melee,stealthy
+kind LostSoul         LostSoul          1.8   melee,flies
+kind Cacodemon        Cacodemon         4.8   projectile,melee,flies
+kind HellKnight       HellKnight        6.2   projectile,melee
+kind BaronOfHell      BaronOfHell       8.8   projectile,melee
+kind Arachnotron      Arachnotron       10.6  projectile
+kind PainElemental    PainElemental     4.8   summons,flies
+kind Revenant         Revenant          9.0   projectile,homing,melee
+kind Fatso            Fatso             8.4   projectile
+kind Archvile         Archvile          20    hitscan,summons
+kind Cyberdemon       Cyberdemon        43    projectile,explosive
+kind SpiderMastermind SpiderMastermind  46    hitscan
+
+# Kind by class name, checked before ancestry (first match wins). Colourful Hell's real classes
+# mostly have no stock parent, so their names decide the kind.
+#   kindname <pattern> <kind>
+kindname *Spectre*        Spectre
+kindname *Cyberdemon*     Cyberdemon
+kindname *Cybie*          Cyberdemon
+kindname *SpiderMastermind* SpiderMastermind
+kindname *Mastermind*     SpiderMastermind
+kindname *Mind           SpiderMastermind
+kindname *Mind2          SpiderMastermind
+kindname *Mind3          SpiderMastermind
+kindname *MindEX*        SpiderMastermind
+kindname *Arachnotron*    Arachnotron
+kindname *SP1            Arachnotron
+kindname *SP2            Arachnotron
+kindname *SP3            Arachnotron
+kindname *SP11*          Arachnotron
+kindname *SPEX*          Arachnotron
+kindname *PainElemental*  PainElemental
+kindname *PE             PainElemental
+kindname *PE2            PainElemental
+kindname *PE3            PainElemental
+kindname *PEEX*          PainElemental
+kindname *LostSoul*       LostSoul
+kindname *LSoul*          LostSoul
+kindname *Archvile*       Archvile
+kindname *Arch           Archvile
+kindname *Arch2          Archvile
+kindname *Arch3          Archvile
+kindname *Vile*           Archvile
+kindname *Revenant*       Revenant
+kindname *Mancubus*       Fatso
+kindname *Fatso*          Fatso
+kindname *Baron*          BaronOfHell
+kindname *HellKnight*     HellKnight
+kindname *HK             HellKnight
+kindname *HK2            HellKnight
+kindname *HK3            HellKnight
+kindname *HKEX*          HellKnight
+kindname *Cacodemon*      Cacodemon
+kindname *Caco*           Cacodemon
+kindname *Imp            DoomImp
+kindname *Imp2           DoomImp
+kindname *Imp3           DoomImp
+kindname *Imp1           DoomImp
+kindname *ImpEX*         DoomImp
+kindname *Demon*          Demon
+kindname *CGuy*           ChaingunGuy
+kindname *SG             ShotgunGuy
+kindname *SG2            ShotgunGuy
+kindname *SG3            ShotgunGuy
+kindname *SGEX*          ShotgunGuy
+kindname *Zombie*         ZombieMan
+
+# Kind by an exact ancestor class, checked while walking up the class's parents, together with
+# the stock classes above. DRLA's monsters descend from these bases, not from stock classes.
+#   kindclass <class> <kind>
+kindclass RLZombiemanBase        ZombieMan
+kindclass RLShotgunGuyBase       ShotgunGuy
+kindclass RLChaingunGuyBase      ChaingunGuy
+kindclass RLImpBase              DoomImp
+kindclass RLDemonBase            Demon
+kindclass RLLostSoulBase         LostSoul
+kindclass RLCacodemonBase        Cacodemon
+kindclass RLHellKnightBase       HellKnight
+kindclass RLBaronOfHellBase      BaronOfHell
+kindclass RLArachnotronBase      Arachnotron
+kindclass RLPainElementalBase    PainElemental
+kindclass RLRevenantBase         Revenant
+kindclass RLMancubusBase         Fatso
+kindclass RLArchvileBase         Archvile
+kindclass RLCyberdemonBase       Cyberdemon
+kindclass RLSpiderMastermindBase SpiderMastermind
+# DRLA's four wildcard bosses share one base. Their kinds are engineering picks (closest stock look).
+kindclass RLBruiserBrother       BaronOfHell
+kindclass RLAgonyElemental       PainElemental
+kindclass RLTerminator           Cyberdemon
+kindclass RLAbominant            Fatso
+
+# ---------------------------------------------------------------------------------------------
+# Not spawn candidates (section 5.1 and 8.5). Classes not flagged as counted, hostile monsters,
+# and stock classes that another loaded class replaces, are left out automatically.
+#   exclude <pattern> [reason]
+# ---------------------------------------------------------------------------------------------
+exclude RLCC*                  end-credits-cast
+exclude RLDRPG*                DoomRPG-summon
+exclude *Reborn                revive-product
+exclude RLAdaptive*            random-variant-selector
+exclude WolfensteinSS          not-one-of-the-17-kinds
+exclude CommanderKeen          not-one-of-the-17-kinds
+exclude BossBrain              not-one-of-the-17-kinds
+# Other games' monsters that reuse Doom's art: the beta Lost Soul and Chex Quest.
+exclude BetaSkull              other-game
+exclude Flemoidus*             other-game
+exclude ArmoredFlemoidus*      other-game
+exclude Flembrane              other-game
+exclude ChexSoul               other-game
+# ID24 (Legacy of Rust) monsters, such as the Tyrant, reuse Doom's art but are not among the 17.
+exclude ID24*                  not-one-of-the-17-kinds
+
+# Monsters not counted as kills are left out (mostly summoned helpers, such as Pain Elemental
+# skulls), except these real spawn candidates.
+#   include <pattern>
+include RLLostSoul
+include RLNightmareLostSoul
+include RLCyberneticLostSoul
+include RLTechnophobiaHellmine
+include RLArmageddonImp
+include RLArmageddonLostSoul
+include RLArmageddonBaronOfHell
+# ZDoom's stealth versions of the stock monsters are not among Doom's 17 (DRLA's RLStealth* are kept).
+exclude Stealth*               zdoom-extra
+
+# ---------------------------------------------------------------------------------------------
+# Tier ladder (section 8.2). Colours are Colourful Hell's, families are DRLA's.
+#   group <name> <tier> <points multiplier>
+# ---------------------------------------------------------------------------------------------
+group Stock        1  1
+group Common       1  1
+group Green        2  1.25
+group Blue         3  1.5
+group Purple       4  2
+group Cyan         4  2
+group Brown        5  3
+group FireBlue     5  3
+group Yellow       5  3
+group Gray         5  3
+group Red          6  4
+group Abyss        7  10
+group Standard     1  1
+group Nightmare    4  1.75
+group Technophobia 6  2.75
+group Armageddon   7  4
+
+# Tier by class name (first match wins). Classes with no match and no 'own' rule are Stock.
+#   tier <pattern> <group>
+tier Common*         Common
+tier Green*          Green
+tier Blue*           Blue
+tier Purple*         Purple
+tier Cyan*           Cyan
+tier Brown*          Brown
+tier FireBlu*        FireBlue
+tier Yellow*         Yellow
+tier Gray*           Gray
+tier Grey*           Gray
+tier Red*            Red
+tier Abyss*          Abyss
+tier RLStealth*      Standard
+tier RLNightmare*    Nightmare
+tier RLElite*        Nightmare
+tier RLCybernetic*   Technophobia
+tier RLFormerCyborg* Technophobia
+tier RLTechnophobia* Technophobia
+tier RLArmageddon*   Armageddon
+tier RLFormerAssaultTrooper* Armageddon
+tier RLFormerOverwatch*      Armageddon
+tier RLFormerShocktrooper*   Armageddon
+tier RL*             Standard
+
+# Tier 8: classes priced on their own, not by multiplier (section 8.3), first match wins.
+#   own <pattern> <group label> fixed <points>
+#   own <pattern> <group label> lerp <health0> <points0> <health1> <points1>   (by spawn health, clamped)
+#   own <pattern> <group label> scale <factor>   (kind points x sqrt(health / stock health) x factor)
+# EX titans: 8,600 to 18,000 health cost about 140 to 250 points (section 6.3 and 8.3).
+own Black*EX*        EX     lerp 8600 140 18000 250
+own White*EX*        EX     lerp 8600 140 18000 250
+# Black and White monsters that are not EX titans. Placeholder until the owner prices them.
+own Black*           BlackWhite scale 2
+own White*           BlackWhite scale 2
+# DRLA bosses and wildcards. Placeholder: square-law scaling of the kind's points by health.
+own RLBruiserBrother  DRLABoss scale 1
+own RLAgonyElemental  DRLABoss scale 1
+own RLTerminator      DRLABoss scale 1
+own RLAbominant       DRLABoss scale 1
+
+# ---------------------------------------------------------------------------------------------
+# Traits beyond each kind's defaults (added, not replaced). 'flies' and 'stealthy' are also
+# read from the class flags (FLOAT or NOGRAVITY, SHADOW or STEALTH or fuzzy rendering).
+#   trait <pattern> <traits>
+# ---------------------------------------------------------------------------------------------
+trait RLStealth*     stealthy
+trait RLNightmareSpectre stealthy
+trait RLNightmareImp stealthy
+trait RLTechnophobiaHellmine explosive
+trait RLCyberneticLostSoul explosive
+
+# Summoners found in the mods' actor code: they spawn other monsters during play.
+# (Spawning another colour on death or when another monster converts them is not counted.)
+trait AbyssBaron2 summons
+trait AbyssPE2 summons
+trait AbyssPortalVile summons
+trait AbyssVile summons
+trait BlackBaron2 summons
+trait BlackCaco2 summons
+trait BlackCacoEX summons
+trait BlackDemon3 summons
+trait BlackLSoul3 summons
+trait BlackLSoulOld3 summons
+trait BlackRevenant3 summons
+trait BlackRevenantEX summons
+trait BlackSG3 summons
+trait BlackVile summons
+trait BlueZombie summons
+trait BrownCGuy2 summons
+trait BrownDemon2 summons
+trait BrownHK2 summons
+trait BrownImp2 summons
+trait BrownVile summons
+trait BrownZombie2 summons
+trait CommonZombie summons
+trait CyanVile summons
+trait FireBluZombie2 summons
+trait GrayArch2 summons
+trait GrayLSoul2 summons
+trait GrayMind2 summons
+trait GrayZombie2 summons
+trait GreenZombie summons
+trait HKEgg summons
+trait MrBones summons
+trait PurpleArch summons
+trait PurpleMind summons
+trait PurpleZombie summons
+trait RLAgonyElemental summons
+trait RLArmageddonRevenant summons
+trait RLFormerOverwatch summons
+trait RLArmageddonBaronOfHell summons
+trait RedArch2 summons
+trait RedArch3 summons
+trait RedCybie summons
+trait RedMind summons
+trait RevEgg summons
+trait SkullWSoulEX1 summons
+trait ThePlanBoner summons
+trait WhiteCacoREAL summons
+trait WhiteCguy2 summons
+trait WhiteCybie2 summons
+trait WhiteHK3 summons
+trait WhiteLSoul2 summons
+trait WhiteLSoulEX summons
+trait WhiteRevenant2 summons
+trait WhiteSGEX summons
+trait WhiteSP11 summons
+trait WhiteSP11Old summons
+trait WhiteSP2 summons
+trait WhiteSP3 summons
+trait WhiteSpectre2 summons
+trait Whitevile summons
+trait WvileSpot summons
+trait YellowArch summons
+trait YellowCaco summons
+trait YellowMind summons
+trait YellowRevenant summons
+
+# ---------------------------------------------------------------------------------------------
+# Caps (section 5.3). A capped class never anchors or joins an army's core.
+# ---------------------------------------------------------------------------------------------
+capped RLCyberneticLostSoul
+capped RLTechnophobiaHellmine
+# Largest share of an army's points a capped class may take. Placeholder: the design gives none.
+set capped_share 0.10
+
+# ---------------------------------------------------------------------------------------------
+# Civil War safety (section 5.5, appendix B). Unsafe: every Arch-vile, every summoner (trait
+# 'summons'), and the classes below, which revive others, change their own TID, or give items to
+# every monster in range (A_RadiusGive to monsters or corpses with no class or species filter).
+#   unsafekind <kind> <reason>
+#   unsafe <pattern> <reason>
+# ---------------------------------------------------------------------------------------------
+unsafekind Archvile revives
+unsafe RLMonsterpackArtifactGuardian changes-tid
+unsafe RLRevenihilatorDrone          changes-tid
+unsafe RLArmageddonRevenant          spawns-tid-changer
+unsafe RLArmageddonArchvile          radiusgive-heal-resurrect
+unsafe RLArmageddonLostSoul          radiusgive-hungry
+unsafe RLCyberneticArchvile          radiusgive-resurrect
+unsafe RLCyberneticLostSoul          radiusgive-hellmine
+unsafe RLFinalTechvile               radiusgive-resurrect
+unsafe RLLostSoul                    radiusgive-counterattack
+unsafe RLStealthLostSoul             radiusgive-counterattack
+unsafe RLSpiderMastermindBFG         radiusgive-bfg
+unsafe RLNightmareArchvile           radiusgive-resurrect
+unsafe RLNightmareBaronOfHell        radiusgive-command
+unsafe RLNightmareLostSoul           radiusgive-command
+unsafe RLNightmareRevenant           radiusgive-corpses
+unsafe RLNightmareSpiderMastermind   radiusgive-corpses
+unsafe AbyssPE2                      radiusgive-buff
+unsafe AbyssBaron2                   radiusgive-grow
+unsafe AbyssVile                     radiusgive-grow
+unsafe BrownLSoul2                   radiusgive-heal
+unsafe BrownMind2                    radiusgive-shield
+unsafe BrownSP2                      radiusgive-heal
+unsafe BrownRevenant2                radiusgive-heal
+unsafe BrownVile                     radiusgive-heal
+unsafe CyanVile                      radiusgive-grow
+unsafe PurpleArch                    radiusgive-grow
+unsafe RedArch2                      radiusgive-grow
+unsafe YellowArch                    radiusgive-grow
+unsafe YellowRevenant                radiusgive-grow
+unsafe WhiteLSoul2                   radiusgive-grow
+unsafe WhiteLSoulEX                  radiusgive-ads
+unsafe WhiteZombie1                  radiusgive-bones
+unsafe WhiteVileResser               radiusgive-grow
+
+# ---------------------------------------------------------------------------------------------
+# Budget (section 6). Average points per encounter by area level; between anchors the points
+# grow by the same factor each level.
+#   level <area level> <average points>
+# ---------------------------------------------------------------------------------------------
+level 0  2.5
+level 1  3.5
+level 5  9
+level 10 20
+level 20 42
+level 30 90
+
+# Black and White titans (section 6.3): chance a dungeon has one, by area level, linear between
+# anchors, 0 below the first anchor.
+#   titanchance <area level> <chance>
+titanchance 20 0.10
+titanchance 25 0.20
+titanchance 30 0.30
+set titan_dragon_den_level 25
+set titan_max_per_dungeon  1
+set titan_max_pool_share   0.40
+
+# Bosses (section 6.4).
+set boss_placements_per 15
+set boss_min 1
+set boss_max 4
+set boss_share_min 4
+set boss_share_max 8
+set boss_tier_up 1
+
+# Army shares (section 5.2) and Civil War (section 5.5).
+set army_core_share     0.75
+set army_support_share  0.20
+set army_wildcard_share 0.05
+set army_core_min       1
+set army_core_max       3
+set army_support_min    1
+set army_support_max    3
+set civil_war_settings  5
+set civil_war_min_tier_gap 2
+
+# Uneven split (section 6.2), squads (section 7), themes (section 4.1).
+set split_giant_min 5
+set split_giant_max 10
+set squad_discount 0.5
+set squad_strength 1
+set theme_fitting_settings 9
+set gene_settings 13
+
+# ---------------------------------------------------------------------------------------------
+# Theme table (section 4.1): what each Daggerfall dungeon type leans toward.
+#   theme <DungeonType> kinds=<kinds> classes=<patterns> traits=<traits> size=<..> placement=<..>
+#         awareness=<..> tierlean=<..>
+# Every key is optional. Values are comma separated.
+# ---------------------------------------------------------------------------------------------
+theme Crypt               kinds=Revenant,Archvile,LostSoul awareness=asleep placement=deadends
+theme Cemetery            kinds=Revenant,Archvile,LostSoul awareness=asleep placement=deadends
+theme VampireHaunt        kinds=Spectre,DoomImp classes=RLStealth*,RLNightmareImp traits=stealthy awareness=asleep
+theme Coven               kinds=Archvile,PainElemental traits=summons placement=central
+theme DesecratedTemple    kinds=HellKnight,BaronOfHell placement=garrisoned
+theme DragonsDen          kinds=Cyberdemon,Fatso size=titan placement=central titan=always
+theme VolcanicCaves       kinds=DoomImp,Fatso,Archvile classes=RLNightmareArchvile traits=projectile
+theme SpiderNest          kinds=Arachnotron,SpiderMastermind size=swarm
+theme ScorpionNest        kinds=Arachnotron,SpiderMastermind size=swarm
+theme HarpyNest           kinds=Cacodemon,LostSoul,PainElemental traits=flies placement=vertical
+theme OrcStronghold       kinds=ZombieMan,ShotgunGuy,ChaingunGuy placement=chokepoints awareness=sentries
+theme HumanStronghold     kinds=ZombieMan,ShotgunGuy,ChaingunGuy placement=chokepoints awareness=sentries
+theme BarbarianStronghold kinds=ZombieMan,ShotgunGuy,ChaingunGuy placement=chokepoints awareness=sentries
+theme GiantStronghold     kinds=ZombieMan,ShotgunGuy,ChaingunGuy,BaronOfHell,Fatso placement=chokepoints awareness=sentries
+theme Prison              kinds=ZombieMan,ShotgunGuy,ChaingunGuy,Demon placement=garrisoned awareness=asleep
+theme Laboratory          classes=RLCybernetic*,RLFormerCyborg*,RLTechnophobia* tierlean=Technophobia
+theme Mine                kinds=Demon,Spectre traits=melee placement=scattered
+theme NaturalCave         kinds=Demon,Spectre traits=melee placement=scattered
+theme RuinedCastle        kinds=HellKnight,BaronOfHell,ZombieMan,ShotgunGuy,ChaingunGuy

@@ -1,0 +1,2 @@
+// Test hook: dump the encounter monster pool (zscript/EncounterPoolTest.zs).
+server noarchive bool dd_encounter_pooldump = false;
