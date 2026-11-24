@@ -4,10 +4,10 @@ usage: ledger3.py run NAME [--load] [--notable] | report NAME [FIRST]
 
 Uses card 2's test folder (ledger2.py build / assemble). Route (ledger3.zs), a paired session through the launcher
 with --minimized, starting in town group 7154: kill, wound, drop and take on a street, in a house (the building card 1
-chose, review\\locledger\\interior.json) and in the wilderness south of town; travel 600 tiles away and back; walk back
-into town and into the house; leave, travel away again and save there. A --load run loads that save and visits the
-wilderness spot, the street and the house again. --notable adds UZDoom's -ddlocnotable test hook, which loads the save
-as if it had no world table, so every place can only come back from Daggerfall's ledger.
+chose, review\\locledger\\interior.json) and in the wilderness south of town; travel 600 tiles away, kill overworld
+pack monsters there and come back; walk back into town and into the house; leave, visit the far spot again, and save
+1,200 tiles away. A --load run loads that save and visits the far spot, the wilderness spot, the street and the house
+again. --notable adds UZDoom's -ddlocnotable test hook, which loads the save as if it had no world table, so every place can only come back from Daggerfall's ledger.
 `report NAME` compares the first visit of each place with the second; `report NAME FIRST` compares a load run with
 the first run's first visits. Game data stays outside the repo.
 """
@@ -23,7 +23,7 @@ import ledger2 as l2  # noqa: E402
 
 md, base, pickup, REVIEW = l2.md, l2.base, l2.pickup, l2.REVIEW
 INTERIOR = Path(r"D:\dev\DoomDaggerfall-loop\review\locledger\interior.json")
-PLACES = ("street", "house", "wild")
+PLACES = ("street", "house", "wild", "far")
 
 # md.run with a longer limit: this route visits three places twice and travels four times.
 _source = inspect.getsource(md.run).replace("timeout = 75", "timeout = 150")
@@ -58,6 +58,9 @@ def report(name, first=None):
 if __name__ == "__main__":
     command = sys.argv[1] if len(sys.argv) > 1 else ""
     if command == "run":
+        # location_ledger.assemble copies the converter into card 1's folder; interiors convert at run time, and an
+        # older converter writes interiors without place keys, which the town cache refuses.
+        shutil.copytree(l2.ll.CONVERTER_DIR, REVIEW / "data" / "converter", dirs_exist_ok=True)
         if "--notable" in sys.argv:
             l2.EXTRA_UZ.append("-ddlocnotable")
         load = "--load" in sys.argv

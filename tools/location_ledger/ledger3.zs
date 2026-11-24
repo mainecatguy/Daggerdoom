@@ -2,16 +2,16 @@ version "4.14"
 
 // Location state card 3 route (tools/location_ledger/ledger3.py): the ledger for a town street, a house and the
 // wilderness. Route "first": in the town, kill and wound monsters, drop and take items; the same in a house; walk out
-// of town into the wilderness and do it again; travel far away and back; walk back into town and into the house; leave
-// town, travel far away and save there. Route "load": load that save, go back to the wilderness spot, the street and
-// the house. Every check point prints a signature of the place (each monster, corpse and loose item), so runs compare
-// line by line: wild1/wild2/wild3, street1/street2/street3, house1/house2/house3.
+// of town into the wilderness and do it again; travel 600 tiles away and kill some overworld pack monsters there; come
+// back; walk back into town and into the house; leave town, visit the far spot again, and save 1,200 tiles away. Route
+// "load": load that save, visit the far spot, the wilderness spot, the street and the house. Every check point prints a signature of the place (each monster, corpse and loose item), so runs compare
+// line by line: wild1/2/3, far1/2/3, street1/2/3, house1/2/3.
 class MDState : Inventory
 {
 	Default { Inventory.MaxAmount 1; +INVENTORY.UNDROPPABLE +INVENTORY.UNTOSSABLE }
 	int phase, timer, tries;
 	vector3 street;			// the street spot, town map units
-	vector2 wild;			// the wilderness spot, world Doom units
+	vector2 wild, far;		// the wilderness spot and the far spot, world Doom units
 	int wildTileX, wildTileY;
 	bool houseDone, wildDone;
 }
@@ -23,7 +23,8 @@ class MDHarness : EventHandler
 	const LIMIT = 35 * 25;
 	const HALF = 12288;		// half the overworld window, Doom units
 	const SPACING = 192;	// one tile, Doom units
-	const OUT = 20000;		// how far south of the street the player steps out of town
+	const FARREACH = 10000;	// the far spot's check covers most of the overworld window, where pack monsters stand
+	const STEPOUT = 20000;		// how far south of the street the player steps out of town
 	bool done, loadRoute;
 
 	override void OnRegister() { loadRoute = "@ROUTE@" ~== "load"; }
@@ -129,6 +130,20 @@ class MDHarness : EventHandler
 		Console.Printf("LLFIGHT %s killed %d of %s, %d natives, dropped a Stimpack", where, killed, cls.GetClassName(), natives);
 	}
 
+	static void KillNatives(PlayerPawn p, vector2 at, double reach, int most, String where)
+	{
+		int n = 0;
+		let it = ThinkerIterator.Create("Actor");
+		Actor mo;
+		while (n < most && (mo = Actor(it.Next())))
+			if (Counted(mo) && mo.bISMONSTER && mo.health > 0 && (mo.pos.xy - at).Length() < reach)
+			{
+				mo.DamageMobj(p, p, mo.health + 1000, 'None', DMG_FORCED);
+				n++;
+			}
+		Console.Printf("LLKILLNATIVE %s %d", where, n);
+	}
+
 	static void Place(PlayerPawn p, vector3 at, double yaw)
 	{
 		p.SetOrigin(at, false);
@@ -172,7 +187,7 @@ class MDHarness : EventHandler
 		case 1: // Let drops land, print the street, go to the house.
 		case 21:
 			Freeze(st.street.xy, 1500);
-			if (st.timer < 35) break;
+			if (st.timer < 140) break;	// corpses of forced kills slide and fall for a while
 			Signature(st.phase == 1 ? "street1" : "street2", st.street.xy, 1500, false);
 			Next(st, st.phase + 1);
 			break;
@@ -205,7 +220,7 @@ class MDHarness : EventHandler
 		case 5: // Step out of town to the south, into the wilderness.
 		case 25:
 			if (InWild()) { p.SetOrigin((p.pos.xy, p.floorz), false); p.vel = (0, 0, 0); Next(st, st.phase + 1); break; }
-			if (st.timer % 20 == 5) { st.tries++; Place(p, (st.street.x, st.street.y - OUT * st.tries, st.street.z), 0); }
+			if (st.timer % 20 == 5) { st.tries++; Place(p, (st.street.x, st.street.y - STEPOUT * st.tries, st.street.z), 0); }
 			break;
 		case 6: // In the wilderness: fight once, at the spot where the player landed.
 			if (!InWild() || st.timer < 35) break;
@@ -219,27 +234,51 @@ class MDHarness : EventHandler
 			break;
 		case 7: // Print the wilderness spot, then travel far away.
 			Freeze(ToMap(st.wild), 4096);
-			if (st.timer < 35) break;
+			if (st.timer < 140) break;
 			Signature("wild1", ToMap(st.wild), 4096, true);
 			Warp(st.wildTileX + 600, st.wildTileY);
 			Next(st, 8);
 			break;
-		case 26: // Out of town again: travel far away.
-			if (!InWild() || st.timer < 35) break;
+		case 26: // Out of town again: travel to the far spot again.
+			if (!InWild()) break;
+			Freeze(ToMap(st.wild), 4096);	// the wilderness spot's monsters came back here; they must not walk off before parking
+			if (st.timer < 35) break;
 			Warp(st.wildTileX + 600, st.wildTileY);
 			Next(st, 27);
 			break;
-		case 8: // Far away; then back to the wilderness spot.
-		case 50:
+		case 8: // Far away (first visit): kill some of the overworld pack monsters here (Daggerfall-side seeded ids).
+			if (!InWild() || st.timer < 70) break;
+			st.far = ToWorld(p.pos.xy);
+			KillNatives(p, p.pos.xy, FARREACH, 3, "far");
+			Next(st, 12);
+			break;
+		case 12: // Print the far spot, then back to the wilderness spot.
+			Freeze(ToMap(st.far), FARREACH);
+			if (st.timer < 140) break;
+			Signature("far1", ToMap(st.far), FARREACH, true);
+			Warp(st.wildTileX, st.wildTileY);
+			Next(st, 9);
+			break;
+		case 50: // Loaded: to the far spot first.
 			if (!InWild() || st.timer < 70) break;
 			if (CVar.FindCVar("dd_sync_df_phase").GetInt() != 3 || CVar.FindCVar("dd_ui_test_hold").GetInt() != 0) break;
-			Warp(st.wildTileX, st.wildTileY);
-			Next(st, st.phase + 1);
+			Warp(st.wildTileX + 600, st.wildTileY);
+			Next(st, 56);
+			break;
+		case 27: // The far spot again (second visit, or after the load): print it.
+		case 56:
+			if (!InWild()) break;
+			Freeze(ToMap(st.far), FARREACH);	// from the first tic
+			if (st.timer < 140) break;
+			Signature(st.phase == 27 ? "far2" : "far3", ToMap(st.far), FARREACH, true);
+			if (st.phase == 27) Warp(st.wildTileX + 1200, st.wildTileY);	// the save spot, away from every place checked
+			else Warp(st.wildTileX, st.wildTileY);
+			Next(st, st.phase == 27 ? 28 : 51);
 			break;
 		case 9: // Back in the wilderness: let the chunks come back, print, walk north into town.
 		case 51:
-			if (!InWild() || st.timer < 105) break;
-			Freeze(ToMap(st.wild), 4096);
+			if (!InWild()) break;
+			Freeze(ToMap(st.wild), 4096);	// from the first tic, so what is checked is what came back, not what it did afterwards
 			if (st.timer < 140) break;
 			Signature(st.phase == 9 ? "wild2" : "wild3", ToMap(st.wild), 4096, true);
 			Next(st, st.phase == 9 ? 20 : 30);
@@ -263,9 +302,10 @@ class MDHarness : EventHandler
 			Signature("street3", st.street.xy, 1500, false);
 			Next(st, 52);
 			break;
-		case 27: // Far away after the second visit: save there, so every place lives only in the ledgers.
+		case 28: // Save away from every checked place, so every place lives only in the ledgers.
 			if (!InWild() || st.timer < 70) break;
-			if (st.timer == 70) { Console.Printf("MDSAVE far"); level.MakeAutoSave(); }
+			Console.Printf("MDSAVE away");
+			level.MakeAutoSave();
 			Next(st, 90);
 			break;
 		case 90:
