@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x511cf051cf7eb88fULL
+#define DFB_SCHEMA_HASH 0xa5fe3af5ad3f1edbULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -116,6 +116,11 @@ static_assert((DFB_KIND_MONSTERS_BEGIN) == (51), DFB_STALE);
 static_assert((DFB_KIND_MONSTER) == (52), DFB_STALE);
 static_assert((DFB_KIND_MONSTERS_END) == (53), DFB_STALE);
 static_assert((DFB_KIND_MONSTERS_REQUEST) == (54), DFB_STALE);
+static_assert((DFB_KIND_ENCOUNTER_AREA) == (55), DFB_STALE);
+static_assert((DFB_KIND_ENCOUNTER_TEXT) == (56), DFB_STALE);
+static_assert((DFB_ENCOUNTER_LOCATION_NAME) == (1u), DFB_STALE);
+static_assert((DFB_ENCOUNTER_REGION_NAME) == (2u), DFB_STALE);
+static_assert((DFB_ENCOUNTER_DUNGEON_TYPE) == (3u), DFB_STALE);
 static_assert((DFB_KIND_NPCS_BEGIN) == (60), DFB_STALE);
 static_assert((DFB_KIND_NPC) == (61), DFB_STALE);
 static_assert((DFB_KIND_NPCS_END) == (62), DFB_STALE);
@@ -134,7 +139,7 @@ static_assert((DFB_TOWNSPERSON_TAG) == (7u), DFB_STALE);
 static_assert((DFB_TOWNSPERSON_GUARD) == (1u), DFB_STALE);
 static_assert((DFB_MONSTER_TAG) == (5u), DFB_STALE);
 static_assert((DFB_MONSTER_TAG_SHIFT) == (61u), DFB_STALE);
-static_assert((DFB_MONSTER_MEMBER_BITS) == (8u), DFB_STALE);
+static_assert((DFB_MONSTER_MEMBER_BITS) == (12u), DFB_STALE);
 static_assert((DFB_MONSTER_PLACE) == (1u), DFB_STALE);
 static_assert((DFB_MONSTER_DEAD) == (2u), DFB_STALE);
 static_assert((DFB_ITEM_TAKEN) == (0u), DFB_STALE);
@@ -546,8 +551,42 @@ static_assert(offsetof(dfb_monster, y) == 20, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_monster::y), float>::value, DFB_STALE);
 static_assert(offsetof(dfb_monster, z) == 24, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_monster::z), float>::value, DFB_STALE);
-static_assert(offsetof(dfb_monster, pad) == 28, DFB_STALE);
-static_assert(std::is_same<decltype(dfb_monster::pad), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_monster, enemy_type) == 28, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_monster::enemy_type), int32_t>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_encounter_area) == 48, DFB_STALE);
+static_assert(offsetof(dfb_encounter_area, generation) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_encounter_area::generation), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_encounter_area, map_id) == 4, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_encounter_area::map_id), int32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_encounter_area, dungeon_index) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_encounter_area::dungeon_index), int32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_encounter_area, location_id) == 12, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_encounter_area::location_id), int32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_encounter_area, region_index) == 16, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_encounter_area::region_index), int32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_encounter_area, world_x) == 20, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_encounter_area::world_x), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_encounter_area, world_y) == 24, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_encounter_area::world_y), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_encounter_area, dungeon_type) == 28, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_encounter_area::dungeon_type), int32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_encounter_area, area_level) == 32, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_encounter_area::area_level), int32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_encounter_area, seed_offset) == 36, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_encounter_area::seed_offset), int32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_encounter_area, pad0) == 40, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_encounter_area::pad0), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_encounter_area, pad1) == 44, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_encounter_area::pad1), uint32_t>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_encounter_text) == 48, DFB_STALE);
+static_assert(offsetof(dfb_encounter_text, generation) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_encounter_text::generation), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_encounter_text, field) == 4, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_encounter_text::field), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_encounter_text, text) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_encounter_text::text), char[40]>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_npc) == 16, DFB_STALE);
 static_assert(offsetof(dfb_npc, id) == 0, DFB_STALE);

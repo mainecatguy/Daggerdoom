@@ -1,30 +1,19 @@
 using System;
 
-record EnemyPlacement(double X, double Y, double Z, int Type, ulong Id);
+record EnemyPlacement(double X, double Y, double Z, ulong Hash, int Record, int MobileId);
 
-// One random Doom enemy per Daggerfall enemy placement. The choice is a pure function of the placement's static data, so
-// reconverting, reloading or visiting twice gives the same monster. Types are vanilla doomednums, so mods such as DRLA
-// replace them through their own replacement rules. The roster is Doom II's regular monsters; bosses are left out.
+// Daggerfall enemy placements become invisible encounter markers. Doom's encounter planner decides the monsters at
+// load, so the converter no longer picks any.
 static class EnemyRoster
 {
-    public static readonly int[] Types =
-    {
-        3004, // zombieman
-        9,    // shotgun guy
-        65,   // chaingunner
-        3001, // imp
-        3002, // demon
-        58,   // spectre
-        3006, // lost soul
-        3005, // cacodemon
-        69,   // hell knight
-        3003, // baron of hell
-        66,   // revenant
-        67,   // mancubus
-        68,   // arachnotron
-        71,   // pain elemental
-        64,   // arch-vile
-    };
+    // A marker is a MapSpot (9001, invisible and inert). Its args carry:
+    //   arg0  MarkerMagic, so Doom can tell encounter markers from other map spots;
+    //   arg1  placement hash bits 32 to 48 (the 49 bits a monster id keeps);
+    //   arg2  placement hash bits 0 to 31, as a signed int;
+    //   arg3  the Daggerfall record type: 15 random enemy, 16 fixed enemy;
+    //   arg4  the record's FactionOrMobileId: the fixed enemy's MobileTypes, or the random enemy's data.
+    public const int MarkerMagic = 7365;
+    public const int MarkerType = 9001;
 
     // FNV-1a over the placement's own numbers. Not the converter's grid or scale, so it survives conversion changes.
     // DoomerfallMonsters.PlacementHash in Daggerfall Unity must compute the same value.
@@ -38,8 +27,20 @@ static class EnemyRoster
         return h;
     }
 
-    public static int Pick(ulong hash) => Types[(int)(hash % (ulong)Types.Length)];
+    // 49 placement bits, the part of the hash a monster id keeps (DFB_MONSTER_MEMBER_BITS 12 in the bridge header).
+    public const int MemberBits = 12;
+    public static ulong PlacementBits(ulong hash) => hash & ((1UL << (61 - MemberBits)) - 1);
 
-    // Tag 5, a 53-bit placement hash, and pack member 0. See dfb_monster in the bridge header.
-    public static ulong MonsterId(ulong hash) => (5UL << 61) | ((hash & ((1UL << 53) - 1)) << 8);
+    public static string MarkerThing(EnemyPlacement e, int height)
+    {
+        ulong bits = PlacementBits(e.Hash);
+        int hi = (int)(bits >> 32), lo = unchecked((int)(uint)bits);
+        return FormattableString.Invariant($"thing {{ x = {e.X:F1}; y = {e.Y:F1}; height = {height}.0; type = {MarkerType}; arg0 = {MarkerMagic}; arg1 = {hi}; arg2 = {lo}; arg3 = {e.Record}; arg4 = {e.MobileId}; comment = \"encounter {bits:x13}\"; skill1 = true; skill2 = true; skill3 = true; skill4 = true; skill5 = true; single = true; coop = true; dm = true; }}\n");
+    }
+
+    // A treasure marker: a MapSpot with arg0 TreasureMagic, arg1 the flat archive, arg2 its record. Doom's placer
+    // measures walking distance from each encounter to the nearest one, so bosses can guard treasure.
+    public const int TreasureMagic = 7366;
+    public static string TreasureThing(EnemyPlacement t, int height) =>
+        FormattableString.Invariant($"thing {{ x = {t.X:F1}; y = {t.Y:F1}; height = {height}.0; type = {MarkerType}; arg0 = {TreasureMagic}; arg1 = {t.Record}; arg2 = {t.MobileId}; comment = \"treasure\"; skill1 = true; skill2 = true; skill3 = true; skill4 = true; skill5 = true; single = true; coop = true; dm = true; }}\n");
 }

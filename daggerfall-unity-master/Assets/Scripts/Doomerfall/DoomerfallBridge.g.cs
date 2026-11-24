@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x511cf051cf7eb88fUL;
+        public const ulong SchemaHash = 0xa5fe3af5ad3f1edbUL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -116,6 +116,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_MONSTER = 52;  // DF to UZ; one quest foe to place, or one dead id; payload: dfb_monster
         public const ushort KIND_MONSTERS_END = 53;  // DF to UZ; the list is complete; payload: dfb_world_items
         public const ushort KIND_MONSTERS_REQUEST = 54;  // UZ to DF; send the current list again; payload: dfb_world_items
+        public const ushort KIND_ENCOUNTER_AREA = 55;  // DF to UZ; one per list; payload: dfb_encounter_area
+        public const ushort KIND_ENCOUNTER_TEXT = 56;  // DF to UZ; one name for that list's area; payload: dfb_encounter_text
+        public const uint ENCOUNTER_LOCATION_NAME = 1;  // dfb_encounter_text.field
+        public const uint ENCOUNTER_REGION_NAME = 2;
+        public const uint ENCOUNTER_DUNGEON_TYPE = 3;  // the DFRegion.DungeonTypes name, such as VampireHaunt
         public const ushort KIND_NPCS_BEGIN = 60;  // DF to UZ; starts one full list for an interior; payload: dfb_world_items
         public const ushort KIND_NPC = 61;  // DF to UZ; one NPC present in that interior; payload: dfb_npc
         public const ushort KIND_NPCS_END = 62;  // DF to UZ; the list is complete, and anyone not in it is absent; payload: dfb_world_items
@@ -134,8 +139,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint TOWNSPERSON_GUARD = 1;  // dfb_townsperson.flags: idles with the guard record
         public const uint MONSTER_TAG = 5;
         public const uint MONSTER_TAG_SHIFT = 61;
-        public const uint MONSTER_MEMBER_BITS = 8;
-        public const uint MONSTER_PLACE = 1;  // a living quest foe that Doom must have at this position
+        public const uint MONSTER_MEMBER_BITS = 12;
+        public const uint MONSTER_PLACE = 1;  // a living quest foe's encounter; the id is its leader (member 0), standing at this position
         public const uint MONSTER_DEAD = 2;  // Daggerfall has this id as dead
         public const uint ITEM_TAKEN = 0;  // everything in the pile moved to the player
         public const uint ITEM_PARTIAL = 1;  // some moved; the rest stays in the pile
@@ -246,8 +251,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint TOWNSFOLK_INTERIOR = 1;
 
         // Native size of every generated struct, for the attach check.
-        public static readonly Type[] StructTypes = { typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbWorldContainer), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbInfoRequest), typeof(DfbInfoText), typeof(DfbDoomItem), typeof(DfbItemArt), typeof(DfbClimbUses), typeof(DfbNpcUse), typeof(DfbNpcUseResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbNpc), typeof(DfbTownsfolk), typeof(DfbTownsperson), typeof(DfbTownspersonDeath), typeof(DfbGuardSpawn), typeof(DfbGuardDeath), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
-        public static readonly int[] StructSizes = { 64, 24, 24, 16, 24, 24, 48, 32, 48, 32, 16, 48, 40, 16, 48, 32, 48, 48, 144, 8, 24, 16, 32, 32, 16, 32, 40, 24, 40, 8, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
+        public static readonly Type[] StructTypes = { typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbWorldContainer), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbInfoRequest), typeof(DfbInfoText), typeof(DfbDoomItem), typeof(DfbItemArt), typeof(DfbClimbUses), typeof(DfbNpcUse), typeof(DfbNpcUseResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbEncounterArea), typeof(DfbEncounterText), typeof(DfbNpc), typeof(DfbTownsfolk), typeof(DfbTownsperson), typeof(DfbTownspersonDeath), typeof(DfbGuardSpawn), typeof(DfbGuardDeath), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
+        public static readonly int[] StructSizes = { 64, 24, 24, 16, 24, 24, 48, 32, 48, 32, 16, 48, 40, 16, 48, 32, 48, 48, 144, 8, 24, 16, 32, 32, 48, 48, 16, 32, 40, 24, 40, 8, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
     }
 
     static class DfbBytes
@@ -333,6 +338,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public DfbNpcUseResult npcUseResult;  // NPC_USE_RESULT
         [FieldOffset(16)] public DfbMonsterDeath monsterDeath;  // MONSTER_DEATH
         [FieldOffset(16)] public DfbMonster monster;  // MONSTER
+        [FieldOffset(16)] public DfbEncounterArea encounterArea;  // ENCOUNTER_AREA
+        [FieldOffset(16)] public DfbEncounterText encounterText;  // ENCOUNTER_TEXT
         [FieldOffset(16)] public DfbNpc npc;  // NPC
         [FieldOffset(16)] public DfbTownsfolk townsfolk;  // TOWNSFOLK_BEGIN, TOWNSFOLK_END, TOWNSFOLK_REQUEST
         [FieldOffset(16)] public DfbTownsperson townsperson;  // TOWNSPERSON
@@ -743,7 +750,56 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public float x;
         [FieldOffset(20)] public float y;
         [FieldOffset(24)] public float z;
-        [FieldOffset(28)] public uint pad;
+        [FieldOffset(28)] public int enemyType;  // DFB_MONSTER_PLACE: the quest foe's Daggerfall MobileTypes value
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 48)]
+    struct DfbEncounterArea
+    {
+        [FieldOffset(0)] public uint generation;
+        [FieldOffset(4)] public int mapId;
+        [FieldOffset(8)] public int dungeonIndex;  // fixed index among Daggerfall's dungeons, in region then map table order; seeds the genome
+        [FieldOffset(12)] public int locationId;
+        [FieldOffset(16)] public int regionIndex;
+        [FieldOffset(20)] public float worldX;  // world map position in map pixels
+        [FieldOffset(24)] public float worldY;
+        [FieldOffset(28)] public int dungeonType;  // DFRegion.DungeonTypes
+        [FieldOffset(32)] public int areaLevel;  // Daggerfall's computed area level
+        [FieldOffset(36)] public int seedOffset;  // 0: fixed dungeons
+        [FieldOffset(40)] public uint pad0;
+        [FieldOffset(44)] public uint pad1;
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 48)]
+    struct DfbEncounterText
+    {
+        [FieldOffset(0)] public uint generation;
+        [FieldOffset(4)] public uint field;  // DFB_ENCOUNTER_*
+        [FieldOffset(8)] public ulong text0;  // UTF-8, terminated unless full
+        [FieldOffset(16)] public ulong text1;
+        [FieldOffset(24)] public ulong text2;
+        [FieldOffset(32)] public ulong text3;
+        [FieldOffset(40)] public ulong text4;
+
+        // Copies up to 40 bytes in. The rest of the field becomes zero.
+        public void SetText(byte[] source, int count)
+        {
+            text0 = (ulong)DfbBytes.Read(source, count, 0, 8);
+            text1 = (ulong)DfbBytes.Read(source, count, 8, 8);
+            text2 = (ulong)DfbBytes.Read(source, count, 16, 8);
+            text3 = (ulong)DfbBytes.Read(source, count, 24, 8);
+            text4 = (ulong)DfbBytes.Read(source, count, 32, 8);
+        }
+
+        // Copies all 40 bytes out.
+        public void CopyText(byte[] destination)
+        {
+            DfbBytes.Write(destination, 0, 8, text0);
+            DfbBytes.Write(destination, 8, 8, text1);
+            DfbBytes.Write(destination, 16, 8, text2);
+            DfbBytes.Write(destination, 24, 8, text3);
+            DfbBytes.Write(destination, 32, 8, text4);
+        }
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 16)]

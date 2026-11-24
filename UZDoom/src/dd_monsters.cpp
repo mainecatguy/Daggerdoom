@@ -1,18 +1,26 @@
-// [Doomerfall] Doom's side of monster identity. A generated dungeon's DDMONST lump names each placed
-// monster. Its id lives in AActor::ddRecordId, which already survives door trips and saves. Daggerfall
-// decides what a death means. Nothing here runs without a bridge session and a tagged monster.
+// [Doomerfall] Doom's side of monster identity and encounters. A converted dungeon marks each Daggerfall enemy
+// placement with an invisible encounter marker (a MapSpot whose args carry the placement hash, record type and
+// mobile id; see tools/dungeon_converter/EnemyRoster.cs). On a first visit, Daggerfall's area facts (bridge kinds 55
+// and 56) and the markers become an encounter planner request, and the placer (dd_encounter_placer.cpp) spawns every
+// mook: each placement's leader (member 0) exactly on its marker, the rest spread around it. A monster's id lives in
+// AActor::ddRecordId, which already survives door trips and saves. Daggerfall decides what a death means. Without a
+// bridge session, each marker gets one stock monster so a converted map stays playable.
 
+#include <algorithm>
+#include <chrono>
 #include <cinttypes>
 #include <cstdio>
 #include <cstring>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 #include "../../bridge/doomerfall_bridge.h"
+#include "dd_encounter_placer.h"
+#include "vm.h"
 #include "actor.h"
 #include "c_cvars.h"
 #include "doomstat.h"
-#include "filesystem.h"
 #include "g_levellocals.h"
 #include "gamestate.h"
 #include "m_argv.h"
@@ -27,18 +35,35 @@ namespace
 {
 constexpr int ClaimTics = 35;
 constexpr double ClaimRange = 40;
+constexpr int MarkerMagic = 7365;	// EnemyRoster.MarkerMagic in the converter
+constexpr uint64_t PlacementMask = (uint64_t(1) << (DFB_MONSTER_TAG_SHIFT - DFB_MONSTER_MEMBER_BITS)) - 1;
+constexpr uint64_t MemberMask = (uint64_t(1) << DFB_MONSTER_MEMBER_BITS) - 1;
 
-struct Claim { uint64_t id; DVector3 pos; int deadline; };
-struct Row { uint64_t id; uint32_t state; DVector3 pos; };
+struct Claim { uint64_t id; DVector3 pos; int deadline; int side = -1, stance = 0; };
+struct Row { uint64_t id; uint32_t state; DVector3 pos; int32_t enemyType; };
+struct Marker { uint64_t placement; int record, mobile; DVector3 pos; };
+struct Facts
+{
+	bool have = false;
+	dfb_encounter_area area{};
+	FString location, region, type;
+};
+// One request placement: a map marker, or a living quest foe's encounter from Daggerfall's list.
+struct Placement { uint64_t placement; DVector3 pos; int enemyType; bool quest; };
 
 std::vector<Claim> claims;
 std::vector<Row> incoming, accepted;
+std::vector<Marker> markers;
 std::unordered_set<uint64_t> reported;
+Facts acceptedFacts, incomingFacts, facts;
 uint32_t acceptedGeneration, currentContext;
 int32_t currentTarget = -1;
-bool spaceValid, wantList;
+bool spaceValid, wantList, incomingReady, leadersPending;
+int dungeonMapId = -1;
 
 bool IsMonsterId(uint64_t id) { return (id >> DFB_MONSTER_TAG_SHIFT) == DFB_MONSTER_TAG; }
+uint64_t LeaderId(uint64_t placement) { return (uint64_t(DFB_MONSTER_TAG) << DFB_MONSTER_TAG_SHIFT) | ((placement & PlacementMask) << DFB_MONSTER_MEMBER_BITS); }
+uint64_t PlacementOf(uint64_t id) { return (id >> DFB_MONSTER_MEMBER_BITS) & PlacementMask; }
 
 void SendRequest(dfb_session *session)
 {
@@ -56,6 +81,17 @@ AActor *FindById(FLevelLocals *Level, uint64_t id)
 	while (AActor *mo = it.Next())
 		if (mo->ddRecordId == id) return mo;
 	return nullptr;
+}
+
+// Card 6: joins a Civil War army (CivilWar.zs). side < 0 is a united dungeon, which is left exactly as it was.
+void RigFaction(AActor *mo, int side, int stance)
+{
+	if (side < 0 || !mo) return;
+	VMFunction *func = nullptr;
+	PClass::FindFunction(&func, "DoomerfallCivilWar", "Rig");
+	if (!func) return;
+	VMValue params[] = { mo, side, stance };
+	VMCall(func, params, 3, nullptr, 0);
 }
 
 // A replacement such as DRLA's can appear a few tics after the thing that named it, so claims wait.
@@ -80,6 +116,7 @@ void RunClaims(FLevelLocals *Level)
 		if (best)
 		{
 			best->ddRecordId = c.id;
+			RigFaction(best, c.side, c.stance);
 			Printf("DDMON claimed %016" PRIx64 " %s at %.1f,%.1f,%.1f\n", c.id, best->GetClass()->TypeName.GetChars(), best->X(), best->Y(), best->Z());
 			claims.erase(claims.begin() + n);
 		}
@@ -92,39 +129,163 @@ void RunClaims(FLevelLocals *Level)
 	}
 }
 
-void PlaceQuestFoe(FLevelLocals *Level, const Row &r)
+// The stock fallback: Doom II's regular monsters, picked by the placement hash. Mods replace them through their own rules.
+PClassActor *RosterClass(uint64_t placement)
 {
 	static const char *const roster[] = { "ZombieMan", "ShotgunGuy", "ChaingunGuy", "DoomImp", "Demon", "Spectre", "LostSoul", "Cacodemon",
 		"HellKnight", "BaronOfHell", "Revenant", "Fatso", "Arachnotron", "PainElemental", "Archvile" };
-	for (const Claim &c : claims) if (c.id == r.id) return;
-	if (FindById(Level, r.id)) return;
-	PClassActor *cls = PClass::FindActor(roster[(r.id >> DFB_MONSTER_MEMBER_BITS) % countof(roster)]);
-	if (!cls) return;
-	// Member offsets keep several foes on one marker from starting stuck inside each other.
-	const int member = int(r.id & 0xff);
-	const DVector3 at(r.pos.X + (member % 3) * 48.0, r.pos.Y + (member / 3) * 48.0, r.pos.Z + 4);
-	if (!Spawn(Level, cls, at, ALLOW_REPLACE)) return;
-	claims.push_back({ r.id, at, Level->maptime + ClaimTics });
-	Printf("DDMON quest foe %016" PRIx64 " placed at %.1f,%.1f,%.1f\n", r.id, at.X, at.Y, at.Z);
+	return PClass::FindActor(roster[placement % countof(roster)]);
+}
+
+// Spawns one mook on its point. A spawned monster takes its id at once; a spawner (such as DRLA's) is claimed.
+AActor *SpawnMook(FLevelLocals *Level, PClassActor *cls, uint64_t id, const DVector3 &at, bool replace, int side = -1, int stance = 0)
+{
+	if (!cls) return nullptr;
+	AActor *mo = Spawn(Level, cls, at, replace ? ALLOW_REPLACE : NO_REPLACE);
+	if (!mo) return nullptr;
+	if ((mo->flags3 & MF3_ISMONSTER) && !mo->ddRecordId) { mo->ddRecordId = id; RigFaction(mo, side, stance); }
+	else claims.push_back({ id, at, Level->maptime + ClaimTics, side, stance });
+	return mo;
+}
+
+bool SpawnLeader(FLevelLocals *Level, PClassActor *cls, uint64_t id, const DVector3 &at, bool replace, const char *why)
+{
+	if (!SpawnMook(Level, cls, id, at, replace)) return false;
+	Printf("DDENC leader %016" PRIx64 " %s at %.1f,%.1f,%.1f (%s)\n", id, cls->TypeName.GetChars(), at.X, at.Y, at.Z, why);
+	return true;
+}
+
+void CollectMarkers(FLevelLocals *Level)
+{
+	markers.clear();
+	PClassActor *spot = PClass::FindActor("MapSpot");
+	auto it = Level->GetThinkerIterator<AActor>();
+	while (AActor *mo = it.Next())
+	{
+		if (!spot || mo->GetClass() != spot || mo->args[0] != MarkerMagic) continue;
+		const uint64_t placement = ((uint64_t(uint32_t(mo->args[1])) << 32) | uint32_t(mo->args[2])) & PlacementMask;
+		markers.push_back({ placement, mo->args[3], mo->args[4], mo->Pos() });
+	}
+	std::sort(markers.begin(), markers.end(), [](const Marker &a, const Marker &b) { return a.placement < b.placement; });
+}
+
+// Plans and places every mook (dd_encounter_placer.cpp). False when the planner or the facts are missing.
+bool PlaceMooks(FLevelLocals *Level, const std::vector<Placement> &list, std::vector<DDEncMookOut> &mooks)
+{
+	if (!facts.have) return false;
+	const dfb_encounter_area &a = facts.area;
+	FString header;
+	header.AppendFormat("area\t%d\t%d\t%d\t%.3f\t%.3f\t%s\t%d\t%d\n", a.dungeon_index, a.location_id, a.region_index, a.world_x, a.world_y,
+		facts.type.GetChars(), a.area_level, a.seed_offset);
+	header.AppendFormat("location\t%s\nregion\t%s\n", facts.location.GetChars(), facts.region.GetChars());
+	std::vector<DDEncPlacementIn> in;
+	for (const Placement &p : list) in.push_back({ p.placement, p.pos, p.enemyType, p.quest });
+	if (!DD_PlaceEncounters(Level, header, in, mooks)) return false;
+	int mismatched = 0;
+	for (const DDEncMookOut &m : mooks)
+		mismatched += m.member == 0 && m.id != LeaderId(list[m.placement].placement);
+	if (mismatched) Printf("DDENC warning: %d leader ids from the plan differ from the placement ids\n", mismatched);
+	return true;
+}
+
+// Builds the request from the markers and the quest foes, plans and places every mook, then spawns the ones that are
+// missing and not dead. Map encounters are spawned once, on a first visit; quest foe encounters whenever Daggerfall
+// lists their leader alive and it is missing.
+void SpawnEncounters(FLevelLocals *Level, bool mapLeaders)
+{
+	std::unordered_set<uint64_t> dead, present;
+	std::vector<Placement> list;
+	for (const Marker &m : markers) list.push_back({ m.placement, m.pos, m.record == 16 ? (m.mobile & 0xff) : -1, false });
+	int quests = 0;
+	for (const Row &r : incoming)
+	{
+		if (r.state == DFB_MONSTER_DEAD) dead.insert(r.id);
+		else if (r.state == DFB_MONSTER_PLACE && (r.id & MemberMask) == 0) { list.push_back({ PlacementOf(r.id), r.pos, r.enemyType, true }); quests++; }
+	}
+	std::sort(list.begin() + markers.size(), list.end(), [](const Placement &a, const Placement &b) { return a.placement < b.placement; });
+	{
+		auto it = Level->GetThinkerIterator<AActor>();
+		while (AActor *mo = it.Next()) if (IsMonsterId(mo->ddRecordId)) present.insert(mo->ddRecordId);
+		for (const Claim &c : claims) present.insert(c.id);
+	}
+	bool needed = false;
+	for (size_t i = 0; i < list.size(); i++)
+		needed |= (mapLeaders || list[i].quest) && !dead.count(LeaderId(list[i].placement)) && !present.count(LeaderId(list[i].placement));
+	if (mapLeaders && facts.have)
+	{
+		const dfb_encounter_area &a = facts.area;
+		Printf("DDENC facts map %d dungeonIndex %d locationId %d name '%s' region %d '%s' world %.1f,%.1f type %d (%s) areaLevel %d seedOffset %d markers %d quest %d dead %d\n",
+			a.map_id, a.dungeon_index, a.location_id, facts.location.GetChars(), a.region_index, facts.region.GetChars(), a.world_x, a.world_y,
+			a.dungeon_type, facts.type.GetChars(), a.area_level, a.seed_offset, int(markers.size()), quests, int(dead.size()));
+	}
+	if (!needed) return;
+	std::vector<DDEncMookOut> mooks;
+	const auto t0 = std::chrono::steady_clock::now();
+	if (!PlaceMooks(Level, list, mooks))
+	{
+		Printf("DDENC no plan (planner or facts missing); using the stock roster\n");
+		int spawned = 0;
+		for (const Placement &p : list)
+		{
+			const uint64_t id = LeaderId(p.placement);
+			if ((mapLeaders || p.quest) && !dead.count(id) && !present.count(id))
+				spawned += SpawnLeader(Level, RosterClass(p.placement), id, p.pos, true, p.quest ? "quest roster" : "roster");
+		}
+		Printf("DDENC spawned %d stock leaders of %d placements\n", spawned, int(list.size()));
+		return;
+	}
+	// A quest foe's encounter comes back whole only when its leader is missing; its followers are skipped by id.
+	std::unordered_set<uint64_t> wanted;
+	for (const Placement &p : list)
+		if ((mapLeaders || p.quest) && !dead.count(LeaderId(p.placement)) && !present.count(LeaderId(p.placement))) wanted.insert(p.placement);
+	int spawned = 0, leaders = 0, skippedDead = 0, skippedPresent = 0, stuck = 0, stuckLeaders = 0, warSide[2] = { 0, 0 }, warStance[2] = { 0, 0 };
+	for (const DDEncMookOut &m : mooks) if (m.side >= 0) warStance[m.side & 1] = m.stance;
+	std::vector<std::pair<AActor *, bool>> fresh;
+	for (const DDEncMookOut &m : mooks)
+	{
+		const Placement &p = list[m.placement];
+		if (!wanted.count(p.placement)) continue;
+		if (dead.count(m.id)) { skippedDead++; continue; }
+		if (present.count(m.id)) { skippedPresent++; continue; }
+		AActor *mo = SpawnMook(Level, m.cls, m.id, m.pos, false, m.side, m.stance);
+		if (!mo) continue;
+		spawned++;
+		if (m.side >= 0) warSide[m.side & 1]++;
+		leaders += m.member == 0;
+		fresh.push_back({ mo, m.member == 0 });
+		if (m.member == 0)
+			Printf("DDENC leader %016" PRIx64 " %s at %.1f,%.1f,%.1f%s\n", m.id, m.cls->TypeName.GetChars(), mo->X(), mo->Y(), mo->Z(), p.quest ? " (quest)" : "");
+	}
+	// Stuck: a spawned monster that Doom's own check says does not fit where it stands.
+	for (auto &f : fresh)
+		if (!(f.first->ObjectFlags & OF_EuthanizeMe) && !P_TestMobjLocation(f.first)) { stuck++; stuckLeaders += f.second; }
+	const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+	Printf("DDENC spawned %d mooks (%d leaders) of %d placements (%d dead, %d already present), stuck %d (%d leaders), %.1f ms with spawning%s\n",
+		spawned, leaders, int(list.size()), skippedDead, skippedPresent, stuck, stuckLeaders, ms, mapLeaders ? "" : ", quest foes only");
+	if (warSide[0] + warSide[1])
+		Printf("DDWAR civil war: army A %d mooks stance %d, army B %d mooks stance %d\n", warSide[0], warStance[0], warSide[1], warStance[1]);
 }
 
 void ApplyRows(FLevelLocals *Level)
 {
+	if (!incomingReady) return;
+	incomingReady = false;
+	facts = incomingFacts;
+	const bool mapLeaders = leadersPending && facts.have && facts.area.map_id == dungeonMapId;
+	if (mapLeaders) leadersPending = false;
+	SpawnEncounters(Level, mapLeaders);
 	for (const Row &r : incoming)
 	{
-		if (r.state == DFB_MONSTER_PLACE) PlaceQuestFoe(Level, r);
-		else if (!reported.count(r.id))
+		if (r.state != DFB_MONSTER_DEAD || reported.count(r.id)) continue;
+		// Daggerfall has it dead and this session did not kill it, so a mismatched state must not revive it.
+		AActor *mo = FindById(Level, r.id);
+		if (mo && mo->health > 0)
 		{
-			// Daggerfall has it dead and this session did not kill it, so a mismatched state must not revive it.
-			AActor *mo = FindById(Level, r.id);
-			if (mo && mo->health > 0)
-			{
-				Printf("DDMON removed %016" PRIx64 ", which Daggerfall has as dead\n", r.id);
-				mo->Destroy();
-			}
-			for (size_t n = 0; n < claims.size(); n++)
-				if (claims[n].id == r.id) { claims.erase(claims.begin() + n); break; }
+			Printf("DDMON removed %016" PRIx64 ", which Daggerfall has as dead\n", r.id);
+			mo->Destroy();
 		}
+		for (size_t n = 0; n < claims.size(); n++)
+			if (claims[n].id == r.id) { claims.erase(claims.begin() + n); break; }
 	}
 	incoming.clear();
 }
@@ -150,29 +311,38 @@ void RunTestKill(FLevelLocals *Level)
 	Printf("DDMON test kill %016" PRIx64 " %s at %.1f,%.1f,%.1f floor %.1f ceiling %.1f\n", pick->ddRecordId, pick->GetClass()->TypeName.GetChars(), pick->X(), pick->Y(), pick->Z(), pick->floorz, pick->ceilingz);
 	P_DamageMobj(pick, Level->Players[consoleplayer]->mo, Level->Players[consoleplayer]->mo, pick->health + 1000, NAME_None, DMG_FORCED);
 }
+
+FString PayloadText(const char *text, size_t size)
+{
+	size_t n = 0;
+	while (n < size && text[n]) n++;
+	return FString(text, n);
+}
 }
 
-// Called when a dungeon starts. On a first visit, every placed monster gets its id.
+// Called when a dungeon starts. The map's markers are read on every visit, so the request stays the same; leaders
+// are spawned only on a first visit, once Daggerfall's facts arrive.
 void DD_MonstersEnterDungeon(FLevelLocals *Level, int mapId, bool firstVisit, bool bridged)
 {
 	claims.clear();
-	if (!bridged || !firstVisit) return;
-	int last = 0, lump, rows = 0;
-	while ((lump = fileSystem.FindLump("DDMONST", &last)) >= 0)
-	{
-		auto data = fileSystem.ReadFile(lump);
-		FString text((const char *)data.data(), data.size());
-		for (auto &line : text.Split("\n"))
-		{
-			int rowMap;
-			uint64_t id;
-			double x, y, z;
-			if (sscanf(line.GetChars(), "%d %" SCNx64 " %lf %lf %lf", &rowMap, &id, &x, &y, &z) != 5 || rowMap != mapId) continue;
-			claims.push_back({ id, DVector3(x, y, z), Level->maptime + ClaimTics });
-			rows++;
-		}
-	}
-	Printf("DDMON dungeon %d has %d placements\n", mapId, rows);
+	dungeonMapId = mapId;
+	CollectMarkers(Level);
+	leadersPending = bridged && firstVisit;
+	Printf("DDMON dungeon %d has %d encounter markers%s\n", mapId, int(markers.size()), firstVisit ? ", first visit" : "");
+	if (bridged || !firstVisit) return;
+	int spawned = 0;
+	for (const Marker &m : markers)
+		spawned += SpawnLeader(Level, RosterClass(m.placement), LeaderId(m.placement), m.pos, true, "no bridge, roster");
+	Printf("DDENC spawned %d stock leaders without a bridge\n", spawned);
+}
+
+// Test only (dd_encounter_test.cpp, -ddenctest): plans and spawns this map's encounters from given facts.
+void DD_MonstersTestEncounters(FLevelLocals *Level, const dfb_encounter_area &a, const char *location, const char *region, const char *type)
+{
+	facts = Facts{ true, a, location, region, type };
+	claims.clear();	// the no-bridge roster's spawner claims, which only a bridge tick resolves
+	CollectMarkers(Level);
+	SpawnEncounters(Level, true);
 }
 
 void DD_MonstersTick(FLevelLocals *Level)
@@ -192,6 +362,25 @@ bool DD_MonstersEvent(const dfb_event &e)
 		memcpy(&b, e.payload, sizeof(b));
 		acceptedGeneration = spaceValid && b.context == currentContext && b.target == currentTarget ? b.generation : 0;
 		accepted.clear();
+		acceptedFacts = Facts();
+		return true;
+	}
+	case DFB_KIND_ENCOUNTER_AREA:
+	{
+		dfb_encounter_area a;
+		memcpy(&a, e.payload, sizeof(a));
+		if (acceptedGeneration && a.generation == acceptedGeneration) { acceptedFacts.area = a; acceptedFacts.have = true; }
+		return true;
+	}
+	case DFB_KIND_ENCOUNTER_TEXT:
+	{
+		dfb_encounter_text t;
+		memcpy(&t, e.payload, sizeof(t));
+		if (!acceptedGeneration || t.generation != acceptedGeneration) return true;
+		const FString text = PayloadText(t.text, sizeof(t.text));
+		if (t.field == DFB_ENCOUNTER_LOCATION_NAME) acceptedFacts.location = text;
+		else if (t.field == DFB_ENCOUNTER_REGION_NAME) acceptedFacts.region = text;
+		else if (t.field == DFB_ENCOUNTER_DUNGEON_TYPE) acceptedFacts.type = text;
 		return true;
 	}
 	case DFB_KIND_MONSTER:
@@ -199,14 +388,19 @@ bool DD_MonstersEvent(const dfb_event &e)
 		dfb_monster m;
 		memcpy(&m, e.payload, sizeof(m));
 		if (acceptedGeneration && m.generation == acceptedGeneration)
-			accepted.push_back({ m.id, m.state, DVector3(m.x, m.y, m.z) });
+			accepted.push_back({ m.id, m.state, DVector3(m.x, m.y, m.z), m.enemy_type });
 		return true;
 	}
 	case DFB_KIND_MONSTERS_END:
 	{
 		dfb_world_items b;
 		memcpy(&b, e.payload, sizeof(b));
-		if (acceptedGeneration && b.generation == acceptedGeneration) incoming = accepted;
+		if (acceptedGeneration && b.generation == acceptedGeneration)
+		{
+			incoming = accepted;
+			incomingFacts = acceptedFacts;
+			incomingReady = true;
+		}
 		return true;
 	}
 	default:
@@ -224,6 +418,7 @@ void DD_MonstersFrame(dfb_session *session, uint32_t context, bool inSpace, int3
 		acceptedGeneration = 0;
 		accepted.clear();
 		incoming.clear();
+		incomingReady = false;
 		wantList = inSpace && context == DFB_WORLD_DUNGEON;
 	}
 	if (wantList && gamestate == GS_LEVEL)
@@ -233,12 +428,14 @@ void DD_MonstersFrame(dfb_session *session, uint32_t context, bool inSpace, int3
 	}
 }
 
-// A load replaced every actor, so what this session reported no longer describes them.
+// A load replaced every actor, so what this session reported no longer describes them. A restored level already
+// has its leaders, and SpawnEncounters never doubles one that is present.
 void DD_MonstersResync()
 {
 	reported.clear();
 	claims.clear();
 	incoming.clear();
+	incomingReady = false;
 	wantList = spaceValid && currentContext == DFB_WORLD_DUNGEON;
 }
 

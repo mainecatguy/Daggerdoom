@@ -1,8 +1,10 @@
 // Doomerfall: Daggerfall's side of monster deaths. Runs only in a bridge session.
 //
-// A monster id is tag (3 bits, value 5) | placement hash (53) | pack member (8). Doom reports each death once
-// per id. This ledger makes it count once across saves, loads, and re-entry. It updates the quest foe, rolls
-// the drop with Daggerfall's loot tables, and keeps the drop so a rebuilt dungeon can show it again.
+// A monster id is tag (3 bits, value 5) | placement hash (49) | pack member (12). Each Daggerfall enemy is one
+// encounter, and its leader is member 0. Doom reports each death once per id. This ledger makes it count once across
+// saves, loads, and re-entry, so every dead mook stays dead. Only a leader's death is the Daggerfall enemy's death: it
+// updates the quest foe, rolls the drop with Daggerfall's loot tables, and keeps the drop so a rebuilt dungeon can show
+// it again. Each monster list also carries the area facts Doom's encounter planner needs.
 
 using System;
 using System.Collections.Generic;
@@ -10,6 +12,8 @@ using System.IO;
 using System.Reflection;
 using System.Text;
 using DaggerfallConnect;
+using DaggerfallConnect.Arena2;
+using DaggerfallConnect.Utility;
 using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop.Game.Items;
 using DaggerfallWorkshop.Game.Questing;
@@ -26,8 +30,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         const float PollSeconds = 0.25f;
         const float DoomPerDaggerfall = 0.75f;
         const float PopupSeconds = 4f;
+        const float FoeMemberSpacing = 48f;   // Doom units between a quest foe's members
         const string LedgerFile = "DoomerfallMonsters.json";
-        const ulong PlacementMask = (1UL << 53) - 1;
+        const ulong PlacementMask = (1UL << (int)(Dfb.MONSTER_TAG_SHIFT - Dfb.MONSTER_MEMBER_BITS)) - 1;
+        const ulong MemberMask = (1UL << (int)Dfb.MONSTER_MEMBER_BITS) - 1;
         const int RandomEnemyRecord = 15, FixedEnemyRecord = 16, EditorArchive = 199;
 
         public sealed class Death
@@ -52,6 +58,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         readonly HashSet<ulong> piled = new HashSet<ulong>();
         readonly List<DfbMonster> rows = new List<DfbMonster>();
         int placementsMap = -1, placementsLevel = 1, lastSpace;
+        DfbEncounterArea area;
+        string areaLocation = string.Empty, areaRegion = string.Empty, areaType = string.Empty;
+        static int[][] dungeonPrefix;   // per region, the dungeon index of each map table entry
         uint generation;
         ulong lastHash;
         bool resend;
@@ -130,7 +139,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         static ulong MakeId(ulong hash, int member)
         {
-            return ((ulong)Dfb.MONSTER_TAG << (int)Dfb.MONSTER_TAG_SHIFT) | ((hash & PlacementMask) << (int)Dfb.MONSTER_MEMBER_BITS) | (uint)(member & 0xff);
+            return ((ulong)Dfb.MONSTER_TAG << (int)Dfb.MONSTER_TAG_SHIFT) | ((hash & PlacementMask) << (int)Dfb.MONSTER_MEMBER_BITS) | ((ulong)member & MemberMask);
         }
 
         static ulong FoeHash(ulong questUid, string symbol)
@@ -141,6 +150,20 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             h ^= h >> 32;
             h *= 0x9E3779B97F4A7C15UL;
             return h ^ (h >> 29);
+        }
+
+        // One encounter per quest foe member, so a foe with several members has one leader per member.
+        static ulong FoeMemberHash(ulong foeHash, int member)
+        {
+            ulong h = Mix(foeHash, member);
+            h ^= h >> 32;
+            h *= 0x9E3779B97F4A7C15UL;
+            return h ^ (h >> 29);
+        }
+
+        static bool IsLeader(ulong id)
+        {
+            return (id & MemberMask) == 0;
         }
 
         static string Key(ulong id)
@@ -231,7 +254,59 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     }
                 }
             }
+            BuildArea(location, dungeon.Summary.DungeonType, areaLevel);
             bridge.LogLine(string.Format("monsters: {0} has {1} placements at area level {2} ({3})", location.Name, placements.Count, areaLevel, DoomerfallAreaLevels.Status()));
+            bridge.LogLine(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "encounters: facts map {0} dungeonIndex {1} locationId {2} name '{3}' region {4} '{5}' world {6:F1},{7:F1} type {8} ({9}) areaLevel {10} seedOffset {11}",
+                area.mapId, area.dungeonIndex, area.locationId, areaLocation, area.regionIndex, areaRegion, area.worldX, area.worldY,
+                area.dungeonType, areaType, area.areaLevel, area.seedOffset));
+        }
+
+        void BuildArea(DFLocation location, DFRegion.DungeonTypes type, int areaLevel)
+        {
+            DFPosition pixel = MapsFile.LongitudeLatitudeToMapPixel(location.MapTableData.Longitude, location.MapTableData.Latitude);
+            area = new DfbEncounterArea
+            {
+                mapId = location.MapTableData.MapId,
+                dungeonIndex = DungeonIndex(location.RegionIndex, location.LocationIndex),
+                locationId = location.Dungeon.RecordElement.Header.LocationId,
+                regionIndex = location.RegionIndex,
+                worldX = pixel.X + 0.5f,
+                worldY = pixel.Y + 0.5f,
+                dungeonType = (int)type,
+                areaLevel = areaLevel,
+                seedOffset = 0,
+            };
+            areaLocation = location.Name ?? string.Empty;
+            areaRegion = location.RegionName ?? string.Empty;
+            areaType = type.ToString();
+        }
+
+        // Counts the map table entries with a dungeon, region by region in file order. Built once per run.
+        int DungeonIndex(int region, int index)
+        {
+            MapsFile maps = DaggerfallUnity.Instance.ContentReader.MapFileReader;
+            if (dungeonPrefix == null)
+            {
+                dungeonPrefix = new int[maps.RegionCount][];
+                int total = 0;
+                for (int r = 0; r < maps.RegionCount; r++)
+                {
+                    DFRegion data = maps.GetRegion(r);
+                    int count = data.MapTable != null ? data.MapTable.Length : 0;
+                    dungeonPrefix[r] = new int[count];
+                    for (int i = 0; i < count; i++)
+                    {
+                        dungeonPrefix[r][i] = total;
+                        if (data.MapTable[i].DungeonType != DFRegion.DungeonTypes.NoDungeon)
+                            total++;
+                    }
+                }
+                bridge.LogLine("encounters: " + total + " dungeons in the map tables");
+            }
+            if (region < 0 || region >= dungeonPrefix.Length || index < 0 || index >= dungeonPrefix[region].Length)
+                return -1;
+            return dungeonPrefix[region][index];
         }
 
         // Every foe assigned to a marker in this dungeon, by id.
@@ -269,17 +344,27 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
         }
 
-        Foe FindFoe(ulong id)
+        // The quest foe whose encounter this mook belongs to, and which foe member that encounter stands for.
+        Foe FindFoe(ulong id, out int foeMember)
         {
             ulong want = (id >> (int)Dfb.MONSTER_MEMBER_BITS) & PlacementMask;
+            foeMember = 0;
             foreach (ulong uid in QuestMachine.Instance.GetAllActiveQuests())
             {
                 Quest quest = QuestMachine.Instance.GetQuest(uid);
                 if (quest == null)
                     continue;
                 foreach (QuestResource resource in quest.GetAllResources(typeof(Foe)))
-                    if ((FoeHash(uid, resource.Symbol.Name) & PlacementMask) == want)
-                        return (Foe)resource;
+                {
+                    Foe foe = (Foe)resource;
+                    ulong hash = FoeHash(uid, foe.Symbol.Name);
+                    for (int member = 0; member < Math.Max(1, foe.SpawnCount); member++)
+                        if ((FoeMemberHash(hash, member) & PlacementMask) == want)
+                        {
+                            foeMember = member;
+                            return foe;
+                        }
+                }
             }
             return null;
         }
@@ -295,9 +380,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 Vector3 local = new Vector3(marker.dungeonX * RDBLayout.RDBSide, 0, marker.dungeonZ * RDBLayout.RDBSide) + marker.flatPosition;
                 for (int member = 0; member < foe.SpawnCount; member++)
                 {
-                    ulong id = MakeId(hash, member);
+                    ulong id = MakeId(FoeMemberHash(hash, member), 0);   // the leader of this member's encounter
+                    // Member 0 stands on the marker. Later members keep the old 48-unit grid offsets, so leaders of
+                    // one foe do not start stuck inside each other.
+                    float dx = (member % 3) * FoeMemberSpacing, dy = (member / 3) * FoeMemberSpacing;
                     if (!ledger.deaths.ContainsKey(Key(id)))
-                        rows.Add(new DfbMonster { id = id, state = Dfb.MONSTER_PLACE, x = local.x * units, y = local.z * units, z = local.y * units });
+                        rows.Add(new DfbMonster { id = id, state = Dfb.MONSTER_PLACE, x = local.x * units + dx, y = local.z * units + dy, z = local.y * units, enemyType = (int)foe.FoeType });
                 }
             });
             foreach (KeyValuePair<string, Death> death in ledger.deaths)
@@ -320,6 +408,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             e.worldItems.target = peer.spaceTarget;
             e.worldItems.count = (uint)rows.Count;
             bridge.Send(ref e);
+            DfbEvent facts = default(DfbEvent);
+            facts.kind = Dfb.KIND_ENCOUNTER_AREA;
+            facts.tic = (uint)Time.frameCount;
+            facts.encounterArea = area;
+            facts.encounterArea.generation = generation;
+            bridge.Send(ref facts);
+            SendText(Dfb.ENCOUNTER_LOCATION_NAME, areaLocation);
+            SendText(Dfb.ENCOUNTER_REGION_NAME, areaRegion);
+            SendText(Dfb.ENCOUNTER_DUNGEON_TYPE, areaType);
             foreach (DfbMonster row in rows)
             {
                 DfbEvent item = default(DfbEvent);
@@ -332,6 +429,21 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             e.kind = Dfb.KIND_MONSTERS_END;
             bridge.Send(ref e);
             bridge.LogLine(string.Format("monsters: list {0} has {1} rows for target {2}", generation, rows.Count, peer.spaceTarget));
+        }
+
+        void SendText(uint field, string text)
+        {
+            DfbEvent e = default(DfbEvent);
+            e.kind = Dfb.KIND_ENCOUNTER_TEXT;
+            e.tic = (uint)Time.frameCount;
+            e.encounterText.generation = generation;
+            e.encounterText.field = field;
+            byte[] bytes = Encoding.UTF8.GetBytes(text);
+            int count = Math.Min(bytes.Length, 40);
+            while (count > 0 && count < bytes.Length && (bytes[count] & 0xC0) == 0x80)
+                count--;    // never cut a character in half
+            e.encounterText.SetText(bytes, count);
+            bridge.Send(ref e);
         }
 
         internal void OnDeath(ulong id, int target, float x, float y, float z)
@@ -349,14 +461,23 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 y = Mathf.RoundToInt(y / DoomPerDaggerfall),
                 z = Mathf.RoundToInt(z / DoomPerDaggerfall),
             };
-            Foe foe = FindFoe(id);
+            if (!IsLeader(id))
+            {
+                // A follower: recorded only so it stays dead. It rolls no drop and is not the Daggerfall enemy.
+                ledger.deaths[key].rolled = true;
+                bridge.LogLine(string.Format("monsters: death {0} target {1}, follower {2}, recorded only", key, target, id & MemberMask));
+                resend = true;
+                return;
+            }
+            int foeMember;
+            Foe foe = FindFoe(id, out foeMember);
             if (foe != null)
             {
                 foe.SetInjured();
                 foe.IncrementKills();
                 popupUntil = Time.unscaledTime + PopupSeconds;
             }
-            bridge.LogLine(string.Format("monsters: death {0} target {1}, quest foe {2}, kills {3}", key, target, foe != null ? foe.Symbol.Name : "none", foe != null ? foe.KillCount : 0));
+            bridge.LogLine(string.Format("monsters: death {0} target {1}, leader, quest foe {2}, kills {3}", key, target, foe != null ? foe.Symbol.Name : "none", foe != null ? foe.KillCount : 0));
             resend = true;
         }
 
@@ -393,13 +514,16 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             death.rolled = true;
             MobileTypes type = MobileTypes.None;
             DaggerfallUnityItem[] queued = null;
-            Foe foe = FindFoe(id);
+            if (!IsLeader(id))
+                return;     // Followers never roll; only the leader is the Daggerfall enemy.
+            int foeMember;
+            Foe foe = FindFoe(id, out foeMember);
             int lootSeed;
             if (foe != null)
             {
                 type = foe.FoeType;
                 queued = foe.GetClonedItemQueue();
-                lootSeed = QuestFoeLootSeed(death.mapId, foe, id);
+                lootSeed = QuestFoeLootSeed(death.mapId, foe, foeMember);
             }
             else
             {
@@ -414,11 +538,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         }
 
         // A quest's UID differs in every save, so a foe's loot seed uses the dungeon, the quest's name, the foe's
-        // symbol, and the pack member instead.
-        static int QuestFoeLootSeed(int mapId, Foe foe, ulong id)
+        // symbol, and the foe member instead.
+        static int QuestFoeLootSeed(int mapId, Foe foe, int foeMember)
         {
             string quest = foe.ParentQuest != null ? foe.ParentQuest.QuestName : string.Empty;
-            return LootSeed.Of(LootSeed.QuestFoe, quest + "/" + foe.Symbol.Name, mapId, (long)(id & 0xff));
+            return LootSeed.Of(LootSeed.QuestFoe, quest + "/" + foe.Symbol.Name, mapId, foeMember);
         }
 
         // Test only: starts a real quest whose random dungeon resolves to the one at this location.

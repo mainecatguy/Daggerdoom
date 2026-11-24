@@ -63,9 +63,9 @@ static partial class Program
     static readonly List<HangingCut> hanging = new List<HangingCut>();
     static readonly List<DoorInfo> doors = new List<DoorInfo>();
     static readonly List<EnemyPlacement> enemyPlacements = new List<EnemyPlacement>();
-    static readonly StringBuilder monsterIds = new StringBuilder(); // DDMONST: map id, monster id, and the thing's position.
+    static readonly List<EnemyPlacement> treasurePlacements = new List<EnemyPlacement>();
     static int enemiesSkipped, currentMapId;
-    const int RandomEnemyRecord = 15, FixedEnemyRecord = 16;
+    const int RandomEnemyRecord = 15, FixedEnemyRecord = 16, RandomTreasureRecord = 19, FixedTreasureArchive = 216;
     static readonly List<(string name, int x, int y)> blockRects = new List<(string, int, int)>();
 
     static int Main(string[] args)
@@ -269,7 +269,15 @@ static partial class Program
                         var at = ToDoom(new V3(obj.XPos, -obj.YPos, obj.ZPos) + offset);
                         ulong placement = EnemyRoster.Hash(currentMapId, dungeonBlock.BlockName, dungeonBlock.X, dungeonBlock.Z,
                             obj.XPos, obj.YPos, obj.ZPos, f.TextureRecord, f.FactionOrMobileId);
-                        enemyPlacements.Add(new EnemyPlacement(at.X, at.Y, at.Z, EnemyRoster.Pick(placement), EnemyRoster.MonsterId(placement)));
+                        enemyPlacements.Add(new EnemyPlacement(at.X, at.Y, at.Z, placement, f.TextureRecord, f.FactionOrMobileId));
+                    }
+                    // Treasure (random treasure 199:19 and fixed treasure flats) marks where bosses guard loot.
+                    if (obj.Type == DFBlock.RdbResourceTypes.Flat
+                        && ((obj.Resources.FlatResource.TextureArchive == EditorArchive && obj.Resources.FlatResource.TextureRecord == RandomTreasureRecord)
+                            || obj.Resources.FlatResource.TextureArchive == FixedTreasureArchive))
+                    {
+                        var at = ToDoom(new V3(obj.XPos, -obj.YPos, obj.ZPos) + offset);
+                        treasurePlacements.Add(new EnemyPlacement(at.X, at.Y, at.Z, 0, obj.Resources.FlatResource.TextureArchive, obj.Resources.FlatResource.TextureRecord));
                     }
                     if (obj.Type == DFBlock.RdbResourceTypes.Flat && obj.Resources.FlatResource.Action != 0)
                         NoteActionLink(blockIndex, obj, obj.Resources.FlatResource.NextObjectOffset, obj.Resources.FlatResource.Action, null);
@@ -1093,12 +1101,12 @@ static partial class Program
         return (sectorSpans.Count, lines, controls, usedDoors.Count);
     }
 
-    // One enemy per Daggerfall placement (editor flat 199:15 random, 199:16 fixed). The type comes from EnemyRoster.Pick,
-    // a hash of the placement's static data, so a placement always yields the same Doom class.
+    // One invisible encounter marker per Daggerfall enemy placement (editor flat 199:15 random, 199:16 fixed), standing
+    // exactly where Daggerfall would spawn its monster. Doom reads the markers at load and decides the monsters there
+    // (see EnemyRoster.MarkerThing for what a marker carries).
     static void AppendEnemies(StringBuilder map)
     {
         int placed = 0;
-        var counts = new SortedDictionary<int, int>();
         foreach (var e in enemyPlacements)
         {
             int i = (int)Math.Floor((e.X - minX) / cell), j = (int)Math.Floor((e.Y - minY) / cell);
@@ -1107,12 +1115,21 @@ static partial class Program
             // The span whose floor is the highest one still at or below the marker (plus a step), with room to stand.
             Span span = spans.Where(s => s.F <= e.Z + StepHeight && s.C - s.F >= ActorHeight).OrderByDescending(s => s.F).FirstOrDefault();
             if (span == null) { enemiesSkipped++; continue; }
-            map.Append(FormattableString.Invariant($"thing {{ x = {minX + (i + 0.5) * cell:F1}; y = {minY + (j + 0.5) * cell:F1}; height = {span.F - spans[0].F}.0; angle = {(e.Type * 45) % 360}; type = {e.Type}; skill1 = true; skill2 = true; skill3 = true; skill4 = true; skill5 = true; single = true; coop = true; dm = true; }}\n"));
-            monsterIds.Append(FormattableString.Invariant($"{currentMapId} {e.Id:x16} {minX + (i + 0.5) * cell:F1} {minY + (j + 0.5) * cell:F1} {span.F}\n"));
+            map.Append(EnemyRoster.MarkerThing(e, span.F - spans[0].F));
             placed++;
-            counts[e.Type] = counts.GetValueOrDefault(e.Type) + 1;
         }
-        Console.WriteLine($"enemies: {placed} placed, {enemiesSkipped} skipped (no floor under the marker), of {enemyPlacements.Count} placements; types {string.Join(" ", counts.Select(c => c.Key + "x" + c.Value))}");
+        Console.WriteLine($"enemies: {placed} encounter markers, {enemiesSkipped} skipped (no floor under the marker), of {enemyPlacements.Count} placements");
+        int treasure = 0;
+        foreach (var t in treasurePlacements)
+        {
+            int i = (int)Math.Floor((t.X - minX) / cell), j = (int)Math.Floor((t.Y - minY) / cell);
+            var spans = i >= 0 && j >= 0 && i < width && j < height ? grid[Index(i, j)] : null;
+            Span span = spans?.Where(s => s.F <= t.Z + StepHeight && s.C - s.F >= ActorHeight).OrderByDescending(s => s.F).FirstOrDefault();
+            if (span == null) continue;
+            map.Append(EnemyRoster.TreasureThing(t, span.F - spans[0].F));
+            treasure++;
+        }
+        Console.WriteLine($"treasure: {treasure} treasure markers of {treasurePlacements.Count}");
     }
 
     static int BaseFloor(Node n)
@@ -1126,7 +1143,7 @@ static partial class Program
         var lumps = new (string name, byte[] data)[]
         {
             (mapName, Array.Empty<byte>()), ("TEXTMAP", Encoding.ASCII.GetBytes(textmap)), ("ENDMAP", Array.Empty<byte>()),
-            ("DFPOINTS", Encoding.ASCII.GetBytes(points)), ("DDMONST", Encoding.ASCII.GetBytes(monsterIds.ToString())),
+            ("DFPOINTS", Encoding.ASCII.GetBytes(points)),
         };
         using var file = new BinaryWriter(File.Create(path));
         file.Write(Encoding.ASCII.GetBytes("PWAD"));
