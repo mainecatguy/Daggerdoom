@@ -315,10 +315,12 @@ FTextureID FrameTexture(int sprite, int frame)
 }
 
 // The floor sprite of a class: the one the player saw, else the first drawn frame of its spawn states, else its inventory icon.
+// DRLA's own SpawnFrame label comes first. Its pickups inherit Spawn from RLBaseWeaponPickup, whose static
+// "Goto SpawnFrame" lands on the base class's pistol frame (PISG X); only the runtime A_Jump reaches the gun's own frame.
 FTextureID ArtFor(PClassActor *cls)
 {
 	if (FTextureID *seen = seenArt.CheckKey(cls->TypeName)) return *seen;
-	FName labels[] = { NAME_Spawn, FName("SpawnFrame") };
+	FName labels[] = { FName("SpawnFrame"), NAME_Spawn };
 	for (FName label : labels)
 	{
 		FState *st = cls->FindState(1, &label);
