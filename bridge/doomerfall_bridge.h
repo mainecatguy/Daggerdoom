@@ -34,7 +34,7 @@ extern "C" {
 #endif
 
 #define DFB_MAGIC            0x42464444u /* "DDFB" */
-#define DFB_PROTOCOL_VERSION 5u
+#define DFB_PROTOCOL_VERSION 6u
 
 #define DFB_RING_SLOTS     4096u   /* power of two */
 #define DFB_OUTBOX_SLOTS   16384u  /* local, per process; hard cap before a bridge fault */
@@ -143,6 +143,43 @@ extern "C" {
 #define DFB_HP_HEAL   2u
 #define DFB_HPF_VALID 1u  /* dfb_df_state.hp_current and hp_max describe a live Daggerfall player */
 #define DFB_HPF_DEAD  2u  /* Daggerfall reports the player dead */
+
+/* Character sheet. Daggerfall writes this bulk slot as a flat array of DFB_SHEET_INTS int32 values whenever one
+   changes, and Doom only reads it. Each group is indexed in Daggerfall's own enum order. "Base" excludes active
+   effects and "live" includes them. While VALID is 0 every other value except FORMAT and EPOCH is zero. EPOCH
+   changes whenever the character may have been replaced, so a reader must drop anything it derived from an older one. */
+#define DFB_SHEET_SLOT   0u
+#define DFB_SHEET_FORMAT_VERSION 1
+#define DFB_SHEET_INTS   150
+#define DFB_SHEET_FORMAT 0    /* DFB_SHEET_FORMAT_VERSION */
+#define DFB_SHEET_EPOCH  1
+#define DFB_SHEET_VALID  2    /* 1 when this describes the current, fully loaded character */
+#define DFB_SHEET_LEVEL  3
+#define DFB_SHEET_FATIGUE_CURRENT 4  /* Daggerfall's internal units, 64 per displayed point */
+#define DFB_SHEET_FATIGUE_MAX     5
+#define DFB_SHEET_MAGICKA_CURRENT 6
+#define DFB_SHEET_MAGICKA_MAX     7
+#define DFB_SHEET_MAGIC_RESIST    8  /* added to saving throws; live Willpower / 10 */
+#define DFB_SHEET_ARMOR_INCREASE  9  /* effect modifier added to every armor value; lower armor values protect more */
+#define DFB_SHEET_ARMOR_DECREASE  10
+#define DFB_SHEET_STATS_BASE   16   /* 8: DFCareer.Stats */
+#define DFB_SHEET_STATS_LIVE   24   /* 8 */
+#define DFB_SHEET_SKILLS_BASE  32   /* 35: DFCareer.Skills */
+#define DFB_SHEET_SKILLS_LIVE  67   /* 35 */
+#define DFB_SHEET_ARMOR_BASE   102  /* 7: BodyParts; 100 is unarmored */
+#define DFB_SHEET_ARMOR_LIVE   109  /* 7: the value Daggerfall's hit formula uses */
+#define DFB_SHEET_RESIST_BASE  116  /* 5: DFCareer.Elements */
+#define DFB_SHEET_RESIST_LIVE  121  /* 5 */
+#define DFB_SHEET_RESIST_ACTIVE 126 /* 5: 1 while an effect grants a resistance roll */
+#define DFB_SHEET_RESIST_CHANCE 131 /* 5: that roll's percent chance */
+#define DFB_SHEET_TOLERANCE    136  /* 7: DFCareer.Tolerance for paralysis, magic, poison, fire, frost, shock, disease */
+#define DFB_SHEET_RACE_RESIST  143  /* DFCareer.EffectFlags of the live race */
+#define DFB_SHEET_RACE_IMMUNE  144
+#define DFB_SHEET_RACE_LOW     145
+#define DFB_SHEET_RACE_CRITICAL 146
+#define DFB_SHEET_BIO_MAGIC    147  /* biography saving throw modifiers */
+#define DFB_SHEET_BIO_POISON   148
+#define DFB_SHEET_BIO_DISEASE  149
 
 /* Daggerfall screens Doom can ask for. Add new menus here. */
 #define DFB_UI_NONE        0u

@@ -7,11 +7,11 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x33b93a2eaa9fdf46ULL
+#define DFB_SCHEMA_HASH 0x301df8b31af17d7fULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
-static_assert((DFB_PROTOCOL_VERSION) == (5u), DFB_STALE);
+static_assert((DFB_PROTOCOL_VERSION) == (6u), DFB_STALE);
 static_assert((DFB_RING_SLOTS) == (4096u), DFB_STALE);
 static_assert((DFB_OUTBOX_SLOTS) == (16384u), DFB_STALE);
 static_assert((DFB_BULK_SLOTS) == (8u), DFB_STALE);
@@ -99,6 +99,38 @@ static_assert((DFB_HP_HIT) == (1u), DFB_STALE);
 static_assert((DFB_HP_HEAL) == (2u), DFB_STALE);
 static_assert((DFB_HPF_VALID) == (1u), DFB_STALE);
 static_assert((DFB_HPF_DEAD) == (2u), DFB_STALE);
+static_assert((DFB_SHEET_SLOT) == (0u), DFB_STALE);
+static_assert((DFB_SHEET_FORMAT_VERSION) == (1), DFB_STALE);
+static_assert((DFB_SHEET_INTS) == (150), DFB_STALE);
+static_assert((DFB_SHEET_FORMAT) == (0), DFB_STALE);
+static_assert((DFB_SHEET_EPOCH) == (1), DFB_STALE);
+static_assert((DFB_SHEET_VALID) == (2), DFB_STALE);
+static_assert((DFB_SHEET_LEVEL) == (3), DFB_STALE);
+static_assert((DFB_SHEET_FATIGUE_CURRENT) == (4), DFB_STALE);
+static_assert((DFB_SHEET_FATIGUE_MAX) == (5), DFB_STALE);
+static_assert((DFB_SHEET_MAGICKA_CURRENT) == (6), DFB_STALE);
+static_assert((DFB_SHEET_MAGICKA_MAX) == (7), DFB_STALE);
+static_assert((DFB_SHEET_MAGIC_RESIST) == (8), DFB_STALE);
+static_assert((DFB_SHEET_ARMOR_INCREASE) == (9), DFB_STALE);
+static_assert((DFB_SHEET_ARMOR_DECREASE) == (10), DFB_STALE);
+static_assert((DFB_SHEET_STATS_BASE) == (16), DFB_STALE);
+static_assert((DFB_SHEET_STATS_LIVE) == (24), DFB_STALE);
+static_assert((DFB_SHEET_SKILLS_BASE) == (32), DFB_STALE);
+static_assert((DFB_SHEET_SKILLS_LIVE) == (67), DFB_STALE);
+static_assert((DFB_SHEET_ARMOR_BASE) == (102), DFB_STALE);
+static_assert((DFB_SHEET_ARMOR_LIVE) == (109), DFB_STALE);
+static_assert((DFB_SHEET_RESIST_BASE) == (116), DFB_STALE);
+static_assert((DFB_SHEET_RESIST_LIVE) == (121), DFB_STALE);
+static_assert((DFB_SHEET_RESIST_ACTIVE) == (126), DFB_STALE);
+static_assert((DFB_SHEET_RESIST_CHANCE) == (131), DFB_STALE);
+static_assert((DFB_SHEET_TOLERANCE) == (136), DFB_STALE);
+static_assert((DFB_SHEET_RACE_RESIST) == (143), DFB_STALE);
+static_assert((DFB_SHEET_RACE_IMMUNE) == (144), DFB_STALE);
+static_assert((DFB_SHEET_RACE_LOW) == (145), DFB_STALE);
+static_assert((DFB_SHEET_RACE_CRITICAL) == (146), DFB_STALE);
+static_assert((DFB_SHEET_BIO_MAGIC) == (147), DFB_STALE);
+static_assert((DFB_SHEET_BIO_POISON) == (148), DFB_STALE);
+static_assert((DFB_SHEET_BIO_DISEASE) == (149), DFB_STALE);
 static_assert((DFB_UI_NONE) == (0u), DFB_STALE);
 static_assert((DFB_UI_TRAVEL_MAP) == (1u), DFB_STALE);
 static_assert((DFB_UI_INVENTORY) == (2u), DFB_STALE);
