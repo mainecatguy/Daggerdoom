@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x34e24455dd21de74UL;
+        public const ulong SchemaHash = 0x78d40735dde9e66dUL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -102,6 +102,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_AMMO = 171;  // UZ to DF; status is Doom's count; request is the last AMMO_ADD Doom applied
         public const ushort KIND_AMMO_ADD = 172;  // DF to UZ; status is a signed 32-bit delta to add (Doom's count stops at 0)
         public const ushort KIND_AMMO_READY = 173;  // UZ to DF; the ready weapon changed; cls is the reserve ammo class it uses, or empty for none
+        public const ushort KIND_AMMO_TAKE = 174;  // UZ to DF; the player touched a tiered ammo pickup; cls is the reserve class, status the rounds, request the tier (0 Regular to 9 Daedric)
+        public const ushort KIND_AREA_LEVEL_REQUEST = 175;  // UZ to DF; request is a map pixel, y * 1000 + x; Daggerfall answers with AREA_LEVEL
+        public const ushort KIND_AREA_LEVEL = 176;  // DF to UZ; request is the map pixel, status the area level there (Doom rolls ammo drop tiers with it)
         public const ushort KIND_NPC_USE = 100;  // UZ to DF; payload: dfb_npc_use
         public const ushort KIND_NPC_USE_RESULT = 101;  // DF to UZ; payload: dfb_npc_use_result
         public const ushort KIND_MONSTER_DEATH = 50;  // UZ to DF; a tagged monster died; payload: dfb_monster_death

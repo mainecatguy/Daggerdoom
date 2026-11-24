@@ -678,6 +678,14 @@ bool DD_BridgeToggleMap()
 
 bool DD_BridgeHasSession() { return session != nullptr; }
 
+// The map pixel Doom last published (indoors, the door's pixel), or false before one is known.
+bool DD_BridgeMapPixel(int &x, int &y)
+{
+	x = ownState.map_pixel_x;
+	y = ownState.map_pixel_y;
+	return session != nullptr && x >= 0 && y >= 0;
+}
+
 // Daggerfall answered Use on a container with its own window. Doom shows it like any other Daggerfall menu.
 void DD_BridgeOpenLoot()
 {

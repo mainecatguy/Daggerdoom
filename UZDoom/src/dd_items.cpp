@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <deque>
+#include <map>
 
 #include "../../bridge/doomerfall_bridge.h"
 #include "actor.h"
@@ -35,6 +36,7 @@ bool DD_BridgeHasSession();
 void DD_BridgeOpenLoot();
 bool DD_InfoUseNpc(dfb_session *session, player_t *player, bool crouching);
 bool DD_PickupNeedsUse(AActor *special);
+bool DD_BridgeMapPixel(int &x, int &y);
 
 namespace
 {
@@ -72,6 +74,7 @@ bool PicksUpByTouch(const PClass *cls)
 		"Health", "HealthPickup", "Ammo", "Megasphere",
 		"RLHealthBonus", "RLStimpack", "RLMedikit", "RLAaaghSphere", "RLMarathonStimpack", "RLMarathonMedikit", "RLDuke2AtomicHealth",
 		"RLClip", "RLClipBox", "RLShell", "RLShellBox", "RLRocketAmmo", "RLRocketBox", "RLCell", "RLCellPack",
+		"DoomerfallAmmoPickup",
 	};
 	for (; cls; cls = cls->ParentClass)
 		for (const FName &name : names)
@@ -510,6 +513,33 @@ int sentAmmo[AmmoKinds] = { -1, -1, -1, -1 };
 uint32_t ammoAddApplied, sentAmmoAck;
 int sentReadyAmmo = -2; // AmmoClasses index the ready weapon uses, -1 for none, -2 before any report.
 
+// Area levels Daggerfall answered, by map pixel (y * 1000 + x, plus one million inside a dungeon). The Doomerfall mod
+// rolls ammo drop tiers with the level of the player's pixel (DoomerfallAmmo.zs), sent as dfa_level:<level or -1>.
+std::map<uint32_t, int> areaLevels;
+uint32_t askedLevelKey = ~0u;
+int askedLevelTic, sentLevel = -2;
+
+void PublishAreaLevel()
+{
+	int level = -1, x, y;
+	if (useRules && DD_BridgeMapPixel(x, y))
+	{
+		const uint32_t key = uint32_t(y * 1000 + x) + (currentContext == DFB_WORLD_DUNGEON ? 1000000u : 0u);
+		auto known = areaLevels.find(key);
+		if (known != areaLevels.end()) level = known->second;
+		else if (key != askedLevelKey || gametic < askedLevelTic || gametic - askedLevelTic > 2 * TICRATE)
+		{
+			SendDoomItem(DFB_KIND_AREA_LEVEL_REQUEST, key, 0, "");
+			askedLevelKey = key;
+			askedLevelTic = gametic;
+		}
+	}
+	if (level == sentLevel) return;
+	outgoing.push_back(FStringf("dfa_level:%d", level));
+	sentLevel = level;
+	Printf(PRINT_LOG, "doomitems: area level for ammo drops %d\n", level);
+}
+
 // The reserve ammo the ready weapon uses: the first of its ammo types (DRLA's magazine is AmmoType1, so its reserve
 // is AmmoType2) that is or derives from one of AmmoClasses. -1 for none, such as fists.
 int ReadyAmmo(player_t *player)
@@ -673,6 +703,13 @@ bool DD_ItemsEvent(const dfb_event &e)
 		doomOutgoing.push_back(FStringf("dfa_add:%u:%d:%s", d.request, int32_t(d.status), ClassOf(d).GetChars()));
 		return true;
 	}
+	case DFB_KIND_AREA_LEVEL:
+	{
+		dfb_doom_item d;
+		memcpy(&d, e.payload, sizeof(d));
+		areaLevels[d.request] = int(d.status);
+		return true;
+	}
 	case DFB_KIND_DOOM_ITEM_ART_REQUEST:
 	{
 		dfb_doom_item d;
@@ -701,7 +738,9 @@ void DD_ItemsFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t
 		// Tells the Doomerfall mod whether Daggerfall's rules apply here, so it shows Sneaking only on a Daggerfall map.
 		outgoing.push_back(useRules ? "dfi_rules:1" : "dfi_rules:0");
 		wantList = inSpace;
+		sentLevel = -2;
 	}
+	PublishAreaLevel();
 	if (wantList && gamestate == GS_LEVEL)
 	{
 		wantList = false;
@@ -727,6 +766,7 @@ void DD_ItemsResync()
 	wantList = spaceValid;
 	for (int &count : sentAmmo) count = -1; // Daggerfall forgot its reports when it loaded.
 	sentReadyAmmo = -2;
+	sentLevel = -2;
 }
 
 // True when this item must wait for the Use button. False for everything outside a generated map.
@@ -808,6 +848,22 @@ bool DD_ItemsNetEvent(dfb_session *session, const char *name)
 		{
 			const int delta = int(strtol(end + 1, &end, 10));
 			if (*end == ':') AddAmmo(request, delta, end + 1);
+		}
+		return true;
+	}
+	// DoomerfallAmmo.zs: the player touched a tiered pickup, dfa_take:<tier>:<rounds>:<reserve class>.
+	if (!strncmp(name, "dfa_take:", 9))
+	{
+		char *end;
+		const uint32_t tier = uint32_t(strtoul(name + 9, &end, 10));
+		if (*end == ':')
+		{
+			const uint32_t rounds = uint32_t(strtoul(end + 1, &end, 10));
+			if (*end == ':')
+			{
+				SendDoomItem(DFB_KIND_AMMO_TAKE, tier, rounds, end + 1);
+				Printf(PRINT_LOG, "doomitems: ammo take tier %u x%u %s\n", tier, rounds, end + 1);
+			}
 		}
 		return true;
 	}

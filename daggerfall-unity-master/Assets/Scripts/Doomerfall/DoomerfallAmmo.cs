@@ -10,11 +10,17 @@
 // Loaded ammo. Doom's counter for an ammo type stands for the stacks of that type that are loaded (IsLoaded). Doom
 // reports which ammo type its ready gun uses (DFB_KIND_AMMO_READY) whenever a gun is equipped or raised. Daggerfall
 // then tells Doom how many loaded rounds it holds, and the damage bonus (DoomerfallDamageBonus) takes that ammo's
-// material. Today every stack of a type is loaded. Once ammo has tiers, changing the loaded tier changes IsLoaded and
-// calls Reload, and Update sends Doom the difference through the same delta path.
+// material. Only the stacks of the type's loaded tier are loaded (DoomerfallAmmoTiers); changing the loaded tier
+// (SetLoadedTier) calls Reload, and Update sends Doom the difference through the same delta path.
+//
+// Tiered pickups. Doom's tiered ammo pickups (DoomerfallAmmo.zs) do not add to Doom's counter. Doom reports each one
+// (DFB_KIND_AMMO_TAKE) and it becomes a stack here; a loaded-tier stack then reaches Doom as a delta. Doom rolls each
+// pickup's tier with the area level Daggerfall answers for a map pixel (DFB_KIND_AREA_LEVEL).
 
 using System;
 using System.Collections.Generic;
+using DaggerfallConnect;
+using DaggerfallConnect.Arena2;
 using DaggerfallConnect.FallExe;
 using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop.Game.Items;
@@ -24,37 +30,52 @@ using UnityEngine;
 
 namespace DaggerfallWorkshop.Game.Doomerfall
 {
-    // One stack of one ammo type. No material tiers yet.
-    public class DoomerfallAmmoItem : DaggerfallUnityItem, ICustomItemImage
+    // One stack of one ammo type and material tier (DoomerfallAmmoTiers). The template index names both.
+    public class DoomerfallAmmoItem : DaggerfallUnityItem, ICustomItemImage, ICustomItemInfo
     {
         public DoomerfallAmmoItem() : base(ItemGroups.MiscItems, DoomerfallAmmo.Types[0].template)
         {
         }
 
+        public DoomerfallAmmoItem(int type, int count) : this(type, DoomerfallAmmoTiers.Regular, count)
+        {
+        }
+
         // Daggerfall reloads its item templates after the bridge registers custom ones, so the custom templates are gone by
-        // play time. The item carries its own weight and value, saved with it, and its group index names its type.
-        public DoomerfallAmmoItem(int type, int count) : base(ItemGroups.MiscItems, DoomerfallAmmo.Types[type].template)
+        // play time. The item carries its own weight and value, saved with it, and its group index names its type and tier.
+        public DoomerfallAmmoItem(int type, int tier, int count) : base(ItemGroups.MiscItems, DoomerfallAmmoTiers.Template(type, tier))
         {
             stackCount = Math.Max(1, count);
-            shortName = DoomerfallAmmo.Types[type].name;
-            weightInKg = DoomerfallAmmo.Types[type].weightKg;
-            value = DoomerfallAmmo.Types[type].price;
+            shortName = DoomerfallAmmoTiers.Name(type, tier);
+            weightInKg = DoomerfallAmmoTiers.Weight(type, tier);
+            value = DoomerfallAmmoTiers.Price(type, tier);
+            nativeMaterialValue = (int)DoomerfallAmmoTiers.Tiers[tier].material;
         }
 
         // -1 for an item that is not ammo.
-        public int AmmoType { get { return DoomerfallAmmo.TypeOfTemplate(GroupIndex); } }
+        public int AmmoType { get { int type, tier; DoomerfallAmmoTiers.FromTemplate(GroupIndex, out type, out tier); return type; } }
+        public int Tier { get { int type, tier; DoomerfallAmmoTiers.FromTemplate(GroupIndex, out type, out tier); return tier; } }
         public string DoomClass { get { int t = AmmoType; return t < 0 ? "" : DoomerfallAmmo.Types[t].doomClass; } }
-        public override string ItemName { get { int t = AmmoType; return t < 0 ? base.ItemName : DoomerfallAmmo.Types[t].name; } }
+        public override string ItemName { get { int t = AmmoType; return t < 0 ? base.ItemName : DoomerfallAmmoTiers.Name(t, Tier); } }
         public override string LongName { get { return ItemName; } }
         public override bool IsStackable() { return true; }
         // Daggerfall's split would build the part from the template, which is gone at play time, or registered only for bullets.
-        public override DaggerfallUnityItem CreateStackPart() { int t = AmmoType; return t < 0 ? base.CreateStackPart() : new DoomerfallAmmoItem(t, 1); }
+        public override DaggerfallUnityItem CreateStackPart() { int t = AmmoType; return t < 0 ? base.CreateStackPart() : new DoomerfallAmmoItem(t, Tier, 1); }
         public override bool UseItem(ItemCollection collection)
         {
             DaggerfallUI.MessageBox("Your guns load this ammo by themselves.");
             return true;
         }
-        public bool TryGetImage(out ImageData image) { return DoomerfallDoomItems.TryGetImage(DoomClass, out image); }
+        public bool TryGetImage(out ImageData image)
+        {
+            if (!DoomerfallDoomItems.TryGetImage(DoomClass, out image))
+                return false;
+            Texture2D tint = DoomerfallAmmoTiers.Tinted(image.texture, AmmoType, Tier);
+            if (tint)
+                image.texture = tint;
+            return true;
+        }
+        public TextFile.Token[] GetInfoTokens() { int t = AmmoType; return t < 0 ? null : DoomerfallAmmoTiers.Info(t, Tier, stackCount); }
 
         public override ItemData_v1 GetSaveData()
         {
@@ -68,20 +89,30 @@ namespace DaggerfallWorkshop.Game.Doomerfall
     {
         internal struct AmmoType
         {
-            public int template;
-            public string doomClass, name;
-            public float weightKg;
-            public int price;
+            public int template; // The Regular tier's template; DoomerfallAmmoTiers.Template gives the others.
+            public string doomClass, lowerName;
+            public float baseWeightKg;
+            public int basePrice;
         }
 
-        // The owner's weights per round, and plain-ammo prices of 3x the owner's base prices of 1, 3, 10, 5 (2026-11-24). Doom's class names match dd_items.cpp AmmoClasses.
+        // The owner's base weights and prices per round (2026-11-24); each tier multiplies them. Doom's class names match dd_items.cpp AmmoClasses.
         internal static readonly AmmoType[] Types =
         {
-            new AmmoType { template = 9101, doomClass = "Clip", name = "Bullets", weightKg = 0.02f, price = 3 },
-            new AmmoType { template = 9102, doomClass = "Shell", name = "Shotgun shells", weightKg = 0.1f, price = 9 },
-            new AmmoType { template = 9103, doomClass = "RocketAmmo", name = "Rockets", weightKg = 0.2f, price = 30 },
-            new AmmoType { template = 9104, doomClass = "Cell", name = "Energy cells", weightKg = 0.02f, price = 15 },
+            new AmmoType { template = 9101, doomClass = "Clip", lowerName = "bullets", baseWeightKg = 0.02f, basePrice = 1 },
+            new AmmoType { template = 9102, doomClass = "Shell", lowerName = "shotgun shells", baseWeightKg = 0.1f, basePrice = 3 },
+            new AmmoType { template = 9103, doomClass = "RocketAmmo", lowerName = "rockets", baseWeightKg = 0.2f, basePrice = 10 },
+            new AmmoType { template = 9104, doomClass = "Cell", lowerName = "energy cells", baseWeightKg = 0.02f, basePrice = 5 },
         };
+
+        internal static bool IsRegistered { get { return registered; } }
+
+        // The tier each ammo type's guns load (an index into DoomerfallAmmoTiers.Tiers). Regular until the change ammo
+        // key (card 05) decides where this lives and saves it.
+        static readonly int[] loadedTier = new int[4];
+
+        // Tiered pickups Doom reported before Daggerfall was in a game, and area level questions not yet answered.
+        readonly List<KeyValuePair<int, KeyValuePair<int, int>>> takes = new List<KeyValuePair<int, KeyValuePair<int, int>>>();
+        readonly List<uint> levelRequests = new List<uint>();
 
         sealed class Track
         {
@@ -102,14 +133,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         // Test only (DoomerfallAmmoTest.ApplyBonusTest): a material bonus per ammo type in place of the loaded ammo's.
         internal static double[] TestBonus;
-
-        internal static int TypeOfTemplate(int template)
-        {
-            for (int i = 0; i < Types.Length; i++)
-                if (Types[i].template == template)
-                    return i;
-            return -1;
-        }
 
         static int TypeOfClass(string cls)
         {
@@ -135,20 +158,23 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             ItemHelper helper = DaggerfallUnity.Instance.ItemHelper;
             ItemTemplate placeholder = helper.GetItemTemplate((int)MiscItems.Letter_of_credit); // Shown until Doom sends the sprite.
-            foreach (AmmoType type in Types)
+            for (int type = 0; type < Types.Length; type++)
             {
-                helper.AddCustomItemTemplate(new ItemTemplate
+                for (int tier = 0; tier < DoomerfallAmmoTiers.Tiers.Length; tier++)
                 {
-                    index = type.template,
-                    name = type.name,
-                    baseWeight = type.weightKg,
-                    basePrice = type.price,
-                    isNotRepairable = true,
-                    worldTextureArchive = placeholder.worldTextureArchive,
-                    worldTextureRecord = placeholder.worldTextureRecord,
-                    playerTextureArchive = placeholder.playerTextureArchive,
-                    playerTextureRecord = placeholder.playerTextureRecord,
-                });
+                    helper.AddCustomItemTemplate(new ItemTemplate
+                    {
+                        index = DoomerfallAmmoTiers.Template(type, tier),
+                        name = DoomerfallAmmoTiers.Name(type, tier),
+                        baseWeight = DoomerfallAmmoTiers.Weight(type, tier),
+                        basePrice = DoomerfallAmmoTiers.Price(type, tier),
+                        isNotRepairable = true,
+                        worldTextureArchive = placeholder.worldTextureArchive,
+                        worldTextureRecord = placeholder.worldTextureRecord,
+                        playerTextureArchive = placeholder.playerTextureArchive,
+                        playerTextureRecord = placeholder.playerTextureRecord,
+                    });
+                }
             }
         }
 
@@ -177,6 +203,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             ready = false;
             readyType = -2; // Doom reports its ready gun again after the load.
             tellWanted = false;
+            takes.Clear(); // Pickups from the game being replaced.
             bridge.LogLine("ammo: after load Daggerfall holds" + Totals());
         }
 
@@ -196,28 +223,114 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         internal int ReadyType { get { return readyType; } }
 
-        // True for a stack Doom's counter of this type stands for. Today every stack of the type is loaded; tiered ammo
-        // narrows this to the loaded tier.
+        // True for a stack Doom's counter of this type stands for: the type's loaded tier.
         internal static bool IsLoaded(DoomerfallAmmoItem item, int type)
         {
-            return item.AmmoType == type;
+            return item.AmmoType == type && item.Tier == loadedTier[type];
         }
 
-        // A new stack of the loaded ammo, for rounds Doom gained.
+        // A new stack of the loaded ammo, for rounds Doom gained (plain Doom ammo, such as a backpack or a gun's own ammo).
         static DoomerfallAmmoItem NewLoaded(int type, int count)
         {
-            return new DoomerfallAmmoItem(type, count);
+            return new DoomerfallAmmoItem(type, loadedTier[type], count);
+        }
+
+        internal static int LoadedTier(int type) { return loadedTier[type]; }
+
+        // Changes the tier this type's guns load. The next Update sends Doom the difference in loaded rounds.
+        internal void SetLoadedTier(int type, int tier)
+        {
+            if (type < 0 || type >= Types.Length || tier < 0 || tier >= DoomerfallAmmoTiers.Tiers.Length || loadedTier[type] == tier)
+                return;
+            loadedTier[type] = tier;
+            bridge.LogLine(string.Format("ammo: {0} guns now load {1}", Types[type].doomClass, DoomerfallAmmoTiers.Tiers[tier].name));
+            Reload();
         }
 
         // The material bonus of the ammo loaded in Doom's ready gun, as a fraction (0.5 is +50%). 0 for no ready gun.
-        // Ammo has no material tiers yet, so the loaded ammo's bonus is 0.
         internal double LoadedMaterialBonus()
         {
             if (readyType < 0)
                 return 0.0;
             if (TestBonus != null && readyType < TestBonus.Length)
                 return TestBonus[readyType];
-            return 0.0;
+            return DoomerfallAmmoTiers.Tiers[loadedTier[readyType]].bonus;
+        }
+
+        // DFB_KIND_AMMO_TAKE: the player touched a tiered pickup in Doom. Its rounds become a stack in Daggerfall's
+        // inventory. If that tier is loaded, Update sends Doom the rounds as a delta like any other inventory change.
+        internal void OnTake(string cls, int tier, uint rounds)
+        {
+            int type = TypeOfClass(cls);
+            if (type < 0 || tier < 0 || tier >= DoomerfallAmmoTiers.Tiers.Length || rounds == 0 || rounds > 100000)
+            {
+                bridge.LogLine(string.Format("ammo: ignored a pickup of {0} tier {1} x{2}", cls, tier, rounds));
+                return;
+            }
+            takes.Add(new KeyValuePair<int, KeyValuePair<int, int>>(type, new KeyValuePair<int, int>(tier, (int)rounds)));
+        }
+
+        // DFB_KIND_AREA_LEVEL_REQUEST: Doom rolls ammo drop tiers with the area level of this map pixel. A pixel past one
+        // million is inside a dungeon there.
+        internal void OnAreaLevelRequest(uint key)
+        {
+            if (!levelRequests.Contains(key))
+                levelRequests.Add(key);
+        }
+
+        void AnswerLevels()
+        {
+            if (levelRequests.Count == 0)
+                return;
+            int test = DoomerfallDrops.TestAreaLevel();
+            if (test < 0 && !DoomerfallAreaLevels.IsFinished)
+                return;
+            foreach (uint key in levelRequests)
+            {
+                bool dungeon = key >= 1000000;
+                int pixel = (int)(key % 1000000), x = pixel % 1000, y = pixel / 1000;
+                int level = test;
+                if (level < 0)
+                {
+                    level = 0;
+                    DaggerfallWorkshop.Utility.ContentReader.MapSummary summary;
+                    DFLocation location;
+                    DoomerfallAreaLevels.Level l;
+                    if (dungeon && DaggerfallUnity.Instance.ContentReader.HasLocation(x, y, out summary)
+                        && DaggerfallUnity.Instance.ContentReader.GetLocation(summary.RegionIndex, summary.MapIndex, out location)
+                        && DoomerfallAreaLevels.ForLocation(location, out l) && l.dungeon > 0)
+                        level = l.dungeon;
+                    else
+                        level = DoomerfallAreaLevels.ForMapPixel(x, y);
+                }
+                level = Mathf.Clamp(level, 1, DoomerfallDrops.MaxAreaLevel);
+                DfbEvent e = default(DfbEvent);
+                e.kind = Dfb.KIND_AREA_LEVEL;
+                e.tic = (uint)Time.frameCount;
+                e.doomItem.request = key;
+                e.doomItem.status = (uint)level;
+                bridge.Send(ref e);
+                bridge.LogLine(string.Format("ammo: area level at map pixel ({0}, {1}){2} is {3}", x, y, dungeon ? " in the dungeon" : "", level));
+            }
+            levelRequests.Clear();
+        }
+
+        void ApplyTakes(ItemCollection items)
+        {
+            if (takes.Count == 0)
+                return;
+            foreach (KeyValuePair<int, KeyValuePair<int, int>> take in takes)
+            {
+                int type = take.Key, tier = take.Value.Key, rounds = take.Value.Value;
+                items.AddItem(new DoomerfallAmmoItem(type, tier, rounds));
+                bridge.LogLine(string.Format("ammo: picked up {0} x{1}{2}", DoomerfallAmmoTiers.Name(type, tier), rounds,
+                    tier == loadedTier[type] ? " (loaded tier, goes to Doom)" : ""));
+            }
+            takes.Clear();
+            DaggerfallWorkshop.Game.UserInterfaceWindows.DaggerfallInventoryWindow window =
+                DaggerfallUI.UIManager.TopWindow as DaggerfallWorkshop.Game.UserInterfaceWindows.DaggerfallInventoryWindow;
+            if (window != null)
+                window.Refresh(false);
         }
 
         internal static int LoadedTotal(ItemCollection items, int type)
@@ -313,6 +426,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         void Update()
         {
+            AnswerLevels();
             PlayerEntity player = GameManager.HasInstance ? GameManager.Instance.PlayerEntity : null;
             if (player == null || !sync.InGame || sync.LoadRunning)
             {
@@ -331,6 +445,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 }
                 ready = true;
             }
+            ApplyTakes(items);
             bool changed = false;
             for (int i = 0; i < tracks.Length; i++)
             {

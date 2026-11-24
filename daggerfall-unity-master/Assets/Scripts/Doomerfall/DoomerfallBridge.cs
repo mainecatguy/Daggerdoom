@@ -411,6 +411,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     case Dfb.KIND_AMMO_READY:
                         ammo.OnReady(DoomerfallDoomItems.ClassOf(ev.doomItem));
                         break;
+                    case Dfb.KIND_AMMO_TAKE:
+                        ammo.OnTake(DoomerfallDoomItems.ClassOf(ev.doomItem), (int)ev.doomItem.request, ev.doomItem.status);
+                        break;
+                    case Dfb.KIND_AREA_LEVEL_REQUEST:
+                        ammo.OnAreaLevelRequest(ev.doomItem.request);
+                        break;
                     case Dfb.KIND_CLIMB_USES:
                         DoomerfallClimb.OnUses(this, ev.climbUses.uses);
                         break;

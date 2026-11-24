@@ -286,6 +286,7 @@ namespace DaggerfallWorkshop
                     }
                 }
             }
+            Game.Doomerfall.DoomerfallAmmoTiers.StockShop(buildingType, shopQuality, items); // [Doomerfall] tiered Doom ammo
         }
 
         public void StockHouseContainer(PlayerGPS.DiscoveredBuilding buildingData)

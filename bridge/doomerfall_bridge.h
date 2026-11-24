@@ -153,6 +153,9 @@ extern "C" {
 #define DFB_KIND_AMMO          171  /* UZ to DF; status is Doom's count; request is the last AMMO_ADD Doom applied */
 #define DFB_KIND_AMMO_ADD      172  /* DF to UZ; status is a signed 32-bit delta to add (Doom's count stops at 0) */
 #define DFB_KIND_AMMO_READY    173  /* UZ to DF; the ready weapon changed; cls is the reserve ammo class it uses, or empty for none */
+#define DFB_KIND_AMMO_TAKE     174  /* UZ to DF; the player touched a tiered ammo pickup; cls is the reserve class, status the rounds, request the tier (0 Regular to 9 Daedric) */
+#define DFB_KIND_AREA_LEVEL_REQUEST 175 /* UZ to DF; request is a map pixel, y * 1000 + x; Daggerfall answers with AREA_LEVEL */
+#define DFB_KIND_AREA_LEVEL    176  /* DF to UZ; request is the map pixel, status the area level there (Doom rolls ammo drop tiers with it) */
 
 /* Use on an NPC Doom draws. Daggerfall runs its own activation of that NPC (Grab, or Steal while crouching). Any HUD
    message it shows comes back as DFB_KIND_INFO_TEXT with the same request number. */

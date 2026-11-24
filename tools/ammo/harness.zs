@@ -10,7 +10,9 @@ class AMHarness : EventHandler
 	const LIMIT = 35 * 20;
 	const LOADRUN = @LOADRUN@;
 	const EQUIPRUN = @EQUIPRUN@; // The equip run: guns equipped from Daggerfall set the damage bonus of their loaded ammo.
+	const TIERRUN = @TIERRUN@; // The tiers run: tiered drops roll with the area level, and tiered pickups reach Daggerfall.
 	const SAVED = 10;
+	vector3 dropSpot;
 
 	int phase, timer, startClip, startShell;
 	bool done, sawShells, windowDrop, windowBack;
@@ -83,6 +85,44 @@ class AMHarness : EventHandler
 		Console.Printf("AMNOTE melee Fist given");
 	}
 
+	void TierCensus(String why, int areaLevel)
+	{
+		int counts[10];
+		for (int i = 0; i < 10; i++) counts[i] = 0;
+		int plain = 0;
+		Actor mo;
+		let it = ThinkerIterator.Create("Inventory");
+		while (mo = Actor(it.Next()))
+		{
+			let inv = Inventory(mo);
+			if (inv.Owner) continue;
+			let tiered = DoomerfallAmmoPickup(mo);
+			if (tiered) counts[tiered.tier]++;
+			else if (DoomerfallAmmoTiers.PlainType(mo) >= 0) plain++;
+		}
+		String line = String.Format("AMTIERS %s level=%d plain=%d", why, areaLevel, plain);
+		for (int i = 0; i < 10; i++) line = line .. String.Format(" t%d=%d", i, counts[i]);
+		Console.Printf("%s", line);
+	}
+
+	// The roll's odds at the owner's table levels, from 100000 draws each, and the jackpot share of the seed hash.
+	void RollStats()
+	{
+		static const int LEVELS[] = { 1, 10, 20, 30 };
+		for (int l = 0; l < LEVELS.Size(); l++)
+		{
+			int counts[10];
+			for (int i = 0; i < 10; i++) counts[i] = 0;
+			for (int n = 0; n < 100000; n++)
+				counts[DoomerfallAmmoTiers.RollTier(LEVELS[l], DoomerfallAmmoTiers.Unit(n, 3), DoomerfallAmmoTiers.Unit(n, 4))]++;
+			Console.Printf("AMODDS level %d Regular %.1f%% Silver %.1f%% Adamantium %.1f%% Ebony %.1f%% Daedric %.2f%%", LEVELS[l],
+				counts[0] / 1000.0, counts[2] / 1000.0, counts[5] / 1000.0, counts[8] / 1000.0, counts[9] / 1000.0);
+		}
+		int jackpots = 0;
+		for (int n = 0; n < 100000; n++) if (DoomerfallAmmoTiers.Unit(n * 7 + 1, 1) < DoomerfallAmmoTiers.JackpotChance) jackpots++;
+		Console.Printf("AMODDS jackpot %.2f%%", jackpots / 1000.0);
+	}
+
 	bool AnyPile()
 	{
 		let it = ThinkerIterator.Create("DoomerfallWorldItem");
@@ -132,6 +172,7 @@ class AMHarness : EventHandler
 			Report("start");
 			Next();
 			if (EQUIPRUN) phase = 30; // No break inside this constant if: one with a break crashed UZDoom's compiler.
+			if (TIERRUN) phase = 40;
 			break;
 		case 2: // A box of bullets by touch. Stock ClipBox, not DRLA's spawner, so the amount is known.
 		{
@@ -184,6 +225,54 @@ class AMHarness : EventHandler
 		case 34: // Spend 3 shells, as firing would, then save.
 			if (timer == 1) p.TakeInventory("Shell", 3);
 			if (timer == 70) { Report("after spending 3 shells"); phase = 7; timer = 0; }
+			break;
+		case 40: // The area level arrives, and every placed ammo pickup has rolled a tier.
+		{
+			let tiers = DoomerfallAmmoTiers.Get();
+			if (timer > LIMIT) { Finish("no area level"); break; }
+			if (!tiers || tiers.areaLevel < 0 || timer < 35) break;
+			TierCensus("placed", tiers.areaLevel);
+			RollStats();
+			Next();
+			break;
+		}
+		case 41: // A plain box of bullets dropped away from the player becomes one tiered drop. A grid of boxes shows jackpots.
+			dropSpot = p.Vec3Angle(160, p.angle);
+			Actor.Spawn("ClipBox", dropSpot, NO_REPLACE);
+			for (int i = 0; i < 300; i++)
+				Actor.Spawn("ClipBox", p.pos + (4000 + (i % 20) * 40, 4000 + (i / 20) * 40, 0), NO_REPLACE);
+			Next();
+			break;
+		case 42:
+		{
+			if (timer < 5) break;
+			Actor near = null, plain = null;
+			Actor mo;
+			let it = ThinkerIterator.Create("Inventory");
+			while (mo = Actor(it.Next()))
+			{
+				if (Inventory(mo).Owner || (mo.pos.xy - dropSpot.xy).Length() > 32) continue;
+				if (mo is "DoomerfallAmmoPickup") near = mo; else if (mo is "ClipBox") plain = mo;
+			}
+			Console.Printf("AMTIER drop %s amount %d, plain box left: %s", near ? String.Format("%s", near.GetClassName()) : "none", near ? Inventory(near).Amount : 0, plain ? "yes" : "no");
+			TierCensus("after drops", DoomerfallAmmoTiers.Get().areaLevel);
+			Next();
+			break;
+		}
+		case 43: // Touch Silver bullets, Regular bullets, and Daedric shells. Only Regular (the loaded tier) reaches Doom.
+		{
+			static const String TOUCH[] = { "DFAmmo_Clip_2", "DFAmmo_Clip_0", "DFAmmo_Shell_9" };
+			Report("before tier pickups");
+			for (int i = 0; i < TOUCH.Size(); i++)
+			{
+				let item = Inventory(Actor.Spawn(TOUCH[i], p.pos, NO_REPLACE));
+				if (item) { Console.Printf("AMTIER touch %s x%d", TOUCH[i], item.Amount); item.Touch(p); }
+			}
+			Next();
+			break;
+		}
+		case 44:
+			if (timer == 140) { Report("after tier pickups"); phase = 7; timer = 0; }
 			break;
 		case SAVED:
 			if (timer > 35 * 8) Finish("saved");

@@ -29,6 +29,16 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         /// <summary>The location's area level from DoomerfallAreaLevels: its dungeon level, or the terrain level if it has no dungeon. -dfarealevel N overrides it for tests.</summary>
         internal static int AreaLevel(in DFLocation location)
         {
+            int test = TestAreaLevel();
+            if (test >= 0)
+                return test;
+            DoomerfallAreaLevels.Level level;
+            return DoomerfallAreaLevels.ForLocation(location, out level) ? level.Area : UndefinedAreaLevel;
+        }
+
+        /// <summary>The -dfarealevel N test override, or -1 without one.</summary>
+        internal static int TestAreaLevel()
+        {
             if (testAreaLevel == int.MinValue)
             {
                 testAreaLevel = -1;
@@ -38,10 +48,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 if (at >= 0 && at + 1 < args.Length && int.TryParse(args[at + 1], out value))
                     testAreaLevel = Mathf.Clamp(value, MinAreaLevel, MaxAreaLevel);
             }
-            if (testAreaLevel >= 0)
-                return testAreaLevel;
-            DoomerfallAreaLevels.Level level;
-            return DoomerfallAreaLevels.ForLocation(location, out level) ? level.Area : UndefinedAreaLevel;
+            return testAreaLevel;
         }
 
         /// <summary>Chooses enemies for one dungeon by Daggerfall's rules, with stable draws in place of its time-seeded ones.</summary>

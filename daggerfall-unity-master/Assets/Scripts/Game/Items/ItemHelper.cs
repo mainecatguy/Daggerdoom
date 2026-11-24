@@ -36,6 +36,12 @@ namespace DaggerfallWorkshop.Game.Items
         bool TryGetImage(out ImageData image);
     }
 
+    // [Doomerfall] An item that writes its own info popup text.
+    public interface ICustomItemInfo
+    {
+        TextFile.Token[] GetInfoTokens();
+    }
+
     /// <summary>
     /// Helper class for working with items.
     /// </summary>
@@ -781,6 +787,9 @@ namespace DaggerfallWorkshop.Game.Items
             const int armorNoMaterialTextId = 1014;
             const int oghmaInfiniumTextId = 1015;
             const int houseDeedTextId = 1073;
+
+            if (item is ICustomItemInfo) // [Doomerfall]
+                return ((ICustomItemInfo)item).GetInfoTokens();
 
             // Handle by item group
             switch (item.ItemGroup)
