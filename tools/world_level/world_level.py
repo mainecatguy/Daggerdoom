@@ -1,14 +1,15 @@
 """World level test: the same place gives the same loot, gold, and enemies at any player level.
 
 usage: world_level.py assemble | run LEVEL | compare LEVEL_A LEVEL_B
-assemble: builds review\\world-level from review\\newstart3 (UZDoom, launcher, bridge DLL, data; same bridge header)
+assemble: builds review\\world-level from review\\questfaces(UZDoom, launcher, bridge DLL, data; same bridge header)
           and this worktree's Daggerfall Unity build.
 run:      paired games, minimized, with Daggerfall's -dfworldleveltest LEVEL (the player's level is set to LEVEL, then
           fixed-seed rolls run through Daggerfall's own code at the current place and at Daggerfall city's dungeon).
 compare:  compares two runs' "area" rolls (must match) and "control" rolls (no area level provider: must differ).
 odds:     world_level.py odds LEVEL: material shares of piles, shelves, containers, magic items and enemy equipment
           rolled at area levels 1, 10, 20, 30 in that run, against the owner's approved table; plus the classic
-          formula at level 20 with the Doomerfall hook off, which must differ.
+          formula at level 20 with the Doomerfall hook off, which must differ. Also quest reward magic items rolled with
+          the player at level 1, which must follow the approved odds at the fixed quest reward level (20).
 """
 import math
 import re
@@ -26,8 +27,8 @@ import install  # noqa: E402  (only for its registry isolation)
 sys.argv = argv
 
 REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\world-level")
-# UZDoom, launcher and bridge DLL from the newstart lane, the last change to bridge/doomerfall_bridge.h.
-BASE = Path(r"D:\dev\DoomDaggerfall-loop\review\newstart3")
+# UZDoom, launcher and bridge DLL from the questfaces lane, the last change to bridge/doomerfall_bridge.h (db43379).
+BASE = Path(r"D:\dev\DoomDaggerfall-loop\review\questfaces")
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
 MODS = GAME.parent / "GameMods"
@@ -96,7 +97,7 @@ def run(level):
         proc.wait()
     print("stopped:", reason)
     for line in read(df_log).splitlines():
-        if ("worldleveltest" in line and " area " not in line) or "area level" in line or "Exception" in line or "error" in line.lower():
+        if ("worldleveltest" in line and " area " not in line) or "questreward: reward" in line or "questreward: control" in line or "area level" in line or "Exception" in line or "error" in line.lower():
             print("df", line[:300])
 
 
@@ -160,7 +161,10 @@ def odds(level):
         print("no materialodds lines in", REVIEW / "run" / f"level{level}-df.log")
         return False
     ok = True
-    for mode in ("approved", "classic"):
+    if not any(k[0] == "quest" for k in rows):
+        print("no quest reward materialodds line (DoomerfallQuestRewardTest)")
+        ok = False
+    for mode in ("approved", "quest", "classic"):
         for lvl in sorted({k[1] for k in rows if k[0] == mode}):
             sources = sorted(k[2] for k in rows if k[0] == mode and k[1] == lvl)
             total = [0] * 10
@@ -183,7 +187,7 @@ def odds(level):
             armor = leather + chain + sum(sum(rows[(mode, lvl, s)][2]) for s in sources)
             print(f"  all n={n}  max|z| {max(abs(x) for x in z):.2f}  armor: leather {100 * leather / armor:.1f}% chain {100 * chain / armor:.1f}% plate {100 * (armor - leather - chain) / armor:.1f}% (n={armor})")
             fits = max(abs(x) for x in z) < 4
-            if mode == "approved":
+            if mode in ("approved", "quest"):
                 ok = ok and fits
                 print("  ->", "MATCHES approved table" if fits else "DOES NOT MATCH approved table")
             else:

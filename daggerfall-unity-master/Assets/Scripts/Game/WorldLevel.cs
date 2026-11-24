@@ -40,6 +40,18 @@ namespace DaggerfallWorkshop.Game
             }
         }
 
+        /// <summary>Doomerfall: quest rewards are unscaled and treat the player as this level (owner, 2026-11-24).</summary>
+        public const int DoomerfallQuestRewardLevel = 20;
+
+        /// <summary>
+        /// The level quest rewards (magic items, gold) are rolled for. Fixed in a Doomerfall session, the player's level
+        /// otherwise. Which quests are offered still follows the player's level and never comes here.
+        /// </summary>
+        public static int QuestReward
+        {
+            get { return UsesAreaLevel ? DoomerfallQuestRewardLevel : GameManager.Instance.PlayerEntity.Level; }
+        }
+
         /// <summary>Scope for building a dungeon's layout before the player is inside it. Does nothing outside Doomerfall.</summary>
         public static Scope ForDungeon(in DFLocation location)
         {

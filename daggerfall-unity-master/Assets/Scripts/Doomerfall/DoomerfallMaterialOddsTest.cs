@@ -23,7 +23,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         static readonly int[] HouseModels = { 0, 2, 4, 11, 15 };
         static readonly MobileTypes[] Enemies = { MobileTypes.Knight, MobileTypes.Warrior, MobileTypes.Barbarian, MobileTypes.Spellsword };
 
-        sealed class Tally
+        internal sealed class Tally
         {
             public readonly int[] weapon = new int[Tiers], plate = new int[Tiers];
             public int leather, chain, rolls;
