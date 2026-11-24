@@ -70,6 +70,7 @@ void DD_TownsfolkFrame(dfb_session *session, uint32_t context);
 void DD_TownsfolkResync();
 void DD_TownsfolkDied(dfb_session *session, AActor *mo);
 void DD_ClimbFrame(dfb_session *session);
+void DD_FacesFrame(dfb_session *session);
 bool DD_ClimbNetEvent(dfb_session *session, const char *name);
 bool DD_GuardsEvent(const dfb_event &e);
 void DD_GuardsFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t target);
@@ -2290,6 +2291,9 @@ FString DD_BridgeSlotName(const char *slot)
 	return FStringf("%s-%s", campaignId.GetChars(), slot);
 }
 
+// True when a save or load could start now and none is in flight (dd_facetest.cpp).
+bool DD_BridgeSaveIdle() { return SaveReady() && loadState == LoadIdle && saveState == SaveIdle && !saveStartPending; }
+
 void DD_BridgeInit()
 {
 	if (session) return;
@@ -2362,6 +2366,7 @@ void DD_BridgeFrame()
 	DD_NpcsFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
 	DD_TownsfolkFrame(session, ownState.world_context);
 	DD_ClimbFrame(session);
+	DD_FacesFrame(session);
 	DD_GuardsFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
 
 	ownState.uz_heartbeat++;

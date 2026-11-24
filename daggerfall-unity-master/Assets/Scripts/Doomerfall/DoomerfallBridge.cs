@@ -69,6 +69,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DoomerfallNpcs npcs;
         DoomerfallInfo info;
         DoomerfallSheet sheet;
+        DoomerfallFaces faces;
         internal DoomerfallSheet Sheet { get { return sheet; } }
         DoomerfallTownspeople townspeople;
         DoomerfallGuards guards;
@@ -142,6 +143,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             sync.Init(this, Environment.GetCommandLineArgs());
             hp = new DoomerfallHp(this, sync, Environment.GetCommandLineArgs());
             sheet = new DoomerfallSheet(this, sync, Environment.GetCommandLineArgs());
+            faces = new DoomerfallFaces(this);
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dffacetest") >= 0)
+                gameObject.AddComponent<DoomerfallFaceTest>().Init(this, sync); // Test only
             damageBonus = new DoomerfallDamageBonus(this, sync);
             DoomerfallDamageBonusTest.Apply(this, damageBonus, Environment.GetCommandLineArgs()); // Test only, does nothing without -dfdamagetest
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfsheettest") >= 0)
@@ -235,6 +239,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             hp.Fill(ref own);
             damageBonus.Fill(ref own);
             sheet.Publish();
+            faces.Publish();
             DfbNative.dfb_publish_state(session, ref own, ownSize);
         }
 
@@ -451,6 +456,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             hp.Fill(ref own);
             damageBonus.Fill(ref own);
             sheet.Publish();
+            faces.Publish();
             DfbNative.dfb_publish_state(session, ref own, ownSize);
 
             long now = DfbNative.dfb_now_ns();
