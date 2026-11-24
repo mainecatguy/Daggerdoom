@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0xa5fe3af5ad3f1edbUL;
+        public const ulong SchemaHash = 0x5eca3bae34bb56ccUL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -172,6 +172,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint HP_HEAL = 2;
         public const uint HPF_VALID = 1;  // dfb_df_state.hp_current and hp_max describe a live Daggerfall player
         public const uint HPF_DEAD = 2;  // Daggerfall reports the player dead
+        public const uint FACES_SLOT = 1;
+        public const uint FACES_FORMAT_VERSION = 1;
+        public const uint FACES_MAX = 3;  // Daggerfall's HUD shows at most three faces
+        public const uint FACE_MAX_SIDE = 64;
         public const uint SHEET_SLOT = 0;
         public const int SHEET_FORMAT_VERSION = 2;
         public const int SHEET_INTS = 155;
@@ -251,8 +255,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint TOWNSFOLK_INTERIOR = 1;
 
         // Native size of every generated struct, for the attach check.
-        public static readonly Type[] StructTypes = { typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbWorldContainer), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbInfoRequest), typeof(DfbInfoText), typeof(DfbDoomItem), typeof(DfbItemArt), typeof(DfbClimbUses), typeof(DfbNpcUse), typeof(DfbNpcUseResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbEncounterArea), typeof(DfbEncounterText), typeof(DfbNpc), typeof(DfbTownsfolk), typeof(DfbTownsperson), typeof(DfbTownspersonDeath), typeof(DfbGuardSpawn), typeof(DfbGuardDeath), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
-        public static readonly int[] StructSizes = { 64, 24, 24, 16, 24, 24, 48, 32, 48, 32, 16, 48, 40, 16, 48, 32, 48, 48, 144, 8, 24, 16, 32, 32, 48, 48, 16, 32, 40, 24, 40, 8, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
+        public static readonly Type[] StructTypes = { typeof(DfbFaces), typeof(DfbFace), typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbWorldContainer), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbInfoRequest), typeof(DfbInfoText), typeof(DfbDoomItem), typeof(DfbItemArt), typeof(DfbClimbUses), typeof(DfbNpcUse), typeof(DfbNpcUseResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbEncounterArea), typeof(DfbEncounterText), typeof(DfbNpc), typeof(DfbTownsfolk), typeof(DfbTownsperson), typeof(DfbTownspersonDeath), typeof(DfbGuardSpawn), typeof(DfbGuardDeath), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
+        public static readonly int[] StructSizes = { 8, 16, 64, 24, 24, 16, 24, 24, 48, 32, 48, 32, 16, 48, 40, 16, 48, 32, 48, 48, 144, 8, 24, 16, 32, 32, 48, 48, 16, 32, 40, 24, 40, 8, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
     }
 
     static class DfbBytes
@@ -270,6 +274,22 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             for (int i = 0; i < width; i++)
                 destination[offset + i] = (byte)(value >> (8 * i));
         }
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 8)]
+    struct DfbFaces
+    {
+        [FieldOffset(0)] public uint format;  // DFB_FACES_FORMAT_VERSION
+        [FieldOffset(4)] public uint count;  // 0 to DFB_FACES_MAX, in Daggerfall's order, top face first
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 16)]
+    struct DfbFace
+    {
+        [FieldOffset(0)] public uint width;  // pixels that follow, each side at most DFB_FACE_MAX_SIDE
+        [FieldOffset(4)] public uint height;
+        [FieldOffset(8)] public uint displayWidth;  // the size Daggerfall draws it, in its 320x200 HUD units
+        [FieldOffset(12)] public uint displayHeight;
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 64)]

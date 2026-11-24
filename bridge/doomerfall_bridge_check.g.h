@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0xa5fe3af5ad3f1edbULL
+#define DFB_SCHEMA_HASH 0x5eca3bae34bb56ccULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -172,6 +172,10 @@ static_assert((DFB_HP_HIT) == (1u), DFB_STALE);
 static_assert((DFB_HP_HEAL) == (2u), DFB_STALE);
 static_assert((DFB_HPF_VALID) == (1u), DFB_STALE);
 static_assert((DFB_HPF_DEAD) == (2u), DFB_STALE);
+static_assert((DFB_FACES_SLOT) == (1u), DFB_STALE);
+static_assert((DFB_FACES_FORMAT_VERSION) == (1u), DFB_STALE);
+static_assert((DFB_FACES_MAX) == (3u), DFB_STALE);
+static_assert((DFB_FACE_MAX_SIDE) == (64u), DFB_STALE);
 static_assert((DFB_SHEET_SLOT) == (0u), DFB_STALE);
 static_assert((DFB_SHEET_FORMAT_VERSION) == (2), DFB_STALE);
 static_assert((DFB_SHEET_INTS) == (155), DFB_STALE);
@@ -249,6 +253,22 @@ static_assert((DFB_UZ_PHASE_PAUSED) == (3), DFB_STALE);
 static_assert((DFB_UZ_PHASE_SAVING) == (4), DFB_STALE);
 static_assert((DFB_TOWNSFOLK_STREETS) == (0u), DFB_STALE);
 static_assert((DFB_TOWNSFOLK_INTERIOR) == (1u), DFB_STALE);
+
+static_assert(sizeof(dfb_faces) == 8, DFB_STALE);
+static_assert(offsetof(dfb_faces, format) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_faces::format), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_faces, count) == 4, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_faces::count), uint32_t>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_face) == 16, DFB_STALE);
+static_assert(offsetof(dfb_face, width) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_face::width), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_face, height) == 4, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_face::height), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_face, display_width) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_face::display_width), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_face, display_height) == 12, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_face::display_height), uint32_t>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_event) == 64, DFB_STALE);
 static_assert(offsetof(dfb_event, seq) == 0, DFB_STALE);

@@ -256,6 +256,29 @@ extern "C" {
    changes, and Doom only reads it. Each group is indexed in Daggerfall's own enum order. "Base" excludes active
    effects and "live" includes them. While VALID is 0 every other value except FORMAT and EPOCH is zero. EPOCH
    changes whenever the character may have been replaced, so a reader must drop anything it derived from an older one. */
+/* Quest follower faces (card questfaces). Daggerfall owns the face list of its HUD (EscortingNPCFacePanel: quests'
+   "add face" and "drop face", its saves and loads) and rewrites this bulk slot whenever that list changes. Doom keeps no
+   faces of its own: it draws exactly what the newest version holds. Layout: one dfb_faces, then for each face one
+   dfb_face followed by width * height BGRA pixels, top row first. Doom ignores a format it does not know. */
+#define DFB_FACES_SLOT   1u
+#define DFB_FACES_FORMAT_VERSION 1u
+#define DFB_FACES_MAX    3u   /* Daggerfall's HUD shows at most three faces */
+#define DFB_FACE_MAX_SIDE 64u
+
+typedef struct dfb_faces
+{
+	uint32_t format;      /* DFB_FACES_FORMAT_VERSION */
+	uint32_t count;       /* 0 to DFB_FACES_MAX, in Daggerfall's order, top face first */
+} dfb_faces;
+
+typedef struct dfb_face
+{
+	uint32_t width;           /* pixels that follow, each side at most DFB_FACE_MAX_SIDE */
+	uint32_t height;
+	uint32_t display_width;   /* the size Daggerfall draws it, in its 320x200 HUD units */
+	uint32_t display_height;
+} dfb_face;
+
 #define DFB_SHEET_SLOT   0u
 #define DFB_SHEET_FORMAT_VERSION 2
 #define DFB_SHEET_INTS   155

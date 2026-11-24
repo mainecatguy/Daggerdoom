@@ -37,6 +37,10 @@ namespace DaggerfallWorkshop.Game.UserInterface
         List<FaceDetails> faces = new List<FaceDetails>();
         List<Panel> facePanels = new List<Panel>();
 
+        // Doomerfall: Doom's HUD mirrors these faces (DoomerfallFaces.cs). RefreshCount changes whenever they may have.
+        public int RefreshCount { get; private set; }
+        public IList<Panel> FacePanels { get { return facePanels.AsReadOnly(); } }
+
         #endregion
 
         #region Constructors
@@ -202,6 +206,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
 
             // Clear existing faces
             ClearFaces();
+            RefreshCount++; // Doomerfall
 
             // Load matching texture for each face
             // Only Redguard and Breton supported for now

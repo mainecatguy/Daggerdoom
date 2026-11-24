@@ -383,6 +383,7 @@ void DD_BridgeInit(); // Doomerfall
 void DD_BridgeFrame(); // Doomerfall
 void DD_BridgeDrawUi(); // Doomerfall
 bool DD_BridgeUiActive(); // Doomerfall
+void DD_FacesDraw(); // Doomerfall
 
 // EXTERNAL DATA DECLARATIONS ----------------------------------------------
 
@@ -1408,6 +1409,7 @@ void D_Display ()
 				StatusBar->CallDraw (HUD_StatusBar, vp.TicFrac);
 				StatusBar->DrawTopStuff (HUD_StatusBar);
 			}
+			DD_FacesDraw(); // Doomerfall: quest follower faces, none outside a bridge session
 			//stb.Unclock();
 			//Printf("Stbar = %f\n", stb.TimeMS());
 		}
