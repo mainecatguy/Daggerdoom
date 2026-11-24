@@ -11,6 +11,21 @@ What is done on the project, newest first. Agents do not need to read this unles
 - **Branches:** `integration` is at `dc90a52`, with steal mode, real enemy drops, the fixed dungeon harness, the area level proposal, automatic hinged trapdoors, container windows, quiet agent launches, the reported location recheck, Use-button pickup, character sheet publishing, stationary NPCs, the DRLA launcher, monster deaths, the first town door fix, New Game, the transition speedup, Daggerfall item pickup, the dungeon re-entry fix, generated bridge definitions, main quest trapdoors, 10 Hz position sync, the wilderness height fix, the Daggerfall map command, door route fixes, both overnight lanes, the bridge and door fixes, dungeon flats, Daggerfall items, synchronized saving and loading, the death screen, fast travel arrival, connected door transitions, and the inventory menu.
 - **Roughest spots:** some walls still bend where they stayed tied to the grid, and false walls and openings remain.
 
+## 2026-11-24
+
+### Merged to `integration` (`dccc114`)
+
+- **Doom guns show their own picture in the inventory:** DRLA pickups inherit a spawn chain that statically lands on the pistol's frame. Guns Doom had not seen on the floor showed the pistol: the starting gun, guns put away by a hotkey, and every gun after a load. Doom now uses DRLA's `SpawnFrame` label first. This is a one-line UZDoom change. Notes: `work/notes/20261124-071038-gunicons.md`.
+
+### Merged to `integration` (`52117f0`)
+
+- **DRLA one-shot guns reload by themselves:** with DRLA loaded, our mod turns on DRLA's own "1-shot weapons autoreload" option at startup, and covers the Baron Blaster and the single Marathon Shotguns, which skip that option. 31 guns in all, including the pump and double-barrel shotguns. Side effect from DRLA's own option: the Gauss rifle and the Shredder pistol also reload after each shot. Nothing changes without DRLA. Notes: `work/notes/20261124-072401.md`.
+
+### Merged to `integration` (`1706dc6`)
+
+- **Hotkeys menu looks like Daggerfall's inventory:** stone background, item slots, REMOVE buttons, and yellow text, all cut at runtime from Daggerfall's inventory images. The hotkeys work as before. Screenshots: `D:\dev\DoomDaggerfall-loop\review\hotkey-look\old` and `new`. Notes: `work/notes/20261124-071038.md`.
+- **Health pickups follow Daggerfall's max HP:** DRLA's stimpack and medikit checked a fixed 100, and `HealThing` always reported success, so pickups were used up without healing. Several pickups taken in one tic also each counted as useful. Doom now uses Daggerfall's max HP (including after a level up) and the HP after heals still in flight, and a pickup that cannot heal stays on the floor. These are UZDoom engine changes, inactive without a bridge session. Notes: `work/notes/20261124-071606.md`.
+
 ## 2026-11-23
 
 ### Merged to `integration` (`e85e351`)

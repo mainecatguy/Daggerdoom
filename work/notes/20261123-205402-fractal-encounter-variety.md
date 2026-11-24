@@ -1,6 +1,6 @@
 # Encounter variety: armies, genomes, and points
 
-**Status: design proposal, revised after owner feedback on 2026-11-23. Nothing is implemented.**
+**Status: design approved by the owner on 2026-11-24. Nothing is implemented. Implementation is the "Mook packs" backlog item.**
 
 This version replaces the first draft. It is written in plain language. The math lives in the appendix, and nobody needs it to use the system.
 
@@ -286,10 +286,10 @@ DRLA's families raise health less steeply. Nightmare is roughly 1.3×, Technopho
 | 4 | Purple, Cyan | ×2 | Nightmare | ×1.75 |
 | 5 | Brown, Fire-Blue, Yellow, Gray | ×3 | | |
 | 6 | Red | ×4 | Technophobia | ×2.75 |
-| 7 | Abyss | ×6 | Armageddon | ×4 |
+| 7 | Abyss | ×10 | Armageddon | ×4 |
 | 8 | EX titans | own value | Bosses and wildcards | own value |
 
-**Colour multipliers were raised (owner, 2026-11-24).** The first draft used health ratios alone, which undercounted what the elite colours add: faster projectiles, extra attacks, and more speed. Green and Blue stay, Purple and Cyan go to ×2, Red goes to ×4 at the owner's direction, and Brown, Fire-Blue, Yellow, and Gray sit between at ×3. Abyss at ×6 is Claude's placeholder, since the owner was unsure. The DRLA family multipliers are unchanged until play shows otherwise. All of these live in the data file.
+**Colour multipliers were raised (owner, 2026-11-24).** The first draft used health ratios alone, which undercounted what the elite colours add: faster projectiles, extra attacks, and more speed. Green and Blue stay, Purple and Cyan go to ×2, Red goes to ×4 at the owner's direction, and Brown, Fire-Blue, Yellow, and Gray sit between at ×3. Abyss is ×10 (owner, 2026-11-24). Abyss monsters are the step just below the EX titans, with about 3.8 times stock health and the strongest attacks of the ordinary colours. The DRLA family multipliers are unchanged until play shows otherwise. All of these live in the data file.
 
 ### 8.3 The points rule: Lanchester's square law
 
@@ -449,7 +449,7 @@ Each is a combination of three settings, so the guarantee says it exists somewhe
 
 ## 12. Decisions for the owner
 
-1. **Abyss multiplier:** ×6 is a placeholder.
+None remain. The owner approved the design on 2026-11-24 and set the Abyss multiplier to ×10.
 
 Quest placements getting bigger packs and high-point leaders is the backlog item "Quest packs steal points."
 

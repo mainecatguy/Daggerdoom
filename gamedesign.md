@@ -61,7 +61,7 @@ Random events aim for Bayesian surprise: outcomes that meaningfully change what 
 - Every category gets monotonically better with area level: the chance of getting a given tier or better never falls.
 - Lower tier items are always more common. At best, a lower tier can be only slightly less common than the tier above it.
 - Daedric is the best tier, and its own check is the only way to get it. It reaches 1 in 40 at area level 20 and 1 in 20 at area level 30.
-- Ammo uses the same tiers, with Tin added below Iron.
+- Ammo uses the same tiers. Iron ammo is called Regular ammo. The working ammo table is in the change ammo key item in `work/todo.md`.
 
 The approved odds are in `work/notes/20261123-material-tier-proposal.md`.
 
@@ -81,7 +81,7 @@ Daggerfall controls damage, so Daggerfall armor is the armor that matters.
 
 ## Ammunition (design pillar)
 
-Ammunition will eventually be an inventory object.
+Ammunition will eventually be an inventory object. Damage rules, including material bonuses and ammo tags, are in `gamedesign/damage.md`.
 
 - Ammunition has different qualities.
 - A system will let the player change the type of ammo loaded in a gun.

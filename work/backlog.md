@@ -1,4 +1,4 @@
-# Backlog
+﻿# Backlog
 
 Work that needs owner input or depends on unfinished work. **Automated loops never take work from this index or `work/backlog/`.**
 
@@ -15,6 +15,8 @@ This is a one-line-per-item index. Open an item's file only when you need its de
 - [Rotating walk-on trapdoors (axis 10)](backlog/axis10-trapdoors.md): Find how classic Daggerfall turns them. Not now.
 - [Guard variety](backlog/guard-variety.md): More kinds of Doom guards than one Doomguy bot type.
 - [Persistent Info toggle](backlog/persistent-info-toggle.md): Info as a toggle that shows the info box for whatever the player looks at.
+- [Elven ammo is quiet](backlog/elven-ammo-quiet.md): Silent on one-shot kills, and `reduced_noise` halves aggro and gun volume.
+- [Megasphere gives max HP plus 100](backlog/megasphere-max-plus-100.md): Daggerfall max + 100 instead of 200. Future.
 - [Decide Doom item weights](backlog/doom-item-weights.md): Replace the default weight once Doom items live in Daggerfall's inventory.
 - [Save at the start of a new game](backlog/save-at-new-game-start.md): Gives a player who dies right away something to load.
 - [Start at Daggerfall's real Privateer's Hold location](backlog/real-privateers-hold-start.md): Use the quiet cave start instead of the dungeon entrance.
@@ -82,7 +84,7 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [Load Daggerfall saves with no Doom data](backlog/load-daggerfall-saves-with-no-doom-data.md): Create default Doom data for plain DF saves.
 - [Doom monsters block fast travel](backlog/doom-monsters-block-fast-travel.md): Decide whether and how nearby Doom monsters block travel.
 - [Check whether quests depend on moving NPCs](backlog/check-whether-quests-depend-on-moving-npcs.md): Find scripts that need Doom to move NPCs.
-- [Mook packs](backlog/mook-packs.md): Replace single spawns with seeded Doom packs.
+- [Mook packs](backlog/mook-packs.md): Replace single spawns with seeded Doom packs. Design approved, seven draft cards in `work/queue/encounters`.
 - [Improve the random enemy roster](backlog/improve-the-random-enemy-roster.md): Weight or tier the uniform random roster.
 - [Random or deterministic options](backlog/random-or-deterministic-options.md): Checkboxes for random loot and random encounter theming. Deterministic is the default.
 - [Quest targets in mook packs](backlog/quest-targets-in-mook-packs.md): Decide how quest targets map onto packs.
