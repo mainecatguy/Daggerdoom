@@ -256,6 +256,17 @@ constexpr int64_t NgStallNs = 30000000000LL; // Daggerfall stalls for seconds wh
 const char *ngTest;
 FString campaignId, loadCampaign; // Keeps each character's auto and quick slots apart.
 void HandleNewGameGo();
+}
+FString DD_BridgeSlotName(const char *slot);
+namespace
+{
+// The new character's first save: one normal bundled save at the start point (PumpNewGameSave).
+enum NewGameSaveState { NgsNone, NgsWaiting, NgsWriting, NgsDone };
+NewGameSaveState ngSave = NgsNone;
+int ngSaveAttempts, ngSaveHp;
+int64_t ngSaveQuietSince, ngSaveGoNs;
+double ngSavePos[3];
+FString ngSaveFile;
 
 void HandleEvent(const dfb_event &e, int64_t now)
 {
@@ -1884,8 +1895,14 @@ void RunLoadTest(int64_t now)
 	const auto finish = [&]()
 	{
 		const bool world = gamestate == GS_LEVEL && DDTreadmill_PlayerWorld(x, y, z, yaw) != DD_AREA_NONE;
+		int space;
+		if (!strcmp(loadTestMode, "newgame") && world && DDTreadmill_PlayerSpace(x, y, z, yaw, space)) // As the new game save measured it.
+			Log("load test: dungeon position %.1f,%.1f, saved at %.1f,%.1f", x, y, loadTestPos[0], loadTestPos[1]);
 		const double moved = std::hypot(x - loadTestPos[0], y - loadTestPos[1]);
-		const bool pass = world && !flowHold && deathState == DeathNone && player.playerstate == PST_LIVE &&
+		std::error_code ignored;
+		const bool rightFile = strcmp(loadTestMode, "newgame") || fs::equivalent(SavePath(loadFile.GetChars()), SavePath(ngSaveFile.GetChars()), ignored);
+		if (!strcmp(loadTestMode, "newgame")) Log("load test: loaded %s, the new game save %s", loadFile.GetChars(), rightFile ? "yes" : "NO");
+		const bool pass = rightFile && world && !flowHold && deathState == DeathNone && player.playerstate == PST_LIVE &&
 			player.health == loadTestSavedHp && peerState.hp_current == loadTestSavedHp && !(peerState.hp_flags & DFB_HPF_DEAD) && moved < 2.0;
 		LoadTestLog(pass ? "PASS" : "FAIL");
 		Log("load test: moved %.2f from the saved position", moved);
@@ -1896,6 +1913,20 @@ void RunLoadTest(int64_t now)
 	{
 	case 0:
 		if (gamestate != GS_LEVEL || !SaveReady() || !(peerState.hp_flags & DFB_HPF_VALID)) return;
+		if (!strcmp(loadTestMode, "newgame")) // No save of its own: dies and loads the new game's start save.
+		{
+			if (ngSave != NgsDone || !settled) return;
+			loadTestSavedHp = ngSaveHp;
+			memcpy(loadTestPos, ngSavePos, sizeof(loadTestPos));
+			LoadTestLog("new game save written");
+			P_UnPredictClient();
+			if (AActor *mo = players[consoleplayer].mo) mo->SetOrigin(mo->Pos() + DVector3(48, 0, 0), false); // The load must undo this.
+			HpSend(DFB_HP_HIT, 100000, "load test lethal");
+			loadTestStep = 4;
+			loadTestAtNs = now + 1500000000LL;
+			return;
+		}
+		if (ngSave == NgsWaiting || ngSave == NgsWriting || !settled) return; // After a New Game, its start save goes first.
 		if (!loadTestAtNs) { loadTestAtNs = now + 2000000000LL; return; }
 		LoadTestLog("start");
 		if (bad)
@@ -2295,6 +2326,71 @@ void HandleNewGameGo()
 	atTitle = flowHold = false;
 	campaignId.Format("%016llx", (unsigned long long)dfb_now_ns() ^ (unsigned long long)(uintptr_t)&ngWorld);
 	Log("new game: both games running, campaign %s, hp %d/%d", campaignId.GetChars(), peerState.hp_current, peerState.hp_max);
+	ngSave = NgsWaiting;
+	ngSaveAttempts = 0;
+	ngSaveQuietSince = 0;
+	ngSaveGoNs = dfb_now_ns();
+	ngSaveFile = G_BuildSaveName(DD_BridgeSlotName("newgame").GetChars());
+}
+
+// After New Game, makes one normal synchronized save at the start point, once Daggerfall's opening messages are
+// done: nothing open in either game for NgSaveQuietNs. The file name carries the new campaign id, so it never
+// replaces another save; an existing file is left alone.
+constexpr int64_t NgSaveQuietNs = 2000000000LL;	// Daggerfall asks for its own windows 0.25 s after opening them.
+constexpr int64_t NgSaveGiveUpNs = 600000000000LL;
+constexpr int NgSaveMaxAttempts = 3;
+
+void PumpNewGameSave(int64_t now)
+{
+	if (ngSave == NgsNone || ngSave == NgsDone) return;
+	player_t &player = players[consoleplayer];
+	if (atTitle || loadState != LoadIdle || campaignId.IsEmpty() || now - ngSaveGoNs > NgSaveGiveUpNs)
+	{
+		Log("new game save: dropped, %s", atTitle ? "back at the title" : loadState != LoadIdle ? "a save is loading" : "it never became quiet");
+		ngSave = NgsNone;
+		return;
+	}
+	if (ngSave == NgsWriting)
+	{
+		if (saveState != SaveIdle || saveStartPending) return;
+		std::error_code error;
+		if (fs::exists(SavePath(ngSaveFile.GetChars()), error))
+		{
+			ngSave = NgsDone;
+			Log("new game save: written to %s, hp %d at %.1f,%.1f", ngSaveFile.GetChars(), ngSaveHp, ngSavePos[0], ngSavePos[1]);
+			return;
+		}
+		ngSave = ++ngSaveAttempts < NgSaveMaxAttempts ? NgsWaiting : NgsNone;
+		ngSaveQuietSince = 0;
+		Log("new game save: attempt %d failed%s", ngSaveAttempts, ngSave == NgsNone ? ", giving up" : ", trying again");
+		return;
+	}
+	if (player.playerstate != PST_LIVE || player.health <= 0)
+	{
+		Log("new game save: dropped, the player died first");
+		ngSave = NgsNone;
+		return;
+	}
+	const bool quiet = gamestate == GS_LEVEL && SaveReady() && SaveOnDaggerfallMap() && saveState == SaveIdle && !saveStartPending &&
+		!autosaveHeld && gameaction == ga_nothing && !menuactive && !paused;
+	if (!quiet) { ngSaveQuietSince = 0; return; }
+	if (!ngSaveQuietSince) ngSaveQuietSince = now;
+	if (now - ngSaveQuietSince < NgSaveQuietNs) return;
+	std::error_code error;
+	if (fs::exists(SavePath(ngSaveFile.GetChars()), error))
+	{
+		Log("new game save: %s already exists, left alone", ngSaveFile.GetChars());
+		ngSave = NgsNone;
+		return;
+	}
+	double yaw;
+	int space;
+	if (!DDTreadmill_PlayerSpace(ngSavePos[0], ngSavePos[1], ngSavePos[2], yaw, space)) // Inside: dungeon or building space.
+		DDTreadmill_PlayerWorld(ngSavePos[0], ngSavePos[1], ngSavePos[2], yaw);
+	ngSaveHp = peerState.hp_current;
+	ngSave = NgsWriting;
+	Log("new game save: opening messages done, saving to %s", ngSaveFile.GetChars());
+	SaveQueue(ngSaveFile.GetChars(), FStringf("New game %s", myasctime()).GetChars(), true);
 }
 }
 
@@ -2437,6 +2533,7 @@ void DD_BridgeFrame()
 	PumpSave(now);
 	PumpLoad(now);
 	PumpNewGame(now);
+	PumpNewGameSave(now);
 	RunUiTest(now);
 	RunHpTest(now);
 	dfb_flush(session);
