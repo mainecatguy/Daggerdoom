@@ -1308,7 +1308,6 @@ namespace
 
 	void BeginHandoff(FLevelLocals *Level, AActor *pmo, const char *map, const int *warpTile = nullptr, const DoorTarget *door = nullptr)
 	{
-		DDProf_Mark((FString("leave>") + map).GetChars());
 		Reconcile(Level);
 		std::vector<AActor *> keep;
 		auto it = Level->GetThinkerIterator<AActor>();
@@ -1419,7 +1418,6 @@ namespace
 		dd_tm_stitches = ++stitches;
 		Printf("DDSTITCH arrive %s ms=%.1f local=%.2f,%.2f,%.2f dz=%.3f records=%d stitches=%d\n", Level->MapName.GetChars(),
 			NsSince(handoff.started) / 1e6, target.X, target.Y, z, dz, int(table.size()), stitches);
-		DDProf_Mark("arrive");
 	}
 
 	// Compares the town map's real floors with the overworld height function across the handoff band.
@@ -1642,9 +1640,7 @@ namespace
 			Restore(Level, r);
 			restored++;
 		}
-		DDProf_Mark("restore_records");
 		if (t.group >= 0 || (t.space && t.spaceId < DUNGEON_SPACE)) SpawnTownContents(Level);
-		DDProf_Mark("spawn_contents");
 		FinishHandoff(Level);
 		if (FindArg("-ddtmverify")) VerifySeam(Level, t);
 		Printf("DDTOWN active %s restored=%d records=%d\n", t.map.GetChars(), restored, int(table.size()));
@@ -2110,7 +2106,6 @@ void DDTreadmill_UploadEnd() { uploadNs += NsSince(uploadStart); uploadCount++; 
 
 void DDTreadmill_FrameEnd()
 {
-	DDProf_Frame();
 	if (!DDTreadmill_Active) return;
 	const auto now = Clock::now();
 	const int64_t frameNs = std::chrono::duration_cast<std::chrono::nanoseconds>(now - lastFrame).count();

@@ -42,8 +42,6 @@
 #include <algorithm> // [Doomerfall]
 #include <vector>
 
-void DDProf_Mark(const char *phase); // [Doomerfall] no-op without -ddtranslog
-bool DDProf_On();
 
 using DoublePoint = std::pair<DVector2, DVector2>;
 
@@ -911,40 +909,10 @@ void CreateSections(FLevelLocals *Level)
 {
 	FSectionCreator creat(Level);
 	creat.GroupSubsectors();
-	DDProf_Mark("sec_group_subsectors");
 	creat.MakeOutlines();
-	DDProf_Mark("sec_outlines");
 	creat.MergeLines();
-	DDProf_Mark("sec_merge_lines");
 	creat.FindOuterLoops();
 	creat.GroupSections();
-	DDProf_Mark("sec_group_sections");
 	creat.ConstructOutput(Level->sections);
 	creat.FixMissingReferences();
-	DDProf_Mark("sec_output");
-	if (DDProf_On())	// Proves a change to this file leaves the output identical, element by element and in order.
-	{
-		uint64_t h = 14695981039346656037ull;
-		auto mix = [&h](int64_t v) { for (int b = 0; b < 8; b++, v >>= 8) { h ^= uint8_t(v); h *= 1099511628211ull; } };
-		auto &out = Level->sections;
-		mix(out.allSections.Size());
-		for (auto &s : out.allSections)
-		{
-			mix(s.sector->Index());
-			mix(s.mapsection);
-			mix(s.segments.Size());
-			for (auto &l : s.segments)
-			{
-				mix(l.start ? l.start->Index() : -1);
-				mix(l.end ? l.end->Index() : -1);
-				mix(l.sidedef ? l.sidedef->Index() : -1);
-				mix(l.partner ? l.partner - &out.allLines[0] : -1);
-			}
-			for (auto side : s.sides) mix(side->Index());
-			for (auto sub : s.subsectors) mix(sub->Index());
-		}
-		FString label;
-		label.Format("sechash_%s_%016llx", Level->MapName.GetChars(), (unsigned long long)h);
-		DDProf_Mark(label.GetChars());
-	}
 }

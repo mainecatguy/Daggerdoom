@@ -419,9 +419,7 @@ void P_SetupLevel(FLevelLocals *Level, int position, bool newGame)
 {
 	unsigned int i;
 
-	DDProf_Mark("pre_setup"); // [Doomerfall] profiler marks are no-ops without -ddtranslog
 	DDTreadmill_BeginMap(Level); // [Doomerfall] no-op unless this is a generated town map
-	DDProf_Mark("cache_get");
 
 	Level->ShaderStartTime = I_msTimeFS(); // indicate to the shader system that the level just started
 
@@ -464,9 +462,7 @@ void P_SetupLevel(FLevelLocals *Level, int position, bool newGame)
 	C_MidPrint(nullptr, nullptr);
 
 	// Free all level data from the previous map
-	DDProf_Mark("sound_music");
 	P_FreeLevelData();
-	DDProf_Mark("free_old_level");
 
 	MapData *map = P_OpenMapData(Level->MapName.GetChars(), true);
 	if (map == nullptr)
@@ -489,10 +485,8 @@ void P_SetupLevel(FLevelLocals *Level, int position, bool newGame)
 	}
 
 	MapLoader loader(Level);
-	DDProf_Mark("open_map");
 	loader.LoadLevel(map, Level->MapName.GetChars(), position);
 	delete map;
-	DDProf_Mark("loader_tail");
 
 	// if deathmatch, randomly spawn the active players
 	if (deathmatch)
@@ -583,11 +577,8 @@ void P_SetupLevel(FLevelLocals *Level, int position, bool newGame)
 	// preload graphics and sounds
 	if (precache)
 	{
-		DDProf_Mark("pre_precache");
 		PrecacheLevel(Level);
-		DDProf_Mark("precache_textures");
 		S_PrecacheLevel(Level);
-		DDProf_Mark("precache_sounds");
 	}
 
 	if (deathmatch)
@@ -642,7 +633,6 @@ void P_SetupLevel(FLevelLocals *Level, int position, bool newGame)
 	{
 		ac->SetDynamicLights();
 	}
-	DDProf_Mark("setup_tail");
 }
 
 //
