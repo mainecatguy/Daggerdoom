@@ -2240,9 +2240,36 @@ static void SaveReport (HANDLE file)
 //
 //==========================================================================
 
+bool I_NoActivateParm(); // Doomerfall
+
 void DisplayCrashLog ()
 {
 	HANDLE file;
+
+	// Doomerfall: an unattended run reports the crash on stderr and in CrashReport.zip, with no dialog.
+	if (I_NoActivateParm())
+	{
+		fprintf (stderr, GAMENAME " crashed: code %08lX at address %p\n", CrashCode, CrashAddress);
+		if (NumFiles != 0)
+		{
+			file = MakeZip ();
+			HANDLE ofile = CreateFileW (L"CrashReport.zip", GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+			if (file != INVALID_HANDLE_VALUE && ofile != INVALID_HANDLE_VALUE)
+			{
+				char xferbuf[1024];
+				DWORD didread, written;
+				SetFilePointer (file, 0, NULL, FILE_BEGIN);
+				while (ReadFile (file, xferbuf, sizeof(xferbuf), &didread, NULL) && didread != 0)
+					WriteFile (ofile, xferbuf, didread, &written, NULL);
+				fprintf (stderr, "Crash report written to CrashReport.zip\n");
+			}
+			if (ofile != INVALID_HANDLE_VALUE) CloseHandle (ofile);
+			if (file != INVALID_HANDLE_VALUE) CloseHandle (file);
+		}
+		fflush (stderr);
+		CloseTarFiles ();
+		return;
+	}
 
 	if (NumFiles == 0)
 	{
