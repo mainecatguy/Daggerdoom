@@ -1,6 +1,6 @@
 # Quest packs steal points
 
-**Waiting on:** the encounter module ("Mook packs") and "Quest targets in mook packs."
+**Waiting on:** the encounter module ("Mook packs" in `work/todo.md`) and "Quest targets in mook packs."
 
 Owner request (2026-11-24). An encounter at a placement a quest uses should:
 

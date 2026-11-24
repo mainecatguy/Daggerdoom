@@ -1,4 +1,4 @@
-﻿# Backlog
+# Backlog
 
 Work that needs owner input or depends on unfinished work. **Automated loops never take work from this index or `work/backlog/`.**
 
@@ -11,16 +11,18 @@ This is a one-line-per-item index. Open an item's file only when you need its de
 ## MVP
 
 - [Remove the city return freeze](backlog/city-return-freeze.md): Returning to the City of Daggerfall still freezes for about 1.2 s.
-- [Run the trapdoor checks on every dungeon](backlog/run-all-trapdoors.md): Full run after the automatic converter rule lands.
+- [Run the trapdoor checks on every dungeon (low priority)](backlog/run-all-trapdoors.md): Full run across all dungeons. Not now (owner, 2026-11-24).
 - [Rotating walk-on trapdoors (axis 10)](backlog/axis10-trapdoors.md): Find how classic Daggerfall turns them. Not now.
 - [Guard variety](backlog/guard-variety.md): More kinds of Doom guards than one Doomguy bot type.
-- [Persistent Info toggle](backlog/persistent-info-toggle.md): Info as a toggle that shows the info box for whatever the player looks at.
-- [Elven ammo is quiet](backlog/elven-ammo-quiet.md): Silent on one-shot kills, and `reduced_noise` halves aggro and gun volume.
+- [Turn off Daggerfall's resets and respawns](backlog/turn-off-daggerfall-resets.md): Total persistence, no vanilla resets.
+- [Quest reward scaling](backlog/quest-reward-scaling.md): Future design for how quest rewards scale.
+- [Persistent Info toggle (on hold)](backlog/persistent-info-toggle.md): On hold until play-tested.
+- [Guard behavior and pathfinding (delayed indefinitely)](backlog/guard-behavior-and-pathfinding.md): Do not raise. Owner, 2026-11-24.
+- [Moonstone and Mithril ammo are quiet](backlog/elven-ammo-quiet.md): Silent on one-shot kills, and `reduced_noise` halves aggro and gun volume.
+- [Revisit languages](backlog/revisit-languages.md): Language skills other than Streetwise and Etiquette are on the way out for now. Revisit how they could work better.
+- [Silver ammo bonus against certain enemy types](backlog/silver-ammo-enemy-bonus.md): Also on Daedric. Needs the enemy types and bonus size.
 - [Megasphere gives max HP plus 100](backlog/megasphere-max-plus-100.md): Daggerfall max + 100 instead of 200. Future.
 - [Decide Doom item weights](backlog/doom-item-weights.md): Replace the default weight once Doom items live in Daggerfall's inventory.
-- [Save at the start of a new game](backlog/save-at-new-game-start.md): Gives a player who dies right away something to load.
-- [Start at Daggerfall's real Privateer's Hold location](backlog/real-privateers-hold-start.md): Use the quiet cave start instead of the dungeon entrance.
-- [Remove the Reflexes option](backlog/remove-reflexes-option.md): Drop it from character creation and run as if Slow was chosen.
 
 The MVP target is that the player can run around the world, kill enemies, enter and exit towns, use the fast travel menu, and do other basic things. Position sync, the fast travel menu, and synchronized saving and loading are in `work/todo.md`. Everything in this section is required before MVP is complete. Items come after the others and depend on the inventory menu.
 
@@ -33,7 +35,6 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [Talk to stationary NPCs](backlog/talk-to-stationary-npcs.md): Interact opens Daggerfall's real talk window.
 - [NPC shops and services](backlog/npc-shops-and-services.md): Open real trade and service windows.
 - [NPC quest givers](backlog/npc-quest-givers.md): Run real quest offers and turn-ins.
-- [NPC damage and death](backlog/kill-passive-npcs.md): Match Daggerfall's rules, with unkillable flats invincible.
 - [Hostile NPC sprites](backlog/hostile-npc-sprites.md): Choose visuals for NPCs that fight.
 - [NPC self defense with one Doom bot](backlog/npc-self-defense-doom-bot.md): Hostile NPCs use one bot template.
 - [Sync wandering NPCs](backlog/sync-wandering-npcs.md): Add real wandering and decide what must sync.
@@ -43,11 +44,11 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [Distant terrain LOD](backlog/distant-terrain-lod.md): Show distant mountains beyond the loaded window.
 - [Distant town view](backlog/distant-town-view.md): Show real towns from outside their playable area.
 - [Town gates follow day and night](backlog/town-gates-follow-day-and-night.md): Gates follow Daggerfall's time cycle.
-- [Permanent location state owned by Daggerfall](backlog/permanent-location-state-owned-by-daggerfall.md): Move location history from Doom saves to DF saves, with no dungeon resets.
 - [Identify and sort problem location groups](backlog/identify-and-sort-problem-location-groups.md): List and rank locations that do not fit one map.
-- [Restore autosaves on location changes](backlog/restore-autosaves-on-location-changes.md): Bring back autosaves on stitched map changes.
 - [Revisit performance of generating fresh cities](backlog/revisit-performance-of-generating-fresh-cities.md): Profile and reduce 5 to 7 second conversions.
 - [Overworld monsters outside the loaded window](backlog/overworld-monsters-outside-the-loaded-window.md): Decide their fate off-window. On hold.
+
+- [Reach outdoor loot piles from Doom](backlog/reach-exterior-piles.md): List piles dropped outdoors in Doom and let the player take them.
 
 ## Dungeons
 
@@ -81,14 +82,12 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 ## Before initial release
 
 - [Final Doom class and difficulty for New Game](backlog/full-daggerfall-new-game-flow.md): Replace the temporary prompt and fixed class.
-- [Load Daggerfall saves with no Doom data](backlog/load-daggerfall-saves-with-no-doom-data.md): Create default Doom data for plain DF saves.
 - [Doom monsters block fast travel](backlog/doom-monsters-block-fast-travel.md): Decide whether and how nearby Doom monsters block travel.
-- [Check whether quests depend on moving NPCs](backlog/check-whether-quests-depend-on-moving-npcs.md): Find scripts that need Doom to move NPCs.
-- [Mook packs](backlog/mook-packs.md): Replace single spawns with seeded Doom packs. Design approved, seven draft cards in `work/queue/encounters`.
 - [Improve the random enemy roster](backlog/improve-the-random-enemy-roster.md): Weight or tier the uniform random roster.
 - [Random or deterministic options](backlog/random-or-deterministic-options.md): Checkboxes for random loot and random encounter theming. Deterministic is the default.
 - [Quest targets in mook packs](backlog/quest-targets-in-mook-packs.md): Decide how quest targets map onto packs.
 - [Quest packs steal points](backlog/quest-packs-steal-points.md): Quest placements take points from neighbours for bigger packs and high-point leaders.
+- [Decorative corpses](backlog/decorative-corpses.md): Rare gene for zero-point corpses, such as the losing side of a finished Civil War.
 - [Handle Arch-vile resurrection](backlog/arch-vile-resurrection.md): Research how revived mooks affect saves and quests, then propose handling.
 - [Monster mix on stock Doom maps](backlog/monster-mix-on-stock-doom-maps.md): DRLA only for now. Decide later how stock maps mix DRLA and Colourful Hell.
 - [Oblivion Portals](backlog/oblivion-portals.md): Portals that lead to Doom and custom WAD maps.

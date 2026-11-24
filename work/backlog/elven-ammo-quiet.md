@@ -1,8 +1,8 @@
-# Elven ammo is quiet
+# Moonstone and Mithril ammo are quiet
 
-**Waiting on:** the ammo tiers (change ammo key item in `work/todo.md`).
+**Waiting on:** the ammo tiers (`work/queue/ammotiers`).
 
-The owner (2026-11-24): Elven ammo is quiet. It can't be completely silent, but:
+The owner (2026-11-24): Elven ammo (now named Moonstone) is quiet, and Mithril gets the quiet tag too. It can't be completely silent, but:
 
 1. A shot is silent if it kills an enemy in one hit.
 2. It has the `reduced_noise` tag, which halves volume for Doom purposes. This is aggro, not sound, but to the

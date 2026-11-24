@@ -13,7 +13,11 @@ What is done on the project, newest first. Agents do not need to read this unles
 
 ## 2026-11-24
 
-### Merged to `integration` (ammo)
+### Merged to `integration` (`3805d1e`)
+
+- **Ammo system (five cards, `work/queue/ammotiers`):** Daggerfall calculates the player's damage bonus and Doom scales the player's damage by it (own splash damage excluded). Ammo can be picked up in Daggerfall's inventory: split stacks stay ammo. Equipping a gun gives Doom Daggerfall's count for its ammo type and the damage modifier. Material tiers (Regular to Daedric) have tinted items, descriptions with their bonus, prices, weights, stacks, shop stock, and dungeon drops by area level with 2% jackpots. Z changes the loaded tier, with a HUD icon and name. A change empties the magazine back to the inventory, and ammo switches automatically when the tier runs out. UZDoom changes are in `dd_*` files plus a two-line damage hook in `p_interaction.cpp`. Notes: `work/notes/20261124-083825.md`, `-085156`, `-090831`, `-093041`, `-101258`. Demo: `D:\dev\DoomDaggerfall-loop\review\ammo-change\play.bat`.
+
+### Merged to `integration` (`0699292`)
 
 - **Doom ammo in Daggerfall's inventory, and arrow weight:** bullets, shells, rockets, and cells are stacks in Daggerfall's inventory at the owner's weights (0.02, 0.1, 0.2, 0.02 kg per round) and plain-ammo prices of 3x the owner's base prices (3, 9, 30, 15 gold per round). Doom's ammo stays the live counter. Bridge kinds 171 and 172 sync both ways with numbered deltas, so drops, wagon moves, and piles in Daggerfall reach Doom, and Doom pickups and shots reach Daggerfall. Arrows now weigh 0.01 kg each and count toward carried weight (they had been weightless). Paired take and load runs matched counts on both sides across save and load. Stock and DRLA E1M1 load cleanly. Notes: `work/notes/20261124-075147.md`.
 

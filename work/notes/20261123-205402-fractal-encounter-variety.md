@@ -1,6 +1,6 @@
 # Encounter variety: armies, genomes, and points
 
-**Status: design approved by the owner on 2026-11-24. Nothing is implemented. Implementation is the "Mook packs" backlog item.**
+**Status: design approved by the owner on 2026-11-24. Nothing is implemented. Implementation is "Mook packs" in `work/todo.md`, with cards in `work/queue/encounters`.**
 
 This version replaces the first draft. It is written in plain language. The math lives in the appendix, and nobody needs it to use the system.
 
@@ -34,8 +34,10 @@ Every dungeon gets a fixed **genome**: a short list of settings computed from th
 - The system must **stay simple and stay out of the way of the rest of the code.** It is one self-contained module, and other code relies only on its interface contract (section 9).
 - **The budget is an average per encounter,** meaning each enemy Daggerfall places. The dungeon pools the averages and shares them out very unevenly. Level 30 averages 90 points (section 6).
 - **Every placement holds at least one monster, no matter what.** Taking points away can never leave a placement unable to afford its cheapest monster, so every Daggerfall enemy has a kill trigger.
-- **Each dungeon has a few bosses,** with the deepest guarding treasure where possible. Bosses are strong army monsters, not Black and White titans.
-- **Black and White titans are a rarity in very high-level dungeons.** They take points from other encounters. Dragon's Dens at area level 25 or higher always have one.
+- **Dungeons have bosses, decided procedurally per dungeon,** with the deepest guarding treasure where possible. Bosses are strong army monsters, not Black and White titans.
+- **Black and White titans are rare,** found only in some dungeons of level 20 and higher. A dungeon that has one pays for it with points from its other encounters. Dragon's Dens at area level 25 or higher always have one.
+- **The leader is what counts to Daggerfall.** Each Daggerfall enemy becomes one encounter whose leader stands on Daggerfall's spawn point. Daggerfall's drops and quest completion follow the leader's death only.
+- **Spawns are the same for everyone.** Two players in separate games who enter the same dungeon get the same spawns.
 - **Themes and regions are leanings.** Each guarantees at least something from its leaning, and the rest varies.
 - **Points that do not fit are never lost.** Monsters spread wider, get promoted, or the points move elsewhere.
 - **The leader always stands on the placement's origin point,** so quest triggers never break.
@@ -53,7 +55,7 @@ Every dungeon gets a fixed **genome**: a short list of settings computed from th
 2. **Build the army.** Pick an anchor monster, then add monsters that resemble it, as tightly as the coherence gene says (section 5).
 3. **Set the budget.** Area level sets the average points per placement. The dungeon pools them, keeps each placement's cheapest monster safe, pays for a few bosses and sometimes a titan, then shares out the rest unevenly, by a different amount in each dungeon (section 6).
 4. **Fill each placement.** Daggerfall's enemy placements become squads drawn from the army. Common squads recur and new ones keep trickling in (section 7).
-5. **Name each mook.** Every mook's ID is its placement plus its number in the squad, so the same dungeon always produces the same mooks. Only deaths are saved.
+5. **Name each mook.** Every mook's ID is its placement plus its number in the squad, so the same dungeon always produces the same mooks, for every player. Only deaths are saved. The leader is the one Daggerfall counts.
 
 The player's character level is never an input anywhere.
 
@@ -156,6 +158,8 @@ Avoid "colour vomit," a rainbow of Colourful Hell rarities mixed together in one
 
 About **35% of dungeons** have a Civil War (owner, 2026-11-23): the factions gene maps about 5 of its 13 settings to Civil War stances and the rest to a united army. When it does, a **second army** is built from the next seed, with its own anchor. The two must differ visibly, by kind or by at least two tiers, so the fight reads as a war rather than chaos. Each placement belongs to one side, alternating by the genome, so both sides are present and the per-encounter budget is unchanged. Each side's attitude to the player comes from the factions gene: hunt everyone, ignore you until shot, or ignore you entirely. When one side is wiped out, the survivors turn on the player.
 
+**Problem monsters are left out of Civil War armies (owner, 2026-11-24).** In a Civil War dungeon, neither army may include Arch-viles or any other monster whose abilities would break factions: summoners such as Pain Elementals, monsters that revive others or change their own TID (`MonsterBoss.txt:21`, `ArmageddonRevenant.txt:631`), and monsters that use unfiltered `A_RadiusGive`. The pool marks these, and the planner skips them when building either army. United dungeons still use them.
+
 Rigging factions needs no engine change (appendix B).
 
 ---
@@ -194,21 +198,24 @@ This is the learn-then-break rule applied to pack sizes. The player learns what 
 
 ### 6.3 Black and White titans
 
-Colourful Hell's EX titans cost about 140 to 250 points, far more than one encounter's average. A dungeon that rolls one **takes the points from its other encounters** to pay for it.
+Colourful Hell's Black and White EX titans are among the worst enemies in the game, and they stay **rare** (owner, 2026-11-24):
 
-- **They are a rarity in very high-level dungeons (owner, 2026-11-24).** No dungeon below area level 20 has one. From level 20 the chance rises to about 20% at level 25 and about 30% at level 30. The roll is part of the genome, so a given dungeon always has one or never does.
-- **Dragon's Dens at area level 25 or higher always have one,** as the dragon. It is the boss of the deepest placement there.
-- **At most one per dungeon,** taking at most 40% of the pool. A small dungeon that cannot afford one skips it.
-- Outside Dragon's Dens, which placement gets it is random, and never a boss placement, so the titan is its own surprise.
-- Legendary monsters, if a mod adds them, follow the same rule.
+- **Below area level 20, no dungeon has one.**
+- **From level 20 up, only some dungeons have one:** about 1 in 5 at level 25 and about 1 in 3 at level 30. Most high-level dungeons never have one. The genome decides, so a given dungeon always has one or never does.
+- **Dragon's Dens at level 25 or higher always have one,** as the dragon, at the deepest boss placement.
+- **A dungeon has at most one.**
+
+**How a dungeon pays for one.** A titan costs about 140 to 250 points, more than several ordinary encounters put together. So it takes points away from the dungeon's other encounters, which then get smaller. To keep that from emptying the rest of the dungeon, a titan may use at most 40% of the dungeon's total points. A small dungeon that cannot pay for one within that limit gets none, even if it rolled one.
+
+Outside Dragon's Dens, the titan stands at a random placement that is not a boss placement, so it is its own surprise. Legendary monsters, if a mod adds them, follow the same rules.
 
 ### 6.4 Bosses
 
-Every dungeon has **a few bosses** (owner, 2026-11-24). They are **not** Black and White titans.
+Dungeons have bosses, decided **procedurally for each dungeon** with no fixed ratio (owner, 2026-11-24). They are **not** Black and White titans.
 
-- **How many:** about one per 15 placements, at least 1 and at most 4. The genome varies the count within that range.
-- **Where:** the deepest boss stands at the placement farthest from the entrance by walking distance. If Daggerfall's dungeon has treasure, it is the far placement closest to a treasure pile, so the end of the dungeon has a boss guarding treasure. Other bosses go at far-flung placements, preferring ones near other treasure piles, and spaced apart.
-- **What:** a boss encounter takes about 4 to 8 times the average from the pool. Its leader is the strongest army monster that fits there, one tier up from the army's usual, with an escort from the army.
+- **How many and how strong:** each dungeon decides from its genome. One might have a single strong boss, another several minibosses, another a strong boss with minibosses along the way. Bigger dungeons tend to have more, but nothing forces a count.
+- **Where:** the deepest boss stands at the placement farthest from the entrance by walking distance. If Daggerfall's dungeon has treasure, it is the far placement closest to a treasure pile, so the end of the dungeon has a boss guarding treasure. Minibosses go at other far-flung placements, preferring ones near other treasure piles, and spaced apart.
+- **What:** a boss encounter takes extra points from the pool. A strong boss takes about 4 to 8 times the average and a miniboss about 2 to 4 times. Its leader is the strongest army monster that fits there, one tier up from the army's usual, with an escort from the army.
 - **The treasure itself is not this module's job.** The plan names the boss placements, so the loot work can put treasure there.
 - If walking distance cannot be measured, for example because the map has no entrance marker, bosses go at random spread-out placements.
 
@@ -388,7 +395,7 @@ The owner confirmed this split on 2026-11-24, and `architecture.md`'s encounters
 
 | Event | Meaning |
 |---|---|
-| `mookKilled` | `mookId` and `placementId`. Daggerfall records the death and decides what it means for quests. |
+| `mookKilled` | `mookId` and `placementId`. Daggerfall records every death so dead mooks stay dead. Only the leader's death counts as the Daggerfall enemy dying, for Daggerfall's drops and quest completion. |
 
 **Inside Doom, two parts:**
 
@@ -409,14 +416,14 @@ The owner confirmed this split on 2026-11-24, and `architecture.md`'s encounters
 
 ### 9.3 Placement rules for the spawning work
 
-- **Hard requirement: the leader stands exactly on the placement's origin point.** This keeps quest triggers working and guarantees nothing important ends up out of bounds.
+- **Hard requirement: the leader stands exactly on the placement's origin point,** where Daggerfall would have spawned its monster. The leader is what Daggerfall counts for its drops and quest completion, so this keeps quests and drops working and guarantees nothing important ends up out of bounds.
 - **The leader is the highest-point monster in the encounter that fits at the origin** (owner, 2026-11-24). If none fits, the cheapest monster in the pool becomes the leader and stands there.
 - **The rest spread out a lot.** Search outward from the origin in rings, in a fixed order, and keep going farther until every monster has a valid spot. A spot is valid when the monster fits there by Doom's own position check and it can walk from the origin without passing through walls. Spots never come from outside the walkable map.
 - **The search order is fixed,** such as by ring and then by angle, so the same map always gives the same spots.
 - Monsters keep a few body widths apart, so packs fill rooms and halls instead of stacking.
 - Spawning happens at map load, before doors or lifts move.
 
-This is recorded in the "Mook packs" backlog card for the task that builds the spawner.
+This is recorded in "Mook packs" in `work/todo.md` and in card 5 of `work/queue/encounters`.
 
 ---
 

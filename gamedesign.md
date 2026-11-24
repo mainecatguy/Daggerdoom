@@ -34,6 +34,16 @@ Play through one Daggerfall dungeon (e.g., Privateer's Hold) and one town, fast-
 
 Unlike Daggerfall, the world never changes around the player to accommodate them. Doomerfall is totally indifferent to player level for scaling purposes and only cares about area level. Never use level scaling or any other artificial scaling of the game world that breaks the illusion that facts about the world are independent of facts about the player. This is a major feature of the mod and a major change from original Daggerfall.
 
+## In-engine object permanence (design principle)
+
+Things that exist in the world appear to the player as if they really exist in the world. They don't disappear, pop out of existence, or appear from nowhere (owner, 2026-11-24). This goes with "World Persistence" above: what exists stays, and what moves goes somewhere the player could follow. For example, rounds emptied from a magazine go back to the inventory instead of vanishing. Small questions that follow clearly from this principle don't need the owner.
+
+## Daggerfall's systems are all planned (design principle)
+
+We intend to recreate all of Daggerfall's systems (owner, 2026-11-24). When a feature only practically depends on a Daggerfall system that isn't in yet, assume that system will be added later and go ahead. Only a real technical dependency, where the feature can't be built or tested without the other system, means building that system first. For example, trapdoors can exist before climbing, because climbing is a core Daggerfall skill and is planned.
+
+The exception: language skills other than Streetwise and Etiquette are probably on the way out for now (owner, 2026-11-24). Don't assume those will be added.
+
 ## Randomness (design principles)
 
 ### Fixed seeds, not per-save randomness
@@ -61,7 +71,7 @@ Random events aim for Bayesian surprise: outcomes that meaningfully change what 
 - Every category gets monotonically better with area level: the chance of getting a given tier or better never falls.
 - Lower tier items are always more common. At best, a lower tier can be only slightly less common than the tier above it.
 - Daedric is the best tier, and its own check is the only way to get it. It reaches 1 in 40 at area level 20 and 1 in 20 at area level 30.
-- Ammo uses the same tiers. Iron ammo is called Regular ammo. The working ammo table is in the change ammo key item in `work/todo.md`.
+- Ammo uses the same tiers. Iron ammo is called Regular ammo. The ammo tier table and drop rules are in `work/queue/ammotiers/04.opus.ammo-material-tiers.md`.
 
 The approved odds are in `work/notes/20261123-material-tier-proposal.md`.
 

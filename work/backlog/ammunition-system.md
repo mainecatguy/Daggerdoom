@@ -6,7 +6,7 @@ Owner decisions (2026-11-23):
 
 - It is time to implement ammunition as a real system.
 - Ammo is tiered by Daggerfall's weapon material types.
-- Tin is a tier below Iron, with significantly reduced damage, such as -35%. The owner chose Tin over Copper because it sounds right for bullets, cells, shells, and rockets.
+- Ammo uses the same material tiers as weapons (owner, 2026-11-24).
 - Tier odds follow the approved design in `work/notes/20261123-material-tier-proposal.md`.
 - Swapping guns does not alter the player's ammo.
 
@@ -35,5 +35,5 @@ Daggerfall's material damage and to-hit modifier (`DaggerfallUnityItem.cs:979`):
 
 ## Open questions for the owner
 
-1. What damage does each tier deal? Tin is -35%. The rest could be derived from Daggerfall's modifiers.
+1. What damage does each tier deal? It could be derived from Daggerfall's modifiers.
 2. Does ammo have weight and price, and do stacks follow arrows?
