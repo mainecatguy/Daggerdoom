@@ -344,6 +344,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         // A load replaces Daggerfall's place. Doom reports its restored side of the door before the load ends.
         internal bool LoadRunning { get; set; }
 
+        // Daggerfall has booted and waits behind Doom's title with no game.
+        internal void SetMenuPhase() { phase = Dfb.DF_PHASE_MENU; }
+
         internal void OnTransitionEvent(uint action, uint seq, double x, double z, int target)
         {
             transition.OnEvent(action, seq, x, z, target);
@@ -558,7 +561,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (!engaged)
                 return;
             engaged = false;
-            phase = Dfb.DF_PHASE_BOOT;
+            phase = (uint)(DoomerfallNewGame.HoldsNewCharacter ? Dfb.DF_PHASE_MENU : Dfb.DF_PHASE_BOOT); // Doom's title can start a new game.
             GameManager game = GameManager.Instance;
             game.DisableAI = savedDisableAI;
             game.PlayerObject.GetComponent<CharacterController>().enabled = savedController;

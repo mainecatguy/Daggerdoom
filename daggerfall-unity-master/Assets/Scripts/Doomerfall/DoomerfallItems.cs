@@ -85,6 +85,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             ForgetSpace();
         }
 
+        // A held new character's dungeon exists before OnStartGame fires, so the last character's ledger must go first.
+        internal void ForgetWorld()
+        {
+            ledger = new LedgerData();
+            ForgetSpace();
+        }
+
         void ForgetSpace()
         {
             live.Clear();

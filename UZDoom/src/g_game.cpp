@@ -132,6 +132,7 @@ bool DD_BridgeSaveAddFiles(TArray<FCompressedBuffer> &content, TArray<FString> &
 bool DD_BridgeSaveCommit(const FString &written, const FString &filename);
 bool DD_BridgeLoadBegin(const char *filename);
 bool DD_BridgeDeathHold(int playernum);
+FString DD_BridgeSlotName(const char *slot);
 void G_DoVictory (void);
 
 void SetupLoadingCVars();
@@ -2355,7 +2356,7 @@ void G_DoAutoSave ()
 	num.Int = nextautosave;
 	autosavenum->ForceSet (num, CVAR_Int);
 
-	file = G_BuildSaveName(FStringf("auto%02d", nextautosave).GetChars());
+	file = G_BuildSaveName(DD_BridgeSlotName(FStringf("auto%02d", nextautosave).GetChars()).GetChars()); // Doomerfall: per character
 
 	// The hint flag is only relevant on the primary level.
 	if (!(primaryLevel->flags2 & LEVEL2_NOAUTOSAVEHINT))
@@ -2400,7 +2401,7 @@ void G_DoQuickSave ()
 	num.Int = lastquicksave;
 	quicksavenum->ForceSet (num, CVAR_Int);
 
-	file = G_BuildSaveName(FStringf("quick%02d", lastquicksave).GetChars());
+	file = G_BuildSaveName(DD_BridgeSlotName(FStringf("quick%02d", lastquicksave).GetChars()).GetChars()); // Doomerfall: per character
 
 	readableTime = myasctime ();
 	description.Format("Quicksave %s", readableTime);

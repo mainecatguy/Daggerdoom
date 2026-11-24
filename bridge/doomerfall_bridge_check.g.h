@@ -7,11 +7,11 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x9d839f532ffe6cd2ULL
+#define DFB_SCHEMA_HASH 0x3ea6ebaa36412868ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
-static_assert((DFB_PROTOCOL_VERSION) == (4u), DFB_STALE);
+static_assert((DFB_PROTOCOL_VERSION) == (5u), DFB_STALE);
 static_assert((DFB_RING_SLOTS) == (4096u), DFB_STALE);
 static_assert((DFB_OUTBOX_SLOTS) == (16384u), DFB_STALE);
 static_assert((DFB_BULK_SLOTS) == (8u), DFB_STALE);
@@ -57,6 +57,9 @@ static_assert((DFB_KIND_LOAD_RESUME) == (18), DFB_STALE);
 static_assert((DFB_KIND_HOLD) == (19), DFB_STALE);
 static_assert((DFB_KIND_TRAVEL) == (20), DFB_STALE);
 static_assert((DFB_KIND_TRANSITION) == (21), DFB_STALE);
+static_assert((DFB_KIND_NEWGAME) == (22), DFB_STALE);
+static_assert((DFB_KIND_NEWGAME_ARRIVED) == (23), DFB_STALE);
+static_assert((DFB_KIND_NEWGAME_GO) == (24), DFB_STALE);
 static_assert((DFB_KIND_ITEMS_BEGIN) == (40), DFB_STALE);
 static_assert((DFB_KIND_ITEM) == (41), DFB_STALE);
 static_assert((DFB_KIND_ITEMS_END) == (42), DFB_STALE);
@@ -84,6 +87,7 @@ static_assert((DFB_UI_NONE) == (0u), DFB_STALE);
 static_assert((DFB_UI_TRAVEL_MAP) == (1u), DFB_STALE);
 static_assert((DFB_UI_INVENTORY) == (2u), DFB_STALE);
 static_assert((DFB_UI_MAP) == (3u), DFB_STALE);
+static_assert((DFB_UI_NEW_GAME) == (4u), DFB_STALE);
 static_assert((DFB_UI_CLOSED) == (0u), DFB_STALE);
 static_assert((DFB_UI_OPENED) == (1u), DFB_STALE);
 static_assert((DFB_UI_REASON_NONE) == (0u), DFB_STALE);
@@ -207,6 +211,20 @@ static_assert(offsetof(dfb_travel, map_pixel_y) == 24, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_travel::map_pixel_y), int32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_travel, pad) == 28, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_travel::pad), uint32_t>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_new_game) == 32, DFB_STALE);
+static_assert(offsetof(dfb_new_game, world_x) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_new_game::world_x), double>::value, DFB_STALE);
+static_assert(offsetof(dfb_new_game, world_z) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_new_game::world_z), double>::value, DFB_STALE);
+static_assert(offsetof(dfb_new_game, yaw_degrees) == 16, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_new_game::yaw_degrees), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_new_game, map_pixel_x) == 20, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_new_game::map_pixel_x), int32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_new_game, map_pixel_y) == 24, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_new_game::map_pixel_y), int32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_new_game, dungeon_map_id) == 28, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_new_game::dungeon_map_id), int32_t>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_transition) == 32, DFB_STALE);
 static_assert(offsetof(dfb_transition, action) == 0, DFB_STALE);
