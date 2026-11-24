@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x33b93a2eaa9fdf46UL;
+        public const ulong SchemaHash = 0x21eabc704c700db9UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 5;
@@ -75,8 +75,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_NPC = 61;  // DF to UZ; one NPC present in that interior; payload: dfb_npc
         public const ushort KIND_NPCS_END = 62;  // DF to UZ; the list is complete, and anyone not in it is absent; payload: dfb_world_items
         public const ushort KIND_NPCS_REQUEST = 63;  // UZ to DF; send the current list again; payload: dfb_world_items
+        public const ushort KIND_TOWNSFOLK_BEGIN = 64;  // DF to UZ; starts one full list for the town around the player; payload: dfb_townsfolk
+        public const ushort KIND_TOWNSPERSON = 65;  // DF to UZ; one visible townsperson; payload: dfb_townsperson
+        public const ushort KIND_TOWNSFOLK_END = 66;  // DF to UZ; the list is complete, and anyone not in it is out of sight; payload: dfb_townsfolk
+        public const ushort KIND_TOWNSPERSON_DEATH = 67;  // UZ to DF; a townsperson died; payload: dfb_townsperson_death
+        public const ushort KIND_TOWNSFOLK_REQUEST = 68;  // UZ to DF; send the current list again; payload: dfb_townsfolk
         public const uint NPC_TAG = 6;
         public const uint NPC_TAG_SHIFT = 61;
+        public const uint TOWNSPERSON_TAG = 7;
+        public const uint TOWNSPERSON_GUARD = 1;  // dfb_townsperson.flags: idles with the guard record
         public const uint MONSTER_TAG = 5;
         public const uint MONSTER_TAG_SHIFT = 61;
         public const uint MONSTER_MEMBER_BITS = 8;
@@ -135,8 +142,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const int UZ_PHASE_SAVING = 4;
 
         // Native size of every generated struct, for the attach check.
-        public static readonly Type[] StructTypes = { typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbNpc), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
-        public static readonly int[] StructSizes = { 64, 24, 24, 16, 24, 24, 48, 32, 32, 32, 16, 48, 16, 48, 32, 32, 16, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
+        public static readonly Type[] StructTypes = { typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbNpc), typeof(DfbTownsfolk), typeof(DfbTownsperson), typeof(DfbTownspersonDeath), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
+        public static readonly int[] StructSizes = { 64, 24, 24, 16, 24, 24, 48, 32, 32, 32, 16, 48, 16, 48, 32, 32, 16, 32, 40, 24, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
     }
 
     static class DfbBytes
@@ -216,6 +223,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public DfbMonsterDeath monsterDeath;  // MONSTER_DEATH
         [FieldOffset(16)] public DfbMonster monster;  // MONSTER
         [FieldOffset(16)] public DfbNpc npc;  // NPC
+        [FieldOffset(16)] public DfbTownsfolk townsfolk;  // TOWNSFOLK_BEGIN, TOWNSFOLK_END, TOWNSFOLK_REQUEST
+        [FieldOffset(16)] public DfbTownsperson townsperson;  // TOWNSPERSON
+        [FieldOffset(16)] public DfbTownspersonDeath townspersonDeath;  // TOWNSPERSON_DEATH
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 24)]
@@ -436,6 +446,40 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(0)] public ulong id;
         [FieldOffset(8)] public uint generation;
         [FieldOffset(12)] public uint pad;
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 32)]
+    struct DfbTownsfolk
+    {
+        [FieldOffset(0)] public uint generation;
+        [FieldOffset(4)] public uint count;
+        [FieldOffset(8)] public int mapId;  // the town's Daggerfall map id, or 0 for an empty list away from towns
+        [FieldOffset(12)] public uint pad;
+        [FieldOffset(16)] public double originX;  // Daggerfall world units
+        [FieldOffset(24)] public double originZ;
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 40)]
+    struct DfbTownsperson
+    {
+        [FieldOffset(0)] public ulong id;
+        [FieldOffset(8)] public uint generation;
+        [FieldOffset(12)] public ushort archive;  // Daggerfall's mobile billboard archive
+        [FieldOffset(14)] public ushort flags;  // DFB_TOWNSPERSON_*
+        [FieldOffset(16)] public float x;  // east of origin_x
+        [FieldOffset(20)] public float y;  // north of origin_z
+        [FieldOffset(24)] public float vx;
+        [FieldOffset(28)] public float vy;
+        [FieldOffset(32)] public float facing;  // Doom angle in degrees: 0 is east, counterclockwise
+        [FieldOffset(36)] public uint pad;
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 24)]
+    struct DfbTownspersonDeath
+    {
+        [FieldOffset(0)] public ulong id;
+        [FieldOffset(8)] public double worldX;
+        [FieldOffset(16)] public double worldZ;
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 40)]

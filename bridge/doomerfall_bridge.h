@@ -114,8 +114,18 @@ extern "C" {
 #define DFB_KIND_NPCS_END      62  /* DF to UZ; the list is complete, and anyone not in it is absent; payload: dfb_world_items */
 #define DFB_KIND_NPCS_REQUEST  63  /* UZ to DF; send the current list again; payload: dfb_world_items */
 
+/* Townspeople: Daggerfall generates each town's wanderers from a seed and world time, and lists the ones near the
+   player with their motion. A townsperson id is tag (3, value 7) | hash of map id and roster index (61). */
+#define DFB_KIND_TOWNSFOLK_BEGIN   64  /* DF to UZ; starts one full list for the town around the player; payload: dfb_townsfolk */
+#define DFB_KIND_TOWNSPERSON       65  /* DF to UZ; one visible townsperson; payload: dfb_townsperson */
+#define DFB_KIND_TOWNSFOLK_END     66  /* DF to UZ; the list is complete, and anyone not in it is out of sight; payload: dfb_townsfolk */
+#define DFB_KIND_TOWNSPERSON_DEATH 67  /* UZ to DF; a townsperson died; payload: dfb_townsperson_death */
+#define DFB_KIND_TOWNSFOLK_REQUEST 68  /* UZ to DF; send the current list again; payload: dfb_townsfolk */
+
 #define DFB_NPC_TAG             6u
 #define DFB_NPC_TAG_SHIFT       61u
+#define DFB_TOWNSPERSON_TAG     7u
+#define DFB_TOWNSPERSON_GUARD   1u  /* dfb_townsperson.flags: idles with the guard record */
 
 #define DFB_MONSTER_TAG         5u
 #define DFB_MONSTER_TAG_SHIFT   61u
@@ -357,6 +367,40 @@ typedef struct dfb_npc
 	uint32_t generation;
 	uint32_t pad;
 } dfb_npc;
+
+/* One townsfolk list. Rows are Daggerfall world units relative to origin, so floats keep their precision. */
+typedef struct dfb_townsfolk
+{
+	uint32_t generation;
+	uint32_t count;
+	int32_t map_id;       /* the town's Daggerfall map id, or 0 for an empty list away from towns */
+	uint32_t pad;
+	double origin_x;      /* Daggerfall world units */
+	double origin_z;
+} dfb_townsfolk;
+
+/* A visible townsperson. Velocity is Daggerfall units per real second; Doom extrapolates between lists. */
+typedef struct dfb_townsperson
+{
+	uint64_t id;
+	uint32_t generation;
+	uint16_t archive;     /* Daggerfall's mobile billboard archive */
+	uint16_t flags;       /* DFB_TOWNSPERSON_* */
+	float x;              /* east of origin_x */
+	float y;              /* north of origin_z */
+	float vx;
+	float vy;
+	float facing;         /* Doom angle in degrees: 0 is east, counterclockwise */
+	uint32_t pad;
+} dfb_townsperson;
+
+/* Position is Daggerfall world units, for logs. */
+typedef struct dfb_townsperson_death
+{
+	uint64_t id;
+	double world_x;
+	double world_z;
+} dfb_townsperson_death;
 
 /* Describes one frame in the UI surface. Pixels are BGRA, top row first, width * 4 bytes per row. */
 typedef struct dfb_surface_frame

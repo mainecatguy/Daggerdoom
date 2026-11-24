@@ -72,6 +72,7 @@ CVAR(String, dd_tm_warp, "", CVAR_NOSAVE | CVAR_MOD)		// "tileX tileY": moves th
 void DD_MonstersEnterDungeon(FLevelLocals *Level, int mapId, bool firstVisit, bool bridged);
 void DD_MonstersTick(FLevelLocals *Level);
 void DD_NpcSetup(AActor *mo, uint64_t id, bool awaitList);
+void DD_TownsfolkTick(FLevelLocals *Level);
 bool DD_BridgeHasSession();
 
 bool DDTreadmill_Active = false;
@@ -1967,6 +1968,7 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 
 	AActor *pmo = Level->Players[consoleplayer]->mo;
 	if (!pmo) return;
+	if (DD_BridgeHasSession()) DD_TownsfolkTick(Level);	// [Doomerfall] Idle until Daggerfall lists townspeople.
 	if (runtimeTowns) DDTownCache::Poll();
 	if (travel.pending && !handoff.pending)
 	{
@@ -2117,6 +2119,17 @@ DDPlayerArea DDTreadmill_PlayerWorld(double &x, double &y, double &z, double &ya
 	y = world.Y;
 	z = world.Z;
 	return DD_AREA_EXTERIOR;
+}
+
+// [Doomerfall] Daggerfall world units to this map's Doom position. False indoors and between maps.
+bool DDTreadmill_WorldToLocal(double x, double y, double &doomX, double &doomY)
+{
+	if (!primaryLevel || handoff.pending || (!DDTreadmill_Active && !townActive)) return false;
+	if (townActive && towns[currentTown].space) return false;
+	const DVector3 local = ToLocal(x, y, 0);
+	doomX = local.X;
+	doomY = local.Y;
+	return true;
 }
 
 bool DDTreadmill_PlayerSpace(double &x, double &y, double &z, double &yawDegrees, int &target)

@@ -63,6 +63,10 @@ void DD_MonsterDied(dfb_session *session, AActor *mo);
 bool DD_NpcsEvent(const dfb_event &e);
 void DD_NpcsFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t target);
 void DD_NpcsResync();
+bool DD_TownsfolkEvent(const dfb_event &e);
+void DD_TownsfolkFrame(dfb_session *session, uint32_t context);
+void DD_TownsfolkResync();
+void DD_TownsfolkDied(dfb_session *session, AActor *mo);
 
 FARG_ADVANCED(dfbridge, "Doomerfall", "session", "Attaches to the Doomerfall bridge session created by the launcher.");
 FARG_ADVANCED(dfbridgelog, "Doomerfall", "file", "Appends Doomerfall bridge traffic and latency to a log file.");
@@ -306,7 +310,7 @@ void HandleEvent(const dfb_event &e, int64_t now)
 		Log("hello from Daggerfall (seq %u)", e.seq);
 		break;
 	default:
-		if (!DD_ItemsEvent(e) && !DD_MonstersEvent(e) && !DD_NpcsEvent(e)) unknownKinds++; // contract rule 7: skip, never fatal
+		if (!DD_ItemsEvent(e) && !DD_MonstersEvent(e) && !DD_NpcsEvent(e) && !DD_TownsfolkEvent(e)) unknownKinds++; // contract rule 7: skip, never fatal
 		break;
 	}
 }
@@ -652,6 +656,7 @@ bool DD_BridgeHasSession() { return session != nullptr; }
 void DD_BridgeMonsterDied(AActor *mo)
 {
 	if (session) DD_MonsterDied(session, mo);
+	if (session) DD_TownsfolkDied(session, mo);
 }
 
 // A ZScript pickup request, seen as its network event runs. False for every other event and outside a session.
@@ -1612,6 +1617,7 @@ void HandleLoadResume(const dfb_event &e)
 	DD_ItemsResync();
 	DD_MonstersResync();
 	DD_NpcsResync();
+	DD_TownsfolkResync();
 	Log("load %u: both games resumed, %.1f ms frozen", loadTxn, (dfb_now_ns() - loadStartNs) / 1e6);
 }
 
@@ -2189,6 +2195,7 @@ void DD_BridgeFrame()
 	DD_ItemsFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
 	DD_MonstersFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
 	DD_NpcsFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
+	DD_TownsfolkFrame(session, ownState.world_context);
 
 	ownState.uz_heartbeat++;
 	ownState.uz_tic = gametic;

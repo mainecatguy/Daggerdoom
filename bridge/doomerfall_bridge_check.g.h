@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x33b93a2eaa9fdf46ULL
+#define DFB_SCHEMA_HASH 0x21eabc704c700db9ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -75,8 +75,15 @@ static_assert((DFB_KIND_NPCS_BEGIN) == (60), DFB_STALE);
 static_assert((DFB_KIND_NPC) == (61), DFB_STALE);
 static_assert((DFB_KIND_NPCS_END) == (62), DFB_STALE);
 static_assert((DFB_KIND_NPCS_REQUEST) == (63), DFB_STALE);
+static_assert((DFB_KIND_TOWNSFOLK_BEGIN) == (64), DFB_STALE);
+static_assert((DFB_KIND_TOWNSPERSON) == (65), DFB_STALE);
+static_assert((DFB_KIND_TOWNSFOLK_END) == (66), DFB_STALE);
+static_assert((DFB_KIND_TOWNSPERSON_DEATH) == (67), DFB_STALE);
+static_assert((DFB_KIND_TOWNSFOLK_REQUEST) == (68), DFB_STALE);
 static_assert((DFB_NPC_TAG) == (6u), DFB_STALE);
 static_assert((DFB_NPC_TAG_SHIFT) == (61u), DFB_STALE);
+static_assert((DFB_TOWNSPERSON_TAG) == (7u), DFB_STALE);
+static_assert((DFB_TOWNSPERSON_GUARD) == (1u), DFB_STALE);
 static_assert((DFB_MONSTER_TAG) == (5u), DFB_STALE);
 static_assert((DFB_MONSTER_TAG_SHIFT) == (61u), DFB_STALE);
 static_assert((DFB_MONSTER_MEMBER_BITS) == (8u), DFB_STALE);
@@ -351,6 +358,50 @@ static_assert(offsetof(dfb_npc, generation) == 8, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_npc::generation), uint32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_npc, pad) == 12, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_npc::pad), uint32_t>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_townsfolk) == 32, DFB_STALE);
+static_assert(offsetof(dfb_townsfolk, generation) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_townsfolk::generation), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_townsfolk, count) == 4, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_townsfolk::count), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_townsfolk, map_id) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_townsfolk::map_id), int32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_townsfolk, pad) == 12, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_townsfolk::pad), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_townsfolk, origin_x) == 16, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_townsfolk::origin_x), double>::value, DFB_STALE);
+static_assert(offsetof(dfb_townsfolk, origin_z) == 24, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_townsfolk::origin_z), double>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_townsperson) == 40, DFB_STALE);
+static_assert(offsetof(dfb_townsperson, id) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_townsperson::id), uint64_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_townsperson, generation) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_townsperson::generation), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_townsperson, archive) == 12, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_townsperson::archive), uint16_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_townsperson, flags) == 14, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_townsperson::flags), uint16_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_townsperson, x) == 16, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_townsperson::x), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_townsperson, y) == 20, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_townsperson::y), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_townsperson, vx) == 24, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_townsperson::vx), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_townsperson, vy) == 28, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_townsperson::vy), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_townsperson, facing) == 32, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_townsperson::facing), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_townsperson, pad) == 36, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_townsperson::pad), uint32_t>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_townsperson_death) == 24, DFB_STALE);
+static_assert(offsetof(dfb_townsperson_death, id) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_townsperson_death::id), uint64_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_townsperson_death, world_x) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_townsperson_death::world_x), double>::value, DFB_STALE);
+static_assert(offsetof(dfb_townsperson_death, world_z) == 16, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_townsperson_death::world_z), double>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_surface_frame) == 40, DFB_STALE);
 static_assert(offsetof(dfb_surface_frame, width) == 0, DFB_STALE);

@@ -217,6 +217,10 @@ static partial class Program
             }
             flatArchives.Remove(199);
             npcArchives.Remove(199);
+            // Townspeople: MobilePersonBillboard's walking and idle archives, drawn by Doom from Daggerfall's live list.
+            var mobileArchives = new HashSet<int>(Enumerable.Range(381, 19).Concat(Enumerable.Range(451, 6)));
+            flatArchives.UnionWith(mobileArchives);
+            var mobileScales = new StringBuilder();
 
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outFile)));
             string temp = outFile + ".tmp";
@@ -241,15 +245,18 @@ static partial class Program
                         using (var s = zip.CreateEntry($"dfflat/F{archive:D3}R{record:D2}.png", CompressionLevel.Fastest).Open()) WriteFlatPng(s, image, file.Palette);
                         flatImages++;
                         // NPCs idle through their frames in Daggerfall.
-                        int frames = npcArchives.Contains(archive) ? file.GetFrameCount(record) : 1;
+                        bool mobile = mobileArchives.Contains(archive);
+                        if (mobile) { var (msx, msy) = BillboardScale(file, record); mobileScales.Append(FormattableString.Invariant($"{archive} {record} {msx:F4} {msy:F4}\n")); }
+                        int frames = npcArchives.Contains(archive) || mobile ? file.GetFrameCount(record) : 1;
                         if (frames <= 1) continue;
                         for (int frame = 1; frame < frames; frame++)
                             using (var s = zip.CreateEntry($"dfflat/F{archive:D3}R{record:D2}_f{frame}.png", CompressionLevel.Fastest).Open()) WriteFlatPng(s, file.GetDFBitmap(record, frame), file.Palette);
                         int animatedRecord = record, animatedArchive = archive;
-                        AppendAnimation(npcAnimation, f => $"dfflat/F{animatedArchive:D3}R{animatedRecord:D2}{(f > 0 ? $"_f{f}" : "")}.png", frames, BillboardFps(archive));
+                        AppendAnimation(npcAnimation, f => $"dfflat/F{animatedArchive:D3}R{animatedRecord:D2}{(f > 0 ? $"_f{f}" : "")}.png", frames, mobile ? (record == 5 || record == 15 ? 1 : 4) : BillboardFps(archive)); // MobilePersonBillboard's idle and walk speeds
                     }
                 }
                 if (npcAnimation.Length > 0) Text("ANIMDEFS", npcAnimation.ToString());
+                Text("DFMOBILE", mobileScales.ToString());
                 var home = maps.GetLocation(WorldTerrain.Places[(207, 213)].RegionIndex, WorldTerrain.Places[(207, 213)].LocationIndex);
                 var scene = new Scene(arena2, home, 0, 0);
                 scene.WriteSharedSky(zip);
@@ -285,6 +292,9 @@ class DFCityFlat : Actor
 
 // A Daggerfall NPC. It blocks nothing and takes no damage. args[0] and args[1] hold the low and high halves of its id.
 class DFNpc : DFCityFlat {}
+
+// A townsperson Daggerfall generated. The engine moves it from Daggerfall's list; ddRecordId holds its id.
+class DFTownsperson : DFCityFlat {}
 
 class DFRuntimeTown
 {
