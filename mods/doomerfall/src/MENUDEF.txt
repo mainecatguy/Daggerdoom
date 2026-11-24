@@ -12,4 +12,5 @@ OptionMenu "DoomerfallControlsMenu"
 	Control "Open Fast Travel", "netevent df_fast_travel"
 	Control "Open Inventory", "netevent df_inventory"
 	Control "Interact", "netevent df_interact"
+	Control "Info", "netevent df_info"
 }

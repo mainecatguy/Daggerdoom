@@ -760,8 +760,12 @@ namespace DaggerfallWorkshop.Game
                 Instance.dfHUD.LargeHUD.HeadTexture = null;
         }
 
+        /// <summary>Doomerfall: sees each HUD message while set (message, true for mid-screen). Null outside a bridge session.</summary>
+        public static Action<string, bool> DoomerfallHudText;
+
         public static void AddHUDText(string message)
         {
+            DoomerfallHudText?.Invoke(message, false);
             if (Instance.dfHUD != null)
             {
                 Instance.dfHUD.PopupText.AddText(message);
@@ -770,6 +774,7 @@ namespace DaggerfallWorkshop.Game
 
         public static void AddHUDText(string message, float delay)
         {
+            DoomerfallHudText?.Invoke(message, false);
             if (Instance.dfHUD != null)
             {
                 Instance.dfHUD.PopupText.AddText(message, delay);
@@ -786,6 +791,7 @@ namespace DaggerfallWorkshop.Game
 
         public static void SetMidScreenText(string message, float delay = 1.5f)
         {
+            DoomerfallHudText?.Invoke(message, true);
             if (Instance.dfHUD != null)
             {
                 Instance.dfHUD.SetMidScreenText(message, delay);
@@ -823,6 +829,7 @@ namespace DaggerfallWorkshop.Game
 
         public void PopupMessage(string text)
         {
+            DoomerfallHudText?.Invoke(text, false);
             if (dfHUD != null)
                 dfHUD.PopupText.AddText(text);
         }

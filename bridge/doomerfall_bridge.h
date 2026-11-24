@@ -100,6 +100,12 @@ extern "C" {
 #define DFB_KIND_ITEMS_REQUEST 45  /* UZ to DF; send the current list again; payload: dfb_world_items */
 #define DFB_KIND_CONTAINER     80  /* DF to UZ; one furniture container in an item list, between ITEMS_BEGIN and ITEMS_END; payload: dfb_world_container */
 
+/* Info. Doom's Info control on something it can name. Daggerfall runs its own Info interaction and sends back each
+   message it showed. Piles and containers do not use this: Daggerfall's Info on them is the same as Grab, so Doom sends ITEM_TAKE. */
+#define DFB_KIND_INFO          90  /* UZ to DF; payload: dfb_info_request */
+#define DFB_KIND_INFO_TEXT     91  /* DF to UZ; one message for that request; payload: dfb_info_text; DFB_INFO_MORE in flags when the text goes on in the next event */
+#define DFB_KIND_INFO_NAME     92  /* UZ to DF; a monster's Doom name, sent just before its DFB_KIND_INFO; payload: dfb_info_text */
+
 /* Monsters. A monster id is 64 bits: tag (3, value 5) | placement hash (53) | pack member (8).
    Every member of one placement shares the hash, so a pack needs no new id format. */
 #define DFB_KIND_MONSTER_DEATH     50  /* UZ to DF; a tagged monster died; payload: dfb_monster_death */
@@ -132,6 +138,13 @@ extern "C" {
 #define DFB_ITEM_WINDOW    5u  /* Daggerfall will show its own window for this container; Doom opens DFB_UI_LOOT */
 #define DFB_TAKE_GRAB      0u  /* Daggerfall's Grab interaction */
 #define DFB_TAKE_STEAL     1u  /* Daggerfall's Steal interaction; the player is crouching */
+
+#define DFB_INFO_NPC       1u  /* dfb_info_request.id is an NPC id */
+#define DFB_INFO_BUILDING  2u  /* world_x and world_z are the point on the building Doom's view ray hit */
+#define DFB_INFO_MONSTER   3u  /* a Doom monster, named by the DFB_KIND_INFO_NAME just before */
+#define DFB_INFO_HUD       0u  /* dfb_info_text.style: Daggerfall's scrolling HUD message */
+#define DFB_INFO_MID       1u  /* dfb_info_text.style: Daggerfall's mid-screen message */
+#define DFB_INFO_MORE      1u  /* dfb_event.flags on DFB_KIND_INFO_TEXT */
 
 #define DFB_TRANSITION_ENTER_BUILDING 1u
 #define DFB_TRANSITION_EXIT_BUILDING  2u
@@ -382,6 +395,23 @@ typedef struct dfb_item_result
 	int32_t remaining;
 	char name[24];        /* UTF-8, terminated: the first item taken */
 } dfb_item_result;
+
+/* World units, as in dfb_transition. */
+typedef struct dfb_info_request
+{
+	uint32_t request;
+	uint32_t target;      /* DFB_INFO_* */
+	uint64_t id;
+	double world_x;
+	double world_z;
+} dfb_info_request;
+
+typedef struct dfb_info_text
+{
+	uint32_t request;
+	uint32_t style;       /* DFB_INFO_HUD or DFB_INFO_MID */
+	char text[40];        /* UTF-8, terminated unless full */
+} dfb_info_text;
 
 /* Position is Doom units within the space. target is the space id from dfb_uz_state.space_target. */
 typedef struct dfb_monster_death

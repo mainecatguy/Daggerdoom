@@ -63,6 +63,8 @@ void DD_MonsterDied(dfb_session *session, AActor *mo);
 bool DD_NpcsEvent(const dfb_event &e);
 void DD_NpcsFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t target);
 void DD_NpcsResync();
+bool DD_InfoEvent(const dfb_event &e);
+bool DD_InfoNetEvent(dfb_session *session, const char *name);
 
 FARG_ADVANCED(dfbridge, "Doomerfall", "session", "Attaches to the Doomerfall bridge session created by the launcher.");
 FARG_ADVANCED(dfbridgelog, "Doomerfall", "file", "Appends Doomerfall bridge traffic and latency to a log file.");
@@ -308,7 +310,7 @@ void HandleEvent(const dfb_event &e, int64_t now)
 		Log("hello from Daggerfall (seq %u)", e.seq);
 		break;
 	default:
-		if (!DD_ItemsEvent(e) && !DD_MonstersEvent(e) && !DD_NpcsEvent(e)) unknownKinds++; // contract rule 7: skip, never fatal
+		if (!DD_ItemsEvent(e) && !DD_MonstersEvent(e) && !DD_NpcsEvent(e) && !DD_InfoEvent(e)) unknownKinds++; // contract rule 7: skip, never fatal
 		break;
 	}
 }
@@ -693,7 +695,7 @@ void DD_BridgeMonsterDied(AActor *mo)
 // A ZScript pickup request, seen as its network event runs. False for every other event and outside a session.
 bool DD_BridgeItemNetEvent(const char *name)
 {
-	return session && DD_ItemsNetEvent(session, name);
+	return session && (DD_ItemsNetEvent(session, name) || DD_InfoNetEvent(session, name));
 }
 
 bool DD_BridgeNetEvent(const char *name)

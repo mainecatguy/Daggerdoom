@@ -23,6 +23,7 @@
 
 bool DD_BridgeHasSession();
 void DD_BridgeOpenLoot();
+bool DD_PickupNeedsUse(AActor *special);
 
 namespace
 {
@@ -131,6 +132,33 @@ double AimScore(AActor *pmo, player_t *player, AActor *item)
 	if (flat <= pmo->radius + item->radius && fabs(to.Z) <= player->viewheight + item->Height) return -1;
 	const double flatFacing = flat > 1 ? (to.X * yawCos + to.Y * yawSin) / flat : 1;
 	return to.Z < 0 && -to.Z <= FloorDrop && flatFacing > MinAim ? flatFacing - 1 : -HUGE_VAL;
+}
+
+// The pile, container, or (with `doomItems`) Doom pickup that Use would take, or null.
+AActor *ItemInView(player_t *player, bool doomItems)
+{
+	AActor *pmo = player->mo, *best = nullptr;
+	double bestScore = -HUGE_VAL;
+	TThinkerIterator<AActor> it(pmo->Level);
+	while (AActor *mo = it.Next())
+	{
+		const bool pile = IsWorldPile(mo);
+		if (!pile && (!doomItems || !(mo->flags & MF_SPECIAL) || !DD_PickupNeedsUse(mo))) continue;
+		const double score = AimScore(pmo, player, mo);
+		if (score > bestScore && P_CheckSight(pmo, mo, SF_IGNOREVISIBILITY))
+		{
+			bestScore = score;
+			best = mo;
+		}
+	}
+	// Furniture under the crosshair wins over an item that only counts because it lies on the floor ahead. Doom players
+	// rarely look down, so a low chest also counts a little below the crosshair when nothing else is there.
+	double boxDistance;
+	if (bestScore <= 0)
+		if (AActor *box = ContainerOnRay(pmo, player, nullAngle, boxDistance)) best = box;
+	if (!best)
+		best = ContainerOnRay(pmo, player, DAngle::fromDeg(20.), boxDistance);
+	return best;
 }
 
 void SendTake(uint64_t id, uint32_t mode)
@@ -290,27 +318,7 @@ bool DD_UsePress(player_t *player)
 	lastTic = gametic;
 	lastResult = false;
 
-	AActor *pmo = player->mo, *best = nullptr;
-	double bestScore = -HUGE_VAL;
-	TThinkerIterator<AActor> it(pmo->Level);
-	while (AActor *mo = it.Next())
-	{
-		const bool pile = IsWorldPile(mo);
-		if (!pile && (!(mo->flags & MF_SPECIAL) || !DD_PickupNeedsUse(mo))) continue;
-		const double score = AimScore(pmo, player, mo);
-		if (score > bestScore && P_CheckSight(pmo, mo, SF_IGNOREVISIBILITY))
-		{
-			bestScore = score;
-			best = mo;
-		}
-	}
-	// Furniture under the crosshair wins over an item that only counts because it lies on the floor ahead. Doom players
-	// rarely look down, so a low chest also counts a little below the crosshair when nothing else is there.
-	double boxDistance;
-	if (bestScore <= 0)
-		if (AActor *box = ContainerOnRay(pmo, player, nullAngle, boxDistance)) best = box;
-	if (!best)
-		best = ContainerOnRay(pmo, player, DAngle::fromDeg(20.), boxDistance);
+	AActor *pmo = player->mo, *best = ItemInView(player, true);
 	if (!best) return false;
 
 	if (IsWorldPile(best) || IsWorldContainer(best))
@@ -325,6 +333,17 @@ bool DD_UsePress(player_t *player)
 	// A refused pickup, such as a weapon the player already holds, stays in the world and leaves the press for a door.
 	lastResult = (best->ObjectFlags & OF_EuthanizeMe) || !(best->flags & MF_SPECIAL);
 	return lastResult;
+}
+
+// Daggerfall's Info on a pile or container is the same as Grab (PlayerActivate.ActivateLootContainer), so the Info
+// control opens the same window as Use. True when a pile or container was in view.
+bool DD_ItemsInfoPress(player_t *player)
+{
+	if (!useRules || !DD_BridgeHasSession() || !player || !player->mo || player->health <= 0) return false;
+	AActor *best = ItemInView(player, false);
+	if (!best) return false;
+	SendTake(strtoull(best->StringVar(FName("dfId")).GetChars(), nullptr, 16), DFB_TAKE_GRAB);
+	return true;
 }
 
 // The Interact control is the same action as Use, without Doom's door use.

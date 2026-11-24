@@ -65,7 +65,7 @@ class Doomerfall_Events : StaticEventHandler
 		{
 			Console.Printf("Doomerfall: action fired: Open Inventory");
 		}
-		else if (e.Name != "df_interact") // The engine handles Interact in a bridge session (dd_items.cpp).
+		else if (e.Name != "df_interact" && e.Name != "df_info") // The engine handles these in a bridge session (dd_items.cpp, dd_info.cpp).
 		{
 			Console.Printf("Doomerfall: unknown action %s", e.Name);
 		}
