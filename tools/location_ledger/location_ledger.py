@@ -56,7 +56,7 @@ SIGNATURE = r"""
 		Array<Inventory> loose;
 		let it = ThinkerIterator.Create("Inventory");
 		Inventory inv;
-		while (inv = Inventory(it.Next())) if (inv.Owner == null && !inv.bDROPPED && !(inv is "DoomerfallWorldItem")) loose.Push(inv);
+		while (inv = Inventory(it.Next())) if (inv.Owner == null && !(inv is "DoomerfallWorldItem")) loose.Push(inv);
 		Console.Printf("LLITEMS %d map items", loose.Size());
 		if (loose.Size() > 0) { Console.Printf("LLTAKE %s", loose[0].GetClassName()); loose[0].CallTryPickup(p); }
 		if (loose.Size() > 1)

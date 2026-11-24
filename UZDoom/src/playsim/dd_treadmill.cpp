@@ -592,7 +592,7 @@ namespace
 		const uint64_t id = mo->ddRecordId;
 		if (!id || table.count(id)) return false;
 		if (!monster)	// A map item still on its spot, with its default amount.
-			return IsMapItemId(id) && !(mo->flags & MF_DROPPED) && (mo->Pos().XY() - mo->SpawnPoint.XY()).LengthSquared() <= 1
+			return IsMapItemId(id) && (mo->Pos().XY() - mo->SpawnPoint.XY()).LengthSquared() <= 1
 				&& mo->IntVar(NAME_Amount) == GetDefaultByType(mo->GetClass())->IntVar(NAME_Amount);
 		if (mo->health <= 0) return false;
 		const uint64_t tag = id >> 61;
@@ -1740,7 +1740,9 @@ namespace
 		auto it = Level->GetThinkerIterator<AActor>();
 		while (AActor *mo = it.Next())
 		{
-			if (mo->ddRecordId || mo->player || !mo->IsKindOf(NAME_Inventory) || IsOwned(mo) || (mo->flags & MF_DROPPED)) continue;
+			// Everything loose at map start is the map's, before the rows are restored. MF_DROPPED cannot tell: items a
+			// map marker spawns keep it (Inventory.BeginPlay sets it, and only map things clear it in LevelSpawned).
+			if (mo->ddRecordId || mo->player || !mo->IsKindOf(NAME_Inventory) || IsOwned(mo)) continue;
 			uint64_t h = 0xCBF29CE484222325ull;
 			for (const char *c = mo->GetClass()->TypeName.GetChars(); *c; c++) h = (h ^ uint8_t(tolower(*c))) * 0x100000001B3ull;
 			const DVector3 w = ToWorld(mo->Pos(), originX, originY);
