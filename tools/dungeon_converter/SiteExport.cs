@@ -204,7 +204,8 @@ static partial class Program
             var nodes = BuildNodes(out var edges);
             int startNode = FindStart(nodes, entranceMarker);
             string wad = Path.Combine(outDir, "interior.wad");
-            var stats = WriteMap(wad, nodes[startNode], WritePoints(nodes, edges, startNode));
+            SetPickupPlace(2, id);
+            var stats = WriteMap(wad, nodes[startNode], WritePoints(nodes, edges, startNode), nodes, edges);
             scene.WriteRuntimeEntry(ddtPath, wad, info.ToString(), OutputMapName);
             File.Delete(wad);
             Console.WriteLine($"interior {OutputMapName} {location.Name} {blockName}:{recordIndex} type {buildingType} models {scene.Models} triangles {scene.Triangles} sectors {stats.sectors} doors {interiorDoors.Count} entries {entryIndex} {clock.ElapsedMilliseconds} ms");

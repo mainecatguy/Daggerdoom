@@ -2,3 +2,11 @@ gameinfo
 {
 	AddEventHandlers = "Doomerfall_Events", "DoomerfallItems", "DoomerfallGuns"
 }
+
+// Placed only by the dungeon converter (tools/dungeon_converter/PickupExport.cs).
+DoomEdNums
+{
+	31640 = DoomerfallPickupStimpack
+	31641 = DoomerfallPickupClip
+	31642 = DoomerfallPickupShells
+}
