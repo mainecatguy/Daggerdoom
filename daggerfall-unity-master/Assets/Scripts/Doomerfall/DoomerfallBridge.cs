@@ -65,6 +65,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DoomerfallHotkeys hotkeys;
         DoomerfallAmmo ammo;
         DoomerfallNewGame newGame;
+        DoomerfallPlainLoad plainLoad;
         DoomerfallMonsters monsters;
         DoomerfallNpcs npcs;
         DoomerfallInfo info;
@@ -194,6 +195,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             townspeople.Init(this, sync);
             save.Townspeople = townspeople;
             newGame.Townspeople = townspeople;
+            plainLoad = gameObject.AddComponent<DoomerfallPlainLoad>();
+            plainLoad.Init(this, sync, Environment.GetCommandLineArgs());
+            plainLoad.Items = items;
+            plainLoad.Monsters = monsters;
+            plainLoad.Townspeople = townspeople;
+            plainLoad.Hotkeys = hotkeys;
+            plainLoad.Ammo = ammo;
+            ui.PlainLoad = plainLoad;
             guards = gameObject.AddComponent<DoomerfallGuards>();
             guards.Init(this, sync);
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfguardtest") >= 0)
@@ -338,7 +347,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         save.OnHold(ev.payload0 != 0);
                         break;
                     case Dfb.KIND_NEWGAME_ARRIVED:
-                        newGame.OnArrived(ev.payload0 != 0);
+                        if (!plainLoad.OnArrived(ev.payload0 != 0))
+                            newGame.OnArrived(ev.payload0 != 0);
+                        break;
+                    case Dfb.KIND_STARTER:
+                        plainLoad.OnStarter(ev.doomItem.request, ev.doomItem.status, DoomerfallDoomItems.ClassOf(ev.doomItem));
                         break;
                     case Dfb.KIND_HELLO:
                         Log("hello from UZDoom (seq " + ev.seq + ")");

@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x0a4168b58a1b39c8ULL
+#define DFB_SCHEMA_HASH 0x0e280ee1e227e112ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -109,6 +109,8 @@ static_assert((DFB_KIND_AMMO_CHANGE) == (177), DFB_STALE);
 static_assert((DFB_KIND_AMMO_UNLOAD) == (178), DFB_STALE);
 static_assert((DFB_KIND_AMMO_UNLOADED) == (179), DFB_STALE);
 static_assert((DFB_KIND_AMMO_LOADED) == (180), DFB_STALE);
+static_assert((DFB_KIND_PLAIN_LOAD) == (210), DFB_STALE);
+static_assert((DFB_KIND_STARTER) == (211), DFB_STALE);
 static_assert((DFB_KIND_NPC_USE) == (100), DFB_STALE);
 static_assert((DFB_KIND_NPC_USE_RESULT) == (101), DFB_STALE);
 static_assert((DFB_KIND_MONSTER_DEATH) == (50), DFB_STALE);
@@ -213,6 +215,7 @@ static_assert((DFB_UI_NEW_GAME) == (4u), DFB_STALE);
 static_assert((DFB_UI_LOOT) == (5u), DFB_STALE);
 static_assert((DFB_UI_TALK) == (6u), DFB_STALE);
 static_assert((DFB_UI_DAGGERFALL) == (7u), DFB_STALE);
+static_assert((DFB_UI_LOAD_GAME) == (8u), DFB_STALE);
 static_assert((DFB_UI_CLOSED) == (0u), DFB_STALE);
 static_assert((DFB_UI_OPENED) == (1u), DFB_STALE);
 static_assert((DFB_UI_REASON_NONE) == (0u), DFB_STALE);
@@ -352,6 +355,28 @@ static_assert(offsetof(dfb_new_game, map_pixel_y) == 24, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_new_game::map_pixel_y), int32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_new_game, dungeon_map_id) == 28, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_new_game::dungeon_map_id), int32_t>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_plain_load) == 48, DFB_STALE);
+static_assert(offsetof(dfb_plain_load, world_x) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_plain_load::world_x), double>::value, DFB_STALE);
+static_assert(offsetof(dfb_plain_load, world_z) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_plain_load::world_z), double>::value, DFB_STALE);
+static_assert(offsetof(dfb_plain_load, yaw_degrees) == 16, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_plain_load::yaw_degrees), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_plain_load, dungeon_map_id) == 20, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_plain_load::dungeon_map_id), int32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_plain_load, context) == 24, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_plain_load::context), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_plain_load, start_x) == 28, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_plain_load::start_x), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_plain_load, start_y) == 32, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_plain_load::start_y), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_plain_load, start_z) == 36, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_plain_load::start_z), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_plain_load, start_yaw) == 40, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_plain_load::start_yaw), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_plain_load, pad) == 44, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_plain_load::pad), uint32_t>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_transition) == 32, DFB_STALE);
 static_assert(offsetof(dfb_transition, action) == 0, DFB_STALE);

@@ -291,8 +291,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 Fail(txn, e.ToString());
                 yield break;
             }
-            bridge.LogLine(string.Format("save {0}: wrote {1} files, {2} bytes, hp {3}, position {4},{5}", txn, files, bytes,
-                GameManager.Instance.PlayerEntity.CurrentHealth, GameManager.Instance.PlayerGPS.WorldX, GameManager.Instance.PlayerGPS.WorldZ));
+            bridge.LogLine(string.Format("save {0}: wrote {1} files, {2} bytes, hp {3}, position {4},{5}, Doom items {6}", txn, files, bytes,
+                GameManager.Instance.PlayerEntity.CurrentHealth, GameManager.Instance.PlayerGPS.WorldX, GameManager.Instance.PlayerGPS.WorldZ,
+                DoomerfallHotkeys.DoomItemList(GameManager.Instance.PlayerEntity.Items)));
             doneDeadline = Time.unscaledTime + DoneSeconds;
             Reply(txn, Dfb.SAVE_OK, files, bytes);
         }

@@ -21,7 +21,8 @@ bool DDTreadmill_WorldToLocal(double x, double y, double &doomX, double &doomY);
 bool DDTreadmill_PlayerSpace(double &x, double &y, double &z, double &yawDegrees, int &target);	// Inside a building or dungeon: position in its own Daggerfall units. False between maps.
 bool DDTreadmill_RequestTravel(double x, double y, double yawDegrees);	// Daggerfall world units. Moves the player on the next tic.
 void DDTreadmill_PressDoor();	// Daggerfall's Info on a door also enters: one press of Use on a location door, on the next tic.
-void DDTreadmill_RequestDungeon(int mapId);	// Doomerfall New Game: enters this dungeon through the current town's door on the next tic.
+void DDTreadmill_RequestDungeon(int mapId, const double *start = nullptr);	// Doomerfall New Game: enters this dungeon through the current town's door on the next tic. start (x, y, z, yaw in Daggerfall space units and Doom degrees) replaces the map start.
+void DDTreadmill_RequestBuilding(double doorX, double doorY, double tolerance, const double *start);	// Doomerfall plain load: enters the building whose town door is nearest this world point (within tolerance), landing at start (as RequestDungeon).
 bool DDTreadmill_CurrentDoor(int &action, double &x, double &y, int &target);	// After a load: which side of which door the player is on. False off Daggerfall maps.
 void DD_BridgeTransition(int action, double x, double y, int target);	// Tells Daggerfall about a door. Does nothing without a bridge session.
 

@@ -339,7 +339,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             waitFrames = hudFrames = 0;
             showingTravelMap = id == Dfb.UI_TRAVEL_MAP;
             bool creating = id == Dfb.UI_NEW_GAME && DoomerfallNewGame.HoldsNewCharacter;
-            if ((id != Dfb.UI_TRAVEL_MAP && id != Dfb.UI_INVENTORY && id != Dfb.UI_MAP && id != Dfb.UI_LOOT && id != Dfb.UI_TALK && id != Dfb.UI_DAGGERFALL && !creating) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
+            bool loading = id == Dfb.UI_LOAD_GAME && DoomerfallNewGame.HoldsNewCharacter && PlainLoad;
+            if ((id != Dfb.UI_TRAVEL_MAP && id != Dfb.UI_INVENTORY && id != Dfb.UI_MAP && id != Dfb.UI_LOOT && id != Dfb.UI_TALK && id != Dfb.UI_DAGGERFALL && !creating && !loading) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
             {
                 Finish(Dfb.UI_REASON_REFUSED);
                 return;
@@ -395,6 +396,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 NewGame.BeginCreation();
                 return;
             }
+            if (loading)
+            {
+                // Daggerfall's own Load window. A save loaded from it is a plain load (DoomerfallPlainLoad).
+                DaggerfallUI.UIManager.PushWindow(new DaggerfallUnitySaveGameWindow(DaggerfallUI.UIManager, DaggerfallUnitySaveGameWindow.Modes.LoadGame, null, true));
+                PlainLoad.WindowOpened();
+                return;
+            }
             LogWorldState("before");
             if (id == Dfb.UI_DAGGERFALL)
             {
@@ -426,15 +434,20 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         }
 
         internal DoomerfallNewGame NewGame { get; set; }
+        internal DoomerfallPlainLoad PlainLoad { get; set; }
         internal DoomerfallItems Items { get; set; }
         internal DoomerfallTalk Talk { get; set; }
 
-        /// <summary>The wizard is closing because a character was made, not because the player backed out.</summary>
+        /// <summary>The wizard is closing because a character was made, or the Load window because a save was chosen,
+        /// not because the player backed out.</summary>
         internal static void MarkResult()
         {
-            if (instance && instance.openId == Dfb.UI_NEW_GAME)
+            if (instance && (instance.openId == Dfb.UI_NEW_GAME || instance.openId == Dfb.UI_LOAD_GAME))
                 instance.closeReason = Dfb.UI_REASON_RESULT;
         }
+
+        /// <summary>Daggerfall's Load window is showing in Doom (DFB_UI_LOAD_GAME).</summary>
+        internal static bool LoadWindowOpen { get { return instance && instance.openId == Dfb.UI_LOAD_GAME; } }
 
         public void OnClose(uint id)
         {
@@ -454,6 +467,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             waitingForWindow = windowOpen = false;
             if (id == Dfb.UI_NEW_GAME && NewGame)
                 NewGame.CreationClosed(reason == Dfb.UI_REASON_RESULT);
+            if (id == Dfb.UI_LOAD_GAME && PlainLoad && GameManager.HasInstance && GameManager.Instance.SaveLoadManager.LoadInProgress)
+            {
+                reason = Dfb.UI_REASON_RESULT; // The window closed because a save was chosen; it is loading now.
+                PlainLoad.Arm();
+            }
             if (id == Dfb.UI_LOOT && Items)
                 Items.WindowClosed();
             DoomerfallInput.End();

@@ -581,6 +581,16 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         }
 
         // One DFB_KIND_AMMO report. Applied in Update, once Daggerfall is in a game.
+        // Plain Daggerfall load (no Doom half): Doom's counters hold its new game class ammo, which is not the player's.
+        // Doom's next report of each type is taken as agreed, and Daggerfall's stacks then reach Doom as a delta.
+        readonly bool[] daggerfallWins = new bool[4];
+        internal void PreferDaggerfall()
+        {
+            for (int i = 0; i < daggerfallWins.Length; i++)
+                daggerfallWins[i] = true;
+            bridge.LogLine("ammo: plain load, Daggerfall's stacks set Doom's counts; Daggerfall holds" + Totals());
+        }
+
         internal void OnReport(uint ack, uint count, string cls)
         {
             int type = TypeOfClass(cls);
@@ -692,7 +702,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     foreach (KeyValuePair<uint, int> p in t.pending)
                         believed += p.Value;
                     believed = Math.Max(0, believed);
-                    if (believed != t.synced)
+                    if (daggerfallWins[i])
+                    {
+                        daggerfallWins[i] = false;
+                        t.synced = believed; // The loop below sends Daggerfall's total.
+                    }
+                    else if (believed != t.synced)
                     {
                         // Doom picked up or spent ammo.
                         Change(items, i, believed - t.synced);
