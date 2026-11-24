@@ -51,7 +51,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         readonly Dictionary<ulong, MobileTypes> placements = new Dictionary<ulong, MobileTypes>();
         readonly HashSet<ulong> piled = new HashSet<ulong>();
         readonly List<DfbMonster> rows = new List<DfbMonster>();
-        int placementsMap = -1, lastSpace;
+        int placementsMap = -1, placementsLevel = 1, lastSpace;
         uint generation;
         ulong lastHash;
         bool resend;
@@ -204,7 +204,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             placements.Clear();
             DaggerfallDungeon dungeon = GameManager.Instance.PlayerEnterExit.Dungeon;
             DFLocation location = dungeon.Summary.LocationData;
-            int areaLevel = DoomerfallDrops.AreaLevel();
+            int areaLevel = placementsLevel = DoomerfallDrops.AreaLevel(location);
             DoomerfallDrops.EnemyPicker picker = new DoomerfallDrops.EnemyPicker(location.Dungeon.RecordElement.Header.LocationId,
                 dungeon.Summary.DungeonType, areaLevel, dungeon.RandomMonsterVariance, DaggerfallUnity.Settings.AlternateRandomEnemySelection);
             foreach (DFLocation.DungeonBlock block in location.Dungeon.Blocks)
@@ -231,7 +231,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     }
                 }
             }
-            bridge.LogLine(string.Format("monsters: {0} has {1} placements at area level {2}", location.Name, placements.Count, areaLevel));
+            bridge.LogLine(string.Format("monsters: {0} has {1} placements at area level {2} ({3})", location.Name, placements.Count, areaLevel, DoomerfallAreaLevels.Status()));
         }
 
         // Every foe assigned to a marker in this dungeon, by id.
@@ -401,7 +401,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
             else if (!placements.TryGetValue((id >> (int)Dfb.MONSTER_MEMBER_BITS) & PlacementMask, out type))
                 bridge.LogLine("monsters: no Daggerfall placement for " + Key(id) + ", so no drop");
-            ItemCollection items = DoomerfallDrops.RollEnemy(type, DoomerfallDrops.AreaLevel(), queued);
+            ItemCollection items = DoomerfallDrops.RollEnemy(type, placementsLevel, queued); // ShowDrops runs after BuildPlacements for the same map
             death.drop = items.SerializeItems();
             bridge.LogLine(string.Format("monsters: rolled {0} as {1}, {2} items", Key(id), type, items.Count));
         }

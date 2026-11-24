@@ -1,6 +1,7 @@
 # Area level proposal
 
-Status: proposal for the owner. Nothing in the game reads it yet.
+Status: approved by the owner on 2026-11-23. Built in Daggerfall as `Doomerfall/DoomerfallAreaLevels.cs`
+(see `work/notes/20261123-233755.md`); the enemy drops read it. Keep the script and the C# port in step.
 
 Script: `tools/area_level/area_level.py` (reader in `tools/area_level/dfdata.py`).
 It reads `MAPS.BSA` and `POLITIC.PAK`, gives every classic location a level, and prints

@@ -256,6 +256,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         void Update()
         {
             if (session == IntPtr.Zero) return;
+            DoomerfallAreaLevels.Warm(); // ranks every place once, on a worker thread
 
             long memoryBefore = GC.GetTotalMemory(false);
             int collectionsBefore = GC.CollectionCount(0);
