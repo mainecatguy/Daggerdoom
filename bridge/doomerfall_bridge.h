@@ -143,6 +143,9 @@ extern "C" {
 #define DFB_GUN_CLEAR  2u  /* cls is empty; take every gun */
 #define DFB_GUN_SELECT 3u  /* Doom already holds cls as the active gun; raise it */
 
+/* Climbing. Doom runs the climb with the DFB_SHEET_CLIMB_* chances and reports each skill roll it made. */
+#define DFB_KIND_CLIMB_USES    170  /* UZ to DF; Daggerfall tallies this many Climbing skill uses; payload: dfb_climb_uses */
+
 /* Use on an NPC Doom draws. Daggerfall runs its own activation of that NPC (Grab, or Steal while crouching). Any HUD
    message it shows comes back as DFB_KIND_INFO_TEXT with the same request number. */
 #define DFB_KIND_NPC_USE        100 /* UZ to DF; payload: dfb_npc_use */
@@ -223,8 +226,8 @@ extern "C" {
    effects and "live" includes them. While VALID is 0 every other value except FORMAT and EPOCH is zero. EPOCH
    changes whenever the character may have been replaced, so a reader must drop anything it derived from an older one. */
 #define DFB_SHEET_SLOT   0u
-#define DFB_SHEET_FORMAT_VERSION 1
-#define DFB_SHEET_INTS   150
+#define DFB_SHEET_FORMAT_VERSION 2
+#define DFB_SHEET_INTS   155
 #define DFB_SHEET_FORMAT 0    /* DFB_SHEET_FORMAT_VERSION */
 #define DFB_SHEET_EPOCH  1
 #define DFB_SHEET_VALID  2    /* 1 when this describes the current, fully loaded character */
@@ -254,6 +257,12 @@ extern "C" {
 #define DFB_SHEET_BIO_MAGIC    147  /* biography saving throw modifiers */
 #define DFB_SHEET_BIO_POISON   148
 #define DFB_SHEET_BIO_DISEASE  149
+#define DFB_SHEET_CLIMB_CHANCE 150  /* 4: percent chances from FormulaHelper.CalculateClimbingChance, in DFB_CLIMB_* order */
+#define DFB_SHEET_CLIMB_ENHANCED 154 /* 1 while a Climbing effect doubles climbing speed */
+#define DFB_CLIMB_START    0   /* start from the ground; Daggerfall's base 70 */
+#define DFB_CLIMB_GRASP    1   /* grab a wall while airborne; base 40 */
+#define DFB_CLIMB_CONTINUE 2   /* keep climbing; base 50 */
+#define DFB_CLIMB_REGAIN   3   /* regain a hold while slipping; base 20 */
 
 /* Daggerfall screens Doom can ask for. Add new menus here. */
 #define DFB_UI_NONE        0u
@@ -489,6 +498,12 @@ typedef struct dfb_item_art
 	char cls[64];
 	char tag[64];
 } dfb_item_art;
+
+typedef struct dfb_climb_uses
+{
+	uint32_t uses;        /* skill rolls since the last event, pass or fail */
+	uint32_t pad;
+} dfb_climb_uses;
 
 typedef struct dfb_npc_use
 {

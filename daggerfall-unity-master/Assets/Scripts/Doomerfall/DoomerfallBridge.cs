@@ -382,6 +382,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     case Dfb.KIND_DOOM_ITEM_ART:
                         doomItems.OnArt(ev.doomItem.request, ev.doomItem.status, DoomerfallDoomItems.ClassOf(ev.doomItem));
                         break;
+                    case Dfb.KIND_CLIMB_USES:
+                        DoomerfallClimb.OnUses(this, ev.climbUses.uses);
+                        break;
                     case Dfb.KIND_NPC_USE:
                         ui.Talk.OnUse(ev.npcUse.request, ev.npcUse.id, ev.npcUse.mode, ev.npcUse.distance);
                         break;

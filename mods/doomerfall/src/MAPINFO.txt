@@ -1,6 +1,6 @@
 gameinfo
 {
-	AddEventHandlers = "Doomerfall_Events", "DoomerfallItems", "DoomerfallGuns"
+	AddEventHandlers = "Doomerfall_Events", "DoomerfallItems", "DoomerfallGuns", "DoomerfallClimb"
 }
 
 // Placed only by the dungeon converter (tools/dungeon_converter/PickupExport.cs).

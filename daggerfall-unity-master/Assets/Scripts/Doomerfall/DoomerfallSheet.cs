@@ -5,6 +5,7 @@
 using System;
 using DaggerfallConnect;
 using DaggerfallWorkshop.Game.Entity;
+using DaggerfallWorkshop.Game.Formulas;
 using DaggerfallWorkshop.Game.Serialization;
 using DaggerfallWorkshop.Game.Utility;
 
@@ -198,6 +199,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             values[Dfb.SHEET_BIO_MAGIC] = player.BiographyResistMagicMod;
             values[Dfb.SHEET_BIO_POISON] = player.BiographyResistPoisonMod;
             values[Dfb.SHEET_BIO_DISEASE] = player.BiographyResistDiseaseMod;
+
+            // Daggerfall's own formula, so race, effects, luck, and formula mods stay Daggerfall's (ClimbingMotor bases).
+            values[Dfb.SHEET_CLIMB_CHANCE + Dfb.CLIMB_START] = FormulaHelper.CalculateClimbingChance(player, 70);
+            values[Dfb.SHEET_CLIMB_CHANCE + Dfb.CLIMB_GRASP] = FormulaHelper.CalculateClimbingChance(player, 40);
+            values[Dfb.SHEET_CLIMB_CHANCE + Dfb.CLIMB_CONTINUE] = FormulaHelper.CalculateClimbingChance(player, 50);
+            values[Dfb.SHEET_CLIMB_CHANCE + Dfb.CLIMB_REGAIN] = FormulaHelper.CalculateClimbingChance(player, 20);
+            values[Dfb.SHEET_CLIMB_ENHANCED] = player.IsEnhancedClimbing ? 1 : 0;
         }
 
         // The checksum lets a test compare this line with Doom's copy of the same version.
