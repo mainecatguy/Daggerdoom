@@ -21,12 +21,12 @@ argv, sys.argv = sys.argv, sys.argv[:1]
 import install  # noqa: E402  (only for its registry isolation)
 sys.argv = argv
 
-REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\info-mode")
+REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\info-vanilla")
 SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\containers")
-UZ_BUILD = Path(r"D:\dev\DoomDaggerfall-build\uzdoom-containers\Release")
+UZ_BUILD = Path(r"D:\dev\DoomDaggerfall-build\uzdoom-quiet\Release")
 SOUND = Path(r"D:\dev\DoomDaggerfall-build\uzdoom-launcher\Release")
-BRIDGE_DLL = Path(r"D:\dev\DoomDaggerfall-build\bridge-containers\Release\doomerfall_bridge.dll")
-LAUNCHER = Path(r"D:\dev\DoomDaggerfall-build\launcher-containers\Release\doomerfall-launcher.exe")
+BRIDGE_DLL = Path(r"D:\dev\DoomDaggerfall-build\bridge-quiet\Release\doomerfall_bridge.dll")
+LAUNCHER = Path(r"D:\dev\DoomDaggerfall-build\launcher-quiet\Release\doomerfall-launcher.exe")
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
 MODS = GAME.parent / "GameMods"
@@ -107,7 +107,7 @@ class IMDemoStart : StaticEventHandler
     dagger = GAME / "DAGGER"
     (REVIEW / "play.bat").write_text(
         "@echo off\r\n"
-        "rem Starts in town facing a general store, with DRLA. Q is Info: look at the store, a monster, or (inside) a person and press Q.\r\n"
+        "rem Starts in town facing a general store, with DRLA. Q is Info, as in Daggerfall: Q on the store names it, Q on its door names it and goes in, Q on a person or a monster says who it is.\r\n"
         "rem Use (or E) opens doors and containers, I opens the inventory, K opens fast travel. Rebind in Options, Customize Controls, Doomerfall Controls.\r\n"
         "set \"HERE=%~dp0\"\r\n"
         "if not exist \"%HERE%play\" mkdir \"%HERE%play\"\r\n"
@@ -138,7 +138,7 @@ def run(name, stock_mods, night=False):
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "IMHarness" }\n')
     uz = ["-noactivate", "-config", str(runs / f"{name}.ini"), "-savedir", str(saves), "-dfbridgelog", str(uz_log), "-nosound", "-noautoload", "-skill", "3",
           "-ddtowncache", str(data / "cache"), "-ddconverter", str(data / "converter" / "DungeonConverter.exe"), "-ddarena2", str(GAME / "DAGGER" / "ARENA2"),
-          "+logfile", name, "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{GROUP:05d}"]
+          "+logfile", name, "+screenshot_dir", str(runs / f"{name}-shots"),"+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{GROUP:05d}"]
     df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), "-dfloottest", "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"] + (["-dfnpcreport", "-dfnpcnight"] if night else [])
     timeout = 90
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
@@ -189,7 +189,8 @@ def run(name, stock_mods, night=False):
 def check():
     runs = REVIEW / "run"
     runs.mkdir(parents=True, exist_ok=True)
-    for label, mods in (("stock", []), ("drla", [str(MODS / n) for n in DRLA])):
+    drla = [str(MODS / n) for n in DRLA]
+    for label, mods in (("stock", []), ("drla", drla), ("drla-doomerfall", drla + [str(REVIEW / "doomerfall.pk3")])):
         log = runs / f"log-check-{label}.txt"  # UZDoom names the log file log-NAME.txt
         log.unlink(missing_ok=True)
         command = [sys.executable, QUIET, "--timeout", "30", "--cwd", str(runs), "--", str(REVIEW / "uzdoom" / "uzdoom.exe"), "-noactivate", "-iwad", str(GAME / "wads" / "DOOM.WAD"),
