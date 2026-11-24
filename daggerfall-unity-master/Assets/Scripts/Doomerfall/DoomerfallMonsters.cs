@@ -264,7 +264,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         void BuildArea(DFLocation location, DFRegion.DungeonTypes type, int areaLevel)
         {
-            DFPosition pixel = MapsFile.GetPixelFromPixelID(location.MapTableData.MapId);
+            DFPosition pixel = MapsFile.LongitudeLatitudeToMapPixel(location.MapTableData.Longitude, location.MapTableData.Latitude);
             area = new DfbEncounterArea
             {
                 mapId = location.MapTableData.MapId,
