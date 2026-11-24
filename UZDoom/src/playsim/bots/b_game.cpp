@@ -62,6 +62,7 @@ Everything that is changed is marked (maybe commented) with "Added by MC"
 */
 
 #include "b_bot.h"
+#include "dd_guards.h" // [Doomerfall]
 #include "cmdlib.h"
 #include "d_net.h"
 #include "d_netinf.h"
@@ -169,6 +170,8 @@ void FCajunMaster::Init ()
 void FCajunMaster::End ()
 {
 	unsigned int i;
+
+	DD_GuardsLeaveLevel(*this); // [Doomerfall] guard bots stay behind; none exist in a stock game
 
 	//Arrange wanted botnum and their names, so they can be spawned next level.
 	getspawned.Clear();

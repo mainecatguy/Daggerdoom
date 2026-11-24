@@ -28,7 +28,7 @@ namespace
 {
 constexpr double DoomPerDf = 0.75;
 constexpr double SnapDistance = 128;
-constexpr int Records = 16;
+constexpr int Records = 20;	// An enemy archive such as the guard's has move, attack, hurt, and idle groups of five.
 
 struct Row { uint16_t archive, flags; double x, y, vx, vy; float facing; };
 struct Look { FTextureID tex[Records]; DVector2 scale[Records]; };
@@ -108,6 +108,26 @@ void ChooseSprite(AActor *mo, const Row &r, AActor *camera, bool walking)
 	else mo->renderflags &= ~RF_XFLIP;
 }
 
+}
+
+// Draws mo with a Daggerfall mobile archive: records base to base+4 run from front to back, mirrored for the other side.
+// Shared with dd_guards.cpp. False if the archive has no such records.
+bool DD_MobileSprite(AActor *mo, int archive, int base, double facing, AActor *camera)
+{
+	const Look &look = LookFor(archive);
+	const double toCamera = camera ? atan2(camera->Y() - mo->Y(), camera->X() - mo->X()) * (180 / M_PI) : facing;
+	const int k = int(fmod(toCamera - facing + 720 + 22.5, 360) / 45) & 7;
+	const int record = base + (k <= 4 ? k : 8 - k);
+	if (record >= Records || !look.tex[record].isValid()) return false;
+	mo->picnum = look.tex[record];
+	mo->Scale = look.scale[record];
+	if (k > 4) mo->renderflags |= RF_XFLIP;
+	else mo->renderflags &= ~RF_XFLIP;
+	return true;
+}
+
+namespace
+{
 bool Target(const Row &r, int tics, DVector2 &out)
 {
 	const double dt = tics / double(TICRATE);

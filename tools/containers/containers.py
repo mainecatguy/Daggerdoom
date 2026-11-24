@@ -161,8 +161,8 @@ def run(name, load, building, target, stock_mods):
     else:
         for old in saves.glob("*.zds"):
             old.unlink()
-    df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), "-dfloottest", "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
-    timeout = 75
+    df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), "-dfloottest", "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"] + args.df_arg
+    timeout = 75 if not args.until else 100
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
                "--uzdoom-cwd", str(runs), "--log", str(launcher)]
@@ -178,8 +178,8 @@ def run(name, load, building, target, stock_mods):
     while time.time() < end and proc.poll() is None:
         time.sleep(0.25)
         body = read(console)
-        if "CTDONE" in body:
-            reason = "route finished"
+        if (args.until or "CTDONE") in body:
+            reason = "route finished" if not args.until else "saw " + args.until
             time.sleep(1)
             break
         if any(k in body for k in FATAL):
@@ -190,10 +190,10 @@ def run(name, load, building, target, stock_mods):
         proc.wait()
     print("stopped:", reason)
     for line in read(console).splitlines():
-        if re.match(r"CT[A-Z]+ ", line) or "Daggerfall cannot" in line or any(k in line for k in FATAL):
+        if re.match(r"CT[A-Z]+ ", line) or "Daggerfall cannot" in line or any(k in line for k in FATAL) or (args.show and re.search(args.show, line)):
             print(line[:190])
     for line in read(df_log).splitlines():
-        if re.search(r"items: (use|opening|activating|closed|restored|ledger)|loottest:|ui: (menu|top window)|error", line):
+        if re.search(r"items: (use|opening|activating|closed|restored|ledger)|loottest:|ui: (menu|top window)|error", line) or (args.show and re.search(args.show, line)):
             print("df", line[:210])
     for line in read(uz_log).splitlines():
         if "ui:" in line and ("menu 5" in line or "closed" in line):
@@ -231,8 +231,13 @@ ap.add_argument("--crouch", action="store_true", help="hold crouch while pressin
 ap.add_argument("--review", type=Path, default=REVIEW, help="the review folder to assemble into and run from")
 ap.add_argument("--uz-build", type=Path, default=UZ_BUILD, help="the UZDoom Release folder to assemble from")
 ap.add_argument("--source", type=Path, default=SOURCE, help="the review folder to copy data and dfitems.pk3 from")
+ap.add_argument("--bridge-dll", type=Path, default=BRIDGE_DLL, help="the bridge DLL to assemble with")
+ap.add_argument("--launcher", type=Path, default=LAUNCHER, help="the launcher to assemble with")
+ap.add_argument("--df-arg", action="append", default=[], help="an extra Daggerfall Unity argument, such as -dfguardtest")
+ap.add_argument("--until", help="keep running after the route until the UZDoom console shows this text")
+ap.add_argument("--show", default="", help="also print UZDoom console and Daggerfall log lines matching this regular expression")
 args = ap.parse_args()
-REVIEW, UZ_BUILD, SOURCE = args.review, args.uz_build, args.source
+REVIEW, UZ_BUILD, SOURCE, BRIDGE_DLL, LAUNCHER = args.review, args.uz_build, args.source, args.bridge_dll, args.launcher
 if args.command == "assemble":
     assemble()
 elif args.command == "run":

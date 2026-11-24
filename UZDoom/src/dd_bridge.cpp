@@ -69,6 +69,9 @@ bool DD_TownsfolkEvent(const dfb_event &e);
 void DD_TownsfolkFrame(dfb_session *session, uint32_t context);
 void DD_TownsfolkResync();
 void DD_TownsfolkDied(dfb_session *session, AActor *mo);
+bool DD_GuardsEvent(const dfb_event &e);
+void DD_GuardsFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t target);
+void DD_GuardDied(dfb_session *session, AActor *mo);
 
 FARG_ADVANCED(dfbridge, "Doomerfall", "session", "Attaches to the Doomerfall bridge session created by the launcher.");
 FARG_ADVANCED(dfbridgelog, "Doomerfall", "file", "Appends Doomerfall bridge traffic and latency to a log file.");
@@ -314,7 +317,7 @@ void HandleEvent(const dfb_event &e, int64_t now)
 		Log("hello from Daggerfall (seq %u)", e.seq);
 		break;
 	default:
-		if (!DD_ItemsEvent(e) && !DD_MonstersEvent(e) && !DD_NpcsEvent(e) && !DD_InfoEvent(e) && !DD_TownsfolkEvent(e)) unknownKinds++; // contract rule 7: skip, never fatal
+		if (!DD_ItemsEvent(e) && !DD_MonstersEvent(e) && !DD_NpcsEvent(e) && !DD_InfoEvent(e) && !DD_TownsfolkEvent(e) && !DD_GuardsEvent(e)) unknownKinds++; // contract rule 7: skip, never fatal
 		break;
 	}
 }
@@ -695,6 +698,7 @@ void DD_BridgeMonsterDied(AActor *mo)
 {
 	if (session) DD_MonsterDied(session, mo);
 	if (session) DD_TownsfolkDied(session, mo);
+	if (session) DD_GuardDied(session, mo);
 }
 
 // A ZScript pickup request, seen as its network event runs. False for every other event and outside a session.
@@ -2235,6 +2239,7 @@ void DD_BridgeFrame()
 	DD_MonstersFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
 	DD_NpcsFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
 	DD_TownsfolkFrame(session, ownState.world_context);
+	DD_GuardsFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
 
 	ownState.uz_heartbeat++;
 	ownState.uz_tic = gametic;

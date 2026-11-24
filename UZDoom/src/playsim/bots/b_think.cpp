@@ -29,6 +29,7 @@
 #include "doomstat.h"
 #include "p_local.h"
 #include "b_bot.h"
+#include "dd_guards.h" // [Doomerfall]
 #include "g_game.h"
 #include "d_net.h"
 #include "d_event.h"
@@ -50,7 +51,7 @@ void DBot::Think ()
 
 	if (player->mo->health > 0) //Still alive
 	{
-		if (teamplay || !deathmatch)
+		if ((teamplay || !deathmatch) && !DD_IsGuardBot(player->mo)) // [Doomerfall] guards follow no one
 			mate = Choose_Mate ();
 
 		AActor *actor = player->mo;
@@ -81,7 +82,7 @@ void DBot::Think ()
 	{
 		t_respawn--;
 	}
-	else if (player->mo->health <= 0)
+	else if (player->mo->health <= 0 && !DD_IsGuardBot(player->mo)) // [Doomerfall] a guard never respawns
 	{ // Time to respawn
 		cmd->buttons |= BT_USE;
 	}

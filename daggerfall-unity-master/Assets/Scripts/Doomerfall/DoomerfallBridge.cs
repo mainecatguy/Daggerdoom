@@ -67,6 +67,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DoomerfallSheet sheet;
         internal DoomerfallSheet Sheet { get { return sheet; } }
         DoomerfallTownspeople townspeople;
+        DoomerfallGuards guards;
         bool textFrame;
         uint ownSize, peerSize, nextPing = 1;
         ulong pingsAnswered, pongsReceived, unknownKinds;
@@ -165,6 +166,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             townspeople.Init(this, sync);
             save.Townspeople = townspeople;
             newGame.Townspeople = townspeople;
+            guards = gameObject.AddComponent<DoomerfallGuards>();
+            guards.Init(this, sync);
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfguardtest") >= 0)
+                gameObject.AddComponent<DoomerfallGuardsTest>().Init(this, sync);
         }
 
         // The schema hash covers every constant, struct field, and function in the header.
@@ -337,6 +342,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         break;
                     case Dfb.KIND_TOWNSPERSON_DEATH:
                         townspeople.OnDeath(ev.townspersonDeath.id, ev.townspersonDeath.worldX, ev.townspersonDeath.worldZ);
+                        break;
+                    case Dfb.KIND_GUARD_DEATH:
+                        guards.OnDeath(ev.guardDeath.id);
                         break;
                     case Dfb.KIND_TOWNSFOLK_REQUEST:
                         townspeople.OnRequest();
