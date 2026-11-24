@@ -85,7 +85,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     bought = true;
                 goldBefore = Player.GoldPieces;
                 countBefore = Player.Items.Count;
-                DaggerfallUnityItem item = mode == "Buy" ? Cheapest(Filtered(trade, "remoteItemsFiltered")) : Sellable(Filtered(trade, "localItemsFiltered"));
+                DaggerfallUnityItem item = mode == "Buy" ? Cheapest(Filtered(trade, "remoteItemsFiltered")) : null;
+                // The player's list shows one tab at a time, so look through each tab as a player would.
+                foreach (DaggerfallInventoryWindow.TabPages tab in Enum.GetValues(typeof(DaggerfallInventoryWindow.TabPages)))
+                {
+                    if (item != null || mode == "Buy")
+                        break;
+                    Call(trade, typeof(DaggerfallInventoryWindow), "SelectTabPage", tab);
+                    item = Sellable(Filtered(trade, "localItemsFiltered"));
+                }
                 if (item == null)
                 {
                     List<DaggerfallUnityItem> shown = Filtered(trade, mode == "Buy" ? "remoteItemsFiltered" : "localItemsFiltered");
