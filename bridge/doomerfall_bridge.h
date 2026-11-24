@@ -34,7 +34,7 @@ extern "C" {
 #endif
 
 #define DFB_MAGIC            0x42464444u /* "DDFB" */
-#define DFB_PROTOCOL_VERSION 4u
+#define DFB_PROTOCOL_VERSION 5u
 
 #define DFB_RING_SLOTS     4096u   /* power of two */
 #define DFB_OUTBOX_SLOTS   16384u  /* local, per process; hard cap before a bridge fault */
@@ -87,6 +87,9 @@ extern "C" {
 #define DFB_KIND_HOLD          19  /* UZ to DF; the payload's first 8 bytes are 1 to hold Daggerfall paused at Doom's title, 0 to release */
 #define DFB_KIND_TRAVEL        20  /* DF to UZ; Daggerfall finished a fast travel, sent before the menu closes; payload: dfb_travel */
 #define DFB_KIND_TRANSITION    21  /* UZ to DF; the player went through a door, or a load restored this place; payload: dfb_transition */
+#define DFB_KIND_NEWGAME       22  /* DF to UZ; a character is made and Daggerfall is held at its start; payload: dfb_new_game */
+#define DFB_KIND_NEWGAME_ARRIVED 23 /* UZ to DF; the payload's first 8 bytes are 1 when Doom is in the same place, 0 if it could not get there */
+#define DFB_KIND_NEWGAME_GO    24  /* DF to UZ; Daggerfall started its quests and clock, so both games run */
 
 #define DFB_TRANSITION_ENTER_BUILDING 1u
 #define DFB_TRANSITION_EXIT_BUILDING  2u
@@ -108,6 +111,7 @@ extern "C" {
 #define DFB_UI_TRAVEL_MAP  1u
 #define DFB_UI_INVENTORY   2u
 #define DFB_UI_MAP         3u  /* the map for where the player is; dfb_ui_command.context is Doom's DFB_WORLD_* */
+#define DFB_UI_NEW_GAME    4u  /* Daggerfall's character creation and new game cinematics */
 
 #define DFB_UI_CLOSED      0u
 #define DFB_UI_OPENED      1u
@@ -220,6 +224,17 @@ typedef struct dfb_travel
 	int32_t map_pixel_y;
 	uint32_t pad;
 } dfb_travel;
+
+/* Where a new character starts. World units inside the start map pixel. dungeon_map_id is -1 outdoors. */
+typedef struct dfb_new_game
+{
+	double world_x;
+	double world_z;
+	float yaw_degrees;
+	int32_t map_pixel_x;
+	int32_t map_pixel_y;
+	int32_t dungeon_map_id;
+} dfb_new_game;
 
 /* The outside door used, in Daggerfall world units. target is Doom's interior space or dungeon map id, for logs. */
 typedef struct dfb_transition

@@ -1360,6 +1360,7 @@ namespace
 	// A fast travel arrival. Lands in the location's map when the point is inside its entry band, so the
 	// player never stands in the overworld's flattened copy of a town.
 	struct TravelRequest { bool pending = false; double x = 0, y = 0, yaw = 0; } travel;
+	int dungeonRequest = -1;
 
 	void BeginTravel(FLevelLocals *Level, AActor *pmo)
 	{
@@ -1940,6 +1941,18 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 		BeginTravel(Level, pmo);
 		return;
 	}
+	if (dungeonRequest >= 0 && townActive && !handoff.pending)	// Doomerfall New Game: through this town's real door.
+	{
+		const int wanted = dungeonRequest;
+		dungeonRequest = -1;
+		for (const DoorSpot &d : townDoors)
+			if (d.kind != 0 && d.target == wanted)
+			{
+				if (EnterDoor(Level, pmo, d)) return;
+				break;
+			}
+		Printf("DDTRAVEL no door to dungeon %d in %s\n", wanted, Level->MapName.GetChars());
+	}
 
 	if (townActive)
 	{
@@ -2028,6 +2041,8 @@ bool DDTreadmill_RequestTravel(double x, double y, double yawDegrees)
 	travel = { true, x, y, yawDegrees };
 	return true;
 }
+
+void DDTreadmill_RequestDungeon(int mapId) { dungeonRequest = mapId; }
 
 bool DDTreadmill_CurrentDoor(int &action, double &x, double &y, int &target)
 {

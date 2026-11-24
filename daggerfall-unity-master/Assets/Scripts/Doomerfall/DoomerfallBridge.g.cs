@@ -8,10 +8,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x7b5f737dd51b564fUL;
+        public const ulong SchemaHash = 0x82fc9909e4972da9UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
-        public const uint PROTOCOL_VERSION = 4;
+        public const uint PROTOCOL_VERSION = 5;
         public const uint RING_SLOTS = 4096;  // power of two
         public const uint OUTBOX_SLOTS = 16384;  // local, per process; hard cap before a bridge fault
         public const uint BULK_SLOTS = 8;  // 0-3 written by DF, 4-7 written by UZ
@@ -57,6 +57,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_HOLD = 19;  // UZ to DF; the payload's first 8 bytes are 1 to hold Daggerfall paused at Doom's title, 0 to release
         public const ushort KIND_TRAVEL = 20;  // DF to UZ; Daggerfall finished a fast travel, sent before the menu closes; payload: dfb_travel
         public const ushort KIND_TRANSITION = 21;  // UZ to DF; the player went through a door, or a load restored this place; payload: dfb_transition
+        public const ushort KIND_NEWGAME = 22;  // DF to UZ; a character is made and Daggerfall is held at its start; payload: dfb_new_game
+        public const ushort KIND_NEWGAME_ARRIVED = 23;  // UZ to DF; the payload's first 8 bytes are 1 when Doom is in the same place, 0 if it could not get there
+        public const ushort KIND_NEWGAME_GO = 24;  // DF to UZ; Daggerfall started its quests and clock, so both games run
         public const uint TRANSITION_ENTER_BUILDING = 1;
         public const uint TRANSITION_EXIT_BUILDING = 2;
         public const uint TRANSITION_ENTER_DUNGEON = 3;
@@ -73,6 +76,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint UI_TRAVEL_MAP = 1;
         public const uint UI_INVENTORY = 2;
         public const uint UI_MAP = 3;  // the map for where the player is; dfb_ui_command.context is Doom's DFB_WORLD_*
+        public const uint UI_NEW_GAME = 4;  // Daggerfall's character creation and new game cinematics
         public const uint UI_CLOSED = 0;
         public const uint UI_OPENED = 1;
         public const uint UI_REASON_NONE = 0;
@@ -104,8 +108,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const int UZ_PHASE_SAVING = 4;
 
         // Native size of every generated struct, for the attach check.
-        public static readonly Type[] StructTypes = { typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbTransition), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
-        public static readonly int[] StructSizes = { 64, 24, 24, 16, 24, 24, 48, 32, 32, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
+        public static readonly Type[] StructTypes = { typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbTransition), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
+        public static readonly int[] StructSizes = { 64, 24, 24, 16, 24, 24, 48, 32, 32, 32, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
     }
 
     static class DfbBytes
@@ -177,6 +181,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public DfbLoadRequest loadRequest;  // LOAD_REQUEST
         [FieldOffset(16)] public DfbTravel travel;  // TRAVEL
         [FieldOffset(16)] public DfbTransition transition;  // TRANSITION
+        [FieldOffset(16)] public DfbNewGame newGame;  // NEWGAME
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 24)]
@@ -281,6 +286,17 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(20)] public int mapPixelX;
         [FieldOffset(24)] public int mapPixelY;
         [FieldOffset(28)] public uint pad;
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 32)]
+    struct DfbNewGame
+    {
+        [FieldOffset(0)] public double worldX;
+        [FieldOffset(8)] public double worldZ;
+        [FieldOffset(16)] public float yawDegrees;
+        [FieldOffset(20)] public int mapPixelX;
+        [FieldOffset(24)] public int mapPixelY;
+        [FieldOffset(28)] public int dungeonMapId;
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 32)]

@@ -59,6 +59,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DoomerfallUi ui;
         DoomerfallHp hp;
         DoomerfallSave save;
+        DoomerfallNewGame newGame;
         bool textFrame;
         uint ownSize, peerSize, nextPing = 1;
         ulong pingsAnswered, pongsReceived, unknownKinds;
@@ -132,6 +133,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             ui.Init(this);
             save = gameObject.AddComponent<DoomerfallSave>();
             save.Init(this, sync, hp, Environment.GetCommandLineArgs());
+            newGame = gameObject.AddComponent<DoomerfallNewGame>();
+            newGame.Init(this, sync, Environment.GetCommandLineArgs());
+            ui.NewGame = newGame;
         }
 
         // The schema hash covers every constant, struct field, and function in the header.
@@ -266,6 +270,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         break;
                     case Dfb.KIND_HOLD:
                         save.OnHold(ev.payload0 != 0);
+                        break;
+                    case Dfb.KIND_NEWGAME_ARRIVED:
+                        newGame.OnArrived(ev.payload0 != 0);
                         break;
                     case Dfb.KIND_HELLO:
                         Log("hello from UZDoom (seq " + ev.seq + ")");

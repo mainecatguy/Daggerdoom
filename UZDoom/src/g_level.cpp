@@ -502,6 +502,7 @@ void G_NewInit ()
 //==========================================================================
 
 bool DD_BridgeBlocksNewGame(); // Doomerfall
+const char *DD_BridgeNewGameMap(); // Doomerfall: null unless New Game is entering Daggerfall's world
 
 void G_DoNewGame (void)
 {
@@ -512,7 +513,8 @@ void G_DoNewGame (void)
 	{
 		gameskill = d_skill;
 	}
-	G_InitNew (d_mapname.GetChars(), false);
+	const char *ddMap = DD_BridgeNewGameMap();
+	G_InitNew (ddMap ? ddMap : d_mapname.GetChars(), false);
 	gameaction = ga_nothing;
 }
 

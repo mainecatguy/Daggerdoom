@@ -306,13 +306,16 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             closeReason = 0;
             waitFrames = hudFrames = 0;
             showingTravelMap = id == Dfb.UI_TRAVEL_MAP;
-            if ((id != Dfb.UI_TRAVEL_MAP && id != Dfb.UI_INVENTORY && id != Dfb.UI_MAP) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
+            bool creating = id == Dfb.UI_NEW_GAME && DoomerfallNewGame.HoldsNewCharacter;
+            if ((id != Dfb.UI_TRAVEL_MAP && id != Dfb.UI_INVENTORY && id != Dfb.UI_MAP && !creating) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
             {
                 Finish(Dfb.UI_REASON_REFUSED);
                 return;
             }
 
             string message = id == Dfb.UI_INVENTORY ? DaggerfallUIMessages.dfuiOpenInventoryWindow : DaggerfallUIMessages.dfuiOpenTravelMapWindow;
+            if (creating)
+                message = null; // The wizard is opened below, once input is routed to it.
             if (id == Dfb.UI_MAP)
             {
                 // The map must describe the place Doom is showing, so wait out a door still in progress.
@@ -355,8 +358,22 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DaggerfallUI.Instance.CustomRenderTarget = target;
             DoomerfallInput.Begin();
             waitingForWindow = true;
+            if (creating)
+            {
+                NewGame.BeginCreation();
+                return;
+            }
             LogWorldState("before");
             DaggerfallUI.PostMessage(message);
+        }
+
+        internal DoomerfallNewGame NewGame { get; set; }
+
+        /// <summary>The wizard is closing because a character was made, not because the player backed out.</summary>
+        internal static void MarkResult()
+        {
+            if (instance && instance.openId == Dfb.UI_NEW_GAME)
+                instance.closeReason = Dfb.UI_REASON_RESULT;
         }
 
         public void OnClose(uint id)
@@ -375,6 +392,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             uint id = openId;
             openId = 0;
             waitingForWindow = windowOpen = false;
+            if (id == Dfb.UI_NEW_GAME && NewGame)
+                NewGame.CreationClosed(reason == Dfb.UI_REASON_RESULT);
             DoomerfallInput.End();
             if (DaggerfallUI.Instance)
                 DaggerfallUI.Instance.CustomRenderTarget = null;
