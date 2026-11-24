@@ -111,6 +111,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
 
         void ReflexButton_OnMouseClick(BaseScreenComponent sender, Vector2 position)
         {
+            if (Doomerfall.DoomerfallNewGame.FixedReflexes) return; // Doomerfall: reflexes are fixed at Normal
             SetPlayerReflexes((PlayerReflexes)sender.Tag);
         }
 

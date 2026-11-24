@@ -35,6 +35,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         /// <summary>Daggerfall's enemies stay out of a Doomerfall start, because Doom owns the monsters.</summary>
         public static bool ImportEnemies { get { return instance == null; } }
 
+        /// <summary>Reflexes are not used in Doomerfall. A flow session skips the wizard's Reflexes step, locks the
+        /// summary sheet's picker, and gives every new character this middle value ("Normal").</summary>
+        public static bool FixedReflexes { get { return instance != null; } }
+        public const Entity.PlayerReflexes NormalReflexes = Entity.PlayerReflexes.Average;
+
         internal static bool IsFlow(string[] args) { return Array.IndexOf(args, "-dfflow") >= 0; }
 
         internal void Init(DoomerfallBridge owner, DoomerfallPositionSync positionSync, string[] args)
@@ -142,8 +147,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 },
             };
             bridge.Send(ref e);
-            bridge.LogLine(string.Format("new game: {0} held at pixel {1},{2}, {3}, health {4}/{5}", game.PlayerEntity.Name, pixelX, pixelY,
-                dungeon ? "dungeon " + gps.CurrentLocation.Name : "outdoors", game.PlayerEntity.CurrentHealth, game.PlayerEntity.MaxHealth));
+            bridge.LogLine(string.Format("new game: {0} held at pixel {1},{2}, {3}, health {4}/{5}, reflexes {6}", game.PlayerEntity.Name, pixelX, pixelY,
+                dungeon ? "dungeon " + gps.CurrentLocation.Name : "outdoors", game.PlayerEntity.CurrentHealth, game.PlayerEntity.MaxHealth,
+                game.PlayerEntity.Reflexes));
         }
 
         internal void OnArrived(bool ok)
