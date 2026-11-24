@@ -634,7 +634,11 @@ typedef struct dfb_encounter_text
    PLACE_REQUEST, and Daggerfall answers with the same sequence, whose generation echoes the request's. Facts are
    changes from what the map, the encounter plan, or a Daggerfall placement rebuilds: dead (with the corpse), alive
    but moved or hurt, taken (gone), and dropped. Positions are Daggerfall units in the place's own frame (Doom map
-   units / 0.75). Dungeons only for now. */
+   units / 0.75). A dungeon is keyed by its map id, a building interior by map id and building key, and the exterior
+   (towns and the overworld alike) by world chunk: 32 x 32 tiles, 8192 Daggerfall units a side, with positions in
+   the chunk's frame (x and y from the chunk's corner, z the world height). Exterior chunk records are sent for every
+   chunk whose facts changed, on leaving an exterior map and with every save; Doom asks for all of them at once
+   (PLACE_WORLD) after a load, and Daggerfall answers with one record per chunk and then an empty PLACE_WORLD record. */
 #define DFB_KIND_PLACE_BEGIN    200  /* both ways; starts one place's record; payload: dfb_place */
 #define DFB_KIND_PLACE_NAME     201  /* both ways; one class or death label of that record; a repeated index appends text; payload: dfb_place_name */
 #define DFB_KIND_PLACE_FACT     202  /* both ways; one fact; payload: dfb_place_fact */
@@ -642,6 +646,10 @@ typedef struct dfb_encounter_text
 #define DFB_KIND_PLACE_END      204  /* both ways; the record is complete; payload: dfb_place */
 #define DFB_KIND_PLACE_REQUEST  205  /* UZ to DF; the player entered this place; payload: dfb_place */
 #define DFB_PLACE_DUNGEON       1u   /* dfb_place.place_kind; map_id is Daggerfall's dungeon map id */
+#define DFB_PLACE_INTERIOR      2u   /* map_id is the location's map id, key the building key */
+#define DFB_PLACE_CHUNK         3u   /* exterior world chunk: map_id is the chunk's x, key its y */
+#define DFB_PLACE_WORLD         4u   /* a request for every exterior chunk; also the empty record that ends the answer */
+#define DFB_CHUNK_UNITS         8192 /* Daggerfall units on a side of an exterior chunk (32 tiles) */
 #define DFB_PLACE_KNOWN         1u   /* dfb_place.flags: Daggerfall has a record of this place (it was visited) */
 #define DFB_PLACE_ON_SAVE       2u   /* dfb_place.flags: sent for a save while the player is inside */
 #define DFB_FACT_MONSTER        0u   /* dfb_place_fact.kind: alive, but moved or hurt */
@@ -661,7 +669,7 @@ typedef struct dfb_place
 	uint32_t facts;
 	uint32_t names;
 	uint32_t plan_lines;
-	uint32_t pad;
+	int32_t key;            /* DFB_PLACE_INTERIOR: building key; DFB_PLACE_CHUNK: chunk y; otherwise 0 */
 } dfb_place;
 
 typedef struct dfb_place_name

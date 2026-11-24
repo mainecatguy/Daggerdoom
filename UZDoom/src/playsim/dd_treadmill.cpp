@@ -104,6 +104,9 @@ namespace
 	constexpr double UNITS_PER_SAMPLE = 1.5 * 40.0;	// Daggerfall Unity's vertical terrain scale, in Daggerfall units.
 
 	constexpr uint64_t SEED_BIT = 1ull << 62, DYNAMIC_BIT = 1ull << 63;
+	// Doom's own ids for this session (drops, replacement items) are tag 4 with bit 60 set. Daggerfall's guard ids are
+	// tag 4 too (a spawn serial, far below bit 60), so the mark keeps the two apart.
+	constexpr uint64_t SESSION_MARK = 1ull << 60, SESSION_ID = DYNAMIC_BIT | SESSION_MARK;
 	// Items the map itself places get tag 1 (bit 61 alone, which no other id uses): a hash of the class and the spot in
 	// world units, so the id is the same on every visit and a take leaves a tombstone.
 	constexpr uint64_t MAP_ITEM_TAG = 1ull << 61, TAG_MASK = 7ull << 61;
@@ -166,6 +169,7 @@ namespace
 		// sits in the world table.
 		bool space = false;
 		int spaceId = -1, dungeonMapId = 0;
+		int buildingMapId = 0, buildingKey = -1;	// A building interior's Daggerfall place key.
 		FString place;
 		std::vector<SpaceLanding> landings;
 		std::vector<SpaceExit> exits;
@@ -499,6 +503,14 @@ namespace
 		return ChunkKey(int(floor(r.x / DF_PER_CHUNK)), int(floor(r.y / DF_PER_CHUNK)));
 	}
 
+	// Exterior rows (towns and the overworld) are in real world units; interiors and dungeons sit far beyond the world.
+	bool IsExterior(const Record &r) { return r.x < 2097152.0 * 256; }
+
+	// Exterior chunks whose rows changed since Daggerfall's location ledger last got them (dd_locations.cpp).
+	std::unordered_set<int64_t> dirtyChunks;
+	bool quietStore;	// rows that came from Daggerfall's ledger do not need to go back to it
+	void MarkDirty(const Record &r) { if (!quietStore && IsExterior(r)) dirtyChunks.insert(RecordChunk(r)); }
+
 	void Unbucket(const Record &r)
 	{
 		auto b = buckets.find(RecordChunk(r));
@@ -512,6 +524,8 @@ namespace
 	{
 		auto it = table.find(r.id);
 		if (it != table.end() && it->second.kind != KGone) Unbucket(it->second);
+		if (it != table.end()) MarkDirty(it->second);
+		MarkDirty(r);
 		table[r.id] = r;
 		if (r.kind != KGone) buckets[RecordChunk(r)].push_back(r.id);
 		dd_tm_records = int(table.size());
@@ -525,6 +539,7 @@ namespace
 			if (it != table.end())
 			{
 				if (it->second.kind != KGone) Unbucket(it->second);
+				MarkDirty(it->second);
 				table.erase(it);
 			}
 			dd_tm_records = int(table.size());
@@ -675,7 +690,7 @@ namespace
 			if (r.id) MarkGone(r.id);
 			break;
 		case Parked::Stored:
-			if (!r.id) r.id = DYNAMIC_BIT | ++nextDynamic;
+			if (!r.id) r.id = SESSION_ID | ++nextDynamic;
 			Store(r);
 			parkCount++;
 			break;
@@ -835,6 +850,7 @@ namespace
 
 	void ProcessPending(FLevelLocals *Level, int budget)
 	{
+		if (DD_LocationsWorldWaiting()) return;	// After a load, Daggerfall's exterior chunks come first.
 		while (!pending.empty() && budget > 0)
 		{
 			PendingChunk &p = pending.front();
@@ -1129,6 +1145,8 @@ namespace
 			return -1;
 		}
 		PlaceSpace(t, id, InteriorSlot(mapId, buildingKey), FStringf("B%d:%d", mapId, buildingKey));
+		t.buildingMapId = mapId;
+		t.buildingKey = buildingKey;
 		t.map = SpaceMapName(id);
 		towns.push_back(std::move(t));
 		return int(towns.size()) - 1;
@@ -1434,7 +1452,7 @@ namespace
 	void BeginHandoff(FLevelLocals *Level, AActor *pmo, const char *map, const int *warpTile = nullptr, const DoorTarget *door = nullptr)
 	{
 		Reconcile(Level);
-		if (int dungeon; DD_BridgeHasSession() && DDTreadmill_CurrentDungeon(dungeon)) DD_LocationsLeaving(Level);	// Daggerfall's record of the place.
+		if (DDPlaceKey place; DD_BridgeHasSession() && DDTreadmill_CurrentSpace(place)) DD_LocationsLeaving(Level);	// Daggerfall's record of the place.
 		std::vector<AActor *> keep;
 		auto it = Level->GetThinkerIterator<AActor>();
 		while (AActor *mo = it.Next())
@@ -1444,6 +1462,7 @@ namespace
 		const int parkedBefore = parkCount;
 		ParkAll(keep, originX, originY);
 		Printf("DDTM left %s: %d stored as changed, %d unchanged not stored, table rows %d\n", Level->MapName.GetChars(), parkCount - parkedBefore, unchangedCount, int(table.size()));
+		if (DD_BridgeHasSession()) DD_LocationsLeftExterior(Level);	// Every exterior chunk this visit changed.
 
 		// This tic's move still happens on the old map, so the arrival point is one tic ahead.
 		const DVector3 world = ToWorld(pmo->Pos() + pmo->Vel, originX, originY);
@@ -1827,7 +1846,7 @@ namespace
 		}
 		// After the rows, so a monster the table brought back counts as present and is not placed twice. With a bridge,
 		// Daggerfall's record of the place is applied before any mook is planned (DD_LocationsTick, then ApplyRows).
-		if (t.space && t.spaceId >= DUNGEON_SPACE && DD_BridgeHasSession()) DD_LocationsEntered(t.dungeonMapId);
+		if (DDPlaceKey place; t.space && DD_BridgeHasSession() && DDTreadmill_CurrentSpace(place)) DD_LocationsEntered(place);
 		if (t.space && t.spaceId >= DUNGEON_SPACE) DD_MonstersEnterDungeon(Level, t.dungeonMapId, firstVisit, DD_BridgeHasSession());
 		if (t.space) Printf("DDTM place %s map %s %s: map items %d, replaced by rows %d, restored %d, missing classes %d\n", t.place.GetChars(), t.map.GetChars(),
 			firstVisit ? "first visit" : "revisit", mapItems, replaced, restored, missingClassCount);
@@ -1997,6 +2016,7 @@ namespace
 			r.dropped = dropped != 0;
 			Store(r);
 		}
+		dirtyChunks.clear();	// The table came from a save, and Daggerfall's ledger from the same one.
 		resumePending = true;
 	}
 }
@@ -2008,7 +2028,7 @@ namespace
 namespace
 {
 	// A Doom drop or a replacement item: an id this session made up, which means nothing to Daggerfall.
-	bool IsSessionId(uint64_t id) { return (id & TAG_MASK) == DYNAMIC_BIT; }
+	bool IsSessionId(uint64_t id) { return (id & (TAG_MASK | SESSION_MARK)) == SESSION_ID; }
 	bool InPlace(const Record &r, const Town &t) { return t.Near(r.x / 256, r.y / 256, t.margin - 1); }
 
 	DDPlaceFact ToFact(const Record &r, const Town &t)
@@ -2067,7 +2087,19 @@ namespace
 		visitedSpaces.clear();
 		DD_MonstersLoadPlans("");
 		dd_tm_records = 0;
+		dirtyChunks.clear();
 	}
+}
+
+bool DDTreadmill_CurrentSpace(DDPlaceKey &place)
+{
+	if (!townActive || currentTown < 0 || currentTown >= int(towns.size())) return false;
+	const Town &t = towns[currentTown];
+	if (!t.space) return false;
+	if (t.spaceId >= DUNGEON_SPACE) place = DDPlaceKey{ DFB_PLACE_DUNGEON, t.dungeonMapId, 0 };
+	else if (t.buildingKey >= 0) place = DDPlaceKey{ DFB_PLACE_INTERIOR, t.buildingMapId, t.buildingKey };
+	else return false;
+	return true;
 }
 
 bool DDTreadmill_CurrentDungeon(int &mapId)
@@ -2083,8 +2115,8 @@ bool DDTreadmill_CurrentDungeon(int &mapId)
 void DDTreadmill_SnapshotPlace(FLevelLocals *Level, std::vector<DDPlaceFact> &out)
 {
 	out.clear();
-	int mapId;
-	if (!DDTreadmill_CurrentDungeon(mapId)) return;
+	DDPlaceKey place;
+	if (!DDTreadmill_CurrentSpace(place)) return;
 	const Town &t = towns[currentTown];
 	Reconcile(Level);
 	std::unordered_map<uint64_t, Record> rows;
@@ -2099,7 +2131,7 @@ void DDTreadmill_SnapshotPlace(FLevelLocals *Level, std::vector<DDPlaceFact> &ou
 		switch (MakeRecord(mo, originX, originY, r))
 		{
 		case Parked::Stored:
-			if (!r.id) r.id = DYNAMIC_BIT | (1ull << 60) | ++temp;	// Park would give it a session id too.
+			if (!r.id) r.id = SESSION_ID | (1ull << 59) | ++temp;	// Park would give it a session id too.
 			rows[r.id] = r;
 			break;
 		case Parked::Gone:	// As MarkGone: a tombstone, except for ids that are not kept.
@@ -2125,15 +2157,16 @@ void DDTreadmill_SnapshotPlace(FLevelLocals *Level, std::vector<DDPlaceFact> &ou
 // Otherwise (the cache is gone or older, as after a load without the world table) the place is rebuilt from the
 // record: what the cache restored is removed, and every fact is applied. Mooks the record does not list are spawned
 // afterwards by the encounter plan, as on any visit.
-void DDTreadmill_ApplyPlace(FLevelLocals *Level, int mapId, const std::vector<DDPlaceFact> &facts)
+void DDTreadmill_ApplyPlace(FLevelLocals *Level, const DDPlaceKey &place, const std::vector<DDPlaceFact> &facts)
 {
-	int current;
-	if (!DDTreadmill_CurrentDungeon(current) || current != mapId)
+	DDPlaceKey current;
+	if (!DDTreadmill_CurrentSpace(current) || !(current == place))
 	{
-		Printf(TEXTCOLOR_ORANGE "DDLOC record of D%d arrived outside that dungeon; ignored\n", mapId);
+		Printf(TEXTCOLOR_ORANGE "DDLOC record of place kind %u %d:%d arrived outside that place; ignored\n", place.kind, place.mapId, place.key);
 		return;
 	}
 	const Town &t = towns[currentTown];
+	const char *name = t.place.GetChars();
 	visitedSpaces.insert(t.place.GetChars());
 	std::vector<uint64_t> oldIds;
 	std::vector<std::string> mine, theirs;
@@ -2144,7 +2177,7 @@ void DDTreadmill_ApplyPlace(FLevelLocals *Level, int mapId, const std::vector<DD
 	std::sort(theirs.begin(), theirs.end());
 	if (mine == theirs)
 	{
-		Printf("DDLOC D%d: Doom's cache matches Daggerfall's record (%d facts)\n", mapId, int(facts.size()));
+		Printf("DDLOC %s: Doom's cache matches Daggerfall's record (%d facts)\n", name, int(facts.size()));
 		return;
 	}
 	std::unordered_set<uint64_t> replace(oldIds.begin(), oldIds.end());
@@ -2166,14 +2199,157 @@ void DDTreadmill_ApplyPlace(FLevelLocals *Level, int mapId, const std::vector<DD
 	for (const DDPlaceFact &f : facts)
 	{
 		Record r = FromFact(f, t);
-		if (f.session) r.id = DYNAMIC_BIT | ++nextDynamic;
+		if (f.session) r.id = SESSION_ID | ++nextDynamic;
 		Store(r);
 		if (r.kind == KGone) { gone++; continue; }
 		Restore(Level, r);
 		restored++;
 	}
-	Printf("DDLOC D%d: rebuilt from Daggerfall's record (Doom's cache had %d rows, the record %d): removed %d, restored %d, gone %d, missing classes %d\n",
-		mapId, int(mine.size()), int(facts.size()), int(stale.size()), restored, gone, missingClassCount);
+	Printf("DDLOC %s: rebuilt from Daggerfall's record (Doom's cache had %d rows, the record %d): removed %d, restored %d, gone %d, missing classes %d\n",
+		name, int(mine.size()), int(facts.size()), int(stale.size()), restored, gone, missingClassCount);
+}
+
+
+namespace
+{
+	constexpr double CHUNK_DF = DFB_CHUNK_UNITS;
+	static_assert(DFB_CHUNK_UNITS == int(DF_PER_CHUNK), "the bridge's exterior chunk is the world table's chunk");
+
+	DDPlaceFact ToChunkFact(const Record &r, int cx, int cy)
+	{
+		Town frame;
+		frame.originX = cx * CHUNK_DF;
+		frame.originY = cy * CHUNK_DF;
+		frame.ground = 0;
+		return ToFact(r, frame);
+	}
+
+	Record FromChunkFact(const DDPlaceFact &f, int cx, int cy)
+	{
+		Town frame;
+		frame.originX = cx * CHUNK_DF;
+		frame.originY = cy * CHUNK_DF;
+		frame.ground = 0;
+		return FromFact(f, frame);
+	}
+
+	bool ExteriorMapRunning()
+	{
+		return DDTreadmill_Active || (townActive && currentTown >= 0 && currentTown < int(towns.size()) && !towns[currentTown].space);
+	}
+
+	// True when a row at this spot has (or had) a live actor on the running map: a town map restores rows inside its
+	// place, the overworld every chunk of its window that is not still waiting to be built.
+	bool LiveAt(const Record &r)
+	{
+		if (!IsExterior(r)) return false;
+		if (townActive) return currentTown >= 0 && currentTown < int(towns.size()) && !towns[currentTown].space && InPlace(r, towns[currentTown]);
+		if (!DDTreadmill_Active) return false;
+		const int cx = int(floor(r.x / DF_PER_CHUNK)), cy = int(floor(r.y / DF_PER_CHUNK));
+		if (!ChunkInWindow(cx, cy)) return false;
+		for (const PendingChunk &p : pending)
+			if (p.cx == cx && p.cy == cy && !p.prepared) return false;
+		return true;
+	}
+}
+
+void DDTreadmill_ForgetDirtyChunks() { dirtyChunks.clear(); }
+
+// Every exterior chunk whose facts changed since the last report: the chunks the table changed in, and on a running
+// exterior map the chunks of every actor that would park as a row. Each chunk's facts are complete: its cached rows,
+// overridden by what every live actor would park as.
+void DDTreadmill_SnapshotChunks(FLevelLocals *Level, std::vector<DDChunkFacts> &out)
+{
+	out.clear();
+	std::unordered_set<int64_t> chunks = dirtyChunks;
+	std::vector<Record> live, gone;
+	if (ExteriorMapRunning() && Level)
+	{
+		Reconcile(Level);
+		uint64_t temp = 0;
+		auto it = Level->GetThinkerIterator<AActor>();
+		while (AActor *mo = it.Next())
+		{
+			if (mo->player || IsOwned(mo)) continue;
+			Record r;
+			const Parked decided = MakeRecord(mo, originX, originY, r);
+			if (decided != Parked::Stored && (decided != Parked::Gone || !r.id)) continue;
+			if (!IsExterior(r)) continue;
+			if (!r.id) r.id = SESSION_ID | (1ull << 59) | ++temp;
+			chunks.insert(RecordChunk(r));
+			if (auto old = table.find(r.id); old != table.end() && IsExterior(old->second)) chunks.insert(RecordChunk(old->second));	// it may have walked out of its chunk
+			(decided == Parked::Stored ? live : gone).push_back(r);
+		}
+	}
+	dirtyChunks.clear();
+	if (chunks.empty()) return;
+	std::unordered_map<uint64_t, Record> rows;
+	for (auto &kv : table)
+		if (IsExterior(kv.second) && chunks.count(RecordChunk(kv.second))) rows[kv.first] = kv.second;
+	for (const Record &r : live) rows[r.id] = r;
+	for (const Record &r : gone)	// As MarkGone: a tombstone, except for ids that are not kept.
+	{
+		if (r.id & DYNAMIC_BIT) { rows.erase(r.id); continue; }
+		auto old = rows.find(r.id);
+		Record g = old != rows.end() ? old->second : r;
+		g.kind = KGone;
+		rows[r.id] = g;
+	}
+	std::vector<int64_t> order(chunks.begin(), chunks.end());
+	std::sort(order.begin(), order.end());
+	std::unordered_map<int64_t, size_t> slot;
+	for (int64_t key : order)
+	{
+		slot[key] = out.size();
+		out.push_back({ int(uint32_t(key)), int(key >> 32), {} });
+	}
+	for (auto &kv : rows)
+	{
+		auto s = slot.find(RecordChunk(kv.second));
+		if (s == slot.end()) continue;
+		DDChunkFacts &c = out[s->second];
+		c.facts.push_back(ToChunkFact(kv.second, c.cx, c.cy));
+	}
+}
+
+// One exterior chunk's record from Daggerfall's ledger, after a load. When Doom's cache holds the same facts, nothing
+// changes. Otherwise the cache's rows of the chunk are replaced by the record's. A row whose actor is live on the
+// running map stays as Doom restored it from the save (which Daggerfall's ledger came from too); only tombstones are
+// added there. Nothing is spawned here: the town map or the overworld window builds the chunk from the table.
+void DDTreadmill_ApplyChunk(FLevelLocals *Level, int cx, int cy, const std::vector<DDPlaceFact> &facts, DDChunkApplyStats &stats)
+{
+	const int64_t key = ChunkKey(cx, cy);
+	std::vector<uint64_t> oldIds;
+	std::vector<std::string> mine, theirs;
+	for (auto &kv : table)
+		if (IsExterior(kv.second) && RecordChunk(kv.second) == key) { oldIds.push_back(kv.first); mine.push_back(Canon(ToChunkFact(kv.second, cx, cy))); }
+	for (const DDPlaceFact &f : facts) theirs.push_back(Canon(f));
+	std::sort(mine.begin(), mine.end());
+	std::sort(theirs.begin(), theirs.end());
+	if (mine == theirs) { stats.matched++; return; }
+	stats.rebuilt++;
+	quietStore = true;
+	for (uint64_t id : oldIds)
+	{
+		if (expected.count(id)) continue;	// its actor is live; Park will store it
+		auto row = table.find(id);
+		if (row == table.end()) continue;
+		if (row->second.kind != KGone) Unbucket(row->second);
+		table.erase(row);
+		stats.removed++;
+	}
+	for (const DDPlaceFact &f : facts)
+	{
+		Record r = FromChunkFact(f, cx, cy);
+		if (!f.session && expected.count(r.id)) { stats.keptLive++; continue; }
+		if (LiveAt(r) && (r.kind != KGone || f.session)) { stats.keptLive++; continue; }
+		if (f.session) r.id = SESSION_ID | ++nextDynamic;
+		Store(r);
+		stats.stored++;
+	}
+	quietStore = false;
+	dd_tm_records = int(table.size());
+	Printf("DDLOC O%d,%d: rebuilt from Daggerfall's record (Doom's cache had %d rows, the record %d)\n", cx, cy, int(mine.size()), int(facts.size()));
 }
 
 void DDTreadmill_Serialize(FLevelLocals *Level, FSerializer &arc)
@@ -2336,6 +2512,7 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 	if (resumePending) Resume(Level);
 	else if (Level->maptime == 0) Start(Level);
 	if (!DDTreadmill_Active && !townActive) return;
+	if (DD_BridgeHasSession()) DD_LocationsTick(Level);	// Daggerfall's records, applied in the playsim.
 
 	AActor *pmo = Level->Players[consoleplayer]->mo;
 	if (!pmo) return;

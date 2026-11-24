@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0xc4c1ed51c7446a97UL;
+        public const ulong SchemaHash = 0x472f8d2d3df37658UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -258,6 +258,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_PLACE_END = 204;  // both ways; the record is complete; payload: dfb_place
         public const ushort KIND_PLACE_REQUEST = 205;  // UZ to DF; the player entered this place; payload: dfb_place
         public const uint PLACE_DUNGEON = 1;  // dfb_place.place_kind; map_id is Daggerfall's dungeon map id
+        public const uint PLACE_INTERIOR = 2;  // map_id is the location's map id, key the building key
+        public const uint PLACE_CHUNK = 3;  // exterior world chunk: map_id is the chunk's x, key its y
+        public const uint PLACE_WORLD = 4;  // a request for every exterior chunk; also the empty record that ends the answer
+        public const int CHUNK_UNITS = 8192;  // Daggerfall units on a side of an exterior chunk (32 tiles)
         public const uint PLACE_KNOWN = 1;  // dfb_place.flags: Daggerfall has a record of this place (it was visited)
         public const uint PLACE_ON_SAVE = 2;  // dfb_place.flags: sent for a save while the player is inside
         public const uint FACT_MONSTER = 0;  // dfb_place_fact.kind: alive, but moved or hurt
@@ -852,7 +856,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public uint facts;
         [FieldOffset(20)] public uint names;
         [FieldOffset(24)] public uint planLines;
-        [FieldOffset(28)] public uint pad;
+        [FieldOffset(28)] public int key;  // DFB_PLACE_INTERIOR: building key; DFB_PLACE_CHUNK: chunk y; otherwise 0
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 48)]

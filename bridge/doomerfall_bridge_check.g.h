@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0xc4c1ed51c7446a97ULL
+#define DFB_SCHEMA_HASH 0x472f8d2d3df37658ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -258,6 +258,10 @@ static_assert((DFB_KIND_PLACE_PLAN) == (203), DFB_STALE);
 static_assert((DFB_KIND_PLACE_END) == (204), DFB_STALE);
 static_assert((DFB_KIND_PLACE_REQUEST) == (205), DFB_STALE);
 static_assert((DFB_PLACE_DUNGEON) == (1u), DFB_STALE);
+static_assert((DFB_PLACE_INTERIOR) == (2u), DFB_STALE);
+static_assert((DFB_PLACE_CHUNK) == (3u), DFB_STALE);
+static_assert((DFB_PLACE_WORLD) == (4u), DFB_STALE);
+static_assert((DFB_CHUNK_UNITS) == (8192), DFB_STALE);
 static_assert((DFB_PLACE_KNOWN) == (1u), DFB_STALE);
 static_assert((DFB_PLACE_ON_SAVE) == (2u), DFB_STALE);
 static_assert((DFB_FACT_MONSTER) == (0u), DFB_STALE);
@@ -639,8 +643,8 @@ static_assert(offsetof(dfb_place, names) == 20, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_place::names), uint32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_place, plan_lines) == 24, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_place::plan_lines), uint32_t>::value, DFB_STALE);
-static_assert(offsetof(dfb_place, pad) == 28, DFB_STALE);
-static_assert(std::is_same<decltype(dfb_place::pad), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_place, key) == 28, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place::key), int32_t>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_place_name) == 48, DFB_STALE);
 static_assert(offsetof(dfb_place_name, generation) == 0, DFB_STALE);
