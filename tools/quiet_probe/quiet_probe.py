@@ -66,6 +66,9 @@ kernel32.GetCurrentThreadId.restype = wintypes.DWORD
 kernel32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
 kernel32.CreateToolhelp32Snapshot.argtypes = [wintypes.DWORD, wintypes.DWORD]
 kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+kernel32.OpenProcess.restype = wintypes.HANDLE
+kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+kernel32.GetProcessTimes.argtypes = [wintypes.HANDLE] + [ctypes.POINTER(wintypes.FILETIME)] * 4
 
 
 class WNDCLASSW(ctypes.Structure):
@@ -96,12 +99,30 @@ WM_QUIT = 0x0012
 DWMWA_CLOAKED = 14
 
 
+def creation_time(pid):
+    """A process's creation time, or None. It tells a reused pid from the process that first had it."""
+    handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+    if not handle:
+        return None
+    times = [wintypes.FILETIME() for _ in range(4)]
+    ok = kernel32.GetProcessTimes(handle, *[ctypes.byref(t) for t in times])
+    kernel32.CloseHandle(handle)
+    return (times[0].dwHighDateTime << 32 | times[0].dwLowDateTime) if ok else None
+
+
 class Tree:
-    """The command's process tree, refreshed from process snapshots. Pids seen once stay members."""
+    """The command's process tree, refreshed from process snapshots. Pids seen once stay members.
+    A child must start after its parent, so a pid reused by an unrelated process does not pull it in."""
 
     def __init__(self, root):
         self.lock = threading.Lock()
         self.members = {root: "?"}
+        self.created = {root: creation_time(root)}
+
+    def _same(self, pid):
+        known = self.created.get(pid)
+        now = creation_time(pid)
+        return known is None or now is None or known == now
 
     def refresh(self):
         snap = kernel32.CreateToolhelp32Snapshot(0x2, 0)
@@ -117,19 +138,25 @@ class Tree:
         kernel32.CloseHandle(snap)
         with self.lock:
             for pid, _, exe in entries:
-                if pid in self.members:
+                if pid in self.members and self._same(pid):
                     self.members[pid] = exe
             grew = True
             while grew:
                 grew = False
                 for pid, parent, exe in entries:
-                    if parent in self.members and pid not in self.members:
+                    if parent in self.members and pid not in self.members and self._same(parent):
+                        parent_time, child_time = self.created.get(parent), creation_time(pid)
+                        if parent_time and child_time and child_time < parent_time:
+                            continue
                         self.members[pid] = exe
+                        self.created[pid] = child_time
                         grew = True
 
     def name(self, pid):
         with self.lock:
-            return self.members.get(pid)
+            if pid not in self.members or not self._same(pid):
+                return None
+            return self.members[pid]
 
 
 def window_pid(hwnd):
