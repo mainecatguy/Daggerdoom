@@ -110,7 +110,7 @@ class NDDemoStart : StaticEventHandler
     dagger = GAME / "DAGGER"
     (REVIEW / "play.bat").write_text(
         "@echo off\r\n"
-        "rem Starts in town facing a general store, with DRLA. Go in with Use, look at the shopkeeper and press Use: Daggerfall's shop menu opens (Talk, Sell, Exit). Use a shelf to buy.\r\n"
+        "rem Starts in town facing a general store, with DRLA. Go in with Use, look at the shopkeeper and press Use: Daggerfall's shop menu opens (Repair, Talk, Sell, Exit). Use a shelf to buy.\r\n"
         "rem Goodbye or Escape closes it. E is Interact, Q is Info, I opens the inventory, K opens fast travel. Rebind in Options, Customize Controls, Doomerfall Controls.\r\n"
         "set \"HERE=%~dp0\"\r\n"
         "if not exist \"%HERE%play\" mkdir \"%HERE%play\"\r\n"
