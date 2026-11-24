@@ -6,6 +6,7 @@ version "4.14"
 class DWHarness : StaticEventHandler // Static: it keeps its phase across map changes.
 {
 	static const double EXITDATA[] = { @EXIT@ };
+	static const double SHOPDOOR[] = { @SHOPDOOR@ };
 	const LIMIT = 35 * 20;
 	int phase, timer, talks;
 	bool done;
@@ -108,7 +109,44 @@ class DWHarness : StaticEventHandler // Static: it keeps its phase across map ch
 		}
 		case 5: // The runner presses K, which the engine turns into Daggerfall's travel map (Doom pauses while it is open).
 			if (timer == 35 * 3) Console.Printf("DWTRAVEL press K now");
-			if (timer == 35 * 6) { Console.Printf("DWDONE walked"); done = true; }
+			if (timer == 35 * 8) { phase = 6; timer = 0; }
+			break;
+		case 6: // Into the general store, through its real door.
+		{
+			if (level.MapName.Left(3) ~== "DDS") { Console.Printf("DWSHOP %s", level.MapName); phase = 7; timer = 0; break; }
+			if (timer > LIMIT) { Fail("the shop door did not lead inside"); break; }
+			if (timer % (35 * 3) != 1) break;
+			p.SetOrigin((SHOPDOOR[0] + SHOPDOOR[3] * 48, SHOPDOOR[1] + SHOPDOOR[4] * 48, SHOPDOOR[2]), false);
+			p.vel = (0, 0, 0);
+			p.angle = atan2(-SHOPDOOR[4], -SHOPDOOR[3]);
+			p.pitch = 0;
+			CVar.FindCVar("dd_tm_use").SetInt(1);
+			break;
+		}
+		case 7: // Daggerfall lists who is present, then Use on the shopkeeper, twice.
+		{
+			if (timer < 35 * 4) break;
+			Actor npc = StandingNpc(p);
+			if (!npc) { Fail("no shopkeeper shown"); break; }
+			int w, h;
+			[w, h] = TexMan.GetSize(npc.picnum);
+			vector3 aim = npc.pos + (0, 0, h * npc.scale.y / 2);
+			vector2 away = p.pos.xy - aim.xy;
+			away = away.Length() > 1 ? away.Unit() : (1, 0);
+			p.SetOrigin((aim.xy + away * 56, npc.pos.z), false);
+			p.vel = (0, 0, 0);
+			vector2 flat = aim.xy - p.pos.xy;
+			p.angle = atan2(flat.y, flat.x);
+			p.pitch = -atan2(aim.z - (p.pos.z + p.player.viewheight), flat.Length());
+			talks++;
+			Console.Printf("DWTALK %d pressing Use on the shopkeeper", talks);
+			EventHandler.SendNetworkEvent("df_interact");
+			timer = 0;
+			if (talks == 4) phase = 8;
+			break;
+		}
+		case 8:
+			if (timer == 35 * 4) { Console.Printf("DWDONE walked"); done = true; }
 			break;
 		}
 	}

@@ -7,10 +7,12 @@ Config, saves, and logs go to DIR (default <play folder>/../demo-walk), never to
 """
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import time
 import zipfile
+import zlib
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -19,7 +21,23 @@ import run_new_game as ng  # noqa: E402  (its window-message driver for Daggerfa
 
 DRLA = [Path(r"D:\dev\DoomDaggerfall\GameMods") / n for n in ("DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3")]
 DATA = ["ddruntime.pk3", "overworld.pk3", "privateershold.wad", "privateershold_mesh.pk3", "privateershold_doors.pk3"]
-TIMEOUT = 240
+TIMEOUT = 300
+TOWN_GROUP = 7154  # Gothway Garden, the town next to Privateer's Hold. Its cache exists once a walk has reached it.
+
+
+def shop_door(data):
+    """The door of Gothway Garden's first general store: x, y, z and the outward normal, from the town cache."""
+    converter = data / "converter" / "DungeonConverter.dll"
+    listed = subprocess.run(["dotnet", str(converter), "--group", str(TOWN_GROUP), "--list-buildings", "--arena2", ng.DAGGER + r"\ARENA2"],
+                            stdin=subprocess.DEVNULL, capture_output=True, text=True)
+    types = {int(m[0]): m[1] for m in re.findall(r"BUILDING (\d+) (\S+)", listed.stdout)}
+    with open(data / "cache" / f"T{TOWN_GROUP:05d}.ddt", "rb") as f:
+        f.read(4)
+        count = struct.unpack("<i", f.read(4))[0]
+        heads = [(f.read(8).rstrip(b"\0").decode(), *struct.unpack("<II", f.read(8))) for _ in range(count)]
+        lumps = {name: zlib.decompress(f.read(packed)) if raw else b"" for name, raw, packed in heads}
+    rows = [l.split() for l in lumps["DDDOORS"].decode().splitlines() if l.startswith("0 ")]
+    return next(r for r in rows if types.get(int(r[1])) == "GeneralStore")[3:8]
 
 
 def main():
@@ -29,9 +47,10 @@ def main():
     (out / "saves").mkdir(parents=True)
     with zipfile.ZipFile(play / "data" / "privateershold_doors.pk3") as z:
         exit_row = next(l.split()[1:6] for l in z.read("DDDUNGN").decode().splitlines() if l.startswith("exit"))
+    shop_row = shop_door(play / "data")
     harness = out / "walk.pk3"
     with zipfile.ZipFile(harness, "w") as z:
-        z.writestr("zscript.txt", (HERE / "walk.zs").read_text().replace("@EXIT@", ", ".join(exit_row)))
+        z.writestr("zscript.txt", (HERE / "walk.zs").read_text().replace("@EXIT@", ", ".join(exit_row)).replace("@SHOPDOOR@", ", ".join(shop_row)))
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "DWHarness" }\n')
     uz_log, df_log, console, launcher = out / "uz.log", out / "df.log", out / "log-walk.txt", out / "launcher.log"
     data = play / "data"
@@ -87,7 +106,7 @@ def main():
                 continue
             # After DWTALK or DWTRAVEL, close each Daggerfall window that opens, after it has been shown a moment.
             opened = dft.count("opened, surface") - dft.count("closed, reason")
-            if "DWTALK" in text and opened > 0 and closed < 6:
+            if "DWTALK" in text and opened > 0 and closed < 12:
                 time.sleep(1.5)
                 ng.key(hwnd, 0x1B)
                 closed += 1
