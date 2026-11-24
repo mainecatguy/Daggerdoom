@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x5daf5e385c305657UL;
+        public const ulong SchemaHash = 0x76ab3edef99cf4acUL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -78,6 +78,20 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_DOOM_ITEM_ART = 145;  // UZ to DF; DFB_ITEM_ART_SLOT holds the answer, or status DFB_ITEM_GONE for no such class; payload: dfb_doom_item
         public const uint ITEM_ART_SLOT = 5;  // bulk slot written by UZ: one dfb_item_art header, then width * height BGRA pixels, top row first
         public const uint ITEM_ART_HEADER = 144;
+        public const uint DOOM_ITEM_GUN = 1;
+        public const ushort KIND_HOTKEY = 150;  // UZ to DF; a hotkey press on a generated map; request is the key 0-9, status DFB_HOTKEY_PLAIN, _CTRL, or _ALT
+        public const ushort KIND_GUN_STATE = 151;  // both ways; one state line of the gun named by the next GUN_EQUIP (DF to UZ) or GUN_STASHED (UZ to DF) with the same request
+        public const ushort KIND_GUN_EQUIP = 152;  // DF to UZ; take every gun Doom holds and give this one (a world pickup class), without changing ammo; status DFB_GUN_*
+        public const ushort KIND_GUN_STASHED = 153;  // UZ to DF; Doom took this gun (pickup class) away; its GUN_STATE lines came just before
+        public const ushort KIND_GUN_KEPT = 154;  // UZ to DF; DFB_GUN_ADOPT kept Doom's ready gun (pickup class) as the active one
+        public const ushort KIND_GUN_EQUIPPED = 155;  // UZ to DF; the request is done; status DFB_ITEM_TAKEN, or DFB_ITEM_REFUSED when Doom could not give the gun
+        public const uint HOTKEY_PLAIN = 0;
+        public const uint HOTKEY_CTRL = 1;
+        public const uint HOTKEY_ALT = 2;
+        public const uint GUN_GIVE = 0;  // give cls
+        public const uint GUN_ADOPT = 1;  // cls is empty; keep the ready gun as the active one and take the rest
+        public const uint GUN_CLEAR = 2;  // cls is empty; take every gun
+        public const uint GUN_SELECT = 3;  // Doom already holds cls as the active gun; raise it
         public const ushort KIND_NPC_USE = 100;  // UZ to DF; payload: dfb_npc_use
         public const ushort KIND_NPC_USE_RESULT = 101;  // DF to UZ; payload: dfb_npc_use_result
         public const ushort KIND_MONSTER_DEATH = 50;  // UZ to DF; a tagged monster died; payload: dfb_monster_death

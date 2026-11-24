@@ -345,6 +345,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         public override void Update()
         {
             base.Update();
+            DaggerfallWorkshop.Game.Doomerfall.DoomerfallHotkeys.InventoryUpdate(this, localItemListScroller); // Doomerfall: number key over an item
 
             if (DaggerfallUI.Instance.HotkeySequenceProcessed == HotkeySequence.HotkeySequenceProcessStatus.NotFound)
             {
@@ -1323,6 +1324,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         {
             const int itemBrokenTextId = 29;
             const int forbiddenEquipmentTextId = 1068;
+            if (DaggerfallWorkshop.Game.Doomerfall.DoomerfallHotkeys.BlockEquip(item)) return; // Doomerfall: guns are drawn by hotkey
 
             if (item.ItemGroup == ItemGroups.Weapons && item.TemplateIndex == (int)Weapons.Arrow)
                 return;

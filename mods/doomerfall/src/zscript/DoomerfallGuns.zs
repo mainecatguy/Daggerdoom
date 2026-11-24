@@ -1,0 +1,213 @@
+// Weapon hotkeys. Daggerfall holds every gun the player owns and the hotkey table. Doom holds only the active gun.
+// The engine (dd_items.cpp) turns Daggerfall's bridge events into these network events, and this handler's
+// "dfg_out:" events back into bridge events. Nothing here runs unless Daggerfall sends a gun event.
+//
+//   dfg_state:<request>:<amount>:<class>  one state line of the gun the next dfg_equip gives
+//   dfg_equip:<request>:<flags>:<pickup>  take every gun and give this one; flags 1 keep the ready gun, 2 give nothing
+//   dfg_ammo:<pickup>                     a gun went to Daggerfall's inventory; give only the ammo it comes with
+//
+// A gun's state is its per-class inventory, every item named <Weapon>... (DRLA's RL<Weapon>Clip magazine,
+// <Weapon>ModLimit, and its mods). It leaves Doom with the gun and comes back with it, so swapping never reloads.
+class DoomerfallGuns : EventHandler
+{
+	const FlagAdopt = 1;
+	const FlagClear = 2;
+	const FlagSelect = 3;
+	const Taken = 0;   // DFB_ITEM_TAKEN
+	const Refused = 4; // DFB_ITEM_REFUSED
+
+	Array<String> stateNames;
+	Array<int> stateAmounts;
+	int stateRequest;
+
+	override void NetworkProcess(ConsoleEvent e)
+	{
+		if (e.Name.Left(4) != "dfg_" || e.Name.Left(8) == "dfg_out:") return;
+		Array<String> f;
+		e.Name.Split(f, ":");
+		let mo = players[e.Player].mo;
+		if (f[0] == "dfg_state" && f.Size() >= 4)
+		{
+			int request = f[1].ToInt();
+			if (request != stateRequest) { stateNames.Clear(); stateAmounts.Clear(); stateRequest = request; }
+			stateNames.Push(f[3]);
+			stateAmounts.Push(f[2].ToInt());
+		}
+		else if (f[0] == "dfg_equip" && f.Size() >= 4) Equip(mo, f[1].ToInt(), f[2].ToInt(), f[3]);
+		else if (f[0] == "dfg_ammo" && f.Size() >= 2 && mo) GiveAmmoOnly(mo, f[1]);
+	}
+
+	static void Tell(String word, int request, int status, String cls)
+	{
+		EventHandler.SendNetworkEvent(String.Format("dfg_out:%s:%d:%d:%s", word, request, status, cls));
+	}
+
+	static bool EndsWith(String s, String tail)
+	{
+		return s.Length() >= tail.Length() && s.Mid(s.Length() - tail.Length()) == tail;
+	}
+
+	// The weapon a world pickup gives: the pickup itself (stock Doom), or DRLA's RL<Weapon>Pickup[Modded] naming.
+	static class<Weapon> WeaponFor(String pickup)
+	{
+		class<Actor> c = pickup;
+		class<Weapon> w = (class<Weapon>)(c);
+		if (w) return w;
+		String base = pickup;
+		if (EndsWith(base, "PickupModded")) base = base.Left(base.Length() - 12);
+		else if (EndsWith(base, "Pickup")) base = base.Left(base.Length() - 6);
+		else return null;
+		c = base;
+		return (class<Weapon>)(c);
+	}
+
+	// The world pickup Daggerfall names a held gun by, or "" for a weapon that is not a gun Daggerfall can hold
+	// (fists and other weapons with no pickup and no world sprite stay in Doom).
+	static String PickupFor(Weapon w)
+	{
+		String n = w.GetClassName();
+		class<Actor> p = n .. "Pickup";
+		if (p) return n .. "Pickup";
+		let def = GetDefaultByType((class<Actor>)(w.GetClass()));
+		State s = def.SpawnState;
+		if (s && s.sprite != Actor.GetSpriteIndex('TNT1')) return n;
+		return "";
+	}
+
+	static void SetAmount(Actor mo, class<Inventory> c, int amount)
+	{
+		if (!c) return;
+		if (amount <= 0) { mo.TakeInventory(c, 0x7fffffff); return; }
+		let item = mo.FindInventory(c);
+		if (!item)
+		{
+			mo.GiveInventory(c, 1);
+			item = mo.FindInventory(c);
+			if (!item) return;
+		}
+		item.Amount = amount;
+	}
+
+	// Takes one gun and its state away, reporting both to Daggerfall.
+	static void Stash(Actor mo, Weapon w, int request, bool wasReady)
+	{
+		String n = w.GetClassName();
+		Array<Inventory> extras;
+		for (Inventory i = mo.Inv; i; i = i.Inv)
+		{
+			if (i is "Weapon") continue;
+			String name = i.GetClassName();
+			if (name.Length() <= n.Length() || name.Left(n.Length()) != n) continue;
+			if (EndsWith(name, "TypeWeapon")) continue; // DRLA's weapon family token, shared by every pistol and so on.
+			extras.Push(i);
+		}
+		for (int j = 0; j < extras.Size(); j++)
+		{
+			let x = extras[j];
+			if (!x) continue;
+			String name = x.GetClassName();
+			if (x.Amount > 0 && !EndsWith(name, "Selected")) Tell("state", request, x.Amount, name);
+			mo.TakeInventory((class<Inventory>)(x.GetClass()), 0x7fffffff);
+		}
+		if (wasReady)
+		{
+			String deselectName = "RLDeselectionFunction"; // What DRLA runs when a weapon is lowered. Looked up at run time.
+			class<Inventory> deselect = deselectName;
+			if (deselect) mo.GiveInventory(deselect, 1);
+		}
+		String pickup = PickupFor(w);
+		mo.TakeInventory((class<Inventory>)(w.GetClass()), 0x7fffffff);
+		Tell("stashed", request, 0, pickup);
+	}
+
+	void Equip(PlayerPawn mo, int request, int flags, String pickup)
+	{
+		class<Weapon> want = null;
+		if (flags == 0 || flags == FlagSelect) want = WeaponFor(pickup);
+		if (!mo || !mo.player || mo.health <= 0 || ((flags == 0 || flags == FlagSelect) && !want))
+		{
+			Tell("done", request, Refused, pickup);
+			return;
+		}
+		Weapon ready = mo.player.ReadyWeapon;
+		if (flags == FlagSelect)
+		{
+			// The active gun is already here, perhaps lowered for the fists. Raise it.
+			class<Weapon> held = WeaponFor(pickup);
+			let w = held ? Weapon(mo.FindInventory(held)) : null;
+			if (w && w != ready) mo.player.PendingWeapon = w;
+			Tell("done", request, w ? Taken : Refused, pickup);
+			return;
+		}
+		Array<Weapon> guns;
+		for (Inventory i = mo.Inv; i; i = i.Inv)
+		{
+			let w = Weapon(i);
+			if (w && PickupFor(w) != "") guns.Push(w);
+		}
+		bool kept = false;
+		for (int j = 0; j < guns.Size(); j++)
+		{
+			let w = guns[j];
+			if (!w) continue;
+			if (flags == FlagAdopt && !kept && w == ready)
+			{
+				kept = true;
+				Tell("kept", request, 0, PickupFor(w));
+				continue;
+			}
+			Stash(mo, w, request, w == ready);
+		}
+		bool ok = flags != 0;
+		if (want)
+		{
+			// Giving a weapon also gives its ammo. Put the ammo back as it was.
+			let def = GetDefaultByType(want);
+			class<Inventory> a1 = def.AmmoType1, a2 = def.AmmoType2;
+			int n1 = a1 ? mo.CountInv(a1) : 0, n2 = a2 ? mo.CountInv(a2) : 0;
+			mo.GiveInventory(want, 1);
+			SetAmount(mo, a1, n1);
+			if (a2 != a1) SetAmount(mo, a2, n2);
+			if (request == stateRequest)
+				for (int j = 0; j < stateNames.Size(); j++)
+				{
+					class<Inventory> c = stateNames[j];
+					SetAmount(mo, c, stateAmounts[j]);
+				}
+			let w = Weapon(mo.FindInventory(want));
+			if (w)
+			{
+				ok = true;
+				mo.player.PendingWeapon = w;
+				if (!mo.player.ReadyWeapon) mo.BringUpWeapon();
+			}
+		}
+		// DRLA counts carried weapons. Doom now carries only the active gun.
+		String limitName = "RLWeaponLimit"; // Looked up at run time: only DRLA has it.
+		class<Inventory> limit = limitName;
+		if (limit)
+		{
+			int held = 0;
+			for (Inventory i = mo.Inv; i; i = i.Inv)
+			{
+				let w = Weapon(i);
+				if (w && PickupFor(w) != "") held++;
+			}
+			SetAmount(mo, limit, held);
+		}
+		stateNames.Clear();
+		stateAmounts.Clear();
+		stateRequest = 0;
+		Tell("done", request, ok ? Taken : Refused, pickup);
+	}
+
+	// A gun taken into Daggerfall's inventory gives the ammo its pickup would, but not the gun.
+	static void GiveAmmoOnly(Actor mo, String pickup)
+	{
+		class<Weapon> w = WeaponFor(pickup);
+		if (!w) return;
+		let def = GetDefaultByType(w);
+		if (def.AmmoType1 && def.AmmoGive1 > 0) mo.GiveAmmo(def.AmmoType1, def.AmmoGive1);
+		if (def.AmmoType2 && def.AmmoGive2 > 0) mo.GiveAmmo(def.AmmoType2, def.AmmoGive2);
+	}
+}

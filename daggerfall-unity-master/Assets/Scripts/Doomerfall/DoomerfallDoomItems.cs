@@ -27,17 +27,33 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
         }
 
-        public DoomerfallDoomItem(string doomClass) : this()
+        public DoomerfallDoomItem(string doomClass, bool gun = false) : this()
         {
-            shortName = doomClass;
+            shortName = doomClass + (gun ? "|gun|" : "");
             weightInKg = DefaultWeightKg;
         }
 
-        public string DoomClass { get { return shortName; } }
+        // shortName is "<class>" or, for a gun, "<class>|gun|<state>", where state is the gun's Doom per-class
+        // inventory while Doom does not hold it ("RLPistolClip=5;RLPistolModLimit=1"). Saved with the item.
+        public string DoomClass { get { int bar = shortName.IndexOf('|'); return bar < 0 ? shortName : shortName.Substring(0, bar); } }
+        public bool IsGun { get { return shortName.Contains("|gun|"); } }
+        public string GunState
+        {
+            get { int at = shortName.IndexOf("|gun|"); return at < 0 ? "" : shortName.Substring(at + 5); }
+            set { shortName = DoomClass + "|gun|" + (value ?? ""); }
+        }
         public override string ItemName { get { return DoomerfallDoomItems.NameFor(DoomClass); } }
         public override string LongName { get { return ItemName; } }
         public override bool IsStackable() { return false; }
-        public override bool UseItem(ItemCollection collection) { return DoomerfallDoomItems.Use(this); }
+        public override bool UseItem(ItemCollection collection)
+        {
+            if (IsGun)
+            {
+                DaggerfallUI.MessageBox(DoomerfallHotkeys.EquipMessage);
+                return true;
+            }
+            return DoomerfallDoomItems.Use(this);
+        }
         public bool TryGetImage(out ImageData image) { return DoomerfallDoomItems.TryGetImage(DoomClass, out image); }
 
         public override ItemData_v1 GetSaveData()
@@ -150,7 +166,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         }
 
         // The player pressed Use on a Doom item. Daggerfall's weight rule decides.
-        internal void OnTake(uint request, string cls)
+        internal void OnTake(uint request, uint flags, string cls)
         {
             uint status = Dfb.ITEM_TAKEN;
             PlayerEntity player = GameManager.HasInstance ? GameManager.Instance.PlayerEntity : null;
@@ -160,7 +176,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 status = Dfb.ITEM_TOO_HEAVY;
             else
             {
-                DoomerfallDoomItem item = new DoomerfallDoomItem(cls);
+                DoomerfallDoomItem item = new DoomerfallDoomItem(cls, (flags & Dfb.DOOM_ITEM_GUN) != 0);
                 player.Items.AddItem(item);
                 RequestArt(cls);
                 if (testFolder != null && cls == "RLBlurSphere")

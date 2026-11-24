@@ -54,6 +54,9 @@ namespace DaggerfallWorkshop.Game.Serialization
         const string automapDataFilename = "AutomapData.txt";
         const string questExceptionsFilename = "QuestExceptions.txt";
         const string screenshotFilename = "Screenshot.jpg";
+        const string doomerfallDataFilename = "DoomerfallHotkeys.txt"; // Doomerfall
+        public static Func<string> DoomerfallSaveExtra;   // Doomerfall: text saved beside the game's files.
+        public static Action<string> DoomerfallLoadExtra; // Doomerfall: that text on load, or null when absent.
         const string bioFileName = "bio.txt";
         const string notReadyExceptionText = "SaveLoad not ready.";
 
@@ -1297,6 +1300,10 @@ namespace DaggerfallWorkshop.Game.Serialization
                 }
             }
 
+            // Doomerfall: hotkeys and the active Doom gun (DoomerfallHotkeys).
+            if (DoomerfallSaveExtra != null)
+                WriteSaveFile(Path.Combine(path, doomerfallDataFilename), DoomerfallSaveExtra());
+
             // Save screenshot
             if (screenshot != null)
             {
@@ -1621,6 +1628,13 @@ namespace DaggerfallWorkshop.Game.Serialization
                         DaggerfallUnity.LogMessage(string.Format("Failed to load mod data for `{0}`. Exception: {1}", mod.ModInfo.ModTitle, ex.Message), true);
                     }
                 }
+            }
+
+            // Doomerfall: hotkeys and the active Doom gun. A save without the file clears them.
+            if (DoomerfallLoadExtra != null)
+            {
+                string doomerfallPath = Path.Combine(path, doomerfallDataFilename);
+                DoomerfallLoadExtra(File.Exists(doomerfallPath) ? ReadSaveFile(doomerfallPath) : null);
             }
 
             // Clamp legal reputation
