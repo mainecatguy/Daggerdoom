@@ -88,6 +88,20 @@ extern "C" {
 #define DFB_KIND_TRAVEL        20  /* DF to UZ; Daggerfall finished a fast travel, sent before the menu closes; payload: dfb_travel */
 #define DFB_KIND_TRANSITION    21  /* UZ to DF; the player went through a door, or a load restored this place; payload: dfb_transition */
 
+/* World items. Daggerfall owns them: it lists what is in the current space and performs every pickup. */
+#define DFB_KIND_ITEMS_BEGIN   40  /* DF to UZ; starts one full list for a space; payload: dfb_world_items */
+#define DFB_KIND_ITEM          41  /* DF to UZ; one pile in that list; payload: dfb_world_item */
+#define DFB_KIND_ITEMS_END     42  /* DF to UZ; the list is complete, and anything not in it is gone; payload: dfb_world_items */
+#define DFB_KIND_ITEM_TAKE     43  /* UZ to DF; the player pressed Interact on a pile; payload: dfb_item_take */
+#define DFB_KIND_ITEM_RESULT   44  /* DF to UZ; what Daggerfall did with that request; payload: dfb_item_result */
+#define DFB_KIND_ITEMS_REQUEST 45  /* UZ to DF; send the current list again; payload: dfb_world_items */
+
+#define DFB_ITEM_TAKEN     0u  /* everything in the pile moved to the player */
+#define DFB_ITEM_PARTIAL   1u  /* some moved; the rest stays in the pile */
+#define DFB_ITEM_TOO_HEAVY 2u  /* nothing moved, because of the weight limit */
+#define DFB_ITEM_GONE      3u  /* no such pile here */
+#define DFB_ITEM_REFUSED   4u  /* Daggerfall cannot do this now, or the player is too far away */
+
 #define DFB_TRANSITION_ENTER_BUILDING 1u
 #define DFB_TRANSITION_EXIT_BUILDING  2u
 #define DFB_TRANSITION_ENTER_DUNGEON  3u
@@ -231,6 +245,48 @@ typedef struct dfb_transition
 	int32_t target;
 	uint32_t pad;
 } dfb_transition;
+
+/* One list of world items for one space. target is the space id Doom reports in dfb_uz_state.space_target. */
+typedef struct dfb_world_items
+{
+	uint32_t generation;
+	uint32_t context;     /* DFB_WORLD_* */
+	int32_t target;
+	uint32_t count;
+} dfb_world_items;
+
+/* One pile. Position and size are Doom units within the space; the position is the sprite's center. */
+typedef struct dfb_world_item
+{
+	uint64_t id;
+	uint32_t generation;
+	int32_t archive;
+	int32_t record;
+	int32_t item_count;
+	float x;
+	float y;
+	float z;
+	float width;
+	float height;
+	uint32_t pad;
+} dfb_world_item;
+
+typedef struct dfb_item_take
+{
+	uint64_t id;
+	uint32_t request;
+	uint32_t pad;
+} dfb_item_take;
+
+typedef struct dfb_item_result
+{
+	uint64_t id;
+	uint32_t request;
+	uint32_t status;      /* DFB_ITEM_* */
+	int32_t taken;
+	int32_t remaining;
+	char name[24];        /* UTF-8, terminated: the first item taken */
+} dfb_item_result;
 
 /* Describes one frame in the UI surface. Pixels are BGRA, top row first, width * 4 bytes per row. */
 typedef struct dfb_surface_frame

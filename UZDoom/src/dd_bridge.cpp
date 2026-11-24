@@ -50,6 +50,12 @@
 void G_SaveGame(const char *filename, const char *description, bool quick);
 extern FString savename;
 
+// World items: see dd_items.cpp.
+bool DD_ItemsEvent(const dfb_event &e);
+void DD_ItemsFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t target);
+void DD_ItemsResync();
+bool DD_ItemsNetEvent(dfb_session *session, const char *name);
+
 FARG_ADVANCED(dfbridge, "Doomerfall", "session", "Attaches to the Doomerfall bridge session created by the launcher.");
 FARG_ADVANCED(dfbridgelog, "Doomerfall", "file", "Appends Doomerfall bridge traffic and latency to a log file.");
 FARG_ADVANCED(dfuitest, "Doomerfall", "count", "Bridge test only: opens the fast travel menu this many times.");
@@ -269,7 +275,7 @@ void HandleEvent(const dfb_event &e, int64_t now)
 		Log("hello from Daggerfall (seq %u)", e.seq);
 		break;
 	default:
-		unknownKinds++; // contract rule 7: skip, never fatal
+		if (!DD_ItemsEvent(e)) unknownKinds++; // contract rule 7: skip, never fatal
 		break;
 	}
 }
@@ -602,6 +608,12 @@ bool DD_BridgeToggleMap()
 	if (area == DD_AREA_NONE) return false;
 	if (UiCanOpen()) OpenUi(DFB_UI_MAP, uint32_t(area));
 	return true;
+}
+
+// A ZScript pickup request, seen as its network event runs. False for every other event and outside a session.
+bool DD_BridgeItemNetEvent(const char *name)
+{
+	return session && DD_ItemsNetEvent(session, name);
 }
 
 bool DD_BridgeNetEvent(const char *name)
@@ -1538,6 +1550,7 @@ void HandleLoadResume(const dfb_event &e)
 	deathState = DeathNone;
 	pauseext = false;
 	M_ClearMenus();
+	DD_ItemsResync();
 	Log("load %u: both games resumed, %.1f ms frozen", loadTxn, (dfb_now_ns() - loadStartNs) / 1e6);
 }
 
@@ -1888,6 +1901,7 @@ void DD_BridgeFrame()
 
 	if (int(peerState.df_phase) != *dd_sync_df_phase) dd_sync_df_phase = int(peerState.df_phase);
 	PublishPosition();
+	DD_ItemsFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
 
 	ownState.uz_heartbeat++;
 	ownState.uz_tic = gametic;

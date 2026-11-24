@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x7b5f737dd51b564fUL;
+        public const ulong SchemaHash = 0x9d839f532ffe6cd2UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 4;
@@ -57,6 +57,17 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_HOLD = 19;  // UZ to DF; the payload's first 8 bytes are 1 to hold Daggerfall paused at Doom's title, 0 to release
         public const ushort KIND_TRAVEL = 20;  // DF to UZ; Daggerfall finished a fast travel, sent before the menu closes; payload: dfb_travel
         public const ushort KIND_TRANSITION = 21;  // UZ to DF; the player went through a door, or a load restored this place; payload: dfb_transition
+        public const ushort KIND_ITEMS_BEGIN = 40;  // DF to UZ; starts one full list for a space; payload: dfb_world_items
+        public const ushort KIND_ITEM = 41;  // DF to UZ; one pile in that list; payload: dfb_world_item
+        public const ushort KIND_ITEMS_END = 42;  // DF to UZ; the list is complete, and anything not in it is gone; payload: dfb_world_items
+        public const ushort KIND_ITEM_TAKE = 43;  // UZ to DF; the player pressed Interact on a pile; payload: dfb_item_take
+        public const ushort KIND_ITEM_RESULT = 44;  // DF to UZ; what Daggerfall did with that request; payload: dfb_item_result
+        public const ushort KIND_ITEMS_REQUEST = 45;  // UZ to DF; send the current list again; payload: dfb_world_items
+        public const uint ITEM_TAKEN = 0;  // everything in the pile moved to the player
+        public const uint ITEM_PARTIAL = 1;  // some moved; the rest stays in the pile
+        public const uint ITEM_TOO_HEAVY = 2;  // nothing moved, because of the weight limit
+        public const uint ITEM_GONE = 3;  // no such pile here
+        public const uint ITEM_REFUSED = 4;  // Daggerfall cannot do this now, or the player is too far away
         public const uint TRANSITION_ENTER_BUILDING = 1;
         public const uint TRANSITION_EXIT_BUILDING = 2;
         public const uint TRANSITION_ENTER_DUNGEON = 3;
@@ -104,8 +115,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const int UZ_PHASE_SAVING = 4;
 
         // Native size of every generated struct, for the attach check.
-        public static readonly Type[] StructTypes = { typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbTransition), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
-        public static readonly int[] StructSizes = { 64, 24, 24, 16, 24, 24, 48, 32, 32, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
+        public static readonly Type[] StructTypes = { typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
+        public static readonly int[] StructSizes = { 64, 24, 24, 16, 24, 24, 48, 32, 32, 16, 48, 16, 48, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
     }
 
     static class DfbBytes
@@ -177,6 +188,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public DfbLoadRequest loadRequest;  // LOAD_REQUEST
         [FieldOffset(16)] public DfbTravel travel;  // TRAVEL
         [FieldOffset(16)] public DfbTransition transition;  // TRANSITION
+        [FieldOffset(16)] public DfbWorldItems worldItems;  // ITEMS_BEGIN, ITEMS_END, ITEMS_REQUEST
+        [FieldOffset(16)] public DfbWorldItem worldItem;  // ITEM
+        [FieldOffset(16)] public DfbItemTake itemTake;  // ITEM_TAKE
+        [FieldOffset(16)] public DfbItemResult itemResult;  // ITEM_RESULT
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 24)]
@@ -292,6 +307,68 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public double doorZ;
         [FieldOffset(24)] public int target;
         [FieldOffset(28)] public uint pad;
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 16)]
+    struct DfbWorldItems
+    {
+        [FieldOffset(0)] public uint generation;
+        [FieldOffset(4)] public uint context;  // DFB_WORLD_*
+        [FieldOffset(8)] public int target;
+        [FieldOffset(12)] public uint count;
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 48)]
+    struct DfbWorldItem
+    {
+        [FieldOffset(0)] public ulong id;
+        [FieldOffset(8)] public uint generation;
+        [FieldOffset(12)] public int archive;
+        [FieldOffset(16)] public int record;
+        [FieldOffset(20)] public int itemCount;
+        [FieldOffset(24)] public float x;
+        [FieldOffset(28)] public float y;
+        [FieldOffset(32)] public float z;
+        [FieldOffset(36)] public float width;
+        [FieldOffset(40)] public float height;
+        [FieldOffset(44)] public uint pad;
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 16)]
+    struct DfbItemTake
+    {
+        [FieldOffset(0)] public ulong id;
+        [FieldOffset(8)] public uint request;
+        [FieldOffset(12)] public uint pad;
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 48)]
+    struct DfbItemResult
+    {
+        [FieldOffset(0)] public ulong id;
+        [FieldOffset(8)] public uint request;
+        [FieldOffset(12)] public uint status;  // DFB_ITEM_*
+        [FieldOffset(16)] public int taken;
+        [FieldOffset(20)] public int remaining;
+        [FieldOffset(24)] public ulong name0;  // UTF-8, terminated: the first item taken
+        [FieldOffset(32)] public ulong name1;
+        [FieldOffset(40)] public ulong name2;
+
+        // Copies up to 24 bytes in. The rest of the field becomes zero.
+        public void SetName(byte[] source, int count)
+        {
+            name0 = (ulong)DfbBytes.Read(source, count, 0, 8);
+            name1 = (ulong)DfbBytes.Read(source, count, 8, 8);
+            name2 = (ulong)DfbBytes.Read(source, count, 16, 8);
+        }
+
+        // Copies all 24 bytes out.
+        public void CopyName(byte[] destination)
+        {
+            DfbBytes.Write(destination, 0, 8, name0);
+            DfbBytes.Write(destination, 8, 8, name1);
+            DfbBytes.Write(destination, 16, 8, name2);
+        }
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 40)]

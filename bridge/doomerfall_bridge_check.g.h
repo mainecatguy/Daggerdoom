@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x7b5f737dd51b564fULL
+#define DFB_SCHEMA_HASH 0x9d839f532ffe6cd2ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -57,6 +57,17 @@ static_assert((DFB_KIND_LOAD_RESUME) == (18), DFB_STALE);
 static_assert((DFB_KIND_HOLD) == (19), DFB_STALE);
 static_assert((DFB_KIND_TRAVEL) == (20), DFB_STALE);
 static_assert((DFB_KIND_TRANSITION) == (21), DFB_STALE);
+static_assert((DFB_KIND_ITEMS_BEGIN) == (40), DFB_STALE);
+static_assert((DFB_KIND_ITEM) == (41), DFB_STALE);
+static_assert((DFB_KIND_ITEMS_END) == (42), DFB_STALE);
+static_assert((DFB_KIND_ITEM_TAKE) == (43), DFB_STALE);
+static_assert((DFB_KIND_ITEM_RESULT) == (44), DFB_STALE);
+static_assert((DFB_KIND_ITEMS_REQUEST) == (45), DFB_STALE);
+static_assert((DFB_ITEM_TAKEN) == (0u), DFB_STALE);
+static_assert((DFB_ITEM_PARTIAL) == (1u), DFB_STALE);
+static_assert((DFB_ITEM_TOO_HEAVY) == (2u), DFB_STALE);
+static_assert((DFB_ITEM_GONE) == (3u), DFB_STALE);
+static_assert((DFB_ITEM_REFUSED) == (4u), DFB_STALE);
 static_assert((DFB_TRANSITION_ENTER_BUILDING) == (1u), DFB_STALE);
 static_assert((DFB_TRANSITION_EXIT_BUILDING) == (2u), DFB_STALE);
 static_assert((DFB_TRANSITION_ENTER_DUNGEON) == (3u), DFB_STALE);
@@ -210,6 +221,62 @@ static_assert(offsetof(dfb_transition, target) == 24, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_transition::target), int32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_transition, pad) == 28, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_transition::pad), uint32_t>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_world_items) == 16, DFB_STALE);
+static_assert(offsetof(dfb_world_items, generation) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_world_items::generation), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_world_items, context) == 4, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_world_items::context), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_world_items, target) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_world_items::target), int32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_world_items, count) == 12, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_world_items::count), uint32_t>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_world_item) == 48, DFB_STALE);
+static_assert(offsetof(dfb_world_item, id) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_world_item::id), uint64_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_world_item, generation) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_world_item::generation), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_world_item, archive) == 12, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_world_item::archive), int32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_world_item, record) == 16, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_world_item::record), int32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_world_item, item_count) == 20, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_world_item::item_count), int32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_world_item, x) == 24, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_world_item::x), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_world_item, y) == 28, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_world_item::y), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_world_item, z) == 32, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_world_item::z), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_world_item, width) == 36, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_world_item::width), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_world_item, height) == 40, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_world_item::height), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_world_item, pad) == 44, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_world_item::pad), uint32_t>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_item_take) == 16, DFB_STALE);
+static_assert(offsetof(dfb_item_take, id) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_item_take::id), uint64_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_item_take, request) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_item_take::request), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_item_take, pad) == 12, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_item_take::pad), uint32_t>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_item_result) == 48, DFB_STALE);
+static_assert(offsetof(dfb_item_result, id) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_item_result::id), uint64_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_item_result, request) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_item_result::request), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_item_result, status) == 12, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_item_result::status), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_item_result, taken) == 16, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_item_result::taken), int32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_item_result, remaining) == 20, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_item_result::remaining), int32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_item_result, name) == 24, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_item_result::name), char[24]>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_surface_frame) == 40, DFB_STALE);
 static_assert(offsetof(dfb_surface_frame, width) == 0, DFB_STALE);

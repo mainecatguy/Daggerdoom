@@ -412,6 +412,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return peer.worldContext == Dfb.WORLD_INTERIOR && enter.Interior ? enter.Interior.transform : null;
         }
 
+        // The indoor space Doom and Daggerfall are both in, or null. World items are listed relative to it.
+        internal Transform ItemSpace(ref DfbUzState peer)
+        {
+            return GameManager.HasInstance && InGame ? IndoorSpace(GameManager.Instance, ref peer) : null;
+        }
+
         // Moves the hidden player to Doom's place in the room. Its controller is off, so nothing here collides,
         // falls, or triggers. False means Daggerfall is not in Doom's space yet.
         bool ApplyIndoor(GameManager game, ref DfbUzState peer)
