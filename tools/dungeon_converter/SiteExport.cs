@@ -204,7 +204,7 @@ static partial class Program
             var nodes = BuildNodes(out var edges);
             int startNode = FindStart(nodes, entranceMarker);
             string wad = Path.Combine(outDir, "interior.wad");
-            SetPickupPlace(2, id);
+            SetPickupPlace(PickupInterior, id);
             var stats = WriteMap(wad, nodes[startNode], WritePoints(nodes, edges, startNode), nodes, edges);
             scene.WriteRuntimeEntry(ddtPath, wad, info.ToString(), OutputMapName);
             File.Delete(wad);

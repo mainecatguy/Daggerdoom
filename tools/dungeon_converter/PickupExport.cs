@@ -12,9 +12,10 @@ using System.Text;
 static partial class Program
 {
     public const int PickupStimpackType = 31640, PickupClipType = 31641, PickupShellsType = 31642;
-    const int PickupCoreDepth = 3;        // Graph steps (2 cells each) from the nearest edge of walkable floor.
-    const int PickupMinRoomNodes = 6;     // Smaller wide spots, such as a corridor bend, are not rooms.
-    const int PickupRoomNodes = 90;       // Core nodes in one typical room. Larger areas count as several rooms.
+    // Dungeon values, then building interiors, whose rooms are small and full of furniture.
+    static int PickupCoreDepth = 3;       // Graph steps (2 cells each) from the nearest edge of walkable floor.
+    static int PickupMinRoomNodes = 6;    // Smaller wide spots, such as a corridor bend, are not rooms.
+    static int PickupRoomNodes = 90;      // Core nodes in one typical room. Larger areas count as several rooms.
     const int PickupMinPartNodes = 300;   // A walkable part of the map not joined to the entrance gets pickups from this size.
     const double PickupSpacing = 96;      // Doom units between pickups in one room.
     const ulong PickupSalt = 0x5049434B55505331UL; // Keeps the loot seed apart from encounter seeds.
@@ -22,7 +23,16 @@ static partial class Program
     static ulong pickupPlace;             // The place's identity: the dungeon map id, or the interior space id.
     static readonly List<int> pickupRoomCounts = new List<int>(); // Pickups in each room of the last map, for reports.
 
-    static void SetPickupPlace(long kind, long id) => pickupPlace = PickupMix(PickupMix(PickupSalt, kind), id);
+    const int PickupDungeon = 1, PickupInterior = 2;
+
+    static void SetPickupPlace(int kind, long id)
+    {
+        pickupPlace = PickupMix(PickupMix(PickupSalt, kind), id);
+        bool inside = kind == PickupInterior;
+        PickupCoreDepth = inside ? 1 : 3;
+        PickupMinRoomNodes = inside ? 8 : 6;
+        PickupRoomNodes = inside ? 60 : 90;
+    }
 
     static ulong PickupMix(ulong h, long v)
     {

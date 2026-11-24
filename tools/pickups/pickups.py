@@ -102,7 +102,7 @@ def interiors(group):
     work = REVIEW / "scan" / f"interiors-{group}"
     work.mkdir(parents=True, exist_ok=True)
     ddt = work / "probe.ddt"
-    for space, kind in re.findall(r"BUILDING (\d+) (\S+)", listed.stdout):
+    for space, kind in re.findall(r"BUILDING (\d+) (\S+)", listed.stdout)[::12]:  # A sample: every 12th building.
         ddt.unlink(missing_ok=True)
         text = subprocess.run([str(CONVERTER), "--group", space, "--ddt", str(ddt), "--out", str(work), "--arena2", str(ARENA2)], stdin=subprocess.DEVNULL, capture_output=True, text=True, errors="replace")
         line = next((l for l in text.stdout.splitlines() if l.startswith("pickups:")), "no pickups line: " + (text.stderr.strip().splitlines() or [""])[-1])

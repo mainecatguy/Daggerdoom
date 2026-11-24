@@ -163,7 +163,7 @@ static partial class Program
         int start = FindStart(nodes, entrance);
         string slug = new string(name.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
         var points = WritePoints(nodes, edges, start);
-        SetPickupPlace(1, currentMapId);
+        SetPickupPlace(PickupDungeon, currentMapId);
         var mapStats = WriteMap(Path.Combine(outDir, slug + ".wad"), nodes[start], points, nodes, edges);
         File.WriteAllText(Path.Combine(outDir, slug + ".points.txt"), points);
         WriteWaterProbes(outDir, slug, nodes[start]);
