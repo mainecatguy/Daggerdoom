@@ -1,12 +1,15 @@
-// A Daggerfall item shown in the Doom world. Display only: no pickup, loot, or inventory yet.
+// A Daggerfall item shown in the Doom world, drawn as the treasure pile Daggerfall Unity shows for an item on the ground.
+// Display only: real loot in a game is DoomerfallWorldItem, which draws the pile Daggerfall itself chose.
 class DaggerfallItem : Actor
 {
 	int DFTemplateIndex;   // ItemTemplates index, or -1 for an artifact.
 	int DFVariant;
 	int DFArtifactIndex;   // ArtifactsSubTypes value, or -1.
 	int DFItemGroup;       // ItemGroups value.
-	int DFSpriteArchive;   // TEXTURE.xxx file number.
+	int DFSpriteArchive;   // The item's inventory picture: TEXTURE.xxx file number.
 	int DFSpriteRecord;
+	int DFPileArchive;     // The pile drawn in the world, or -1 in an older package.
+	int DFPileRecord;
 	String DFItemName;
 
 	Default
@@ -66,6 +69,8 @@ class DaggerfallItemGallery : EventHandler
 			if (f.Size() < 12) { broken++; continue; }
 			let item = DaggerfallItem.Create((f[6].ToDouble(), f[7].ToDouble(), 0), f[0].ToInt(), f[1].ToInt(), f[2].ToInt(), f[3].ToInt(), f[4].ToInt(), f[5].ToInt(), f[8].ToDouble(), f[9].ToDouble(), f[10], f[11]);
 			if (item == null || !item.picnum.IsValid()) { broken++; continue; }
+			item.DFPileArchive = f.Size() >= 14 ? f[12].ToInt() : -1;
+			item.DFPileRecord = f.Size() >= 14 ? f[13].ToInt() : -1;
 			int w, h;
 			[w, h] = TexMan.GetSize(item.picnum);
 			if (w <= 0 || h <= 0) { broken++; continue; }
@@ -96,7 +101,8 @@ class DaggerfallItemGallery : EventHandler
 		String label;
 		if (nearest.DFArtifactIndex >= 0) label = String.Format("Artifact %d", nearest.DFArtifactIndex);
 		else label = String.Format("Template %d, variant %d", nearest.DFTemplateIndex, nearest.DFVariant);
-		String text = String.Format("%s\n%s, group %d\nTEXTURE.%03d record %d", nearest.DFItemName, label, nearest.DFItemGroup, nearest.DFSpriteArchive, nearest.DFSpriteRecord);
+		String text = String.Format("%s\n%s, group %d\nInventory TEXTURE.%03d record %d", nearest.DFItemName, label, nearest.DFItemGroup, nearest.DFSpriteArchive, nearest.DFSpriteRecord);
+		if (nearest.DFPileArchive >= 0) text = text .. String.Format("\nPile TEXTURE.%03d record %d", nearest.DFPileArchive, nearest.DFPileRecord);
 		Screen.DrawText(SmallFont, Font.CR_GOLD, 16, 16, text, DTA_VirtualWidth, 640, DTA_VirtualHeight, 400, DTA_FullscreenScale, FSMode_ScaleToFit43);
 	}
 }
