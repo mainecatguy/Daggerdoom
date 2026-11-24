@@ -85,6 +85,26 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             places.Clear();
             incoming = null;
+            sendQueue.Clear();
+        }
+
+        // A slaughter-sized record is thousands of events, more than the ring and the outbox hold at once, so the
+        // reply goes out a share per frame. Doom waits for its END before planning the dungeon's mooks.
+        const int PacePerFrame = 2048;
+        readonly Queue<DfbEvent> sendQueue = new Queue<DfbEvent>();
+
+        void Post(DfbEvent e)
+        {
+            sendQueue.Enqueue(e);
+        }
+
+        void Update()
+        {
+            for (int n = 0; n < PacePerFrame && sendQueue.Count > 0; n++)
+            {
+                DfbEvent e = sendQueue.Dequeue();
+                bridge.Send(ref e);
+            }
         }
 
         static string DungeonKey(int mapId)
@@ -203,7 +223,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             e.place.names = known ? (uint)place.names.Count : 0;
             e.place.planLines = known && place.mooks >= 0 ? (uint)place.plan.Count + 1 : 0;
             DfbEvent header = e;
-            bridge.Send(ref e);
+            Post(e);
             int sent = 1;
             if (known)
             {
@@ -223,7 +243,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         name.placeName.generation = generation;
                         name.placeName.index = (ushort)n;
                         name.placeName.SetText(part, count);
-                        bridge.Send(ref name);
+                        Post(name);
                         sent++;
                     } while (at < bytes.Length);
                 }
@@ -235,14 +255,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     plan.placePlan.generation = generation;
                     plan.placePlan.header = 1;
                     plan.placePlan.value = place.mooks;
-                    bridge.Send(ref plan);
+                    Post(plan);
                     sent++;
                     foreach (DfbPlacePlan line in place.plan)
                     {
                         plan.placePlan = line;
                         plan.placePlan.generation = generation;
                         plan.placePlan.header = 0;
-                        bridge.Send(ref plan);
+                        Post(plan);
                         sent++;
                     }
                 }
@@ -253,12 +273,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     f.tic = e.tic;
                     f.placeFact = fact;
                     f.placeFact.generation = generation;
-                    bridge.Send(ref f);
+                    Post(f);
                     sent++;
                 }
             }
             header.kind = Dfb.KIND_PLACE_END;
-            bridge.Send(ref header);
+            Post(header);
             sent++;
             bridge.LogLine(string.Format(Inv, "locations: sent the record of D{0} to Doom: {1}, {2} facts, {3} events, {4:F2} ms",
                 mapId, known ? "known" : "no record", known ? place.facts.Count : 0, sent, watch.Elapsed.TotalMilliseconds));

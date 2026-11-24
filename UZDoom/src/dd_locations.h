@@ -39,7 +39,7 @@ void DD_LocationsLeaving(FLevelLocals *Level);	// before the world table parks a
 void DD_LocationsEntered(int mapId);			// a dungeon started; Daggerfall's record is requested
 bool DD_LocationsWaiting();						// the entered dungeon's record has not been applied yet
 void DD_LocationsTick(FLevelLocals *Level);		// applies an arrived record, in the playsim
-void DD_LocationsBeforeSave(dfb_session *session);	// sends the current dungeon's record ahead of the save request
+void DD_LocationsSave(dfb_session *session, const dfb_event &request);	// queues the current dungeon's record, then the save request
 void DD_LocationsFrame(dfb_session *session);
 bool DD_LocationsEvent(const dfb_event &e);
 void DD_LocationsResync();

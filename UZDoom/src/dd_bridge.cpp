@@ -1436,14 +1436,12 @@ bool SaveStart(const char *filename, const char *description, bool isAuto)
 	saveStartNs = dfb_now_ns();
 	PublishPosition();
 	dfb_publish_state(session, &ownState, sizeof(ownState)); // Daggerfall reads the frozen position after the request.
-	DD_LocationsBeforeSave(session); // The dungeon's record goes ahead of the request in the ordered ring.
 	dfb_event e{};
 	e.kind = DFB_KIND_SAVE_REQUEST;
 	e.tic = gametic;
 	const dfb_save_request body{ saveTxn, hpNextEvent - 1, saveStartNs };
 	memcpy(e.payload, &body, sizeof(body));
-	dfb_send(session, &e);
-	dfb_flush(session);
+	DD_LocationsSave(session, e); // Behind the dungeon's record (dd_locations.cpp), paced so a big record cannot overflow.
 	Log("save %u: Doom frozen at tic %d, requested Daggerfall's save", saveTxn, gametic);
 	return true;
 }

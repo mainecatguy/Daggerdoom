@@ -11,6 +11,7 @@
 #include <cinttypes>
 #include <cmath>
 #include <cstring>
+#include <deque>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -26,8 +27,10 @@ namespace
 {
 constexpr int WaitTics = 35 * 5;	// Without an answer, the entered dungeon is built from Doom's cache.
 
+constexpr size_t PacePerFrame = 2048;	// Half the ring, so a slaughter-sized record never overflows the outbox.
+
 dfb_session *lastSession;
-std::vector<dfb_event> outgoing;	// Records built while leaving a dungeon, sent at the next bridge frame.
+std::deque<dfb_event> outgoing;	// Records (and a save request behind its record), sent a share per bridge frame.
 uint32_t sendGeneration, requestGeneration;
 int requestMap = -1, waitUntil;
 bool requestPending, waiting;
@@ -143,16 +146,20 @@ bool Report(FLevelLocals *Level, uint32_t flags, std::vector<dfb_event> &out)
 	return true;
 }
 
-void SendAll(dfb_session *session, std::vector<dfb_event> &events)
+// Sends up to PacePerFrame queued events, and only when the outbox is empty. The ring keeps them in order.
+void Pump(dfb_session *session)
 {
-	if (events.empty()) return;
+	if (outgoing.empty() || dfb_flush(session) > 0) return;
 	const auto t0 = std::chrono::steady_clock::now();
-	int queued = 0;
-	for (dfb_event &e : events) queued += dfb_send(session, &e) == DFB_QUEUED;
+	size_t sent = 0;
+	for (; sent < PacePerFrame && !outgoing.empty(); sent++)
+	{
+		dfb_send(session, &outgoing.front());
+		outgoing.pop_front();
+	}
 	dfb_flush(session);
 	const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
-	Printf("DDLOC sent %d events (%d through the outbox), %.2f ms\n", int(events.size()), queued, ms);
-	events.clear();
+	Printf("DDLOC sent %d events, %d still queued, %.2f ms\n", int(sent), int(outgoing.size()), ms);
 }
 
 void SendRequest(dfb_session *session)
@@ -171,7 +178,9 @@ void SendRequest(dfb_session *session)
 void DD_LocationsLeaving(FLevelLocals *Level)
 {
 	if (!lastSession) return;
-	Report(Level, 0, outgoing);
+	std::vector<dfb_event> now;
+	Report(Level, 0, now);
+	outgoing.insert(outgoing.end(), now.begin(), now.end());
 	waiting = false;
 }
 
@@ -234,18 +243,20 @@ void DD_LocationsTick(FLevelLocals *Level)
 	Printf("DDLOC applied Daggerfall's record of D%d: %d facts, plan %d mooks, %.2f ms\n", requestMap, int(facts.size()), in.mooks, ms);
 }
 
-void DD_LocationsBeforeSave(dfb_session *session)
+void DD_LocationsSave(dfb_session *session, const dfb_event &request)
 {
 	lastSession = session;
-	SendAll(session, outgoing);
 	std::vector<dfb_event> now;
-	if (gamestate == GS_LEVEL && Report(primaryLevel, DFB_PLACE_ON_SAVE, now)) SendAll(session, now);
+	if (gamestate == GS_LEVEL) Report(primaryLevel, DFB_PLACE_ON_SAVE, now);
+	outgoing.insert(outgoing.end(), now.begin(), now.end());
+	outgoing.push_back(request);
+	Pump(session);
 }
 
 void DD_LocationsFrame(dfb_session *session)
 {
 	lastSession = session;
-	SendAll(session, outgoing);
+	Pump(session);
 	if (requestPending) SendRequest(session);
 }
 
