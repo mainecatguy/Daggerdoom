@@ -37,5 +37,10 @@ if (@($changed | Where-Object { $_ -like 'daggerfall-unity-master/*' }).Count) {
     Write-Output 'Daggerfall Unity: build passed.'
 }
 
+$lint = Join-Path $Worktree 'tools/quiet_probe/loud_launch_lint.py'
+if (Test-Path $lint) {
+    $loud = & python $lint --base $Base
+    if ($LASTEXITCODE -ne 0) { Write-Output 'Warning: launches that skip quiet_run.py:'; $loud | Write-Output }
+}
 Write-Output 'Check complete.'
 exit 0

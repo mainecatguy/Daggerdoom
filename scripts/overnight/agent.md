@@ -5,6 +5,8 @@ Read `AGENTS.md` first. Then make your own plan, do the work, and revise the pla
 - Keep your plan, findings, failed approaches, and a play-test list in `{{NOTES}}`, so the owner can follow your reasoning in the morning.
 - Commit whenever you reach a useful checkpoint.
 - Build and run the real thing whenever practical.
+- Start every program that opens a window through `quiet_run.py`, as `AGENTS.md` says. Never start UZDoom,
+  Daggerfall Unity, the launcher, or Unity any other way.
 - Stay on this goal. If you find unrelated problems, note them and move on. Report only the major ones in `oversights`, as described below.
 - Make ordinary engineering calls and constrained judgment calls within the owner's design. Do not make wholesale game system design choices. Ask instead, and finish everything that does not depend on the answer.
 - Do not push, merge, rebase, reset, or switch branches.

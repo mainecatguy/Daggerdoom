@@ -1,10 +1,17 @@
-"""Run a desktop program minimized, and keep it from taking focus.
+"""Run a program, and everything it starts, where the user can never see, hear, or feel it.
 
-Usage: python quiet_run.py [--timeout SECONDS] [--cwd DIR] [--desktop] -- PROGRAM [ARGS...]
+Usage: python quiet_run.py [--timeout SECONDS] [--cwd DIR] [--user-desktop] [--sound] -- PROGRAM [ARGS...]
 Exits with the program's exit code, or 124 if it timed out.
 
---desktop runs the program, and anything it starts, on a private desktop the user never sees, so no window,
-dialog, or focus change can reach the user's desktop. Sound is not affected.
+By default the program runs on a private desktop the user never sees, started minimized and kept minimized there
+(so games render exactly as they did minimized on the user's desktop). Nothing on a private desktop can show a
+window, take focus, flash the taskbar, or touch the mouse: Windows refuses ClipCursor and SetCursorPos from it.
+It also adds, when missing:
+  uzdoom.exe            +vid_fullscreen 0, -noactivate (no crash dialogs), -nosound
+  DaggerfallUnity.exe   -dfmute
+--sound leaves sound on. --user-desktop runs on the user's desktop, minimized and pushed out of focus, as before;
+use it only for something that cannot work on a private desktop, and say why.
+--desktop is accepted for older callers and changes nothing (it is the default).
 """
 import argparse
 import ctypes
@@ -22,6 +29,7 @@ user32 = ctypes.WinDLL("user32", use_last_error=True)
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 EnumWindowsProc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
 user32.EnumWindows.argtypes = [EnumWindowsProc, wintypes.LPARAM]
+user32.EnumDesktopWindows.argtypes = [wintypes.HANDLE, EnumWindowsProc, wintypes.LPARAM]
 user32.GetForegroundWindow.restype = wintypes.HWND
 user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
 user32.IsIconic.argtypes = [wintypes.HWND]
@@ -62,27 +70,35 @@ def window_pid(hwnd):
     return pid.value
 
 
-def keep_quiet(pid, previous):
+def minimize_windows(pid, desktop=None):
     def visit(hwnd, _):
         if window_pid(hwnd) == pid and user32.IsWindowVisible(hwnd) and not user32.IsIconic(hwnd):
             user32.ShowWindow(hwnd, SW_SHOWMINNOACTIVE)
         return True
 
-    user32.EnumWindows(EnumWindowsProc(visit), 0)
+    if desktop:
+        user32.EnumDesktopWindows(desktop, EnumWindowsProc(visit), 0)
+    else:
+        user32.EnumWindows(EnumWindowsProc(visit), 0)
+
+
+def keep_quiet(pid, previous):
+    minimize_windows(pid)
     foreground = user32.GetForegroundWindow()
     if previous and foreground and foreground != previous and window_pid(foreground) == pid:
         user32.SetForegroundWindow(previous)
 
 
 class DesktopProcess:
-    """A process started on a new private desktop, with the small part of the Popen interface used here."""
+    """A process started minimized on a new private desktop, with the small part of the Popen interface used here."""
 
     def __init__(self, command, cwd):
         self.name = f"quiet-run-{os.getpid()}"
         self.desktop = user32.CreateDesktopW(self.name, None, None, 0, 0x10000000, None)  # GENERIC_ALL
         if not self.desktop:
             raise OSError(f"could not create a private desktop (error {ctypes.get_last_error()})")
-        startup = STARTUPINFOW(cb=ctypes.sizeof(STARTUPINFOW), lpDesktop=self.name)
+        startup = STARTUPINFOW(cb=ctypes.sizeof(STARTUPINFOW), lpDesktop=self.name, dwFlags=1,  # STARTF_USESHOWWINDOW
+                               wShowWindow=SW_SHOWMINNOACTIVE)
         info = PROCESS_INFORMATION()
         line = ctypes.create_unicode_buffer(subprocess.list2cmdline(command))
         if not kernel32.CreateProcessW(None, line, None, None, True, 0, None, cwd, ctypes.byref(startup),
@@ -90,6 +106,11 @@ class DesktopProcess:
             raise OSError(f"could not start {command[0]} (error {ctypes.get_last_error()})")
         kernel32.CloseHandle(info.hThread)
         self.handle, self.pid, self.returncode = info.hProcess, info.dwProcessId, None
+
+    def keep_quiet(self):
+        """Keeps the program's own windows minimized, as on the user's desktop, so games render at the same size."""
+        if self.returncode is None:
+            minimize_windows(self.pid, self.desktop)
 
     def poll(self):
         if self.returncode is None and kernel32.WaitForSingleObject(self.handle, 0) == 0:
@@ -106,6 +127,24 @@ class DesktopProcess:
         return self.returncode
 
 
+def quiet_arguments(command, sound):
+    """Adds the known quiet switches for the programs agents start, when the caller left them out."""
+    name = os.path.basename(command[0]).lower()
+    if name.endswith(".exe"):
+        name = name[:-4]
+    added = []
+    if name == "uzdoom":
+        if "+vid_fullscreen" not in command:
+            added += ["+vid_fullscreen", "0"]
+        if "-noactivate" not in command:
+            added.append("-noactivate")
+        if not sound and "-nosound" not in command:
+            added.append("-nosound")
+    elif name == "daggerfallunity" and not sound and "-dfmute" not in command:
+        added.append("-dfmute")
+    return command[:1] + added + command[1:]
+
+
 def main():
     argv = sys.argv[1:]
     if "--" not in argv or argv.index("--") == len(argv) - 1:
@@ -114,25 +153,28 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--timeout", type=float)
     parser.add_argument("--cwd")
-    parser.add_argument("--desktop", action="store_true")
+    parser.add_argument("--desktop", action="store_true", help="the default; kept for older callers")
+    parser.add_argument("--user-desktop", action="store_true")
+    parser.add_argument("--sound", action="store_true")
     options = parser.parse_args(argv[:split])
 
     previous = user32.GetForegroundWindow()
-    command = argv[split + 1:]
-    if os.path.basename(command[0]).lower() in ("uzdoom", "uzdoom.exe"):
-        command[1:1] = ["+vid_fullscreen", "0"]
-    if options.desktop:
+    command = quiet_arguments(argv[split + 1:], options.sound)
+    private = not options.user_desktop
+    if private:
         process = DesktopProcess(command, options.cwd)
     else:
         startup = subprocess.STARTUPINFO()
         startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         startup.wShowWindow = SW_SHOWMINNOACTIVE
         process = subprocess.Popen(command, cwd=options.cwd, startupinfo=startup)
-    print(f"quiet_run: pid {process.pid}", file=sys.stderr, flush=True)
+    print(f"quiet_run: pid {process.pid}{' on a private desktop' if private else ''}", file=sys.stderr, flush=True)
 
     deadline = time.monotonic() + options.timeout if options.timeout else None
     while process.poll() is None:
-        if not options.desktop:
+        if private:
+            process.keep_quiet()
+        else:
             keep_quiet(process.pid, previous)
         if deadline and time.monotonic() >= deadline:
             subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"], capture_output=True)
