@@ -62,6 +62,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DoomerfallItems items;
         DoomerfallDoomItems doomItems;
         DoomerfallHotkeys hotkeys;
+        DoomerfallAmmo ammo;
         DoomerfallNewGame newGame;
         DoomerfallMonsters monsters;
         DoomerfallNpcs npcs;
@@ -161,6 +162,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             doomItems.Init(this, sync);
             hotkeys = gameObject.AddComponent<DoomerfallHotkeys>();
             hotkeys.Init(this, sync);
+            DoomerfallAmmo.Register();
+            ammo = gameObject.AddComponent<DoomerfallAmmo>();
+            ammo.Init(this, sync);
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfammotest") >= 0)
+                gameObject.AddComponent<DoomerfallAmmoTest>().Init(this, ammo);
             newGame = gameObject.AddComponent<DoomerfallNewGame>();
             newGame.Init(this, sync, Environment.GetCommandLineArgs());
             newGame.Items = items;
@@ -391,6 +397,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         break;
                     case Dfb.KIND_DOOM_ITEM_ART:
                         doomItems.OnArt(ev.doomItem.request, ev.doomItem.status, DoomerfallDoomItems.ClassOf(ev.doomItem));
+                        break;
+                    case Dfb.KIND_AMMO:
+                        ammo.OnReport(ev.doomItem.request, ev.doomItem.status, DoomerfallDoomItems.ClassOf(ev.doomItem));
                         break;
                     case Dfb.KIND_CLIMB_USES:
                         DoomerfallClimb.OnUses(this, ev.climbUses.uses);

@@ -13,6 +13,10 @@ What is done on the project, newest first. Agents do not need to read this unles
 
 ## 2026-11-24
 
+### Merged to `integration` (ammo)
+
+- **Doom ammo in Daggerfall's inventory, and arrow weight:** bullets, shells, rockets, and cells are stacks in Daggerfall's inventory at the owner's weights (0.02, 0.1, 0.2, 0.02 kg per round) and plain-ammo prices of 3x the owner's base prices (3, 9, 30, 15 gold per round). Doom's ammo stays the live counter. Bridge kinds 171 and 172 sync both ways with numbered deltas, so drops, wagon moves, and piles in Daggerfall reach Doom, and Doom pickups and shots reach Daggerfall. Arrows now weigh 0.01 kg each and count toward carried weight (they had been weightless). Paired take and load runs matched counts on both sides across save and load. Stock and DRLA E1M1 load cleanly. Notes: `work/notes/20261124-075147.md`.
+
 ### Merged to `integration` (`dccc114`)
 
 - **Doom guns show their own picture in the inventory:** DRLA pickups inherit a spawn chain that statically lands on the pistol's frame. Guns Doom had not seen on the floor showed the pistol: the starting gun, guns put away by a hotkey, and every gun after a load. Doom now uses DRLA's `SpawnFrame` label first. This is a one-line UZDoom change. Notes: `work/notes/20261124-071038-gunicons.md`.
