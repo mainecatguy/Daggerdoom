@@ -31,7 +31,19 @@ Every dungeon gets a fixed **genome**: a short list of settings computed from th
 - It must **work with plain Doom**, and work best with DRLA.
 - **Colourful Hell is added** alongside DRLA. A compatibility patch is being built.
 - **The math stays under the hood.** Pitman-Yor squads and the U-shaped size distribution are accepted.
-- The system must **stay simple and stay out of the way of the rest of the code.**
+- The system must **stay simple and stay out of the way of the rest of the code.** It is one self-contained module, and other code relies only on its interface contract (section 9).
+- **The budget is an average per encounter,** meaning each enemy Daggerfall places. The dungeon pools the averages and shares them out very unevenly. Level 30 averages 90 points (section 6).
+- **Every placement holds at least one monster, no matter what.** Taking points away can never leave a placement unable to afford its cheapest monster, so every Daggerfall enemy has a kill trigger.
+- **Each dungeon has a few bosses,** with the deepest guarding treasure where possible. Bosses are strong army monsters, not Black and White titans.
+- **Black and White titans are a rarity in very high-level dungeons.** They take points from other encounters. Dragon's Dens at area level 25 or higher always have one.
+- **Themes and regions are leanings.** Each guarantees at least something from its leaning, and the rest varies.
+- **Points that do not fit are never lost.** Monsters spread wider, get promoted, or the points move elsewhere.
+- **The leader always stands on the placement's origin point,** so quest triggers never break.
+- **Doom owns spawning,** deterministically. Daggerfall sends facts about the place (section 9).
+- **Only Hell Mines are capped** for now. The rest of the annoying list is deferred.
+- **Every dungeon is the same in every playthrough.** Per-save randomness is only the optional checkbox in "Random or deterministic options" in the backlog.
+- **Civil War appears in about 35% of dungeons.**
+- **Drops are out of scope.** What drops from what is a separate task.
 
 ---
 
@@ -39,7 +51,7 @@ Every dungeon gets a fixed **genome**: a short list of settings computed from th
 
 1. **Read the genome.** The dungeon's identity gives 10 settings, called genes (section 4).
 2. **Build the army.** Pick an anchor monster, then add monsters that resemble it, as tightly as the coherence gene says (section 5).
-3. **Set the budget.** Area level gives the dungeon's total points. The genome splits them unevenly across rooms, so some rooms are empty and some are catastrophic (section 6).
+3. **Set the budget.** Area level sets the average points per placement. The dungeon pools them, keeps each placement's cheapest monster safe, pays for a few bosses and sometimes a titan, then shares out the rest unevenly, by a different amount in each dungeon (section 6).
 4. **Fill each placement.** Daggerfall's enemy placements become squads drawn from the army. Common squads recur and new ones keep trickling in (section 7).
 5. **Name each mook.** Every mook's ID is its placement plus its number in the squad, so the same dungeon always produces the same mooks. Only deaths are saved.
 
@@ -60,7 +72,7 @@ Each gene has 13 settings, ordered in a ring so that neighboring settings are si
 | **Factions** | Who fights whom | United, Civil War with several player stances |
 | **Placement** | Where squads stand | Scattered, garrisoned, chokepoints, central mass, deep end, near entrance |
 | **Awareness** | Whether monsters start asleep, alert, or flagged as ambushers | All asleep ↔ all alert, with mixes |
-| **Budget texture** | How unevenly points spread across rooms | Even ↔ empty halls and one catastrophe |
+| **Encounter swing** | How much each placement's points vary around the level's curve | Steady ↔ spiky, with rare heavy encounters |
 | **Squad novelty** | How often rooms invent new squads instead of reusing old ones | Disciplined ↔ constantly new |
 | **Exceptions** | How often and how hard a room breaks the army's pattern | Never ↔ often |
 
@@ -72,7 +84,9 @@ Each gene has 13 settings, ordered in a ring so that neighboring settings are si
 
 ### 4.1 Daggerfall's dungeon theme steers the genes (owner, 2026-11-23)
 
-Every Daggerfall dungeon has a type, such as Vampire Haunt or Dragon's Den (`DFRegion.DungeonTypes`, 19 types). The type **steers** genes toward its vibe without deciding them outright, and exceptions are allowed.
+Every Daggerfall dungeon has a type, such as Vampire Haunt or Dragon's Den (`DFRegion.DungeonTypes`, 19 types). The type is a **leaning**: it steers genes toward its vibe without deciding them outright, and exceptions are allowed.
+
+**Something from the leaning is guaranteed (owner, 2026-11-24).** Every dungeon includes at least one thing from its theme, such as one fitting squad or the boss, even when its genes roll an exception. The rest varies freely. The same holds for the regional leaning (section 9.2): nearby dungeons share at least one regional trait, such as a favourite monster kind, and otherwise differ.
 
 **How it works:** the genome still produces each gene's raw setting, 0 to 12, exactly as before. The dungeon type decides what each setting **means**. For each type, about 9 of the 13 settings point to fitting choices and about 4 point anywhere. So roughly 70% of a type's dungeons follow its theme on a given gene, and the rest are deliberate exceptions. Because only the meanings change, the guarantees that dungeons differ and that combinations are covered still hold for the raw settings.
 
@@ -94,7 +108,7 @@ The theme mainly steers **Anchor** and the **traits** favoured when picking core
 | Mine, Natural Cave | Melee rush: Demons, Spectres | Scattered |
 | Ruined Castle | Mixed nobility and soldiers | |
 
-**An alternative source:** Daggerfall itself lists which creatures appear in each dungeon type, in its random encounter tables. Mapping each Daggerfall creature to a Doom monster kind, for example vampires to stealth monsters and dragonlings to titans, would let Daggerfall's own data build this table instead of a hand-written one.
+**The table stays hand-written, in the data file (owner left it to engineering, 2026-11-24).** Building it from Daggerfall's encounter tables would still need a hand-written creature-to-Doom mapping, and those tables mix in filler creatures such as rats and bats that blur each type's vibe. Nineteen rows are easier to read and tune.
 
 ## 5. Building the army
 
@@ -121,12 +135,12 @@ At the strictest coherence, the core has one monster and there is no support or 
 
 ### 5.3 Caps
 
-Some monsters are fun alone and miserable in bulk. Each annoying class gets a maximum share of an army's points and can never be its anchor or core. The owner owns this list. Suggested starting members:
+Some monsters are fun alone and miserable in bulk. A capped class gets a maximum share of an army's points and can never be its anchor or core. The owner owns this list, and for now it holds only the Hell Mines (owner, 2026-11-23):
 
-- `RLCyberneticLostSoul` and `RLTechnophobiaHellmine` (Hell Mines)
-- `RLArmageddonLostSoul` (The Hungry)
-- Pain Elemental variants, for their skull spam
-- Arch-viles, while revives stay invisible to Daggerfall
+- `RLCyberneticLostSoul`
+- `RLTechnophobiaHellmine`
+
+Other candidates, such as The Hungry or Pain Elementals, are deferred until play shows a problem.
 
 ### 5.4 One colour per monster kind (owner, 2026-11-23)
 
@@ -140,7 +154,7 @@ Avoid "colour vomit," a rainbow of Colourful Hell rarities mixed together in one
 
 ### 5.5 Civil War
 
-When the factions gene calls for it, a **second army** is built from the next seed, with its own anchor. The two must differ visibly, by kind or by at least two tiers, so the fight reads as a war rather than chaos. The budget is split between them. Each side's attitude to the player comes from the factions gene: hunt everyone, ignore you until shot, or ignore you entirely. When one side is wiped out, the survivors turn on the player.
+About **35% of dungeons** have a Civil War (owner, 2026-11-23): the factions gene maps about 5 of its 13 settings to Civil War stances and the rest to a united army. When it does, a **second army** is built from the next seed, with its own anchor. The two must differ visibly, by kind or by at least two tiers, so the fight reads as a war rather than chaos. Each placement belongs to one side, alternating by the genome, so both sides are present and the per-encounter budget is unchanged. Each side's attitude to the player comes from the factions gene: hunt everyone, ignore you until shot, or ignore you entirely. When one side is wiped out, the survivors turn on the player.
 
 Rigging factions needs no engine change (appendix B).
 
@@ -148,17 +162,69 @@ Rigging factions needs no engine change (appendix B).
 
 ## 6. The budget
 
-1. **Area level → dungeon points.** The exact formula is the owner's to set. A suggested shape is points that grow steadily with area level, so deeper regions always field more.
-2. **Dungeon → rooms.** The budget texture gene splits the points. At one extreme, every room gets a similar share. At the other, most rooms get almost nothing and one or two get almost everything. The total never changes.
-3. **Room → monsters.** The size gene picks where on the "many weak versus few strong" scale this army sits. A U-shaped curve makes the extremes common and the middle rarer:
+Points are set **per encounter**, meaning each enemy Daggerfall places, but only as an **average** (owner, 2026-11-24). The dungeon pools every placement's average and then shares the pool out very unevenly, so the player can never guess a room's size from the last one.
 
-| Size setting | What 300 points buys (equally dangerous in an open fight) |
-|---|---|
-| Swarm end | 300 Former Humans |
-| Middle | About 29 Barons |
-| Titan end | About 6 Cyberdemons |
+### 6.1 Average points by area level
 
-Single monsters are capped below a share of the room budget, so a low-level area cannot spend everything on one far-too-strong monster. The owner sets the cap.
+The owner's examples, priced with the points in section 8.3, with the top at 90 (owner, 2026-11-24, after the points were lowered):
+
+| Area level | Owner's example | Average points per encounter |
+|---:|---|---:|
+| 0 | | 2.5 |
+| 1 | 3 pistol guys, 2 shotgunners, 2 imps, or 1 pinky | 3.5 |
+| 5 | 9 pistols, 5 shotgunners, 4 imps, or 3 pinkies | 9 |
+| 10 | About 20 pistols | 20 |
+| 20 | About 2.1 × level 10 | 42 |
+| 30 | About 2.1 × level 20 | 90 |
+
+Between anchors, points grow by the same factor each level, so level 15 gets about 29. Above level 10, each 10 levels multiply points by about 2.1. With the revised points, the owner's level 1 example now prices at 2.6 to 3.8, so 3.5 buys about 3 pistol guys or between 2 and 3 Imps. The table is data, so tuning it never touches code.
+
+**What level 30's average buys,** all equally dangerous in an open fight: about 90 Former Humans, about 10 Barons, or about 2 Cyberdemons. Black and White titans are out of reach of one average encounter. They come from the pool (section 6.3).
+
+### 6.2 Sharing out the pool
+
+**Pool** = the level's average × the number of placements. It is shared out in this order, all from the dungeon's own seed:
+
+1. **Every placement keeps one monster.** Before anything is shared out, each placement sets aside the cost of its cheapest monster: the cheapest army monster that fits there, or failing that the cheapest monster in the pool, usually a pistol Former Human. Nothing later can take that amount away, so every Daggerfall enemy has something to kill and its kill trigger always works.
+2. **The bosses** get their share (section 6.4).
+3. **A titan**, if this dungeon rolled one, takes its points (section 6.3).
+4. **The rest is split unevenly, by a different amount in each dungeon.** Each dungeon has its own idea of a "normal" pack: some dungeons are many small packs, others a few huge ones. Most placements land near that dungeon's normal. A few get nothing beyond their one monster, and a few get 5 to 10 times the normal. The encounter swing gene sets how wild the split is, from nearly even to extreme, and the exceptions gene adds the rare extreme packs.
+
+This is the learn-then-break rule applied to pack sizes. The player learns what a pack looks like here, and then a pack breaks it, in both directions: a lone pistol guy where a horde was expected, or a horde where a lone guard stood. Because each dungeon's "normal" differs too, the previous dungeon's lessons do not carry over.
+
+### 6.3 Black and White titans
+
+Colourful Hell's EX titans cost about 140 to 250 points, far more than one encounter's average. A dungeon that rolls one **takes the points from its other encounters** to pay for it.
+
+- **They are a rarity in very high-level dungeons (owner, 2026-11-24).** No dungeon below area level 20 has one. From level 20 the chance rises to about 20% at level 25 and about 30% at level 30. The roll is part of the genome, so a given dungeon always has one or never does.
+- **Dragon's Dens at area level 25 or higher always have one,** as the dragon. It is the boss of the deepest placement there.
+- **At most one per dungeon,** taking at most 40% of the pool. A small dungeon that cannot afford one skips it.
+- Outside Dragon's Dens, which placement gets it is random, and never a boss placement, so the titan is its own surprise.
+- Legendary monsters, if a mod adds them, follow the same rule.
+
+### 6.4 Bosses
+
+Every dungeon has **a few bosses** (owner, 2026-11-24). They are **not** Black and White titans.
+
+- **How many:** about one per 15 placements, at least 1 and at most 4. The genome varies the count within that range.
+- **Where:** the deepest boss stands at the placement farthest from the entrance by walking distance. If Daggerfall's dungeon has treasure, it is the far placement closest to a treasure pile, so the end of the dungeon has a boss guarding treasure. Other bosses go at far-flung placements, preferring ones near other treasure piles, and spaced apart.
+- **What:** a boss encounter takes about 4 to 8 times the average from the pool. Its leader is the strongest army monster that fits there, one tier up from the army's usual, with an escort from the army.
+- **The treasure itself is not this module's job.** The plan names the boss placements, so the loot work can put treasure there.
+- If walking distance cannot be measured, for example because the map has no entrance marker, bosses go at random spread-out placements.
+
+### 6.5 Choosing monsters for the points
+
+The size gene picks where on the "many weak versus few strong" scale this army sits. A U-shaped curve makes the extremes common and the middle rarer. Big encounters from the pool buy bigger monsters, so a heavy encounter in a swarm army is a bigger swarm, and in a titan army it is a bigger titan.
+
+### 6.6 Points that do not fit
+
+**Points are never lost (owner, 2026-11-24).** When monsters do not fit around a placement:
+
+1. **Spread wider.** Keep searching farther out for valid spots (section 9.3).
+2. **Promote.** Swap several small monsters for fewer, stronger army monsters that fit, such as a higher tier of the same kind.
+3. **Move.** Give the leftover points to the nearest placement that has room.
+
+Points are dropped only if the whole dungeon is full, which a test should report.
 
 ---
 
@@ -210,18 +276,20 @@ DRLA's families raise health less steeply. Nightmare is roughly 1.3×, Technopho
 
 ### 8.2 The shared tier ladder
 
-| Tier | Colourful Hell | DRLA | Point multiplier |
-|---:|---|---|---:|
-| 1 | Common | Standard | ×1 |
-| 2 | Green | | ×1.25 |
-| 3 | Blue | | ×1.5 |
-| 4 | Purple, Cyan | Nightmare | ×1.75 |
-| 5 | Brown, Fire-Blue, Yellow, Gray | | ×2.25 |
-| 6 | Red | Technophobia | ×2.75 |
-| 7 | Abyss | Armageddon | ×4 |
-| 8 | EX titans | Bosses and wildcards | own value |
+**Higher tiers are not rarer (owner, 2026-11-24).** A tier only changes a monster's cost. Whether an army gets one depends on its points and on what its genes rolled, such as the tier lean.
 
-The multipliers are the health ratios, rounded slightly up. They assume a colour's damage rises roughly as much as its health. An automated attempt to read Colourful Hell's damage failed, because its elite attacks use multi-hit beams and repeated explosions, so this assumption is unchecked.
+| Tier | Colourful Hell | Colour multiplier | DRLA | Family multiplier |
+|---:|---|---:|---|---:|
+| 1 | Common | ×1 | Standard | ×1 |
+| 2 | Green | ×1.25 | | |
+| 3 | Blue | ×1.5 | | |
+| 4 | Purple, Cyan | ×2 | Nightmare | ×1.75 |
+| 5 | Brown, Fire-Blue, Yellow, Gray | ×3 | | |
+| 6 | Red | ×4 | Technophobia | ×2.75 |
+| 7 | Abyss | ×6 | Armageddon | ×4 |
+| 8 | EX titans | own value | Bosses and wildcards | own value |
+
+**Colour multipliers were raised (owner, 2026-11-24).** The first draft used health ratios alone, which undercounted what the elite colours add: faster projectiles, extra attacks, and more speed. Green and Blue stay, Purple and Cyan go to ×2, Red goes to ×4 at the owner's direction, and Brown, Fire-Blue, Yellow, and Gray sit between at ×3. Abyss at ×6 is Claude's placeholder, since the owner was unsure. The DRLA family multipliers are unchanged until play shows otherwise. All of these live in the data file.
 
 ### 8.3 The points rule: Lanchester's square law
 
@@ -233,42 +301,40 @@ The multipliers are the health ratios, rounded slightly up. They assume a colour
 
 With this scoring, two squads with equal points are about equally dangerous in an open fight, whatever their sizes. The damage a player takes from a squad is roughly **(squad points)² ÷ (2 × the player's damage per second)**.
 
-**Damage landed per second** = damage per attack × the share of attacks that hit ÷ (attack time + about 1 second between attacks). The hit shares assume a decent player:
+**Damage landed per second** = damage per attack × the share of attacks that hit ÷ the time between attacks. The first draft overestimated it. The revised assumptions for a decent player (owner, 2026-11-24):
 
-- Revenant homing missiles: 50% hit (owner).
-- Baron and Hell Knight fireballs: 20% hit, so 80% dodged (owner).
-- Imp and Cacodemon fireballs: 20% hit (assumed, slow projectiles).
-- Hitscan: 30–40% hit at typical ranges (assumed).
-- Melee: hits only while in reach, assumed 30–35%.
-- Continuous firers, the Chaingunner, Arachnotron, and Mastermind: firing about half the time, since the player breaks line of sight.
+- **Ordinary projectiles hit 15% of the time,** so 85% are dodged. This covers fireballs, plasma, and rockets.
+- **Revenant homing missiles** still hit 50% of the time (owner, 2026-11-23).
+- **Monsters spend most of their time chasing, not attacking.** An Imp lands about 0.5 damage per second (owner). The time between attacks was set so the Imp matches that, and the same pacing applies to every monster.
+- **Melee** monsters, including Lost Souls, Demons, and Spectres, land fewer hits than first assumed, about 60% of the first draft's rate relative to hitscan.
+- **Hitscan** is unchanged relative to the Former Human.
+- **Arch-viles are set to 20 points** by the owner. They are a nightmare.
 
-**Results for the 17 stock Doom monsters, from Doom's own attack values.** These are estimates and have not been measured in play:
+**Results for the 17 stock Doom monsters.** These are estimates and have not been measured in play:
 
-| Monster | Health | Damage landed/s | Points |
+| Monster | Health | First draft | Revised points |
 |---|---:|---:|---:|
-| Former Human | 20 | 2.1 | **1.0** |
-| Imp | 60 | 1.7 | **1.6** |
-| Sergeant | 30 | 5.1 | **1.9** |
-| Lost Soul | 100 | 2.2 | **2.3** |
-| Demon | 150 | 3.9 | **3.8** |
-| Spectre | 150 | 4.6 | **4.1** |
-| Commando | 70 | 11.8 | **4.5** |
-| Cacodemon | 400 | 3.2 | **5.5** |
-| Pain Elemental | 400 | about 4 from its skulls | **6.2** |
-| Hell Knight | 500 | 4.3 | **7.2** |
-| Revenant | 300 | 12 | **9.3** |
-| Mancubus | 600 | 6.5 | **9.7** |
-| Baron | 1,000 | 4.3 | **10.2** |
-| Arachnotron | 500 | 12.3 | **12.2** |
-| Arch-vile | 700 | 18 | **17.4** |
-| Mastermind | 3,000 | 29.5 | **46** |
-| Cyberdemon | 4,000 | 26 | **50** |
+| Former Human | 20 | 1.0 | **1.0** |
+| Imp | 60 | 1.6 | **1.3** |
+| Lost Soul | 100 | 2.3 | **1.8** |
+| Sergeant | 30 | 1.9 | **1.9** |
+| Demon | 150 | 3.8 | **2.9** |
+| Spectre | 150 | 4.1 | **3.2** |
+| Commando | 70 | 4.5 | **4.5** |
+| Cacodemon | 400 | 5.5 | **4.8** |
+| Pain Elemental | 400 | 6.2 | **4.8** |
+| Hell Knight | 500 | 7.2 | **6.2** |
+| Mancubus | 600 | 9.7 | **8.4** |
+| Baron | 1,000 | 10.2 | **8.8** |
+| Revenant | 300 | 9.3 | **9.0** |
+| Arachnotron | 500 | 12.2 | **10.6** |
+| Arch-vile | 700 | 17.4 | **20** (owner) |
+| Cyberdemon | 4,000 | 50 | **43** |
+| Mastermind | 3,000 | 46 | **46** |
 
-**Check against the owner's example:** 300 Former Humans score 300. 8 Barons score about 82. By the square law, the swarm is about (300 ÷ 82)² ≈ **13 times** as dangerous. About 29 Barons would match it.
+**Check against the owner's example:** 300 Former Humans score 300. 8 Barons score about 70. By the square law, the swarm is about (300 ÷ 70)² ≈ **18 times** as dangerous. About 34 Barons would match it.
 
-**Tiers.** A colour or family multiplier applies to points. If a colour multiplies both health and damage by `r`, its points rise by exactly `r`, which is why the ladder in 8.2 uses the health ratio.
-
-**DRLA families,** whose danger comes from abilities, start at ×1.75 for Nightmare, ×2.75 for Technophobia, and ×4 for Armageddon, as in 8.2. These are guesses until measured.
+**Tiers.** A colour or family multiplier applies to points, using the ladder in 8.2. The DRLA families are guesses until measured.
 
 **EX titans: a special case.** Colourful Hell's Black and White EX monsters have 8,600 to 18,000 health. The owner reports they are extremely dangerous, which fits their speed (19 to 31, against stock 8 to 12) and their heavy beam and explosion attacks. A placeholder of 80 to 150 damage landed per second gives **about 140 to 250 points each**, or 3 to 5 Cyberdemons. The square law also predicts what makes them terrifying. A lone monster deals damage for its whole life, so a decent player at about 50 damage per second would take about 16,000 damage killing one in the open. Fighting one needs cover, or very strong weapons.
 
@@ -282,19 +348,75 @@ With this scoring, two squads with equal points are about equally dangerous in a
 ### 8.5 Colourful Hell notes
 
 - **Spawn the real classes directly.** Each colour has a stub, such as `BrownImp`, that consults Colourful Hell's settings and spawns the real monster, `BrownImp2`, or rerolls through the colour spawner. The genome must spawn the real class, such as `BrownImp2`, or it would lose determinism.
-- **Colourful Hell monsters drop items,** including health, armor, ammo, and weapons such as `CH_Chainsaw`. That competes with Daggerfall's loot rules. The mod has settings to turn drops off (`CH_HealthDrops`, `CH_AmmoDrops`, `CH_ExtraDrops`, `CH_BackPackDrops`). This is a question for the loot session and the compatibility patch.
+- **Colourful Hell monsters drop items,** including health, armor, ammo, and weapons such as `CH_Chainsaw`. That competes with Daggerfall's loot rules. The mod has settings to turn drops off (`CH_HealthDrops`, `CH_AmmoDrops`, `CH_ExtraDrops`, `CH_BackPackDrops`). Drops are out of this module's scope. Native drops stay for now, and "Review native Doom monster drops" in the backlog covers them.
 
 ---
 
 ## 9. Staying simple and out of the way
 
-The encounter generator should be **one self-contained piece** with a narrow interface:
+The encounter generator is **one self-contained module that runs in Doom** (owner direction, 2026-11-24). Daggerfall sends facts about the place. Doom works out the whole army and places the mooks, deterministically. Code that uses the module needs only this contract. Genes, armies, and points are private.
 
-- **Input:** dungeon identity, area level, and the list of Daggerfall placements.
-- **Output:** for each placement, a list of (monster class, mook ID).
-- **Data:** two small tables, base points and tier multipliers, plus the monster pool's tags, all in one data file.
+### 9.1 Why Doom can own it
 
-Nothing else needs to know about genes. The spawner places the classes, Daggerfall saves dead mook IDs, and factions are applied at spawn time. Removing or replacing the generator would touch only that seam.
+Doom already knows what the module needs most: which monster classes are loaded, the map's geometry, how big each monster is, and walking distances. Daggerfall knows the place, the level, and what is dead. Splitting it this way keeps every input where it already lives. Daggerfall still owns permanent state: which mooks died, and quests.
+
+What makes it work:
+
+- **Determinism:** the module uses its own integer hash for randomness, never Doom's shared random generator or floating-point decisions. It runs once at map load, before the first tic, and handles placements in `placementId` order.
+- **The genome:** Doom computes the genes itself from the dungeon index Daggerfall sends. Daggerfall never needs to know them.
+- **Mook IDs** depend only on the plan, not on where monsters ended up, so Daggerfall's list of dead mooks stays valid.
+
+The owner confirmed this split on 2026-11-24, and `architecture.md`'s encounters row now says so. One cost: ZScript is harder to unit test than C#. A command-line test hook can dump the plan to a log file for comparison.
+
+### 9.2 Interface contract
+
+**Daggerfall → Doom, once per area load:**
+
+| Field | Meaning |
+|---|---|
+| `dungeonIndex` | Fixed index of this dungeon among Daggerfall's dungeons. It seeds the genome. |
+| `locationId`, `locationName` | Daggerfall's location identity. |
+| `regionIndex`, `regionName` | The region of the world. |
+| `worldX`, `worldY` | Floating-point world map position, so nearby dungeons share a regional leaning: at least one shared trait, and otherwise varied. |
+| `dungeonType` | Daggerfall's dungeon type, such as Vampire Haunt. It is the theme (section 4.1). |
+| `areaLevel` | 0 to 30. |
+| `placements` | One per Daggerfall enemy: `placementId` (fixed, such as block and record index), its position in Doom coordinates, the Daggerfall enemy type it replaces, and whether a quest uses it. |
+| `deadMookIds` | Mooks Daggerfall recorded as dead. They are planned as usual but not spawned. |
+| `seedOffset` | 0, the default, means fixed dungeons. Non-zero only if the optional per-save random checkbox is built. |
+
+**Doom → Daggerfall:**
+
+| Event | Meaning |
+|---|---|
+| `mookKilled` | `mookId` and `placementId`. Daggerfall records the death and decides what it means for quests. |
+
+**Inside Doom, two parts:**
+
+- **`EncounterPlanner.Plan(request) → plan`.** A pure function with no spawning. The plan lists factions with their stance toward the player, the boss placements, and for each placement its faction, whether it starts awake, and its monsters, each with `className` and `mookId`. The placer picks the leader (section 9.3).
+- **`MookPlacer.Place(plan)`.** Spawns the plan on the map, following section 9.3. When something does not fit, it asks the planner to promote or move the points (section 6.6).
+
+**Promises:**
+
+- The same request with the same mods and map always gives the same plan and the same placement.
+- Every placement holds at least one mook.
+- Every `className` is a loaded class. With only stock Doom, the plan uses stock monsters.
+- Mook IDs are unique in the area and stable.
+- The total points match the pool, apart from anything reported as not fitting.
+
+**Not the module's job:** drops and treasure, deciding when a Daggerfall enemy counts as killed for quests, and saving deaths.
+
+**Data:** one data file holds the monster pool's tags, the points table, tier multipliers, the area level curve, the titan chances, the theme table, and the caps.
+
+### 9.3 Placement rules for the spawning work
+
+- **Hard requirement: the leader stands exactly on the placement's origin point.** This keeps quest triggers working and guarantees nothing important ends up out of bounds.
+- **The leader is the highest-point monster in the encounter that fits at the origin** (owner, 2026-11-24). If none fits, the cheapest monster in the pool becomes the leader and stands there.
+- **The rest spread out a lot.** Search outward from the origin in rings, in a fixed order, and keep going farther until every monster has a valid spot. A spot is valid when the monster fits there by Doom's own position check and it can walk from the origin without passing through walls. Spots never come from outside the walkable map.
+- **The search order is fixed,** such as by ring and then by angle, so the same map always gives the same spots.
+- Monsters keep a few body widths apart, so packs fill rooms and halls instead of stacking.
+- Spawning happens at map load, before doors or lifts move.
+
+This is recorded in the "Mook packs" backlog card for the task that builds the spawner.
 
 ---
 
@@ -318,7 +440,7 @@ Each is a combination of three settings, so the guarantee says it exists somewhe
 1. The genome function, computing all 10 genes but using only Anchor, Coherence, Tier lean, Size, and Factions.
 2. The monster pool with tags and points for stock Doom, DRLA, and Colourful Hell real classes.
 3. Army building with core, support, wildcard, and caps.
-4. Budget: dungeon → room → monsters, using the U-shaped size curve.
+4. Budget: the pooled average, each placement's protected cheapest monster, bosses, the uneven split, and the U-shaped size curve. Titans can come second.
 5. Pitman-Yor squads.
 6. Civil War as two armies, in one stance only at first.
 7. Tests: the same dungeon always yields the same mooks, Civil War with 100 against 100, a save and reload mid-war, and a performance check at slaughter scale.
@@ -327,13 +449,11 @@ Each is a combination of three settings, so the guarantee says it exists somewhe
 
 ## 12. Decisions for the owner
 
-1. **The area-level budget formula:** how many points a dungeon gets at each area level.
-2. **The single-monster cap:** how large a share of a room one monster may take.
-3. **The annoying list:** which classes are capped, and how hard.
-4. **The point tables:** accept the starting values in section 8, or adjust them.
-5. **Per-save variety:** should each new game reshuffle which dungeon gets which genome, or should every dungeon be the same in every playthrough?
-6. **How common Civil War is:** a suggested starting point is about half of dungeons.
-7. **Colourful Hell drops:** turn them off so Daggerfall owns loot, or keep some.
+1. **Abyss multiplier:** ×6 is a placeholder.
+
+Quest placements getting bigger packs and high-point leaders is the backlog item "Quest packs steal points."
+
+Answered on 2026-11-23 and 2026-11-24: per-encounter average budget with pooling, level 30 at 90, revised monster points and colour multipliers, higher tiers costing more rather than being rarer, leaders as the highest-point monster that fits, the theme table kept hand-written, one protected monster at every placement, a few bosses, titans rare outside level 25+ Dragon's Dens, themes and regions as leanings with something guaranteed, points never lost, the leader on the origin, Doom-owned spawning, Hell Mines as the only cap, fixed dungeons, Civil War in about 35% of dungeons, and drops out of scope.
 
 ---
 
@@ -347,7 +467,7 @@ gene[j] = (a + b*j + c*j*j + s*j*j*j) mod 13
 
 - **Why neighbors differ:** two different dungeons give two different polynomials of degree 3 or less, and those can agree at no more than 3 values of `j`. So they differ in at least 7 of 10 genes.
 - **Why every three-way combination appears:** among the first 2,197 dungeons, each triple of settings for any 3 genes occurs exactly once.
-- **Per-save variety:** adding a fixed offset to every gene, or relabeling a gene's settings, keeps both guarantees. One save seed can choose such a transform.
+- **Optional per-save variety:** dungeons are fixed by default. If the backlog's optional "random encounter theming" checkbox is built, adding a fixed offset to every gene keeps both guarantees, and one save seed can choose the offset.
 - **Weighted genes:** to make some settings more likely while keeping the guarantees, map the 13 equally likely settings to slices of the desired distribution. The U-shaped size curve does this: setting `k` maps to the point `sin²(π(k + 0.5)/26)` between the smallest and largest monster cost.
 
 **Budget split.** Each child receives a random share from a Dirichlet split, and a "spikiness" setting controls how uneven it is. For 20 rooms, spikiness settings of 0.1, 1, and 10 give about 3, 10, and 18 rooms that matter.

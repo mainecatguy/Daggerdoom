@@ -7,11 +7,79 @@ What is done on the project, newest first. Agents do not need to read this unles
 - **Playable demo:** Privateer's Hold with Daggerfall visuals, Doom movement and combat, 42 Doom monsters, swinging doors, and angled collision. Run `D:\dev\DoomDaggerfall-loop\review\angled-demo\play.bat`.
 - **Other demos:** City of Daggerfall at `D:\dev\DoomDaggerfall-loop\review\city-texture-fix\play.bat`, overworld at `D:\dev\DoomDaggerfall-loop\review\overworld-demo\play.bat`, and DRLAX on E1M1 at `D:\dev\DoomDaggerfall\play_drlax.bat`.
 - **Launcher:** starts Daggerfall Unity and UZDoom as one package. Run `D:\dev\DoomDaggerfall-loop\review\launcher\play.bat`.
-- **Current game:** run `D:\dev\DoomDaggerfall-loop\play\play.bat`, then choose New Game. Rebuild that folder with `python scripts/play/install.py`.
-- **Branches:** `integration` is at `e2fa033`, with the area level proposal, automatic hinged trapdoors, container windows, quiet agent launches, the reported location recheck, Use-button pickup, character sheet publishing, stationary NPCs, the DRLA launcher, monster deaths, the first town door fix, New Game, the transition speedup, Daggerfall item pickup, the dungeon re-entry fix, generated bridge definitions, main quest trapdoors, 10 Hz position sync, the wilderness height fix, the Daggerfall map command, door route fixes, both overnight lanes, the bridge and door fixes, dungeon flats, Daggerfall items, synchronized saving and loading, the death screen, fast travel arrival, connected door transitions, and the inventory menu.
+- **Current game:** run `D:\dev\DoomDaggerfall-loop\play\play.bat`, then choose New Game. It is built from `integration` at `e85e351`, and its "what to try" list is at the top of `play.bat`. Rebuild that folder with `python scripts/play/install.py`, which now also builds the map data.
+- **Branches:** `integration` is at `dc90a52`, with steal mode, real enemy drops, the fixed dungeon harness, the area level proposal, automatic hinged trapdoors, container windows, quiet agent launches, the reported location recheck, Use-button pickup, character sheet publishing, stationary NPCs, the DRLA launcher, monster deaths, the first town door fix, New Game, the transition speedup, Daggerfall item pickup, the dungeon re-entry fix, generated bridge definitions, main quest trapdoors, 10 Hz position sync, the wilderness height fix, the Daggerfall map command, door route fixes, both overnight lanes, the bridge and door fixes, dungeon flats, Daggerfall items, synchronized saving and loading, the death screen, fast travel arrival, connected door transitions, and the inventory menu.
 - **Roughest spots:** some walls still bend where they stayed tied to the grid, and false walls and openings remain.
 
 ## 2026-11-23
+
+### Merged to `integration` (`e85e351`)
+
+- **Daggerfall's own windows show in Doom:** after a real New Game, the tutorial question and Brisienna's message opened behind Doom and left Daggerfall paused, so talk, Info, items, and hotkeys were all refused. Daggerfall now asks Doom (bridge kind 25, menu 7) to show any window it opens by itself. A scripted New Game to town walk then talked to Gothway Garden's general store keeper, and New Game save and load passed. The play folder is rebuilt with the fix. Notes: `work/notes/20261124-044747.md`.
+
+### Merged to `integration` (`842aa95`)
+
+- **Combined demo:** `scripts/play/install.py` now builds the play data from this checkout's converter and item tool (about 30 s, `--keep-data` skips it), so the play folder gets every converter change, including 58 pickups in Privateer's Hold. The real play folder is refreshed from `9b5ae27`, and its `play.bat` starts with a "what to try" list. Scripted runs each exercised one feature against that install: New Game, pickups, loot, gun hotkeys, a monster drop, the shop menu, theft and guards, townspeople at home, climbing, and save and load. Each passed. One scripted New Game to town walk found that Use on NPCs is refused after a real New Game. That is being fixed. Walking townspeople cannot be talked to yet, by design. The travel map hint was checked in Daggerfall alone. Notes: `work/notes/20261124-033918.md`.
+
+### Merged to `integration` (`9b5ae27`)
+
+- **Townspeople at home:** townspeople whose schedule puts them at home appear inside their house when the player enters, on any storey, at seeded spots that stay the same across visits. At 2:00 a house's residents were all inside, and by day they were outdoors again. They are as passive indoors as outdoors. Notes: `work/notes/20261124-004803.md`.
+
+### Merged to `integration` (`ec8e0bd`)
+
+- **Shopkeeper menu:** Use on a shopkeeper or service NPC opens Daggerfall's own service menu inside Doom, as in Daggerfall, so talking and shop services both work. Selling at a general store changed gold and inventory in Daggerfall. Guild, bank, tavern, repair, and identify services are untested. Doom items have no sale value yet (owner question). Notes: `work/notes/20261124-002144-shopmenu.md`.
+
+### Merged to `integration` (`08419ee`)
+
+- **Hostile Doom guards:** when Daggerfall spawns guards after a detected crime, Doom spawns one guard-looking bot per guard with a random non-BFG vanilla weapon, using UZDoom's bot code. Daggerfall's copies stay inert: in one run Daggerfall's HP fell by exactly the sum of the Doom hits. Guard deaths remove Daggerfall's copies. The crash came from spawning during UZDoom's prediction step and is fixed. Bots do not path around counters and sometimes shoot furniture (play-test). Notes: `work/notes/20261124-002144-guards.md`, `work/notes/20261123-233427.md`.
+
+### Merged to `integration` (`fc6f918`)
+
+- **Climbing:** on Daggerfall maps, pushing into a surface of 70 degrees or steeper for 1 second starts a climb with a "Climbing" message, at Daggerfall's climb-to-walk speed ratio. The player can climb up, down, and sideways, hold still, shoot, and jump off. Daggerfall's Climbing skill rolls decide slips, and Doom reports skill uses back to Daggerfall. Ground of 45 to 70 degrees is walkable on Daggerfall maps. Test map 14 of 14, and a paired climb onto a store roof with the uses tallied. Not done: climbing fatigue and fall damage. Notes: `work/notes/20261124-002144-climb.md`, `work/notes/20261124-025531.md`.
+
+### Merged to `integration` (`ba8f3bc`)
+
+- **Health and cheap ammo pickups:** the converter places about 1 to 2 seeded health or cheap ammo pickups per room in dungeons and buildings (DRLA versions when DRLA is loaded). Taken pickups stay taken across re-entry, save, and load. In-game 7 of 7 and load 3 of 3. Notes: `work/notes/20261124-002311-pickups.md`.
+
+### Merged to `integration` (`283a81b`)
+
+- **Fixed loot seeds:** dungeon and building treasure, enemy corpse loot, quest foe loot, and Doom enemy drops roll from seeds built only from the place and placement, and Unity's shared random state is restored afterwards. Two separate runs gave identical items for 8 piles and 30 drops, and re-entry gave the same piles. Results still depend on player level until area level replaces it. House containers and shop restocks are not seeded (owner question). Notes: `work/notes/20261123-233755-lootseeds.md`.
+
+### Merged to `integration` (`5aef802`)
+
+- **Travel map danger hint:** hovering a place on the travel map shows its danger word, such as `Castle Necromoghan (Very hard)`, and Find Location's confirmation adds a `Danger:` line. Words split area levels 1 to 30 into five equal bands. Travel itself is unchanged. Notes: `work/notes/20261124-002814.md`.
+
+### Merged to `integration` (`bc3242e`)
+
+- **Doom gun pickup rules:** guns taken with Use go to Daggerfall's inventory, and fill and equip their Doom slot's number key when it has no hotkeys yet. Doom guns and armor sit in the Weapons & Armor tab, and the paper doll refuses them with the hotkey message. Modded DRLA guns keep their mods. Swap 9 of 9, load 3 of 3. Old saves' Doom items stay in Clothing & Misc. Notes: `work/notes/20261124-002144.md`.
+
+### Merged to `integration` (`67210da`)
+
+- **Trapdoor shaft floor:** under bottomless lever trapdoors, the converter puts the floor at the base of the hidden pillar on the tile's chain instead of 1,024 units down, falling back to the old depth when nothing is hidden. Verified in Castle Lhishen, Orsinium, Direnni Tower, and the Tower of Caect'kern. 1,128 of 1,218 lever tiles have a pillar. Converter only. Notes: `work/notes/20261124-003059.md`.
+
+### Merged to `integration` (`982f60d`)
+
+- **Ground loot sprites:** real game loot (treasure, drops, dropped piles) already used Daggerfall's pile sprites at vanilla size. Only the item gallery test map drew inventory art in the world, which made the giant pauldron. The gallery now shows vanilla treasure piles. No game code changed. If world sprites still look too big in play, the eye height question returns. Notes: `work/notes/20261124-002311.md`.
+
+### Merged to `integration` (`c59a2b9`)
+
+- **Runtime area levels:** Daggerfall computes each location's area level (and the terrain level outside locations) from the approved formula at runtime, and enemy drops and monster placements use it. `-dfarealevel` remains a test override. Notes: `work/notes/20261123-233755-arealevel.md`.
+- **Info like vanilla:** Info on a building door shows its name and then enters, as in Daggerfall, and messages appear at Daggerfall's top and middle HUD positions. Walking townspeople now stop the Info ray. Messages still use Doom's font. Notes: `work/notes/20261123-233755-infovanilla.md`.
+
+### Merged to `integration` (`e97c3c5`)
+
+- **Doom weapon hotkeys:** Daggerfall holds every Doom gun and the hotkey table, and Doom holds only the active gun. Number keys 1 to 0 swap guns on Daggerfall maps, with Ctrl and Alt squares. Each gun keeps its magazine and DRLA mods across swaps, saves, and loads. A number key over an item in Daggerfall's inventory opens the hotkey squares, and potions and armor can be hotkeyed too. Swap test 8 of 8. Known gap: modded DRLA pickups lose their mods (todo). Notes: `work/notes/20261123-233611.md`.
+
+- **NPC dialogue:** Use on a stationary NPC runs Daggerfall's own activation and opens its real talk window, or its quest offer window, drawn into Doom while Doom pauses. Too far away gives Daggerfall's own message. Shopkeepers open plain talk for now (a one-line `doomerfallTalkOnly` flag), pending the shop menu follow-up. Accepting quests was not tested. Notes: `work/notes/20261123-233304.md`.
+- **Daggerfall holds Doom items:** pressing Use on a Doom item puts it in Daggerfall's inventory with its Doom sprite and name and a default weight, checked against Daggerfall's carry limit. Guns go to Doom at once. Other items take effect when used from Daggerfall's inventory. Verified in both games: 4 of 4 takes, save and load, and E1M1 stock and with DRLA. Daggerfall pile pickup and containers were not rerun. Notes: `work/notes/20261123-223740.md`.
+- **Persistent townspeople (`d9cb86d`):** each town's wanderers come from a fixed seed, follow daily schedules, go home at night, and stay dead across save and load. Verified across launches, at night, through a tavern trip, and into the wilderness. Notes: `work/notes/20261123-215225-townspeople.md`.
+- **Info mode (`b457f4c`):** a Doom key runs Daggerfall's Info interaction. It does not yet match vanilla on doors and message style, and a follow-up card is drafted. Notes: `work/notes/20261123-225143-info.md`.
+
+### Merged to `integration` (`dc90a52`)
+
+- **Steal mode (`721088c`):** crouching shows "Sneaking" on Daggerfall maps, and Use then runs Daggerfall's own activation in Steal mode. In Daggerfall, Steal only changes lockpicking and pickpocketing, which Doom does not route yet. Notes: `work/notes/20261123-225143.md`.
+- **Real enemy drops (`07ce6c3`):** each slain Doom enemy rolls a real Daggerfall drop for the enemy Daggerfall would have placed there, using the area level instead of player level and the approved material tiers. Audited against Daggerfall's tables, then verified in the dungeon, stock and with DRLA: piles, taking, save, load, re-entry, and the quest kill. Loading a save from before a kill re-rolls its drop until fixed loot seeds land. Notes: `work/notes/20261123-212059-drops.md`.
+- **In-dungeon test harness (`7909c31`):** the death route harness never ran because a constant-false `if` with a `break` stopped its `WorldTick`. Fixed in `tools/monster_deaths/harness.zs`. Notes: `work/notes/20261123-223511.md`.
 
 ### Merged to `integration` (`e2fa033`)
 

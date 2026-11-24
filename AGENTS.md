@@ -53,9 +53,9 @@ Reach the MVP in `architecture.md`. First prove these hurdles are solvable:
 
 ## Engine ownership
 
-- **Daggerfall owns:** world, time, travel, saves, stats, HP, death rules, status effects, quests, dialogue, economy, and loot rolls.
+- **Daggerfall owns:** world, time, travel, saves, stats, HP, death rules, status effects, quests, dialogue, economy, and Daggerfall's loot rolls.
 - **UZDoom owns:** the window, input, movement physics, 3D rendering, collision, weapons, projectiles, monster AI, and combat HUD.
-- **Shared by contract:** damage, inventory translation, spells, doors and locks, stealth, and encounters. See `architecture.md`.
+- **Shared by contract:** damage, inventory translation, spells, doors and locks, stealth, encounters, and loot creation. Doom may drop and place its own items, and what the player takes goes to Daggerfall's inventory. See `architecture.md`.
 
 ## Game design belongs to the owner
 

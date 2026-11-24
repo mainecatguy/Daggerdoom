@@ -12,6 +12,9 @@ This is a one-line-per-item index. Open an item's file only when you need its de
 
 - [Remove the city return freeze](backlog/city-return-freeze.md): Returning to the City of Daggerfall still freezes for about 1.2 s.
 - [Run the trapdoor checks on every dungeon](backlog/run-all-trapdoors.md): Full run after the automatic converter rule lands.
+- [Rotating walk-on trapdoors (axis 10)](backlog/axis10-trapdoors.md): Find how classic Daggerfall turns them. Not now.
+- [Guard variety](backlog/guard-variety.md): More kinds of Doom guards than one Doomguy bot type.
+- [Persistent Info toggle](backlog/persistent-info-toggle.md): Info as a toggle that shows the info box for whatever the player looks at.
 - [Decide Doom item weights](backlog/doom-item-weights.md): Replace the default weight once Doom items live in Daggerfall's inventory.
 - [Save at the start of a new game](backlog/save-at-new-game-start.md): Gives a player who dies right away something to load.
 - [Start at Daggerfall's real Privateer's Hold location](backlog/real-privateers-hold-start.md): Use the quiet cave start instead of the dungeon entrance.
@@ -83,6 +86,7 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [Improve the random enemy roster](backlog/improve-the-random-enemy-roster.md): Weight or tier the uniform random roster.
 - [Random or deterministic options](backlog/random-or-deterministic-options.md): Checkboxes for random loot and random encounter theming. Deterministic is the default.
 - [Quest targets in mook packs](backlog/quest-targets-in-mook-packs.md): Decide how quest targets map onto packs.
+- [Quest packs steal points](backlog/quest-packs-steal-points.md): Quest placements take points from neighbours for bigger packs and high-point leaders.
 - [Handle Arch-vile resurrection](backlog/arch-vile-resurrection.md): Research how revived mooks affect saves and quests, then propose handling.
 - [Monster mix on stock Doom maps](backlog/monster-mix-on-stock-doom-maps.md): DRLA only for now. Decide later how stock maps mix DRLA and Colourful Hell.
 - [Oblivion Portals](backlog/oblivion-portals.md): Portals that lead to Doom and custom WAD maps.

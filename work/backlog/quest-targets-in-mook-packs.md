@@ -1,5 +1,5 @@
 # Quest targets in mook packs
 
-**Waiting on:** owner design.
+**Waiting on:** Mook packs, then fuller owner design.
 
-Decide how a Daggerfall quest target maps onto a pack of mooks. The current rule is that the entity's death triggers when most of its mooks are dead. Still open: whether one monster is the "real" target, how the player can tell, and where quest items drop.
+Owner decision (2026-11-23), for now: each pack has one pack leader, which holds the pack's drops and the quest state. Killing the leader is the kill that counts. Whether the player can tell which monster is the leader, timed ambushes, and anything beyond this still need design.
