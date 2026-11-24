@@ -992,18 +992,16 @@ namespace DaggerfallWorkshop.Game
         }
 
         // Doomerfall: Doom's Use on this NPC, at Doom's distance, since Daggerfall's hidden player does not follow Doom
-        // indoors. Service and merchant NPCs open the talk window until their own tasks land.
+        // indoors. Service and merchant NPCs open their service menu, as in Daggerfall.
         public void DoomerfallUseNpc(StaticNPC npc, PlayerActivateModes useMode, float distance)
         {
             PlayerActivateModes mode = currentMode;
             currentMode = useMode;
-            doomerfallTalkOnly = true;
             RaycastHit hit = new RaycastHit();
             hit.distance = distance;
             try { ActivateStaticNPC(hit, npc); }
-            finally { currentMode = mode; doomerfallTalkOnly = false; }
+            finally { currentMode = mode; }
         }
-        bool doomerfallTalkOnly;
 
         void DisableEmptyCorpseContainer(GameObject go)
         {
@@ -1591,7 +1589,6 @@ namespace DaggerfallWorkshop.Game
 
                 Debug.LogFormat("faction id: {0}, social group: {1}, guild: {2}, building faction: {3}, building guild: {4}", npc.Data.factionID,
                     (FactionFile.SocialGroups)factionData.sgroup, (FactionFile.GuildGroups)factionData.ggroup, buildingFactionData.id, (FactionFile.GuildGroups)buildingFactionData.ggroup);
-                if (doomerfallTalkOnly) { talkManager.TalkToStaticNPC(npc, false, factionData.id == (int)GuildNpcServices.TG_Spymaster && buildingFactionData.id == 0); return; }
 
                 // Check if the NPC offers a guild service.
                 if (Services.HasGuildService(npc.Data.factionID))
