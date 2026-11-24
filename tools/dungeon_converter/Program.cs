@@ -81,6 +81,7 @@ static partial class Program
         if (args.Contains("--list-flats")) return ListFlats(arena2);
         if (args.Contains("--list-door-actions")) return ListDoorActions(arena2);
         if (args.Contains("--list-trapdoors")) return ListTrapdoors(arena2);
+        if (args.Contains("--list-markers")) return ListMarkers(arena2); // MarkerCensus.cs
         for (int a = 0; a < args.Length; a++)
         {
             if (args[a] == "--out") outDir = args[++a];
@@ -266,6 +267,7 @@ static partial class Program
                         && (obj.Resources.FlatResource.TextureRecord == RandomEnemyRecord || obj.Resources.FlatResource.TextureRecord == FixedEnemyRecord))
                     {
                         var f = obj.Resources.FlatResource;
+                        if (IsSkippedFixedEnemy(f)) continue; // as RDBLayout.AddFixedRDBEnemy
                         var at = ToDoom(new V3(obj.XPos, -obj.YPos, obj.ZPos) + offset);
                         ulong placement = EnemyRoster.Hash(currentMapId, dungeonBlock.BlockName, dungeonBlock.X, dungeonBlock.Z,
                             obj.XPos, obj.YPos, obj.ZPos, f.TextureRecord, f.FactionOrMobileId);

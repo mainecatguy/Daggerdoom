@@ -399,7 +399,9 @@ static partial class Program
                         if (model.ActionResource.Flags is >= 1 and <= 8 && (model.XRotation != 0 || model.ZRotation != 0))
                             Console.WriteLine($"TILTED {dungeonBlock.BlockName} m{reference.ModelIdNum} {reference.Description} rot {model.XRotation},{model.YRotation},{model.ZRotation} at {obj.XPos},{obj.ZPos},{-obj.YPos}");
                     }
-                    else if (obj.Type == DFBlock.RdbResourceTypes.Flat && obj.Resources.FlatResource.Action != 0)
+                    // Enemy markers are switched off in RDBLayout.AddFlat, so their Action field never acts in Daggerfall Unity.
+                    // On a fixed enemy it means "passive" (99, RDBLayout.AddEnemy), not an action.
+                    else if (obj.Type == DFBlock.RdbResourceTypes.Flat && obj.Resources.FlatResource.Action != 0 && !IsEnemyMarker(obj.Resources.FlatResource))
                     {
                         var flat = obj.Resources.FlatResource;
                         r = new ActionRecord
