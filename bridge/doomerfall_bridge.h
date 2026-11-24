@@ -84,7 +84,7 @@ extern "C" {
 #define DFB_KIND_LOAD_READY    16  /* DF to UZ; Daggerfall restored the save, or left its game untouched; payload: dfb_save_reply */
 #define DFB_KIND_LOAD_DONE     17  /* UZ to DF; Doom restored its half, or could not; payload: dfb_save_done */
 #define DFB_KIND_LOAD_RESUME   18  /* DF to UZ; both games are ready and play continues; payload: dfb_save_done */
-#define DFB_KIND_HOLD          19  /* UZ to DF; p0 is 1 to hold Daggerfall paused at Doom's title, 0 to release */
+#define DFB_KIND_HOLD          19  /* UZ to DF; the payload's first 8 bytes are 1 to hold Daggerfall paused at Doom's title, 0 to release */
 #define DFB_KIND_TRAVEL        20  /* DF to UZ; Daggerfall finished a fast travel, sent before the menu closes; payload: dfb_travel */
 #define DFB_KIND_TRANSITION    21  /* UZ to DF; the player went through a door, or a load restored this place; payload: dfb_transition */
 

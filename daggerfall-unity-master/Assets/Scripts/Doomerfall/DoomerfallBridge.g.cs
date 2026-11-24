@@ -54,7 +54,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_LOAD_READY = 16;  // DF to UZ; Daggerfall restored the save, or left its game untouched; payload: dfb_save_reply
         public const ushort KIND_LOAD_DONE = 17;  // UZ to DF; Doom restored its half, or could not; payload: dfb_save_done
         public const ushort KIND_LOAD_RESUME = 18;  // DF to UZ; both games are ready and play continues; payload: dfb_save_done
-        public const ushort KIND_HOLD = 19;  // UZ to DF; p0 is 1 to hold Daggerfall paused at Doom's title, 0 to release
+        public const ushort KIND_HOLD = 19;  // UZ to DF; the payload's first 8 bytes are 1 to hold Daggerfall paused at Doom's title, 0 to release
         public const ushort KIND_TRAVEL = 20;  // DF to UZ; Daggerfall finished a fast travel, sent before the menu closes; payload: dfb_travel
         public const ushort KIND_TRANSITION = 21;  // UZ to DF; the player went through a door, or a load restored this place; payload: dfb_transition
         public const uint TRANSITION_ENTER_BUILDING = 1;
