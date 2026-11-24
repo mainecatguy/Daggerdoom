@@ -128,10 +128,10 @@ namespace
 					meshMap = memcmp(bytes, "DFM1", 4) ? "" : map;
 				}
 				present = level->MapName.CompareNoCase(meshMap) == 0;
-				if (present && (!buffer || loadedLump != lump)) Load(lump); // kept across a town handoff
 			}
 		}
-		if (present && bufferOwner != screen) Load(fileSystem.CheckNumForName("DFMESH"));
+		// Checked every time: a town shares this buffer without updating checkedMap, so returning to the same map can find the town's mesh here.
+		if (present && (!buffer || loadedLump != headerLump || bufferOwner != screen)) Load(headerLump);
 		return present;
 	}
 }
