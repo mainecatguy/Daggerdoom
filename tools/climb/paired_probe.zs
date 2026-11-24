@@ -4,10 +4,11 @@
 // climb reads. Prints CLIMBPROBE lines.
 class ClimbProbe : StaticEventHandler
 {
+	Vector2 SEARCH_FROM;
 	int phase, t, startT;
 	double z0, zMax;
 
-	override void OnRegister() { SetOrder(-100); }
+	override void OnRegister() { SetOrder(-100); SEARCH_FROM = (3616.0, -13410.75); }
 
 	override void WorldTick()
 	{
@@ -17,6 +18,12 @@ class ClimbProbe : StaticEventHandler
 		t++;
 		if (phase == 0)
 		{
+			// Optional start point, so the search runs in town (the guards demo's start, in front of a store).
+			if (t == 35 && SEARCH_FROM.x != 0)
+			{
+				mo.SetOrigin((SEARCH_FROM, mo.GetZAt(SEARCH_FROM.x, SEARCH_FROM.y, 0, GZF_ABSOLUTEPOS)), false);
+				Console.Printf("CLIMBPROBE moved to %.0f,%.0f z=%.0f", mo.pos.x, mo.pos.y, mo.pos.z);
+			}
 			if (t < 105) return;
 			double best = 1e9, bestAng = 0;
 			Vector3 bestHit;
