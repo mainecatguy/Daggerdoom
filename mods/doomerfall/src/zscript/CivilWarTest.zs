@@ -33,13 +33,13 @@ class DoomerfallCivilWarTest : StaticEventHandler
 		{
 			spawned = true;
 			Console.Printf("DDWARTEST loaded at tic %d", level.maptime);
-			State("load");
+			Report("load");
 		}
 	}
 
 	private PlayerPawn Me() { return players[consoleplayer].mo; }
 
-	private void State(String when)
+	private void Report(String when)
 	{
 		let w = DoomerfallCivilWar.Find();
 		for (int side = 0; side < 2; side++)
@@ -89,7 +89,7 @@ class DoomerfallCivilWarTest : StaticEventHandler
 				DoomerfallCivilWar.Rig(a, side, stance[side]);
 			}
 		}
-		State("spawn");
+		Report("spawn");
 	}
 
 	override void WorldThingDamaged(WorldEvent e)
@@ -143,35 +143,42 @@ class DoomerfallCivilWarTest : StaticEventHandler
 				}
 				else if (SideOf(m.target) == side) sameArmyTarget[side]++;
 			}
-			if (shot[side] && shot[side].health > 0 && shot[side].target == me) shotRetaliated[side] = true;
+			if (t < WIPE_TIC && shot[side] && shot[side].health > 0 && shot[side].target == me && !shotRetaliated[side])
+			{
+				shotRetaliated[side] = true;
+				Console.Printf("DDWARTEST army %s shot monster %s targets the player at tic %d: tidtohate %d hunt %d nohate %d lastenemy-player %d",
+					side ? "B" : "A", shot[side].GetClassName(), t, shot[side].TIDtoHate, shot[side].bHuntPlayers, shot[side].bNoHatePlayers,
+					shot[side].lastenemy == me);
+			}
 		}
-		if (t == SHOOT_TIC)
+		if (t == SHOOT_TIC) Report("before-shot");
+		// The player shoots one monster per army every 5 tics for 2 s (1 damage). Doom lets a monster busy with a
+		// visible hated enemy ignore a hit half the time (OkayToSwitchTarget), so one shot is not a fair test.
+		if (t >= SHOOT_TIC && t <= SHOOT_TIC + 70 && (t - SHOOT_TIC) % 5 == 0)
 		{
-			State("before-shot");
 			for (int side = 0; side < 2; side++)
 			{
-				let it = level.CreateActorIterator(DoomerfallCivilWar.TidOf(side));
-				Actor m;
-				while (m = it.Next())
+				if (!shot[side] || shot[side].health <= 1)
 				{
-					if (m.health <= 1) continue;
-					shot[side] = m;
-					m.DamageMobj(me, me, 1, 'None');
-					break;
+					shot[side] = null;
+					let it = level.CreateActorIterator(DoomerfallCivilWar.TidOf(side));
+					Actor m;
+					while (m = it.Next()) if (m.health > 1 && (!shot[side] || m.health > shot[side].health)) shot[side] = m;
 				}
+				if (shot[side]) shot[side].DamageMobj(me, me, 1, 'None');
 			}
 		}
 		if (t == WIPE_TIC)
 		{
-			State("before-wipe");
+			Report("before-wipe");
 			let it = level.CreateActorIterator(DoomerfallCivilWar.TID_B);
 			Actor m;
 			while (m = it.Next()) if (m.health > 0) m.DamageMobj(null, null, m.health + 1000, 'None', DMG_FORCED);
 		}
-		if (t == WIPE_TIC + 140) State("after-wipe");
+		if (t == WIPE_TIC + 140) Report("after-wipe");
 		if (t == END_TIC)
 		{
-			State("end");
+			Report("end");
 			for (int side = 0; side < 2; side++)
 				Console.Printf("DDWARTEST army %s stance %d killed %d targeted-player-before-shot %d shot-retaliated %d same-army-target %d same-army-damage %d cross-damage %d damage-to-player %d",
 					side ? "B" : "A", stance[side], killed[side], targetedBefore[side], shotRetaliated[side], sameArmyTarget[side], sameDamage[side], crossDamage[side], damageToPlayer[side]);

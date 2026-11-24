@@ -63,11 +63,12 @@ def war(stances, name):
 
 
 def save(stances, name):
-    zds = REVIEW / f"{name}.zds"
+    zds = REVIEW / "doom.id.doom2.commercial" / f"{name}.zds"   # save_dir gets a per-game subfolder
     zds.unlink(missing_ok=True)
-    launch(name + "-save", stances, ["-ddtestsave", "245", str(zds), "-ddtestquit", "270", "+map", "MAP01"])
+    # The save command refuses a full Windows path, so save by name into save_dir.
+    launch(name + "-save", stances, ["+set", "save_dir", REVIEW.as_posix(), "-ddtestsave", "245", name, "-ddtestquit", "270", "+map", "MAP01"])
     print(f"  save file {zds.name} exists {zds.exists()}")
-    launch(name, stances, ["-ddtestquit", "1000", "-loadgame", str(zds)])
+    launch(name, stances, ["+set", "save_dir", REVIEW.as_posix(), "-ddtestquit", "1000", "-loadgame", zds.name])   # relative to save_dir
 
 
 def lines(name, key):
