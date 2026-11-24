@@ -270,6 +270,8 @@ static partial class Program
                             obj.XPos, obj.YPos, obj.ZPos, f.TextureRecord, f.FactionOrMobileId);
                         enemyPlacements.Add(new EnemyPlacement(at.X, at.Y, at.Z, EnemyRoster.Pick(placement), EnemyRoster.MonsterId(placement)));
                     }
+                    if (obj.Type == DFBlock.RdbResourceTypes.Flat && obj.Resources.FlatResource.Action != 0)
+                        NoteActionLink(blockIndex, obj, obj.Resources.FlatResource.NextObjectOffset, obj.Resources.FlatResource.Action, null);
                     if (obj.Type != DFBlock.RdbResourceTypes.Model) continue;
                     var reference = block.RdbBlock.ModelReferenceList[obj.Resources.ModelResource.ModelIndex];
                     uint id = reference.ModelIdNum;
@@ -286,9 +288,10 @@ static partial class Program
                     {
                         skippedActions++;
                         if (reference.Description == "LID") NoteLidFootprint(arch, id, obj, offset);
-                        NoteTrapdoorFootprint(arch, id, obj, offset, reference.Description);
+                        NoteTrapdoorFootprint(arch, id, obj, offset, reference.Description, blockIndex);
                         continue;
                     }
+                    if (action.Flags != 0) NoteActionLink(blockIndex, obj, action.NextObjectOffset, action.Flags, null);
                     // Diagnostic: also treat every other action model as out of the way.
                     if (openActions && !isDoor && action.Flags != 0) { skippedActions++; continue; }
                     AddModel(arch, id, obj, offset, isDoor, blockIndex);
@@ -395,8 +398,8 @@ static partial class Program
                     (hits[Index(i, j)] ??= new List<(double, bool)>()).Add((u * t.A.Z + v * t.B.Z + w * t.C.Z, t.N.Z > 0));
                 }
         }
-        int pitCells = FloorBottomlessPits(hits);
-        if (pitCells > 0) Console.WriteLine($"bottomless trapdoor pits: {pitCells} cells floored {BottomlessPitDepth} below their tile");
+        var (pitCells, pillarShafts, deepShafts) = FloorBottomlessPits(hits);
+        if (pitCells > 0) Console.WriteLine($"bottomless trapdoor pits: {pitCells} cells floored, {pillarShafts} shafts at their hidden pillar's base, {deepShafts} shafts {BottomlessPitDepth} below their tile");
         rawHits = hits;
         grid = new List<Span>[width * height];
         if (debugRow != null)
