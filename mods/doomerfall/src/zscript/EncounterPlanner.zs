@@ -17,8 +17,10 @@ class DoomerfallEncounterRequest
 	String regionName;
 	double worldX, worldY;   // world map position in map pixels (0-1000, 0-500), for the regional leaning
 	String dungeonType;      // DFRegion.DungeonTypes name, such as VampireHaunt or DragonsDen
-	int areaLevel;           // 0 to 30 (used by the budget, a later card)
+	int areaLevel;           // 0 to 30
 	int seedOffset;          // 0 means fixed dungeons
+
+	Array<DoomerfallEncounterPlacement> placements;
 }
 
 // The private random source. Value(purpose, index) depends only on the key (the place) and its arguments.
@@ -35,6 +37,16 @@ class DoomerfallEncounterRng
 	const P_THEMESET = 9;
 	const P_REGIONPICK = 10;
 	const P_SIDE_B = 100;     // added to a purpose for Civil War side B
+
+	const P_TITAN = 20;
+	const P_BOSS = 21;
+	const P_SPLIT = 22;
+	const P_SQUAD = 23;
+	const P_FILL = 24;
+	const P_SURPRISE = 25;
+	const P_AWARE = 26;
+	const P_SIDE = 27;
+	const P_MOVE = 28;
 
 	int key, purpose, index;
 
@@ -156,6 +168,31 @@ class DoomerfallEncounterPlan
 	int regionKind;         // the region's favourite kind, -1 when none
 	DoomerfallArmy a, b;    // b only in a Civil War
 	Array<String> warnings;
+
+	// The budget (EncounterBudget.zs, section 6 and 7).
+	int avgPoints;           // centipoints per encounter at this area level (6.1)
+	int poolPoints;          // avg x placements
+	int reservePoints, bossPoints, titanPoints, splitPoints;
+	int spentPoints;         // sum of every mook's cost
+	int leftoverPoints;      // pool - spent: less than the pool's cheapest monster
+	int movedDropped;        // points a Move could not place anywhere (the dungeon is full)
+	int normalPack;          // centipoints of this dungeon's normal pack (6.2)
+	int loneRate, giantRate, jitter;   // per mille, from the swing gene
+	String bossStyle;        // strong, minis, both
+	Array<int> bosses;       // placement indices, deepest first
+	int titanPlacement;      // -1 when none
+	DoomerfallMonster titan;
+	String titanWhy;         // why there is or is not a titan
+	bool emptyWing;
+	Array<DoomerfallSquad> squads;
+	Array<DoomerfallPlannedPlacement> placements;
+
+	int MookCount()
+	{
+		int n = 0;
+		for (int i = 0; i < placements.Size(); i++) n += placements[i].mooks.Size();
+		return n;
+	}
 }
 
 class DoomerfallEncounterPlanner play
@@ -260,6 +297,7 @@ class DoomerfallEncounterPlanner play
 			result.a.stance = pair.Size() > 0 ? pair[0] : "hunt";
 			if (result.b) result.b.stance = pair.Size() > 1 ? pair[1] : "hunt";
 		}
+		Budget();
 		return result;
 	}
 

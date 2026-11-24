@@ -2,3 +2,4 @@
 server noarchive bool dd_encounter_pooldump = false;
 // Test hook: run the encounter planner on fake area facts (zscript/EncounterPlannerTest.zs).
 server noarchive bool dd_encounter_plantest = false;
+server noarchive bool dd_encounter_budgettest = false;

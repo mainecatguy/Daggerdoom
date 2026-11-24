@@ -405,8 +405,26 @@ set civil_war_min_tier_gap 2
 # Uneven split (section 6.2), squads (section 7), themes (section 4.1).
 set split_giant_min 5
 set split_giant_max 10
+# The swing gene (0 to 12) sets, per mille: the chance a placement keeps only its one monster (lone), the chance it is
+# a giant pack, and how far ordinary packs vary around the dungeon's normal (+/- jitter). value = base + gene x step.
+set split_lone_base   20
+set split_lone_step   25
+set split_giant_base  10
+set split_giant_step  5
+set split_jitter_base 100
+set split_jitter_step 40
+# Minibosses take 2 to 4 times the average (6.4).
+set miniboss_share_min 2
+set miniboss_share_max 4
+# Surprise rooms (7.1): chance per mille per placement = exceptions gene x surprise_step. An empty wing happens in a
+# dungeon of 10+ placements with chance (percent) = exceptions gene x empty_wing_step.
+set surprise_step   10
+set empty_wing_step 4
+# Pitman-Yor squads (section 7): discount d and strength theta. About 23 squad types in 100 placements at theta 1.
 set squad_discount 0.5
 set squad_strength 1
+# The squad novelty gene scales theta, in thousandths: a quarter to four times, geometric.
+list novelty_theta 250,315,397,500,630,794,1000,1260,1587,2000,2520,3175,4000
 set theme_fitting_settings 9
 set gene_settings 13
 
