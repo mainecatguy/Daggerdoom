@@ -67,6 +67,7 @@ CVAR(Int, dd_tm_stitches, 0, CVAR_NOSAVE)
 CVAR(Int, dd_tm_nearest, -1, CVAR_NOSAVE)		// Nearest generated location group.
 CVAR(Int, dd_tm_neareststate, 0, CVAR_NOSAVE)	// Its DDTownCache::State.
 CVAR(Int, dd_tm_use, 0, CVAR_NOSAVE | CVAR_MOD)	// Test hook: one press of Use on a location door.
+static int doorPressTic = -1;	// DDTreadmill_PressDoor. A press counts only on the next tic, in case no town door tick runs.
 CVAR(String, dd_tm_warp, "", CVAR_NOSAVE | CVAR_MOD)		// "tileX tileY": moves the player through the overworld handoff. The path fast travel can use.
 
 void DD_MonstersEnterDungeon(FLevelLocals *Level, int mapId, bool firstVisit, bool bridged);
@@ -1550,7 +1551,8 @@ namespace
 	void TickTownDoors(FLevelLocals *Level, AActor *pmo)
 	{
 		const bool down = (pmo->player->cmd.buttons & BT_USE) != 0, fresh = down && !useHeld;
-		bool pressed = fresh || dd_tm_use != 0;
+		bool pressed = fresh || dd_tm_use != 0 || (doorPressTic >= 0 && gametic - doorPressTic <= 1);
+		doorPressTic = -1;
 		useHeld = down;
 		if (dd_tm_use != 0) dd_tm_use = 0;
 		if (handoff.pending || pmo->health <= 0) return;
@@ -2099,6 +2101,11 @@ bool DDTreadmill_CurrentDoor(int &action, double &x, double &y, int &target)
 	y = door.Y;
 	target = t.spaceId >= DUNGEON_SPACE ? t.dungeonMapId : t.spaceId;
 	return true;
+}
+
+void DDTreadmill_PressDoor()
+{
+	doorPressTic = gametic;
 }
 
 DDPlayerArea DDTreadmill_PlayerWorld(double &x, double &y, double &z, double &yawDegrees)

@@ -1,5 +1,6 @@
 // [Doomerfall] Doom's side of Daggerfall's Info interaction. The Info control names what the player looks at, and
-// Daggerfall answers with the messages its own Info code showed, which appear on Doom's message line.
+// Daggerfall answers with the messages its own Info code showed, which Doom draws where Daggerfall's HUD draws them
+// (zscript/Doomerfall.zs). As in Daggerfall, Info on anything else acts as Use, so Info on a building door names it and enters.
 // Nothing here runs without a bridge session and a generated Daggerfall map.
 
 #include <algorithm>
@@ -11,11 +12,13 @@
 #include "actor.h"
 #include "actorinlines.h"
 #include "d_player.h"
+#include "events.h"
 #include "doomstat.h"
 #include "g_levellocals.h"
 #include "gamestate.h"
 #include "p_linetracedata.h"
 #include "p_local.h"
+#include "p_spec.h"
 #include "playsim/dd_treadmill.h"
 #include "printf.h"
 #include "sbar.h"
@@ -24,6 +27,7 @@
 
 bool DD_ItemsInfoPress(player_t *player);
 void DD_BridgeOpenTalk();
+bool P_UseTraverse(AActor *usething, const DVector2 &start, const DVector2 &end, bool &foundline);
 
 namespace
 {
@@ -40,6 +44,38 @@ bool IsNpc(const AActor *mo, bool &centered)
 	const FName name = mo->GetClass()->TypeName;
 	centered = name == dungeon;
 	return (name == town || centered) && !(mo->renderflags & RF_INVISIBLE);
+}
+
+// A walking townsperson. Daggerfall's Info on one opens the talk window, which Doom does not route yet, so it only stops the ray.
+bool IsTownsperson(const AActor *mo)
+{
+	static const FName walker("DFTownsperson");
+	return mo->GetClass()->TypeName == walker && !(mo->renderflags & RF_INVISIBLE);
+}
+
+// Daggerfall's Info on doors, action doors, levers, ladders and shelves is the same as Grab. Doom's Use without its
+// "oof", because Daggerfall's Info on a plain wall is silent.
+void UseAsGrab(player_t *player)
+{
+	AActor *pmo = player->mo;
+	const DVector2 start = pmo->GetPortalTransition(pmo->Height / 2).XY();
+	const DVector2 end = start + pmo->Angles.Yaw.ToVector(pmo->FloatVar(NAME_UseRange));
+	bool foundline = false;
+	if (!P_UseTraverse(pmo, start, end, foundline))
+	{
+		sector_t *sec = pmo->Sector;
+		if (sec->SecActTarget) sec->TriggerSectorActions(pmo, SECSPAC_Use | (foundline ? SECSPAC_UseWall : 0));
+	}
+	DDTreadmill_PressDoor();
+}
+
+// Daggerfall's HUD text (top, centered) or mid-screen text, for the Doomerfall mod to draw.
+void Show(const std::string &text, bool mid)
+{
+	Printf(PRINT_LOG, "%s\n", text.c_str());
+	FString name;
+	name.Format("%s%s", mid ? "dfhud_mid:" : "dfhud_top:", text.c_str());
+	staticEventManager.Console(-1, name, 0, 0, 0, false, true);
 }
 
 uint64_t NpcId(const AActor *mo) { return uint64_t(uint32_t(mo->args[1])) << 32 | uint32_t(mo->args[0]); }
@@ -123,7 +159,7 @@ AActor *Pick(player_t *player, bool &bestNpc, double &bestDistance, bool &wall, 
 	while (AActor *mo = it.Next())
 	{
 		bool centered;
-		const bool npc = IsNpc(mo, centered);
+		const bool npc = IsNpc(mo, centered) || IsTownsperson(mo);
 		if (!npc && (!(mo->flags3 & MF3_ISMONSTER) || mo->health <= 0 || mo == pmo)) continue;
 		const double t = RayHit(eye, dir, mo, npc, centered);
 		if (t >= 0 && t < bestDistance)
@@ -149,6 +185,7 @@ void Press(dfb_session *session, player_t *player)
 	double bestDistance;
 	FLineTraceData trace;
 	AActor *best = Pick(player, bestNpc, bestDistance, wall, trace);
+	if (best && IsTownsperson(best)) return;
 	if (best && bestNpc)
 	{
 		SendRequest(session, DFB_INFO_NPC, NpcId(best), 0, 0);
@@ -169,6 +206,8 @@ void Press(dfb_session *session, player_t *player)
 		const DVector3 &hit = trace.HitLocation;
 		SendRequest(session, DFB_INFO_BUILDING, 0, worldX + (hit.X - pmo->X()) / DoomPerDf, worldY + (hit.Y - pmo->Y()) / DoomPerDf);
 	}
+	// Daggerfall shows the building's name first, then a door enters it. Daggerfall reads the request before the door event.
+	UseAsGrab(player);
 }
 }
 
@@ -212,8 +251,7 @@ bool DD_InfoEvent(const dfb_event &e)
 	if (t.request != textRequest) return true; // An answer to an older press.
 	pending.append(t.text, strnlen(t.text, sizeof(t.text)));
 	if (e.flags & DFB_INFO_MORE) return true;
-	if (t.style == DFB_INFO_MID) C_MidPrint(SmallFont, pending.c_str());
-	else Printf(PRINT_HIGH, "%s\n", pending.c_str());
+	Show(pending, t.style == DFB_INFO_MID);
 	pending.clear();
 	return true;
 }

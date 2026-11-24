@@ -2,11 +2,12 @@ version "4.14"
 
 // Info test. Outside a general store: Info on the building, then on a monster placed in view. Inside: Info on the
 // nearest shown NPC, then on the nearest furniture container (Daggerfall's Info on a container is Grab, so it opens).
+// Info on the store's door names it and enters, as Daggerfall's does. A screenshot follows each press.
 class IMHarness : StaticEventHandler
 {
 	static const double DOORDATA[] = { @DOOR@ };
 	const LIMIT = 35 * 20;
-	int phase, timer;
+	int phase, timer, ticks, shotAt;
 	Actor monster;
 	bool done;
 
@@ -17,6 +18,7 @@ class IMHarness : StaticEventHandler
 		let p = players[0].mo;
 		Console.Printf("IMPRESS %s at %.1f,%.1f angle %.1f pitch %.1f", what, p.pos.x, p.pos.y, p.angle, p.pitch);
 		EventHandler.SendNetworkEvent("df_info");
+		shotAt = ticks + 10;
 	}
 
 	static void Face(PlayerPawn p, vector3 aim)
@@ -36,6 +38,8 @@ class IMHarness : StaticEventHandler
 		vector3 door = (DOORDATA[0], DOORDATA[1], DOORDATA[2]);
 		vector2 normal = (DOORDATA[3], DOORDATA[4]);
 		timer++;
+		ticks++;
+		if (ticks == shotAt) { LevelLocals.MakeScreenShot(); Console.Printf("IMSHOT after %d tics", 10); }
 		if (timer > LIMIT) { Console.Printf("IMFAIL timeout in phase %d", phase); Finish("failed"); return; }
 		switch (phase)
 		{
@@ -64,7 +68,7 @@ class IMHarness : StaticEventHandler
 				p.SetOrigin((door.xy + normal * 48, door.z), false);
 				p.angle = atan2(-normal.y, -normal.x);
 			}
-			if (timer == 75) CVar.FindCVar("dd_tm_use").SetInt(1);
+			if (timer == 75) Press("door"); // Info, not Use: Daggerfall's Info on a door enters.
 			if (inside) { phase = 2; timer = 0; }
 			break;
 		case 2: // Inside: the nearest NPC Daggerfall lists as present.
