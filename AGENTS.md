@@ -84,6 +84,7 @@ In an overnight run, use the `oversights` status field. Otherwise, use a "Suspec
 - Inspect the real code and data before relying on an assumption.
 - Report uncertainty and failed approaches honestly. A clear negative result is useful.
 - Keep vendored engine changes small and easy to identify.
+- Test hooks in game code are allowed behind a command-line flag, but use them sparingly. Put the test logic in its own file, such as a separate test component or a derived class, and keep the hook in a main class to a line or two, so agents reading that class do not load test code.
 - Never commit game data or files derived from it, including generated maps and textures.
 - Code changes go to the `integration` branch. Agents never push to or merge into `main`. Only the owner does that.
 - The project owner is one person on a limited budget. Avoid wasteful builds, broad searches, and unnecessary subagents.
