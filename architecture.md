@@ -68,6 +68,49 @@ Doomerfall's gameplay changes to Doom and DRLA live in our own PK3, built from `
 - Do not commit copied DRLA assets or other game data.
 - All DRLA monsters are used unchanged for now (owner, 2026-11-23). Monsters may push and move the player, because Doom owns player movement and position.
 - Possible future customization: better handling of Arch-vile resurrection. See "Handle Arch-vile resurrection" in `work/backlog.md`.
+## State ownership: live and permanent
+
+The rule behind the engine split (owner, 2026-11-24): **UZDoom is the authority on moment-to-moment tactical state.
+DFU is the authority on permanent state and on everything the player is not in.** Exceptions need a good engineering
+reason and are written down here.
+
+| UZDoom owns (live) | DFU owns (permanent) |
+|---|---|
+| The current map, exactly: monsters where they stand, their health and alertness, projectiles in flight, summoned monsters | Every other place, as a compact location record |
+| The equipped weapon and its magazine, and the live count of the loaded ammo tier | The inventory: unequipped items, other ammo tiers, gold, Doom weapons and mods held |
+| Monster AI, movement, collision, combat | Deaths, quests, crime, loot rolls, container and loot pile contents, time |
+
+**Places (planned, `work/backlog/location-record.md`).**
+
+- Every Daggerfall place is rebuilt from its map and fixed seeds. DFU's location record holds only what differs from
+  the seed: dead, wounded and awake mooks (one 64-bit entry each, low-resolution position), map things used up
+  (bitset), and door, switch, lift and action states. Untracked mooks are alive, unhurt and asleep on their spawn spot.
+  Class, drops, death frames and spawn spots are never stored. Quest foes are added on top of the seeded army and never
+  change it.
+- When the player leaves a map, UZDoom distills it into record entries and sends them to DFU. UZDoom keeps no place
+  history of its own.
+- Monsters spawned during play (summons, lost souls) are not kept once the player leaves.
+- Target size: a cleared high-level dungeon about 16-20 KB, an untouched one a few bytes.
+
+**Saves.**
+
+- A bundled save holds DFU's save and ledgers, plus UZDoom's snapshot of the current map. Loading restores the snapshot
+  exactly, and DFU's record is not applied over it.
+- At every save UZDoom also sends the current place's record entries. If the snapshot cannot be restored (a mod or map
+  changed), the place is rebuilt from the record and only live combat details are lost (`work/backlog/rebuild-load.md`).
+- The snapshot leaves out what UZDoom generates from DFU's data, such as the overworld treadmill's terrain sectors
+  (88% of an overworld save today). Those are rebuilt on load.
+
+**DFU objects on the current map.** Loot piles, containers, NPCs and townspeople belong to DFU even on the current map.
+UZDoom draws them and forwards Use; DFU holds their contents and decides whether they exist. The snapshot's copy is
+presentation only and follows DFU's list.
+
+**Ammo.** UZDoom owns the live loaded count and magazines and reports every change (pickups, shots, losses). DFU owns
+all other ammo and keeps an exact mirror of UZDoom's live counts, current at every save. On a normal load UZDoom's
+count stands; if its half cannot be restored, DFU's mirror is used.
+
+Scope: Daggerfall maps only. Doom maps (later, through Oblivion gates) use normal Doom saves.
+
 ## Long-Term Direction:
 
 | Domain | Primary Owner | Secondary / Mirror | Boundary Contract |
@@ -76,7 +119,7 @@ Doomerfall's gameplay changes to Doom and DRLA live in our own PK3, built from `
 | **Canonical World, Time & Weather** | **DFU** | UZDoom | DFU owns calendar, seasons, regions, and weather; pushes ambient lighting, skybox, and weather states to UZDoom. |
 | **Geometry & Asset Conversion** | **DFU** (source) -> **UZDoom** (render/sim) | — | DFU exports location geometry (UDMF), textures, 3D prop/building models, and skyboxes on first visit (cached on disk). UZDoom owns 3D rendering, BSP, collision, and raycasts. |
 | **Wilderness Streaming & Fast Travel** | **DFU** | UZDoom | DFU owns the overworld grid, fast travel, and ship/horse travel. UZDoom rewrites exterior terrain in place around the player (the "treadmill"), and towns load as dedicated maps. |
-| **Saves & Per-Location Persistence** | **DFU** | UZDoom | DFU owns save slots, macro-world state, and DFU mod saves. On save or area exit, DFU runs a two-phase IPC commit instructing UZDoom to serialize active level snapshots and DRLX inventory into DFU's save folder, keyed by location ID. |
+| **Saves & Per-Location Persistence** | **DFU** (permanent) / **UZDoom** (current map) | — | DFU owns save slots, macro-world state, DFU mod saves, and the location record of every place. UZDoom's snapshot of the current map rides in the same bundled save and is the authority for that map only. See "State ownership: live and permanent" below. |
 | **Window, Input & Keybinds** | **UZDoom** | DFU | UZDoom owns the single OS window, raw FPS input, and unified keybind table. In `DFU_UI` mode, UZDoom pauses playsim and routes pointer/key events into DFU's patched `InputManager` / `UserInterfaceManager`. |
 | **Menus, UI & HUD Compositing** | **DFU** (RPG menus) / **UZDoom** (combat HUD) | — | UZDoom renders Doom/DRLX HUDs and menus natively. DFU renders its UI onto a transparent buffer composited over UZDoom's viewport; DFU signals `UIStackEmpty` to resume gameplay. |
 | **Player Movement & Traversal** | **UZDoom** (physics) / **DFU** (rules) | — | UZDoom executes 35 Hz movement, jumping, swimming, climbing, and levitation. DFU pushes speed/encumbrance multipliers, climbing skill checks, and levitation/water-breathing flags. |
@@ -84,7 +127,7 @@ Doomerfall's gameplay changes to Doom and DRLA live in our own PK3, built from `
 | **Status Effects & Transformations** | **DFU** | UZDoom | DFU ticks poison, disease, paralysis, buffs, vampirism, and lycanthropy; pushes active state modifiers (movement freeze, speed/jump boosts, vision tints, sunlight damage) to UZDoom. |
 | **Combat, Weapons & DRLX Systems** | **UZDoom** | DFU | UZDoom natively runs DRLX weapons, ammo, weapon mods, recoil, projectiles, hitscans, and splash damage; reports hits and kills to DFU. |
 | **Magic & Spellcasting** | **DFU** (rules) / **UZDoom** (execution) | — | DFU owns spellbooks, magicka costs, and effect formulas; sends cast commands so UZDoom spawns physical projectiles, AoE volumes, light sources, or actor effects. |
-| **Loot, Inventory & Economy** | **DFU** (rolls/economy) / **UZDoom** (combat carry) | — | DFU rolls loot tables and translates drops (e.g., Ebony Mace -> DRLX weapon) into UZDoom spawns. UZDoom holds active Doom weapons/ammo/mods and exports item descriptors to DFU when opening shops, wagons, or bank storage. |
+| **Loot, Inventory & Economy** | **DFU** | UZDoom | DFU rolls loot tables and translates drops (e.g., Ebony Mace -> DRLX weapon) into UZDoom spawns. DFU owns the player's inventory, Doom weapons and mods included. Ammo is split: UZDoom owns the live ammo its guns spend (the loaded tier of each ammo type, and rounds in magazines) and reports every change (pickups, shots, losses) to DFU. DFU owns all other ammo (other tiers, piles, wagon, shops) and keeps an exact mirror of UZDoom's live counts, current at every save. On a normal load UZDoom's live count stands; if UZDoom's half cannot be restored, DFU's mirror is used (owner, 2026-11-24). |
 | **Interactive Geometry & Locks** | **UZDoom** (motion) / **DFU** (checks) | — | UZDoom handles door/lift/secret-wall movement and player `Use` rays; queries DFU for lock ratings, lockpicking/bashing checks, traps, and container loot rolls. |
 | **Monsters, Slaughter Packs & AI** | **UZDoom** (composition, spawning, behavior) / **DFU** (facts, lifecycle) | — | DFU sends each area's facts: area level, dungeon type, location, region, world position, enemy placements, and dead mook IDs. It owns deaths and quest targets. UZDoom deterministically decides encounter composition, bosses, and placement, with each pack's leader on DFU's placement point, then runs pathing, infighting, and combat AI (owner, 2026-11-24; see `work/notes/20261123-205402-fractal-encounter-variety.md`). No `RandomSpawner`. |
 | **NPCs, Dialogue & Quests** | **DFU** (logic) / **UZDoom** (actors) | — | DFU runs `QuestMachine`, dialogue, guilds, and passive `QuestResourceBehaviour` stubs. UZDoom hosts NPC actors, fires `OnUse`/`OnInjured`/`OnKilled`, and swaps attacked/hostile NPCs into ZScript Doom-bot combat AI. |

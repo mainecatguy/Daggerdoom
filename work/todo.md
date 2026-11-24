@@ -24,6 +24,10 @@ The owner approved this work on 2026-11-23. Each item runs from its reviewed car
 - Doom's Use button is the interaction button. It triggers Daggerfall's Grab action, or Steal while crouching, as well as Doom's normal use.
 - Dungeons have a difficulty level (area level) from 0 to 30, and loot and encounter systems must be compatible with it.
 
+### Quiet agent runs (owner, 2026-11-24): first priority
+
+Agent and harness launches must never take the owner's mouse, focus, screen or sound, and every agent must use the quiet way (`work/queue/quiet`). Run it before other new lanes.
+
 ### Mook packs: the encounter module (owner, 2026-11-24)
 
 Pulled in now, ahead of MVP. Replace the one random enemy per Daggerfall placement with deterministic Doom packs. The approved design is `work/notes/20261123-205402-fractal-encounter-variety.md`. Seven cards run in sequence in `work/queue/encounters`: monster pool and data file, planner genome and army, budget with squads, bosses, and titans, area facts from Daggerfall, mook placer, Civil War factions, and whole-system checks.
@@ -57,5 +61,28 @@ Each has one card. The owner confirmed the assumptions on 2026-11-24. Run 3 to 4
 - NPC damage and death, following Daggerfall's rules (`work/queue/npckill`).
 - Load plain Daggerfall saves with default Doom data and the owner's starting weapon rule (`work/queue/plainsaves`).
 - Restore autosaves on stitched location changes (`work/queue/autosaves`).
-- Research whether Daggerfall needs to own permanent location state, with a class map and the theory tested against the code, for the owner to review (`work/queue/locationstate`). The implementation card is held until the owner decides.
 - Area level replaces player level everywhere (`work/queue/arealevelall`). The `ammotiers` lane it waited on is merged.
+
+### From the quest and record surveys (owner, 2026-11-24)
+
+- Show Daggerfall's quest follower faces on Doom's HUD. Rescued and escorted people stay hidden, as in Daggerfall (`work/queue/questfaces`).
+- Light places where Daggerfall lights them: dungeon light records and light sprites (`work/queue/lights`). Ask the owner before falling back to baked sector light.
+- Fix editor markers: remove the stray action record on passive castle guard markers, skip mobile type 99, and report the rest (`work/queue/markers`). Run after the `encounters` lane merges, because both touch the converter's enemy spawning.
+- **Rework the Doom HUD: chat with the owner first.** No card yet and no lane takes it until the owner and orchestrator have talked it through. Owner request (2026-11-23): remove Doom's 2-3-4-5-6 weapon slot display, because guns come from Daggerfall hotkeys, and rework the HUD in general.
+- Approved material odds for all loot: piles, shelves, containers, guild stock and enemy gear (`work/queue/oddseverywhere`). After `arealevelall` merges.
+
+### Location state in Daggerfall (owner, 2026-11-24)
+
+The owner approved the research's option C (`work/notes/20261124-105104-location-state-research.md`). Three cards in `work/queue/locationledger`, run in sequence after the `encounters` lane merges: stable place keys and changes only, the Daggerfall ledger for dungeons, then the ledger everywhere. The rebuild load is in the backlog.
+
+### QA bot (owner, 2026-11-24)
+
+Research a Daggerfall character that Claude can control for automated QA (`work/queue/qabot`). The research and its short prototype may run now. **QA runs themselves are long and run only while the owner sleeps (overnight lanes, 2AM to 7AM).** They are for Claude-run QA and finding bugs, not general testing or normal verification.
+
+### Quest rewards (owner, 2026-11-24)
+
+- Quest rewards are unscaled: treat the player as level 20 (`work/queue/questrewards`). After `oddseverywhere` merges.
+
+### Shop and town levels (owner, 2026-11-24)
+
+- Research shop levels (1-30, from size or quality) and the interim town exterior levels (5 small, 10 medium, 15 large, 20 capital), with proposed cards for owner review (`work/queue/shoplevels`). Planning only.

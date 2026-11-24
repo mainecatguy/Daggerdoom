@@ -145,3 +145,7 @@ Replace this section as the state changes.
 - **Usage:** weekly was 20% at last check and resets on 2026-11-25 at 08:00 UTC. The stop line is 95%.
 - **Inventory:** Daggerfall's existing inventory stays. The owner is working out Doom weapon hotkeys separately, and the design is in the backlog.
 - **Local build notes:** `uzdoom-launcher` is the current engine build. `sndfile.dll` and `soft_oal.dll` must sit beside the exe for sound.
+- **Survey follow-ups (2026-11-24):** owner approved three cards, `questfaces`, `lights` and `markers` (markers after `encounters` merges). The quest and record surveys sit unmerged on `overnight/quests` and `overnight/records`, and the cards point at those branches. The HUD rework is in todo only as "chat with the owner first". Launch order when slots free: plainsaves, autosaves, arealevelall, then these.
+- **Bridge kinds (2026-11-24):** integration uses up to 180. `questfaces` has 190-194 reserved. Give each new bridge card its own range of 5 above that.
+- **Bridge kinds:** `locationledger` has 200-209 reserved.
+- **QA bot (2026-11-24):** QA bot runs are long and run only overnight while the owner sleeps (2AM to 7AM). The research lane `qabot` may run in the day. It has bridge kinds 210-219 reserved.

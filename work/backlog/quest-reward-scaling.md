@@ -1,5 +1,3 @@
 # Quest reward scaling
 
-**Waiting on:** future owner design (2026-11-24).
-
-Daggerfall scales quest rewards with player level. Decide whether and how rewards should scale in Doomerfall, given that the world never scales to the player while player level still drives which quests are offered.
+**Waiting on:** nothing for now. Decided (owner, 2026-11-24): quest rewards are unscaled and treat the player as level 20. The card is `work/queue/questrewards` in todo. Delete this item when that card is verified.

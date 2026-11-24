@@ -15,6 +15,8 @@ This is a one-line-per-item index. Open an item's file only when you need its de
 - [Rotating walk-on trapdoors (axis 10)](backlog/axis10-trapdoors.md): Find how classic Daggerfall turns them. Not now.
 - [Guard variety](backlog/guard-variety.md): More kinds of Doom guards than one Doomguy bot type.
 - [Turn off Daggerfall's resets and respawns](backlog/turn-off-daggerfall-resets.md): Total persistence, no vanilla resets.
+- [Lightweight location record](backlog/location-record.md): Rebuild places from the seed and store only dead, wounded and awake mooks, used-up things and doors, in one Daggerfall copy. Replaces location ledger cards 2-3.
+- [Rebuild load](backlog/rebuild-load.md): A save survives a broken Doom snapshot by rebuilding from Daggerfall's ledger. Stage 4 of the location state plan.
 - [Quest reward scaling](backlog/quest-reward-scaling.md): Future design for how quest rewards scale.
 - [Persistent Info toggle (on hold)](backlog/persistent-info-toggle.md): On hold until play-tested.
 - [Guard behavior and pathfinding (delayed indefinitely)](backlog/guard-behavior-and-pathfinding.md): Do not raise. Owner, 2026-11-24.
@@ -47,6 +49,7 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [Identify and sort problem location groups](backlog/identify-and-sort-problem-location-groups.md): List and rank locations that do not fit one map.
 - [Revisit performance of generating fresh cities](backlog/revisit-performance-of-generating-fresh-cities.md): Profile and reduce 5 to 7 second conversions.
 - [Overworld monsters outside the loaded window](backlog/overworld-monsters-outside-the-loaded-window.md): Decide their fate off-window. On hold.
+- [Overworld area level](backlog/overworld-area-level.md): Whether the wilderness inherits a level bonus from its area or nearby places. Needs a chat.
 
 - [Reach outdoor loot piles from Doom](backlog/reach-exterior-piles.md): List piles dropped outdoors in Doom and let the player take them.
 
@@ -57,6 +60,13 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [Investigate sealed 5-block graveyards](backlog/investigate-sealed-5-block-graveyards.md): Check two dungeons with disconnected blocks.
 - [Climbing, levitation, and steep surfaces](backlog/climbing-levitation-and-steep-surfaces.md): Match DF slope limits, climbing, and levitation.
 - [Exhaustion rework](backlog/exhaustion-rework.md): Slow and collapse instead of passing out or dying.
+- [Dungeon actions: text and riddles](backlog/dungeon-action-text-and-riddles.md): Types 11 and 12 only log today. Defines the shared trigger route.
+- [Dungeon actions: dialogue](backlog/dungeon-action-dialogue.md): Type 29 on 79 NPC flats only logs today.
+- [Dungeon actions: set quest global](backlog/dungeon-action-set-quest-global.md): Type 31, two main quest steps, only logs today.
+- [Dungeon actions: door info text](backlog/dungeon-action-door-text.md): Type 99 on 120 castle doors. Needs an owner answer on angering guards.
+- [Dungeon actions: traps](backlog/dungeon-action-traps.md): Types 21-27 hurt and poison only log today.
+- [Dungeon actions: cast spell](backlog/dungeon-action-cast-spell.md): Type 9 only logs today.
+- [Dungeon actions: drain magicka](backlog/dungeon-action-drain-magicka.md): Type 28 only logs today.
 
 ## Inventory
 
@@ -66,8 +76,14 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [What DRLA armor does](backlog/drla-armor-role.md): Decide its role beside Daggerfall armor.
 - [Area loot identity](backlog/area-loot-identity.md): Fixed per-dungeon lean on which kinds of gear drop. Never changes tier odds or fixed loot.
 - [DRLA recipes as Daggerfall rewards](backlog/drla-recipes-as-daggerfall-rewards.md): Make PDA recipes an item Daggerfall can award, only when DRLA is loaded.
-- [Rework the Doom HUD](backlog/rework-doom-hud.md): Remove weapon slots and rework the HUD.
 - [Hotkey clothing](backlog/hotkey-clothing.md): Allow clothing on hotkeys later.
+- [Doom items replace most weapon loot](backlog/doom-weapons-in-weapon-loot.md): 80% of weapon rolls, including 5% modpacks and 1% recipes. Revisit the rate later.
+- [DRLA rarity tiers](backlog/drla-rarity-tiers.md): Five tiers, rarer per weapon in each tier. Proposal needs the owner's yes.
+- [DRLA drops from a fixed Daggerfall seed](backlog/drla-fixed-drop-seed.md): Same drop every rebuild, so drops need no storage. Waits on the lightweight location record.
+- [Doom weapon prices](backlog/doom-weapon-prices.md): Daggerfall base price times material times rarity.
+- [Doom weapons have a Daggerfall material](backlog/doom-weapon-materials.md): Material metadata on Doom weapons, rolled with the approved odds.
+- [Weapon material damage bonus](backlog/weapon-material-damage-bonus.md): Daggerfall's hit chance bonus becomes a damage modifier, through the existing damage bonus path.
+- [Weapon damage bonus coverage test](backlog/weapon-damage-bonus-coverage-test.md): Check every weapon's direct and indirect damage gets the bonus. Part of mod compatibility checks.
 - [Area level replaces player level](backlog/area-level-replaces-player-level.md): Scale by area and reroll Daedric results.
 - [Grid inventory (shelved by owner, 2026-11-22)](backlog/grid-inventory.md): Diablo-style inventory grid. Shelved.
 

@@ -38,6 +38,10 @@ Unlike Daggerfall, the world never changes around the player to accommodate them
 
 Things that exist in the world appear to the player as if they really exist in the world. They don't disappear, pop out of existence, or appear from nowhere (owner, 2026-11-24). This goes with "World Persistence" above: what exists stays, and what moves goes somewhere the player could follow. For example, rounds emptied from a magazine go back to the inventory instead of vanishing. Small questions that follow clearly from this principle don't need the owner.
 
+## Maps
+
+On Daggerfall maps, only Daggerfall's automap is shown. Doom's automap is never shown there. Doom's automap is used only on a map that comes from Doom, which will only be possible through the Oblivion gates system, not yet built (owner, 2026-11-24).
+
 ## Daggerfall's systems are all planned (design principle)
 
 We intend to recreate all of Daggerfall's systems (owner, 2026-11-24). When a feature only practically depends on a Daggerfall system that isn't in yet, assume that system will be added later and go ahead. Only a real technical dependency, where the feature can't be built or tested without the other system, means building that system first. For example, trapdoors can exist before climbing, because climbing is a core Daggerfall skill and is planned.
@@ -80,6 +84,7 @@ Enemy placements in Daggerfall are now encounters.
 Encounters produce multiple doom enemies, which we will call "mooks" because they don't receive the same attention as normal daggerfall entities by daggerfall engine in some ways.
 Mooks are generated from deterministic seeds so we always get the same set of mooks from the same entity data whenever we reconstruct it. Use perhaps the static part of their definitions as a fixed seed. 
 Then, we only need to track which mooks are dead for save/load in daggerfall (this is an expansion) and then tell doom on load "these are dead bodies".
+Quest enemies never change the seeded army. The army is planned from the place's seed alone, and quest foes are added on top with their own IDs, so a mook's number always means the same monster (owner, 2026-11-24).
 Doom then for all mooks places Doom enemies using a point buy system the user will define. Points are allocated based on encounter difficulty calculations.
 Death events for an NPC trigger when most of the mooks are dead. For consistency's sake, if the user kills all but 1-2 entities, we may have to flag the NPC is dead and allow that to not make those stragglers respawn.
 
