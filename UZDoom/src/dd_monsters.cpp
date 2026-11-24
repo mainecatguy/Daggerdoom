@@ -21,7 +21,7 @@
 
 bool DDTreadmill_PlayerSpace(double &x, double &y, double &z, double &yawDegrees, int &target);
 
-CVAR(Int, dd_mon_test_kill, 0, CVAR_NOSAVE) // Test only, with -ddmontest: 1 kills a placed monster, 2 a quest foe.
+CVAR(Int, dd_mon_test_kill, 0, CVAR_NOSAVE | CVAR_MOD) // Test only, with -ddmontest: 1 kills a placed monster, 2 a quest foe.
 
 namespace
 {
@@ -147,7 +147,7 @@ void RunTestKill(FLevelLocals *Level)
 		if (quest == (want == 2)) { pick = mo; break; }
 	}
 	if (!pick) { Printf("DDMON test kill found nothing\n"); return; }
-	Printf("DDMON test kill %016" PRIx64 " at %.1f,%.1f,%.1f\n", pick->ddRecordId, pick->X(), pick->Y(), pick->Z());
+	Printf("DDMON test kill %016" PRIx64 " %s at %.1f,%.1f,%.1f floor %.1f ceiling %.1f\n", pick->ddRecordId, pick->GetClass()->TypeName.GetChars(), pick->X(), pick->Y(), pick->Z(), pick->floorz, pick->ceilingz);
 	P_DamageMobj(pick, Level->Players[consoleplayer]->mo, Level->Players[consoleplayer]->mo, pick->health + 1000, NAME_None, DMG_FORCED);
 }
 }

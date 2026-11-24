@@ -21,7 +21,7 @@ REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\monster-deaths")
 base.REVIEW, base.BUILD, base.RUN = REVIEW, REVIEW / "build", REVIEW / "run"
 pickup.REVIEW = REVIEW
 SOURCE_SPRITES = Path(r"D:\dev\DoomDaggerfall-loop\review\item-pickup\dfitems.pk3")
-QUEST = "K0C01Y00"
+QUEST = "N0C00Y12"  # A shipped kill quest: one Imp at a marker in a remote dungeon, and no local town requirement.
 WAD = "privateershold.wad"
 FATAL = ("DIED WITH FATAL", "VM execution aborted", "Script error", "Execution could not continue", "Unable to open map")
 
@@ -77,7 +77,7 @@ def assemble():
     shutil.copy2(REVIEW / "wad" / ("ids_" + WAD), REVIEW / "data" / WAD)
     shutil.copy2(SOURCE_SPRITES, REVIEW / "dfitems.pk3")
     here = "%HERE%"
-    args = pickup.launch_args(here, ["-ddmontest"], ["-dfmonsterquest", QUEST])
+    args = pickup.launch_args(here, [], ["-dfmonsterquest", QUEST])
     (REVIEW / "play.bat").write_text(
         "@echo off\r\n"
         "rem Starts at the Privateer's Hold door with a real kill quest running. Press Use to enter. Kill monsters, then press E on a drop.\r\n"
@@ -89,7 +89,8 @@ def assemble():
     print("assembled", REVIEW)
 
 
-def run(name, load):
+def run(name, load, drla=False):
+    fatal = tuple(k for k in FATAL if k != "Script error") if drla else FATAL  # The DRLA set always logs 3 known script errors.
     data, runs = REVIEW / "data", REVIEW / "run"
     saves = runs / "saves"
     saves.mkdir(parents=True, exist_ok=True)
@@ -117,6 +118,7 @@ def run(name, load):
         if newest != resume:
             shutil.copy2(newest, resume)
         uz += ["-dfloadtest", "resume:" + str(resume), "+dd_ui_test_hold", "1"]
+        df.append("-dfmonsterreport")
     else:
         for old in saves.glob("*.zds"):
             old.unlink()
@@ -125,7 +127,8 @@ def run(name, load):
     command = [sys.executable, base.QUIET, "--timeout", str(timeout), "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", base.IWAD2,
                "--uzdoom-cwd", str(runs), "--log", str(launcher)]
-    for mod in [data / n for n in ("ddruntime.pk3", "overworld.pk3", WAD, "privateershold_mesh.pk3", "privateershold_doors.pk3")] + [REVIEW / "dfitems.pk3", REVIEW / "doomerfall", harness]:
+    extra = [base.MODS / n for n in base.DRLA] if drla else []
+    for mod in extra + [data / n for n in ("ddruntime.pk3", "overworld.pk3", WAD, "privateershold_mesh.pk3", "privateershold_doors.pk3")] + [REVIEW / "dfitems.pk3", REVIEW / "doomerfall", harness]:
         command += ["--mod", str(mod)]
     for arg in uz:
         command += ["--uzdoom-arg", arg]
@@ -140,7 +143,7 @@ def run(name, load):
             reason = "route finished"
             time.sleep(1)
             break
-        if any(k in body for k in FATAL):
+        if any(k in body for k in fatal):
             reason = "fatal"
             break
     if proc.poll() is None:
@@ -148,7 +151,7 @@ def run(name, load):
         proc.wait()
     print("stopped:", reason)
     for line in base.read(console).splitlines():
-        if re.match(r"MD[A-Z]+ ", line) or line.startswith("DDMON ") and "claimed" not in line or line.startswith("You ") or any(k in line for k in FATAL):
+        if re.match(r"MD[A-Z]+ ", line) or line.startswith("DDMON ") and "claimed" not in line or line.startswith("You ") or any(k in line for k in fatal):
             print(line[:170])
     print("claimed:", sum("DDMON claimed" in l for l in base.read(console).splitlines()))
     for line in base.read(df_log).splitlines():
@@ -181,7 +184,7 @@ if __name__ == "__main__":
     elif command == "assemble":
         assemble()
     elif command == "run":
-        run(sys.argv[2], "--load" in sys.argv)
+        run(sys.argv[2], "--load" in sys.argv, "--drla" in sys.argv)
     elif command == "check":
         base.check()
     elif command == "registry":
