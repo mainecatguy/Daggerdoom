@@ -126,6 +126,31 @@ exclude Flemoidus*             other-game
 exclude ArmoredFlemoidus*      other-game
 exclude Flembrane              other-game
 exclude ChexSoul               other-game
+# Colourful Hell monsters that only appear as another monster's summon or later phase, or that
+# nothing spawns. Found by reading the mod's actor code; spawning the parent brings them in.
+exclude BlackSG2               summoned-by-BlackSG3
+exclude Volativecaco           summoned-by-WhiteCguy2
+exclude BabyCaco               summoned-by-Volativecaco
+exclude SpliceBaron            summoned-by-WhiteCguy2
+exclude WhiteCacoOrb1          summoned-by-WhiteCacoREAL
+exclude WhiteCacoREAL          phase-of-WhiteCaco2
+exclude SpecialSpectre2        summoned-by-WhiteHK3
+exclude WhiteHK2               phase-of-WhiteHK3
+exclude MiniSP1                summoned-by-WhiteSP11Old
+exclude WhiteSP11Old           unused-old-version
+exclude WhiteSP2               phase-of-WhiteSP11Old
+exclude WhiteSP3               phase-of-WhiteSP11Old
+exclude AbyssPortalVile        summoned-by-AbyssVile
+exclude RomeroBaronsCH         summoned-by-WhiteCybie2
+exclude RedBaron2              phase-of-RedBaron3
+exclude BlackLSoulOld3         unused-old-version
+exclude WhitePE3               phase-of-WhitePE2
+exclude PinkDemon              nothing-spawns-it
+exclude SpecialSoul            summoned-by-YellowRevenant
+exclude SummonPortalCybie      summoned-by-RedCybie
+# DRLA debug class and summons.
+exclude RLTestVMAbort          debug-class
+exclude RLSkullOfTheAbyss      summoned-by-RLArmageddonBaronOfHell
 # ID24 (Legacy of Rust) monsters, such as the Tyrant, reuse Doom's art but are not among the 17.
 exclude ID24*                  not-one-of-the-17-kinds
 
@@ -204,6 +229,9 @@ own RLBruiserBrother  DRLABoss scale 1
 own RLAgonyElemental  DRLABoss scale 1
 own RLTerminator      DRLABoss scale 1
 own RLAbominant       DRLABoss scale 1
+# Technophobia's boss Arch-viles (RLSuperTechvile has its own map number, like the wildcards).
+own RLSuperTechvile   DRLABoss scale 1
+own RLFinalTechvile   DRLABoss scale 1
 
 # ---------------------------------------------------------------------------------------------
 # Traits beyond each kind's defaults (added, not replaced). 'flies' and 'stealthy' are also
