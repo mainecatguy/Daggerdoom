@@ -12,6 +12,7 @@ using System.Text;
 using DaggerfallConnect;
 using DaggerfallConnect.Utility;
 using DaggerfallWorkshop.Game.Entity;
+using DaggerfallWorkshop.Game.Formulas;
 using DaggerfallWorkshop.Game.Items;
 using DaggerfallWorkshop.Utility;
 using UnityEngine;
@@ -66,13 +67,16 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
             Func<int> place = WorldLevel.CurrentPlaceProvider;
             Func<DFLocation, int> dungeons = WorldLevel.DungeonProvider;
+            Func<int, WeaponMaterialTypes> materials = FormulaHelper.DoomerfallMaterialRoll;
             WorldLevel.CurrentPlaceProvider = null;
             WorldLevel.DungeonProvider = null;
+            FormulaHelper.DoomerfallMaterialRoll = null;
             try { Roll(control, hasDungeon, dungeon); }
             finally
             {
                 WorldLevel.CurrentPlaceProvider = place;
                 WorldLevel.DungeonProvider = dungeons;
+                FormulaHelper.DoomerfallMaterialRoll = materials;
             }
 
             DFPosition pixel = GameManager.Instance.PlayerGPS.CurrentMapPixel;
@@ -81,6 +85,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             foreach (string line in area.ToString().Split('\n'))
                 if (line.Length > 0) bridge.LogLine("worldleveltest: area " + line);
             bridge.LogLine(string.Format("worldleveltest: area hash {0:x8} ({1} chars)", Hash(area.ToString()), area.Length));
+            DoomerfallMaterialOddsTest.Run(bridge, false);
+            DoomerfallMaterialOddsTest.Run(bridge, true);
             bridge.LogLine(string.Format("worldleveltest: control hash {0:x8} ({1} chars)", Hash(control.ToString()), control.Length));
         }
 

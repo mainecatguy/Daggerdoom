@@ -7,6 +7,7 @@ using System;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using DaggerfallWorkshop.Game.Formulas;
 using UnityEngine;
 
 namespace DaggerfallWorkshop.Game.Doomerfall
@@ -131,6 +132,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             SessionActive = true;
             WorldLevel.CurrentPlaceProvider = DoomerfallDrops.CurrentWorldLevel;   // the world scales to area level, never the player
             WorldLevel.DungeonProvider = DoomerfallDrops.DungeonWorldLevel;
+            FormulaHelper.DoomerfallMaterialRoll = DoomerfallDrops.RollMaterial;   // approved material odds for all loot
             ownSize = (uint)Marshal.SizeOf(typeof(DfbDfState));
             peerSize = (uint)Marshal.SizeOf(typeof(DfbUzState));
             Log(string.Format("attached to session {0}, protocol {1}, layout {2:x16}", pendingSession,
@@ -510,6 +512,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             SessionActive = false;
             WorldLevel.CurrentPlaceProvider = null;
             WorldLevel.DungeonProvider = null;
+            FormulaHelper.DoomerfallMaterialRoll = null;
             if (sheet != null) sheet.Dispose();
             if (session != IntPtr.Zero) DfbNative.dfb_close(session);
             session = IntPtr.Zero;

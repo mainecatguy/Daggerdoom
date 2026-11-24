@@ -1,12 +1,16 @@
 """World level test: the same place gives the same loot, gold, and enemies at any player level.
 
 usage: world_level.py assemble | run LEVEL | compare LEVEL_A LEVEL_B
-assemble: builds review\\world-level from review\\ammo-change (UZDoom, launcher, bridge DLL, data; same bridge header)
+assemble: builds review\\world-level from review\\newstart3 (UZDoom, launcher, bridge DLL, data; same bridge header)
           and this worktree's Daggerfall Unity build.
 run:      paired games, minimized, with Daggerfall's -dfworldleveltest LEVEL (the player's level is set to LEVEL, then
           fixed-seed rolls run through Daggerfall's own code at the current place and at Daggerfall city's dungeon).
 compare:  compares two runs' "area" rolls (must match) and "control" rolls (no area level provider: must differ).
+odds:     world_level.py odds LEVEL: material shares of piles, shelves, containers, magic items and enemy equipment
+          rolled at area levels 1, 10, 20, 30 in that run, against the owner's approved table; plus the classic
+          formula at level 20 with the Doomerfall hook off, which must differ.
 """
+import math
 import re
 import shutil
 import subprocess
@@ -22,7 +26,8 @@ import install  # noqa: E402  (only for its registry isolation)
 sys.argv = argv
 
 REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\world-level")
-BASE = Path(r"D:\dev\DoomDaggerfall-loop\review\ammo-change")
+# UZDoom, launcher and bridge DLL from the newstart lane, the last change to bridge/doomerfall_bridge.h.
+BASE = Path(r"D:\dev\DoomDaggerfall-loop\review\newstart3")
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
 MODS = GAME.parent / "GameMods"
@@ -120,7 +125,77 @@ def compare(a, b):
     print("control rolls (player level, as normal Daggerfall Unity):", "DIFFER (expected)" if control_differs else "SAME (test not sensitive)")
 
 
+TIERS = ["Iron", "Steel", "Silver", "Elven", "Dwarven", "Mithril", "Adamantium", "Ebony", "Orcish", "Daedric"]
+
+
+def approved(level):
+    """The owner's approved odds (work/notes/20261123-material-tier-proposal.md), computed independently of the game."""
+    level = min(max(level, 1), 30)
+    daedric = 0.025 * ((level - 1) / 19) ** 3 if level <= 20 else 0.025 + 0.025 * (level - 20) / 10
+    falloff = 0.50 + 0.30 * (level - 1) / 19 if level <= 20 else 0.80 + 0.10 * (level - 20) / 10
+    weights = [falloff ** i for i in range(9)]
+    total = sum(weights)
+    return [(1 - daedric) * w / total for w in weights] + [daedric]
+
+
+def zscores(counts, expected):
+    n = sum(counts)
+    if n == 0:
+        return [0.0] * len(counts)
+    return [(c - n * p) / math.sqrt(n * p * (1 - p)) if 0 < p < 1 else (0.0 if c == 0 else float("inf")) for c, p in zip(counts, expected)]
+
+
+def odds(level):
+    """Material shares from -dfworldleveltest's materialodds lines against the approved table (|z| < 4 per tier)."""
+    body = read(REVIEW / "run" / f"level{level}-df.log")
+    rows = {}
+    for mode, lvl, source, rest in re.findall(r"materialodds: (\w+) level (\d+) (\w+) (rolls .*)", body):
+        m = re.match(r"rolls (\d+) weapon ([\d,]+) plate ([\d,]+) leather (\d+) chain (\d+)", rest)
+        weapon = [int(x) for x in m.group(2).split(",")]
+        plate = [int(x) for x in m.group(3).split(",")]
+        rows[(mode, int(lvl), source)] = (int(m.group(1)), weapon, plate, int(m.group(4)), int(m.group(5)))
+    for line in re.findall(r"materialodds: \w+ done .*", body):
+        print(line)
+    if not rows:
+        print("no materialodds lines in", REVIEW / "run" / f"level{level}-df.log")
+        return False
+    ok = True
+    for mode in ("approved", "classic"):
+        for lvl in sorted({k[1] for k in rows if k[0] == mode}):
+            sources = sorted(k[2] for k in rows if k[0] == mode and k[1] == lvl)
+            total = [0] * 10
+            leather = chain = 0
+            print(f"\n{mode} odds, area level {lvl}")
+            for source in sources:
+                _, weapon, plate, le, ch = rows[(mode, lvl, source)]
+                items = [a + b for a, b in zip(weapon, plate)]
+                total = [a + b for a, b in zip(total, items)]
+                leather += le
+                chain += ch
+                z = zscores(items, approved(lvl))
+                print(f"  {source:8s} n={sum(items):6d}  max|z| {max(abs(x) for x in z):5.2f}")
+            exp = approved(lvl)
+            z = zscores(total, exp)
+            n = sum(total)
+            print(f"  {'tier':10s} {'measured':>9s} {'approved':>9s} {'z':>6s}")
+            for name, c, p, zz in zip(TIERS, total, exp, z):
+                print(f"  {name:10s} {100 * c / n:8.2f}% {100 * p:8.2f}% {zz:6.2f}")
+            armor = leather + chain + sum(sum(rows[(mode, lvl, s)][2]) for s in sources)
+            print(f"  all n={n}  max|z| {max(abs(x) for x in z):.2f}  armor: leather {100 * leather / armor:.1f}% chain {100 * chain / armor:.1f}% plate {100 * (armor - leather - chain) / armor:.1f}% (n={armor})")
+            fits = max(abs(x) for x in z) < 4
+            if mode == "approved":
+                ok = ok and fits
+                print("  ->", "MATCHES approved table" if fits else "DOES NOT MATCH approved table")
+            else:
+                print("  ->", "differs from approved table (expected, classic formula)" if not fits else "SAME as approved (test not sensitive)")
+    print("\nmaterial odds:", "PASS" if ok else "FAIL")
+    return ok
+
+
 if __name__ == "__main__":
+    if len(sys.argv) == 3 and sys.argv[1] == "odds":
+        odds(int(sys.argv[2]))
+        sys.exit(0)
     if len(sys.argv) >= 2 and sys.argv[1] == "assemble":
         assemble()
     elif len(sys.argv) == 3 and sys.argv[1] == "run":
