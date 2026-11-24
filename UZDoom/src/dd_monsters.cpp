@@ -39,7 +39,7 @@ constexpr int MarkerMagic = 7365;	// EnemyRoster.MarkerMagic in the converter
 constexpr uint64_t PlacementMask = (uint64_t(1) << (DFB_MONSTER_TAG_SHIFT - DFB_MONSTER_MEMBER_BITS)) - 1;
 constexpr uint64_t MemberMask = (uint64_t(1) << DFB_MONSTER_MEMBER_BITS) - 1;
 
-struct Claim { uint64_t id; DVector3 pos; int deadline; };
+struct Claim { uint64_t id; DVector3 pos; int deadline; int side = -1, stance = 0; };
 struct Row { uint64_t id; uint32_t state; DVector3 pos; int32_t enemyType; };
 struct Marker { uint64_t placement; int record, mobile; DVector3 pos; };
 struct Facts
@@ -83,6 +83,17 @@ AActor *FindById(FLevelLocals *Level, uint64_t id)
 	return nullptr;
 }
 
+// Card 6: joins a Civil War army (CivilWar.zs). side < 0 is a united dungeon, which is left exactly as it was.
+void RigFaction(AActor *mo, int side, int stance)
+{
+	if (side < 0 || !mo) return;
+	VMFunction *func = nullptr;
+	PClass::FindFunction(&func, "DoomerfallCivilWar", "Rig");
+	if (!func) return;
+	VMValue params[] = { mo, side, stance };
+	VMCall(func, params, 3, nullptr, 0);
+}
+
 // A replacement such as DRLA's can appear a few tics after the thing that named it, so claims wait.
 void RunClaims(FLevelLocals *Level)
 {
@@ -105,6 +116,7 @@ void RunClaims(FLevelLocals *Level)
 		if (best)
 		{
 			best->ddRecordId = c.id;
+			RigFaction(best, c.side, c.stance);
 			Printf("DDMON claimed %016" PRIx64 " %s at %.1f,%.1f,%.1f\n", c.id, best->GetClass()->TypeName.GetChars(), best->X(), best->Y(), best->Z());
 			claims.erase(claims.begin() + n);
 		}
@@ -126,13 +138,13 @@ PClassActor *RosterClass(uint64_t placement)
 }
 
 // Spawns one mook on its point. A spawned monster takes its id at once; a spawner (such as DRLA's) is claimed.
-AActor *SpawnMook(FLevelLocals *Level, PClassActor *cls, uint64_t id, const DVector3 &at, bool replace)
+AActor *SpawnMook(FLevelLocals *Level, PClassActor *cls, uint64_t id, const DVector3 &at, bool replace, int side = -1, int stance = 0)
 {
 	if (!cls) return nullptr;
 	AActor *mo = Spawn(Level, cls, at, replace ? ALLOW_REPLACE : NO_REPLACE);
 	if (!mo) return nullptr;
-	if ((mo->flags3 & MF3_ISMONSTER) && !mo->ddRecordId) mo->ddRecordId = id;
-	else claims.push_back({ id, at, Level->maptime + ClaimTics });
+	if ((mo->flags3 & MF3_ISMONSTER) && !mo->ddRecordId) { mo->ddRecordId = id; RigFaction(mo, side, stance); }
+	else claims.push_back({ id, at, Level->maptime + ClaimTics, side, stance });
 	return mo;
 }
 
@@ -226,7 +238,8 @@ void SpawnEncounters(FLevelLocals *Level, bool mapLeaders)
 	std::unordered_set<uint64_t> wanted;
 	for (const Placement &p : list)
 		if ((mapLeaders || p.quest) && !dead.count(LeaderId(p.placement)) && !present.count(LeaderId(p.placement))) wanted.insert(p.placement);
-	int spawned = 0, leaders = 0, skippedDead = 0, skippedPresent = 0, stuck = 0, stuckLeaders = 0;
+	int spawned = 0, leaders = 0, skippedDead = 0, skippedPresent = 0, stuck = 0, stuckLeaders = 0, warSide[2] = { 0, 0 }, warStance[2] = { 0, 0 };
+	for (const DDEncMookOut &m : mooks) if (m.side >= 0) warStance[m.side & 1] = m.stance;
 	std::vector<std::pair<AActor *, bool>> fresh;
 	for (const DDEncMookOut &m : mooks)
 	{
@@ -234,9 +247,10 @@ void SpawnEncounters(FLevelLocals *Level, bool mapLeaders)
 		if (!wanted.count(p.placement)) continue;
 		if (dead.count(m.id)) { skippedDead++; continue; }
 		if (present.count(m.id)) { skippedPresent++; continue; }
-		AActor *mo = SpawnMook(Level, m.cls, m.id, m.pos, false);
+		AActor *mo = SpawnMook(Level, m.cls, m.id, m.pos, false, m.side, m.stance);
 		if (!mo) continue;
 		spawned++;
+		if (m.side >= 0) warSide[m.side & 1]++;
 		leaders += m.member == 0;
 		fresh.push_back({ mo, m.member == 0 });
 		if (m.member == 0)
@@ -248,6 +262,8 @@ void SpawnEncounters(FLevelLocals *Level, bool mapLeaders)
 	const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
 	Printf("DDENC spawned %d mooks (%d leaders) of %d placements (%d dead, %d already present), stuck %d (%d leaders), %.1f ms with spawning%s\n",
 		spawned, leaders, int(list.size()), skippedDead, skippedPresent, stuck, stuckLeaders, ms, mapLeaders ? "" : ", quest foes only");
+	if (warSide[0] + warSide[1])
+		Printf("DDWAR civil war: army A %d mooks stance %d, army B %d mooks stance %d\n", warSide[0], warStance[0], warSide[1], warStance[1]);
 }
 
 void ApplyRows(FLevelLocals *Level)

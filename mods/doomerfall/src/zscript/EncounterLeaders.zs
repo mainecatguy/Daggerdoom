@@ -83,6 +83,16 @@ class DoomerfallEncounterLeaders play
 		return s;
 	}
 
+	// Card 6: -1 in a united dungeon, else the placement's army (0 or 1) | Thing_Hate stance toward the player << 4.
+	// A local war surprise room (side 2) is only in united dungeons and stays unrigged.
+	static int Faction(DoomerfallEncounterPlan plan, int index)
+	{
+		if (!plan.civilWar || !plan.b || index < 0 || index >= plan.placements.Size()) return -1;
+		int side = plan.placements[index].side;
+		if (side != 0 && side != 1) return -1;
+		return side | (DoomerfallCivilWar.StanceOf(side ? plan.b.stance : plan.a.stance) << 4);
+	}
+
 	static void MakeLeader(DoomerfallEncounterPlan plan, int index, int which) { DoomerfallEncounterPlanner.MakeLeader(plan, index, which); }
 	static int CheapestLeader(DoomerfallEncounterPlan plan, int index) { return DoomerfallEncounterPlanner.CheapestLeader(plan, index); }
 	static int Promote(DoomerfallEncounterPlan plan, int index, int maxCount) { return DoomerfallEncounterPlanner.Promote(plan, index, maxCount); }

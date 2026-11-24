@@ -1,6 +1,6 @@
 """Encounter card 5: the mook placer, run in UZDoom alone (no Daggerfall) on Privateer's Hold.
 
-usage: placer_test.py wad | run LEVEL NAME [--drla] [--spacing S] | check NAME... | compare NAME_A NAME_B
+usage: placer_test.py wad | run LEVEL NAME [--drla] [--spacing S] [--dungeon INDEX TYPE] | check NAME... | compare NAME_A NAME_B
 
 wad      card 4's map (encounter markers) plus the fresh converter's treasure markers
 run      starts UZDoom with -ddenctest, places the map's encounters at area level LEVEL with Privateer's Hold's facts,
@@ -48,7 +48,7 @@ def make_wad():
     md.write_wad(out / ("placer_" + WAD), [(n, text if n == "TEXTMAP" else d) for n, d in base])
 
 
-def run(level, name, drla, spacing):
+def run(level, name, drla, spacing, dungeon=None):
     runs = REVIEW / "run"
     runs.mkdir(parents=True, exist_ok=True)
     log = runs / f"log-{name}.txt"   # UZDoom names a relative +logfile log-<name>.txt
@@ -59,7 +59,8 @@ def run(level, name, drla, spacing):
         [str(WORKTREE / "mods" / "doomerfall" / "src")]
     args = [str(UZ), "-iwad", IWAD, "-file", *files, "-noactivate", "-nosound", "-noautoload", "-config", str(runs / "placer.ini"), "-skill", "3",
             "-ddenctest", str(level), "+logfile", name, "+vid_fullscreen", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1",
-            "+vid_lowerinbackground", "0", "+dd_enc_log", "1"] + (["+dd_enc_spacing", str(spacing)] if spacing else []) + ["+map", "MAP01"]
+            "+vid_lowerinbackground", "0", "+dd_enc_log", "1"] + (["+dd_enc_spacing", str(spacing)] if spacing else []) + \
+        (["-ddenctestdungeon", *dungeon] if dungeon else []) + ["+map", "MAP01"]
     code = subprocess.call([sys.executable, QUIET, "--timeout", "40", "--cwd", str(runs), "--", *args], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     body = log.read_text(errors="replace") if log.exists() else ""
     fatal = [k for k in FATAL if k in body and not (drla and k == "Script error")]  # the DRLA set always logs known script errors
@@ -85,7 +86,7 @@ def mooks(name):
 
 def check(name):
     body, rows = mooks(name)
-    for key in ("DDENCTEST level", "DDENC plan", "DDENC placer", "DDENC timing", "DDENC spawned", "DDENC warning"):
+    for key in ("DDENCTEST level", "DDENC plan", "DDENC placer", "DDENC timing", "DDENC spawned", "DDENC warning", "DDWAR"):
         for line in body.splitlines():
             if line.startswith(key):
                 print(" ", line[:400])
@@ -117,7 +118,8 @@ if __name__ == "__main__":
         make_wad()
     elif cmd == "run":
         sp = sys.argv[sys.argv.index("--spacing") + 1] if "--spacing" in sys.argv else None
-        run(int(sys.argv[2]), sys.argv[3], "--drla" in sys.argv, sp)
+        dg = sys.argv[sys.argv.index("--dungeon") + 1:sys.argv.index("--dungeon") + 3] if "--dungeon" in sys.argv else None
+        run(int(sys.argv[2]), sys.argv[3], "--drla" in sys.argv, sp, dg)
         check(sys.argv[3])
     elif cmd == "check":
         for n in sys.argv[2:]:

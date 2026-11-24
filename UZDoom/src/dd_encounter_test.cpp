@@ -26,8 +26,30 @@ static int FindArg(const char *name)
 	return 0;
 }
 
+// Card 6 (tools/encounter_placer/civilwar_test.py): -ddtestsave <tic> <name> saves the game at that map time, and
+// -ddtestquit <tic> quits at that map time (a loaded game keeps its map time, so both count from the map's start).
+static void SaveQuitTick(FLevelLocals *Level)
+{
+	static int saveAt = -2, quitAt = -2;
+	if (saveAt == -2)
+	{
+		const int s = FindArg("-ddtestsave"), q = FindArg("-ddtestquit");
+		saveAt = s && s + 2 < Args->NumArgs() ? atoi(Args->GetArg(s + 1)) : -1;
+		quitAt = q && q + 1 < Args->NumArgs() ? atoi(Args->GetArg(q + 1)) : -1;
+	}
+	if (saveAt >= 0 && Level->maptime == saveAt)
+	{
+		FString cmd;
+		cmd.Format("save \"%s\"", Args->GetArg(FindArg("-ddtestsave") + 2));
+		AddCommandString(cmd.GetChars());
+		saveAt = -1;
+	}
+	if (quitAt >= 0 && Level->maptime >= quitAt) { quitAt = -1; AddCommandString("quit"); }
+}
+
 void DD_EncounterTestTick(FLevelLocals *Level)
 {
+	SaveQuitTick(Level);
 	static int state = -1;
 	if (state == -1)
 	{
