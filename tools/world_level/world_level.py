@@ -1,8 +1,9 @@
 """World level test: the same place gives the same loot, gold, and enemies at any player level.
 
-usage: world_level.py assemble | run LEVEL | compare LEVEL_A LEVEL_B
+usage: world_level.py assemble [LANE] | run LEVEL | compare LEVEL_A LEVEL_B
 assemble: builds review\\world-level from review\\questfaces(UZDoom, launcher, bridge DLL, data; same bridge header)
-          and this worktree's Daggerfall Unity build.
+          and this worktree's Daggerfall Unity build. With LANE, UZDoom, launcher and bridge DLL come instead from
+          D:\\dev\\DoomDaggerfall-build\\{uzdoom,launcher,bridge}-LANE\\Release (needed after a bridge header merge).
 run:      paired games, minimized, with Daggerfall's -dfworldleveltest LEVEL (the player's level is set to LEVEL, then
           fixed-seed rolls run through Daggerfall's own code at the current place and at Daggerfall city's dungeon).
 compare:  compares two runs' "area" rolls (must match) and "control" rolls (no area level provider: must differ).
@@ -42,7 +43,7 @@ def read(path):
     return path.read_text(errors="replace") if path.exists() else ""
 
 
-def assemble():
+def assemble(builds=None):
     REVIEW.mkdir(parents=True, exist_ok=True)
     for name in ("uzdoom", "data", "dfu"):
         if (REVIEW / name).exists():
@@ -57,6 +58,19 @@ def assemble():
     shutil.copy2(BASE / "dfu" / "DaggerfallUnity_Data" / "Plugins" / "x86_64" / "doomerfall_bridge.dll", plugins / "doomerfall_bridge.dll")
     (REVIEW / "dfu" / "Portable.txt").write_text("")
     install.isolate_registry(REVIEW / "dfu")
+    if builds:
+        # Use this worktree's own native builds (uzdoom-<lane>, bridge-<lane>, launcher-<lane> trees), so the bridge
+        # layout matches the Daggerfall Unity build after header changes merge.
+        root = Path(r"D:\dev\DoomDaggerfall-build")
+        release = root / f"uzdoom-{builds}" / "Release"
+        for item in release.iterdir():
+            if item.suffix.lower() in (".exe", ".dll", ".pk3"):
+                shutil.copy2(item, REVIEW / "uzdoom" / item.name)
+        if (release / "doomerfall.pk3").exists():
+            shutil.copy2(release / "doomerfall.pk3", REVIEW / "doomerfall.pk3")
+        shutil.copy2(root / f"launcher-{builds}" / "Release" / "doomerfall-launcher.exe", REVIEW / "doomerfall-launcher.exe")
+        shutil.copy2(root / f"bridge-{builds}" / "Release" / "doomerfall_bridge.dll", plugins / "doomerfall_bridge.dll")
+        print("native builds from", root, builds)
     print("assembled", REVIEW)
 
 
@@ -201,7 +215,7 @@ if __name__ == "__main__":
         odds(int(sys.argv[2]))
         sys.exit(0)
     if len(sys.argv) >= 2 and sys.argv[1] == "assemble":
-        assemble()
+        assemble(sys.argv[2] if len(sys.argv) >= 3 else None)
     elif len(sys.argv) == 3 and sys.argv[1] == "run":
         run(int(sys.argv[2]))
     elif len(sys.argv) == 4 and sys.argv[1] == "compare":
