@@ -22,10 +22,6 @@ The owner approved this work on 2026-11-23. Each item runs from its reviewed car
 - Leave quick keys and quit behavior alone for now.
 - Autosaves on Daggerfall maps use the bundled save. Their frequency can be revisited if they slow the game down a lot.
 
-### Fix first use of a town door (running)
-
-Owner report (2026-11-23): the first use of a town door shows a message such as "opening" but does not work. After waiting a few seconds, using the door again loads the map.
-
 ### Autopickup  [Rework Doom autopickup](backlog/rework-doom-autopickup.md): As long as doom and daggerfall are running together, only health and ammo pick up by touch.
 Other items need to be picked up.
 
@@ -53,10 +49,6 @@ NPCs should be interactible. An interact key should be added to Doom.
 ### Recheck Daggerfall's reported location after New Game
 
 Owner report (2026-11-23): with the Doom player in the overworld, Daggerfall's info button said "You are in Privateers Hold" while the character appeared to be in the wilderness. The cause is unknown, and the test start may be involved. Recheck with a character made through the real New Game flow, then find and fix the cause if it still happens.
-
-### Report monster deaths to Daggerfall (running)
-
-Each replaced monster gets an ID that can later cover a pack of mooks. Its death is reported to Daggerfall, which should update quests, fire death events and produce Daggerfall drops in doom. Runs after item pickup, so drops can use its path.
 
 ### Show stationary NPCs in Doom
 

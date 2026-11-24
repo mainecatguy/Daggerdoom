@@ -1,18 +1,16 @@
 # Area level replaces player level
 
-**Waiting on:** owner design. The owner is researching which level ranges Daggerfall works best with.
+**Waiting on:** owner design for how an area's level is defined.
 
 Owner decisions (2026-11-23):
 
-- Daggerfall no longer looks at player level. It uses area level instead.
-- Items that land in Daedric on the material roll are rolled again among any category, biased against rarer tiers. Daedric stays the best category, and this is the only way to get it.
-- Every category gets monotonically better with level. The proposal is in `work/notes/20261123-material-tier-proposal.md`.
-- Lower tier items are always more common. At best, a lower tier can be only slightly less common than the tier above it.
+- Doomerfall is totally indifferent to player level for scaling purposes. It only cares about area level. See "The world does not scale to the player" in `gamedesign.md`.
+- Material tiers follow the approved design in `work/notes/20261123-material-tier-proposal.md`.
 
 Player level currently feeds loot and gold amounts, material rolls, random encounter tables, class enemy level and health, guild costs, and quest offers and rewards. Start from `LootTables.cs`, `DaggerfallLoot.cs`, `FormulaHelper.RandomMaterial`, `RandomEncounters.cs`, `RDBLayout.cs`, `EnemyEntity.cs`, `Guild.cs`, and `DaggerfallQuestOfferWindow.cs`.
 
-## Open questions for the owner
+DRLA Monsters also scales with player progress. Its `RLDangerLevelIncreaser` script raises `RLDangerLevel` on map entry, and `RLAdaptiveSpawnPicker` reads it. Doomerfall encounters must not depend on that value.
 
-1. How is an area's level defined?
-2. Does area level replace player level everywhere, or only for loot and encounters?
-3. Approve or change the material tier proposal, including how rare early high tiers and Daedric should be.
+## Open question for the owner
+
+How is an area's level defined?

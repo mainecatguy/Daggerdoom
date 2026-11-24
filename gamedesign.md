@@ -30,6 +30,19 @@ Play through one Daggerfall dungeon (e.g., Privateer's Hold) and one town, fast-
 | **Progression & Skill XP** | **Daggerfall** | Combat, spellcasting, and traversal drive Daggerfall's use-based skill leveling; DRLX progression remains gear-centric. |
 | **Audio & Music** | **Daggerfall (music/UI/NPCs) + Doom (combat)** | Daggerfall supplies music, UI sounds, and NPC barks; Doom supplies combat SFX. |
 
+## The world does not scale to the player (design principle)
+
+Unlike Daggerfall, the world never changes around the player to accommodate them. Doomerfall is totally indifferent to player level for scaling purposes and only cares about area level. Never use level scaling or any other artificial scaling of the game world that breaks the illusion that facts about the world are independent of facts about the player. This is a major feature of the mod and a major change from original Daggerfall.
+
+## Material tiers (design principles)
+
+- Every category gets monotonically better with area level: the chance of getting a given tier or better never falls.
+- Lower tier items are always more common. At best, a lower tier can be only slightly less common than the tier above it.
+- Daedric is the best tier, and its own check is the only way to get it. It reaches 1 in 40 at area level 20 and 1 in 20 at area level 30.
+- Ammo uses the same tiers, with Tin added below Iron.
+
+The approved odds are in `work/notes/20261123-material-tier-proposal.md`.
+
 Handling multiple enemies:
 Enemy placements in Daggerfall are now encounters.
 Encounters produce multiple doom enemies, which we will call "mooks" because they don't receive the same attention as normal daggerfall entities by daggerfall engine in some ways.

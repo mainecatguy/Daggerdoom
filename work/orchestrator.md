@@ -121,12 +121,13 @@ The owner has a Pro plan with extra usage off. Check usage before dispatching an
 
 Replace this section as the state changes.
 
+- **Mods:** owner decision (2026-11-23): the main launcher always includes DRLA, DRLA Monsters, and DRLAX, and they stay integrated from now on, including their weapons.
 - **Current game:** `D:\dev\DoomDaggerfall-loop\play\play.bat`. Refresh it with `python scripts/play/install.py` from a checkout with fresh UZDoom and Daggerfall builds.
-- **Running:** lanes `deaths` (monster deaths) and `towndoor` (first town door use bug), started directly through `queue.ps1`, so they have no supervisor crash restart. The PC has 15 GB of RAM, and the owner accepts paging to run extra lanes.
+- **Running:** no lanes. The PC has 15 GB of RAM, and the owner accepts paging to run extra lanes.
 - **Survey:** the Daggerfall data and quest survey is merged, with a review copy at `work/rpg-survey-review.md`. Its proposed tasks are not in the todo until the owner approves them.
-- **Merged to `integration`:** `e6a658c`, recorded in `CHANGELOG.md`. The owner updated `main` to `eda92b4`, which does not include position sync, trapdoors, the generated bridge definitions, the re-entry fix, item pickup, the transition speedup, or New Game. Saving and loading passed scripted tests with both real games, but nobody has used the menus by hand.
-- **Queued cards:** `work/queue/engine` has stationary NPCs, which can start now that New Game has landed. The city freeze is tracked in the backlog and is not to start until the owner says so. Its draft card is in `work/queue/cityload`. Item pickup uses bridge kinds 40-45, so new lanes running beside `newgame` should number from 50. New bridge cards must say to edit the header and run `python bridge/generate_bindings.py`. The owner reviews new cards before launch.
-- **Lane branches:** verified work lands on `overnight/deaths` and `overnight/towndoor`. The owner wants finished work merged to `integration` regularly when it does not make things worse and does not interrupt running work.
+- **Merged to `integration`:** `d9ed76c`, recorded in `CHANGELOG.md`. The owner updated `main` to `eda92b4`, which does not include position sync, trapdoors, the generated bridge definitions, the re-entry fix, item pickup, the transition speedup, New Game, the town door fix, monster deaths, or the DRLA launcher. Saving and loading passed scripted tests with both real games, but nobody has used the menus by hand.
+- **Queued cards:** `work/queue/engine` has stationary NPCs, which can start now that New Game has landed. The city freeze is tracked in the backlog and is not to start until the owner says so. Its draft card is in `work/queue/cityload`. Bridge kinds are used through 24, 40-45, and 50-54, so new lanes should number from 60. New bridge cards must say to edit the header and run `python bridge/generate_bindings.py`. The owner reviews new cards before launch.
+- **Lane branches:** verified work lands on `overnight/<lane>`. The owner wants finished work merged to `integration` regularly when it does not make things worse and does not interrupt running work.
 - **Usage:** weekly was 20% at last check and resets on 2026-11-25 at 08:00 UTC. The stop line is 95%.
 - **Inventory:** Daggerfall's existing inventory stays. The owner is working out Doom weapon hotkeys separately, and the design is in the backlog.
 - **Local build notes:** `uzdoom-launcher` is the current engine build. `sndfile.dll` and `soft_oal.dll` must sit beside the exe for sound.

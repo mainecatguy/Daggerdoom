@@ -11,6 +11,9 @@ This is a one-line-per-item index. Open an item's file only when you need its de
 ## MVP
 
 - [Remove the city return freeze](backlog/city-return-freeze.md): Returning to the City of Daggerfall still freezes for about 1.2 s.
+- [Save at the start of a new game](backlog/save-at-new-game-start.md): Gives a player who dies right away something to load.
+- [Start at Daggerfall's real Privateer's Hold location](backlog/real-privateers-hold-start.md): Use the quiet cave start instead of the dungeon entrance.
+- [Remove the Reflexes option](backlog/remove-reflexes-option.md): Drop it from character creation and run as if Slow was chosen.
 
 The MVP target is that the player can run around the world, kill enemies, enter and exit towns, use the fast travel menu, and do other basic things. Position sync, the fast travel menu, and synchronized saving and loading are in `work/todo.md`. Everything in this section is required before MVP is complete. Items come after the others and depend on the inventory menu.
 

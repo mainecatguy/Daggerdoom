@@ -8,10 +8,24 @@ What is done on the project, newest first. Agents do not need to read this unles
 - **Other demos:** City of Daggerfall at `D:\dev\DoomDaggerfall-loop\review\city-texture-fix\play.bat`, overworld at `D:\dev\DoomDaggerfall-loop\review\overworld-demo\play.bat`, and DRLAX on E1M1 at `D:\dev\DoomDaggerfall\play_drlax.bat`.
 - **Launcher:** starts Daggerfall Unity and UZDoom as one package. Run `D:\dev\DoomDaggerfall-loop\review\launcher\play.bat`.
 - **Current game:** run `D:\dev\DoomDaggerfall-loop\play\play.bat`, then choose New Game. Rebuild that folder with `python scripts/play/install.py`.
-- **Branches:** `integration` is at `e6a658c`, with New Game, the transition speedup, Daggerfall item pickup, the dungeon re-entry fix, generated bridge definitions, main quest trapdoors, 10 Hz position sync, the wilderness height fix, the Daggerfall map command, door route fixes, both overnight lanes, the bridge and door fixes, dungeon flats, Daggerfall items, synchronized saving and loading, the death screen, fast travel arrival, connected door transitions, and the inventory menu.
+- **Branches:** `integration` is at `d9ed76c`, with the DRLA launcher, monster deaths, the first town door fix, New Game, the transition speedup, Daggerfall item pickup, the dungeon re-entry fix, generated bridge definitions, main quest trapdoors, 10 Hz position sync, the wilderness height fix, the Daggerfall map command, door route fixes, both overnight lanes, the bridge and door fixes, dungeon flats, Daggerfall items, synchronized saving and loading, the death screen, fast travel arrival, connected door transitions, and the inventory menu.
 - **Roughest spots:** some walls still bend where they stayed tied to the grid, and false walls and openings remain.
 
 ## 2026-11-23
+
+### Merged to `integration` (`d9ed76c`)
+UZDoom and Daggerfall Unity both build from this merge. New Game, save and load, and death passed through a test install without the DRLA mods. The main launcher with the mods was not launched, at the owner's request. Nobody has hand-played it.
+
+- **Monster deaths:** monsters in converted dungeons have stable IDs. A Doom kill is recorded once in Daggerfall, updates a real quest foe, and rolls a Daggerfall drop that Interact can pick up. Dead monsters stay dead through save, load, and re-entry.
+- **Main launcher mods:** `play.bat` now always loads DRLA, DRLA Monsters, and DRLAX.
+- **Merge fix:** a new character no longer inherits the last character's dead monsters. This was fixed by reading the code and not run with a second character.
+- **Known gaps:** quest foes work in dungeons only, quest popups after a kill are closed unseen, and quests cannot be turned in yet because NPC dialogue does not exist.
+
+### Merged to `integration` (`a85fa24`)
+UZDoom builds from this merge and passes its startup check. The lane's scripted door tests used both real games. Nobody has hand-played it.
+
+- **First town door use:** one press now stays pending while the interior converts, as long as the player stays within 768 units. Going farther prints "You left the door." The pressed door also converts ahead of nearby doors.
+- **Known gaps:** the first visit to an interior still waits about 4 seconds or more for conversion. A player who wanders during the wait is pulled inside when it finishes.
 
 ### Merged to `integration` (`e6a658c`)
 UZDoom and Daggerfall Unity both build from this merge. Scripted runs through the current install made a character, arrived in Privateer's Hold, saved and loaded, and died, returned to the title, and loaded. Nobody has played it by hand.
