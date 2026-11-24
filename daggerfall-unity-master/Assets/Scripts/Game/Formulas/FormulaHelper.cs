@@ -2230,7 +2230,7 @@ namespace DaggerfallWorkshop.Game.Formulas
                 return false;
         }
 
-        // Doomerfall: set only while a slain Doom enemy's drop is being rolled.
+        // Doomerfall: the approved material odds, set for a whole bridge session (null in normal Daggerfall Unity).
         internal static Func<int, WeaponMaterialTypes> DoomerfallMaterialRoll;
 
         /// <summary>

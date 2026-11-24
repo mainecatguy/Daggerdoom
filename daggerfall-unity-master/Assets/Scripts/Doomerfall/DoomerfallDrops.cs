@@ -164,6 +164,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 holder.SetActive(false);
                 EnemyEntity enemy = new EnemyEntity(holder.AddComponent<DaggerfallEntityBehaviour>());
                 WorldLevel.Scope level = new WorldLevel.Scope(Mathf.Clamp(areaLevel, 1, MaxAreaLevel));
+                Func<int, WeaponMaterialTypes> sessionRoll = FormulaHelper.DoomerfallMaterialRoll;
                 try
                 {
                     FormulaHelper.DoomerfallMaterialRoll = RollMaterial;
@@ -172,7 +173,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 }
                 finally
                 {
-                    FormulaHelper.DoomerfallMaterialRoll = null;
+                    FormulaHelper.DoomerfallMaterialRoll = sessionRoll;   // the bridge keeps it set for the whole session
                     LootSeed.ClearEnemy();
                     level.Dispose();
                     enemy.DetachFromGameEvents();
