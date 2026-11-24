@@ -121,10 +121,8 @@ static partial class Program
 
     // A trapdoor lies flat, so its thin side is its height.
     static bool IsFloorTile(DoorModel m) => m.Z1 - m.Z0 < Math.Min(m.X1 - m.X0, m.Y1 - m.Y0) / 4;
-    // Wayrest and Lysandus' Tomb only, as approved. Hinged tiles elsewhere keep their old behavior until the owner decides (work/notes/20261123-170731.md).
-    static readonly int[] TrapdoorDungeons = { 630439035, 207828842 };
-    static bool IsTrapdoorTile(ActionRecord r, DoorModel m, DFLocation location) =>
-        r.Description == "TRP" && r.Flag is 8 or 18 or 20 && IsFloorTile(m) && TrapdoorDungeons.Contains(location.MapTableData.MapId);
+    // Every flat TRP model that turns on a hinge: action 8, or the special door actions 18 and 20.
+    static bool IsTrapdoorTile(ActionRecord r, DoorModel m) => r.Description == "TRP" && r.Flag is 8 or 18 or 20 && IsFloorTile(m);
 
     // One layer of cells that covers the tile exactly and has its real thickness.
     static List<V3> FloorTileCells(DoorModel m)
@@ -139,22 +137,61 @@ static partial class Program
 
     static readonly List<(double x0, double x1, double y0, double y1, double bottom)> lidFootprints = new List<(double, double, double, double, double)>();
 
-    static void NoteLidFootprint(Arch3dFile arch, uint id, DFBlock.RdbObject obj, V3 offset)
+    // A moving model's world box at rest. Moving models are untilted, so only the yaw turns it.
+    static (double x0, double x1, double y0, double y1, double bottom, double top)? RestingBox(Arch3dFile arch, uint id, DFBlock.RdbObject obj, V3 offset)
     {
         int record = arch.GetRecordIndex(id);
-        if (record < 0) return;
+        if (record < 0) return null;
         const double toRad = Math.PI / 180;
         double ry = -obj.Resources.ModelResource.YRotation / BlocksFile.RotationDivisor * toRad;
         var position = new V3(obj.XPos, -obj.YPos, obj.ZPos) + offset;
-        double x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9, bottom = 1e9;
+        double x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9, bottom = 1e9, top = -1e9;
         foreach (var sub in arch.GetMesh(record).SubMeshes)
             foreach (var plane in sub.Planes)
                 foreach (var q in plane.Points)
                 {
                     var p = ToDoom(Rotate(new V3(q.X, -q.Y, q.Z), 0, ry, 0) + position);
-                    x0 = Math.Min(x0, p.X); x1 = Math.Max(x1, p.X); y0 = Math.Min(y0, p.Y); y1 = Math.Max(y1, p.Y); bottom = Math.Min(bottom, p.Z);
+                    x0 = Math.Min(x0, p.X); x1 = Math.Max(x1, p.X); y0 = Math.Min(y0, p.Y); y1 = Math.Max(y1, p.Y);
+                    bottom = Math.Min(bottom, p.Z); top = Math.Max(top, p.Z);
                 }
-        lidFootprints.Add((x0, x1, y0, y1, bottom));
+        return (x0, x1, y0, y1, bottom, top);
+    }
+
+    static void NoteLidFootprint(Arch3dFile arch, uint id, DFBlock.RdbObject obj, V3 offset)
+    {
+        if (RestingBox(arch, id, obj, offset) is var (x0, x1, y0, y1, bottom, _)) lidFootprints.Add((x0, x1, y0, y1, bottom));
+    }
+
+    // Trapdoor tiles by their closed world box. Some cover a hole with no Daggerfall geometry under it at all.
+    static readonly List<(double x0, double x1, double y0, double y1, double top)> trapdoorFootprints = new List<(double, double, double, double, double)>();
+    // How far below the tile an artificial floor goes when Daggerfall has none. Doom needs a floor; Daggerfall's fall never ends.
+    const double BottomlessPitDepth = 1024;
+
+    static void NoteTrapdoorFootprint(Arch3dFile arch, uint id, DFBlock.RdbObject obj, V3 offset, string description)
+    {
+        if (description != "TRP" || obj.Resources.ModelResource.ActionResource.Flags is not (8 or 18 or 20)) return;
+        if (RestingBox(arch, id, obj, offset) is not var (x0, x1, y0, y1, bottom, top)) return;
+        if (top - bottom >= Math.Min(x1 - x0, y1 - y0) / 4) return; // the IsFloorTile rule
+        trapdoorFootprints.Add((x0, x1, y0, y1, top));
+    }
+
+    // A cell under a trapdoor with no surface at all below the tile's top gets a floor BottomlessPitDepth down,
+    // so the room's air above the closed tile survives and an opened tile drops the player into a deep pit.
+    static int FloorBottomlessPits(List<(double z, bool up)>[] hits)
+    {
+        int floored = 0;
+        foreach (var (x0, x1, y0, y1, top) in trapdoorFootprints)
+            for (int j = Math.Max(0, (int)Math.Floor((y0 - minY) / cell)); j <= Math.Min(height - 1, (int)Math.Floor((y1 - minY) / cell)); j++)
+                for (int i = Math.Max(0, (int)Math.Floor((x0 - minX) / cell)); i <= Math.Min(width - 1, (int)Math.Floor((x1 - minX) / cell)); i++)
+                {
+                    double px = minX + (i + 0.5) * cell, py = minY + (j + 0.5) * cell;
+                    if (px < x0 || px > x1 || py < y0 || py > y1) continue;
+                    var list = hits[Index(i, j)] ??= new List<(double, bool)>();
+                    if (list.Any(h => h.z <= top + 1)) continue;
+                    list.Add((top - BottomlessPitDepth, true));
+                    floored++;
+                }
+        return floored;
     }
 
     // A coffin's rim is narrower than a grid cell, so its top can be missed and the air above it lost.
@@ -212,7 +249,7 @@ static partial class Program
             }
             // The same model can also be an ordinary mover elsewhere in the dungeon, so special doors keep their own cells.
             // A trapdoor tile uses its real shape on either action. The 16-unit grid puts its walking surface 16 units too high.
-            r.TrapdoorTile = IsTrapdoorTile(r, model, location);
+            r.TrapdoorTile = IsTrapdoorTile(r, model);
             if ((IsSpecialDoorFlag(r.Flag) || r.TrapdoorTile) && !package.SpecialCells.ContainsKey(r.Model))
             {
                 if (IsFloorTile(model))
@@ -407,6 +444,54 @@ static partial class Program
         foreach (var kv in hinged) Console.WriteLine($"HINGED {kv.Key} tiles={kv.Value}");
         Console.WriteLine($"HINGEDTOTAL dungeons={hinged.Count} tiles={hinged.Values.Sum()}");
         Console.WriteLine($"TOTAL dungeons={dungeons} affected={affected} placed={placed} distinctBlockObjects={perBlock.Count}");
+        return 0;
+    }
+
+    // --list-trapdoors: every TRP model record in every dungeon, grouped by what can change how it behaves.
+    static int ListTrapdoors(string arena2)
+    {
+        var maps = new MapsFile(Path.Combine(arena2, "MAPS.BSA"), FileUsage.UseMemory, true);
+        var blocks = new BlocksFile(Path.Combine(arena2, "BLOCKS.BSA"), FileUsage.UseMemory, true);
+        var arch = new Arch3dFile(Path.Combine(arena2, "ARCH3D.BSA"), FileUsage.UseMemory, true);
+        var shapes = new Dictionary<uint, string>();
+        var kinds = new SortedDictionary<string, (int placed, HashSet<int> dungeons, string example)>();
+        string Shape(uint id)
+        {
+            if (shapes.TryGetValue(id, out var known)) return known;
+            var p = arch.GetMesh(arch.GetRecordIndex(id)).SubMeshes.SelectMany(s => s.Planes).SelectMany(q => q.Points).Select(q => ToDoom(new V3(q.X, -q.Y, q.Z))).ToList();
+            double w = p.Max(q => q.X) - p.Min(q => q.X), d = p.Max(q => q.Y) - p.Min(q => q.Y), h = p.Max(q => q.Z) - p.Min(q => q.Z);
+            return shapes[id] = FormattableString.Invariant($"{w:F0}x{d:F0}x{h:F0} {(h < Math.Min(w, d) / 4 ? "flat" : "notflat")}");
+        }
+        for (int r = 0; r < maps.RegionCount; r++)
+        {
+            if (!maps.LoadRegion(r) || maps.GetRegion(r).MapNames == null) continue;
+            var region = maps.GetRegion(r);
+            for (int l = 0; l < region.LocationCount; l++)
+            {
+                var location = maps.GetLocation(r, l);
+                if (!location.HasDungeon) continue;
+                var records = ReadActionRecords(arena2, location);
+                foreach (var x in records.Where(x => !x.IsFlat && x.Description == "TRP"))
+                {
+                    var obj = blocks.GetBlock(x.BlockName).RdbBlock.ObjectRootList.Where(g => g.RdbObjects != null).SelectMany(g => g.RdbObjects).First(o => o.Position == x.FilePosition);
+                    var m = obj.Resources.ModelResource;
+                    string root = "self";
+                    var seen = new HashSet<int> { x.Id };
+                    var at = x;
+                    while (at.Previous.Count > 0 && seen.Add(at.Previous[0])) at = records[at.Previous[0]];
+                    if (at != x) root = $"{(at.IsFlat ? "flat" : at.IsDoor ? "door" : at.Description)}:f{at.Flag}:t{at.Trigger}";
+                    string key = $"m{x.Model} {Shape(x.Model)} door={x.IsDoor} flag={x.Flag} trig={x.Trigger} axis={x.Axis} mag={x.Magnitude} dur={x.Duration} tilted={m.XRotation != 0 || m.ZRotation != 0} parents={x.Previous.Count} root={root}";
+                    kinds.TryGetValue(key, out var k);
+                    k.dungeons ??= new HashSet<int>();
+                    k.dungeons.Add(location.MapTableData.MapId);
+                    k.example ??= $"{location.MapTableData.MapId} {region.Name}/{region.MapNames[l]} {x.BlockName} record={x.Id}";
+                    k.placed++;
+                    kinds[key] = k;
+                }
+            }
+        }
+        foreach (var kv in kinds) Console.WriteLine($"KIND placed={kv.Value.placed} dungeons={kv.Value.dungeons.Count} {kv.Key} eg {kv.Value.example}");
+        Console.WriteLine($"TOTAL kinds={kinds.Count} placed={kinds.Values.Sum(k => k.placed)} dungeons={kinds.Values.SelectMany(k => k.dungeons).Distinct().Count()}");
         return 0;
     }
 

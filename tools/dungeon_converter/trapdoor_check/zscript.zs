@@ -7,15 +7,14 @@ version "4.10"
 class DFTrapdoorCheck : EventHandler
 {
 	const SETTLE = 24;
-	const WAIT = 110;
 	const FLOOD_LIMIT = 60000;
 	Array<DFAction> tiles;
-	int index, startTic, firedTic;
-	bool finished, fired, entered, hasSide, reachesStart;
-	String exits;
+	int index, lastIndex, startTic, firedTic, wait;
+	bool finished, fired, entered, hasSide, reachesStart, inert, useFlood;
+	String exits, bumpAt;
 	vector3 spawnAt;
 	double closedZ, enteredZ;
-	vector3 mid;
+	vector3 mid, sideAt;
 	String row;
 
 	PlayerPawn Pawn() { return PlayerPawn(players[consoleplayer].mo); }
@@ -40,6 +39,38 @@ class DFTrapdoorCheck : EventHandler
 			root = before;
 		}
 		return root;
+	}
+
+	// Tiles can share a chain, so each test starts with every mover closed.
+	void ResetAll()
+	{
+		let it = ThinkerIterator.Create("DFAction");
+		DFAction o;
+		while (o = DFAction(it.Next()))
+		{
+			o.touchCooldown = 0;
+			if (o.kind != 1) continue;
+			o.fraction = 0;
+			o.phase = DFAction.AT_START;
+			o.stalled = false;
+			o.bodyInCells = false;
+			foreach (c : o.cells) c.bSOLID = true;
+			o.Place(false);
+		}
+	}
+
+	// A riddle passes the chain on only when answered, so the check gives each riddle before this tile a right answer.
+	void AnswerRiddles(DFAction root, DFAction a)
+	{
+		DFAction n = root;
+		for (int depth = 0; n && n != a && depth < 64; depth++, n = n.nextAction)
+			if (n.flag == 12) DFActionRules.AnswerAccepted(n);
+	}
+
+	static int IntSetting(String name, int fallback)
+	{
+		let v = CVar.FindCVar(name);
+		return v ? v.GetString().ToInt() : fallback;
 	}
 
 	// Walks outward from the body's spot on an 8-unit lattice. Reports how far it got and whether it left the pit.
@@ -113,7 +144,11 @@ class DFTrapdoorCheck : EventHandler
 			spawnAt = p.pos;
 			Console.Printf("TDSTART tiles=%d radius=%.1f height=%.0f", tiles.Size(), p.radius, p.height);
 			startTic = t + 1;
-			if (tiles.Size() == 0) { Console.Printf("TDDONE"); finished = true; }
+			// One launch tests a slice of the tiles, so it fits the launch time limit.
+			index = IntSetting("td_first", 0);
+			lastIndex = min(tiles.Size(), index + IntSetting("td_count", tiles.Size()));
+			useFlood = IntSetting("td_flood", 0) != 0;
+			if (index >= lastIndex) { Console.Printf("TDDONE"); finished = true; }
 			return;
 		}
 		if (t < startTic) return;
@@ -126,12 +161,18 @@ class DFTrapdoorCheck : EventHandler
 		}
 		if (s == 0)
 		{
+			ResetAll();
+			wait = int(ceil(1 / a.rate)) + 24;
+			let chainRoot = Root(a);
+			inert = chainRoot.trigger == DFAction.TR_NONE;
 			mid = a.ToWorld(((a.boxMin.x + a.boxMax.x) / 2, (a.boxMin.y + a.boxMax.y) / 2, a.boxMax.z), 0);
 			fired = false;
 			firedTic = 0;
 			entered = false;
 			enteredZ = 0;
 			hasSide = PickSide(p);
+			bumpAt = "";
+			sideAt = p.pos;
 			if (!hasSide) p.SetOrigin((mid.x, mid.y, mid.z + 1), false);
 			p.vel = (0, 0, 0);
 			p.FindFloorCeiling();
@@ -148,6 +189,21 @@ class DFTrapdoorCheck : EventHandler
 				a.fraction = 0;
 				vector3 l = a.ToLocal(p.pos);
 				a.fraction = fx;
+				if (p.pos.z > mid.z + 1 && !bumpAt.Length())
+				{
+					bumpAt = String.Format("%.0f,%.0f,%.0f", p.pos.x, p.pos.y, p.pos.z);
+					// Name the action records whose collision the body stepped onto.
+					String owners = "";
+					let bi = BlockThingsIterator.Create(p, 32);
+					while (bi.Next())
+					{
+						let c = DFActionCell(bi.thing);
+						if (!c || !c.bSOLID || abs(c.pos.z + c.height - p.pos.z) > 2) continue;
+						String id = String.Format("r%d", c.owner.id);
+						if ((String.Format(",%s,", owners)).IndexOf(String.Format(",%s,", id)) < 0) owners = owners .. (owners.Length() ? "," : "") .. id;
+					}
+					bumpAt = bumpAt .. ":" .. (owners.Length() ? owners : "map");
+				}
 				if (!entered && l.x >= a.boxMin.x && l.x <= a.boxMax.x && l.y >= a.boxMin.y && l.y <= a.boxMax.y)
 				{
 					entered = true;
@@ -157,10 +213,28 @@ class DFTrapdoorCheck : EventHandler
 		}
 		else if (s == SETTLE)
 		{
-			closedZ = hasSide ? enteredZ : p.pos.z;
+			// A walk-on tile can fire as the body arrives, so it is measured then. Any other tile is measured at rest.
+			closedZ = hasSide && a.trigger == DFAction.TR_WALKON ? enteredZ : p.pos.z;
 			int walkOn = !hasSide ? -1 : entered && abs(enteredZ - mid.z) <= 1;
-			row = String.Format("TD record=%d flag=%d trig=%d at %.0f,%.0f,%.0f top=%.1f standZ=%.1f held=%d walkOn=%d", a.id, a.flag, a.trigger, a.pivot.x, a.pivot.y, a.pivot.z, mid.z, closedZ, abs(closedZ - mid.z) <= 1, walkOn);
-			if (a.trigger == DFAction.TR_WALKON)
+			String under = "";
+			let near = BlockThingsIterator.Create(p, 32);
+			while (near.Next())
+			{
+				let c = DFActionCell(near.thing);
+				if (c && c.bSOLID && abs(c.pos.z + c.height - p.pos.z) <= 2 && abs(c.pos.x - p.pos.x) < c.radius + p.radius && abs(c.pos.y - p.pos.y) < c.radius + p.radius && (String.Format(",%s,", under)).IndexOf(String.Format(",r%d,", c.owner.id)) < 0)
+					under = under .. String.Format("%sr%d", under.Length() ? "," : "", c.owner.id);
+			}
+			row = String.Format("TD under=%s restZ=%.1f record=%d flag=%d trig=%d at %.0f,%.0f,%.0f top=%.1f standZ=%.1f held=%d walkOn=%d", under.Length() ? under : "none", p.pos.z, a.id, a.flag, a.trigger, a.pivot.x, a.pivot.y, a.pivot.z, mid.z, closedZ, abs(closedZ - mid.z) <= 1, walkOn);
+			row = row .. String.Format(" inert=%d side=%.0f,%.0f bump=%s", inert, sideAt.x, sideAt.y, bumpAt.Length() ? bumpAt : "none");
+			// Where the tile's middle is closed and open, and the room's floor and ceiling there.
+			vector3 open = a.ToWorld(((a.boxMin.x + a.boxMax.x) / 2, (a.boxMin.y + a.boxMax.y) / 2, a.boxMax.z), 1);
+			vector3 keep = p.pos;
+			p.SetOrigin(mid, false); p.FindFloorCeiling();
+			row = row .. String.Format(" mid=%.0f,%.0f room=%.0f..%.0f", mid.x, mid.y, p.floorz, p.ceilingz);			p.SetOrigin(open, false); p.FindFloorCeiling();
+			row = row .. String.Format(" open=%.0f,%.0f,%.0f openRoom=%.0f..%.0f", open.x, open.y, open.z, p.floorz, p.ceilingz);
+			p.SetOrigin(keep, false); p.FindFloorCeiling();
+			if (inert) { }
+			else if (a.trigger == DFAction.TR_WALKON)
 			{
 				if (!hasSide) p.vel.x = 1; // the real handler sees a moving player on the tile
 			}
@@ -170,20 +244,24 @@ class DFTrapdoorCheck : EventHandler
 				int source = root.trigger == DFAction.TR_WALKON ? DFAction.FROM_WALKON : root.trigger == DFAction.TR_WALKINTO ? DFAction.FROM_WALKINTO
 					: root.trigger == DFAction.TR_ATTACK ? DFAction.FROM_ATTACK : root.trigger == DFAction.TR_DOOR ? DFAction.FROM_DOOR : DFAction.FROM_DIRECT;
 				root.Receive(p, source);
-				row = row .. String.Format(" root=%d rootTrig=%d", root.id, root.trigger);
+				AnswerRiddles(root, a);
+				row = row .. String.Format(" root=%d rootFlag=%d rootTrig=%d", root.id, root.flag, root.trigger);
 			}
 		}
-		else if (s == SETTLE + WAIT)
+		else if (s == SETTLE + wait)
 		{
 			row = row .. String.Format(" fired=%d firedAt=%d", fired, firedTic);
-			int count; bool escaped; double high;
 			row = row .. String.Format(" end=%d frac=%.2f stalled=%d bodyZ=%.1f drop=%.1f moved=%.1f", a.phase == DFAction.AT_END, a.fraction, a.stalled, p.pos.z, mid.z - p.pos.z, (p.pos.xy - mid.xy).Length());
-			[count, escaped, high] = RunFlood(p, a);
-			row = row .. String.Format(" walkCells=%d walkOut=%d highest=%.1f reachesStart=%d exits=%s", count, escaped, high, reachesStart, exits.Length() ? exits : "none");
+			if (useFlood)
+			{
+				int count; bool escaped; double high;
+				[count, escaped, high] = RunFlood(p, a);
+				row = row .. String.Format(" walkCells=%d walkOut=%d highest=%.1f reachesStart=%d exits=%s", count, escaped, high, reachesStart, exits.Length() ? exits : "none");
+			}
 			Console.Printf("%s", row);
 			index++;
 			startTic = t + 1;
-			if (index >= tiles.Size()) { Console.Printf("TDDONE"); finished = true; }
+			if (index >= lastIndex) { Console.Printf("TDDONE"); finished = true; }
 		}
 	}
 
