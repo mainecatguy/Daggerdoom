@@ -99,6 +99,8 @@ EXTERN_CVAR(Bool, save_formatted)
 EXTERN_CVAR (Float, sv_gravity)
 EXTERN_CVAR (Float, sv_aircontrol)
 EXTERN_CVAR (Int, disableautosave)
+EXTERN_CVAR (Int, autosavecount) // [Doomerfall]
+void DD_BridgeArrivalAutosave(); // [Doomerfall]
 EXTERN_CVAR (String, playerclass)
 
 extern uint8_t globalfreeze, globalchangefreeze;
@@ -1545,9 +1547,13 @@ void FLevelLocals::DoLoadLevel(const FString &nextmapname, int position, bool au
 
 
 	// [RH] Always save the game when entering a new
-	if (autosave && !savegamerestore && disableautosave < 1 && !DDTreadmill_HandoffPending()) // [Doomerfall] a stitched change is not a new level
+	if (autosave && !savegamerestore && disableautosave < 1 && !DDTreadmill_HandoffPending())
 	{
 		CreateThinker<DAutosaver>();
+	}
+	else if (autosave && !savegamerestore && disableautosave < 1 && autosavecount != 0) // [Doomerfall] a stitched change saves before its first frame
+	{
+		DD_BridgeArrivalAutosave();
 	}
 	if (pnumerr > 0)
 	{

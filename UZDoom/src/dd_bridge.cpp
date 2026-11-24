@@ -49,6 +49,7 @@
 #include "v_video.h"
 
 void G_SaveGame(const char *filename, const char *description, bool quick);
+void G_DoAutoSave();
 extern FString savename;
 
 // World items: see dd_items.cpp.
@@ -1179,11 +1180,29 @@ bool saveIsAuto, autosaveHeld, saveStartPending, savePendingAuto;
 FString savePendingFile, savePendingDescription;
 int64_t autosaveHeldUntil, saveReplyNs;
 constexpr int64_t AutosaveHoldNs = 60000000000LL;
+// A stitched map change autosaves before its first frame is shown, so the save adds to the load's hitch
+// instead of making a second one in play. The screen keeps the last frame from before the change until it ends.
+bool arrivalPending, arrivalQueued, saveIsArrival;
+int64_t arrivalAtNs;
+constexpr int64_t ArrivalWaitNs = 2000000000LL, ArrivalHoldNs = 12000000000LL;
 
 bool SaveOnDaggerfallMap()
 {
 	double x, y, z, yaw;
 	return gamestate == GS_LEVEL && DDTreadmill_PlayerWorld(x, y, z, yaw) != DD_AREA_NONE;
+}
+
+// For the save and load logs: where Doom's player is, in Daggerfall units.
+FString WhereForLog()
+{
+	double x = 0, y = 0, z = 0, yaw = 0;
+	int target = 0;
+	FString where;
+	where.Format("map %s", gamestate == GS_LEVEL ? primaryLevel->MapName.GetChars() : "-");
+	if (gamestate != GS_LEVEL) return where;
+	if (DDTreadmill_PlayerSpace(x, y, z, yaw, target)) where.AppendFormat(", space %d at %.1f,%.1f,%.1f", target, x, y, z);
+	else if (DDTreadmill_PlayerWorld(x, y, z, yaw) == DD_AREA_EXTERIOR) where.AppendFormat(", world %.1f,%.1f", x, y);
+	return where;
 }
 
 bool SaveReady()
@@ -1217,7 +1236,7 @@ void SaveFinish(bool committed, const char *why)
 	saveState = SaveIdle;
 	pauseext = saveSavedPause;
 	const int64_t endNs = dfb_now_ns();
-	Log("save %u: %s%s (%s), %.1f ms frozen, Daggerfall %.1f ms, Doom %.1f ms", saveTxn, saveIsAuto ? "autosave " : "",
+	Log("save %u: %s%s (%s), %.1f ms frozen, Daggerfall %.1f ms, Doom %.1f ms", saveTxn, saveIsArrival ? "map change autosave " : saveIsAuto ? "autosave " : "",
 		committed ? "committed" : "FAILED, previous save untouched", why, (endNs - saveStartNs) / 1e6,
 		saveReplyNs ? (saveReplyNs - saveStartNs) / 1e6 : 0.0, saveReplyNs ? (endNs - saveReplyNs) / 1e6 : 0.0);
 	if (!committed) Printf(PRINT_HIGH, "Save failed: %s. Your previous save is unchanged.\n", why);
@@ -1302,8 +1321,30 @@ void HandleSaveReply(const dfb_event &e)
 
 bool SaveStart(const char *filename, const char *description, bool isAuto);
 
+// The autosave of a stitched map change, at the first frame after the change's first tic. If either game
+// cannot save then (a window open, a New Game still arriving), it is dropped rather than made later in play.
+void PumpArrival(int64_t now)
+{
+	if (!arrivalPending || saveState != SaveIdle || saveStartPending) return;
+	const bool handoff = DDTreadmill_HandoffPending();
+	if (handoff && now - arrivalAtNs <= ArrivalWaitNs) return; // The new map's first tic finishes the change.
+	arrivalPending = false;
+	const bool alive = gamestate == GS_LEVEL && players[consoleplayer].playerstate == PST_LIVE && players[consoleplayer].health > 0;
+	if (!handoff && alive && SaveOnDaggerfallMap() && SaveReady() && gameaction == ga_nothing && !paused)
+	{
+		arrivalQueued = true;
+		Log("save: autosave for a map change, %.1f ms after the new map loaded", (now - arrivalAtNs) / 1e6);
+		G_DoAutoSave(); // Queues it on the bridge; it starts below in this same frame.
+		if (!saveStartPending) arrivalQueued = false;
+		return;
+	}
+	Log("save: dropped the autosave for a map change, handoff %d, alive %d, ui %d, flow %d, Daggerfall phase %u, stale %d, paused %d",
+		int(handoff), int(alive), int(uiState), int(flowHold), peerState.df_phase, int(peerStale), int(paused));
+}
+
 void PumpSave(int64_t now)
 {
+	PumpArrival(now);
 	// Here no game tic is running, so nothing can happen in Doom between its final state and the request.
 	if (saveStartPending && saveState == SaveIdle)
 	{
@@ -1395,6 +1436,22 @@ bool DD_BridgeAutosaveBegin(const char *filename, const char *description)
 	return SaveQueue(filename, description, true);
 }
 
+// G_DoLoadLevel: a stitched map change has loaded. Its autosave runs at the next frame (PumpArrival).
+void DD_BridgeArrivalAutosave()
+{
+	if (!session || netgame) return;
+	arrivalPending = true;
+	arrivalQueued = false;
+	arrivalAtNs = dfb_now_ns();
+}
+
+// D_DoomLoop: true while a map change's autosave runs, so the screen keeps showing the frame from before the change.
+bool DD_BridgeHoldFrame()
+{
+	if (!session || dfb_now_ns() - arrivalAtNs > ArrivalHoldNs) return false;
+	return arrivalPending || (saveStartPending && arrivalQueued) || (saveState != SaveIdle && saveIsArrival);
+}
+
 // G_SaveGame, for a save from the menu or console. True means the bridge took it, or refused it with a message.
 bool DD_BridgeSaveBegin(const char *filename, const char *description)
 {
@@ -1406,6 +1463,8 @@ namespace
 {
 bool SaveStart(const char *filename, const char *description, bool isAuto)
 {
+	const bool arrival = arrivalQueued;
+	arrivalQueued = false;
 	if (saveState != SaveIdle) { Printf("A save is already in progress.\n"); return true; }
 	if (gamestate != GS_LEVEL || players[consoleplayer].health <= 0 || !SaveReady())
 	{
@@ -1414,6 +1473,7 @@ bool SaveStart(const char *filename, const char *description, bool isAuto)
 		return true;
 	}
 	saveIsAuto = isAuto;
+	saveIsArrival = arrival;
 	saveReplyNs = 0;
 	saveFile = filename;
 	saveDescription = description;
@@ -1443,7 +1503,7 @@ bool SaveStart(const char *filename, const char *description, bool isAuto)
 	memcpy(e.payload, &body, sizeof(body));
 	dfb_send(session, &e);
 	dfb_flush(session);
-	Log("save %u: Doom frozen at tic %d, requested Daggerfall's save", saveTxn, gametic);
+	Log("save %u: Doom frozen at tic %d, %s, file %s, requested Daggerfall's save", saveTxn, gametic, WhereForLog().GetChars(), ExtractFileBase(filename, true).GetChars());
 	return true;
 }
 }
@@ -1788,7 +1848,7 @@ void HandleLoadResume(const dfb_event &e)
 	DD_MonstersResync();
 	DD_NpcsResync();
 	DD_TownsfolkResync();
-	Log("load %u: both games resumed, %.1f ms frozen", loadTxn, (dfb_now_ns() - loadStartNs) / 1e6);
+	Log("load %u: both games resumed, %.1f ms frozen, %s", loadTxn, (dfb_now_ns() - loadStartNs) / 1e6, WhereForLog().GetChars());
 }
 
 // The newest save in the save folder that passes every check.

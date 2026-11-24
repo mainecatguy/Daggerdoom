@@ -33,7 +33,7 @@ bool DDTreadmill_MapMesh(const char *mapname, const uint8_t *&data, size_t &size
 bool DDTreadmill_LodMesh(const uint8_t *&data, size_t &size, int &key);
 bool DDTreadmill_RuntimeTowns();
 level_info_t *DDTreadmill_LevelInfoAt(unsigned index);	// Null past the end. Empty unless a generated location was used.
-bool DDTreadmill_HandoffPending();	// True during a stitched map change, which must not autosave and hitch.
+bool DDTreadmill_HandoffPending();	// True during a stitched map change. Its autosave runs before the first frame, not a tic later.
 
 void DDTreadmill_Serialize(FLevelLocals *Level, FSerializer &arc);
 void DDTreadmill_FrameEnd();
