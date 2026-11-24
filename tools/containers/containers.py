@@ -1,6 +1,7 @@
 """Assembles and tests Daggerfall's container windows opened from Doom, with both real games, minimized.
 
-usage: containers.py assemble | run NAME [--load] [--building TYPE] [--target pile|box] [--stock-mods] | check
+usage: containers.py [--review DIR] [--uz-build DIR] [--source DIR] assemble | run NAME [--load] [--building TYPE] [--target pile|box] [--crouch] [--stock-mods] | check
+--crouch holds Doom's crouch while pressing Use, so Daggerfall acts in Steal mode.
 run uses DRLA, DRLA Monsters, and DRLAX unless --stock-mods is given. Without --building it uses Privateer's Hold.
 check runs E1M1 with no bridge, stock and with DRLA.
 """
@@ -110,6 +111,7 @@ class CTDemoStart : StaticEventHandler
         "@echo off\r\n"
         "rem Starts in town facing a general store, with DRLA. Press Use on the door to go in.\r\n"
         "rem Press Use on a shelf to trade, on other furniture to search it, and on a loot pile to open it. I opens the inventory.\r\n"
+        "rem Hold crouch to sneak: Sneaking shows at the bottom of the screen, and Use then acts in Daggerfall's Steal mode.\r\n"
         "set \"HERE=%~dp0\"\r\n"
         "if not exist \"%HERE%play\" mkdir \"%HERE%play\"\r\n"
         "set BINDS=\r\n"
@@ -139,7 +141,7 @@ def run(name, load, building, target, stock_mods):
         with zipfile.ZipFile(data / "privateershold_doors.pk3") as z:
             exit_row = next(l.split()[1:] for l in z.read("DDDUNGN").decode().splitlines() if l.startswith("exit"))
     text = (HERE / "harness.zs").read_text()
-    for key, value in (("@DOOR@", ", ".join(door[3:8])), ("@EXIT@", ", ".join(exit_row[:5])), ("@MODE@", "building" if building else "dungeon"), ("@TARGET@", target), ("@PICK@", str(args.pick))):
+    for key, value in (("@DOOR@", ", ".join(door[3:8])), ("@EXIT@", ", ".join(exit_row[:5])), ("@MODE@", "building" if building else "dungeon"), ("@TARGET@", target), ("@PICK@", str(args.pick)), ("@CROUCH@", "true" if args.crouch else "false")):
         text = text.replace(key, value)
     harness = runs / f"{name}_harness.pk3"
     with zipfile.ZipFile(harness, "w") as z:
@@ -191,7 +193,7 @@ def run(name, load, building, target, stock_mods):
         if re.match(r"CT[A-Z]+ ", line) or "Daggerfall cannot" in line or any(k in line for k in FATAL):
             print(line[:190])
     for line in read(df_log).splitlines():
-        if re.search(r"items: (use|opening|closed|restored|ledger)|loottest:|ui: (menu|top window)|error", line):
+        if re.search(r"items: (use|opening|activating|closed|restored|ledger)|loottest:|ui: (menu|top window)|error", line):
             print("df", line[:210])
     for line in read(uz_log).splitlines():
         if "ui:" in line and ("menu 5" in line or "closed" in line):
@@ -225,7 +227,12 @@ ap.add_argument("--building")
 ap.add_argument("--target", choices=("pile", "box"), default="pile")
 ap.add_argument("--stock-mods", action="store_true")
 ap.add_argument("--pick", type=int, default=0, help="skip this many nearer targets")
+ap.add_argument("--crouch", action="store_true", help="hold crouch while pressing Use (Steal mode)")
+ap.add_argument("--review", type=Path, default=REVIEW, help="the review folder to assemble into and run from")
+ap.add_argument("--uz-build", type=Path, default=UZ_BUILD, help="the UZDoom Release folder to assemble from")
+ap.add_argument("--source", type=Path, default=SOURCE, help="the review folder to copy data and dfitems.pk3 from")
 args = ap.parse_args()
+REVIEW, UZ_BUILD, SOURCE = args.review, args.uz_build, args.source
 if args.command == "assemble":
     assemble()
 elif args.command == "run":

@@ -69,6 +69,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         Pile window;          // The container Doom was told to open a window for, then the one whose window is open.
         float windowAnswerBy;
         bool windowOpen;
+        PlayerActivateModes windowMode; // Steal when the player crouched (Daggerfall's Sneaking), otherwise Grab.
 
         internal void Init(DoomerfallBridge owner, DoomerfallPositionSync positionSync)
         {
@@ -324,8 +325,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         }
 
         // Use on a container. Daggerfall decides everything in its own activation, once Doom has opened the window
-        // that will show it. Grab and Steal are the same to a container in PlayerActivate.ActivateLootContainer, so
-        // the mode is only recorded.
+        // that will show it, in the mode Doom asked for: Steal while crouching, otherwise Grab.
         internal void OnTake(uint request, ulong id, uint mode)
         {
             uint status = Dfb.ITEM_REFUSED;
@@ -334,6 +334,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (!windowOpen && Find(id, out pile, out status, out distance))
             {
                 window = pile;
+                windowMode = mode == Dfb.TAKE_STEAL ? PlayerActivateModes.Steal : PlayerActivateModes.Grab;
                 windowAnswerBy = Time.unscaledTime + WindowAnswerSeconds;
                 status = Dfb.ITEM_WINDOW;
             }
@@ -381,8 +382,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
             windowOpen = true;
             bridge.LogLine(string.Format("items: opening {0} {1} with {2} items", window.loot.ContainerType, window.key, window.loot.Items.Count));
+            // Daggerfall's own activation reads its interaction mode, so it is set first, without Daggerfall's mode message.
             // Doom has measured the reach already, and Daggerfall's hidden player trails it, so the distance given is Doom's.
-            GameManager.Instance.PlayerActivate.DoomerfallActivateLoot(window.loot, 0);
+            PlayerActivate activate = GameManager.Instance.PlayerActivate;
+            activate.ChangeInteractionMode(windowMode, false);
+            bridge.LogLine(string.Format("items: activating in {0} mode", activate.CurrentMode));
+            activate.DoomerfallActivateLoot(window.loot, 0);
             return true;
         }
 
