@@ -160,7 +160,7 @@ def run(name, load, building, target, stock_mods):
         for old in saves.glob("*.zds"):
             old.unlink()
     df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), "-dfloottest", "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
-    timeout = 60 if building else 75
+    timeout = 75
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
                "--uzdoom-cwd", str(runs), "--log", str(launcher)]

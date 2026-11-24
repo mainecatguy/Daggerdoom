@@ -7,7 +7,8 @@ class CTState : Inventory
 {
 	Default { Inventory.MaxAmount 1; +INVENTORY.UNDROPPABLE +INVENTORY.UNTOSSABLE }
 	int phase, timer, before, count;
-	bool saved;
+	bool saved, landed;
+	double landX, landY, landZ, landAngle;
 	String target;
 }
 
@@ -116,6 +117,14 @@ class CTHarness : EventHandler
 			break;
 		case 1: // Wait for Daggerfall's first list.
 			if (st.timer > LIMIT) { Console.Printf("CTFAIL nothing listed"); Finish("failed"); break; }
+			if (inside && !st.landed) // A building's landing faces away from its door, so this is the way back out.
+			{
+				st.landed = true;
+				st.landX = p.pos.x;
+				st.landY = p.pos.y;
+				st.landZ = p.pos.z;
+				st.landAngle = p.angle;
+			}
 			if (!inside || st.timer < 35) break;
 			st.before = Targets("", present, count);
 			if (st.before == 0) break;
@@ -157,7 +166,6 @@ class CTHarness : EventHandler
 				int now = Targets(st.target, present, count);
 				Console.Printf("CTAFTER targets %d to %d, target present=%d count %d to %d", st.before, now, present, st.count, count);
 				st.count = count;
-				if (!Dungeon()) { Finish("building"); break; }
 				st.phase = 3;
 				st.timer = 0;
 			}
@@ -171,8 +179,16 @@ class CTHarness : EventHandler
 			}
 			if (st.timer < 70) break;
 			Console.Printf("CTCHECK after save or load: target present=%d count %d", Targets(st.target, present, count) >= 0 && present, count);
-			p.SetOrigin((EXITDATA[0] + EXITDATA[3] * 40, EXITDATA[1] + EXITDATA[4] * 40, EXITDATA[2]), false);
-			p.angle = atan2(-EXITDATA[4], -EXITDATA[3]);
+			if (Dungeon())
+			{
+				p.SetOrigin((EXITDATA[0] + EXITDATA[3] * 40, EXITDATA[1] + EXITDATA[4] * 40, EXITDATA[2]), false);
+				p.angle = atan2(-EXITDATA[4], -EXITDATA[3]);
+			}
+			else
+			{
+				p.SetOrigin((st.landX, st.landY, st.landZ), false);
+				p.angle = st.landAngle + 180;
+			}
 			p.pitch = 0;
 			st.phase = 4;
 			st.timer = 0;
@@ -187,6 +203,7 @@ class CTHarness : EventHandler
 			if (st.timer < 35 * 4) break;
 			Targets(st.target, present, count);
 			Console.Printf("CTREENTRY target present=%d count %d, expected %d", present, count, st.count);
+			if (Boxes()) { Finish(present ? "reentered" : "failed"); break; } // A box's contents are checked in Daggerfall's log.
 			Finish(st.count > 0 ? (present && count == st.count ? "passed" : "failed") : (!present ? "passed" : "failed"));
 			break;
 		}
