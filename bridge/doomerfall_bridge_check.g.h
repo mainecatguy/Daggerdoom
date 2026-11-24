@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x3b5392a681da2830ULL
+#define DFB_SCHEMA_HASH 0xa10a257154902022ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -67,6 +67,9 @@ static_assert((DFB_KIND_ITEM_TAKE) == (43), DFB_STALE);
 static_assert((DFB_KIND_ITEM_RESULT) == (44), DFB_STALE);
 static_assert((DFB_KIND_ITEMS_REQUEST) == (45), DFB_STALE);
 static_assert((DFB_KIND_CONTAINER) == (80), DFB_STALE);
+static_assert((DFB_KIND_INFO) == (90), DFB_STALE);
+static_assert((DFB_KIND_INFO_TEXT) == (91), DFB_STALE);
+static_assert((DFB_KIND_INFO_NAME) == (92), DFB_STALE);
 static_assert((DFB_KIND_MONSTER_DEATH) == (50), DFB_STALE);
 static_assert((DFB_KIND_MONSTERS_BEGIN) == (51), DFB_STALE);
 static_assert((DFB_KIND_MONSTER) == (52), DFB_STALE);
@@ -91,6 +94,12 @@ static_assert((DFB_ITEM_REFUSED) == (4u), DFB_STALE);
 static_assert((DFB_ITEM_WINDOW) == (5u), DFB_STALE);
 static_assert((DFB_TAKE_GRAB) == (0u), DFB_STALE);
 static_assert((DFB_TAKE_STEAL) == (1u), DFB_STALE);
+static_assert((DFB_INFO_NPC) == (1u), DFB_STALE);
+static_assert((DFB_INFO_BUILDING) == (2u), DFB_STALE);
+static_assert((DFB_INFO_MONSTER) == (3u), DFB_STALE);
+static_assert((DFB_INFO_HUD) == (0u), DFB_STALE);
+static_assert((DFB_INFO_MID) == (1u), DFB_STALE);
+static_assert((DFB_INFO_MORE) == (1u), DFB_STALE);
 static_assert((DFB_TRANSITION_ENTER_BUILDING) == (1u), DFB_STALE);
 static_assert((DFB_TRANSITION_EXIT_BUILDING) == (2u), DFB_STALE);
 static_assert((DFB_TRANSITION_ENTER_DUNGEON) == (3u), DFB_STALE);
@@ -368,6 +377,26 @@ static_assert(offsetof(dfb_item_result, remaining) == 20, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_item_result::remaining), int32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_item_result, name) == 24, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_item_result::name), char[24]>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_info_request) == 32, DFB_STALE);
+static_assert(offsetof(dfb_info_request, request) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_info_request::request), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_info_request, target) == 4, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_info_request::target), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_info_request, id) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_info_request::id), uint64_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_info_request, world_x) == 16, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_info_request::world_x), double>::value, DFB_STALE);
+static_assert(offsetof(dfb_info_request, world_z) == 24, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_info_request::world_z), double>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_info_text) == 48, DFB_STALE);
+static_assert(offsetof(dfb_info_text, request) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_info_text::request), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_info_text, style) == 4, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_info_text::style), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_info_text, text) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_info_text::text), char[40]>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_monster_death) == 32, DFB_STALE);
 static_assert(offsetof(dfb_monster_death, id) == 0, DFB_STALE);

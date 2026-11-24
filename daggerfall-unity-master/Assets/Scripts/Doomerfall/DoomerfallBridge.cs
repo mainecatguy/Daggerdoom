@@ -63,6 +63,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DoomerfallNewGame newGame;
         DoomerfallMonsters monsters;
         DoomerfallNpcs npcs;
+        DoomerfallInfo info;
         DoomerfallSheet sheet;
         internal DoomerfallSheet Sheet { get { return sheet; } }
         bool textFrame;
@@ -157,6 +158,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             newGame.Monsters = monsters;
             npcs = gameObject.AddComponent<DoomerfallNpcs>();
             npcs.Init(this, sync);
+            info = gameObject.AddComponent<DoomerfallInfo>();
+            info.Init(this, sync);
         }
 
         // The schema hash covers every constant, struct field, and function in the header.
@@ -224,12 +227,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DfbNative.dfb_send(session, ref ev);
         }
 
-        string ReadText()
+        // The payload from byte `start` up to its terminator or end.
+        string ReadText(int start = 0)
         {
             byte[] bytes = new byte[48];
             ev.CopyPayload(bytes);
-            int length = Array.IndexOf(bytes, (byte)0);
-            return Encoding.UTF8.GetString(bytes, 0, length < 0 ? 48 : length);
+            int length = Array.IndexOf(bytes, (byte)0, start);
+            return Encoding.UTF8.GetString(bytes, start, (length < 0 ? 48 : length) - start);
         }
 
         void Update()
@@ -328,6 +332,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         break;
                     case Dfb.KIND_ITEMS_REQUEST:
                         items.OnRequest();
+                        break;
+                    case Dfb.KIND_INFO_NAME:
+                        info.OnName(ev.infoText.request, ReadText(8));
+                        break;
+                    case Dfb.KIND_INFO:
+                        info.OnRequest(ev.infoRequest.request, ev.infoRequest.target, ev.infoRequest.id, ev.infoRequest.worldX, ev.infoRequest.worldZ);
                         break;
                     default:
                         unknownKinds++; // contract rule 7: skip, never fatal

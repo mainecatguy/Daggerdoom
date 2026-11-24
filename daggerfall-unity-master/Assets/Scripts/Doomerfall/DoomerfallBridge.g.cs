@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x3b5392a681da2830UL;
+        public const ulong SchemaHash = 0xa10a257154902022UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 6;
@@ -67,6 +67,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_ITEM_RESULT = 44;  // DF to UZ; what Daggerfall did with that request; payload: dfb_item_result
         public const ushort KIND_ITEMS_REQUEST = 45;  // UZ to DF; send the current list again; payload: dfb_world_items
         public const ushort KIND_CONTAINER = 80;  // DF to UZ; one furniture container in an item list, between ITEMS_BEGIN and ITEMS_END; payload: dfb_world_container
+        public const ushort KIND_INFO = 90;  // UZ to DF; payload: dfb_info_request
+        public const ushort KIND_INFO_TEXT = 91;  // DF to UZ; one message for that request; payload: dfb_info_text; DFB_INFO_MORE in flags when the text goes on in the next event
+        public const ushort KIND_INFO_NAME = 92;  // UZ to DF; a monster's Doom name, sent just before its DFB_KIND_INFO; payload: dfb_info_text
         public const ushort KIND_MONSTER_DEATH = 50;  // UZ to DF; a tagged monster died; payload: dfb_monster_death
         public const ushort KIND_MONSTERS_BEGIN = 51;  // DF to UZ; starts one full list for a dungeon; payload: dfb_world_items
         public const ushort KIND_MONSTER = 52;  // DF to UZ; one quest foe to place, or one dead id; payload: dfb_monster
@@ -91,6 +94,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint ITEM_WINDOW = 5;  // Daggerfall will show its own window for this container; Doom opens DFB_UI_LOOT
         public const uint TAKE_GRAB = 0;  // Daggerfall's Grab interaction
         public const uint TAKE_STEAL = 1;  // Daggerfall's Steal interaction; the player is crouching
+        public const uint INFO_NPC = 1;  // dfb_info_request.id is an NPC id
+        public const uint INFO_BUILDING = 2;  // world_x and world_z are the point on the building Doom's view ray hit
+        public const uint INFO_MONSTER = 3;  // a Doom monster, named by the DFB_KIND_INFO_NAME just before
+        public const uint INFO_HUD = 0;  // dfb_info_text.style: Daggerfall's scrolling HUD message
+        public const uint INFO_MID = 1;  // dfb_info_text.style: Daggerfall's mid-screen message
+        public const uint INFO_MORE = 1;  // dfb_event.flags on DFB_KIND_INFO_TEXT
         public const uint TRANSITION_ENTER_BUILDING = 1;
         public const uint TRANSITION_EXIT_BUILDING = 2;
         public const uint TRANSITION_ENTER_DUNGEON = 3;
@@ -172,8 +181,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const int UZ_PHASE_SAVING = 4;
 
         // Native size of every generated struct, for the attach check.
-        public static readonly Type[] StructTypes = { typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbWorldContainer), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbNpc), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
-        public static readonly int[] StructSizes = { 64, 24, 24, 16, 24, 24, 48, 32, 32, 32, 16, 48, 40, 16, 48, 32, 32, 16, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
+        public static readonly Type[] StructTypes = { typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbWorldContainer), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbInfoRequest), typeof(DfbInfoText), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbNpc), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
+        public static readonly int[] StructSizes = { 64, 24, 24, 16, 24, 24, 48, 32, 32, 32, 16, 48, 40, 16, 48, 32, 48, 32, 32, 16, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
     }
 
     static class DfbBytes
@@ -251,6 +260,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public DfbItemTake itemTake;  // ITEM_TAKE
         [FieldOffset(16)] public DfbItemResult itemResult;  // ITEM_RESULT
         [FieldOffset(16)] public DfbWorldContainer worldContainer;  // CONTAINER
+        [FieldOffset(16)] public DfbInfoRequest infoRequest;  // INFO
+        [FieldOffset(16)] public DfbInfoText infoText;  // INFO_TEXT, INFO_NAME
         [FieldOffset(16)] public DfbMonsterDeath monsterDeath;  // MONSTER_DEATH
         [FieldOffset(16)] public DfbMonster monster;  // MONSTER
         [FieldOffset(16)] public DfbNpc npc;  // NPC
@@ -455,6 +466,48 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DfbBytes.Write(destination, 0, 8, name0);
             DfbBytes.Write(destination, 8, 8, name1);
             DfbBytes.Write(destination, 16, 8, name2);
+        }
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 32)]
+    struct DfbInfoRequest
+    {
+        [FieldOffset(0)] public uint request;
+        [FieldOffset(4)] public uint target;  // DFB_INFO_*
+        [FieldOffset(8)] public ulong id;
+        [FieldOffset(16)] public double worldX;
+        [FieldOffset(24)] public double worldZ;
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 48)]
+    struct DfbInfoText
+    {
+        [FieldOffset(0)] public uint request;
+        [FieldOffset(4)] public uint style;  // DFB_INFO_HUD or DFB_INFO_MID
+        [FieldOffset(8)] public ulong text0;  // UTF-8, terminated unless full
+        [FieldOffset(16)] public ulong text1;
+        [FieldOffset(24)] public ulong text2;
+        [FieldOffset(32)] public ulong text3;
+        [FieldOffset(40)] public ulong text4;
+
+        // Copies up to 40 bytes in. The rest of the field becomes zero.
+        public void SetText(byte[] source, int count)
+        {
+            text0 = (ulong)DfbBytes.Read(source, count, 0, 8);
+            text1 = (ulong)DfbBytes.Read(source, count, 8, 8);
+            text2 = (ulong)DfbBytes.Read(source, count, 16, 8);
+            text3 = (ulong)DfbBytes.Read(source, count, 24, 8);
+            text4 = (ulong)DfbBytes.Read(source, count, 32, 8);
+        }
+
+        // Copies all 40 bytes out.
+        public void CopyText(byte[] destination)
+        {
+            DfbBytes.Write(destination, 0, 8, text0);
+            DfbBytes.Write(destination, 8, 8, text1);
+            DfbBytes.Write(destination, 16, 8, text2);
+            DfbBytes.Write(destination, 24, 8, text3);
+            DfbBytes.Write(destination, 32, 8, text4);
         }
     }
 

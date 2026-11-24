@@ -969,6 +969,28 @@ namespace DaggerfallWorkshop.Game
             ActivateLootContainer(hit, loot);
         }
 
+        // Doomerfall: Doom's Info control named this building. Daggerfall's own Info interaction for it.
+        public void DoomerfallInfoBuilding(StaticBuilding building)
+        {
+            BuildingDirectory buildingDirectory = GameManager.Instance.StreamingWorld.GetCurrentBuildingDirectory();
+            BuildingSummary buildingSummary;
+            if (!buildingDirectory || !buildingDirectory.GetBuildingSummary(building.buildingKey, out buildingSummary))
+                return;
+            PlayerActivateModes mode = currentMode;
+            currentMode = PlayerActivateModes.Info;
+            try { ActivateBuilding(building, buildingSummary.BuildingType, BuildingIsUnlocked(buildingSummary)); }
+            finally { currentMode = mode; }
+        }
+
+        // Doomerfall: Doom's Info control named this NPC. Info on a static NPC has no reach limit.
+        public void DoomerfallInfoNpc(StaticNPC npc)
+        {
+            PlayerActivateModes mode = currentMode;
+            currentMode = PlayerActivateModes.Info;
+            try { ActivateStaticNPC(new RaycastHit(), npc); }
+            finally { currentMode = mode; }
+        }
+
         void DisableEmptyCorpseContainer(GameObject go)
         {
             if (go)
