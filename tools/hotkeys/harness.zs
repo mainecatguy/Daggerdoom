@@ -8,7 +8,7 @@ class HKHarness : EventHandler
 	static const double DOORDATA[] = { @DOOR@ };
 	const LIMIT = 35 * 20;
 	const LOADRUN = @LOADRUN@;
-	const SAVED = 7; // The phase the autosave is made in. A load run that reaches it has loaded.
+	const SAVED = 10; // The phase the autosave is made in. A load run that reaches it has loaded.
 
 	int phase, timer, step, passed, failed;
 	String startGun; // DRLA X picks the starting gun, so the test reads it.
@@ -116,7 +116,7 @@ class HKHarness : EventHandler
 		vector3 door = (DOORDATA[0], DOORDATA[1], DOORDATA[2]);
 		vector2 normal = (DOORDATA[3], DOORDATA[4]);
 		timer++;
-		if (LOADRUN && phase == SAVED) { phase = 10; timer = 0; passed = failed = 0; }
+		if (LOADRUN && phase == SAVED) { phase = 20; timer = 0; passed = failed = 0; }
 		if (LOADRUN && phase < SAVED) return;
 
 		switch (phase)
@@ -152,26 +152,46 @@ class HKHarness : EventHandler
 			}
 			Next();
 			break;
-		case 3: TakeShotgun(p); break;
-		case 4: // Key 3 (the test put the shotgun there) draws it and puts the start gun away with its magazine.
-			if (!Hotkey(3)) break;
-			Console.Printf("HKSTATE key 3: %s", Held(p));
-			Report(Has(p, "RLShotgun") && !Has(p, startGun), "key 3 swaps the start gun for the shotgun");
-			Report(Rounds(p, startGun) == 0 && p.CountInv("RLWeaponLimit") == 1, "the start gun's magazine left with it and RLWeaponLimit is 1");
+		case 3: // Key 3 (the shotgun's Doom slot) has no hotkeys, so taking the shotgun puts it there and draws it at once.
+			if (!Take(p, "RLShotgunPickup", 0)) break;
+			Console.Printf("HKSTATE took shotgun: %s", Held(p));
+			Report(!item || !item.bSPECIAL, "Use took the shotgun off the floor");
+			Report(Has(p, "RLShotgun") && !Has(p, startGun) && p.CountInv("RLWeaponLimit") == 1, "key 3 was free, so the shotgun is drawn at once and the start gun put away");
+			Report(Rounds(p, startGun) == 0, "the start gun's magazine left with it");
 			SetRounds(p, "RLShotgun", 0); // Empty: it must still be empty when it comes back.
 			Next();
 			break;
-		case 5: // Key 2 brings the start gun back, not reloaded.
+		case 4: // Key 2 brings the start gun back, not reloaded.
 			if (!Hotkey(2)) break;
 			Console.Printf("HKSTATE key 2: %s", Held(p));
 			Report(Has(p, startGun) && !Has(p, "RLShotgun"), "key 2 swaps back to the start gun");
 			Report(Rounds(p, startGun) == startRounds, String.Format("the start gun's magazine is still %d", startRounds));
 			Next();
 			break;
-		case 6:
+		case 5: // A modded pistol. Key 2 already has a hotkey, so it only goes to Daggerfall's inventory (the test puts it on key 4).
+			if (!Take(p, "RLPistolPickupModded", 1)) break;
+			Console.Printf("HKSTATE took modded pistol: %s", Held(p));
+			Report(Has(p, startGun) && p.CountInv("RLPistolPowerMod") == 0, "key 2 had a hotkey, so the modded pistol is not drawn and Doom gets no mods");
+			Next();
+			break;
+		case 6: // Armor goes to Daggerfall's Weapons & Armor tab; the Python side checks the stored names.
+			if (!Take(p, "GreenArmor", 0)) break;
+			Next();
+			break;
+		case 7:
+			if (!Take(p, "RLGenericArmorPickup", 0)) break;
+			Next();
+			break;
+		case 8: // Key 4 draws the modded pistol with the mods it was found with.
+			if (!Hotkey(4)) break;
+			Console.Printf("HKSTATE key 4: %s, RLPistolPowerMod %d, RLPistolModLimit %d", Held(p), p.CountInv("RLPistolPowerMod"), p.CountInv("RLPistolModLimit"));
+			Report(Has(p, "RLPistol") && p.CountInv("RLPistolPowerMod") == 2 && p.CountInv("RLPistolModLimit") == 2, "the modded pistol keeps its mods (power 2, limit 2)");
+			Next();
+			break;
+		case 9:
 			if (!Hotkey(3)) break;
 			Console.Printf("HKSTATE key 3 again: %s", Held(p));
-			Report(Has(p, "RLShotgun") && p.CountInv("RLShotgunClip") == 0, "the shotgun comes back still empty");
+			Report(Has(p, "RLShotgun") && p.CountInv("RLShotgunClip") == 0 && p.CountInv("RLPistolPowerMod") == 0, "the shotgun comes back still empty, and the pistol's mods left with the pistol");
 			Console.Printf("HKSAVE autosave");
 			LevelLocals.MakeAutoSave();
 			Next();
@@ -179,48 +199,57 @@ class HKHarness : EventHandler
 		case SAVED:
 			if (timer > 35 * 8) Finish();
 			break;
-		case 10: // After the load: the shotgun is active; the pistol's magazine lives only in Daggerfall's save.
+		case 20: // After the load: the shotgun is active; the pistol's magazine lives only in Daggerfall's save.
 			if (timer == 70)
 			{
 				Console.Printf("HKSTATE after load: %s", Held(p));
 				Report(Has(p, "RLShotgun") && !Has(p, startGun) && p.CountInv("RLShotgunClip") == 0, "after the load Doom holds only the shotgun, still empty");
 				timer = 100;
-				phase = 11;
+				phase = 21;
 			}
 			break;
-		case 11:
+		case 21:
 			if (timer == 101) { Console.Printf("HKPRESS key 2"); EventHandler.SendNetworkEvent("dd_hotkey:2:0"); }
 			if (timer < 170) break;
 			Console.Printf("HKSTATE after load, key 2: %s", Held(p));
 			Report(Has(p, startGun) && !Has(p, "RLShotgun") && Rounds(p, startGun) == startRounds, String.Format("key 2 still draws %s, with its magazine of %d from Daggerfall's save", startGun, startRounds));
+			timer = 200;
+			phase = 22;
+			break;
+		case 22:
+			if (timer == 201) { Console.Printf("HKPRESS key 4"); EventHandler.SendNetworkEvent("dd_hotkey:4:0"); }
+			if (timer < 270) break;
+			Console.Printf("HKSTATE after load, key 4: %s, RLPistolPowerMod %d", Held(p), p.CountInv("RLPistolPowerMod"));
+			Report(Has(p, "RLPistol") && p.CountInv("RLPistolPowerMod") == 2 && p.CountInv("RLPistolModLimit") == 2, "after the load key 4 draws the modded pistol with its mods from Daggerfall's save");
 			Finish();
 			break;
 		}
 	}
 
-	void TakeShotgun(PlayerPawn p)
+	// Spawns a pickup ahead, waits for it to land, presses Use, and returns true 70 tics later. With mods, the pickup
+	// carries pistol mods as its own inventory, as DRLA's GetWeaponMods gives a dropped modded gun.
+	bool Take(PlayerPawn p, String cls, int mods)
 	{
 		switch (step)
 		{
 		case 0:
 			GoHome(p);
-			item = Actor.Spawn("RLShotgunPickup", (home.xy + ahead * 48, home.z), NO_REPLACE);
+			item = Actor.Spawn(cls, (home.xy + ahead * 48, home.z), NO_REPLACE);
+			if (item && mods) { item.SetInventory("RLPistolPowerMod", 2); item.SetInventory("RLPistolModLimit", 2); }
+			Console.Printf("HKSPAWN %s", cls);
 			timer = 0;
 			step = 1;
 			break;
-		case 1: // DRLA weapons only become pickups after landing.
-			if (!item) { Report(false, "shotgun vanished at spawn"); Finish(); break; }
+		case 1: // DRLA items only become pickups after landing.
+			if (!item) { Report(false, cls .. " vanished at spawn"); Finish(); break; }
 			if (item.bSPECIAL && timer > 8) { GoHome(p); timer = 0; step = 2; }
-			else if (timer > 70) { Report(false, "shotgun never became a pickup"); Finish(); }
+			else if (timer > 70) { Report(false, cls .. " never became a pickup"); Finish(); }
 			break;
 		case 2:
 			if (timer == 3) PressUse(p);
-			if (timer < 40) break;
-			Console.Printf("HKSTATE took shotgun: %s", Held(p));
-			Report(!item || !item.bSPECIAL, "Use took the shotgun off the floor");
-			Report(!Has(p, "RLShotgun") && Has(p, startGun), "the shotgun went to Daggerfall only; Doom still holds just the start gun");
-			Next();
+			if (timer >= 70) return true;
 			break;
 		}
+		return false;
 	}
 }

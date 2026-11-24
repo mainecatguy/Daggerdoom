@@ -53,6 +53,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         readonly List<DoomerfallDoomItem> adopted = new List<DoomerfallDoomItem>();
         bool adoptWanted = true;
         float nextCheck;
+        DoomerfallDoomItem pendingDraw; // A taken gun put on its free slot key, drawn once no swap is in flight.
+        int pendingDrawKey;
 
         // Inventory window hover.
         DaggerfallInventoryWindow hoverWindow;
@@ -92,6 +94,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             stashLines.Clear();
             adopted.Clear();
             adoptWanted = true;
+            pendingDraw = null;
         }
 
         void OnNewGame() { ResetState(); Log("new game: table cleared, the starting gun will be adopted"); }
@@ -165,7 +168,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         internal static string Refusal(DaggerfallUnityItem item)
         {
-            if (item is DoomerfallDoomItem || item.IsPotion || item.ItemGroup == ItemGroups.Armor) return null;
+            DoomerfallDoomItem doom = item as DoomerfallDoomItem;
+            if (doom != null && doom.IsWearable) return DoomerfallDoomItem.WearMessage;
+            if (doom != null || item.IsPotion || item.ItemGroup == ItemGroups.Armor) return null;
             if (item.ItemGroup == ItemGroups.MensClothing || item.ItemGroup == ItemGroups.WomensClothing) return "Clothing cannot be hotkeyed.";
             return "That cannot be hotkeyed.";
         }
@@ -250,9 +255,46 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         // From DaggerfallInventoryWindow.EquipItem. True when Daggerfall must not equip this item.
         internal static bool BlockEquip(DaggerfallUnityItem item)
         {
-            if (!(item is DoomerfallDoomItem)) return false;
-            DaggerfallUI.MessageBox(EquipMessage);
+            DoomerfallDoomItem doom = item as DoomerfallDoomItem;
+            if (doom == null) return false;
+            DaggerfallUI.MessageBox(doom.IsWearable ? DoomerfallDoomItem.WearMessage : EquipMessage);
             return true;
+        }
+
+        // ---- Taking a gun ----
+
+        // A gun the player just took with Use. When the key of its Doom weapon slot has no hotkeys yet, the gun goes on
+        // that key and is drawn at once (the owner's interim rule, 2026-11-24).
+        internal void OnGunTaken(DoomerfallDoomItem gun, int slot)
+        {
+            if (slot < 0 || slot >= Keys)
+            {
+                Log(string.Format("took \"{0}\", which has no Doom weapon slot; left in the inventory", gun.DoomClass));
+                return;
+            }
+            for (int q = 0; q < Squares; q++)
+                if (table[slot, q] != null)
+                {
+                    Log(string.Format("took \"{0}\"; key {1} already has hotkeys, so it stays in the inventory", gun.DoomClass, slot));
+                    return;
+                }
+            Assign(slot, 0, gun);
+            pendingDraw = gun;
+            pendingDrawKey = slot;
+            TryPendingDraw();
+        }
+
+        // Waits for the starting gun to be adopted and for any swap in flight, so neither loses a gun.
+        void TryPendingDraw()
+        {
+            if (pendingDraw == null || request != 0 || adoptWanted || !Playing())
+                return;
+            DoomerfallDoomItem gun = pendingDraw;
+            pendingDraw = null;
+            if (!GameManager.Instance.PlayerEntity.Items.Contains(gun.UID) || table[pendingDrawKey, 0] == null || table[pendingDrawKey, 0].uid != gun.UID)
+                return;
+            Log(string.Format("key {0} was free: drawing the new \"{1}\"", pendingDrawKey, gun.DoomClass));
+            DrawGun(gun, pendingDrawKey, 0);
         }
 
         // ---- Presses ----
@@ -378,7 +420,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             string state = string.Join(";", stashLines.ToArray());
             stashLines.Clear();
             DoomerfallDoomItem active = activeItem as DoomerfallDoomItem;
-            if (active != null && !activeStored && active.DoomClass == cls)
+            // Doom names a put-away gun by its plain pickup, so a gun taken from DRLA's RL<Weapon>PickupModded comes back as RL<Weapon>Pickup.
+            if (active != null && !activeStored && (active.DoomClass == cls || active.DoomClass == cls + "Modded"))
             {
                 active.GunState = state;
                 activeStored = true;
@@ -475,6 +518,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 Send(Dfb.KIND_GUN_EQUIP, request, Dfb.GUN_ADOPT, "");
                 Log("asking Doom for the guns it holds (request " + request + ")");
             }
+            else
+                TryPendingDraw();
         }
 
         static void RefreshInventory()

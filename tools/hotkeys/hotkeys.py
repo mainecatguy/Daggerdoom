@@ -1,8 +1,9 @@
 """Tests weapon hotkeys with both real games, minimized. Based on tools/doomitems/doomitems.py.
 
 usage: hotkeys.py assemble | swap | load | check
-swap: Daggerfall adopts Doom's starting pistol onto key 2; Use takes a DRLA shotgun into Daggerfall's inventory only;
-      hotkeys swap between them and the magazines survive; then a synchronized autosave.
+swap: Daggerfall adopts Doom's starting gun onto key 2; Use takes a DRLA shotgun, which goes on the free key 3 (its
+      Doom slot) and is drawn at once; a modded pistol (key 2 taken) stays in the inventory and keeps its mods; stock
+      and DRLA armor are stored as armor; hotkeys swap and magazines and mods survive; then a synchronized autosave.
 load: loads that autosave in fresh copies of both games, checks the active gun and its magazine, and draws the
       other gun, whose magazine was kept only in Daggerfall's save.
 check: DOOM.WAD E1M1 with no bridge, stock and with the DRLA set.
@@ -25,7 +26,7 @@ argv, sys.argv = sys.argv, sys.argv[:1]
 import install  # noqa: E402  (only for its registry isolation)
 sys.argv = argv
 
-REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\weapon-hotkeys")
+REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\gun-pickup-rules")
 SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\doom-items")  # Data, sprite package, launcher, and demo items.
 BUILD = Path(r"D:\dev\DoomDaggerfall-build")
 UZ_BUILD = BUILD / "uzdoom-doomitems" / "Release"  # Built from this worktree.
@@ -98,9 +99,9 @@ def write_demo():
     dagger = GAME / "DAGGER"
     (REVIEW / "play.bat").write_text(
         "@echo off\r\n"
-        "rem Weapon hotkeys. Starts at the Privateer's Hold door with DRLA; your starting pistol is on key 2.\r\n"
-        "rem Press Use to enter. Take the pistol and vest just inside with Use: guns go only to Daggerfall's inventory (I).\r\n"
-        "rem In the inventory, hover over a gun and press 3: click a square to put it on key 3. Close, press 3 and 2 to swap.\r\n"
+        "rem Gun pickup rules. Starts at the Privateer's Hold door with DRLA; your starting gun is on key 2.\r\n"
+        "rem Press Use to enter. Take the pistol and vest just inside with Use. Key 2 has a hotkey, so the pistol waits in the inventory (I).\r\n"
+        "rem Guns and armor are in the Weapons & Armor tab. A gun whose number key has no hotkeys goes on that key and is drawn at once.\r\n"
         "set \"HERE=%~dp0\"\r\n"
         "if not exist \"%HERE%play\" mkdir \"%HERE%play\"\r\n"
         "set BINDS=\r\n"
@@ -134,7 +135,7 @@ def run(name):
     if name == "load":
         uz += ["-dfloadtest", f"resume:{autosaves[-1]}"]
     df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), "-dfhotkeystest", "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
-    timeout = 90
+    timeout = 120
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
                "--uzdoom-cwd", str(runs), "--log", str(launcher)]
@@ -169,6 +170,15 @@ def run(name):
     for line in read(df_log).splitlines():
         if "hotkeys:" in line or "doomitems: take" in line or re.search(r"\bsave\b|load", line):
             print("df", line[:300])
+    if name == "swap":
+        body = read(df_log)
+        for what, pattern in (("stock armor is stored as armor (Weapons & Armor tab)", r'take \d+ "GreenArmor".*stored as "GreenArmor\|armor\|"'),
+                              ("DRLA armor is stored as armor that cannot be worn yet", r'take \d+ "RLGenericArmorPickup".*stored as "RLGenericArmorPickup\|wear\|"'),
+                              ("the modded pistol is stored with its mods", r'take \d+ "RLPistolPickupModded".*stored as "RLPistolPickupModded\|gun\|(?=[^"]*RLPistolPowerMod=2)(?=[^"]*RLPistolModLimit=2)'),
+                              ("putting the modded pistol away stores its mods on its Daggerfall item", r'put away "[^"]*" with state "[^"]*RLPistolPowerMod=2'),
+                              ("the shotgun went on its free slot key 3 and was drawn", r'key 3 was free: drawing the new "RLShotgunPickup"'),
+                              ("the modded pistol stayed in the inventory because key 2 had hotkeys", r'took "RLPistolPickupModded"; key 2 already has hotkeys')):
+            print("DFCASE", "pass" if re.search(pattern, body) else "FAIL", what)
     kinds = sorted({l[:150] for l in read(REVIEW / "dfu" / "PortableAppdata" / "Player.log").splitlines() if "Exception" in l})
     print("Player.log exception kinds:", len(kinds))
     for line in kinds[:5]:

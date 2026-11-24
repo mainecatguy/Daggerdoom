@@ -915,6 +915,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
         protected void AddLocalItem(DaggerfallUnityItem item)
         {
             bool isWeaponOrArmor = (item.ItemGroup == ItemGroups.Weapons || item.ItemGroup == ItemGroups.Armor);
+            isWeaponOrArmor |= DaggerfallWorkshop.Game.Doomerfall.DoomerfallDoomItem.InWeaponsAndArmorTab(item); // Doomerfall: Doom guns and armor
 
             // Add based on view
             if (selectedTabPage == TabPages.WeaponsAndArmor)

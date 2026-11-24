@@ -243,6 +243,49 @@ bool IsGun(const PClass *cls)
 	return false;
 }
 
+bool DescendsFrom(const PClass *cls, const FName &name)
+{
+	for (; cls; cls = cls->ParentClass)
+		if (cls->TypeName == name) return true;
+	return false;
+}
+
+// The weapon a gun pickup gives: the pickup itself (stock Doom), or DRLA's RL<Weapon>Pickup[Modded]. Same rule as DoomerfallGuns.zs.
+PClassActor *WeaponOf(const PClass *pickup)
+{
+	if (pickup->IsDescendantOf(NAME_Weapon)) return (PClassActor *)pickup;
+	FString name = pickup->TypeName.GetChars();
+	for (const char *suffix : { "PickupModded", "Pickup" })
+	{
+		const size_t n = strlen(suffix);
+		if (name.Len() > n && !strcmp(name.GetChars() + name.Len() - n, suffix))
+		{
+			name.Truncate(name.Len() - n);
+			PClassActor *w = PClass::FindActor(name.GetChars());
+			return w && w->IsDescendantOf(NAME_Weapon) ? w : nullptr;
+		}
+	}
+	return nullptr;
+}
+
+// What Daggerfall needs to know about a Doom item taken with Use (DFB_DOOM_ITEM_*).
+uint32_t TakeFlags(player_t *player, const PClass *cls)
+{
+	if (IsGun(cls))
+	{
+		uint32_t flags = DFB_DOOM_ITEM_GUN;
+		int slot, index;
+		if (PClassActor *w = WeaponOf(cls))
+			if (player && player->weapons.LocateWeapon(w, &slot, &index) && slot >= 0 && slot <= 9)
+				flags |= uint32_t(slot + 1) << DFB_DOOM_ITEM_SLOT_SHIFT;
+		return flags;
+	}
+	static const FName armor("Armor"), drlaBonus("RLArmorBonusPickup"), drlaArmor("RLGenericArmorPickup"), drlaBoots("RLGenericBootsPickup");
+	if (DescendsFrom(cls, drlaArmor) || DescendsFrom(cls, drlaBoots)) return DFB_DOOM_ITEM_ARMOR | DFB_DOOM_ITEM_WEARABLE;
+	if (DescendsFrom(cls, armor) || DescendsFrom(cls, drlaBonus)) return DFB_DOOM_ITEM_ARMOR;
+	return 0;
+}
+
 void SendDoomItem(uint16_t kind, uint32_t request, uint32_t status, const char *cls)
 {
 	if (!itemSession) return;
@@ -424,7 +467,7 @@ void UseFromDaggerfall(uint32_t request, const char *name)
 }
 
 // A Use press on a Doom item. Daggerfall decides, and the press is spent either way.
-void AskDaggerfall(AActor *item)
+void AskDaggerfall(player_t *player, AActor *item)
 {
 	const FName cls = item->GetClass()->TypeName;
 	for (auto it = pendingTakes.begin(); it != pendingTakes.end();)
@@ -437,7 +480,24 @@ void AskDaggerfall(AActor *item)
 	if (seen.isValid()) seenArt[cls] = seen;
 	const uint32_t request = nextDoomRequest++;
 	pendingTakes.push_back({ request, cls, item->Pos(), gametic });
-	SendDoomItem(DFB_KIND_DOOM_ITEM_TAKE, request, IsGun(item->GetClass()) ? DFB_DOOM_ITEM_GUN : 0, cls.GetChars());
+	const uint32_t flags = TakeFlags(player, item->GetClass());
+	// A DRLA modded pickup carries its gun's mods as its own inventory (<Weapon>PowerMod, <Weapon>ModLimit, ...), which
+	// DRLA would transfer on touch. They go to Daggerfall as the gun's state, the same lines a hotkey swap stores.
+	if (flags & DFB_DOOM_ITEM_GUN)
+		if (PClassActor *w = WeaponOf(item->GetClass()))
+		{
+			const FString prefix = w->TypeName.GetChars();
+			for (AActor *inv = item->Inventory; inv; inv = inv->Inventory)
+			{
+				const FString name = inv->GetClass()->TypeName.GetChars();
+				const int amount = inv->IntVar(NAME_Amount);
+				if (amount <= 0 || name.Len() <= prefix.Len() || strncmp(name.GetChars(), prefix.GetChars(), prefix.Len())) continue;
+				if (name.IndexOf("TypeWeapon") >= 0 || name.IndexOf("Selected") >= 0 || name.Len() >= sizeof(dfb_doom_item::cls)) continue;
+				SendDoomItem(DFB_KIND_DOOM_ITEM_GUN_STATE, request, uint32_t(amount), name.GetChars());
+				Printf(PRINT_LOG, "doomitems: %s carries %s %d\n", cls.GetChars(), name.GetChars(), amount);
+			}
+		}
+	SendDoomItem(DFB_KIND_DOOM_ITEM_TAKE, request, flags, cls.GetChars());
 }
 
 void SendHotkey(int slot, uint32_t mod)
@@ -618,7 +678,7 @@ bool DD_UsePress(player_t *player)
 	// Daggerfall holds every Doom item taken with Use. A class name too long for the bridge keeps Doom's own pickup.
 	if (strlen(best->GetClass()->TypeName.GetChars()) < sizeof(dfb_doom_item::cls))
 	{
-		AskDaggerfall(best);
+		AskDaggerfall(player, best);
 		lastResult = true;
 		return true;
 	}
