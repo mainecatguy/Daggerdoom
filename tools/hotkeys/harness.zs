@@ -11,6 +11,12 @@ class HKHarness : EventHandler
 	const SAVED = 7; // The phase the autosave is made in. A load run that reaches it has loaded.
 
 	int phase, timer, step, passed, failed;
+	String startGun; // DRLA X picks the starting gun, so the test reads it.
+	int startRounds;
+
+	bool Has(PlayerPawn p, String cls) { class<Inventory> c = cls; return c && p.FindInventory(c) != null; }
+	int Rounds(PlayerPawn p, String gun) { class<Inventory> c = gun .. "Clip"; return c ? p.CountInv(c) : -1; }
+	void SetRounds(PlayerPawn p, String gun, int n) { class<Inventory> c = gun .. "Clip"; if (c) p.SetInventory(c, n); }
 	bool done;
 	Actor item;
 	vector3 home;
@@ -34,10 +40,12 @@ class HKHarness : EventHandler
 	String Held(PlayerPawn p)
 	{
 		String s = "";
+		String ready = "none";
+		if (p.player.ReadyWeapon) ready = p.player.ReadyWeapon.GetClassName();
 		for (Inventory i = p.Inv; i; i = i.Inv)
 			if (i is "Weapon") s = s .. i.GetClassName() .. " ";
-		return String.Format("weapons [%s] ready %s, RLPistolClip %d, RLShotgunClip %d, RLWeaponLimit %d", s,
-			p.player.ReadyWeapon ? String(p.player.ReadyWeapon.GetClassName()) : "none", p.CountInv("RLPistolClip"), p.CountInv("RLShotgunClip"), p.CountInv("RLWeaponLimit"));
+		return String.Format("weapons [%s] ready %s, %sClip %d, RLShotgunClip %d, RLWeaponLimit %d", s,
+			ready, startGun, Rounds(p, startGun), p.CountInv("RLShotgunClip"), p.CountInv("RLWeaponLimit"));
 	}
 
 	void PressUse(PlayerPawn p)
@@ -132,31 +140,38 @@ class HKHarness : EventHandler
 			break;
 		case 2: // Daggerfall has adopted the starting pistol and left it in Doom as the active gun.
 			if (timer < 105) break;
+			if (p.player.ReadyWeapon) startGun = p.player.ReadyWeapon.GetClassName();
 			Console.Printf("HKSTATE start: %s", Held(p));
-			Report(p.FindInventory("RLPistol") != null && p.CountInv("RLWeaponLimit") == 1, "Doom keeps the starting RLPistol as the only gun");
-			p.SetInventory("RLPistolClip", 3);
+			Report(startGun != "" && startGun != "RLShotgun" && p.CountInv("RLWeaponLimit") == 1, "Doom keeps its starting gun " .. startGun .. " as the only gun");
+			{
+				// One round short of full when the magazine holds more than one, else empty. Either way a reload would show.
+				class<Inventory> c = startGun .. "Clip";
+				int most = c ? GetDefaultByType(c).MaxAmount : 0;
+				startRounds = most > 1 ? most - 1 : 0;
+				SetRounds(p, startGun, startRounds);
+			}
 			Next();
 			break;
 		case 3: TakeShotgun(p); break;
-		case 4: // Key 3 (the test put the shotgun there) draws it and puts the pistol away with its magazine.
+		case 4: // Key 3 (the test put the shotgun there) draws it and puts the start gun away with its magazine.
 			if (!Hotkey(3)) break;
 			Console.Printf("HKSTATE key 3: %s", Held(p));
-			Report(p.FindInventory("RLShotgun") != null && !p.FindInventory("RLPistol"), "key 3 swaps the pistol for the shotgun");
-			Report(p.CountInv("RLPistolClip") == 0 && p.CountInv("RLWeaponLimit") == 1, "the pistol's magazine left with it and RLWeaponLimit is 1");
-			p.SetInventory("RLShotgunClip", 2);
+			Report(Has(p, "RLShotgun") && !Has(p, startGun), "key 3 swaps the start gun for the shotgun");
+			Report(Rounds(p, startGun) == 0 && p.CountInv("RLWeaponLimit") == 1, "the start gun's magazine left with it and RLWeaponLimit is 1");
+			SetRounds(p, "RLShotgun", 0); // Empty: it must still be empty when it comes back.
 			Next();
 			break;
-		case 5: // Key 2 brings the pistol back, not reloaded.
+		case 5: // Key 2 brings the start gun back, not reloaded.
 			if (!Hotkey(2)) break;
 			Console.Printf("HKSTATE key 2: %s", Held(p));
-			Report(p.FindInventory("RLPistol") != null && !p.FindInventory("RLShotgun"), "key 2 swaps back to the pistol");
-			Report(p.CountInv("RLPistolClip") == 3, "the pistol's magazine is still 3");
+			Report(Has(p, startGun) && !Has(p, "RLShotgun"), "key 2 swaps back to the start gun");
+			Report(Rounds(p, startGun) == startRounds, String.Format("the start gun's magazine is still %d", startRounds));
 			Next();
 			break;
 		case 6:
 			if (!Hotkey(3)) break;
 			Console.Printf("HKSTATE key 3 again: %s", Held(p));
-			Report(p.FindInventory("RLShotgun") != null && p.CountInv("RLShotgunClip") == 2, "the shotgun comes back with its magazine of 2");
+			Report(Has(p, "RLShotgun") && p.CountInv("RLShotgunClip") == 0, "the shotgun comes back still empty");
 			Console.Printf("HKSAVE autosave");
 			LevelLocals.MakeAutoSave();
 			Next();
@@ -168,7 +183,7 @@ class HKHarness : EventHandler
 			if (timer == 70)
 			{
 				Console.Printf("HKSTATE after load: %s", Held(p));
-				Report(p.FindInventory("RLShotgun") != null && !p.FindInventory("RLPistol") && p.CountInv("RLShotgunClip") == 2, "after the load Doom holds the shotgun with 2 rounds");
+				Report(Has(p, "RLShotgun") && !Has(p, startGun) && p.CountInv("RLShotgunClip") == 0, "after the load Doom holds only the shotgun, still empty");
 				timer = 100;
 				phase = 11;
 			}
@@ -177,7 +192,7 @@ class HKHarness : EventHandler
 			if (timer == 101) { Console.Printf("HKPRESS key 2"); EventHandler.SendNetworkEvent("dd_hotkey:2:0"); }
 			if (timer < 170) break;
 			Console.Printf("HKSTATE after load, key 2: %s", Held(p));
-			Report(p.FindInventory("RLPistol") != null && p.CountInv("RLPistolClip") == 3, "key 2 still draws the pistol, with its saved magazine of 3");
+			Report(Has(p, startGun) && !Has(p, "RLShotgun") && Rounds(p, startGun) == startRounds, String.Format("key 2 still draws %s, with its magazine of %d from Daggerfall's save", startGun, startRounds));
 			Finish();
 			break;
 		}
@@ -203,7 +218,7 @@ class HKHarness : EventHandler
 			if (timer < 40) break;
 			Console.Printf("HKSTATE took shotgun: %s", Held(p));
 			Report(!item || !item.bSPECIAL, "Use took the shotgun off the floor");
-			Report(!p.FindInventory("RLShotgun") && p.FindInventory("RLPistol") != null, "the shotgun went to Daggerfall only; Doom still holds just the pistol");
+			Report(!Has(p, "RLShotgun") && Has(p, startGun), "the shotgun went to Daggerfall only; Doom still holds just the start gun");
 			Next();
 			break;
 		}

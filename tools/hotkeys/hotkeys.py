@@ -30,7 +30,8 @@ SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\doom-items")  # Data, sprite p
 BUILD = Path(r"D:\dev\DoomDaggerfall-build")
 UZ_BUILD = BUILD / "uzdoom-doomitems" / "Release"  # Built from this worktree.
 SOUND = BUILD / "uzdoom-launcher" / "Release"
-BRIDGE_DLL = BUILD / "bridge-doomitems" / "Release" / "doomerfall_bridge.dll"  # The bridge's structs did not change.
+BRIDGE_DLL = BUILD / "bridge-doomitems" / "Release" / "doomerfall_bridge.dll"  # Rebuilt from this worktree: the layout check covers the header.
+LAUNCHER = BUILD / "launcher-doomitems" / "Release" / "doomerfall-launcher.exe"
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
 MODS = GAME.parent / "GameMods"
@@ -83,7 +84,8 @@ def assemble():
     if (REVIEW / "data").exists():
         shutil.rmtree(REVIEW / "data")
     shutil.copytree(SOURCE / "data", REVIEW / "data", ignore=shutil.ignore_patterns("work"))
-    for name in ("doomerfall-launcher.exe", "dfitems.pk3", "demo_items.pk3"):
+    shutil.copy2(LAUNCHER, REVIEW / "doomerfall-launcher.exe")
+    for name in ("dfitems.pk3", "demo_items.pk3"):
         shutil.copy2(SOURCE / name, REVIEW / name)
     subprocess.check_call([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), str(REVIEW / "doomerfall.pk3")])
     write_demo()
