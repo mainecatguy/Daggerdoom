@@ -24,6 +24,7 @@ SOURCE_SPRITES = Path(r"D:\dev\DoomDaggerfall-loop\review\item-pickup\dfitems.pk
 QUEST = "N0C00Y12"  # A shipped kill quest: one Imp at a marker in a remote dungeon, and no local town requirement.
 WAD = "privateershold.wad"
 FATAL = ("DIED WITH FATAL", "VM execution aborted", "Script error", "Execution could not continue", "Unable to open map")
+EXTRA_DF = []  # Extra Daggerfall arguments for a run, set by tools that reuse this one.
 
 
 def read_wad(path):
@@ -109,7 +110,7 @@ def run(name, load, drla=False, presave=False):
     uz = ["-noactivate", "-config", str(runs / f"{name}.ini"), "-savedir", str(saves), "-dfbridgelog", str(uz_log), "-nosound", "-noautoload", "-skill", "3", "-ddmontest",
           "-ddtowncache", str(data / "cache"), "-ddconverter", str(data / "converter" / "DungeonConverter.exe"), "-ddarena2", base.DAGGER + r"\ARENA2",
           "+logfile", name, "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{pickup.GROUP:05d}"]
-    df = ["-dfbridgelog", str(df_log), "-dfsynctest", base.DAGGER, "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
+    df = ["-dfbridgelog", str(df_log), "-dfsynctest", base.DAGGER, "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"] + EXTRA_DF
     if load:
         newest = max(saves.glob("*.zds"), key=lambda p: p.stat().st_mtime, default=None)
         if newest is None:

@@ -1127,6 +1127,13 @@ namespace DaggerfallWorkshop.Game.Entity
             ResetEntityState();
         }
 
+        // Doomerfall: a temporary entity used to roll a drop must not stay subscribed for the rest of the session.
+        internal void DetachFromGameEvents()
+        {
+            SaveLoadManager.OnStartLoad -= SaveLoadManager_OnStartLoad;
+            StartGameBehaviour.OnNewGame -= StartGameBehaviour_OnNewGame;
+        }
+
         #endregion
     }
 }

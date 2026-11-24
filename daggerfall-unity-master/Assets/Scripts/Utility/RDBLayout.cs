@@ -1438,7 +1438,12 @@ namespace DaggerfallWorkshop.Utility
         // Recreation of how classic chooses an enemy type from the random encounter tables
         private static MobileTypes ChooseRandomEnemyType(RandomEncounterTable table)
         {
-            int playerLevel = GameManager.Instance.PlayerEntity.Level;
+            return ChooseRandomEnemyType(table, GameManager.Instance.PlayerEntity.Level);
+        }
+
+        // Doomerfall passes its area level here.
+        internal static MobileTypes ChooseRandomEnemyType(RandomEncounterTable table, int playerLevel)
+        {
             int minTableIndex = 0;
             int maxTableIndex = table.Enemies.Length;
 
