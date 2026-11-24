@@ -6,7 +6,7 @@ class TPHarness : StaticEventHandler
 {
 	static const double DOORDATA[] = { @DOOR@ };
 	const LIMIT = 35 * 40;
-	int phase, timer;
+	int phase, timer, backAt;
 	double startX, startY, startAngle;
 
 	static int Rows(String tag)
@@ -110,8 +110,16 @@ class TPHarness : StaticEventHandler
 			if (timer == 1) { Console.Printf("TPLEAVE from %s", level.MapName); p.SetOrigin(p.pos + (30000, 0, 0), false); }
 			if (timer < 280) break;
 			Rows("away");
-			Console.Printf("TPDONE ok");
-			phase = 9;
+			if (mode.IndexOf("back") < 0) { Console.Printf("TPDONE ok"); phase = 9; break; }
+			phase = 8;
+			timer = 0;
+			break;
+		case 8:	// Walk back toward town over the overworld until Doom stitches into the town map at its edge.
+			// Arrival is in the band outside the town's edge, so keep walking in before listing.
+			if (level.MapName.Left(3) ~== "DDT" && backAt == 0) { backAt = timer; Console.Printf("TPBACK map %s after %d tics", level.MapName, timer); }
+			if (backAt > 0 && timer >= backAt + 200) { Console.Printf("TPBACKIN at %.1f %.1f", p.pos.x, p.pos.y); phase = 6; timer = 0; break; }
+			p.vel = (0, 0, 0);
+			p.SetOrigin((p.pos.x - 48, p.pos.y, p.floorz), false);
 			break;
 		}
 	}

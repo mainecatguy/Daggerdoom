@@ -33,7 +33,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             public List<string> dead = new List<string>();
         }
 
-        struct Candidate
+        internal struct Candidate
         {
             public TownPerson person;
             public TownPose pose;
@@ -47,19 +47,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         readonly List<Candidate> candidates = new List<Candidate>();
         TownRoster roster;
         uint generation;
-        bool listedEmpty = true, report;
-        float nextPoll, nextReport;
-        double testHour = -1;
+        bool listedEmpty = true;
+        float nextPoll;
+        DoomerfallTownspeopleTest test;
 
         internal void Init(DoomerfallBridge owner, DoomerfallPositionSync positionSync)
         {
             bridge = owner;
             sync = positionSync;
-            string[] args = Environment.GetCommandLineArgs();
-            report = Array.IndexOf(args, "-dftownreport") >= 0;
-            int at = Array.IndexOf(args, "-dftownhour"); // Test only: sets the clock once, so separate launches share a time.
-            if (at >= 0 && at + 1 < args.Length)
-                double.TryParse(args[at + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out testHour);
+            test = DoomerfallTownspeopleTest.FromCommandLine(); // Null unless a test flag is given.
             DaggerfallWorkshop.Game.Utility.StartGameBehaviour.OnStartGame += OnStartGame;
         }
 
@@ -106,13 +102,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             nextPoll = Time.unscaledTime + PollSeconds;
             if (sync.LoadRunning || !GameManager.HasInstance || !sync.InGame)
                 return;
-            if (testHour >= 0)
-            {
-                DaggerfallDateTime now = DaggerfallUnity.Instance.WorldTime.Now;
-                now.FromSeconds((now.ToSeconds() / 86400UL) * 86400UL + (ulong)(testHour * 3600));
-                bridge.LogLine(string.Format("town: test clock set to {0}", now.LongDateTimeString()));
-                testHour = -1;
-            }
+            if (test != null) test.BeforePoll(bridge);
             DfbUzState peer;
             bridge.ReadPeerState(out peer);
             PlayerGPS gps = GameManager.Instance.PlayerGPS;
@@ -127,8 +117,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 Stopwatch clock = Stopwatch.StartNew();
                 roster = new TownRoster(location, PopulationRace(gps));
                 bridge.LogLine(string.Format("town: {0} map {1} has {2} people and {3} places, built in {4} ms", location.Name, roster.MapId, roster.People.Length, roster.Sites.Count, clock.ElapsedMilliseconds));
-                if (report)
-                    Census();
             }
             double px = peer.worldX - roster.OriginX, pz = peer.worldZ - roster.OriginZ;
             double width = roster.GridW * TownRoster.Cell, height = roster.GridH * TownRoster.Cell;
@@ -140,11 +128,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             double hours = DaggerfallUnity.Instance.WorldTime.Now.ToSeconds() / 3600.0;
             Collect(hours, px, pz);
             Publish();
-            if (report && Time.unscaledTime >= nextReport)
-            {
-                nextReport = Time.unscaledTime + 2;
-                Report(hours, px, pz);
-            }
+            if (test != null) test.AfterPublish(bridge, roster, candidates, hours, px, pz, dead.Count);
         }
 
         void Collect(double hours, double px, double pz)
@@ -273,66 +257,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 dead.Add(Convert.ToUInt64(key, 16));
             nextPoll = 0;
             bridge.LogLine("town: ledger restored with " + dead.Count + " deaths");
-        }
-
-        // ---- Test reports, with -dftownreport ----
-
-        // Who lives here and where they spend their days. Independent of the live clock, so launches can be compared.
-        void Census()
-        {
-            StringBuilder all = new StringBuilder();
-            foreach (TownPerson p in roster.People)
-                all.AppendFormat("{0:x16}{1}{2}{3}{4:F3}{5:F3};", p.id, p.archive, p.home, p.habit, p.wake, p.sleep);
-            bridge.LogLine(string.Format("town: census {0} people, digest {1:x16}", roster.People.Length, TownRoster.Hash(Fnv(all.ToString()), 1)));
-            int day = (int)(DaggerfallUnity.Instance.WorldTime.Now.ToSeconds() / 86400UL);
-            int shown = 0, near = 0, samples = 0;
-            for (int i = 0; i < roster.People.Length && i < 40; i++)
-            {
-                TownPerson p = roster.People[i];
-                List<int> places = new List<int> { p.home };
-                places.AddRange(p.haunts);
-                int seen = 0, close = 0;
-                // Seven days at four daytime hours: how often the person is at one of their own places.
-                for (int d = 0; d < 7; d++)
-                    foreach (double h in new[] { 9.0, 12.0, 15.0, 18.0 })
-                    {
-                        TownRoster.Step step;
-                        if (!roster.FindStep(p, (day + d) * 24 + h, out step))
-                            continue;
-                        seen++;
-                        if (step.kind != 2)
-                            close++;
-                    }
-                near += close;
-                samples += seen;
-                if (shown++ < 12)
-                    bridge.LogLine(string.Format("town: person {0} {1:x16} {2} archive {3} {4}, home {5} ({6}), haunts {7}, awake {8:F1}-{9:F1}, at own places {10}/{11}",
-                        p.index, p.id, p.Name, p.archive, p.habit, roster.Sites[p.home].key, roster.Sites[p.home].type,
-                        string.Join(",", Array.ConvertAll(p.haunts, s => roster.Sites[s].type.ToString())), p.wake, p.sleep, close, seen));
-            }
-            bridge.LogLine(string.Format("town: first 40 people were at one of their own places in {0} of {1} daytime samples", near, samples));
-        }
-
-        void Report(double hours, double px, double pz)
-        {
-            StringBuilder text = new StringBuilder();
-            ulong digest = 17;
-            foreach (Candidate c in candidates)
-                digest = TownRoster.Hash(digest, c.person.id ^ (ulong)(long)Math.Round(c.pose.x) * 31 ^ (ulong)(long)Math.Round(c.pose.z));
-            bridge.LogLine(string.Format("town: report hour {0:F3} player {1:F0},{2:F0} visible {3} digest {4:x16} dead {5}", hours % 24, px, pz, candidates.Count, digest, dead.Count));
-            for (int i = 0; i < candidates.Count && i < 6; i++)
-                bridge.LogLine(string.Format("townrow {0:x16} {1:F1} {2:F1} {3:F2} {4:F2} {5}", candidates[i].person.id, candidates[i].pose.x, candidates[i].pose.z, candidates[i].pose.vx, candidates[i].pose.vz, candidates[i].person.habit));
-        }
-
-        static ulong Fnv(string s)
-        {
-            ulong h = 14695981039346656037UL;
-            foreach (char c in s)
-            {
-                h ^= c;
-                h *= 1099511628211UL;
-            }
-            return h;
         }
     }
 }
