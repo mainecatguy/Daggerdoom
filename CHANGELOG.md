@@ -7,10 +7,87 @@ What is done on the project, newest first. Agents do not need to read this unles
 - **Playable demo:** Privateer's Hold with Daggerfall visuals, Doom movement and combat, 42 Doom monsters, swinging doors, and angled collision. Run `D:\dev\DoomDaggerfall-loop\review\angled-demo\play.bat`.
 - **Other demos:** City of Daggerfall at `D:\dev\DoomDaggerfall-loop\review\city-texture-fix\play.bat`, overworld at `D:\dev\DoomDaggerfall-loop\review\overworld-demo\play.bat`, and DRLAX on E1M1 at `D:\dev\DoomDaggerfall\play_drlax.bat`.
 - **Launcher:** starts Daggerfall Unity and UZDoom as one package. Run `D:\dev\DoomDaggerfall-loop\review\launcher\play.bat`.
-- **Branches:** `integration` is at `c73f16c`, with the wilderness height fix, the Daggerfall map command, door route fixes, both overnight lanes, the bridge and door fixes, dungeon flats, Daggerfall items, synchronized saving and loading, the death screen, fast travel arrival, connected door transitions, and the inventory menu.
+- **Current game:** run `D:\dev\DoomDaggerfall-loop\play\play.bat`, then choose New Game. Rebuild that folder with `python scripts/play/install.py`.
+- **Branches:** `integration` is at `8de998f`, with the reported location recheck, Use-button pickup, character sheet publishing, stationary NPCs, the DRLA launcher, monster deaths, the first town door fix, New Game, the transition speedup, Daggerfall item pickup, the dungeon re-entry fix, generated bridge definitions, main quest trapdoors, 10 Hz position sync, the wilderness height fix, the Daggerfall map command, door route fixes, both overnight lanes, the bridge and door fixes, dungeon flats, Daggerfall items, synchronized saving and loading, the death screen, fast travel arrival, connected door transitions, and the inventory menu.
 - **Roughest spots:** some walls still bend where they stayed tied to the grid, and false walls and openings remain.
 
 ## 2026-11-23
+
+### Merged to `integration` (`8de998f`)
+
+- **Reported location recheck (`1ca908f`):** the owner's "You are in Privateers Hold" in the wilderness is not a desync. Daggerfall Unity names the location that owns the whole map pixel, about 800 m across, and Doomerfall matches it after a real New Game, town exit on foot, a pixel border crossing, and fast travel. No game code changed. Test tools are in `tools/reported_location`. Notes: `work/notes/20261123-212059-location.md`. Whether to depart from Daggerfall here is an open question.
+
+### Merged to `integration` (`7520c8f`)
+
+- **Use-button pickup (`9979eeb`):** on generated Daggerfall maps in a bridge session, only health and ammo pick up by touch. Everything else, including DRLA weapons and armor and Daggerfall loot piles, is taken with Doom's Use button, and crouching sends Steal instead of Grab. Use still opens doors when no item is in view. Regular WADs are unchanged, stock and with DRLA. Use on a real door could not be scripted and needs a hand test. Notes: `work/notes/20261123-212059-autopickup.md`.
+- **Installer:** `scripts/play/install.py` now rebuilds UZDoom from its own checkout, so the engine always matches the bridge it ships with. The play folder is refreshed to `7520c8f`.
+
+### Merged to `integration` (`a947cfb`)
+
+- **Character sheet publishing (`e3a45db`):** Daggerfall publishes level, fatigue, magicka, stats, skills, armor, resistances, and saving throw inputs to Doom through bulk slot 0, base and live values both. Doom keeps a read-only copy and drops it when the character changes. Proven with both real games through training, level-up, armor, effects, save, load, and a new character. The real New Game wizard path was reviewed, not run. Nothing in Doom uses the values yet. Bridge protocol 6.
+
+### Merged to `integration` (`634977f`)
+
+- **Stationary NPCs (`48d9c26`):** NPCs appear in Doom with their real sprites and stable IDs. They are passive, do not block movement, and take no damage. Not yet tested: the overworld walk-in spawn path, indoor visibility after a load, idle animation, and owned houses or guild access.
+- **Play install (`634977f`):** the installer now uses the NPC converter output and replaces the whole data folder, so cached towns match it.
+
+### Merged to `integration` (`d9ed76c`)
+UZDoom and Daggerfall Unity both build from this merge. New Game, save and load, and death passed through a test install without the DRLA mods. The main launcher with the mods was not launched, at the owner's request. Nobody has hand-played it.
+
+- **Monster deaths:** monsters in converted dungeons have stable IDs. A Doom kill is recorded once in Daggerfall, updates a real quest foe, and rolls a Daggerfall drop that Interact can pick up. Dead monsters stay dead through save, load, and re-entry.
+- **Main launcher mods:** `play.bat` now always loads DRLA, DRLA Monsters, and DRLAX.
+- **Merge fix:** a new character no longer inherits the last character's dead monsters. This was fixed by reading the code and not run with a second character.
+- **Known gaps:** quest foes work in dungeons only, quest popups after a kill are closed unseen, and quests cannot be turned in yet because NPC dialogue does not exist.
+
+### Merged to `integration` (`a85fa24`)
+UZDoom builds from this merge and passes its startup check. The lane's scripted door tests used both real games. Nobody has hand-played it.
+
+- **First town door use:** one press now stays pending while the interior converts, as long as the player stays within 768 units. Going farther prints "You left the door." The pressed door also converts ahead of nearby doors.
+- **Known gaps:** the first visit to an interior still waits about 4 seconds or more for conversion. A player who wanders during the wait is pulled inside when it finishes.
+
+### Merged to `integration` (`e6a658c`)
+UZDoom and Daggerfall Unity both build from this merge. Scripted runs through the current install made a character, arrived in Privateer's Hold, saved and loaded, and died, returned to the title, and loaded. Nobody has played it by hand.
+
+- **New Game:** Doom's New Game runs Daggerfall's real character creation and cinematics, then a temporary difficulty prompt and fixed Doom class, and starts in Privateer's Hold.
+- **Merge fixes:** a new character no longer inherits the last character's taken loot, which was fixed by reading the code and not run. New Game now survives Daggerfall stalling while it builds the start location.
+- **Current install:** `scripts/play/install.py` assembles one playable folder at `D:\dev\DoomDaggerfall-loop\play`.
+- **Known gaps:** quicksave is not bundled, gamepad input does not reach Daggerfall's menus, cinematic sound is unchecked, and the game uses DOOM2 without the DRLA mods.
+
+### Merged to `integration` (`a0e1d6c`)
+UZDoom builds from this merge and passes its startup check. The lane's door, save, and stock Doom checks ran before the profiler was removed and were not rerun. No independent verifier ran, and nobody has felt it in play.
+
+- **Transition speedup:** median return to the City of Daggerfall fell from 1674 to 1169 ms, Gothway Garden from 609 to 533 ms, and Privateer's Hold exit from 623 to 556 ms. The player's town can no longer be evicted from the cache while they are in it or its interiors.
+- **Stock code:** render section building and map checksums also run on stock maps, with the owner's approval. Section output was identical on 11 maps.
+- **Known gaps:** the city still freezes for about 1.2 s. The profiler was removed from the game code, so `analyze.py` and `sechash.py` in `tools/transition_speed` no longer work.
+
+### Merged to `integration` (`bedfc49`)
+UZDoom and Daggerfall Unity both build from this merge, UZDoom passes its startup check, and the generated files are current. The lane's scripted tests used both real games. Nobody has hand-played it.
+
+- **Item pickup:** Interact (a bindable Doom control) moves a Daggerfall treasure pile in a dungeon into the real Daggerfall inventory. Weight limits, gold, maps, and quest item state follow Daggerfall's transfer rules. Taken loot stays gone after re-entry, save, and load.
+- **Known gaps:** Interact takes everything that fits until the loot window task lands. Exterior items, single placed quest items, shop shelves, house containers, and corpses are not reachable from Doom yet. Tavern and guild piles and indoor dropped items use the same code but were not run.
+
+### Merged to `integration` (`180efd9`)
+UZDoom builds from this merge and passes its startup check. The lane's scripted door, save, travel, and stock Doom regressions passed before the merge. Nobody has hand-played the fix.
+
+- **Dungeon re-entry:** going town, dungeon, town, dungeon no longer draws the town's mesh over the dungeon's collision map. Ten scripted enter and exit cycles passed with and without the bridge and a live imp.
+- **Known gaps:** projectiles in flight are removed at every door trip, as they were before. "Can no longer exit" was not reproduced separately and needs a hand test. One scripted run stalled once and did not recur in 20 further runs.
+
+### Merged to `integration` (`2860fc1`)
+UZDoom and Daggerfall Unity both build from this merge, UZDoom passes its startup check, and the generated files are current. Scripted runs used both real games.
+
+- **Generated bridge definitions:** `bridge/doomerfall_bridge.h` is the single definition. Run `python bridge/generate_bindings.py` after changing it. Stale generated files fail the UZDoom, launcher, bridge, and Unity builds, and mismatched DLLs are refused at startup.
+
+### Merged to `integration` (`cfde24d`)
+This merge changes only the converter tools and notes, and they match the lane's verified version. Scripted regressions passed, and nobody has hand-played it.
+
+- **Main quest trapdoors:** all 7 in Wayrest and Lysandus' Tomb now trigger, move, and collide through their real action chains. **A player who falls through one cannot walk back out until climbing exists.**
+- **Known gap:** other dungeons' hinged trapdoors are not enabled or fixed yet.
+
+### Merged to `integration` (`a2e9d75`)
+UZDoom and Daggerfall Unity both built with this work, UZDoom passed its startup check, and an independent verifier passed it. Nobody has hand-played it.
+
+- **10 Hz position sync:** Daggerfall's hidden player follows Doom at 10 Hz in the wilderness, towns, buildings, and dungeons. Average lag fell from 344 to 35 units in the wilderness and 81 to 10 in buildings. The cost did not show in frame time, measured minimized with drawing off.
+- **Not tested:** death indoors, loading an older save, whether a save restores the exact indoor spot, and walking through a real trap. Whether this fixes the blank dungeon map has not been rechecked.
 
 ### Merged to `integration` (`c73f16c`)
 Notes only, with no code changes.

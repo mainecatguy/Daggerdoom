@@ -21,67 +21,57 @@ The owner approved this work on 2026-11-23. Each item runs from its reviewed car
 - New Game temporarily uses one difficulty prompt after Daggerfall character creation and a fixed default Doom class. See "Full Daggerfall new game flow" in the backlog.
 - Leave quick keys and quit behavior alone for now.
 - Autosaves on Daggerfall maps use the bundled save. Their frequency can be revisited if they slow the game down a lot.
+- Doom's Use button is the interaction button. It triggers Daggerfall's Grab action, or Steal while crouching, as well as Doom's normal use.
+- Dungeons have a difficulty level (area level) from 0 to 30, and loot and encounter systems must be compatible with it.
 
+### Daggerfall holds Doom items
 
-### Generate the C# bridge definitions (highest priority)
+Owner request (2026-11-23, very important): Daggerfall is aware of Doom items. A picked-up Doom item is held in Daggerfall's inventory and shows its Doom sprite. Plain Doom item types only for now, with a default weight. Materials and other systems come later, and real weights are in the backlog. Draft card: `work/queue/doomitems`.
 
-Owner decision (2026-11-23): `bridge/doomerfall_bridge.h` is the single definition of the bridge. A script generates the C# side, and a normal build fails if the generated file is stale. Do this before further bridge work, starting from `integration` once position sync is merged. The card is `work/queue/bridge/01.opus.generate-bridge-definitions.md`.
+### Quiet agent launches (running)
 
-### Piles and containers and trade
-Piles and containers open Daggerfall's real loot window as do NPCs.
+Owner request (2026-11-23): windows that agents and the overnight harness start should open minimized and silent. Agent runs currently play sounds and flash windows on the owner's computer. Cut that out where possible. A window or sound that is truly necessary is permitted. Draft card: `work/queue/quietlaunch`.
 
+### Persistent townspeople (running)
 
-## NPC Dialogue (After Stationary NPCs)
-NPCs should be interactible. An interact key should be added to Doom. 
+Owner decision (2026-11-23): wandering townspeople are persistent and deterministic. The same town always gives the same people from a fixed seed. Nothing is computed until the player first observes it. A living person's position is a periodic function of the seed and world time along a simple route around the places they hang out, so only deaths are recorded. Most people have a randomized daily schedule from the same seed, and they go home at night to a procedurally chosen house when possible. The owner's design is the intent, and a better way is welcome. Keep it simple and in its own file. Draft card: `work/queue/townspeople`. Runs before NPC Dialogue, since talking to a wanderer needs a stable identity.
 
+### NPC Dialogue (next, after Persistent townspeople)
 
-### Sync player position at about 10 Hz, including indoors (running)
+NPCs can be interacted with through Doom's Use button, which opens Daggerfall's real talk window. Draft card: `work/queue/dialogue`.
 
-Daggerfall's hidden player follows the Doom player at about 10 updates per second in towns, the wilderness, interiors, and dungeons, so Daggerfall's map shows the right place. Measure the overhead.
+### Real Daggerfall drops from slain Doom enemies
 
-### Speed up town and interior transitions
+Each slain Doom enemy drops what its corresponding Daggerfall enemy would have dropped, from that enemy's real drop table. Draft card: `work/queue/drops`. Blocked (2026-11-23): the code is on `agent/drops-20261123-212059` and passed a full audit against Daggerfall's tables, but the in-dungeon test harness never runs, so kills, piles, save, and re-entry are unverified. Waiting on a harness fix.
 
-Owner request (2026-11-23): going between towns and interiors works, but with big stuttering. Find where the time goes and make it much smoother. Measure with the connected Daggerfall transitions in place.
+### Fixed loot seeds for Daggerfall's random loot
 
-Scripted timings so far: entering a converted building takes 44 to 84 ms, returning to the City of Daggerfall group takes 1.8 to 2.5 s, returning to the Gothway Garden group takes 0.66 to 1.4 s, entering Privateer's Hold takes 0.32 to 0.58 s, and a first interior conversion takes 4 to 8 s in the background. Returning to the big city is the slowest common step, and its cause is unknown. It is also slower than the 1.0 s recorded for walking into that city.
+Owner decision (2026-11-23): Daggerfall's random loot rolls use a fixed loot seed, so the same place always gives the same loot. Two players who loot the same pile or kill the same enemy get the same items. See "Fixed seeds, not per-save randomness" in `gamedesign.md`. No card yet.
 
-These timings come from the fastest consumer SSD available, so they are a best case. Players will have slower drives. Measure CPU and disk time separately, and do not accept a fix that only feels smooth because this drive is fast. Reduce how much is read and rebuilt on each transition, and estimate how the result holds up on a slower SSD.
+- Cover every random loot roll: dungeon and building treasure piles (`LootTables.GenerateLoot`, `DaggerfallLoot.GenerateItems`) and enemy corpse loot (`LootTables.GenerateRandomLoot`, which today reseeds with `Random.InitState(items.GetHashCode())`, not a fixed seed).
+- Build the seed only from fixed facts about the place, such as region, location, block, and the pile's or enemy's placement. Never use the save, the time, or the player. The loot seed is its own definition, separate from the seed later used for encounter theming.
+- Restore Unity's shared random state after each seeded roll, so nothing else becomes deterministic by accident.
+- Out of scope: the player-level inputs in these rolls (gold and material level). Until "Area level replaces player level" lands, results also depend on player level, gender, and race. Record that in the notes.
+- Verify by rolling the same pile and enemy in two fresh games, or two runs of a test, and comparing the items.
 
-Owner's suggestion, not a required solution: keep the town cached in memory while the player is in an interior, even if Doom can only run one map at a time, so returning does not rebuild it from scratch.
+### Handle all hinged trapdoors automatically
 
-### New Game through Daggerfall's real menus
+Owner decision (2026-11-23): the converter handles every hinged trapdoor through one automatic rule, with no per-dungeon lists, and automated tests on a representative sample. Getting stuck is not a concern during testing, because the owner has noclip. Draft card: `work/queue/trapdoors`.
 
-New Game runs Daggerfall's real character creation and cutscenes inside Doom, then a temporary difficulty prompt and fixed Doom class, and starts in Privateer's Hold.
+### Piles and containers and trade (running)
+Piles and containers open Daggerfall's real loot window as do NPCs when interacted with in modes that correspond to Daggerfall modes appropriately.
 
-### Pick up Daggerfall items from inside Doom and Daggerfall Interaction
-As one task:
-Interaction should be generic. Doom should have an interact button that works like daggerfall's.
-Daggerfall items appear in Doom, and Interact puts them into the real Daggerfall inventory. 
+## Steal Mode
+Daggerdoom does not have a separate steal mode button. Instead, when crouching,  you are "Sneaking".
+For now: Show a message on the bottom of the screen that says this when crouching. 
+Functionally, when using the interaction hotkey, perform Daggerfall actions in the Steal mode while crouching.
+Next, make a list of features that need to be added for stealing. (E.g. can the player steal from NPCs, from their chests?) This may be one or two cards but it may be more based on what stealing does.
 
-### Report monster deaths to Daggerfall
+##Info Mode
+Make a doom keybind for an info interaction. This triggers inspecting an item in Info mode as Daggerfall. If necessary, pause both games while interacting. The message popup should show in doom.
 
-Each replaced monster gets an ID that can later cover a pack of mooks. Its death is reported to Daggerfall, which should update quests, fire death events and produce Daggerfall drops in doom. Runs after item pickup, so drops can use its path.
-
-### Show stationary NPCs in Doom
-
-NPCs, including wanderers, appear standing still with their real sprites and stable IDs. Talking, damage, and behavior are separate backlog tasks.
-
-### Document the shared memory bus
-
-Write one document that shows where the Daggerfall and Doom shared memory bus lives and how it is organized: the shared state, events, surfaces, owners, and where to add a field. Run it after the map and position sync lanes land, because both change the bridge. It comes before the skill and climbing tasks.
-
-### Daggerfall publishes character skills to Doom
-
-Daggerfall keeps Doom informed of the character's skills through shared memory. Daggerfall stays the authority. Depends on the bus document.
 
 ### Climb function in Doom
 
-Initial release target, to start fairly soon. Doom gets a climb function that uses the Daggerfall character's real climbing skill and matches Daggerfall's rules for starting, continuing, and failing a climb. Start from `FrictionMotor.cs` and `ClimbingMotor.cs`. Depends on skill publishing. A read-only research card on Daggerfall's climbing rules is running first.
+Initial release target, to start fairly soon. Doom gets a climb function that uses the Daggerfall character's real climbing skill and matches Daggerfall's rules for starting, continuing, and failing a climb. Start from `FrictionMotor.cs` and `ClimbingMotor.cs`. Weapons stay usable while climbing (owner, 2026-11-23). Skill publishing is merged. Depends on three remaining owner decisions in `work/questions.md`. The research is in `work/notes/20261123-171304.md` on `integration`.
 
-### Enable main quest trapdoors (running)
-
-Owner decision (2026-11-23): trapdoors work as they do in Daggerfall. Enable the 4 static trapdoors in Wayrest and Lysandus' Tomb, and check the 3 existing action 8 trapdoor records in Wayrest. Their pits need climbing to escape until the climb function lands, so report any soft lock this creates.
-
-### High-level code quality audit (running)
-
-Review the code we have written, not vendored engine code. Is it unnecessarily complex, can it be simplified, and should it be? Keep this a high-level review with a short ranked list of recommendations. Do not change code.
