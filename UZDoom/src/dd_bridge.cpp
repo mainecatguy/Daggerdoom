@@ -2478,8 +2478,10 @@ void DD_BridgeInit()
 	}
 }
 
+void DD_QaFrame(); // [Doomerfall] QA bot (dd_qa.cpp), inactive without -ddqa
 void DD_BridgeFrame()
 {
+	DD_QaFrame();
 	if (!session) return;
 
 	const int64_t now = dfb_now_ns();

@@ -653,6 +653,7 @@ ADD_STAT (digital)
 // or reads it from the demo buffer.
 // If recording a demo, write it out
 //
+void DD_QaInput(int &forward, int &side, int &fly, uint32_t &buttons, uint32_t &viewAngle); // [Doomerfall] QA bot (dd_qa.cpp)
 void G_BuildTiccmd (usercmd_t *cmd)
 {
 	usercmd_t *base;
@@ -841,6 +842,8 @@ void G_BuildTiccmd (usercmd_t *cmd)
 		side += RoundHalfEven(mousex * m_side); // why round to even?
 
 	mousex = mousey = 0;
+
+	DD_QaInput(forward, side, fly, cmd->buttons, LocalViewAngle); // [Doomerfall] QA bot steering; inactive without -ddqa
 
 	// Build command.
 	if (forward > MAXPLMOVE)
