@@ -8,10 +8,27 @@ What is done on the project, newest first. Agents do not need to read this unles
 - **Other demos:** City of Daggerfall at `D:\dev\DoomDaggerfall-loop\review\city-texture-fix\play.bat`, overworld at `D:\dev\DoomDaggerfall-loop\review\overworld-demo\play.bat`, and DRLAX on E1M1 at `D:\dev\DoomDaggerfall\play_drlax.bat`.
 - **Launcher:** starts Daggerfall Unity and UZDoom as one package. Run `D:\dev\DoomDaggerfall-loop\review\launcher\play.bat`.
 - **Current game:** run `D:\dev\DoomDaggerfall-loop\play\play.bat`, then choose New Game. Rebuild that folder with `python scripts/play/install.py`.
-- **Branches:** `integration` is at `8de998f`, with the reported location recheck, Use-button pickup, character sheet publishing, stationary NPCs, the DRLA launcher, monster deaths, the first town door fix, New Game, the transition speedup, Daggerfall item pickup, the dungeon re-entry fix, generated bridge definitions, main quest trapdoors, 10 Hz position sync, the wilderness height fix, the Daggerfall map command, door route fixes, both overnight lanes, the bridge and door fixes, dungeon flats, Daggerfall items, synchronized saving and loading, the death screen, fast travel arrival, connected door transitions, and the inventory menu.
+- **Branches:** `integration` is at `e2fa033`, with the area level proposal, automatic hinged trapdoors, container windows, quiet agent launches, the reported location recheck, Use-button pickup, character sheet publishing, stationary NPCs, the DRLA launcher, monster deaths, the first town door fix, New Game, the transition speedup, Daggerfall item pickup, the dungeon re-entry fix, generated bridge definitions, main quest trapdoors, 10 Hz position sync, the wilderness height fix, the Daggerfall map command, door route fixes, both overnight lanes, the bridge and door fixes, dungeon flats, Daggerfall items, synchronized saving and loading, the death screen, fast travel arrival, connected door transitions, and the inventory menu.
 - **Roughest spots:** some walls still bend where they stayed tied to the grid, and false walls and openings remain.
 
 ## 2026-11-23
+
+### Merged to `integration` (`e2fa033`)
+
+- **Area level proposal (`2cef0a8`):** a proposal, not a game change. Every dungeon gets a level from region lean, a smooth map-wide field, dungeon type lean, and per-place noise with rare exceptions, ranked within its size class so each level 1 to 30 holds 140 to 145 dungeons. Towns and wilderness get a terrain level from region and the field. All fixed seeds. Script: `tools/area_level/area_level.py`. Proposal: `work/notes/20261123-225515-area-level-proposal.md`. Waiting on owner review.
+
+### Merged to `integration` (`143ec39`)
+
+- **Automatic hinged trapdoors (`9e1c624`):** the converter finds every hinged trapdoor from Daggerfall's data with one rule (TRP model, action 8, 18, or 20, lying flat), with no per-dungeon lists. Bottomless shafts under tiles get a floor 1,024 units down, and hidden pillars stay below the floor as in Daggerfall. The census found 2,586 hinged records in 23 kinds. `trapdoor_regress.py` checks every hinged kind in 14 dungeons, and all pass. Nobody has played it by hand, and the play folder's maps were not regenerated. Notes: `work/notes/20261123-212059-trapdoors.md`.
+
+### Merged to `integration` (`efd097e`)
+
+- **Container windows from Use (`7fab6fa`):** Use on a loot pile or furniture container calls Daggerfall's own `ActivateLootContainer`, so piles open the loot window, house containers ask the private property question, and shop shelves open the Buy window, exactly as in Daggerfall. Furniture boxes reach Doom as bridge kind 80. Partial takes, emptied house containers, and stocked dates survive re-entry and load. Buying by hand and selling are not done; selling waits on an owner question. Notes: `work/notes/20261123-221130.md`. The play folder is refreshed to `efd097e`.
+
+### Merged to `integration` (`1ef394c`)
+
+- **Quiet agent launches (`b50a8b0`):** the launcher's `--minimized` test mode starts Daggerfall Unity on a private desktop and mutes it with the new test-only `-dfmute`, and adds `-nosound -noactivate` for UZDoom. Under `-noactivate`, a UZDoom crash writes `CrashReport.zip` and exits with no dialog. `quiet_run.py --desktop` hides Unity editor builds, and `check.ps1` uses it. `AGENTS.md` tells agents to launch this way. Measured with `tools/quiet_probe`: no windows, focus changes, flashes, or sound in the covered paths. Normal play is unchanged. Minimized UZDoom still shows a taskbar button. Notes: `work/notes/20261123-215225.md`.
+- **Owner docs:** the owner's design rules and work tracking, committed on `main` at `eec5778`, merged in `bda5799`.
 
 ### Merged to `integration` (`8de998f`)
 

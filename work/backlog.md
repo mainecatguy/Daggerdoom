@@ -59,6 +59,7 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [Ammunition system](backlog/ammunition-system.md): Add material-tiered ammo as real inventory items.
 - [What DRLA armor does](backlog/drla-armor-role.md): Decide its role beside Daggerfall armor.
 - [Area loot identity](backlog/area-loot-identity.md): Fixed per-dungeon lean on which kinds of gear drop. Never changes tier odds or fixed loot.
+- [DRLA recipes as Daggerfall rewards](backlog/drla-recipes-as-daggerfall-rewards.md): Make PDA recipes an item Daggerfall can award, only when DRLA is loaded.
 - [Rework the Doom HUD](backlog/rework-doom-hud.md): Remove weapon slots and rework the HUD.
 - [Hotkey clothing](backlog/hotkey-clothing.md): Allow clothing on hotkeys later.
 - [Area level replaces player level](backlog/area-level-replaces-player-level.md): Scale by area and reroll Daedric results.
@@ -83,6 +84,7 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [Random or deterministic options](backlog/random-or-deterministic-options.md): Checkboxes for random loot and random encounter theming. Deterministic is the default.
 - [Quest targets in mook packs](backlog/quest-targets-in-mook-packs.md): Decide how quest targets map onto packs.
 - [Handle Arch-vile resurrection](backlog/arch-vile-resurrection.md): Research how revived mooks affect saves and quests, then propose handling.
+- [Monster mix on stock Doom maps](backlog/monster-mix-on-stock-doom-maps.md): DRLA only for now. Decide later how stock maps mix DRLA and Colourful Hell.
 - [Oblivion Portals](backlog/oblivion-portals.md): Portals that lead to Doom and custom WAD maps.
 
 ## After initial release
@@ -95,5 +97,6 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 
 ## Late development polish
 
+- [Review native Doom monster drops](backlog/review-native-doom-monster-drops.md): Doom monsters keep native drops for now. Decide later whether to keep them.
 - [Sort out keybinds](backlog/sort-out-keybinds.md): Resolve Doom, DF, and Doomerfall key conflicts.
 - [Graceful save and load screen](backlog/graceful-save-and-load-screen.md): Stop showing "paused" during saves and loads.

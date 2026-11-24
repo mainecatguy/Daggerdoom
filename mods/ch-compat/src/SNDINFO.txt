@@ -1,0 +1,9 @@
+// Colourful Hell and DRLA Monsters ship different sounds under the same short lump
+// names. DRLA loads later and would win, so point Colourful Hell's own sound names at
+// its own files by full path. Only Colourful Hell uses these sound names.
+superbaron/act      "sounds/DSSBACT.ogg"
+superbaron/death    "sounds/DSSBDTH.ogg"
+superbaron/pain     "sounds/DSSBPAIN.ogg"
+superbaron/scream   "sounds/DSSBSIT.ogg"
+weapons/hellex      "sounds/DSHELLEX"
+ClericFlameExplode  "sounds/DSHELLEX"

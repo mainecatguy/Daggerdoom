@@ -70,6 +70,32 @@ Each gene has 13 settings, ordered in a ring so that neighboring settings are si
 
 ---
 
+### 4.1 Daggerfall's dungeon theme steers the genes (owner, 2026-11-23)
+
+Every Daggerfall dungeon has a type, such as Vampire Haunt or Dragon's Den (`DFRegion.DungeonTypes`, 19 types). The type **steers** genes toward its vibe without deciding them outright, and exceptions are allowed.
+
+**How it works:** the genome still produces each gene's raw setting, 0 to 12, exactly as before. The dungeon type decides what each setting **means**. For each type, about 9 of the 13 settings point to fitting choices and about 4 point anywhere. So roughly 70% of a type's dungeons follow its theme on a given gene, and the rest are deliberate exceptions. Because only the meanings change, the guarantees that dungeons differ and that combinations are covered still hold for the raw settings.
+
+The theme mainly steers **Anchor** and the **traits** favoured when picking core monsters. It can also nudge **Placement** and **Awareness**. Suggested starting table:
+
+| Dungeon type | Favoured monsters and traits | Other nudges |
+|---|---|---|
+| Crypt, Cemetery | Revenants, Arch-viles, Lost Souls | Sleepers, dead ends loaded |
+| Vampire Haunt | Stealth: Spectres, Nightmare Imps, `RLStealth*` | Sleepers, darkness-friendly |
+| Coven | Summoners and casters: Arch-viles, Pain Elementals | Central mass |
+| Desecrated Temple | Hell nobility: Hell Knights, Barons | Garrisoned rooms |
+| Dragon's Den | One huge titan: Cyberdemon, EX titans, Mancubi | Lone titan size, central mass |
+| Volcanic Caves | Fire: Imps, Mancubi, Magmabus, Nightmare Arch-vile | |
+| Spider Nest, Scorpion Nest | Arachnotrons, Masterminds, Deathweavers | Swarm size |
+| Harpy Nest | Flyers: Cacodemons, Lost Souls, Pain Elementals, Volacubus | Vertical placement |
+| Orc, Human, Barbarian, Giant Strongholds | Former Human armies, with big brutes for Giants | Chokepoints, sentries |
+| Prison | Former Humans, Demons | Garrisoned, all asleep |
+| Laboratory | Machines: the Technophobia family | Technophobia tier lean |
+| Mine, Natural Cave | Melee rush: Demons, Spectres | Scattered |
+| Ruined Castle | Mixed nobility and soldiers | |
+
+**An alternative source:** Daggerfall itself lists which creatures appear in each dungeon type, in its random encounter tables. Mapping each Daggerfall creature to a Doom monster kind, for example vampires to stealth monsters and dragonlings to titans, would let Daggerfall's own data build this table instead of a hand-written one.
+
 ## 5. Building the army
 
 ### 5.1 The monster pool
@@ -102,7 +128,17 @@ Some monsters are fun alone and miserable in bulk. Each annoying class gets a ma
 - Pain Elemental variants, for their skull spam
 - Arch-viles, while revives stay invisible to Daggerfall
 
-### 5.4 Civil War
+### 5.4 One colour per monster kind (owner, 2026-11-23)
+
+Avoid "colour vomit," a rainbow of Colourful Hell rarities mixed together in one army.
+
+- When an army includes a monster kind, it picks **one colour for that kind and sticks to it**. If the army's Cacodemons are Blue, every Cacodemon in it is Blue, not a mix of Common, Green, and Blue.
+- Different kinds may have different colours. An army can have Blue Cacodemons with Red Imps.
+- The only other colours of that kind come from the existing variation rules, such as exception rooms, wildcards, or a Civil War side. They are a deliberate surprise, not background noise.
+- **Black and White EX titans, and legendary monsters if a mod adds them, are exempt.** They appear by their normal rare rules on top of the locked colour, because they are rare and dangerous enough not to spoil the look.
+- **DRLA families are not locked (owner, 2026-11-23).** DRLA's Standard, Nightmare, Technophobia, and Armageddon variants have distinct art, not recolours, so mixing them is variety rather than vomit. Each army instead rolls a **variant spread** for each kind: how many DRLA families of that kind it uses, from one up to all four. The roll is U-shaped, so armies often use one family of a kind and sometimes use all four. One map might have all four kinds of imps, and another only Nightmare Imps mixed with other monsters. The coherence gene nudges the roll: tight armies lean toward one family, and loose armies lean toward several.
+
+### 5.5 Civil War
 
 When the factions gene calls for it, a **second army** is built from the next seed, with its own anchor. The two must differ visibly, by kind or by at least two tiers, so the fight reads as a war rather than chaos. The budget is split between them. Each side's attitude to the player comes from the factions gene: hunt everyone, ignore you until shot, or ignore you entirely. When one side is wiped out, the survivors turn on the player.
 

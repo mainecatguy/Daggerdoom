@@ -25,13 +25,16 @@ Keep Daggerfall's existing inventory. No inventory layout change is needed. Doom
 - The active hotkey is tracked.
 - Doom's stock 2-3-4-5-6 weapon slots are removed from the HUD by a separate task. See "Rework the Doom HUD".
 
-**Keys (owner, 2026-11-23):** Ctrl stays crouch and also acts as the hotkey modifier. Overloading is fine. Alt is the other modifier, and no default binding may use it for strafe.
+**Keys (owner, 2026-11-23):** Ctrl and Alt are always the hotkey modifiers, however they are bound. Ctrl also stays crouch. Overloading is fine, and the player may overload them further.
+
+**Magazines (owner, 2026-11-23):** swapping guns must not reload them. Save only as much magazine state as that needs. Exact rounds per gun can be skipped if overkill.
+
+**Approved (owner, 2026-11-23):** card `work/queue/hotkeys`, to start after "Daggerfall holds Doom items" lands.
 
 **Clothing (owner, 2026-11-23):** cannot be hotkeyed for now. See "Hotkey clothing".
 
 **Technical constraint found in DRLA:** a weapon's loaded magazine is a separate per-class item (`RL<Weapon>Clip`), and mods and limits are also tracked by class name, such as `<Weapon>ModLimit` and `RLWeaponLimit`. A swap must save this state onto the outgoing Daggerfall item and restore it for the incoming one, or two copies of a gun will share a magazine and mods. The swap must also keep `RLWeaponLimit` correct.
 
-**Open questions for the owner:**
+**Missing items (owner, 2026-11-23):** when a hotkeyed weapon leaves the inventory, its assignment is deleted. When a consumable runs out, its square keeps a grey X overlay, and the hotkey works again when the player picks up more of that item.
 
-- Missing item: grey X overlay or delete? Claude's recommendation is an overlay that works again when the item returns, deleting only when the item is destroyed or consumed, with stacks tracked by item type.
-- Can armor be hotkeyed, or only items that can be drawn, readied, or used?
+**Armor (owner, 2026-11-23):** hotkeying armor is allowed but lowest priority and not important. Do it only if it is cheap, for example by calling Daggerfall's own equip action.

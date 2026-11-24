@@ -64,8 +64,8 @@ gamedesign.md and architecture.md only if they affect this work.
 
 ## Goal
 ## The owner's design or decisions
-The owner's decisions below are the intent, not law. If you think of a better way to
-reach the same goal, do it the better way and explain why in your notes.
+(Owner, 2026-11-23: their decisions are intent, not law, and a better way is welcome. This
+does not need to be said in every card.)
 ## What exists today
 ## Ideas
 
@@ -125,12 +125,13 @@ Replace this section as the state changes.
 
 - **Mods:** owner decision (2026-11-23): the main launcher always includes DRLA, DRLA Monsters, and DRLAX, and they stay integrated from now on, including their weapons.
 - **Current game:** `D:\dev\DoomDaggerfall-loop\play\play.bat`. Refresh it with `python scripts/play/install.py` from a checkout with fresh UZDoom and Daggerfall builds.
-- **Running:** lanes `townspeople` (lane-sync), `quietlaunch` (lane-quiet), `containers` (lane-containers), and `trapdoors`, started directly through `queue.ps1`, so they have no supervisor crash restart. `autopickup` makes Doom's Use button the interaction button. The PC has 15 GB of RAM, and the owner accepts paging to run extra lanes.
+- **Blocked:** `townspeople`, all work on `agent/townspeople-20261123-223832`, waiting on the owner's test-hook decision. `drops`, waiting on the `harness` lane.
+- **Running:** lanes `doomitems` (lane-items, a $5 finishing run from `agent/doomitems-20261123-223740`; the first card is in `work/queue/doomitems/held`), `infomode` (lane-containers), `stealmode` (lane-quiet), and `harness` (lane-dungeon, fixes the in-dungeon test harness and verifies drops), started directly through `queue.ps1`, so they have no supervisor crash restart. `autopickup` makes Doom's Use button the interaction button. The PC has 15 GB of RAM, and the owner accepts paging to run extra lanes.
 - **Survey:** the Daggerfall data and quest survey is merged, with a review copy at `work/rpg-survey-review.md`. Its proposed tasks are not in the todo until the owner approves them.
-- **Merged to `integration`:** `8de998f`, recorded in `CHANGELOG.md`. The play folder has `7520c8f`, and the later merge added only test tools and notes. `main` is at `202f023`, which does not include stationary NPCs, character sheet publishing, or Use-button pickup. Saving and loading passed scripted tests with both real games, but nobody has used the menus by hand.
+- **Merged to `integration`:** `efd097e` (containers, installed in the play folder), after `1ef394c` (quiet launches) and `bda5799`, recorded in `CHANGELOG.md`. The play folder has `7520c8f`, and later merges added only test tools, notes, and docs. `main` is at `eec5778`, where the owner asked me to commit their doc and work-file edits (2026-11-23). It does not include stationary NPCs, character sheet publishing, or Use-button pickup. `mods/ch-compat` and `scripts/ch-compat` are the owner's uncommitted folders and stay untouched. Saving and loading passed scripted tests with both real games, but nobody has used the menus by hand.
 - **Approved cards waiting on other work:** `dialogue` needs the Use button from `autopickup`. `containers` follows `autopickup`, and `infomode` and `stealmode` follow `containers`. Their bridge kinds are reserved: skills 70, containers 80, info 90, steal 95, dialogue 100, autopickup 110, location 120, drops 130.
 - **Queued cards:** The city freeze is tracked in the backlog and is not to start until the owner says so. Its draft card is in `work/queue/cityload`. Bridge kinds are used through 24, 40-45, and 50-54, and `npcs` numbers from 60. New bridge cards must say to edit the header and run `python bridge/generate_bindings.py`. The owner reviews new cards before launch.
-- **Lane branches:** verified work lands on `overnight/<lane>`. The owner wants finished work merged to `integration` regularly when it does not make things worse and does not interrupt running work.
+- **Lane branches:** verified work lands on `overnight/<lane>`. `queue.ps1 -From` applies only when `overnight/<lane>` does not exist yet, so for a follow-up run, first point `overnight/<lane>` at the work to finish. The owner wants finished work merged to `integration` regularly when it does not make things worse and does not interrupt running work.
 - **Usage:** weekly was 20% at last check and resets on 2026-11-25 at 08:00 UTC. The stop line is 95%.
 - **Inventory:** Daggerfall's existing inventory stays. The owner is working out Doom weapon hotkeys separately, and the design is in the backlog.
 - **Local build notes:** `uzdoom-launcher` is the current engine build. `sndfile.dll` and `soft_oal.dll` must sit beside the exe for sound.
