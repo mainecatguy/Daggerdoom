@@ -163,24 +163,55 @@ static partial class Program
     }
 
     // Trapdoor tiles by their closed world box. Some cover a hole with no Daggerfall geometry under it at all.
-    static readonly List<(double x0, double x1, double y0, double y1, double top)> trapdoorFootprints = new List<(double, double, double, double, double)>();
-    // How far below the tile an artificial floor goes when Daggerfall has none. Doom needs a floor; Daggerfall's fall never ends.
+    static readonly List<(double x0, double x1, double y0, double y1, double top, int block, int next)> trapdoorFootprints = new List<(double, double, double, double, double, int, int)>();
+    // How far below the tile an artificial floor goes when Daggerfall has none and no hidden mover marks the shaft's depth.
+    // Doom needs a floor; Daggerfall's fall never ends.
     const double BottomlessPitDepth = 1024;
+    // Every action object by (block, file position): its chain link, and for a moving model its box at rest.
+    static readonly Dictionary<(int block, int position), (int next, int flag, (double x0, double x1, double y0, double y1, double bottom, double top)? box)> actionLinks =
+        new Dictionary<(int, int), (int, int, (double, double, double, double, double, double)?)>();
 
-    static void NoteTrapdoorFootprint(Arch3dFile arch, uint id, DFBlock.RdbObject obj, V3 offset, string description)
+    static void NoteActionLink(int block, DFBlock.RdbObject obj, int next, int flag, (double, double, double, double, double, double)? box) =>
+        actionLinks[(block, obj.Position)] = (next, flag, box);
+
+    static void NoteTrapdoorFootprint(Arch3dFile arch, uint id, DFBlock.RdbObject obj, V3 offset, string description, int block)
     {
-        if (description != "TRP" || obj.Resources.ModelResource.ActionResource.Flags is not (8 or 18 or 20)) return;
-        if (RestingBox(arch, id, obj, offset) is not var (x0, x1, y0, y1, bottom, top)) return;
+        var action = obj.Resources.ModelResource.ActionResource;
+        var box = RestingBox(arch, id, obj, offset);
+        NoteActionLink(block, obj, action.NextObjectOffset, action.Flags, box);
+        if (description != "TRP" || action.Flags is not (8 or 18 or 20)) return;
+        if (box is not var (x0, x1, y0, y1, bottom, top)) return;
         if (top - bottom >= Math.Min(x1 - x0, y1 - y0) / 4) return; // the IsFloorTile rule
-        trapdoorFootprints.Add((x0, x1, y0, y1, top));
+        trapdoorFootprints.Add((x0, x1, y0, y1, top, block, action.NextObjectOffset));
     }
 
-    // A cell under a trapdoor with no surface at all below the tile's top gets a floor BottomlessPitDepth down,
-    // so the room's air above the closed tile survives and an opened tile drops the player into a deep pit.
-    static int FloorBottomlessPits(List<(double z, bool up)>[] hits)
+    // The lever trapdoors hide a pillar and a frame in their shaft, later on the tile's own chain. Both are action 1 to 7
+    // movers that sit under the closed tile and rise once it flips. The shaft floor goes at the lowest of their bases,
+    // so the pillar rises from the floor instead of from mid-air over a deep pit. Null when the chain hides nothing.
+    static double? HiddenMoverBase(double x0, double x1, double y0, double y1, double top, int block, int next)
     {
-        int floored = 0;
-        foreach (var (x0, x1, y0, y1, top) in trapdoorFootprints)
+        double? floor = null;
+        var seen = new HashSet<int>();
+        while (next > 0 && seen.Add(next) && actionLinks.TryGetValue((block, next), out var link))
+        {
+            if (link.flag is >= 1 and <= 7 && link.box is var (bx0, bx1, by0, by1, bottom, btop)
+                && bx0 < x1 && bx1 > x0 && by0 < y1 && by1 > y0 && btop <= top + 1)
+                floor = Math.Min(floor ?? double.MaxValue, bottom);
+            next = link.next;
+        }
+        return floor;
+    }
+
+    // A cell under a trapdoor with no surface at all below the tile's top gets an artificial floor, so the room's air
+    // above the closed tile survives. It goes at the base of the hidden pillar on the tile's chain, or else BottomlessPitDepth down.
+    static (int cells, int pillarShafts, int deepShafts) FloorBottomlessPits(List<(double z, bool up)>[] hits)
+    {
+        int floored = 0, pillarShafts = 0, deepShafts = 0;
+        foreach (var (x0, x1, y0, y1, top, block, next) in trapdoorFootprints)
+        {
+            double? pillarBase = HiddenMoverBase(x0, x1, y0, y1, top, block, next);
+            double floor = pillarBase ?? top - BottomlessPitDepth;
+            int before = floored;
             for (int j = Math.Max(0, (int)Math.Floor((y0 - minY) / cell)); j <= Math.Min(height - 1, (int)Math.Floor((y1 - minY) / cell)); j++)
                 for (int i = Math.Max(0, (int)Math.Floor((x0 - minX) / cell)); i <= Math.Min(width - 1, (int)Math.Floor((x1 - minX) / cell)); i++)
                 {
@@ -188,10 +219,14 @@ static partial class Program
                     if (px < x0 || px > x1 || py < y0 || py > y1) continue;
                     var list = hits[Index(i, j)] ??= new List<(double, bool)>();
                     if (list.Any(h => h.z <= top + 1)) continue;
-                    list.Add((top - BottomlessPitDepth, true));
+                    list.Add((floor, true));
                     floored++;
                 }
-        return floored;
+            if (floored == before) continue;
+            if (pillarBase != null) pillarShafts++; else deepShafts++;
+            Console.WriteLine(FormattableString.Invariant($"trapdoor shaft at {(x0 + x1) / 2:F0},{(y0 + y1) / 2:F0}: tile top {top:F1}, floor {floor:F1} ({(pillarBase != null ? "pillar base" : "deep")}), was {top - BottomlessPitDepth:F1}, {floored - before} cells"));
+        }
+        return (floored, pillarShafts, deepShafts);
     }
 
     // A coffin's rim is narrower than a grid cell, so its top can be missed and the air above it lost.
@@ -455,6 +490,7 @@ static partial class Program
         var arch = new Arch3dFile(Path.Combine(arena2, "ARCH3D.BSA"), FileUsage.UseMemory, true);
         var shapes = new Dictionary<uint, string>();
         var kinds = new SortedDictionary<string, (int placed, HashSet<int> dungeons, string example)>();
+        var pillars = new SortedDictionary<string, (int tiles, int withPillar, string without)>();
         string Shape(uint id)
         {
             if (shapes.TryGetValue(id, out var known)) return known;
@@ -487,12 +523,35 @@ static partial class Program
                     k.example ??= $"{location.MapTableData.MapId} {region.Name}/{region.MapNames[l]} {x.BlockName} record={x.Id}";
                     k.placed++;
                     kinds[key] = k;
+                    if (x.Flag is 8 or 18 or 20) CountShaftPillar(location, blocks, arch, records, x, obj, pillars, key);
                 }
             }
         }
         foreach (var kv in kinds) Console.WriteLine($"KIND placed={kv.Value.placed} dungeons={kv.Value.dungeons.Count} {kv.Key} eg {kv.Value.example}");
         Console.WriteLine($"TOTAL kinds={kinds.Count} placed={kinds.Values.Sum(k => k.placed)} dungeons={kinds.Values.SelectMany(k => k.dungeons).Distinct().Count()}");
+        foreach (var kv in pillars) Console.WriteLine($"SHAFT {kv.Key}: {kv.Value.withPillar} of {kv.Value.tiles} flat hinged tiles hide a mover under them on their chain{(kv.Value.without != null ? " eg without " + kv.Value.without : "")}");
         return 0;
+    }
+
+    // Census for HiddenMoverBase: does a flat hinged tile's chain hold an action 1 to 7 model resting under it?
+    static void CountShaftPillar(DFLocation location, BlocksFile blocks, Arch3dFile arch, List<ActionRecord> records, ActionRecord x, DFBlock.RdbObject obj,
+        SortedDictionary<string, (int tiles, int withPillar, string without)> pillars, string key)
+    {
+        var dungeonBlock = location.Dungeon.Blocks[x.Block];
+        var offset = new V3(dungeonBlock.X * BlockSide, 0, dungeonBlock.Z * BlockSide);
+        if (RestingBox(arch, x.Model, obj, offset) is not var (x0, x1, y0, y1, bottom, top) || top - bottom >= Math.Min(x1 - x0, y1 - y0) / 4) return;
+        var all = blocks.GetBlock(x.BlockName).RdbBlock.ObjectRootList.Where(g => g.RdbObjects != null).SelectMany(g => g.RdbObjects).ToList();
+        bool found = false;
+        var seen = new HashSet<int> { x.Id };
+        for (var at = x; at.Next >= 0 && seen.Add(at.Next) && !found;)
+        {
+            at = records[at.Next];
+            if (at.IsFlat || at.Flag is < 1 or > 7) continue;
+            var o = all.First(q => q.Position == at.FilePosition);
+            found = RestingBox(arch, at.Model, o, offset) is var (bx0, bx1, by0, by1, _, btop) && bx0 < x1 && bx1 > x0 && by0 < y1 && by1 > y0 && btop <= top + 1;
+        }
+        pillars.TryGetValue(key, out var c);
+        pillars[key] = (c.tiles + 1, c.withPillar + (found ? 1 : 0), c.without ?? (found ? null : $"{location.MapTableData.MapId} {location.Name} {x.BlockName} record={x.Id}"));
     }
 
     static int DumpActions(string arena2, DFLocation location, string outDir)
