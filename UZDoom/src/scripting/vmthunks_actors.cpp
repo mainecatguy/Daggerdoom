@@ -789,6 +789,16 @@ DEFINE_ACTION_FUNCTION_NATIVE(AActor, SpawnHealth, SpawnHealth)
 	ACTION_RETURN_INT(self->SpawnHealth());
 }
 
+// [Doomerfall] A_JumpIfHealthLower's limit: stock full health (100) means Daggerfall's max HP on the bridged player.
+int DD_BridgeHpCheckLimit(AActor *actor, int health);
+
+DEFINE_ACTION_FUNCTION_NATIVE(AActor, DD_HealthCheckLimit, DD_BridgeHpCheckLimit)
+{
+	PARAM_SELF_PROLOGUE(AActor);
+	PARAM_INT(health);
+	ACTION_RETURN_INT(DD_BridgeHpCheckLimit(self, health));
+}
+
 // Why does this exist twice?
 DEFINE_ACTION_FUNCTION_NATIVE(AActor, GetSpawnHealth, SpawnHealth)
 {

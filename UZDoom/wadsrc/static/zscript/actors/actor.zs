@@ -851,6 +851,7 @@ class Actor : Thinker native
 	native void ExplodeMissile(line lin = null, Actor target = null, bool onsky = false);
 	native void RestoreDamage();
 	native clearscope int SpawnHealth() const;
+	native int DD_HealthCheckLimit(int health); // [Doomerfall] see A_JumpIfHealthLower
 	virtual clearscope int GetMaxHealth(bool withupgrades = false) const	// this only exists to make checks for player health easier so they can avoid the type check and just call this method.
 	{
 		return SpawnHealth();

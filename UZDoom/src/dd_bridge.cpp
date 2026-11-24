@@ -853,7 +853,11 @@ uint32_t hpNextEvent = 1;
 uint32_t hpSeenApplied;
 uint64_t hpHits, hpHeals, hpDirect, hpSendFailed, hpKills, hpLogged;
 int64_t hpSentNs[HpPendingRing];
+int hpSentDelta[HpPendingRing]; // Signed: + heal, - hit. For HpExpected.
 Samples hpConfirm;
+AActor *hpMaxPawn; // The pawn whose MaxHealth follows Daggerfall's max HP, and its own value to restore.
+int hpMaxSaved;
+constexpr int StockFullHealth = 100; // What mods write for "full health" (DRLA: A_JumpIfHealthLower(100) on medkits).
 AActor *hpMirroredPawn;
 int hpMirrored;
 bool hpAllowKill;
@@ -888,6 +892,7 @@ void HpSend(uint32_t type, int amount, const char *source)
 		return;
 	}
 	hpSentNs[hpNextEvent % HpPendingRing] = body.sent_ns;
+	hpSentDelta[hpNextEvent % HpPendingRing] = type == DFB_HP_HIT ? -amount : amount;
 	(type == DFB_HP_HIT ? hpHits : hpHeals)++;
 	if (hpLogged++ < HpLogLimit)
 		Log("hp: sent event %u: %s %d (%s), shown hp %d, confirmed hp %d, applied through %u", hpNextEvent,
@@ -903,6 +908,59 @@ void HpTrackConfirmations()
 	for (; hpSeenApplied < applied && hpSeenApplied + 1 < hpNextEvent; hpSeenApplied++)
 		hpConfirm.Add(now - hpSentNs[(hpSeenApplied + 1) % HpPendingRing]);
 }
+
+// Daggerfall's HP once it has applied every event Doom sent that it has not confirmed yet (it clamps each to
+// 0..max). The shown health is only the confirmed value, so two pickups in one tic would otherwise both look
+// useful.
+int HpExpected()
+{
+	int hp = peerState.hp_current;
+	const uint32_t applied = peerState.hp_applied_event;
+	if (applied + 1 >= hpNextEvent || hpNextEvent - applied > 256) return hp; // Nothing pending, or not a sane gap
+	for (uint32_t e = applied + 1; e < hpNextEvent; e++)
+		hp = std::clamp(hp + hpSentDelta[e % HpPendingRing], 0, std::max(0, peerState.hp_max));
+	return hp;
+}
+
+// Doom's own max health on the pawn (Player.MaxHealth, ACS APROP_SpawnHealth, P_GetRealMaxHealth) follows
+// Daggerfall's max HP while Daggerfall owns HP, and goes back to the pawn's own value when it stops.
+void HpFollowMax(player_t *player)
+{
+	AActor *pawn = player ? player->mo : nullptr;
+	if (hpMaxPawn && hpMaxPawn != pawn) hpMaxPawn = nullptr; // A new pawn (map change, load): the old one is gone
+	if (!pawn || peerState.hp_max <= 0) return;
+	int &maxHealth = pawn->IntVar(NAME_MaxHealth);
+	if (!hpMaxPawn)
+	{
+		hpMaxPawn = pawn;
+		hpMaxSaved = maxHealth;
+		Log("hp: Doom max health now follows Daggerfall's %d (pawn had %d)", peerState.hp_max, maxHealth);
+	}
+	else if (maxHealth != peerState.hp_max && hpLogged++ < HpLogLimit)
+		Log("hp: Doom max health %d -> %d from Daggerfall", maxHealth, peerState.hp_max);
+	maxHealth = peerState.hp_max;
+}
+
+void HpReleaseMax()
+{
+	if (!hpMaxPawn) return;
+	if (players[consoleplayer].mo == hpMaxPawn) hpMaxPawn->IntVar(NAME_MaxHealth) = hpMaxSaved;
+	hpMaxPawn = nullptr;
+}
+}
+
+// True while Daggerfall owns this player's HP (Doom's heals are only requests).
+bool DD_BridgeHpOwns(player_t *player)
+{
+	return HpActive() && HpIsBridgedPlayer(player);
+}
+
+// A_JumpIfHealthLower. Mods compare against Doom's stock full health (DRLA's stimpack and medikit fail unless
+// health < 100); on the bridged player that number means Daggerfall's max HP, net of heals and hits in flight.
+int DD_BridgeHpCheckLimit(AActor *actor, int health)
+{
+	if (health != StockFullHealth || !actor || !DD_BridgeHpOwns(actor->player) || actor->player->mo != actor) return health;
+	return peerState.hp_max - HpExpected() + actor->health;
 }
 
 // P_DamageMobj, where the player's health would drop. True means the hit was reported and Doom must not
@@ -919,16 +977,17 @@ bool DD_BridgeHpHeal(player_t *player, int num, int max, bool *accepted)
 {
 	if (!HpActive() || !HpIsBridgedPlayer(player)) return false;
 	max = std::min(max, peerState.hp_max); // Do not consume a pickup Daggerfall could not use.
+	const int health = HpExpected(); // Not the shown health: earlier heals may still be on their way.
 	int amount = 0;
 	if (num < 0)
 	{
 		const int target = max * -num / 100; // Strife style: raise to a percentage of full health
-		if (player->health < target) amount = target - player->health;
+		if (health < target) amount = target - health;
 	}
-	else if (num > 0 && player->health < max)
+	else if (num > 0 && health < max)
 	{
 		num = std::max(1, int(num * G_SkillProperty(SKILLP_HealthFactor)));
-		amount = std::min(num, max - player->health);
+		amount = std::min(num, max - health);
 	}
 	*accepted = amount > 0;
 	if (amount > 0) HpSend(DFB_HP_HEAL, amount, "heal");
@@ -939,8 +998,9 @@ bool DD_BridgeHpHeal(player_t *player, int num, int max, bool *accepted)
 // assigns health, for example), then show Daggerfall's confirmed HP. Kills the pawn once Daggerfall says dead.
 void DD_BridgeHpThink(player_t *player)
 {
-	if (!HpActive()) { hpMirroredPawn = nullptr; return; } // Re-adopt Daggerfall's value if it comes back
+	if (!HpActive()) { hpMirroredPawn = nullptr; HpReleaseMax(); return; } // Re-adopt Daggerfall's value if it comes back
 	if (!HpIsBridgedPlayer(player) || !player->mo || player->playerstate != PST_LIVE) return;
+	HpFollowMax(player);
 	if (hpTestPending) HpTestTicStep();
 	if (peerState.hp_flags & DFB_HPF_DEAD)
 	{

@@ -41,6 +41,7 @@ extend class Actor
 	action state A_JumpIfHealthLower(int health, statelabel label, int ptr_selector = AAPTR_DEFAULT)
 	{
 		Actor aptr = GetPointer(ptr_selector);
+		if (aptr) health = aptr.DD_HealthCheckLimit(health); // [Doomerfall] "full" is Daggerfall's max HP
 		return aptr && aptr.health < health? ResolveState(label) : null;
 	}
 
