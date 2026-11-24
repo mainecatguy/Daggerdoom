@@ -1,0 +1,107 @@
+version "4.10"
+
+// Test only. Gives each gun in turn, fires it once the way the fire button does (PlayerPawn.FireWeapon), never
+// presses reload, and logs whether the magazine refilled from the reserve.
+class AutoReloadTest : StaticEventHandler
+{
+	static const String Guns[] = {
+		"RLShotgun", "RLDoubleShotgun", "RLSuperShotgun", "RLHuntingShotgun", "RLQuadShotgun", "RLRocketLauncher",
+		"RLHeavyShotgun", "RLHeavyDoubleShotgun", "RLHeavyHuntingShotgun", "RLHeavySuperShotgun",
+		"RLFocusedDoubleShotgun", "RLGrenadeLauncher", "RLElephantGun", "RLMicroLauncher", "RLShrapnelCannon",
+		"RLShredderShotgun", "RLPlasmaticShrapnelShotgun", "RLPlasmaticShrapnelDoubleShotgun",
+		"RLPlasmaticShrapnelHuntingShotgun", "RLPlasmaticShrapnelSuperShotgun", "RLNapalmLauncher",
+		"RLAntiMaterielRifle", "RLAutocannon", "RLClusterBombLauncher", "RLIncinerationDeviceLauncher",
+		"RLInfusionLauncher", "RLLaserPulseLauncher", "RLMIRVLauncher", "RLSteelBeast",
+		"RLBaronBlaster", "RLMarathonShotguns"
+	};
+
+	int index, last, phase, wait, reserveBefore, lowest, hold;
+	bool started;
+
+	static int Setting(String name, int fallback)
+	{
+		let c = CVar.FindCVar(name); // Set with +set on the command line.
+		return c ? c.GetInt() : fallback;
+	}
+
+	override void WorldTick()
+	{
+		let p = players[consoleplayer];
+		if (!p.mo) return;
+		if (!started)
+		{
+			started = true;
+			p.cheats |= CF_GODMODE;
+			index = Setting("reloadtest_from", 0);
+			last = min(Guns.Size(), index + Setting("reloadtest_count", Guns.Size()));
+			// reloadtest_optout 1 turns DRLA's option off in game, as its options menu does.
+			let local = CVar.FindCVar("DRLA_autoreload");
+			if (local && Setting("reloadtest_optout", 0)) local.SetBool(false);
+			hold = 10; // The player's copy of a user option follows the local one a tic or two later.
+		}
+		if (hold > 0)
+		{
+			if (--hold > 0) return;
+			let opt = CVar.GetCVar("DRLA_autoreload", p);
+			Console.Printf("RELOADTEST start option=%s", opt ? (opt.GetBool() ? "on" : "off") : "missing");
+			if (!opt) { Console.Printf("RELOADTEST done"); index = last; }
+		}
+		if (index >= last) return;
+		String name = Guns[index];
+		class<Weapon> cls = name;
+		if (!cls) { Console.Printf("RELOADTEST gun=%s result=missing", name); Next(); return; }
+		let w = Weapon(p.mo.FindInventory(cls));
+		wait++;
+		if (phase == 0)
+		{
+			// Take every other gun, give this one with a full magazine and a full reserve.
+			for (Inventory i = p.mo.Inv; i; ) { let n = i.Inv; if (i is "Weapon" && i.GetClassName() != "RLFist") i.Destroy(); i = n; }
+			p.mo.GiveInventory(cls, 1);
+			w = Weapon(p.mo.FindInventory(cls));
+			if (!w) { Console.Printf("RELOADTEST gun=%s result=notgiven", name); Next(); return; }
+			Fill(p.mo, w.AmmoType1);
+			Fill(p.mo, w.AmmoType2);
+			p.PendingWeapon = w;
+			phase = 1; wait = 0;
+		}
+		else if (phase == 1)
+		{
+			if (p.ReadyWeapon == w && (p.WeaponState & WF_WEAPONREADY))
+			{
+				reserveBefore = w.AmmoType2 ? p.mo.CountInv(w.AmmoType2) : -1;
+				lowest = 999;
+				p.mo.FireWeapon(null);
+				phase = 2; wait = 0;
+			}
+			else if (wait > 175) { Console.Printf("RELOADTEST gun=%s result=neverready", name); Next(); }
+		}
+		else if (phase == 2)
+		{
+			int clip = w && w.AmmoType1 ? p.mo.CountInv(w.AmmoType1) : -1;
+			if (clip < lowest) lowest = clip;
+			bool ready = p.ReadyWeapon == w && (p.WeaponState & WF_WEAPONREADY);
+			if (wait > 280 || (lowest < w.AmmoUse1 && clip >= w.AmmoUse1 && ready))
+			{
+				int reserve = w.AmmoType2 ? p.mo.CountInv(w.AmmoType2) : -1;
+				bool ok = lowest < w.AmmoUse1 && clip >= w.AmmoUse1 && reserve < reserveBefore;
+				Console.Printf("RELOADTEST gun=%s result=%s lowest=%d clip=%d use=%d reserve=%d->%d tics=%d", name,
+					ok ? "reloaded" : "empty", lowest, clip, w.AmmoUse1, reserveBefore, reserve, wait);
+				Next();
+			}
+		}
+	}
+
+	static void Fill(Actor mo, class<Inventory> c)
+	{
+		if (!c) return;
+		mo.GiveInventory(c, 1);
+		let item = mo.FindInventory(c);
+		if (item) item.Amount = item.MaxAmount;
+	}
+
+	void Next()
+	{
+		index++; phase = 0; wait = 0;
+		if (index >= last) Console.Printf("RELOADTEST done");
+	}
+}
