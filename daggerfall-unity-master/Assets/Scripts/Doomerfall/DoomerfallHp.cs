@@ -8,9 +8,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     internal sealed class DoomerfallHp
     {
-        const uint HitType = 1, HealType = 2;
-        const uint FlagValid = 1, FlagDead = 2;
-
         readonly DoomerfallBridge bridge;
         readonly DoomerfallPositionSync sync;
         readonly bool test;
@@ -43,11 +40,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
             int before = player.CurrentHealth;
             // SetHealth, not DecreaseHealth: Daggerfall's shield and armor rules come later.
-            if (type == HitType) player.SetHealth(before - amount);
-            else if (type == HealType) player.SetHealth(before + amount);
+            if (type == Dfb.HP_HIT) player.SetHealth(before - amount);
+            else if (type == Dfb.HP_HEAL) player.SetHealth(before + amount);
             if (logged++ < 600)
                 bridge.LogLine(string.Format("hp: applied event {0}: {1} {2}, hp {3} -> {4} (max {5})", number,
-                    type == HitType ? "hit" : "heal", amount, before, player.CurrentHealth, player.MaxHealth));
+                    type == Dfb.HP_HIT ? "hit" : "heal", amount, before, player.CurrentHealth, player.MaxHealth));
         }
 
         public uint Applied { get { return applied; } }
@@ -76,11 +73,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             else if (inGame) deadLatched = false;
 
             uint flags = 0;
-            if (inGame || (deadLatched && wasValid)) flags |= FlagValid;
-            if (deadLatched) flags |= FlagDead;
-            wasValid = (flags & FlagValid) != 0;
+            if (inGame || (deadLatched && wasValid)) flags |= Dfb.HPF_VALID;
+            if (deadLatched) flags |= Dfb.HPF_DEAD;
+            wasValid = (flags & Dfb.HPF_VALID) != 0;
 
-            state.hpApplied = applied;
+            state.hpAppliedEvent = applied;
             state.hpFlags = flags;
             if (player != null && inGame)
             {

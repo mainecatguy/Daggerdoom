@@ -15,13 +15,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     internal sealed class DoomerfallTransition
     {
-        const uint EnterBuilding = 1, EnterDungeon = 3;
-        const uint WorldExterior = 1, WorldInterior = 2, WorldDungeon = 3;
         const float TimeoutSeconds = 15f;
         const double DoorToleranceUnits = 128; // Doom's use reach. A wider miss means the wrong door.
 
         readonly DoomerfallBridge bridge;
-        uint want = WorldExterior, seq;
+        uint want = Dfb.WORLD_EXTERIOR, seq;
         double doorX, doorZ;
         int target;
         bool pending, attempted, teleported;
@@ -43,7 +41,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         internal void OnEvent(uint action, uint eventSeq, double x, double z, int targetId)
         {
-            want = action == EnterBuilding ? WorldInterior : action == EnterDungeon ? WorldDungeon : WorldExterior;
+            want = action == Dfb.TRANSITION_ENTER_BUILDING ? Dfb.WORLD_INTERIOR : action == Dfb.TRANSITION_ENTER_DUNGEON ? Dfb.WORLD_DUNGEON : Dfb.WORLD_EXTERIOR;
             seq = eventSeq;
             doorX = x;
             doorZ = z;
@@ -55,7 +53,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         static uint Actual(PlayerEnterExit enter)
         {
-            return enter.IsPlayerInsideDungeon ? WorldDungeon : enter.IsPlayerInside ? WorldInterior : WorldExterior;
+            return enter.IsPlayerInsideDungeon ? Dfb.WORLD_DUNGEON : enter.IsPlayerInside ? Dfb.WORLD_INTERIOR : Dfb.WORLD_EXTERIOR;
         }
 
         // Runs each frame. True means the exterior position sync must not touch the player this frame.
@@ -76,17 +74,17 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (actual == want)
             {
                 Finish(game, actual);
-                return actual != WorldExterior;
+                return actual != Dfb.WORLD_EXTERIOR;
             }
             if (Time.unscaledTime > deadline)
                 return Fail(enter, "timed out");
 
-            if (actual == WorldInterior)
+            if (actual == Dfb.WORLD_INTERIOR)
             {
                 enter.TransitionExterior(false);
                 return true;
             }
-            if (actual == WorldDungeon)
+            if (actual == Dfb.WORLD_DUNGEON)
             {
                 enter.TransitionDungeonExterior(false);
                 return true;
@@ -119,7 +117,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 !gps.HasCurrentLocation || gps.CurrentLocation.Name != location.Summary.LocationName)
                 return true;
 
-            DoorTypes type = want == WorldDungeon ? DoorTypes.DungeonEntrance : DoorTypes.Building;
+            DoorTypes type = want == Dfb.WORLD_DUNGEON ? DoorTypes.DungeonEntrance : DoorTypes.Building;
             Vector3 player = gps.transform.position;
             DaggerfallStaticDoors bestOwner = null;
             StaticDoor bestDoor = new StaticDoor();
@@ -151,7 +149,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             attempted = true;
             game.AcrobatMotor.ClearFallingDamage();
             bridge.LogLine(string.Format("transition {0}: door found in {1}, error {2:F1} units, building key {3}", seq, gps.CurrentLocation.Name, bestError, bestDoor.buildingKey));
-            if (want == WorldDungeon)
+            if (want == Dfb.WORLD_DUNGEON)
             {
                 // No enemies: Doom owns the monsters, and this keeps the hidden player out of any fight.
                 enter.StartDungeonInterior(gps.CurrentLocation, true, false);
@@ -174,8 +172,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             pending = false;
             PlayerEnterExit enter = game.PlayerEnterExit;
-            string place = actual == WorldDungeon ? "dungeon " + game.PlayerGPS.CurrentLocation.Name
-                : actual == WorldInterior ? "building " + enter.BuildingDiscoveryData.buildingKey + " type " + enter.BuildingType + " in " + game.PlayerGPS.CurrentLocation.Name
+            string place = actual == Dfb.WORLD_DUNGEON ? "dungeon " + game.PlayerGPS.CurrentLocation.Name
+                : actual == Dfb.WORLD_INTERIOR ? "building " + enter.BuildingDiscoveryData.buildingKey + " type " + enter.BuildingType + " in " + game.PlayerGPS.CurrentLocation.Name
                 : "exterior";
             bridge.LogLine(string.Format("transition {0}: Daggerfall is in {1}, target {2}, {3:F0} ms, gps {4},{5}, health {6}, submerged {7}", seq, place, target,
                 (Time.unscaledTime - startedAt) * 1000f, game.PlayerGPS.WorldX, game.PlayerGPS.WorldZ, game.PlayerEntity.CurrentHealth, enter.IsPlayerSubmerged));

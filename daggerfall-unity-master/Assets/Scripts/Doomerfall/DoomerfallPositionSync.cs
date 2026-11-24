@@ -23,8 +23,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     public sealed class DoomerfallPositionSync : MonoBehaviour
     {
-        const uint WorldNone = 0, WorldExterior = 1, WorldInterior = 2, WorldDungeon = 3;
-        const uint PhaseBoot = 0, PhasePlay = 3;
         const long CameraCheckNs = 1000000000;
         const int DefaultSyncHz = 10;
         const float IndoorFootClearance = 0.05f;
@@ -46,7 +44,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         bool logAfterExit;
         bool engaged, savedDisableAI, savedMotor, savedController, savedLook, savedActivate, savedWeapons;
         bool areaDirty, areaPending, verifyPending, noDraw, testWorldReady, testEnemySpawned, testImageTaken;
-        uint phase = PhaseBoot;
+        uint phase = Dfb.DF_PHASE_BOOT;
         int areaX, areaY, targetX, targetZ, teleports, applies;
         bool aligned;
         float mismatchStreak, mismatchTotal, worstMismatch, alignedTime, worstFrame;
@@ -141,7 +139,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         public void OnAreaEvent(uint context, int pixelX, int pixelY, long sentNs)
         {
-            if (context != WorldExterior)
+            if (context != Dfb.WORLD_EXTERIOR)
                 return;
             areaX = pixelX;
             areaY = pixelY;
@@ -160,13 +158,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bool indoors = false;
             switch (peer.worldContext)
             {
-                case WorldExterior:
+                case Dfb.WORLD_EXTERIOR:
                     break;
-                case WorldInterior:
-                case WorldDungeon:
+                case Dfb.WORLD_INTERIOR:
+                case Dfb.WORLD_DUNGEON:
                     indoors = true;
                     break;
-                case WorldNone:
+                case Dfb.WORLD_NONE:
                 default:
                     Release();
                     return;
@@ -194,7 +192,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     HideWorld(game);
                 }
                 if (!game.PlayerEnterExit.IsRespawning)
-                    phase = PhasePlay;
+                    phase = Dfb.DF_PHASE_PLAY;
                 if (indoorNowNs >= nextIndoorApplyNs && ApplyIndoor(game, ref peer))
                     nextIndoorApplyNs = indoorNowNs + applyIntervalNs;
                 MeasureIndoor(game, ref peer);
@@ -221,7 +219,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             {
                 indoorFrames++;
                 if (world.DoomerfallPositionSettled)
-                    phase = PhasePlay;
+                    phase = Dfb.DF_PHASE_PLAY;
                 return;
             }
 
@@ -260,7 +258,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
             if (!world.DoomerfallPositionSettled)
                 return;
-            phase = PhasePlay;
+            phase = Dfb.DF_PHASE_PLAY;
 
             if (!aligned && samePixel)
             {
@@ -322,8 +320,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return true;
             }
             StreamingWorld world = game.StreamingWorld;
-            bool known = peer.worldContext == WorldExterior ||
-                ((peer.worldContext == WorldInterior || peer.worldContext == WorldDungeon) && peer.mapPixelX >= 0 && peer.mapPixelY >= 0);
+            bool known = peer.worldContext == Dfb.WORLD_EXTERIOR ||
+                ((peer.worldContext == Dfb.WORLD_INTERIOR || peer.worldContext == Dfb.WORLD_DUNGEON) && peer.mapPixelX >= 0 && peer.mapPixelY >= 0);
             if (known)
             {
                 if (!world.DoomerfallPositionSettled)
@@ -349,9 +347,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         internal void OnTransitionEvent(uint action, uint seq, double x, double z, int target)
         {
             transition.OnEvent(action, seq, x, z, target);
-            logAfterExit = action == 2 || action == 4;
+            logAfterExit = action == Dfb.TRANSITION_EXIT_BUILDING || action == Dfb.TRANSITION_EXIT_DUNGEON;
             verifyPending = false; // A check still waiting from before the door would compare against an old target.
-            indoorLandingPending = action == 1 || action == 3;
+            indoorLandingPending = action == Dfb.TRANSITION_ENTER_BUILDING || action == Dfb.TRANSITION_ENTER_DUNGEON;
             nextIndoorApplyNs = 0;
             areaDirty = true; // Apply Doom's outdoor position as soon as the world allows it.
         }
@@ -409,9 +407,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             PlayerEnterExit enter = game.PlayerEnterExit;
             if (peer.spaceValid == 0 || !transition.IsIn(enter, peer.worldContext, peer.spaceTarget))
                 return null;
-            if (peer.worldContext == WorldDungeon)
+            if (peer.worldContext == Dfb.WORLD_DUNGEON)
                 return enter.Dungeon ? enter.Dungeon.transform : null;
-            return peer.worldContext == WorldInterior && enter.Interior ? enter.Interior.transform : null;
+            return peer.worldContext == Dfb.WORLD_INTERIOR && enter.Interior ? enter.Interior.transform : null;
         }
 
         // Moves the hidden player to Doom's place in the room. Its controller is off, so nothing here collides,
@@ -554,7 +552,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (!engaged)
                 return;
             engaged = false;
-            phase = PhaseBoot;
+            phase = Dfb.DF_PHASE_BOOT;
             GameManager game = GameManager.Instance;
             game.DisableAI = savedDisableAI;
             game.PlayerObject.GetComponent<CharacterController>().enabled = savedController;

@@ -11,86 +11,10 @@ using UnityEngine;
 
 namespace DaggerfallWorkshop.Game.Doomerfall
 {
-    [StructLayout(LayoutKind.Sequential)]
-    struct DfbEvent
-    {
-        public uint seq;
-        public uint tic;
-        public ushort kind;
-        public ushort flags;
-        public uint reserved;
-        public ulong p0, p1, p2, p3, p4, p5; // 48-byte payload
-    }
-
-    [StructLayout(LayoutKind.Sequential, Size = 256)]
-    struct DfbDfState
-    {
-        public uint publishSeq;
-        public uint dfPhase;
-        public ulong dfHeartbeat;
-        public long publishedNs;
-        public uint dfFrame;
-        public uint demoValue;
-        public int hpCurrent, hpMax;
-        public uint hpApplied, hpFlags;
-    }
-
-    [StructLayout(LayoutKind.Sequential, Size = 256)]
-    struct DfbUzState
-    {
-        public uint publishSeq;
-        public uint uzPhase;
-        public ulong uzHeartbeat;
-        public long publishedNs;
-        public uint uzTic;
-        public uint demoValue;
-        public double worldX, worldZ, worldHeight; // Daggerfall world units
-        public float yawDegrees;
-        public uint worldContext;
-        public int mapPixelX, mapPixelY;
-        public uint areaSeq;
-        public uint pad0;
-        public double spaceX, spaceY, spaceZ; // Indoors: Doom position in the space's own Daggerfall units
-        public float spaceYaw;
-        public int spaceTarget;
-        public uint spaceValid;
-        public uint pad1;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    struct DfbStats
-    {
-        public ulong sent, received, queuedOverflow, seqGaps;
-        public uint outboxCount, outboxPeak, ringUsedOut, ringUsedIn, peerPid, peerAttachCount;
-    }
-
-    static class DfbNative
-    {
-        const string Dll = "doomerfall_bridge";
-
-        [DllImport(Dll)] public static extern uint dfb_protocol_version();
-        [DllImport(Dll)] public static extern ulong dfb_layout_hash();
-        [DllImport(Dll)] public static extern uint dfb_struct_size(int which);
-        [DllImport(Dll)] public static extern long dfb_now_ns();
-        [DllImport(Dll)] public static extern int dfb_attach([MarshalAs(UnmanagedType.LPStr)] string id, int side, out IntPtr session);
-        [DllImport(Dll)] public static extern void dfb_close(IntPtr session);
-        [DllImport(Dll)] public static extern int dfb_send(IntPtr session, ref DfbEvent e);
-        [DllImport(Dll)] public static extern int dfb_flush(IntPtr session);
-        [DllImport(Dll)] public static extern int dfb_receive(IntPtr session, ref DfbEvent e);
-        [DllImport(Dll)] public static extern int dfb_publish_state(IntPtr session, ref DfbDfState state, uint size);
-        [DllImport(Dll)] public static extern int dfb_read_state(IntPtr session, ref DfbUzState state, uint size);
-        [DllImport(Dll)] public static extern int dfb_get_stats(IntPtr session, ref DfbStats stats);
-        [DllImport(Dll)] public static extern long dfb_peer_state_age_ns(IntPtr session);
-        [DllImport(Dll)] public static extern int dfb_bulk_read(IntPtr session, uint slot, byte[] data, uint capacity, out uint size, out uint version);
-        [DllImport(Dll)] public static extern int dfb_surface_write(IntPtr session, byte[] bgra, uint width, uint height, uint frameId, long capturedNs, long inputNs, int flipY);
-    }
+    // The structs, constants, and native imports are generated from bridge/doomerfall_bridge.h: see DoomerfallBridge.g.cs.
 
     public sealed class DoomerfallBridge : MonoBehaviour
     {
-        const uint ProtocolVersion = 4;
-        const int SideDf = 1;
-        const int Got = 1;
-        const ushort KindHello = 1, KindPing = 2, KindPong = 3, KindText = 4, KindArea = 5, KindUiOpen = 6, KindUiClose = 7, KindUiInput = 8, KindHp = 11, KindSaveRequest = 12, KindSaveDone = 14, KindLoadRequest = 15, KindLoadDone = 17, KindHold = 19, KindTransition = 21;
         const long PingIntervalNs = 50000000, LogIntervalNs = 2000000000, StaleNs = 1000000000;
         const int SampleCount = 1024;
 
@@ -166,16 +90,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
             try
             {
-                if (DfbNative.dfb_protocol_version() != ProtocolVersion ||
-                    DfbNative.dfb_struct_size(0) != Marshal.SizeOf(typeof(DfbEvent)) ||
-                    DfbNative.dfb_struct_size(1) != Marshal.SizeOf(typeof(DfbDfState)) ||
-                    DfbNative.dfb_struct_size(2) != Marshal.SizeOf(typeof(DfbUzState)) ||
-                    DfbNative.dfb_struct_size(3) != Marshal.SizeOf(typeof(DfbStats)))
+                string mismatch = DefinitionMismatch();
+                if (mismatch != null)
                 {
-                    Fail("bridge DLL does not match this build's struct layout");
+                    Fail("bridge DLL does not match this build: " + mismatch);
                     return;
                 }
-                int rc = DfbNative.dfb_attach(pendingSession, SideDf, out session);
+                int rc = DfbNative.dfb_attach(pendingSession, Dfb.SIDE_DF, out session);
                 if (rc != 0)
                 {
                     session = IntPtr.Zero;
@@ -188,6 +109,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 Fail("bridge DLL not found: " + e.Message);
                 return;
             }
+            catch (EntryPointNotFoundException e)
+            {
+                Fail("bridge DLL does not match this build (it is older): " + e.Message);
+                return;
+            }
 
             SessionActive = true;
             ownSize = (uint)Marshal.SizeOf(typeof(DfbDfState));
@@ -195,7 +121,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             Log(string.Format("attached to session {0}, protocol {1}, layout {2:x16}", pendingSession,
                 DfbNative.dfb_protocol_version(), DfbNative.dfb_layout_hash()));
 
-            ev = new DfbEvent { kind = KindHello };
+            ev = new DfbEvent { kind = Dfb.KIND_HELLO };
             DfbNative.dfb_send(session, ref ev);
             SendText("hello from Daggerfall Unity");
 
@@ -206,6 +132,26 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             ui.Init(this);
             save = gameObject.AddComponent<DoomerfallSave>();
             save.Init(this, sync, hp, Environment.GetCommandLineArgs());
+        }
+
+        // The schema hash covers every constant, struct field, and function in the header.
+        static string DefinitionMismatch()
+        {
+            uint version = DfbNative.dfb_protocol_version();
+            if (version != Dfb.PROTOCOL_VERSION)
+                return "protocol " + version + ", expected " + Dfb.PROTOCOL_VERSION;
+            ulong schema = DfbNative.dfb_schema_hash();
+            if (schema != Dfb.SchemaHash)
+                return string.Format("schema {0:x16}, expected {1:x16}", schema, Dfb.SchemaHash);
+            for (int i = 0; i < Dfb.StructTypes.Length; i++)
+                if (Marshal.SizeOf(Dfb.StructTypes[i]) != Dfb.StructSizes[i])
+                    return Dfb.StructTypes[i].Name + " has the wrong managed size";
+            if (DfbNative.dfb_struct_size(0) != Marshal.SizeOf(typeof(DfbEvent)) ||
+                DfbNative.dfb_struct_size(1) != Marshal.SizeOf(typeof(DfbDfState)) ||
+                DfbNative.dfb_struct_size(2) != Marshal.SizeOf(typeof(DfbUzState)) ||
+                DfbNative.dfb_struct_size(3) != Marshal.SizeOf(typeof(DfbStats)))
+                return "struct sizes differ";
+            return null;
         }
 
         // The newest Doom state, for the save handshake. Doom published it before sending the request.
@@ -247,28 +193,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             byte[] bytes = new byte[48];
             Encoding.UTF8.GetBytes(text, 0, Math.Min(text.Length, 48), bytes, 0);
-            ev = new DfbEvent
-            {
-                kind = KindText,
-                p0 = BitConverter.ToUInt64(bytes, 0),
-                p1 = BitConverter.ToUInt64(bytes, 8),
-                p2 = BitConverter.ToUInt64(bytes, 16),
-                p3 = BitConverter.ToUInt64(bytes, 24),
-                p4 = BitConverter.ToUInt64(bytes, 32),
-                p5 = BitConverter.ToUInt64(bytes, 40),
-            };
+            ev = new DfbEvent { kind = Dfb.KIND_TEXT };
+            ev.SetPayload(bytes, bytes.Length);
             DfbNative.dfb_send(session, ref ev);
         }
 
         string ReadText()
         {
             byte[] bytes = new byte[48];
-            Buffer.BlockCopy(BitConverter.GetBytes(ev.p0), 0, bytes, 0, 8);
-            Buffer.BlockCopy(BitConverter.GetBytes(ev.p1), 0, bytes, 8, 8);
-            Buffer.BlockCopy(BitConverter.GetBytes(ev.p2), 0, bytes, 16, 8);
-            Buffer.BlockCopy(BitConverter.GetBytes(ev.p3), 0, bytes, 24, 8);
-            Buffer.BlockCopy(BitConverter.GetBytes(ev.p4), 0, bytes, 32, 8);
-            Buffer.BlockCopy(BitConverter.GetBytes(ev.p5), 0, bytes, 40, 8);
+            ev.CopyPayload(bytes);
             int length = Array.IndexOf(bytes, (byte)0);
             return Encoding.UTF8.GetString(bytes, 0, length < 0 ? 48 : length);
         }
@@ -289,69 +222,68 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             if (session == IntPtr.Zero) return;
             textFrame = false;
-            while (DfbNative.dfb_receive(session, ref ev) == Got)
+            while (DfbNative.dfb_receive(session, ref ev) == Dfb.GOT)
             {
                 long received = DfbNative.dfb_now_ns();
-                if (ev.kind == KindText || ev.kind == KindHello) textFrame = true;
+                if (ev.kind == Dfb.KIND_TEXT || ev.kind == Dfb.KIND_HELLO) textFrame = true;
                 switch (ev.kind)
                 {
-                    case KindPing:
-                        ev.p2 = (ulong)received; // replier_ns
-                        ev.kind = KindPong;
+                    case Dfb.KIND_PING:
+                        ev.ping.replierNs = received;
+                        ev.kind = Dfb.KIND_PONG;
                         ev.tic = (uint)Time.frameCount;
                         DfbNative.dfb_send(session, ref ev);
                         pingsAnswered++;
                         break;
-                    case KindPong:
-                        long sent = (long)ev.p1, replied = (long)ev.p2;
+                    case Dfb.KIND_PONG:
+                        long sent = ev.ping.sentNs, replied = ev.ping.replierNs;
                         rtt.Add(received - sent);
                         oneWayOut.Add(replied - sent);
                         oneWayIn.Add(received - replied);
                         pongsReceived++;
                         break;
-                    case KindText:
+                    case Dfb.KIND_TEXT:
                     {
                         string text = ReadText();
                         Log("message from UZDoom: \"" + text + "\" (seq " + ev.seq + ")");
                         hp.OnText(text);
                         break;
                     }
-                    case KindHp: // payload: event number, type, amount, pad, sent_ns
-                        hp.OnEvent((uint)ev.p0, (uint)(ev.p0 >> 32), (int)(uint)ev.p1);
+                    case Dfb.KIND_HP:
+                        hp.OnEvent(ev.hpEvent.eventNo, ev.hpEvent.type, ev.hpEvent.amount);
                         break;
-                    case KindSaveRequest: // payload: txn, HP events sent through, sent_ns
-                        save.OnRequest((uint)ev.p0, (uint)(ev.p0 >> 32));
+                    case Dfb.KIND_SAVE_REQUEST:
+                        save.OnRequest(ev.saveRequest.txn, ev.saveRequest.hpSentThrough);
                         break;
-                    case KindSaveDone: // payload: txn, committed
-                        save.OnDone((uint)ev.p0, (uint)(ev.p0 >> 32) != 0);
+                    case Dfb.KIND_SAVE_DONE:
+                        save.OnDone(ev.saveDone.txn, ev.saveDone.committed != 0);
                         break;
-                    case KindLoadRequest: // payload: txn, hp, max hp, world x, world z, file count, sent_ns
-                        save.OnLoadRequest((uint)ev.p0, (int)(ev.p0 >> 32), (int)(uint)ev.p1, (int)(ev.p1 >> 32), (int)(uint)ev.p2);
+                    case Dfb.KIND_LOAD_REQUEST:
+                        save.OnLoadRequest(ev.loadRequest.txn, ev.loadRequest.hp, ev.loadRequest.hpMax, ev.loadRequest.worldX, ev.loadRequest.worldZ);
                         break;
-                    case KindLoadDone: // payload: txn, restored
-                        save.OnLoadDone((uint)ev.p0, (uint)(ev.p0 >> 32) != 0);
+                    case Dfb.KIND_LOAD_DONE: // committed means Doom restored its half
+                        save.OnLoadDone(ev.saveDone.txn, ev.saveDone.committed != 0);
                         break;
-                    case KindHold:
-                        save.OnHold(ev.p0 != 0);
+                    case Dfb.KIND_HOLD:
+                        save.OnHold(ev.payload0 != 0);
                         break;
-                    case KindHello:
+                    case Dfb.KIND_HELLO:
                         Log("hello from UZDoom (seq " + ev.seq + ")");
                         break;
-                    case KindArea: // payload: context, pixel x, pixel y, sequence, sent_ns
-                        sync.OnAreaEvent((uint)ev.p0, (int)(ev.p0 >> 32), (int)(uint)ev.p1, (long)ev.p2);
+                    case Dfb.KIND_AREA:
+                        sync.OnAreaEvent(ev.area.worldContext, ev.area.mapPixelX, ev.area.mapPixelY, ev.area.sentNs);
                         break;
-                    case KindTransition: // payload: action, sequence, door x, door z, target
-                        sync.OnTransitionEvent((uint)ev.p0, (uint)(ev.p0 >> 32), BitConverter.Int64BitsToDouble((long)ev.p1),
-                            BitConverter.Int64BitsToDouble((long)ev.p2), (int)(uint)ev.p3);
+                    case Dfb.KIND_TRANSITION:
+                        sync.OnTransitionEvent(ev.transition.action, ev.transition.seq, ev.transition.doorX, ev.transition.doorZ, ev.transition.target);
                         break;
-                    case KindUiOpen:
-                        ui.OnOpen((uint)ev.p0, (uint)(ev.p0 >> 32));
+                    case Dfb.KIND_UI_OPEN:
+                        ui.OnOpen(ev.uiCommand.uiId, ev.uiCommand.context);
                         break;
-                    case KindUiClose:
-                        ui.OnClose((uint)ev.p0);
+                    case Dfb.KIND_UI_CLOSE:
+                        ui.OnClose(ev.uiCommand.uiId);
                         break;
-                    case KindUiInput: // payload: type, a, b, pad, sent_ns
-                        DoomerfallInput.Enqueue((uint)ev.p0, (int)(ev.p0 >> 32), (int)(uint)ev.p1, (long)ev.p2);
+                    case Dfb.KIND_UI_INPUT:
+                        DoomerfallInput.Enqueue(ev.uiInput.type, ev.uiInput.a, ev.uiInput.b, ev.uiInput.sentNs);
                         break;
                     default:
                         unknownKinds++; // contract rule 7: skip, never fatal
@@ -362,7 +294,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         void FinishFrame(long memoryBefore, int collectionsBefore)
         {
-            if (DfbNative.dfb_read_state(session, ref peer, peerSize) == Got)
+            if (DfbNative.dfb_read_state(session, ref peer, peerSize) == Dfb.GOT)
                 stateAge.Add(DfbNative.dfb_now_ns() - peer.publishedNs);
 
             sync.Tick(ref peer);
@@ -391,10 +323,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             {
                 nextPingNs = now + PingIntervalNs;
                 ev = default(DfbEvent);
-                ev.kind = KindPing;
+                ev.kind = Dfb.KIND_PING;
                 ev.tic = (uint)Time.frameCount;
-                ev.p0 = nextPing++;
-                ev.p1 = (ulong)DfbNative.dfb_now_ns();
+                ev.ping.id = nextPing++;
+                ev.ping.sentNs = DfbNative.dfb_now_ns();
                 DfbNative.dfb_send(session, ref ev);
             }
             DfbNative.dfb_flush(session);

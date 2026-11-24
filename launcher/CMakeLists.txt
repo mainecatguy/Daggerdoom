@@ -8,3 +8,6 @@ target_compile_features(doomerfall-launcher PRIVATE cxx_std_17)
 target_compile_definitions(doomerfall-launcher PRIVATE UNICODE _UNICODE)
 target_link_libraries(doomerfall-launcher PRIVATE shell32 user32)
 set_property(TARGET doomerfall-launcher PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+include(../bridge/BridgeBindings.cmake)
+dfb_require_fresh_bindings(doomerfall-launcher)
