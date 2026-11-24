@@ -84,10 +84,11 @@ In an overnight run, use the `oversights` status field. Otherwise, use a "Suspec
 - Inspect the real code and data before relying on an assumption.
 - Report uncertainty and failed approaches honestly. A clear negative result is useful.
 - Keep vendored engine changes small and easy to identify.
+- Test hooks in game code are allowed behind a command-line flag, but use them sparingly. Put the test logic in its own file, such as a separate test component or a derived class, and keep the hook in a main class to a line or two, so agents reading that class do not load test code.
 - Never commit game data or files derived from it, including generated maps and textures.
 - Code changes go to the `integration` branch. Agents never push to or merge into `main`. Only the owner does that.
 - The project owner is one person on a limited budget. Avoid wasteful builds, broad searches, and unnecessary subagents.
-- The owner may be using the computer. When possible start programs minimized through: `python D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py --timeout <seconds> [--cwd <dir>] -- <program> <args>`. Add `-noactivate` to UZDoom's arguments to prevent focus stealing. UZDoom pauses in background so add `+i_pauseinbackground 0 +vid_activeinbackground 1 +vid_lowerinbackground 0` as well. Minimized frame rates are not necessarily real performance. Between 2AM and 7AM, consider this rule relaxed.
+- The owner may be using the computer. When possible start programs minimized through: `python D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py --timeout <seconds> [--cwd <dir>] -- <program> <args>`. Add `-noactivate` to UZDoom's arguments to prevent focus stealing. UZDoom pauses in background so add `+i_pauseinbackground 0 +vid_activeinbackground 1 +vid_lowerinbackground 0` as well. Minimized frame rates are not necessarily real performance. Start paired games through the launcher with `--minimized`. Pass `-dfmute` when starting Daggerfall Unity directly, and use `quiet_run.py --desktop` for Unity and Daggerfall Unity. Between 2AM and 7AM, consider this rule relaxed.
 - Keep in mind that your dev machine has an RTX 5080 and the fastest available solid state drive on the entire hardware market, so performances are kind of an upper bound, it's the best it's gonna do on any machine.
 
 ## Building

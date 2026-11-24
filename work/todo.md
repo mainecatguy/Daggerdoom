@@ -24,15 +24,26 @@ The owner approved this work on 2026-11-23. Each item runs from its reviewed car
 - Doom's Use button is the interaction button. It triggers Daggerfall's Grab action, or Steal while crouching, as well as Doom's normal use.
 - Dungeons have a difficulty level (area level) from 0 to 30, and loot and encounter systems must be compatible with it.
 
-### Daggerfall holds Doom items
+### Daggerfall holds Doom items (running)
 
 Owner request (2026-11-23, very important): Daggerfall is aware of Doom items. A picked-up Doom item is held in Daggerfall's inventory and shows its Doom sprite. Plain Doom item types only for now, with a default weight. Materials and other systems come later, and real weights are in the backlog. Draft card: `work/queue/doomitems`.
 
-### Quiet agent launches (running)
+### Doom weapon hotkeys (next, after Daggerfall holds Doom items)
 
-Owner request (2026-11-23): windows that agents and the overnight harness start should open minimized and silent. Agent runs currently play sounds and flash windows on the owner's computer. Cut that out where possible. A window or sound that is truly necessary is permitted. Draft card: `work/queue/quietlaunch`.
+Owner direction (2026-11-23): hotkeys come next, because until then picked-up weapons are hard to use. Doom holds only the active gun, given to it by the hotkey. Design: `work/backlog/doom-weapon-equipping-and-hotkeys.md`. All design questions are answered. Approved card: `work/queue/hotkeys`, starting after Doom items lands.
 
-### Persistent townspeople (running)
+
+### Compute area levels in Daggerfall
+
+The owner approved the area level proposal on 2026-11-23 (`work/notes/20261123-225515-area-level-proposal.md`, script in `tools/area_level/`). Daggerfall computes every location's area level, and the wilderness terrain level, at runtime from that formula, with the proposal's engineering notes on rank stability. Doomerfall's existing area level input (`-dfarealevel` in the enemy drops work) reads it. Replacing player level everywhere stays in the backlog. No card yet.
+
+### Show area difficulty in the travel menu
+
+Owner request (2026-11-23): players can see the area level of a place before they go, in Daggerfall's travel map menu. Show it as a hint or feeling instead of a number, on a scale like beginner, weak, moderate, very hard, legendary. Depends on "Compute area levels in Daggerfall". No card yet.
+
+### Persistent townspeople (blocked: waiting on the owner's test-hook decision)
+
+Two runs spent $14.82. The work is on `agent/townspeople-20261123-223832` (it holds everything). Passed: same people across launches, usual places, night, a death surviving save and load, a tavern round trip, leaving into the wilderness, and stationary NPCs. Open: test-only `-dftownreport` and `-dftownhour` hooks in `DoomerfallTownspeople.cs`, re-entering town from the wilderness, and Daggerfall city's size.
 
 Owner decision (2026-11-23): wandering townspeople are persistent and deterministic. The same town always gives the same people from a fixed seed. Nothing is computed until the player first observes it. A living person's position is a periodic function of the seed and world time along a simple route around the places they hang out, so only deaths are recorded. Most people have a randomized daily schedule from the same seed, and they go home at night to a procedurally chosen house when possible. The owner's design is the intent, and a better way is welcome. Keep it simple and in its own file. Draft card: `work/queue/townspeople`. Runs before NPC Dialogue, since talking to a wanderer needs a stable identity.
 
@@ -42,7 +53,7 @@ NPCs can be interacted with through Doom's Use button, which opens Daggerfall's 
 
 ### Real Daggerfall drops from slain Doom enemies
 
-Each slain Doom enemy drops what its corresponding Daggerfall enemy would have dropped, from that enemy's real drop table. Draft card: `work/queue/drops`. Blocked (2026-11-23): the code is on `agent/drops-20261123-212059` and passed a full audit against Daggerfall's tables, but the in-dungeon test harness never runs, so kills, piles, save, and re-entry are unverified. Waiting on a harness fix.
+Each slain Doom enemy drops what its corresponding Daggerfall enemy would have dropped, from that enemy's real drop table. Draft card: `work/queue/drops`. Blocked (2026-11-23): the code is on `agent/drops-20261123-212059` and passed a full audit against Daggerfall's tables, but the in-dungeon test harness never runs, so kills, piles, save, and re-entry are unverified. The harness fix lane (`work/queue/harness`) is running and finishes this verification.
 
 ### Fixed loot seeds for Daggerfall's random loot
 
@@ -54,20 +65,13 @@ Owner decision (2026-11-23): Daggerfall's random loot rolls use a fixed loot see
 - Out of scope: the player-level inputs in these rolls (gold and material level). Until "Area level replaces player level" lands, results also depend on player level, gender, and race. Record that in the notes.
 - Verify by rolling the same pile and enemy in two fresh games, or two runs of a test, and comparing the items.
 
-### Handle all hinged trapdoors automatically
-
-Owner decision (2026-11-23): the converter handles every hinged trapdoor through one automatic rule, with no per-dungeon lists, and automated tests on a representative sample. Getting stuck is not a concern during testing, because the owner has noclip. Draft card: `work/queue/trapdoors`.
-
-### Piles and containers and trade (running)
-Piles and containers open Daggerfall's real loot window as do NPCs when interacted with in modes that correspond to Daggerfall modes appropriately.
-
-## Steal Mode
+## Steal Mode (running)
 Daggerdoom does not have a separate steal mode button. Instead, when crouching,  you are "Sneaking".
 For now: Show a message on the bottom of the screen that says this when crouching. 
 Functionally, when using the interaction hotkey, perform Daggerfall actions in the Steal mode while crouching.
 Next, make a list of features that need to be added for stealing. (E.g. can the player steal from NPCs, from their chests?) This may be one or two cards but it may be more based on what stealing does.
 
-##Info Mode
+## Info Mode (running)
 Make a doom keybind for an info interaction. This triggers inspecting an item in Info mode as Daggerfall. If necessary, pause both games while interacting. The message popup should show in doom.
 
 
