@@ -174,6 +174,12 @@ extern "C" {
 #define DFB_KIND_TOWNSPERSON_DEATH 67  /* UZ to DF; a townsperson died; payload: dfb_townsperson_death */
 #define DFB_KIND_TOWNSFOLK_REQUEST 68  /* UZ to DF; send the current list again; payload: dfb_townsfolk */
 
+/* Guards: Daggerfall spawned a city guard. Its own copy stays inert, and Doom runs a hostile bot in its place.
+   A guard id is tag (3, value 4) | Daggerfall's spawn serial (61). One event per guard; index and count describe the group. */
+#define DFB_KIND_GUARD_SPAWN   160  /* DF to UZ; payload: dfb_guard_spawn */
+#define DFB_KIND_GUARD_DEATH   161  /* UZ to DF; that guard's Doom bot died; payload: dfb_guard_death */
+#define DFB_GUARD_TAG           4u
+
 #define DFB_NPC_TAG             6u
 #define DFB_NPC_TAG_SHIFT       61u
 #define DFB_TOWNSPERSON_TAG     7u
@@ -584,6 +590,26 @@ typedef struct dfb_townsperson_death
 	double world_x;
 	double world_z;
 } dfb_townsperson_death;
+
+/* One guard Daggerfall spawned. For DFB_WORLD_INTERIOR, x and y are Doom units in that interior's map, like an item;
+   target is the interior's space target. Other contexts are not relayed yet. */
+typedef struct dfb_guard_spawn
+{
+	uint64_t id;
+	uint32_t context;     /* DFB_WORLD_* */
+	int32_t target;
+	double x;
+	double y;
+	uint16_t mobile_type; /* Daggerfall's MobileTypes, 146 for the city watch */
+	uint16_t index;
+	uint16_t count;
+	uint16_t pad;
+} dfb_guard_spawn;
+
+typedef struct dfb_guard_death
+{
+	uint64_t id;
+} dfb_guard_death;
 
 /* Describes one frame in the UI surface. Pixels are BGRA, top row first, width * 4 bytes per row. */
 typedef struct dfb_surface_frame

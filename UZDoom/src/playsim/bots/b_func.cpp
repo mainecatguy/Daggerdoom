@@ -31,6 +31,7 @@
 #include "p_local.h"
 #include "p_maputl.h"
 #include "b_bot.h"
+#include "dd_guards.h" // [Doomerfall]
 #include "g_game.h"
 #include "d_event.h"
 #include "d_player.h"
@@ -402,13 +403,14 @@ AActor *DBot::Find_enemy ()
 	AActor *target;
 	DAngle vangle;
 
-	if (!deathmatch)
+	const bool guard = DD_IsGuardBot(player->mo); // [Doomerfall] a guard hunts players as in deathmatch, all around it
+	if (!deathmatch && !guard)
 	{ // [RH] Take advantage of the Heretic/Hexen code to be a little smarter
 		return P_RoughMonsterSearch (player->mo, 20);
 	}
 
 	//Note: It's hard to ambush a bot who is not alone
-	if (allround || mate)
+	if (allround || mate || guard)
 		vangle = DAngle::fromDeg(360.);
 	else
 		vangle = DAngle::fromDeg(ENEMY_SCAN_FOV);

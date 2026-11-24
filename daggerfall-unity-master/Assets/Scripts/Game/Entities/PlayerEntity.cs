@@ -757,6 +757,7 @@ namespace DaggerfallWorkshop.Game.Entity
             // Set a longer giveUpTimer than usual in case it takes more than the usual timer to get to the player position
             enemyMotor.GiveUpTimer *= 3;
             cityWatch[0].SetActive(true);
+            Doomerfall.DoomerfallGuards.Spawned?.Invoke(cityWatch[0]); // Doomerfall: null outside a bridge session
 
             return cityWatch[0];
         }
