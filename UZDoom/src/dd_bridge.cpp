@@ -115,6 +115,8 @@ dfb_session *session;
 FILE *logFile;
 dfb_uz_state ownState;
 dfb_df_state peerState;
+int32_t sheet[DFB_SHEET_INTS]; // Doom's read-only copy of Daggerfall's character sheet.
+uint32_t sheetVersion;
 Samples rtt, oneWayOut, oneWayIn, stateAge;
 uint32_t nextPing = 1;
 uint64_t pingsAnswered, pongsReceived, unknownKinds;
@@ -644,6 +646,34 @@ bool DD_BridgeToggleMap()
 }
 
 bool DD_BridgeHasSession() { return session != nullptr; }
+
+static void RefreshSheet()
+{
+	if (!session || dfb_bulk_version(session, DFB_SHEET_SLOT) == sheetVersion) return;
+	int32_t incoming[DFB_SHEET_INTS];
+	uint32_t size = 0, version = 0;
+	if (dfb_bulk_read(session, DFB_SHEET_SLOT, incoming, sizeof(incoming), &size, &version) != DFB_GOT || size != sizeof(incoming)) return;
+	bool logIt = sheetVersion == 0;
+	for (int i = 0; i < DFB_SHEET_INTS && !logIt; i++) // Fatigue and magicka change constantly.
+		logIt = incoming[i] != sheet[i] && (i < DFB_SHEET_FATIGUE_CURRENT || i > DFB_SHEET_MAGICKA_MAX);
+	memcpy(sheet, incoming, sizeof(sheet));
+	sheetVersion = version;
+	if (!logIt) return;
+	uint32_t sum = 2166136261u;
+	for (int value : sheet) sum = (sum ^ uint32_t(value)) * 16777619u;
+	Log("sheet: read v%u epoch %d valid %d level %d str %d/%d archery %d/%d armor0 %d/%d fire %d/%d sum %08x", version, sheet[DFB_SHEET_EPOCH],
+		sheet[DFB_SHEET_VALID], sheet[DFB_SHEET_LEVEL], sheet[DFB_SHEET_STATS_BASE], sheet[DFB_SHEET_STATS_LIVE],
+		sheet[DFB_SHEET_SKILLS_BASE + 33], sheet[DFB_SHEET_SKILLS_LIVE + 33], sheet[DFB_SHEET_ARMOR_BASE], sheet[DFB_SHEET_ARMOR_LIVE], // 33 is Archery
+		sheet[DFB_SHEET_RESIST_ACTIVE], sheet[DFB_SHEET_RESIST_CHANCE], (unsigned)sum);
+}
+
+// Daggerfall's current character sheet, indexed by DFB_SHEET_*, or null when there is no valid character.
+// Doom only reads it. Anything derived from it must be dropped when DFB_SHEET_EPOCH changes.
+const int32_t *DD_BridgeSheet()
+{
+	RefreshSheet();
+	return sheetVersion && sheet[DFB_SHEET_VALID] == 1 && sheet[DFB_SHEET_FORMAT] == DFB_SHEET_FORMAT_VERSION ? sheet : nullptr;
+}
 
 // From AActor::Die, for actors with a Doomerfall record id only.
 void DD_BridgeMonsterDied(AActor *mo)
@@ -2178,6 +2208,7 @@ void DD_BridgeFrame()
 
 	if (dfb_read_state(session, &peerState, sizeof(peerState)) == DFB_GOT)
 		stateAge.Add(dfb_now_ns() - peerState.published_ns);
+	RefreshSheet();
 	HpTrackConfirmations();
 
 	if (int(peerState.df_phase) != *dd_sync_df_phase) dd_sync_df_phase = int(peerState.df_phase);

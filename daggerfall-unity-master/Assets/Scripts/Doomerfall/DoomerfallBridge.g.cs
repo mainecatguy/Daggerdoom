@@ -8,10 +8,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x2c3e59f98af8ca8dUL;
+        public const ulong SchemaHash = 0x8513e463f9e58214UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
-        public const uint PROTOCOL_VERSION = 5;
+        public const uint PROTOCOL_VERSION = 6;
         public const uint RING_SLOTS = 4096;  // power of two
         public const uint OUTBOX_SLOTS = 16384;  // local, per process; hard cap before a bridge fault
         public const uint BULK_SLOTS = 8;  // 0-3 written by DF, 4-7 written by UZ
@@ -93,6 +93,38 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint HP_HEAL = 2;
         public const uint HPF_VALID = 1;  // dfb_df_state.hp_current and hp_max describe a live Daggerfall player
         public const uint HPF_DEAD = 2;  // Daggerfall reports the player dead
+        public const uint SHEET_SLOT = 0;
+        public const int SHEET_FORMAT_VERSION = 1;
+        public const int SHEET_INTS = 150;
+        public const int SHEET_FORMAT = 0;  // DFB_SHEET_FORMAT_VERSION
+        public const int SHEET_EPOCH = 1;
+        public const int SHEET_VALID = 2;  // 1 when this describes the current, fully loaded character
+        public const int SHEET_LEVEL = 3;
+        public const int SHEET_FATIGUE_CURRENT = 4;  // Daggerfall's internal units, 64 per displayed point
+        public const int SHEET_FATIGUE_MAX = 5;
+        public const int SHEET_MAGICKA_CURRENT = 6;
+        public const int SHEET_MAGICKA_MAX = 7;
+        public const int SHEET_MAGIC_RESIST = 8;  // added to saving throws; live Willpower / 10
+        public const int SHEET_ARMOR_INCREASE = 9;  // effect modifier added to every armor value; lower armor values protect more
+        public const int SHEET_ARMOR_DECREASE = 10;
+        public const int SHEET_STATS_BASE = 16;  // 8: DFCareer.Stats
+        public const int SHEET_STATS_LIVE = 24;  // 8
+        public const int SHEET_SKILLS_BASE = 32;  // 35: DFCareer.Skills
+        public const int SHEET_SKILLS_LIVE = 67;  // 35
+        public const int SHEET_ARMOR_BASE = 102;  // 7: BodyParts; 100 is unarmored
+        public const int SHEET_ARMOR_LIVE = 109;  // 7: the value Daggerfall's hit formula uses
+        public const int SHEET_RESIST_BASE = 116;  // 5: DFCareer.Elements
+        public const int SHEET_RESIST_LIVE = 121;  // 5
+        public const int SHEET_RESIST_ACTIVE = 126;  // 5: 1 while an effect grants a resistance roll
+        public const int SHEET_RESIST_CHANCE = 131;  // 5: that roll's percent chance
+        public const int SHEET_TOLERANCE = 136;  // 7: DFCareer.Tolerance for paralysis, magic, poison, fire, frost, shock, disease
+        public const int SHEET_RACE_RESIST = 143;  // DFCareer.EffectFlags of the live race
+        public const int SHEET_RACE_IMMUNE = 144;
+        public const int SHEET_RACE_LOW = 145;
+        public const int SHEET_RACE_CRITICAL = 146;
+        public const int SHEET_BIO_MAGIC = 147;  // biography saving throw modifiers
+        public const int SHEET_BIO_POISON = 148;
+        public const int SHEET_BIO_DISEASE = 149;
         public const uint UI_NONE = 0;
         public const uint UI_TRAVEL_MAP = 1;
         public const uint UI_INVENTORY = 2;

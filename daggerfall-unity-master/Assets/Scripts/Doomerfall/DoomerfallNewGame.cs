@@ -79,6 +79,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         internal void BeginCreation()
         {
             holding = false;
+            bridge.Sheet.CreationStarted();
             Items.ForgetWorld();
             Monsters.ForgetWorld();
             AudioListener.volume = 1;
@@ -92,8 +93,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         internal void CreationClosed(bool characterMade)
         {
-            if (!characterMade)
-                AudioListener.volume = 0;
+            if (characterMade)
+                return;
+            AudioListener.volume = 0;
+            bridge.Sheet.CreationCancelled();
         }
 
         /// <summary>StartNewCharacter calls this in place of starting the clock and quests.</summary>
@@ -102,6 +105,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (instance == null)
                 return;
             instance.holding = true;
+            instance.bridge.Sheet.CharacterPlaced();
             AudioListener.volume = 0;
             DoomerfallUi.MarkResult();
             instance.StartCoroutine(instance.SendPlacement());
@@ -146,6 +150,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             holding = false;
             if (!ok)
             {
+                bridge.Sheet.CharacterDropped();
                 bridge.LogLine("new game: Doom could not reach the start, the held character was dropped");
                 return;
             }

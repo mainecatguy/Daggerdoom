@@ -62,6 +62,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DoomerfallItems items;
         DoomerfallNewGame newGame;
         DoomerfallMonsters monsters;
+        DoomerfallSheet sheet;
+        internal DoomerfallSheet Sheet { get { return sheet; } }
         bool textFrame;
         uint ownSize, peerSize, nextPing = 1;
         ulong pingsAnswered, pongsReceived, unknownKinds;
@@ -131,6 +133,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             sync = gameObject.AddComponent<DoomerfallPositionSync>();
             sync.Init(this, Environment.GetCommandLineArgs());
             hp = new DoomerfallHp(this, sync, Environment.GetCommandLineArgs());
+            sheet = new DoomerfallSheet(this, sync, Environment.GetCommandLineArgs());
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfsheettest") >= 0)
+                gameObject.AddComponent<DoomerfallSheetTest>().Init(this, sync);
             ui =gameObject.AddComponent<DoomerfallUi>();
             ui.Init(this);
             save = gameObject.AddComponent<DoomerfallSave>();
@@ -181,6 +186,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             own.dfPhase = sync.Phase;
             own.dfHeartbeat++;
             hp.Fill(ref own);
+            sheet.Publish();
             DfbNative.dfb_publish_state(session, ref own, ownSize);
         }
 
@@ -332,6 +338,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             own.dfFrame = (uint)Time.frameCount;
             own.demoValue = (uint)Time.frameCount;
             hp.Fill(ref own);
+            sheet.Publish();
             DfbNative.dfb_publish_state(session, ref own, ownSize);
 
             long now = DfbNative.dfb_now_ns();
@@ -386,6 +393,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         void OnDestroy()
         {
             SessionActive = false;
+            if (sheet != null) sheet.Dispose();
             if (session != IntPtr.Zero) DfbNative.dfb_close(session);
             session = IntPtr.Zero;
             if (log != null) log.Dispose();
