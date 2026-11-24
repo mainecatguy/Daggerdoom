@@ -82,7 +82,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (Instance == this) Instance = null;
         }
 
-        void Log(string text) { bridge.LogLine("hotkeys: " + text); }
+        internal void InitForShots() { Instance = this; enabled = false; } // Test only: DoomerfallHotkeyShotsTest, no bridge.
+
+        void Log(string text) { if (bridge != null) bridge.LogLine("hotkeys: " + text); }
 
         void ResetState()
         {
