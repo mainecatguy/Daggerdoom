@@ -185,7 +185,7 @@ namespace
 
 	// Doors between towns, building interiors, and dungeons.
 	constexpr int SPACE_BASE = 1000000, DUNGEON_SPACE = 17000000, DOOR_PREFETCH = 2;
-	constexpr double USE_REACH = 96, DOOR_CANCEL = 160, EXIT_STEP = 31.5;	// 128 Daggerfall units of reach. The step is three player radii.
+	constexpr double USE_REACH = 96, DOOR_CANCEL = 768, EXIT_STEP = 31.5;	// 128 Daggerfall units of reach. The step is three player radii. A door still converting is dropped only past the prefetch range.
 	struct DoorSpot { int kind, target, index; double x, y, z, nx, ny; };
 	struct ReturnPoint { bool valid = false; FString map; double x = 0, y = 0, z = 0, yaw = 0; };
 	std::vector<DoorSpot> townDoors;
@@ -1573,15 +1573,15 @@ namespace
 				}
 			std::sort(near.begin(), near.end());
 			DDTownCache::BeginScan();
-			if (pendingDoor >= 0 && townDoors[pendingDoor].kind == 0) DDTownCache::Request(townDoors[pendingDoor].target, 0);
 			int requested = 0, lastId = -1;
 			for (auto &n : near)
 				if (n.second != lastId && requested < DOOR_PREFETCH) { DDTownCache::Request(n.second, n.first + 1); lastId = n.second; requested++; }
+			if (pendingDoor >= 0 && townDoors[pendingDoor].kind == 0) DDTownCache::Request(townDoors[pendingDoor].target, 0);	// Last, so the pressed door outranks prefetching.
 		}
 		if (pendingDoor >= 0)
 		{
 			const DoorSpot d = townDoors[pendingDoor];
-			if ((DVector2(d.x, d.y) - pmo->Pos().XY()).Length() > DOOR_CANCEL) pendingDoor = -1;
+			if ((DVector2(d.x, d.y) - pmo->Pos().XY()).Length() > DOOR_CANCEL) { Printf(PRINT_HIGH, "You left the door.\n"); pendingDoor = -1; }
 			else if (DDTownCache::Status(d.target) == DDTownCache::State::Failed) { Printf(PRINT_HIGH, "This door will not open.\n"); pendingDoor = -1; }
 			else if (EnterDoor(Level, pmo, d)) pendingDoor = -1;
 			return;
