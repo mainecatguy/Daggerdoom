@@ -133,6 +133,7 @@ static void CenterMouse(int x, int y, LONG *centx, LONG *centy);
 extern LPDIRECTINPUT8 g_pdi;
 extern bool GUICapture;
 extern int BlockMouseMove;
+bool I_NoActivateParm(); // Doomerfall
 
 // PRIVATE DATA DEFINITIONS ------------------------------------------------
 
@@ -278,7 +279,9 @@ void I_CheckNativeMouse(bool preferNative, bool eventhandlerresult)
 		want_native = true;
 
 	// The application should *never* grab the mouse cursor if its window doesn't have the focus.
-	if (GetForegroundWindow() != mainwindow.GetHandle())
+	// Doomerfall: nor in an unattended run. On a private desktop the window counts as focused, and a grab's
+	// ClipCursor still confines the user's real pointer.
+	if (GetForegroundWindow() != mainwindow.GetHandle() || I_NoActivateParm())
 		want_native = true;
 
 	//Printf ("%d %d %d\n", wantNative, preferNative, NativeMouse);
