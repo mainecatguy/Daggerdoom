@@ -116,6 +116,7 @@ uint32_t nextPing = 1;
 uint64_t pingsAnswered, pongsReceived, unknownKinds;
 int64_t nextPingNs, nextLogNs;
 bool peerSeen, peerStale;
+int64_t peerStaleAt;
 
 void Log(const char *format, ...)
 {
@@ -229,6 +230,7 @@ bool flowMode, ngHaveWorld, ngResult;
 NewGameState ngState = NgIdle;
 dfb_new_game ngWorld;
 int64_t ngDeadline, ngTravelAt, ngTestAt;
+constexpr int64_t NgStallNs = 30000000000LL; // Daggerfall stalls for seconds while it builds a new character's world.
 const char *ngTest;
 FString campaignId, loadCampaign; // Keeps each character's auto and quick slots apart.
 void HandleNewGameGo();
@@ -472,7 +474,7 @@ void PumpUi(int64_t now)
 		FinishUi("no answer from Daggerfall");
 		return;
 	}
-	if (peerStale)
+	if (peerStale && (ngState != NgCreating || now - peerStaleAt > NgStallNs))
 	{
 		Printf("Daggerfall stopped responding, closing its menu.\n");
 		FinishUi("Daggerfall heartbeat stale");
@@ -1979,7 +1981,7 @@ void PumpNewGame(int64_t now)
 	}
 	if (ngState != NgWaitDf && peerStale)
 	{
-		if (uiState == UiClosed) NgFail("Daggerfall stopped responding");
+		if (uiState == UiClosed && now - peerStaleAt > NgStallNs) NgFail("Daggerfall stopped responding");
 		return;
 	}
 	if (ngState >= NgLoading)
@@ -2186,6 +2188,7 @@ void DD_BridgeFrame()
 	if (peerSeen && alive == peerStale)
 	{
 		peerStale = !alive;
+		if (!alive) peerStaleAt = now;
 		Log(alive ? "Daggerfall heartbeat resumed" : "Daggerfall heartbeat stale (logged only, gameplay unchanged)");
 	}
 
