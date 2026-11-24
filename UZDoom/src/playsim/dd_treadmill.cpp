@@ -68,6 +68,10 @@ CVAR(Int, dd_tm_neareststate, 0, CVAR_NOSAVE)	// Its DDTownCache::State.
 CVAR(Int, dd_tm_use, 0, CVAR_NOSAVE | CVAR_MOD)	// Test hook: one press of Use on a location door.
 CVAR(String, dd_tm_warp, "", CVAR_NOSAVE | CVAR_MOD)		// "tileX tileY": moves the player through the overworld handoff. The path fast travel can use.
 
+void DD_MonstersEnterDungeon(FLevelLocals *Level, int mapId, bool firstVisit, bool bridged);
+void DD_MonstersTick(FLevelLocals *Level);
+bool DD_BridgeHasSession();
+
 bool DDTreadmill_Active = false;
 bool DDTreadmill_WideNodes = false;
 
@@ -185,7 +189,7 @@ namespace
 
 	// Doors between towns, building interiors, and dungeons.
 	constexpr int SPACE_BASE = 1000000, DUNGEON_SPACE = 17000000, DOOR_PREFETCH = 2;
-	constexpr double USE_REACH = 96, DOOR_CANCEL = 160, EXIT_STEP = 31.5;	// 128 Daggerfall units of reach. The step is three player radii.
+	constexpr double USE_REACH = 96, DOOR_CANCEL = 768, EXIT_STEP = 31.5;	// 128 Daggerfall units of reach. The step is three player radii. A door still converting is dropped only past the prefetch range.
 	struct DoorSpot { int kind, target, index; double x, y, z, nx, ny; };
 	struct ReturnPoint { bool valid = false; FString map; double x = 0, y = 0, z = 0, yaw = 0; };
 	std::vector<DoorSpot> townDoors;
@@ -1574,15 +1578,15 @@ namespace
 				}
 			std::sort(near.begin(), near.end());
 			DDTownCache::BeginScan();
-			if (pendingDoor >= 0 && townDoors[pendingDoor].kind == 0) DDTownCache::Request(townDoors[pendingDoor].target, 0);
 			int requested = 0, lastId = -1;
 			for (auto &n : near)
 				if (n.second != lastId && requested < DOOR_PREFETCH) { DDTownCache::Request(n.second, n.first + 1); lastId = n.second; requested++; }
+			if (pendingDoor >= 0 && townDoors[pendingDoor].kind == 0) DDTownCache::Request(townDoors[pendingDoor].target, 0);	// Last, so the pressed door outranks prefetching.
 		}
 		if (pendingDoor >= 0)
 		{
 			const DoorSpot d = townDoors[pendingDoor];
-			if ((DVector2(d.x, d.y) - pmo->Pos().XY()).Length() > DOOR_CANCEL) pendingDoor = -1;
+			if ((DVector2(d.x, d.y) - pmo->Pos().XY()).Length() > DOOR_CANCEL) { Printf(PRINT_HIGH, "You left the door.\n"); pendingDoor = -1; }
 			else if (DDTownCache::Status(d.target) == DDTownCache::State::Failed) { Printf(PRINT_HIGH, "This door will not open.\n"); pendingDoor = -1; }
 			else if (EnterDoor(Level, pmo, d)) pendingDoor = -1;
 			return;
@@ -1625,12 +1629,15 @@ namespace
 		PinHomeTown(t);
 		LoadTownDoors(t);
 		// A revisited space comes back from the table, so what the map places by default must not return.
+		const bool firstVisit = t.space && !visitedSpaces.count(t.map.GetChars());
+		if (t.space && t.spaceId >= DUNGEON_SPACE) DD_MonstersEnterDungeon(Level, t.dungeonMapId, firstVisit, DD_BridgeHasSession());
 		if (t.space && !visitedSpaces.insert(t.map.GetChars()).second)
 		{
 			std::vector<AActor *> stale;
 			auto it = Level->GetThinkerIterator<AActor>();
 			while (AActor *mo = it.Next())
-				if (!mo->player && !IsOwned(mo) && ((mo->flags3 & MF3_ISMONSTER) || mo->IsKindOf(NAME_Inventory))) stale.push_back(mo);
+				if (!mo->player && !IsOwned(mo) && ((mo->flags3 & MF3_ISMONSTER) || mo->IsKindOf(NAME_Inventory)
+					|| (GetDefaultByType(mo->GetClass()->GetReplacee(Level))->flags3 & MF3_ISMONSTER))) stale.push_back(mo);	// A mod's spawner stands in for a monster.
 			for (AActor *mo : stale) mo->Destroy();
 		}
 		int restored = 0;
@@ -1974,6 +1981,7 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 	{
 		TickTownDoors(Level, pmo);
 		const Town &t = towns[currentTown];
+		if (t.space && t.spaceId >= DUNGEON_SPACE && DD_BridgeHasSession()) DD_MonstersTick(Level);
 		if (t.space) return;	// Interiors and dungeons are left through their doors.
 		const double tx = (pmo->X() / DOOM_PER_DF + t.originX) / 256, ty = (pmo->Y() / DOOM_PER_DF + t.originY) / 256;
 		if (!handoff.pending && pmo->health > 0 && !t.Near(tx, ty, t.ExitMargin())) BeginHandoff(Level, pmo, "DDOVER01");

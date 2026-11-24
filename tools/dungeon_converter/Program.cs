@@ -63,6 +63,7 @@ static partial class Program
     static readonly List<HangingCut> hanging = new List<HangingCut>();
     static readonly List<DoorInfo> doors = new List<DoorInfo>();
     static readonly List<EnemyPlacement> enemyPlacements = new List<EnemyPlacement>();
+    static readonly StringBuilder monsterIds = new StringBuilder(); // DDMONST: map id, monster id, and the thing's position.
     static int enemiesSkipped, currentMapId;
     const int RandomEnemyRecord = 15, FixedEnemyRecord = 16;
     static readonly List<(string name, int x, int y)> blockRects = new List<(string, int, int)>();
@@ -264,8 +265,9 @@ static partial class Program
                     {
                         var f = obj.Resources.FlatResource;
                         var at = ToDoom(new V3(obj.XPos, -obj.YPos, obj.ZPos) + offset);
-                        enemyPlacements.Add(new EnemyPlacement(at.X, at.Y, at.Z, EnemyRoster.Pick(currentMapId, dungeonBlock.BlockName, dungeonBlock.X, dungeonBlock.Z,
-                            obj.XPos, obj.YPos, obj.ZPos, f.TextureRecord, f.FactionOrMobileId)));
+                        ulong placement = EnemyRoster.Hash(currentMapId, dungeonBlock.BlockName, dungeonBlock.X, dungeonBlock.Z,
+                            obj.XPos, obj.YPos, obj.ZPos, f.TextureRecord, f.FactionOrMobileId);
+                        enemyPlacements.Add(new EnemyPlacement(at.X, at.Y, at.Z, EnemyRoster.Pick(placement), EnemyRoster.MonsterId(placement)));
                     }
                     if (obj.Type != DFBlock.RdbResourceTypes.Model) continue;
                     var reference = block.RdbBlock.ModelReferenceList[obj.Resources.ModelResource.ModelIndex];
@@ -1097,6 +1099,7 @@ static partial class Program
             Span span = spans.Where(s => s.F <= e.Z + StepHeight && s.C - s.F >= ActorHeight).OrderByDescending(s => s.F).FirstOrDefault();
             if (span == null) { enemiesSkipped++; continue; }
             map.Append(FormattableString.Invariant($"thing {{ x = {minX + (i + 0.5) * cell:F1}; y = {minY + (j + 0.5) * cell:F1}; height = {span.F - spans[0].F}.0; angle = {(e.Type * 45) % 360}; type = {e.Type}; skill1 = true; skill2 = true; skill3 = true; skill4 = true; skill5 = true; single = true; coop = true; dm = true; }}\n"));
+            monsterIds.Append(FormattableString.Invariant($"{currentMapId} {e.Id:x16} {minX + (i + 0.5) * cell:F1} {minY + (j + 0.5) * cell:F1} {span.F}\n"));
             placed++;
             counts[e.Type] = counts.GetValueOrDefault(e.Type) + 1;
         }
@@ -1114,7 +1117,7 @@ static partial class Program
         var lumps = new (string name, byte[] data)[]
         {
             (mapName, Array.Empty<byte>()), ("TEXTMAP", Encoding.ASCII.GetBytes(textmap)), ("ENDMAP", Array.Empty<byte>()),
-            ("DFPOINTS", Encoding.ASCII.GetBytes(points)),
+            ("DFPOINTS", Encoding.ASCII.GetBytes(points)), ("DDMONST", Encoding.ASCII.GetBytes(monsterIds.ToString())),
         };
         using var file = new BinaryWriter(File.Create(path));
         file.Write(Encoding.ASCII.GetBytes("PWAD"));

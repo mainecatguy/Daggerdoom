@@ -1281,7 +1281,7 @@ list( REMOVE_ITEM GAME_NONPCH_SOURCES ${PCH_SOURCES} )
 add_executable( zdoom MACOSX_BUNDLE ${GAME_SOURCES} )
 
 # Doomerfall bridge. Inactive unless UZDoom is started with -dfbridge.
-set( DOOMERFALL_BRIDGE_SOURCES dd_bridge.cpp dd_items.cpp ../../bridge/doomerfall_bridge.cpp )
+set( DOOMERFALL_BRIDGE_SOURCES dd_bridge.cpp dd_items.cpp dd_monsters.cpp ../../bridge/doomerfall_bridge.cpp )
 target_sources( zdoom PRIVATE ${DOOMERFALL_BRIDGE_SOURCES} )
 set_source_files_properties( ${DOOMERFALL_BRIDGE_SOURCES} PROPERTIES SKIP_PRECOMPILE_HEADERS TRUE )
 include( ../../bridge/BridgeBindings.cmake )

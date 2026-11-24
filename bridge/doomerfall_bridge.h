@@ -99,6 +99,20 @@ extern "C" {
 #define DFB_KIND_ITEM_RESULT   44  /* DF to UZ; what Daggerfall did with that request; payload: dfb_item_result */
 #define DFB_KIND_ITEMS_REQUEST 45  /* UZ to DF; send the current list again; payload: dfb_world_items */
 
+/* Monsters. A monster id is 64 bits: tag (3, value 5) | placement hash (53) | pack member (8).
+   Every member of one placement shares the hash, so a pack needs no new id format. */
+#define DFB_KIND_MONSTER_DEATH     50  /* UZ to DF; a tagged monster died; payload: dfb_monster_death */
+#define DFB_KIND_MONSTERS_BEGIN    51  /* DF to UZ; starts one full list for a dungeon; payload: dfb_world_items */
+#define DFB_KIND_MONSTER           52  /* DF to UZ; one quest foe to place, or one dead id; payload: dfb_monster */
+#define DFB_KIND_MONSTERS_END      53  /* DF to UZ; the list is complete; payload: dfb_world_items */
+#define DFB_KIND_MONSTERS_REQUEST  54  /* UZ to DF; send the current list again; payload: dfb_world_items */
+
+#define DFB_MONSTER_TAG         5u
+#define DFB_MONSTER_TAG_SHIFT   61u
+#define DFB_MONSTER_MEMBER_BITS 8u
+#define DFB_MONSTER_PLACE  1u  /* a living quest foe that Doom must have at this position */
+#define DFB_MONSTER_DEAD   2u  /* Daggerfall has this id as dead */
+
 #define DFB_ITEM_TAKEN     0u  /* everything in the pile moved to the player */
 #define DFB_ITEM_PARTIAL   1u  /* some moved; the rest stays in the pile */
 #define DFB_ITEM_TOO_HEAVY 2u  /* nothing moved, because of the weight limit */
@@ -302,6 +316,29 @@ typedef struct dfb_item_result
 	int32_t remaining;
 	char name[24];        /* UTF-8, terminated: the first item taken */
 } dfb_item_result;
+
+/* Position is Doom units within the space. target is the space id from dfb_uz_state.space_target. */
+typedef struct dfb_monster_death
+{
+	uint64_t id;
+	uint32_t context;     /* DFB_WORLD_* */
+	int32_t target;
+	float x;
+	float y;
+	float z;
+	uint32_t pad;
+} dfb_monster_death;
+
+typedef struct dfb_monster
+{
+	uint64_t id;
+	uint32_t generation;
+	uint32_t state;       /* DFB_MONSTER_PLACE or DFB_MONSTER_DEAD */
+	float x;
+	float y;
+	float z;
+	uint32_t pad;
+} dfb_monster;
 
 /* Describes one frame in the UI surface. Pixels are BGRA, top row first, width * 4 bytes per row. */
 typedef struct dfb_surface_frame

@@ -25,6 +25,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DoomerfallPositionSync sync;
         StartGameBehaviour start;
         internal DoomerfallItems Items { get; set; }
+        internal DoomerfallMonsters Monsters { get; set; }
         bool holding;
 
         /// <summary>True in a flow session. StartGameBehaviour then waits for Doom before starting the game.</summary>
@@ -79,6 +80,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             holding = false;
             Items.ForgetWorld();
+            Monsters.ForgetWorld();
             AudioListener.volume = 1;
             start.EnableVideos = true;
             DaggerfallUI.Instance.enableVideos = true;
