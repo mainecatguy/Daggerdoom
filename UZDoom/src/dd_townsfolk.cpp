@@ -150,6 +150,34 @@ void Place(AActor *mo, const DVector2 &at, bool snap, double z)
 	mo->SetZ(mo->floorz);
 	if (snap) mo->ClearInterpolation();
 }
+
+// Daggerfall kills a wandering townsperson with any weapon hit (WeaponManager.WeaponDamage), so it has one point of
+// health. Its box follows the billboard, as the mobile's collider does. It still blocks no one, and autoaim and
+// monsters ignore it. DD_TownsfolkRefuseDamage keeps everyone but the player from hurting it.
+void MakeKillable(AActor *mo)
+{
+	mo->UnlinkFromWorld(nullptr);
+	mo->flags &= ~MF_NOBLOCKMAP;
+	mo->flags |= MF_SHOOTABLE;
+	mo->flags5 &= ~MF5_NOINTERACTION;
+	mo->flags6 |= MF6_NOTAUTOAIMED;
+	mo->flags7 |= MF7_NEVERTARGET | MF7_DONTTHRUST;
+	mo->health = 1;
+	if (mo->picnum.isValid())
+	{
+		auto tex = TexMan.GetGameTexture(mo->picnum);
+		mo->radius = clamp(tex->GetDisplayWidth() * fabs(mo->Scale.X) * 0.3, 6., 20.);
+		mo->Height = clamp(tex->GetDisplayHeight() * mo->Scale.Y, 16., 96.);
+	}
+	mo->LinkToWorld(nullptr);
+}
+}
+
+// Called by P_DamageMobj for any actor with a ddRecordId. Daggerfall only lets the player hurt townspeople
+// (DaggerfallEntityBehaviour.HandleAttackFromSource); enemies never attack them.
+bool DD_TownsfolkRefuseDamage(AActor *target, AActor *source)
+{
+	return IsTownspersonId(target->ddRecordId) && !(source && source->player);
 }
 
 void DD_TownsfolkTick(FLevelLocals *Level)
@@ -197,6 +225,7 @@ void DD_TownsfolkTick(FLevelLocals *Level)
 		mo->args[1] = int(uint32_t(id >> 32));
 		Place(mo, at, true, r.z);
 		ChooseSprite(mo, r, camera, r.vx != 0 || r.vy != 0);
+		MakeKillable(mo);
 		spawned++;
 	}
 	if (spawned) Printf("DDTOWNSFOLK spawned %d, listed %d\n", spawned, int(rows.size()));
