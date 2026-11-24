@@ -116,7 +116,7 @@ namespace DDTownCache
 			auto fail = [f]() -> EntryPtr { fclose(f); return nullptr; };
 			char magic[4];
 			int32_t count = 0;
-			if (fread(magic, 1, 4, f) != 4 || memcmp(magic, "DDT2", 4) || fread(&count, 4, 1, f) != 1 || count <= 0 || count > 16) return fail();
+			if (fread(magic, 1, 4, f) != 4 || memcmp(magic, "DDT3", 4) || fread(&count, 4, 1, f) != 1 || count <= 0 || count > 16) return fail();
 			struct Head { char name[9]; uint32_t raw, packed; };
 			std::vector<Head> heads(count);
 			for (auto &h : heads)

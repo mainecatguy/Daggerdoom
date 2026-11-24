@@ -60,6 +60,9 @@ bool DD_MonstersEvent(const dfb_event &e);
 void DD_MonstersFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t target);
 void DD_MonstersResync();
 void DD_MonsterDied(dfb_session *session, AActor *mo);
+bool DD_NpcsEvent(const dfb_event &e);
+void DD_NpcsFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t target);
+void DD_NpcsResync();
 
 FARG_ADVANCED(dfbridge, "Doomerfall", "session", "Attaches to the Doomerfall bridge session created by the launcher.");
 FARG_ADVANCED(dfbridgelog, "Doomerfall", "file", "Appends Doomerfall bridge traffic and latency to a log file.");
@@ -303,7 +306,7 @@ void HandleEvent(const dfb_event &e, int64_t now)
 		Log("hello from Daggerfall (seq %u)", e.seq);
 		break;
 	default:
-		if (!DD_ItemsEvent(e) && !DD_MonstersEvent(e)) unknownKinds++; // contract rule 7: skip, never fatal
+		if (!DD_ItemsEvent(e) && !DD_MonstersEvent(e) && !DD_NpcsEvent(e)) unknownKinds++; // contract rule 7: skip, never fatal
 		break;
 	}
 }
@@ -1608,6 +1611,7 @@ void HandleLoadResume(const dfb_event &e)
 	M_ClearMenus();
 	DD_ItemsResync();
 	DD_MonstersResync();
+	DD_NpcsResync();
 	Log("load %u: both games resumed, %.1f ms frozen", loadTxn, (dfb_now_ns() - loadStartNs) / 1e6);
 }
 
@@ -2184,6 +2188,7 @@ void DD_BridgeFrame()
 	PublishPosition();
 	DD_ItemsFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
 	DD_MonstersFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
+	DD_NpcsFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
 
 	ownState.uz_heartbeat++;
 	ownState.uz_tic = gametic;

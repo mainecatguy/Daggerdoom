@@ -8,7 +8,7 @@ import argparse, os, struct, subprocess, sys, time, zlib
 
 def lumps(path):
     with open(path, "rb") as f:
-        if f.read(4) != b"DDT2":
+        if f.read(4) != b"DDT3":
             sys.exit("not a cache file: " + path)
         count = struct.unpack("<i", f.read(4))[0]
         heads = [(f.read(8).rstrip(b"\0").decode(), *struct.unpack("<II", f.read(8))) for _ in range(count)]

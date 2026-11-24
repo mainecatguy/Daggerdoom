@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x2c3e59f98af8ca8dULL
+#define DFB_SCHEMA_HASH 0x33b93a2eaa9fdf46ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -71,6 +71,12 @@ static_assert((DFB_KIND_MONSTERS_BEGIN) == (51), DFB_STALE);
 static_assert((DFB_KIND_MONSTER) == (52), DFB_STALE);
 static_assert((DFB_KIND_MONSTERS_END) == (53), DFB_STALE);
 static_assert((DFB_KIND_MONSTERS_REQUEST) == (54), DFB_STALE);
+static_assert((DFB_KIND_NPCS_BEGIN) == (60), DFB_STALE);
+static_assert((DFB_KIND_NPC) == (61), DFB_STALE);
+static_assert((DFB_KIND_NPCS_END) == (62), DFB_STALE);
+static_assert((DFB_KIND_NPCS_REQUEST) == (63), DFB_STALE);
+static_assert((DFB_NPC_TAG) == (6u), DFB_STALE);
+static_assert((DFB_NPC_TAG_SHIFT) == (61u), DFB_STALE);
 static_assert((DFB_MONSTER_TAG) == (5u), DFB_STALE);
 static_assert((DFB_MONSTER_TAG_SHIFT) == (61u), DFB_STALE);
 static_assert((DFB_MONSTER_MEMBER_BITS) == (8u), DFB_STALE);
@@ -337,6 +343,14 @@ static_assert(offsetof(dfb_monster, z) == 24, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_monster::z), float>::value, DFB_STALE);
 static_assert(offsetof(dfb_monster, pad) == 28, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_monster::pad), uint32_t>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_npc) == 16, DFB_STALE);
+static_assert(offsetof(dfb_npc, id) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_npc::id), uint64_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_npc, generation) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_npc::generation), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_npc, pad) == 12, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_npc::pad), uint32_t>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_surface_frame) == 40, DFB_STALE);
 static_assert(offsetof(dfb_surface_frame, width) == 0, DFB_STALE);

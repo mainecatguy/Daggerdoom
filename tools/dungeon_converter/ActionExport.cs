@@ -194,7 +194,7 @@ static partial class Program
         public readonly Dictionary<uint, double> CellHalf = new Dictionary<uint, double>(); // thin special panels only; others use ActionCellSize / 2
         public readonly Dictionary<uint, double> CellHeight = new Dictionary<uint, double>(); // flat trapdoor tiles only; others use ActionCellSize
         public readonly List<(int archive, int record)> Flats = new List<(int, int)>();
-        public readonly List<(int archive, int record, V3 at)> Ordinary = new List<(int, int, V3)>();
+        public readonly List<(int archive, int record, V3 at, ulong npc)> Ordinary = new List<(int, int, V3, ulong)>();
     }
 
     // Fills the placement, bounds, and collision of one model record during --export-mesh.

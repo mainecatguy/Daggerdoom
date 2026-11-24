@@ -124,7 +124,7 @@ class World:
 def read_ddt(path):
     with open(path, "rb") as f:
         data = f.read()
-    if data[:4] != b"DDT2":
+    if data[:4] != b"DDT3":
         raise ValueError("not a town cache file")
     count = struct.unpack_from("<i", data, 4)[0]
     pos, heads = 8, []

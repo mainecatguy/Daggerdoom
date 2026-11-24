@@ -107,6 +107,16 @@ extern "C" {
 #define DFB_KIND_MONSTERS_END      53  /* DF to UZ; the list is complete; payload: dfb_world_items */
 #define DFB_KIND_MONSTERS_REQUEST  54  /* UZ to DF; send the current list again; payload: dfb_world_items */
 
+/* NPCs. An NPC id is 64 bits: tag (3, value 6) | hash of its Daggerfall layout record (61). Doom draws every NPC in a
+   generated map. Inside buildings Daggerfall lists who is present, because closed shops and owned houses are empty. */
+#define DFB_KIND_NPCS_BEGIN    60  /* DF to UZ; starts one full list for an interior; payload: dfb_world_items */
+#define DFB_KIND_NPC           61  /* DF to UZ; one NPC present in that interior; payload: dfb_npc */
+#define DFB_KIND_NPCS_END      62  /* DF to UZ; the list is complete, and anyone not in it is absent; payload: dfb_world_items */
+#define DFB_KIND_NPCS_REQUEST  63  /* UZ to DF; send the current list again; payload: dfb_world_items */
+
+#define DFB_NPC_TAG             6u
+#define DFB_NPC_TAG_SHIFT       61u
+
 #define DFB_MONSTER_TAG         5u
 #define DFB_MONSTER_TAG_SHIFT   61u
 #define DFB_MONSTER_MEMBER_BITS 8u
@@ -339,6 +349,14 @@ typedef struct dfb_monster
 	float z;
 	uint32_t pad;
 } dfb_monster;
+
+/* One NPC present in the listed interior. */
+typedef struct dfb_npc
+{
+	uint64_t id;
+	uint32_t generation;
+	uint32_t pad;
+} dfb_npc;
 
 /* Describes one frame in the UI surface. Pixels are BGRA, top row first, width * 4 bytes per row. */
 typedef struct dfb_surface_frame

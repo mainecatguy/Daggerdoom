@@ -15,7 +15,7 @@ static partial class Program
     const int EditorFlatArchive = 199, AnimalFlatArchive = 201, LightFlatArchive = 210, FixedTreasureFlatArchive = 216, FireWallArchive = 356;
     static readonly HashSet<int> NpcFlatArchives = new HashSet<int> { 334, 346, 357, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184 }; // RDBLayout.NPCFlatArchives
 
-    // Treasure and NPCs are drawn by Daggerfall too, but they are interactive systems. Showing them as scenery would promise loot and talk that do not work yet.
+    // Treasure is drawn by Daggerfall too, but it is an interactive system. Showing it as scenery would promise loot that does not work yet. NPCs are exported with an id.
     static bool IsOrdinaryFlat(int archive) => archive != EditorFlatArchive && archive != FixedTreasureFlatArchive && !NpcFlatArchives.Contains(archive);
 
     static double BillboardFps(int archive) => archive == LightFlatArchive ? 12 : 5; // animals and everything else run at 5
@@ -84,6 +84,15 @@ static partial class Program
                 {
                     if (obj.Type != DFBlock.RdbResourceTypes.Flat) continue;
                     var flat = obj.Resources.FlatResource;
+                    // RDBLayout.AddFlat makes a StaticNPC of every flat in these archives.
+                    if (NpcFlatArchives.Contains(flat.TextureArchive))
+                    {
+                        var npcFile = archive(flat.TextureArchive);
+                        if (flat.TextureRecord >= npcFile.RecordCount) { Console.WriteLine($"missing NPC flat {flat.TextureArchive}:{flat.TextureRecord}"); continue; }
+                        package.Ordinary.Add((flat.TextureArchive, flat.TextureRecord, ToDoom(new V3(obj.XPos, -obj.YPos, obj.ZPos) + offset),
+                            NpcIdentity.Make(location.MapTableData.MapId, NpcIdentity.Dungeon, dungeonBlock.X, dungeonBlock.Z, 0, flat.Position)));
+                        continue;
+                    }
                     if (!IsOrdinaryFlat(flat.TextureArchive))
                     {
                         hidden.TryGetValue(flat.TextureArchive, out int n);
@@ -93,7 +102,7 @@ static partial class Program
                     if (flat.Action != 0) continue;
                     var file = archive(flat.TextureArchive);
                     if (flat.TextureRecord >= file.RecordCount) { Console.WriteLine($"missing flat {flat.TextureArchive}:{flat.TextureRecord}"); continue; }
-                    package.Ordinary.Add((flat.TextureArchive, flat.TextureRecord, ToDoom(new V3(obj.XPos, -obj.YPos, obj.ZPos) + offset)));
+                    package.Ordinary.Add((flat.TextureArchive, flat.TextureRecord, ToDoom(new V3(obj.XPos, -obj.YPos, obj.ZPos) + offset), 0));
                 }
             }
         }
@@ -137,14 +146,14 @@ static partial class Program
         return 0;
     }
 
-    // DFDFLATS: one "texture x y z scaleX scaleY" line per ordinary billboard.
+    // DFDFLATS: one "texture x y z scaleX scaleY [npc id]" line per billboard.
     static string DungeonFlatLump(ActionPackage package, Func<int, TextureFile> archive)
     {
         var text = new StringBuilder();
         foreach (var f in package.Ordinary)
         {
             var (sx, sy) = BillboardScale(archive(f.archive), f.record);
-            text.Append(FormattableString.Invariant($"{FlatTextureName(f.archive, f.record)} {f.at.X:F3} {f.at.Y:F3} {f.at.Z:F3} {sx:F4} {sy:F4}\n"));
+            text.Append(FormattableString.Invariant($"{FlatTextureName(f.archive, f.record)} {f.at.X:F3} {f.at.Y:F3} {f.at.Z:F3} {sx:F4} {sy:F4}{(f.npc != 0 ? $" {f.npc:x16}" : "")}\n"));
         }
         return text.ToString();
     }

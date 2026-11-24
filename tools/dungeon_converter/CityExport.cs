@@ -120,7 +120,7 @@ static partial class Program
                 double up = (site.Target - target) * HeightToDf, baseX = (site.DX * TilesPerPixel + site.Place.OriginX) * TileDf, baseZ = (site.DY * TilesPerPixel + site.Place.OriginY) * TileDf;
                 for (int y = 0; y < site.Place.BlocksHigh; y++)
                     for (int x = 0; x < site.Place.BlocksWide; x++)
-                        scene.AddBlock(site.Blocks[y * site.Place.BlocksWide + x], arch, baseX + x * RmbDf, baseZ + y * RmbDf, up);
+                        scene.AddBlock(site.Blocks[y * site.Place.BlocksWide + x], arch, baseX + x * RmbDf, baseZ + y * RmbDf, up, site.Location.MapTableData.MapId, x, y);
             }
             scene.Use(location);
             scene.AddTerrain(bx0 - visualMargin, bx1 + visualMargin, by0 - visualMargin, by1 + visualMargin);
@@ -202,23 +202,27 @@ static partial class Program
 
             // Billboards can come from any archive a block names, plus the nature sets.
             var flatArchives = new HashSet<int>(Enumerable.Range((int)DFLocation.ClimateTextureSet.Nature_RainForest, (int)DFLocation.ClimateTextureSet.Nature_Mountains_Snow - (int)DFLocation.ClimateTextureSet.Nature_RainForest + 1));
+            var npcArchives = new HashSet<int>();
             for (int b = 0; b < blocks.Count; b++)
             {
                 if (!blocks.GetBlockName(b).EndsWith(".RMB", StringComparison.OrdinalIgnoreCase)) continue;
                 var data = blocks.GetBlock(b).RmbBlock;
                 foreach (var sub in data.SubRecords)
                 {
-                    foreach (var f in sub.Exterior.BlockFlatObjectRecords) flatArchives.Add(f.TextureArchive);
+                    foreach (var f in sub.Exterior.BlockFlatObjectRecords) { flatArchives.Add(f.TextureArchive); if (f.FactionID != 0) npcArchives.Add(f.TextureArchive); }
                     foreach (var f in sub.Interior.BlockFlatObjectRecords) flatArchives.Add(f.TextureArchive);
+                    foreach (var p in sub.Interior.BlockPeopleRecords) { flatArchives.Add(p.TextureArchive); npcArchives.Add(p.TextureArchive); }
                 }
-                foreach (var f in data.MiscFlatObjectRecords) flatArchives.Add(f.TextureArchive);
+                foreach (var f in data.MiscFlatObjectRecords) { flatArchives.Add(f.TextureArchive); if (f.FactionID != 0) npcArchives.Add(f.TextureArchive); }
             }
             flatArchives.Remove(199);
+            npcArchives.Remove(199);
 
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outFile)));
             string temp = outFile + ".tmp";
             if (File.Exists(temp)) File.Delete(temp);
             int meshImages = 0, flatImages = 0;
+            var npcAnimation = new StringBuilder();
             using (var zip = ZipFile.Open(temp, ZipArchiveMode.Create))
             {
                 void Text(string name, string body) { using var s = new StreamWriter(zip.CreateEntry(name, CompressionLevel.Fastest).Open()); s.Write(body); }
@@ -236,8 +240,16 @@ static partial class Program
                         if (!flatArchives.Contains(archive)) continue;
                         using (var s = zip.CreateEntry($"dfflat/F{archive:D3}R{record:D2}.png", CompressionLevel.Fastest).Open()) WriteFlatPng(s, image, file.Palette);
                         flatImages++;
+                        // NPCs idle through their frames in Daggerfall.
+                        int frames = npcArchives.Contains(archive) ? file.GetFrameCount(record) : 1;
+                        if (frames <= 1) continue;
+                        for (int frame = 1; frame < frames; frame++)
+                            using (var s = zip.CreateEntry($"dfflat/F{archive:D3}R{record:D2}_f{frame}.png", CompressionLevel.Fastest).Open()) WriteFlatPng(s, file.GetDFBitmap(record, frame), file.Palette);
+                        int animatedRecord = record, animatedArchive = archive;
+                        AppendAnimation(npcAnimation, f => $"dfflat/F{animatedArchive:D3}R{animatedRecord:D2}{(f > 0 ? $"_f{f}" : "")}.png", frames, BillboardFps(archive));
                     }
                 }
+                if (npcAnimation.Length > 0) Text("ANIMDEFS", npcAnimation.ToString());
                 var home = maps.GetLocation(WorldTerrain.Places[(207, 213)].RegionIndex, WorldTerrain.Places[(207, 213)].LocationIndex);
                 var scene = new Scene(arena2, home, 0, 0);
                 scene.WriteSharedSky(zip);
@@ -270,6 +282,9 @@ class DFCityFlat : Actor
 	Default { +NOINTERACTION +NOBLOCKMAP +NOGRAVITY +DONTSPLASH +NOTONAUTOMAP Radius 1; Height 1; }
 	States { Spawn: PLAY A -1; Stop; }
 }
+
+// A Daggerfall NPC. It blocks nothing and takes no damage. args[0] and args[1] hold the low and high halves of its id.
+class DFNpc : DFCityFlat {}
 
 class DFRuntimeTown
 {
@@ -424,7 +439,7 @@ class DFRuntimeHandler : EventHandler
             public readonly List<(V3 a, V3 b, V3 c)> Colliders = new List<(V3, V3, V3)>();
             public readonly List<int> ColliderOwners = new List<int>(); // building id per collider triangle, or -1 for walls, gates, and props
             int currentOwner = -1, nextOwner;
-            public readonly List<(int archive, int record, double x, double y, double z, double sx, double sy)> Flats = new List<(int, int, double, double, double, double, double)>();
+            public readonly List<(int archive, int record, double x, double y, double z, double sx, double sy, ulong npc)> Flats = new List<(int, int, double, double, double, double, double, ulong)>();
             public int Models, Missing, Gates, BadTextures, BatchCount;
             public int Triangles => batches.Values.Sum(b => b.Count) / 24;
             public readonly List<V3> ColliderNormals = new List<V3>(); // Doom axes, parallel to Colliders
@@ -617,7 +632,7 @@ class DFRuntimeHandler : EventHandler
             }
 
             // Town billboards stand on their position. Interior ones are centered on it, as in Daggerfall Unity.
-            public void AddFlat(int archive, int record, double x, double up, double z, bool centered = false)
+            public void AddFlat(int archive, int record, double x, double up, double z, bool centered = false, ulong npc = 0)
             {
                 var file = Archive(archive);
                 if (file == null || record >= file.RecordCount) { BadTextures++; return; }
@@ -629,10 +644,10 @@ class DFRuntimeHandler : EventHandler
                     flatSizes[(archive, record)] = size = (raw.Width + xChange, raw.Height + yChange, raw.Width, raw.Height);
                 }
                 if (centered) up -= size.h / 2;
-                Flats.Add((archive, record, (x - originX) * S, (z - originZ) * S, up * S, size.w / size.texW * S, size.h / size.texH * S));
+                Flats.Add((archive, record, (x - originX) * S, (z - originZ) * S, up * S, size.w / size.texW * S, size.h / size.texH * S, npc));
             }
 
-            public void AddBlock(DFBlock block, Arch3dFile arch, double blockX, double blockZ, double up)
+            public void AddBlock(DFBlock block, Arch3dFile arch, double blockX, double blockZ, double up, int mapId, int layoutX, int layoutY)
             {
                 const double toRad = Math.PI / 180;
                 double div = BlocksFile.RotationDivisor;
@@ -651,12 +666,12 @@ class DFRuntimeHandler : EventHandler
                     AddDoors(sub, arch, parent, yaw, nextBuilding++);
                     foreach (var f in sub.Exterior.BlockFlatObjectRecords)
                     {
-                        if (f.TextureArchive == 199 || f.FactionID != 0) continue; // editor markers and NPCs are out of scope
+                        if (f.TextureArchive == 199) continue; // editor markers
                         int archive = f.TextureArchive;
                         double fx = origin.X + sub.XPos + f.XPos, fy = origin.Y - f.YPos - 6, fz = origin.Z - sub.ZPos + f.ZPos + RmbDf;
                         if (archive >= (int)DFLocation.ClimateTextureSet.Nature_RainForest && archive <= (int)DFLocation.ClimateTextureSet.Nature_Mountains_Snow)
                             archive = location.Climate.NatureArchive;
-                        AddFlat(archive, f.TextureRecord, fx, fy, fz);
+                        AddFlat(archive, f.TextureRecord, fx, fy, fz, false, f.FactionID != 0 ? NpcIdentity.Make(mapId, NpcIdentity.Exterior, layoutX, layoutY, 0, f.Position) : 0);
                     }
                 }
                 currentOwner = -1;
@@ -664,8 +679,8 @@ class DFRuntimeHandler : EventHandler
                     AddModel(arch, o.ModelIdNum, new V3(o.XPos, -o.YPos - 4, o.ZPos + RmbDf), -o.XRotation / div * toRad, -o.YRotation / div * toRad, -o.ZRotation / div * toRad, ScaleOf(o), origin, 0);
                 if (DoorGroup >= 0) AddDoorsFrom(data.Misc3dObjectRecords, arch, origin, 0, new V3(0, -4, RmbDf), MaxBuildings, false);
                 foreach (var f in data.MiscFlatObjectRecords)
-                    if (f.TextureArchive != 199 && f.FactionID == 0)
-                        AddFlat(f.TextureArchive, f.TextureRecord, origin.X + f.XPos, origin.Y - f.YPos - 6, origin.Z + f.ZPos + RmbDf);
+                    if (f.TextureArchive != 199)
+                        AddFlat(f.TextureArchive, f.TextureRecord, origin.X + f.XPos, origin.Y - f.YPos - 6, origin.Z + f.ZPos + RmbDf, false, f.FactionID != 0 ? NpcIdentity.Make(mapId, NpcIdentity.Exterior, layoutX, layoutY, 0, f.Position) : 0);
                 var scenery = data.FldHeader.GroundData.GroundScenery;
                 for (int y = 0; y < 16; y++)
                     for (int x = 0; x < 16; x++)
@@ -852,7 +867,7 @@ class DFRuntimeHandler : EventHandler
                 writer.Flush();
             }
 
-            // One cache entry: "DDT2", entry count, then name[8], raw size, packed size for each, then the zlib streams.
+            // One cache entry: "DDT3", entry count, then name[8], raw size, packed size for each, then the zlib streams.
             // It is written to a temporary file and renamed, so the engine never sees a partial entry.
             public void WriteRuntimeEntry(string path, string wadPath, string townInfo, string mapName)
             {
@@ -862,7 +877,7 @@ class DFRuntimeHandler : EventHandler
                 WriteMesh(mesh, keys, mapName);
                 var flatList = new StringBuilder();
                 foreach (var f in Flats)
-                    flatList.Append(FormattableString.Invariant($"dfflat/F{f.archive:D3}R{f.record:D2}.png {f.x:F2} {f.y:F2} {f.z:F2} {f.sx:F4} {f.sy:F4}\n"));
+                    flatList.Append(FormattableString.Invariant($"dfflat/F{f.archive:D3}R{f.record:D2}.png {f.x:F2} {f.y:F2} {f.z:F2} {f.sx:F4} {f.sy:F4}{(f.npc != 0 ? $" {f.npc:x16}" : "")}\n"));
                 var entries = new (string name, byte[] data)[]
                 {
                     ("MAPWAD", File.ReadAllBytes(wadPath)), ("DFMESH", mesh.ToArray()), ("DFFLATS", Encoding.ASCII.GetBytes(flatList.ToString())),
@@ -880,7 +895,7 @@ class DFRuntimeHandler : EventHandler
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path)));
                 using (var w = new BinaryWriter(File.Create(temp)))
                 {
-                    w.Write(Encoding.ASCII.GetBytes("DDT2"));
+                    w.Write(Encoding.ASCII.GetBytes("DDT3"));
                     w.Write(entries.Length);
                     for (int i = 0; i < entries.Length; i++)
                     {

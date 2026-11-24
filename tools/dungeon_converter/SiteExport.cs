@@ -96,7 +96,7 @@ static partial class Program
             DFLocation location = default;
             DFBlock.RmbSubRecord record = default;
             string blockName = null, buildingType = "?";
-            int recordIndex = -1, ordinal = 0;
+            int recordIndex = -1, ordinal = 0, layoutX = 0, layoutY = 0;
             foreach (var place in groups[groupId])
             {
                 var loc = maps.GetLocation(place.RegionIndex, place.LocationIndex);
@@ -106,7 +106,7 @@ static partial class Program
                         string name = maps.GetRmbBlockName(loc, x, y);
                         var subs = blocksFile.GetBlock(name).RmbBlock.SubRecords;
                         for (int r = 0; r < subs.Length; r++, ordinal++)
-                            if (ordinal == wanted) { location = loc; record = subs[r]; blockName = name; recordIndex = r; buildingType = blocksFile.GetBlock(name).RmbBlock.FldHeader.BuildingDataList[r].BuildingType.ToString(); break; }
+                            if (ordinal == wanted) { location = loc; record = subs[r]; blockName = name; recordIndex = r; layoutX = x; layoutY = y; buildingType = blocksFile.GetBlock(name).RmbBlock.FldHeader.BuildingDataList[r].BuildingType.ToString(); break; }
                     }
                 if (blockName != null) break;
             }
@@ -146,6 +146,9 @@ static partial class Program
                 }
                 if (f.FactionID == 0) scene.AddFlat(f.TextureArchive, f.TextureRecord, f.XPos, -f.YPos, f.ZPos, true);
             }
+            // DaggerfallInterior.AddPeople stands each person on their position.
+            foreach (var p in record.Interior.BlockPeopleRecords)
+                scene.AddFlat(p.TextureArchive, p.TextureRecord, p.XPos, -p.YPos, p.ZPos, false, NpcIdentity.Make(location.MapTableData.MapId, NpcIdentity.Interior, layoutX, layoutY, recordIndex, p.Position));
             if (scene.Colliders.Count == 0 || (interiorDoors.Count == 0 && markers.Count == 0)) { Console.Error.WriteLine("building has no usable interior"); return 1; }
 
             // One landing for each exterior door of this building, in the exterior door order the town uses.

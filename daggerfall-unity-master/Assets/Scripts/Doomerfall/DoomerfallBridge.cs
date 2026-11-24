@@ -62,6 +62,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DoomerfallItems items;
         DoomerfallNewGame newGame;
         DoomerfallMonsters monsters;
+        DoomerfallNpcs npcs;
         bool textFrame;
         uint ownSize, peerSize, nextPing = 1;
         ulong pingsAnswered, pongsReceived, unknownKinds;
@@ -146,6 +147,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             monsters.Init(this, sync);
             save.Monsters = monsters;
             newGame.Monsters = monsters;
+            npcs = gameObject.AddComponent<DoomerfallNpcs>();
+            npcs.Init(this, sync);
         }
 
         // The schema hash covers every constant, struct field, and function in the header.
@@ -310,6 +313,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         break;
                     case Dfb.KIND_MONSTERS_REQUEST:
                         monsters.OnRequest();
+                        break;
+                    case Dfb.KIND_NPCS_REQUEST:
+                        npcs.OnRequest();
                         break;
                     case Dfb.KIND_ITEMS_REQUEST:
                         items.OnRequest();

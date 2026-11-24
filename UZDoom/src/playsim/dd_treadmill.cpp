@@ -17,6 +17,7 @@
 // the reverse. Both maps read the same heights, including Daggerfall's location
 // flattening (DDLOCS), so the ground matches across the handoff.
 
+#include <cinttypes>
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -70,6 +71,7 @@ CVAR(String, dd_tm_warp, "", CVAR_NOSAVE | CVAR_MOD)		// "tileX tileY": moves th
 
 void DD_MonstersEnterDungeon(FLevelLocals *Level, int mapId, bool firstVisit, bool bridged);
 void DD_MonstersTick(FLevelLocals *Level);
+void DD_NpcSetup(AActor *mo, uint64_t id, bool awaitList);
 bool DD_BridgeHasSession();
 
 bool DDTreadmill_Active = false;
@@ -199,10 +201,10 @@ namespace
 	bool useHeld;
 
 	// The town's billboards, so trees and props look the same from the overworld. Global Doom coordinates.
-	struct TownFlat { FTextureID tex; double x, y, z; float sx, sy; };
+	struct TownFlat { FTextureID tex; double x, y, z; float sx, sy; uint64_t npc; };
 	std::unordered_map<int64_t, std::vector<TownFlat>> townFlats;
 	bool flatsLoaded;
-	PClassActor *flatClass;
+	PClassActor *flatClass = nullptr, *npcClass = nullptr;
 	std::vector<float> window;
 	std::vector<Tri> tris;
 	int originX, originY, startTileX, startTileY, shifts, startAngle;
@@ -671,7 +673,7 @@ namespace
 			auto id = ids.find(name);
 			if (id == ids.end()) id = ids.emplace(name, TexMan.CheckForTexture(name, ETextureType::Any)).first;
 			const double gx = t.originX * DOOM_PER_DF + x, gy = t.originY * DOOM_PER_DF + y;
-			townFlats[ChunkKey(int(floor(gx / chunkDoom)), int(floor(gy / chunkDoom)))].push_back({ id->second, gx, gy, z + t.ground * DOOM_PER_DF - Z_BASE, sx, sy });
+			townFlats[ChunkKey(int(floor(gx / chunkDoom)), int(floor(gy / chunkDoom)))].push_back({ id->second, gx, gy, z + t.ground * DOOM_PER_DF - Z_BASE, sx, sy, 0 });
 		}
 	}
 
@@ -682,10 +684,12 @@ namespace
 		if (found == townFlats.end()) return;
 		for (const TownFlat &f : found->second)
 		{
-			AActor *mo = Spawn(Level, flatClass, DVector3(f.x - originX * double(SPACING) - HALF, f.y - originY * double(SPACING) - HALF, f.z), NO_REPLACE);
+			PClassActor *cls = f.npc && npcClass ? npcClass : flatClass;
+			AActor *mo = Spawn(Level, cls, DVector3(f.x - originX * double(SPACING) - HALF, f.y - originY * double(SPACING) - HALF, f.z), NO_REPLACE);
 			if (!mo) continue;
 			mo->picnum = f.tex;
 			mo->Scale = DVector2(f.sx, f.sy);
+			if (f.npc && npcClass) DD_NpcSetup(mo, f.npc, false);
 		}
 	}
 
@@ -805,7 +809,7 @@ namespace
 			mo->Prev -= delta;
 			mo->SpawnPoint.X -= delta.X;
 			mo->SpawnPoint.Y -= delta.Y;
-			if (flatClass && mo->GetClass() == flatClass) continue;	// Billboards keep their exact height.
+			if (flatClass && mo->IsKindOf(flatClass)) continue;	// Billboards keep their exact height.
 			moved.push_back({ mo, onFloor });
 		}
 		for (AActor *mo : leaving) Park(mo, fromX, fromY);
@@ -1060,11 +1064,12 @@ namespace
 	}
 
 	// Fresh entry to a generated location: its billboards and gates. Saves restore these as ordinary actors.
-	void SpawnTownContents(FLevelLocals *Level)
+	void SpawnTownContents(FLevelLocals *Level, bool interior)
 	{
 		if (!mapEntry) return;
-		PClassActor *flat = PClass::FindActor("DFCityFlat");
-		int spawned = 0;
+		PClassActor *flat = PClass::FindActor("DFCityFlat"), *npc = PClass::FindActor("DFNpc");
+		const bool awaitList = interior && DD_BridgeHasSession();	// Daggerfall says who is in a building.
+		int spawned = 0, people = 0;
 		if (const auto *body = mapEntry->Find("DFFLATS"); body && flat)
 		{
 			FString text((const char *)body->data(), body->size());
@@ -1073,13 +1078,15 @@ namespace
 				char name[40];
 				double x, y, z;
 				float sx, sy;
-				if (sscanf(line.GetChars(), "%39s %lf %lf %lf %f %f", name, &x, &y, &z, &sx, &sy) != 6) continue;
+				uint64_t id = 0;
+				if (sscanf(line.GetChars(), "%39s %lf %lf %lf %f %f %" SCNx64, name, &x, &y, &z, &sx, &sy, &id) < 6) continue;
 				const FTextureID tex = FlatTexture(name);
 				if (!tex.isValid()) continue;
-				AActor *mo = Spawn(Level, flat, DVector3(x, y, z), NO_REPLACE);
+				AActor *mo = Spawn(Level, id && npc ? npc : flat, DVector3(x, y, z), NO_REPLACE);
 				if (!mo) continue;
 				mo->picnum = tex;
 				mo->Scale = DVector2(sx, sy);
+				if (id && npc) { DD_NpcSetup(mo, id, awaitList); people++; }
 				spawned++;
 			}
 		}
@@ -1092,7 +1099,7 @@ namespace
 			VMValue params[] = { &text };
 			VMCall(func, params, 1, nullptr, 0);
 		}
-		Printf("DDTOWN contents billboards=%d\n", spawned);
+		Printf("DDTOWN contents billboards=%d npcs=%d\n", spawned, people);
 	}
 
 	// Switches which location the overworld draws in the distance.
@@ -1104,11 +1111,12 @@ namespace
 		lodEntry = town >= 0 ? DDTownCache::Get(towns[town].group) : nullptr;
 		if (town >= 0 && !lodEntry) lodTown = -1;
 		if (!flatClass) flatClass = PClass::FindActor("DFCityFlat");
+		npcClass = PClass::FindActor("DFNpc");
 		if (flatClass)
 		{
 			std::vector<AActor *> old;
 			auto it = Level->GetThinkerIterator<AActor>();
-			while (AActor *mo = it.Next()) if (mo->GetClass() == flatClass) old.push_back(mo);
+			while (AActor *mo = it.Next()) if (mo->IsKindOf(flatClass)) old.push_back(mo);
 			for (AActor *mo : old) mo->Destroy();
 		}
 		townFlats.clear();
@@ -1126,11 +1134,12 @@ namespace
 					char name[40];
 					double x, y, z;
 					float sx, sy;
-					if (sscanf(line.GetChars(), "%39s %lf %lf %lf %f %f", name, &x, &y, &z, &sx, &sy) != 6) continue;
+					uint64_t id = 0;
+					if (sscanf(line.GetChars(), "%39s %lf %lf %lf %f %f %" SCNx64, name, &x, &y, &z, &sx, &sy, &id) < 6) continue;
 					const FTextureID tex = FlatTexture(name);
 					if (!tex.isValid()) continue;
 					const double gx = t.originX * DOOM_PER_DF + x, gy = t.originY * DOOM_PER_DF + y;
-					townFlats[ChunkKey(int(floor(gx / chunkDoom)), int(floor(gy / chunkDoom)))].push_back({ tex, gx, gy, z + t.ground * DOOM_PER_DF - Z_BASE, sx, sy });
+					townFlats[ChunkKey(int(floor(gx / chunkDoom)), int(floor(gy / chunkDoom)))].push_back({ tex, gx, gy, z + t.ground * DOOM_PER_DF - Z_BASE, sx, sy, id });
 				}
 			}
 			for (int cy = originY / CHUNK_TILES; cy < (originY + CELLS) / CHUNK_TILES; cy++)
@@ -1648,7 +1657,7 @@ namespace
 			Restore(Level, r);
 			restored++;
 		}
-		if (t.group >= 0 || (t.space && t.spaceId < DUNGEON_SPACE)) SpawnTownContents(Level);
+		if (t.group >= 0 || (t.space && t.spaceId < DUNGEON_SPACE)) SpawnTownContents(Level, t.space);
 		FinishHandoff(Level);
 		if (FindArg("-ddtmverify")) VerifySeam(Level, t);
 		Printf("DDTOWN active %s restored=%d records=%d\n", t.map.GetChars(), restored, int(table.size()));

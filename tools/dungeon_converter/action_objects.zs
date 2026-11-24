@@ -36,6 +36,9 @@ class DFDungeonFlat : Actor
 	States { Spawn: PLAY A -1 Bright; Stop; }
 }
 
+// A Daggerfall NPC in a dungeon. It blocks nothing and takes no damage. args[0] and args[1] hold the low and high halves of its id.
+class DFDungeonNpc : DFDungeonFlat {}
+
 // One cube of a moving model's collision. Solid to movement, hitscans, and projectiles, and can be stood on.
 class DFActionCell : Actor
 {
@@ -409,7 +412,7 @@ class DFActionHandler : EventHandler
 		Console.Printf("DFACTIONS loaded %d records, %d collision cells, %d door links", actions.Size(), cellCount, doorLinks);
 	}
 
-	// DFDFLATS: texture x y z scaleX scaleY. The center of the picture is on the position.
+	// DFDFLATS: texture x y z scaleX scaleY [npc id]. The center of the picture is on the position.
 	void SpawnFlats()
 	{
 		int lump = Wads.CheckNumForFullName("DFDFLATS");
@@ -423,7 +426,12 @@ class DFActionHandler : EventHandler
 			row.Split(f, " ", TOK_SKIPEMPTY);
 			if (f.Size() < 6) continue;
 			vector3 at = (f[1].ToDouble(), f[2].ToDouble(), f[3].ToDouble());
-			let flat = Actor.Spawn("DFDungeonFlat", at, NO_REPLACE);
+			let flat = Actor.Spawn(f.Size() > 6 ? "DFDungeonNpc" : "DFDungeonFlat", at, NO_REPLACE);
+			if (f.Size() > 6)
+			{
+				flat.args[1] = (f[6].Mid(0, 4).ToInt(16) << 16) | f[6].Mid(4, 4).ToInt(16);
+				flat.args[0] = (f[6].Mid(8, 4).ToInt(16) << 16) | f[6].Mid(12, 4).ToInt(16);
+			}
 			flat.picnum = TexMan.CheckForTexture(f[0], TexMan.Type_Any);
 			if (!flat.picnum.IsValid()) missing++;
 			flat.scale = (f[4].ToDouble(), f[5].ToDouble());
