@@ -7,6 +7,8 @@
                                  pos | actors [radius] [limit] [kind] | move_to x y [tolerance] [seconds] | stop |
                                  use | god [on|off] | teleport x y [z|nan] [angle] | kill <ref or Daggerfall id> |
                                  con <console command>
+  qa.py goto x y z [seconds]     Plan with nav.py over the dungeon's walk graph and walk there honestly, one move_to per
+                                 waypoint, in this one call. Prints the plan and the outcome.
   qa.py wait <job> [seconds]     Block until a job (the id move_to returned) finishes; prints its result.
   qa.py events                   Print the events written since the session started.
   qa.py quit                     End the session.
@@ -34,6 +36,7 @@ DRLA = [Path(r"D:\dev\DoomDaggerfall\GameMods") / n for n in ("DoomRL_Arsenal_1.
 DUNGEON = ("ddruntime.pk3", "overworld.pk3", "privateershold.wad", "privateershold_mesh.pk3", "privateershold_doors.pk3")
 GROUP = 7154
 SESSION_SECONDS = int(os.environ.get("DDQA_SECONDS", "240"))  # quiet_run's hard limit on one session; overnight runs raise it
+POINTS = Path(os.environ.get("DDQA_POINTS", r"D:\dev\DoomDaggerfall-loop\review\encounter-placer\wad\privateershold.points.txt"))
 QA = SESSION / "qa"
 INBOX, OUTBOX = QA / "inbox.txt", QA / "outbox.jsonl"
 FATAL = ("DIED WITH FATAL", "VM execution aborted", "Execution could not continue", "Unable to open map")
@@ -180,6 +183,39 @@ def wait(job, seconds):
     say(got or {"id": job, "done": False, "error": f"still running after {seconds} s"})
 
 
+def goto(x, y, z, seconds):
+    sys.path.insert(0, str(HERE))
+    import nav
+    graph = nav.Graph(POINTS)
+    here = command(["pos"])
+    if not here.get("ok"):
+        return say(here)
+    plan = graph.plan(here["x"], here["y"], here["z"], x, y, z)
+    if not plan["ok"]:
+        return say(plan)
+    out = {k: v for k, v in plan.items() if k != "waypoints"}
+    out["waypoint_count"] = len(plan["waypoints"])
+    end, tics, travelled = time.time() + seconds, 0, 0.0
+    for i, (wx, wy, _wz) in enumerate(plan["waypoints"]):
+        last = i == len(plan["waypoints"]) - 1
+        for attempt in range(2):  # Stuck once: press Use (a closed door on the route) and try the waypoint again.
+            job = command(["move_to", str(wx), str(wy), "24" if last else "20", str(max(1, int(end - time.time())))])
+            done = await_line(lambda o: o.get("id") == job.get("id") and o.get("done"), max(1, end - time.time()) + 2) if job.get("ok") else job
+            if attempt or not done or done.get("result") != "stuck":
+                break
+            command(["use"])
+            out["uses"] = out.get("uses", 0) + 1
+            time.sleep(1.0)  # Doors take about a second to open.
+        if not done or done.get("result") != "arrived":
+            out.update(ok=False, failed_at=i, at=[wx, wy], last=done)
+            return say(out)
+        tics += done["tics"]
+        travelled += done["travelled"]
+    out.update(ok=True, result="arrived", honest=True, tics=tics, seconds_game=round(tics / 35, 1), travelled=round(travelled),
+               final=command(["pos"]))
+    say(out)
+
+
 def quit_session():
     pid = (QA / "pid").read_text() if (QA / "pid").exists() else ""
     if pid:
@@ -198,6 +234,8 @@ def main():
         start("--dungeon" in args)
     elif verb == "wait":
         wait(args[1], float(args[2]) if len(args) > 2 else 30)
+    elif verb == "goto":
+        goto(float(args[1]), float(args[2]), float(args[3]), float(args[4]) if len(args) > 4 else 60)
     elif verb == "events":
         say([o for o in lines() if "event" in o])
     elif verb == "quit":

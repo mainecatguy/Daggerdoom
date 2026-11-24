@@ -118,7 +118,7 @@ class Graph:
         ax, ay, af, *_ = self.nodes[a]
         bx, by, bf, *_ = self.nodes[b]
         steps = max(1, int(math.hypot(bx - ax, by - ay) // 12))
-        last = af
+        last, prev = af, a
         for k in range(1, steps + 1):
             t = k / steps
             x, y = ax + (bx - ax) * t, ay + (by - ay) * t
@@ -128,7 +128,14 @@ class Graph:
             nx, ny, fl, *_ = self.nodes[n]
             if math.hypot(nx - x, ny - y) > 17 or fl - last > STEP or self.nodes[n][4]:
                 return False
-            last = fl
+            # Consecutive samples must stay on one node or cross a real link: nodes on both sides of a thin wall are
+            # close together but not linked. (Found in play: a smoothed segment ran into a wall corner.)
+            if n != prev and all(m != n for m, _ in self.links[prev]):
+                return False
+            # Keep a body radius off unwalkable space: the sample's node must have all four lattice links.
+            if k < steps and len(self.links[n]) < 4:
+                return False
+            last, prev = fl, n
         return True
 
     def smooth(self, path):
