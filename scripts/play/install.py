@@ -11,7 +11,7 @@ REPO = Path(__file__).resolve().parents[2]
 BUILD = REPO.parent / "DoomDaggerfall-build"
 LOOP = Path(r"D:\dev\DoomDaggerfall-loop")
 TARGET = Path(sys.argv[1]) if len(sys.argv) > 1 else LOOP / "play"
-DATA = LOOP / "review" / "combined-bridge" / "data"
+DATA = LOOP / "review" / "monster-deaths" / "data"  # Its dungeon map carries the monster IDs.
 ITEM_SPRITES = LOOP / "review" / "item-pickup" / "dfitems.pk3"
 SOUND_DLLS = Path(r"D:\dev\DoomDaggerfall-build\uzdoom-launcher\Release")
 GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
@@ -74,6 +74,9 @@ def main():
 
     if not (TARGET / "data").exists():
         shutil.copytree(DATA, TARGET / "data")
+    for packaged in DATA.iterdir():  # The town cache and converter stay, so towns are not rebuilt on every install.
+        if packaged.is_file():
+            shutil.copy2(packaged, TARGET / "data" / packaged.name)
     shutil.copy2(ITEM_SPRITES, TARGET / "dfitems.pk3")
     subprocess.check_call([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), str(TARGET / "doomerfall.pk3")])
     shutil.copy2(launcher / "doomerfall-launcher.exe", TARGET / "doomerfall-launcher.exe")

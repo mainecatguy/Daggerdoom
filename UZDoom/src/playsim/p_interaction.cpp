@@ -310,8 +310,11 @@ void ClientObituary (AActor *self, AActor *inflictor, AActor *attacker, int dmgf
 //
 EXTERN_CVAR (Int, fraglimit)
 
+void DD_BridgeMonsterDied(AActor *mo); // [Doomerfall]
+
 void AActor::Die (AActor *source, AActor *inflictor, int dmgflags, FName MeansOfDeath)
 {
+	if (ddRecordId) DD_BridgeMonsterDied(this); // [Doomerfall] Zero on every stock actor.
 	bool wasgibbed = (health < GetGibHealth());
 
 	// Check to see if unmorph Actors need to be killed as well. Originally this was always
