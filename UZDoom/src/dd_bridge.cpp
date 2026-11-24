@@ -55,6 +55,10 @@ bool DD_ItemsEvent(const dfb_event &e);
 void DD_ItemsFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t target);
 void DD_ItemsResync();
 bool DD_ItemsNetEvent(dfb_session *session, const char *name);
+bool DD_MonstersEvent(const dfb_event &e);
+void DD_MonstersFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t target);
+void DD_MonstersResync();
+void DD_MonsterDied(dfb_session *session, AActor *mo);
 
 FARG_ADVANCED(dfbridge, "Doomerfall", "session", "Attaches to the Doomerfall bridge session created by the launcher.");
 FARG_ADVANCED(dfbridgelog, "Doomerfall", "file", "Appends Doomerfall bridge traffic and latency to a log file.");
@@ -275,7 +279,7 @@ void HandleEvent(const dfb_event &e, int64_t now)
 		Log("hello from Daggerfall (seq %u)", e.seq);
 		break;
 	default:
-		if (!DD_ItemsEvent(e)) unknownKinds++; // contract rule 7: skip, never fatal
+		if (!DD_ItemsEvent(e) && !DD_MonstersEvent(e)) unknownKinds++; // contract rule 7: skip, never fatal
 		break;
 	}
 }
@@ -608,6 +612,14 @@ bool DD_BridgeToggleMap()
 	if (area == DD_AREA_NONE) return false;
 	if (UiCanOpen()) OpenUi(DFB_UI_MAP, uint32_t(area));
 	return true;
+}
+
+bool DD_BridgeHasSession() { return session != nullptr; }
+
+// From AActor::Die, for actors with a Doomerfall record id only.
+void DD_BridgeMonsterDied(AActor *mo)
+{
+	if (session) DD_MonsterDied(session, mo);
 }
 
 // A ZScript pickup request, seen as its network event runs. False for every other event and outside a session.
@@ -1551,6 +1563,7 @@ void HandleLoadResume(const dfb_event &e)
 	pauseext = false;
 	M_ClearMenus();
 	DD_ItemsResync();
+	DD_MonstersResync();
 	Log("load %u: both games resumed, %.1f ms frozen", loadTxn, (dfb_now_ns() - loadStartNs) / 1e6);
 }
 
@@ -1902,6 +1915,7 @@ void DD_BridgeFrame()
 	if (int(peerState.df_phase) != *dd_sync_df_phase) dd_sync_df_phase = int(peerState.df_phase);
 	PublishPosition();
 	DD_ItemsFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
+	DD_MonstersFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
 
 	ownState.uz_heartbeat++;
 	ownState.uz_tic = gametic;

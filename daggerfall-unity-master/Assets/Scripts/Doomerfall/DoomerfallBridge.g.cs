@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x9d839f532ffe6cd2UL;
+        public const ulong SchemaHash = 0x7e503a181447ef69UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 4;
@@ -63,6 +63,16 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_ITEM_TAKE = 43;  // UZ to DF; the player pressed Interact on a pile; payload: dfb_item_take
         public const ushort KIND_ITEM_RESULT = 44;  // DF to UZ; what Daggerfall did with that request; payload: dfb_item_result
         public const ushort KIND_ITEMS_REQUEST = 45;  // UZ to DF; send the current list again; payload: dfb_world_items
+        public const ushort KIND_MONSTER_DEATH = 50;  // UZ to DF; a tagged monster died; payload: dfb_monster_death
+        public const ushort KIND_MONSTERS_BEGIN = 51;  // DF to UZ; starts one full list for a dungeon; payload: dfb_world_items
+        public const ushort KIND_MONSTER = 52;  // DF to UZ; one quest foe to place, or one dead id; payload: dfb_monster
+        public const ushort KIND_MONSTERS_END = 53;  // DF to UZ; the list is complete; payload: dfb_world_items
+        public const ushort KIND_MONSTERS_REQUEST = 54;  // UZ to DF; send the current list again; payload: dfb_world_items
+        public const uint MONSTER_TAG = 5;
+        public const uint MONSTER_TAG_SHIFT = 61;
+        public const uint MONSTER_MEMBER_BITS = 8;
+        public const uint MONSTER_PLACE = 1;  // a living quest foe that Doom must have at this position
+        public const uint MONSTER_DEAD = 2;  // Daggerfall has this id as dead
         public const uint ITEM_TAKEN = 0;  // everything in the pile moved to the player
         public const uint ITEM_PARTIAL = 1;  // some moved; the rest stays in the pile
         public const uint ITEM_TOO_HEAVY = 2;  // nothing moved, because of the weight limit
@@ -115,8 +125,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const int UZ_PHASE_SAVING = 4;
 
         // Native size of every generated struct, for the attach check.
-        public static readonly Type[] StructTypes = { typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
-        public static readonly int[] StructSizes = { 64, 24, 24, 16, 24, 24, 48, 32, 32, 16, 48, 16, 48, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
+        public static readonly Type[] StructTypes = { typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
+        public static readonly int[] StructSizes = { 64, 24, 24, 16, 24, 24, 48, 32, 32, 16, 48, 16, 48, 32, 32, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
     }
 
     static class DfbBytes
@@ -188,10 +198,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public DfbLoadRequest loadRequest;  // LOAD_REQUEST
         [FieldOffset(16)] public DfbTravel travel;  // TRAVEL
         [FieldOffset(16)] public DfbTransition transition;  // TRANSITION
-        [FieldOffset(16)] public DfbWorldItems worldItems;  // ITEMS_BEGIN, ITEMS_END, ITEMS_REQUEST
+        [FieldOffset(16)] public DfbWorldItems worldItems;  // ITEMS_BEGIN, ITEMS_END, ITEMS_REQUEST, MONSTERS_BEGIN, MONSTERS_END, MONSTERS_REQUEST
         [FieldOffset(16)] public DfbWorldItem worldItem;  // ITEM
         [FieldOffset(16)] public DfbItemTake itemTake;  // ITEM_TAKE
         [FieldOffset(16)] public DfbItemResult itemResult;  // ITEM_RESULT
+        [FieldOffset(16)] public DfbMonsterDeath monsterDeath;  // MONSTER_DEATH
+        [FieldOffset(16)] public DfbMonster monster;  // MONSTER
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 24)]
@@ -369,6 +381,30 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DfbBytes.Write(destination, 8, 8, name1);
             DfbBytes.Write(destination, 16, 8, name2);
         }
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 32)]
+    struct DfbMonsterDeath
+    {
+        [FieldOffset(0)] public ulong id;
+        [FieldOffset(8)] public uint context;  // DFB_WORLD_*
+        [FieldOffset(12)] public int target;
+        [FieldOffset(16)] public float x;
+        [FieldOffset(20)] public float y;
+        [FieldOffset(24)] public float z;
+        [FieldOffset(28)] public uint pad;
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 32)]
+    struct DfbMonster
+    {
+        [FieldOffset(0)] public ulong id;
+        [FieldOffset(8)] public uint generation;
+        [FieldOffset(12)] public uint state;  // DFB_MONSTER_PLACE or DFB_MONSTER_DEAD
+        [FieldOffset(16)] public float x;
+        [FieldOffset(20)] public float y;
+        [FieldOffset(24)] public float z;
+        [FieldOffset(28)] public uint pad;
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 40)]

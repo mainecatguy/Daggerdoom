@@ -1,6 +1,6 @@
 using System;
 
-record EnemyPlacement(double X, double Y, double Z, int Type);
+record EnemyPlacement(double X, double Y, double Z, int Type, ulong Id);
 
 // One random Doom enemy per Daggerfall enemy placement. The choice is a pure function of the placement's static data, so
 // reconverting, reloading or visiting twice gives the same monster. Types are vanilla doomednums, so mods such as DRLA
@@ -27,13 +27,19 @@ static class EnemyRoster
     };
 
     // FNV-1a over the placement's own numbers. Not the converter's grid or scale, so it survives conversion changes.
-    public static int Pick(int mapId, string block, int blockX, int blockZ, int x, int y, int z, int record, int mobileId)
+    // DoomerfallMonsters.PlacementHash in Daggerfall Unity must compute the same value.
+    public static ulong Hash(int mapId, string block, int blockX, int blockZ, int x, int y, int z, int record, int mobileId)
     {
         ulong h = 14695981039346656037UL;
         void Mix(long v) { for (int k = 0; k < 8; k++) { h ^= (byte)(v >> (8 * k)); h *= 1099511628211UL; } }
         Mix(mapId); Mix(blockX); Mix(blockZ); Mix(x); Mix(y); Mix(z); Mix(record); Mix(mobileId);
         foreach (char c in block) Mix(c);
         h ^= h >> 32; h *= 0x9E3779B97F4A7C15UL; h ^= h >> 29;
-        return Types[(int)(h % (ulong)Types.Length)];
+        return h;
     }
+
+    public static int Pick(ulong hash) => Types[(int)(hash % (ulong)Types.Length)];
+
+    // Tag 5, a 53-bit placement hash, and pack member 0. See dfb_monster in the bridge header.
+    public static ulong MonsterId(ulong hash) => (5UL << 61) | ((hash & ((1UL << 53) - 1)) << 8);
 }

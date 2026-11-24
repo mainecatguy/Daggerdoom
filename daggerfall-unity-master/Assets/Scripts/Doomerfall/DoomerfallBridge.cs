@@ -60,6 +60,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DoomerfallHp hp;
         DoomerfallSave save;
         DoomerfallItems items;
+        DoomerfallMonsters monsters;
         bool textFrame;
         uint ownSize, peerSize, nextPing = 1;
         ulong pingsAnswered, pongsReceived, unknownKinds;
@@ -136,6 +137,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             items = gameObject.AddComponent<DoomerfallItems>();
             items.Init(this, sync);
             save.Items = items;
+            monsters = gameObject.AddComponent<DoomerfallMonsters>();
+            monsters.Init(this, sync);
+            save.Monsters = monsters;
         }
 
         // The schema hash covers every constant, struct field, and function in the header.
@@ -291,6 +295,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         break;
                     case Dfb.KIND_ITEM_TAKE:
                         items.OnTake(ev.itemTake.request, ev.itemTake.id);
+                        break;
+                    case Dfb.KIND_MONSTER_DEATH:
+                        monsters.OnDeath(ev.monsterDeath.id, ev.monsterDeath.target, ev.monsterDeath.x, ev.monsterDeath.y, ev.monsterDeath.z);
+                        break;
+                    case Dfb.KIND_MONSTERS_REQUEST:
+                        monsters.OnRequest();
                         break;
                     case Dfb.KIND_ITEMS_REQUEST:
                         items.OnRequest();

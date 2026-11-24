@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x9d839f532ffe6cd2ULL
+#define DFB_SCHEMA_HASH 0x7e503a181447ef69ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -63,6 +63,16 @@ static_assert((DFB_KIND_ITEMS_END) == (42), DFB_STALE);
 static_assert((DFB_KIND_ITEM_TAKE) == (43), DFB_STALE);
 static_assert((DFB_KIND_ITEM_RESULT) == (44), DFB_STALE);
 static_assert((DFB_KIND_ITEMS_REQUEST) == (45), DFB_STALE);
+static_assert((DFB_KIND_MONSTER_DEATH) == (50), DFB_STALE);
+static_assert((DFB_KIND_MONSTERS_BEGIN) == (51), DFB_STALE);
+static_assert((DFB_KIND_MONSTER) == (52), DFB_STALE);
+static_assert((DFB_KIND_MONSTERS_END) == (53), DFB_STALE);
+static_assert((DFB_KIND_MONSTERS_REQUEST) == (54), DFB_STALE);
+static_assert((DFB_MONSTER_TAG) == (5u), DFB_STALE);
+static_assert((DFB_MONSTER_TAG_SHIFT) == (61u), DFB_STALE);
+static_assert((DFB_MONSTER_MEMBER_BITS) == (8u), DFB_STALE);
+static_assert((DFB_MONSTER_PLACE) == (1u), DFB_STALE);
+static_assert((DFB_MONSTER_DEAD) == (2u), DFB_STALE);
 static_assert((DFB_ITEM_TAKEN) == (0u), DFB_STALE);
 static_assert((DFB_ITEM_PARTIAL) == (1u), DFB_STALE);
 static_assert((DFB_ITEM_TOO_HEAVY) == (2u), DFB_STALE);
@@ -277,6 +287,38 @@ static_assert(offsetof(dfb_item_result, remaining) == 20, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_item_result::remaining), int32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_item_result, name) == 24, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_item_result::name), char[24]>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_monster_death) == 32, DFB_STALE);
+static_assert(offsetof(dfb_monster_death, id) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_monster_death::id), uint64_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_monster_death, context) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_monster_death::context), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_monster_death, target) == 12, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_monster_death::target), int32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_monster_death, x) == 16, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_monster_death::x), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_monster_death, y) == 20, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_monster_death::y), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_monster_death, z) == 24, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_monster_death::z), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_monster_death, pad) == 28, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_monster_death::pad), uint32_t>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_monster) == 32, DFB_STALE);
+static_assert(offsetof(dfb_monster, id) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_monster::id), uint64_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_monster, generation) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_monster::generation), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_monster, state) == 12, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_monster::state), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_monster, x) == 16, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_monster::x), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_monster, y) == 20, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_monster::y), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_monster, z) == 24, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_monster::z), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_monster, pad) == 28, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_monster::pad), uint32_t>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_surface_frame) == 40, DFB_STALE);
 static_assert(offsetof(dfb_surface_frame, width) == 0, DFB_STALE);

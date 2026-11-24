@@ -68,6 +68,10 @@ CVAR(Int, dd_tm_neareststate, 0, CVAR_NOSAVE)	// Its DDTownCache::State.
 CVAR(Int, dd_tm_use, 0, CVAR_NOSAVE | CVAR_MOD)	// Test hook: one press of Use on a location door.
 CVAR(String, dd_tm_warp, "", CVAR_NOSAVE | CVAR_MOD)		// "tileX tileY": moves the player through the overworld handoff. The path fast travel can use.
 
+void DD_MonstersEnterDungeon(FLevelLocals *Level, int mapId, bool firstVisit, bool bridged);
+void DD_MonstersTick(FLevelLocals *Level);
+bool DD_BridgeHasSession();
+
 bool DDTreadmill_Active = false;
 bool DDTreadmill_WideNodes = false;
 
@@ -1624,6 +1628,8 @@ namespace
 		PinHomeTown(t);
 		LoadTownDoors(t);
 		// A revisited space comes back from the table, so what the map places by default must not return.
+		const bool firstVisit = t.space && !visitedSpaces.count(t.map.GetChars());
+		if (t.space && t.spaceId >= DUNGEON_SPACE) DD_MonstersEnterDungeon(Level, t.dungeonMapId, firstVisit, DD_BridgeHasSession());
 		if (t.space && !visitedSpaces.insert(t.map.GetChars()).second)
 		{
 			std::vector<AActor *> stale;
@@ -1961,6 +1967,7 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 	{
 		TickTownDoors(Level, pmo);
 		const Town &t = towns[currentTown];
+		if (t.space && t.spaceId >= DUNGEON_SPACE && DD_BridgeHasSession()) DD_MonstersTick(Level);
 		if (t.space) return;	// Interiors and dungeons are left through their doors.
 		const double tx = (pmo->X() / DOOM_PER_DF + t.originX) / 256, ty = (pmo->Y() / DOOM_PER_DF + t.originY) / 256;
 		if (!handoff.pending && pmo->health > 0 && !t.Near(tx, ty, t.ExitMargin())) BeginHandoff(Level, pmo, "DDOVER01");
