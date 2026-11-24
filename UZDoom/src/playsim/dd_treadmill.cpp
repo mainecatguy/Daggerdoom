@@ -1635,7 +1635,8 @@ namespace
 			std::vector<AActor *> stale;
 			auto it = Level->GetThinkerIterator<AActor>();
 			while (AActor *mo = it.Next())
-				if (!mo->player && !IsOwned(mo) && ((mo->flags3 & MF3_ISMONSTER) || mo->IsKindOf(NAME_Inventory))) stale.push_back(mo);
+				if (!mo->player && !IsOwned(mo) && ((mo->flags3 & MF3_ISMONSTER) || mo->IsKindOf(NAME_Inventory)
+					|| (GetDefaultByType(mo->GetClass()->GetReplacee(Level))->flags3 & MF3_ISMONSTER))) stale.push_back(mo);	// A mod's spawner stands in for a monster.
 			for (AActor *mo : stale) mo->Destroy();
 		}
 		int restored = 0;

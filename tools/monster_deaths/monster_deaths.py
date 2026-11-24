@@ -89,7 +89,7 @@ def assemble():
     print("assembled", REVIEW)
 
 
-def run(name, load, drla=False):
+def run(name, load, drla=False, presave=False):
     fatal = tuple(k for k in FATAL if k != "Script error") if drla else FATAL  # The DRLA set always logs 3 known script errors.
     data, runs = REVIEW / "data", REVIEW / "run"
     saves = runs / "saves"
@@ -101,7 +101,7 @@ def run(name, load, drla=False):
     door = next(l.split() for l in lumps["DDDOORS"].decode().splitlines() if l.startswith("1 187853213"))
     with zipfile.ZipFile(data / "privateershold_doors.pk3") as z:
         exit_row = next(l.split()[1:] for l in z.read("DDDUNGN").decode().splitlines() if l.startswith("exit"))
-    text = (HERE / "harness.zs").read_text().replace("@DOOR@", ", ".join(door[3:8])).replace("@EXIT@", ", ".join(exit_row[:5]))
+    text = (HERE / "harness.zs").read_text().replace("@DOOR@", ", ".join(door[3:8])).replace("@EXIT@", ", ".join(exit_row[:5])).replace("@MODE@", "presave" if presave else "normal")
     harness = runs / f"{name}_harness.pk3"
     with zipfile.ZipFile(harness, "w") as z:
         z.writestr("zscript.txt", text)
@@ -184,7 +184,13 @@ if __name__ == "__main__":
     elif command == "assemble":
         assemble()
     elif command == "run":
-        run(sys.argv[2], "--load" in sys.argv, "--drla" in sys.argv)
+        run(sys.argv[2], "--load" in sys.argv, "--drla" in sys.argv, "--presave" in sys.argv)
+    elif command == "playcheck":
+        launch = pickup.launch_args
+        pickup.launch_args = lambda here, uz=(), df=(), minimized=False: launch(here, uz, list(df) + ["-dfmonsterquest", QUEST], minimized)
+        pickup.play_check()
+        log = base.read(REVIEW / "dfu" / "PortableAppdata" / "Player.log")
+        print("quest parsed:", f"Parsing quest {QUEST}" in log and f"Parsing quest {QUEST} FAILED" not in log)
     elif command == "check":
         base.check()
     elif command == "registry":

@@ -87,6 +87,14 @@ class MDHarness : EventHandler
 		case 1: // Inside: let the ids and Daggerfall's list arrive, then kill the quest foe.
 			if (!inside) { if (st.timer > LIMIT) { Console.Printf("MDFAIL no entry"); Finish("failed"); } break; }
 			if (st.timer < 140) break;
+			if ("@MODE@" == "presave" && !st.saved) // Save before the kill, so a load must undo it and allow it once more.
+			{
+				st.saved = true;
+				st.timer = 60;
+				Console.Printf("MDPRESAVE living %d", Living());
+				level.MakeAutoSave();
+				break;
+			}
 			st.known = PileIds();
 			st.alive = Living();
 			Console.Printf("MDINSIDE living %d", st.alive);
@@ -128,10 +136,10 @@ class MDHarness : EventHandler
 			}
 			break;
 		case 4: // Save with the monsters dead and the drop taken.
+			if (st.timer == 20) st.alive = Living();
 			if (st.timer == 20 && !st.saved)
 			{
 				st.saved = true;
-				st.alive = Living();
 				Console.Printf("MDSAVE living %d", st.alive);
 				level.MakeAutoSave();
 			}
