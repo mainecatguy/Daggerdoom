@@ -1,12 +1,13 @@
 // [Doomerfall] Doom's side of monster identity and encounters. A converted dungeon marks each Daggerfall enemy
 // placement with an invisible encounter marker (a MapSpot whose args carry the placement hash, record type and
 // mobile id; see tools/dungeon_converter/EnemyRoster.cs). On a first visit, Daggerfall's area facts (bridge kinds 55
-// and 56) and the markers become an encounter planner request, and each placement's leader (member 0) is spawned
-// exactly on its marker. Until the placer (encounter card 5) lands, only leaders are spawned. A monster's id lives in
+// and 56) and the markers become an encounter planner request, and the placer (dd_encounter_placer.cpp) spawns every
+// mook: each placement's leader (member 0) exactly on its marker, the rest spread around it. A monster's id lives in
 // AActor::ddRecordId, which already survives door trips and saves. Daggerfall decides what a death means. Without a
 // bridge session, each marker gets one stock monster so a converted map stays playable.
 
 #include <algorithm>
+#include <chrono>
 #include <cinttypes>
 #include <cstdio>
 #include <cstring>
@@ -15,6 +16,7 @@
 #include <vector>
 
 #include "../../bridge/doomerfall_bridge.h"
+#include "dd_encounter_placer.h"
 #include "vm.h"
 #include "actor.h"
 #include "c_cvars.h"
@@ -123,14 +125,20 @@ PClassActor *RosterClass(uint64_t placement)
 	return PClass::FindActor(roster[placement % countof(roster)]);
 }
 
-// Spawns one leader on its exact point. A spawned monster takes its id at once; a spawner (such as DRLA's) is claimed.
-bool SpawnLeader(FLevelLocals *Level, PClassActor *cls, uint64_t id, const DVector3 &at, bool replace, const char *why)
+// Spawns one mook on its point. A spawned monster takes its id at once; a spawner (such as DRLA's) is claimed.
+AActor *SpawnMook(FLevelLocals *Level, PClassActor *cls, uint64_t id, const DVector3 &at, bool replace)
 {
-	if (!cls) return false;
+	if (!cls) return nullptr;
 	AActor *mo = Spawn(Level, cls, at, replace ? ALLOW_REPLACE : NO_REPLACE);
-	if (!mo) return false;
+	if (!mo) return nullptr;
 	if ((mo->flags3 & MF3_ISMONSTER) && !mo->ddRecordId) mo->ddRecordId = id;
 	else claims.push_back({ id, at, Level->maptime + ClaimTics });
+	return mo;
+}
+
+bool SpawnLeader(FLevelLocals *Level, PClassActor *cls, uint64_t id, const DVector3 &at, bool replace, const char *why)
+{
+	if (!SpawnMook(Level, cls, id, at, replace)) return false;
 	Printf("DDENC leader %016" PRIx64 " %s at %.1f,%.1f,%.1f (%s)\n", id, cls->TypeName.GetChars(), at.X, at.Y, at.Z, why);
 	return true;
 }
@@ -149,46 +157,28 @@ void CollectMarkers(FLevelLocals *Level)
 	std::sort(markers.begin(), markers.end(), [](const Marker &a, const Marker &b) { return a.placement < b.placement; });
 }
 
-// Calls the ZScript planner (EncounterLeaders.zs) and returns, per placement, the leader's class (null when none).
-bool PlanLeaders(const std::vector<Placement> &list, std::vector<PClassActor *> &leaders, std::vector<FString> &roles)
+// Plans and places every mook (dd_encounter_placer.cpp). False when the planner or the facts are missing.
+bool PlaceMooks(FLevelLocals *Level, const std::vector<Placement> &list, std::vector<DDEncMookOut> &mooks)
 {
-	leaders.assign(list.size(), nullptr);
-	roles.assign(list.size(), "none");
-	VMFunction *func = nullptr;
-	PClass::FindFunction(&func, "DoomerfallEncounterLeaders", "PlanText");
-	if (!func || !facts.have) return false;
+	if (!facts.have) return false;
 	const dfb_encounter_area &a = facts.area;
-	FString text;
-	text.AppendFormat("area\t%d\t%d\t%d\t%.3f\t%.3f\t%s\t%d\t%d\n", a.dungeon_index, a.location_id, a.region_index, a.world_x, a.world_y,
+	FString header;
+	header.AppendFormat("area\t%d\t%d\t%d\t%.3f\t%.3f\t%s\t%d\t%d\n", a.dungeon_index, a.location_id, a.region_index, a.world_x, a.world_y,
 		facts.type.GetChars(), a.area_level, a.seed_offset);
-	text.AppendFormat("location\t%s\nregion\t%s\n", facts.location.GetChars(), facts.region.GetChars());
-	for (const Placement &p : list)
-		text.AppendFormat("p\t%d\t%d\t%.3f\t%.3f\t%.3f\t%d\t%d\n", int32_t(uint32_t(p.placement >> 32)), int32_t(uint32_t(p.placement)),
-			p.pos.X, p.pos.Y, p.pos.Z, p.enemyType, p.quest ? 1 : 0);
-	FString answer;
-	VMValue params[] = { &text };
-	VMReturn ret(&answer);
-	VMCall(func, params, 1, &ret, 1);
-	if (answer.IsEmpty()) return false;
+	header.AppendFormat("location\t%s\nregion\t%s\n", facts.location.GetChars(), facts.region.GetChars());
+	std::vector<DDEncPlacementIn> in;
+	for (const Placement &p : list) in.push_back({ p.placement, p.pos, p.enemyType, p.quest });
+	if (!DD_PlaceEncounters(Level, header, in, mooks)) return false;
 	int mismatched = 0;
-	for (auto &line : answer.Split("\n"))
-	{
-		if (line.IndexOf("plan ") == 0) { Printf("DDENC %s\n", line.GetChars()); continue; }
-		int index, hi, lo, count;
-		char cls[96], role[32];
-		if (sscanf(line.GetChars(), "%d %95s %d %d %31s %d", &index, cls, &hi, &lo, role, &count) != 6 || index < 0 || index >= int(list.size())) continue;
-		roles[index] = role;
-		if (!strcmp(cls, "-")) continue;
-		leaders[index] = PClass::FindActor(cls);
-		const uint64_t id = (uint64_t(uint32_t(hi)) << 32) | uint32_t(lo);
-		if (id != LeaderId(list[index].placement)) mismatched++;
-	}
+	for (const DDEncMookOut &m : mooks)
+		mismatched += m.member == 0 && m.id != LeaderId(list[m.placement].placement);
 	if (mismatched) Printf("DDENC warning: %d leader ids from the plan differ from the placement ids\n", mismatched);
 	return true;
 }
 
-// Builds the request from the markers and the quest foes, then spawns every leader that is missing and not dead.
-// Map leaders are spawned once, on a first visit; quest foe leaders whenever Daggerfall lists them alive.
+// Builds the request from the markers and the quest foes, plans and places every mook, then spawns the ones that are
+// missing and not dead. Map encounters are spawned once, on a first visit; quest foe encounters whenever Daggerfall
+// lists their leader alive and it is missing.
 void SpawnEncounters(FLevelLocals *Level, bool mapLeaders)
 {
 	std::unordered_set<uint64_t> dead, present;
@@ -217,26 +207,47 @@ void SpawnEncounters(FLevelLocals *Level, bool mapLeaders)
 			a.dungeon_type, facts.type.GetChars(), a.area_level, a.seed_offset, int(markers.size()), quests, int(dead.size()));
 	}
 	if (!needed) return;
-	std::vector<PClassActor *> leaders;
-	std::vector<FString> roles;
-	const bool planned = PlanLeaders(list, leaders, roles);
-	if (!planned) Printf("DDENC no plan (planner or facts missing); using the stock roster\n");
-	int spawned = 0, skippedDead = 0, skippedPresent = 0;
-	for (size_t i = 0; i < list.size(); i++)
+	std::vector<DDEncMookOut> mooks;
+	const auto t0 = std::chrono::steady_clock::now();
+	if (!PlaceMooks(Level, list, mooks))
 	{
-		const Placement &p = list[i];
-		if (!mapLeaders && !p.quest) continue;
-		const uint64_t id = LeaderId(p.placement);
-		if (dead.count(id)) { skippedDead++; continue; }
-		if (present.count(id)) { skippedPresent++; continue; }
-		// The exact point: the marker, or the spot Daggerfall chose for this quest foe member.
-		const DVector3 at = p.pos;
-		PClassActor *cls = planned ? leaders[i] : RosterClass(p.placement);
-		if (planned && !cls) cls = RosterClass(p.placement);
-		FString why = FString(p.quest ? "quest " : "") + (planned ? roles[i] : FString("roster"));
-		if (SpawnLeader(Level, cls, id, at, !planned, why.GetChars())) spawned++;
+		Printf("DDENC no plan (planner or facts missing); using the stock roster\n");
+		int spawned = 0;
+		for (const Placement &p : list)
+		{
+			const uint64_t id = LeaderId(p.placement);
+			if ((mapLeaders || p.quest) && !dead.count(id) && !present.count(id))
+				spawned += SpawnLeader(Level, RosterClass(p.placement), id, p.pos, true, p.quest ? "quest roster" : "roster");
+		}
+		Printf("DDENC spawned %d stock leaders of %d placements\n", spawned, int(list.size()));
+		return;
 	}
-	Printf("DDENC spawned %d leaders of %d placements (%d dead, %d already present)%s\n", spawned, int(list.size()), skippedDead, skippedPresent, mapLeaders ? "" : ", quest foes only");
+	// A quest foe's encounter comes back whole only when its leader is missing; its followers are skipped by id.
+	std::unordered_set<uint64_t> wanted;
+	for (const Placement &p : list)
+		if ((mapLeaders || p.quest) && !dead.count(LeaderId(p.placement)) && !present.count(LeaderId(p.placement))) wanted.insert(p.placement);
+	int spawned = 0, leaders = 0, skippedDead = 0, skippedPresent = 0, stuck = 0, stuckLeaders = 0;
+	std::vector<std::pair<AActor *, bool>> fresh;
+	for (const DDEncMookOut &m : mooks)
+	{
+		const Placement &p = list[m.placement];
+		if (!wanted.count(p.placement)) continue;
+		if (dead.count(m.id)) { skippedDead++; continue; }
+		if (present.count(m.id)) { skippedPresent++; continue; }
+		AActor *mo = SpawnMook(Level, m.cls, m.id, m.pos, false);
+		if (!mo) continue;
+		spawned++;
+		leaders += m.member == 0;
+		fresh.push_back({ mo, m.member == 0 });
+		if (m.member == 0)
+			Printf("DDENC leader %016" PRIx64 " %s at %.1f,%.1f,%.1f%s\n", m.id, m.cls->TypeName.GetChars(), mo->X(), mo->Y(), mo->Z(), p.quest ? " (quest)" : "");
+	}
+	// Stuck: a spawned monster that Doom's own check says does not fit where it stands.
+	for (auto &f : fresh)
+		if (!(f.first->ObjectFlags & OF_EuthanizeMe) && !P_TestMobjLocation(f.first)) { stuck++; stuckLeaders += f.second; }
+	const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+	Printf("DDENC spawned %d mooks (%d leaders) of %d placements (%d dead, %d already present), stuck %d (%d leaders), %.1f ms with spawning%s\n",
+		spawned, leaders, int(list.size()), skippedDead, skippedPresent, stuck, stuckLeaders, ms, mapLeaders ? "" : ", quest foes only");
 }
 
 void ApplyRows(FLevelLocals *Level)
@@ -307,6 +318,15 @@ void DD_MonstersEnterDungeon(FLevelLocals *Level, int mapId, bool firstVisit, bo
 	for (const Marker &m : markers)
 		spawned += SpawnLeader(Level, RosterClass(m.placement), LeaderId(m.placement), m.pos, true, "no bridge, roster");
 	Printf("DDENC spawned %d stock leaders without a bridge\n", spawned);
+}
+
+// Test only (dd_encounter_test.cpp, -ddenctest): plans and spawns this map's encounters from given facts.
+void DD_MonstersTestEncounters(FLevelLocals *Level, const dfb_encounter_area &a, const char *location, const char *region, const char *type)
+{
+	facts = Facts{ true, a, location, region, type };
+	claims.clear();	// the no-bridge roster's spawner claims, which only a bridge tick resolves
+	CollectMarkers(Level);
+	SpawnEncounters(Level, true);
 }
 
 void DD_MonstersTick(FLevelLocals *Level)

@@ -253,6 +253,7 @@ void P_Ticker (void)
 		}
 
 		DDTreadmill_Tick(Level); // [Doomerfall] no-op unless explicitly enabled
+		{ void DD_EncounterTestTick(FLevelLocals *); DD_EncounterTestTick(Level); } // [Doomerfall] test only, -ddenctest
 
 		P_ThinkParticles(Level);	// [RH] make the particles think
 

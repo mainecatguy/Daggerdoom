@@ -1,19 +1,20 @@
-// Encounters, card 4: the bridge's entry point to the planner. UZDoom's dd_monsters.cpp collects a converted
-// dungeon's encounter markers and Daggerfall's area facts (bridge kinds 55 and 56) into a text request, calls
-// PlanText, and spawns what it returns. Until the placer (card 5) lands, only each placement's leader is spawned.
+// Encounters, cards 4 and 5: the bridge between UZDoom's placer (dd_encounter_placer.cpp) and the planner. UZDoom
+// collects a converted dungeon's encounter markers, measures each one (walking distance from the entrance, nearest
+// treasure, what fits at the origin), and with Daggerfall's area facts (bridge kinds 55 and 56) builds a text request.
+// PlanObject plans it and hands the plan object back; the placer then reads each placement's mooks and calls the
+// planner's hooks (leader, promote, drop, move) while it finds spots. Nothing here spawns.
 //
 // Request, one record per line, fields separated by tabs:
 //   area      dungeonIndex locationId regionIndex worldX worldY dungeonType areaLevel seedOffset
 //   location  name
 //   region    name
-//   p         idHi idLo x y z dfEnemyType quest       (one per placement, in placement hash order)
-// Answer: a summary line starting "plan", then one line per request placement in request order, separated by spaces:
-//   index className idHi idLo role mooks
-// className is "-" when the plan gave the placement no monster. An empty answer means no plan (no pool loaded).
+//   p         idHi idLo x y z dfEnemyType quest walk treasure fitRadius fitHeight   (one per placement, in order)
+// Mooks answer: the placement's role, then one line per mook in member order, separated by spaces:
+//   member className idHi idLo cost
 
 class DoomerfallEncounterLeaders play
 {
-	static String PlanText(String text)
+	static DoomerfallEncounterPlan PlanObject(String text)
 	{
 		let req = new("DoomerfallEncounterRequest");
 		Array<String> lines;
@@ -46,28 +47,52 @@ class DoomerfallEncounterLeaders play
 				p.z = f[5].ToDouble();
 				p.dfEnemyType = f[6].ToInt();
 				p.quest = f[7].ToInt() != 0;
-				// Card 5 measures these. Unknown for now.
-				p.walk = -1;
-				p.treasure = -1;
-				p.fitRadius = 0;
-				p.fitHeight = 0;
+				p.walk = f.Size() > 8 ? f[8].ToDouble() : -1;
+				p.treasure = f.Size() > 9 ? f[9].ToDouble() : -1;
+				p.fitRadius = f.Size() > 10 ? f[10].ToDouble() : 0;
+				p.fitHeight = f.Size() > 11 ? f[11].ToDouble() : 0;
 				req.placements.Push(p);
 			}
 		}
-		let plan = DoomerfallEncounterPlanner.Plan(req);
-		if (!plan) return "";
+		return DoomerfallEncounterPlanner.Plan(req);
+	}
 
-		Array<String> rows;
-		for (int i = 0; i < req.placements.Size(); i++) rows.Push(String.Format("%d - 0 0 none 0", i));
-		for (int i = 0; i < plan.placements.Size(); i++)
+	static String Summary(DoomerfallEncounterPlan plan)
+	{
+		String bosses = "";
+		for (int i = 0; i < plan.bosses.Size(); i++) bosses = bosses .. (i ? "," : "") .. plan.bosses[i];
+		String s = String.Format("plan genes %d theme %s civilwar %d pool %d spent %d mooks %d moved-dropped %d bosses %s titan %d",
+			plan.order, plan.theme, plan.civilWar ? 1 : 0, plan.poolPoints, plan.spentPoints, plan.MookCount(), plan.movedDropped,
+			bosses == "" ? "-" : bosses, plan.titanPlacement);
+		for (int i = 0; i < plan.warnings.Size(); i++) s = s .. "\nwarning " .. plan.warnings[i];
+		return s;
+	}
+
+	static int PlacementCount(DoomerfallEncounterPlan plan) { return plan.placements.Size(); }
+
+	static String Mooks(DoomerfallEncounterPlan plan, int index)
+	{
+		if (index < 0 || index >= plan.placements.Size()) return "";
+		let p = plan.placements[index];
+		String s = p.role .. "\n";
+		for (int i = 0; i < p.mooks.Size(); i++)
 		{
-			let pp = plan.placements[i];
-			if (pp.index < 0 || pp.index >= rows.Size() || !pp.mooks.Size()) continue;
-			let leader = pp.mooks[0];
-			rows[pp.index] = String.Format("%d %s %d %d %s %d", pp.index, leader.m.cls.GetClassName(), leader.idHi, leader.idLo, pp.role, pp.mooks.Size());
+			let k = p.mooks[i];
+			s = s .. String.Format("%d %s %d %d %d\n", k.member, k.m.cls.GetClassName(), k.idHi, k.idLo, k.cost);
 		}
-		String answer = String.Format("plan genes %d theme %s civilwar %d pool %d mooks %d\n", plan.order, plan.theme, plan.civilWar ? 1 : 0, plan.poolPoints, plan.MookCount());
-		for (int i = 0; i < rows.Size(); i++) answer = answer .. rows[i] .. "\n";
-		return answer;
+		return s;
+	}
+
+	static void MakeLeader(DoomerfallEncounterPlan plan, int index, int which) { DoomerfallEncounterPlanner.MakeLeader(plan, index, which); }
+	static int CheapestLeader(DoomerfallEncounterPlan plan, int index) { return DoomerfallEncounterPlanner.CheapestLeader(plan, index); }
+	static int Promote(DoomerfallEncounterPlan plan, int index, int maxCount) { return DoomerfallEncounterPlanner.Promote(plan, index, maxCount); }
+	static int Drop(DoomerfallEncounterPlan plan, int index, int keep) { return DoomerfallEncounterPlanner.Drop(plan, index, keep); }
+
+	// full: one character per placement, '1' for a placement that has no room left.
+	static int Move(DoomerfallEncounterPlan plan, int from, int points, String full)
+	{
+		Array<bool> f;
+		for (int i = 0; i < full.Length(); i++) f.Push(full.ByteAt(i) == 0x31);
+		return DoomerfallEncounterPlanner.Move(plan, from, points, f);
 	}
 }

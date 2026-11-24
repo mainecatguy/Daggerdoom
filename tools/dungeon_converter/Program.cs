@@ -63,8 +63,9 @@ static partial class Program
     static readonly List<HangingCut> hanging = new List<HangingCut>();
     static readonly List<DoorInfo> doors = new List<DoorInfo>();
     static readonly List<EnemyPlacement> enemyPlacements = new List<EnemyPlacement>();
+    static readonly List<EnemyPlacement> treasurePlacements = new List<EnemyPlacement>();
     static int enemiesSkipped, currentMapId;
-    const int RandomEnemyRecord = 15, FixedEnemyRecord = 16;
+    const int RandomEnemyRecord = 15, FixedEnemyRecord = 16, RandomTreasureRecord = 19, FixedTreasureArchive = 216;
     static readonly List<(string name, int x, int y)> blockRects = new List<(string, int, int)>();
 
     static int Main(string[] args)
@@ -269,6 +270,14 @@ static partial class Program
                         ulong placement = EnemyRoster.Hash(currentMapId, dungeonBlock.BlockName, dungeonBlock.X, dungeonBlock.Z,
                             obj.XPos, obj.YPos, obj.ZPos, f.TextureRecord, f.FactionOrMobileId);
                         enemyPlacements.Add(new EnemyPlacement(at.X, at.Y, at.Z, placement, f.TextureRecord, f.FactionOrMobileId));
+                    }
+                    // Treasure (random treasure 199:19 and fixed treasure flats) marks where bosses guard loot.
+                    if (obj.Type == DFBlock.RdbResourceTypes.Flat
+                        && ((obj.Resources.FlatResource.TextureArchive == EditorArchive && obj.Resources.FlatResource.TextureRecord == RandomTreasureRecord)
+                            || obj.Resources.FlatResource.TextureArchive == FixedTreasureArchive))
+                    {
+                        var at = ToDoom(new V3(obj.XPos, -obj.YPos, obj.ZPos) + offset);
+                        treasurePlacements.Add(new EnemyPlacement(at.X, at.Y, at.Z, 0, obj.Resources.FlatResource.TextureArchive, obj.Resources.FlatResource.TextureRecord));
                     }
                     if (obj.Type == DFBlock.RdbResourceTypes.Flat && obj.Resources.FlatResource.Action != 0)
                         NoteActionLink(blockIndex, obj, obj.Resources.FlatResource.NextObjectOffset, obj.Resources.FlatResource.Action, null);
@@ -1110,6 +1119,17 @@ static partial class Program
             placed++;
         }
         Console.WriteLine($"enemies: {placed} encounter markers, {enemiesSkipped} skipped (no floor under the marker), of {enemyPlacements.Count} placements");
+        int treasure = 0;
+        foreach (var t in treasurePlacements)
+        {
+            int i = (int)Math.Floor((t.X - minX) / cell), j = (int)Math.Floor((t.Y - minY) / cell);
+            var spans = i >= 0 && j >= 0 && i < width && j < height ? grid[Index(i, j)] : null;
+            Span span = spans?.Where(s => s.F <= t.Z + StepHeight && s.C - s.F >= ActorHeight).OrderByDescending(s => s.F).FirstOrDefault();
+            if (span == null) continue;
+            map.Append(EnemyRoster.TreasureThing(t, span.F - spans[0].F));
+            treasure++;
+        }
+        Console.WriteLine($"treasure: {treasure} treasure markers of {treasurePlacements.Count}");
     }
 
     static int BaseFloor(Node n)

@@ -37,4 +37,10 @@ static class EnemyRoster
         int hi = (int)(bits >> 32), lo = unchecked((int)(uint)bits);
         return FormattableString.Invariant($"thing {{ x = {e.X:F1}; y = {e.Y:F1}; height = {height}.0; type = {MarkerType}; arg0 = {MarkerMagic}; arg1 = {hi}; arg2 = {lo}; arg3 = {e.Record}; arg4 = {e.MobileId}; comment = \"encounter {bits:x13}\"; skill1 = true; skill2 = true; skill3 = true; skill4 = true; skill5 = true; single = true; coop = true; dm = true; }}\n");
     }
+
+    // A treasure marker: a MapSpot with arg0 TreasureMagic, arg1 the flat archive, arg2 its record. Doom's placer
+    // measures walking distance from each encounter to the nearest one, so bosses can guard treasure.
+    public const int TreasureMagic = 7366;
+    public static string TreasureThing(EnemyPlacement t, int height) =>
+        FormattableString.Invariant($"thing {{ x = {t.X:F1}; y = {t.Y:F1}; height = {height}.0; type = {MarkerType}; arg0 = {TreasureMagic}; arg1 = {t.Record}; arg2 = {t.MobileId}; comment = \"treasure\"; skill1 = true; skill2 = true; skill3 = true; skill4 = true; skill5 = true; single = true; coop = true; dm = true; }}\n");
 }

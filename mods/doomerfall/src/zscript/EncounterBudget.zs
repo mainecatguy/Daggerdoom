@@ -860,4 +860,69 @@ extend class DoomerfallEncounterPlanner
 		plan.leftoverPoints += left;
 		return best;
 	}
+
+	// Gives the placement's mooks member numbers and IDs by their order, so mooks[0] is the leader (member 0).
+	static void Renumber(DoomerfallEncounterPlan plan, int placement)
+	{
+		let p = plan.placements[placement];
+		let at = plan.request.placements[placement];
+		for (int i = 0; i < p.mooks.Size(); i++)
+		{
+			let k = p.mooks[i];
+			k.member = i;
+			MookId(at.idHi, at.idLo, i, k.idHi, k.idLo);
+		}
+		p.nextMember = p.mooks.Size();
+	}
+
+	// The placer found mook `which` to be the highest-point monster that fits at the origin: it becomes the leader.
+	// The others keep their order behind it.
+	static void MakeLeader(DoomerfallEncounterPlan plan, int placement, int which)
+	{
+		if (placement < 0 || placement >= plan.placements.Size()) return;
+		let p = plan.placements[placement];
+		if (which <= 0 || which >= p.mooks.Size()) return;
+		let k = p.mooks[which];
+		p.mooks.Delete(which);
+		p.mooks.Insert(0, k);
+		Renumber(plan, placement);
+	}
+
+	// No mook fits at the origin: the pool's cheapest monster becomes the leader there (owner, 2026-11-24), in front of
+	// the others. Returns its cost in centipoints (0 when there is no pool or the placement is at the member limit).
+	static int CheapestLeader(DoomerfallEncounterPlan plan, int placement)
+	{
+		let me = Resume(plan);
+		if (!me || placement < 0 || placement >= plan.placements.Size()) return 0;
+		let p = plan.placements[placement];
+		if (p.mooks.Size() >= MOOK_MAX_MEMBERS) return 0;
+		let c = me.CheapestPool(plan.request.placements[placement], plan.civilWar || p.side == 1);
+		if (!c) return 0;
+		let k = new("DoomerfallPlannedMook");
+		k.m = c;
+		k.cost = Cost(c);
+		p.mooks.Insert(0, k);
+		p.spent += k.cost;
+		plan.spentPoints += k.cost;
+		Renumber(plan, placement);
+		return k.cost;
+	}
+
+	// Removes the mooks from `keep` on (they found no spot) and returns their points, for Promote or Move.
+	static int Drop(DoomerfallEncounterPlan plan, int placement, int keep)
+	{
+		if (placement < 0 || placement >= plan.placements.Size()) return 0;
+		let p = plan.placements[placement];
+		keep = max(1, keep);
+		int points = 0;
+		while (p.mooks.Size() > keep)
+		{
+			points += p.mooks[p.mooks.Size() - 1].cost;
+			p.mooks.Pop();
+		}
+		p.spent -= points;
+		plan.spentPoints -= points;
+		p.nextMember = p.mooks.Size();
+		return points;
+	}
 }
