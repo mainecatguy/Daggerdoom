@@ -75,7 +75,7 @@ def assemble():
     for key, value in zip(("@X@", "@Y@", "@Z@", "@NX@", "@NY@"), door[3:8]):
         text = text.replace(key, value)
     with zipfile.ZipFile(REVIEW / "demo_start.pk3", "w") as z:
-        z.writestr("zscript.txt", text.replace("Privateer's Hold door", "tavern door").replace("the dungeon door", "the tavern door"))
+        z.writestr("zscript.txt", text)  # Keeps the start message that the shared play check looks for.
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "ItemDemoStart" }\n')
     args = pickup.launch_args("%HERE%")
     (REVIEW / "play.bat").write_text(
@@ -194,7 +194,7 @@ def compare(doom, daggerfall):
         rows = {f[2]: f for f in (l.split() for l in doom.splitlines() if l.startswith("NPROW " + tag))}
         if not rows:
             continue
-        best = max(reports, key=lambda r: len(rows.keys() & r[1].keys()), default=(None, {}))
+        best = max(reversed(reports), key=lambda r: len(rows.keys() & r[1].keys()), default=(None, {}))
         live = best[1]
         both = rows.keys() & live.keys()
         offsets = [tuple(float(rows[k][3 + a]) - live[k][a] for a in range(3)) for k in both]
@@ -218,6 +218,10 @@ if __name__ == "__main__":
         if "--group" in sys.argv:
             pickup.GROUP = int(sys.argv[sys.argv.index("--group") + 1])
         run(sys.argv[2], sys.argv[3], "--night" in sys.argv, "--drla" in sys.argv)
+    elif command == "recompare":
+        compare(base.read(REVIEW / "run" / f"log-{sys.argv[2]}.txt"), base.read(REVIEW / "run" / f"{sys.argv[2]}-df.log"))
+    elif command == "playcheck":
+        pickup.play_check()
     elif command == "scan":
         scan(sys.argv[2:])
     elif command == "check":

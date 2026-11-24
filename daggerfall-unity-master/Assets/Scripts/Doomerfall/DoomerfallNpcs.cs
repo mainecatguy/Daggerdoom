@@ -101,6 +101,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return from;
         }
 
+        // Outdoor and dungeon NPCs beyond Daggerfall's culling range have no block parent, so only nearby ones are found.
         internal static StaticNPC FindNpc(ulong id)
         {
             foreach (StaticNPC npc in ActiveGameObjectDatabase.GetActiveStaticNPCs())
@@ -137,16 +138,16 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 lastSpace = space.GetInstanceID();
                 resend = true;
             }
+            // Closed shops and owned houses switch their people off. Distance culling only moves them under an inactive parent, so they still count.
             present.Clear();
+            int building = GameManager.Instance.PlayerEnterExit.BuildingDiscoveryData.buildingKey;
+            foreach (StaticNPC npc in ActiveGameObjectDatabase.GetActiveStaticNPCs(true))
+                if (npc.gameObject.activeSelf && npc.Data.context == StaticNPC.Context.Building && npc.Data.buildingKey == building)
+                    present.Add(IdOf(npc));
+            present.Sort();
             ulong hash = 17;
-            foreach (StaticNPC npc in space.GetComponentsInChildren<StaticNPC>(false))
-            {
-                ulong id = IdOf(npc);
-                if (id == 0)
-                    continue;
-                present.Add(id);
+            foreach (ulong id in present)
                 hash = (hash ^ id) * 1099511628211UL;
-            }
             if (hash == lastHash && !resend)
                 return;
             lastHash = hash;

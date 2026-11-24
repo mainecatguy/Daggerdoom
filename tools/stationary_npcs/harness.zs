@@ -61,6 +61,13 @@ class NPHarness : StaticEventHandler
 			timer = 0;
 			break;
 		case 2:
+			if (timer == 35) // Daggerfall culls distant dungeon NPCs, so stand beside one.
+			{
+				let it = ThinkerIterator.Create("DFDungeonFlat");
+				Actor mo;
+				while (mo = Actor(it.Next()))
+					if (mo.GetClassName() == "DFDungeonNpc") { p.SetOrigin((mo.pos.xy, mo.floorz), false); p.vel = (0, 0, 0); break; }
+			}
 			if (timer < 175) break;
 			Rows("inside");
 			Console.Printf("NPDONE ok");
