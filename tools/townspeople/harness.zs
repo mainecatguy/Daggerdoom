@@ -7,6 +7,7 @@ class TPHarness : StaticEventHandler
 	static const double DOORDATA[] = { @DOOR@ };
 	const LIMIT = 35 * 40;
 	int phase, timer;
+	double startX, startY, startAngle;
 
 	static int Rows(String tag)
 	{
@@ -27,6 +28,7 @@ class TPHarness : StaticEventHandler
 		if (phase >= 9 || !playeringame[0] || !players[0].mo) return;
 		let p = players[0].mo;
 		String mode = "@MODE@";
+		bool inside = level.MapName ~== "MAP01" || level.MapName.Left(3) ~== "DDS";
 		p.bNOTARGET = true;
 		players[0].cheats |= CF_GODMODE;
 		vector3 door = (DOORDATA[0], DOORDATA[1], DOORDATA[2]);
@@ -64,6 +66,7 @@ class TPHarness : StaticEventHandler
 		case 2:
 			if (timer < 70) break;
 			Rows("afterkill");
+			if (mode.IndexOf("trip") >= 0) { phase = 4; timer = 0; break; }
 			if (mode.IndexOf("save") < 0) { Console.Printf("TPDONE ok"); phase = 9; break; }
 			Console.Printf("TPSAVE");
 			level.MakeAutoSave();
@@ -72,6 +75,33 @@ class TPHarness : StaticEventHandler
 			break;
 		case 3:
 			if (timer < 210) break;
+			Console.Printf("TPDONE ok");
+			phase = 9;
+			break;
+		case 4:	// Leave the street: face the tavern door and press Use.
+			if (inside) { Console.Printf("TPINSIDE map %s", level.MapName); phase = 5; timer = 0; break; }
+			p.SetOrigin((door.xy + normal * 48, door.z), false);
+			p.vel = (0, 0, 0);
+			p.angle = atan2(-normal.y, -normal.x);
+			if (timer == 8) CVar.FindCVar("dd_tm_use").SetInt(1);
+			break;
+		case 5:	// Inside: stay a while, then turn round (the landing faces the door) and use it.
+			if (timer == 2) { startX = p.pos.x; startY = p.pos.y; Console.Printf("TPARRIVE %.1f %.1f angle %.1f", p.pos.x, p.pos.y, p.angle); }
+			if (timer == 2) startAngle = p.angle;
+			// Try the exit facing the way the player landed, then turned round.
+			if (timer == 140 || timer == 180)
+			{
+				p.vel = (0, 0, 0);
+				p.SetOrigin((startX, startY, p.floorz), false);
+				p.angle = startAngle + (timer == 180 ? 180 : 0);
+				Console.Printf("TPEXIT try at %.1f %.1f angle %.1f", p.pos.x, p.pos.y, p.angle);
+			}
+			if (timer == 144 || timer == 184) CVar.FindCVar("dd_tm_use").SetInt(1);
+			if (!inside && timer > 2) { Console.Printf("TPOUTSIDE map %s", level.MapName); phase = 6; timer = 0; }
+			break;
+		case 6:	// Back on the street: wait for Daggerfall's list, then report who is shown.
+			if (timer < 280) break;
+			Rows("return");
 			Console.Printf("TPDONE ok");
 			phase = 9;
 			break;

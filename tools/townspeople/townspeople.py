@@ -1,6 +1,6 @@
 """Builds, assembles, and tests the persistent townspeople demo in a private review folder.
 
-usage: townspeople.py build | unity | data | assemble | run NAME [--hour H] [--kill] [--save] [--load] [--drla] | check
+usage: townspeople.py build | unity | data | assemble | run NAME [--hour H] [--kill] [--trip] [--save] [--load] [--drla] | check
 Game data and generated maps stay outside the repo.
 """
 import shutil
@@ -23,8 +23,11 @@ sn.PREVIOUS = PREVIOUS
 sn.CONVERTER = CONVERTER = REVIEW / "data" / "converter" / "DungeonConverter.exe"
 
 
-def run(name, hour=None, kill=False, save=False, load=False, drla=False, seconds=45):
-    """Starts in town beside a tavern door and stands still. The harness can kill the nearest townsperson and autosave."""
+def run(name, hour=None, kill=False, save=False, load=False, drla=False, seconds=45, trip=False):
+    """Starts in town beside a tavern door and stands still. The harness can kill the nearest townsperson and autosave,
+    or (trip) go into the tavern, come back out, and list who is shown again."""
+    if trip:
+        seconds += 20
     data, runs = REVIEW / "data", REVIEW / "run"
     runs.mkdir(parents=True, exist_ok=True)
     saves = runs / "saves"
@@ -35,7 +38,7 @@ def run(name, hour=None, kill=False, save=False, load=False, drla=False, seconds
     rows, types, _ = sn.doors(pickup.GROUP)
     door = next(r for r in rows if types.get(int(r[1])) == "Tavern")
     harness = runs / f"{name}_harness.pk3"
-    mode = ("kill " if kill else "") + ("save" if save else "")
+    mode = ("kill " if kill else "") + ("trip " if trip else "") + ("save" if save else "")
     with zipfile.ZipFile(harness, "w") as z:
         z.writestr("zscript.txt", (HERE / "harness.zs").read_text().replace("@DOOR@", ", ".join(door[3:8])).replace("@MODE@", mode))
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "TPHarness" }\n')
@@ -109,7 +112,7 @@ if __name__ == "__main__":
     elif command == "run":
         argv = sys.argv
         hour = float(argv[argv.index("--hour") + 1]) if "--hour" in argv else None
-        run(argv[2], hour, "--kill" in argv, "--save" in argv, "--load" in argv, "--drla" in argv)
+        run(argv[2], hour, "--kill" in argv, "--save" in argv, "--load" in argv, "--drla" in argv, trip="--trip" in argv)
     elif command == "check":
         base.check()
     else:
