@@ -36,16 +36,12 @@ class DoomerfallWorldItem : Actor
 	}
 }
 
-// Shows Daggerfall's list and turns the Interact control into a pickup request.
+// Shows Daggerfall's list. The engine's Use handling (dd_items.cpp) aims at these piles and asks Daggerfall.
 class DoomerfallItems : EventHandler
 {
-	const Reach = 96.0;      // Daggerfall's 128-unit treasure reach at the 75% world scale.
-	const MinAim = 0.90;     // About 25 degrees around the crosshair.
-
 	override void NetworkProcess(ConsoleEvent e)
 	{
-		if (e.Name == "df_interact") Interact(e.Player);
-		else if (e.Name == "dfi_clear") RemoveExcept(-1);
+		if (e.Name == "dfi_clear") RemoveExcept(-1);
 		else if (e.Name.Left(9) == "dfi_item:") AddItem(e.Name);
 		else if (e.Name.Left(8) == "dfi_end:")
 		{
@@ -90,30 +86,5 @@ class DoomerfallItems : EventHandler
 		DoomerfallWorldItem item;
 		while (item = DoomerfallWorldItem(it.Next()))
 			if (item.dfGeneration != generation) item.Destroy();
-	}
-
-	void Interact(int playerNumber)
-	{
-		let mo = players[playerNumber].mo;
-		if (mo == null || players[playerNumber].health <= 0) return;
-		vector3 eye = mo.pos + (0, 0, players[playerNumber].viewheight);
-		vector3 aim = (cos(mo.pitch) * cos(mo.angle), cos(mo.pitch) * sin(mo.angle), -sin(mo.pitch));
-		DoomerfallWorldItem best = null;
-		double bestAim = MinAim;
-		let it = ThinkerIterator.Create("DoomerfallWorldItem");
-		DoomerfallWorldItem item;
-		while (item = DoomerfallWorldItem(it.Next()))
-		{
-			vector3 to = level.Vec3Diff(eye, item.pos);
-			double distance = to.Length();
-			if (distance > Reach) continue;
-			double facing = distance > 1 ? (to / distance) dot aim : 1;
-			if (facing > bestAim && mo.CheckSight(item, SF_IGNOREVISIBILITY))
-			{
-				bestAim = facing;
-				best = item;
-			}
-		}
-		if (best != null) EventHandler.SendNetworkEvent("dfi_take:" .. best.dfId);
 	}
 }

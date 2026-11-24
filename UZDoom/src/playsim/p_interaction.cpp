@@ -76,8 +76,12 @@ CVAR (Float, sv_ammofactor, 1.0, CVAR_SERVERINFO|CVAR_CHEAT) // used in the zscr
 //
 // P_TouchSpecialThing
 //
+bool DD_PickupNeedsUse(AActor *special); // [Doomerfall] false outside a generated map in a bridge session
+
 void P_TouchSpecialThing (AActor *special, AActor *toucher)
 {
+	if (DD_PickupNeedsUse(special)) return; // [Doomerfall]
+
 	double delta = special->Z() - toucher->Z();
 
 	// The pickup is at or above the toucher's feet OR

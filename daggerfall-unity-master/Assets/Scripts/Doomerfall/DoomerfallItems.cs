@@ -293,7 +293,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             resend = true;
         }
 
-        internal void OnTake(uint request, ulong id)
+        // Grab and Steal do the same thing to a treasure pile in Daggerfall (PlayerActivate.ActivateLootContainer ignores the
+        // mode), so the mode is only recorded until containers that care about it reach Doom.
+        internal void OnTake(uint request, ulong id, uint mode)
         {
             if (weightTest)
             {
@@ -304,8 +306,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             string name = string.Empty;
             uint status = Take(id, ref taken, ref remaining, ref name);
             SendResult(request, id, status, taken, remaining, name);
-            bridge.LogLine(string.Format("items: take {0} pile {1:x16}: status {2}, took {3}, left {4}, first \"{5}\", carried {6:F2}/{7} kg, gold {8}", request, id, status, taken, remaining, name,
-                GameManager.Instance.PlayerEntity.CarriedWeight, GameManager.Instance.PlayerEntity.MaxEncumbrance, GameManager.Instance.PlayerEntity.GoldPieces));
+            bridge.LogLine(string.Format("items: take {0} pile {1:x16} ({9}): status {2}, took {3}, left {4}, first \"{5}\", carried {6:F2}/{7} kg, gold {8}", request, id, status, taken, remaining, name,
+                GameManager.Instance.PlayerEntity.CarriedWeight, GameManager.Instance.PlayerEntity.MaxEncumbrance, GameManager.Instance.PlayerEntity.GoldPieces, mode == Dfb.TAKE_STEAL ? "steal" : "grab"));
             resend = true;
         }
 

@@ -71,6 +71,7 @@ CVAR(String, dd_tm_warp, "", CVAR_NOSAVE | CVAR_MOD)		// "tileX tileY": moves th
 void DD_MonstersEnterDungeon(FLevelLocals *Level, int mapId, bool firstVisit, bool bridged);
 void DD_MonstersTick(FLevelLocals *Level);
 bool DD_BridgeHasSession();
+bool DD_UsePress(player_t *player);
 
 bool DDTreadmill_Active = false;
 bool DDTreadmill_WideNodes = false;
@@ -1538,10 +1539,12 @@ namespace
 
 	void TickTownDoors(FLevelLocals *Level, AActor *pmo)
 	{
-		const bool down = (pmo->player->cmd.buttons & BT_USE) != 0, pressed = (down && !useHeld) || dd_tm_use != 0;
+		const bool down = (pmo->player->cmd.buttons & BT_USE) != 0, fresh = down && !useHeld;
+		bool pressed = fresh || dd_tm_use != 0;
 		useHeld = down;
 		if (dd_tm_use != 0) dd_tm_use = 0;
 		if (handoff.pending || pmo->health <= 0) return;
+		if (fresh && DD_UsePress(pmo->player)) pressed = false; // An item in view takes the press.
 		const Town &t = towns[currentTown];
 		if (t.space)
 		{

@@ -8,20 +8,85 @@
 #include <deque>
 
 #include "../../bridge/doomerfall_bridge.h"
+#include "actor.h"
+#include "actorinlines.h"
+#include "d_player.h"
 #include "doomstat.h"
 #include "events.h"
 #include "g_levellocals.h"
 #include "gamestate.h"
+#include "info.h"
+#include "p_local.h"
 #include "printf.h"
+
+bool DD_BridgeHasSession();
 
 namespace
 {
 constexpr int MaxEventsPerFrame = 16; // Keeps a long list from overflowing one tic's network buffer.
+constexpr double UseReach = 96.0;     // Daggerfall's 128-unit treasure reach at the 75% world scale.
+constexpr double MinAim = 0.90;       // About 25 degrees around the crosshair.
+constexpr double FloorDrop = 64.0;    // How far below the eye an item in front of the player still counts.
 
 std::deque<FString> outgoing;
 uint32_t acceptedGeneration, nextRequest = 1, currentContext;
 int32_t currentTarget = -1;
-bool spaceValid, wantList;
+bool spaceValid, wantList, useRules;
+dfb_session *itemSession;
+uint64_t refusedPile; // A pile Daggerfall just refused must not keep a door behind it from opening.
+
+// Only health and ammo pick up by touch. DRLA's versions are CustomInventory, and DRLA also uses Ammo
+// classes as hidden tokens, so its pickups are named here. Each name covers its subclasses.
+bool PicksUpByTouch(const PClass *cls)
+{
+	static const FName names[] = {
+		"Health", "HealthPickup", "Ammo", "Megasphere",
+		"RLHealthBonus", "RLStimpack", "RLMedikit", "RLAaaghSphere", "RLMarathonStimpack", "RLMarathonMedikit", "RLDuke2AtomicHealth",
+		"RLClip", "RLClipBox", "RLShell", "RLShellBox", "RLRocketAmmo", "RLRocketBox", "RLCell", "RLCellPack",
+	};
+	for (; cls; cls = cls->ParentClass)
+		for (const FName &name : names)
+			if (cls->TypeName == name) return true;
+	return false;
+}
+
+bool IsWorldPile(AActor *mo)
+{
+	static const FName pile("DoomerfallWorldItem");
+	return mo->GetClass()->TypeName == pile;
+}
+
+// How well the player is aiming at an item, or a negative infinity when it is out of reach.
+double AimScore(AActor *pmo, player_t *player, AActor *item)
+{
+	const double targetZ = IsWorldPile(item) ? 0 : item->Height / 2;
+	DVector3 to = pmo->Vec3To(item);
+	to.Z += targetZ - player->viewheight;
+	const double distance = to.Length();
+	if (distance > UseReach) return -HUGE_VAL;
+	const double pitchCos = pmo->Angles.Pitch.Cos(), yawCos = pmo->Angles.Yaw.Cos(), yawSin = pmo->Angles.Yaw.Sin();
+	const DVector3 aim(pitchCos * yawCos, pitchCos * yawSin, -pmo->Angles.Pitch.Sin());
+	const double facing = distance > 1 ? (to | aim) / distance : 1;
+	if (facing > MinAim) return facing;
+	// Doom players rarely look down, so an item on the floor ahead counts, at a lower priority than one under the crosshair.
+	const double flat = to.XY().Length();
+	if (flat <= pmo->radius + item->radius && fabs(to.Z) <= player->viewheight + item->Height) return -1;
+	const double flatFacing = flat > 1 ? (to.X * yawCos + to.Y * yawSin) / flat : 1;
+	return to.Z < 0 && -to.Z <= FloorDrop && flatFacing > MinAim ? flatFacing - 1 : -HUGE_VAL;
+}
+
+void SendTake(uint64_t id, uint32_t mode)
+{
+	dfb_item_take take{};
+	take.id = id;
+	take.request = nextRequest++;
+	take.mode = mode;
+	dfb_event e{};
+	e.kind = DFB_KIND_ITEM_TAKE;
+	e.tic = gametic;
+	memcpy(e.payload, &take, sizeof(take));
+	dfb_send(itemSession, &e);
+}
 
 void SendRequest(dfb_session *session)
 {
@@ -92,6 +157,7 @@ bool DD_ItemsEvent(const dfb_event &e)
 	{
 		dfb_item_result r;
 		memcpy(&r, e.payload, sizeof(r));
+		refusedPile = r.status == DFB_ITEM_TOO_HEAVY || r.status == DFB_ITEM_REFUSED ? r.id : 0;
 		ShowResult(r);
 		return true;
 	}
@@ -103,6 +169,8 @@ bool DD_ItemsEvent(const dfb_event &e)
 // Runs each frame, after Doom has published where the player is.
 void DD_ItemsFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t target)
 {
+	itemSession = session;
+	useRules = context != DFB_WORLD_NONE; // Only a generated Daggerfall map changes how pickups work.
 	if (context != currentContext || inSpace != spaceValid || (inSpace && target != currentTarget))
 	{
 		currentContext = context;
@@ -132,19 +200,61 @@ void DD_ItemsResync()
 	wantList = spaceValid;
 }
 
-// ZScript names a pile with "dfi_take:<hex id>". True when the name was a take request.
+// True when this item must wait for the Use button. False for everything outside a generated map.
+bool DD_PickupNeedsUse(AActor *special)
+{
+	if (!useRules || !DD_BridgeHasSession() || !special->IsKindOf(NAME_Inventory)) return false;
+	// An invisible helper cannot be aimed at, so it keeps working by touch.
+	static const int noSprite = GetSpriteIndex("TNT1");
+	if (special->sprite == noSprite || (special->renderflags & RF_INVISIBLE)) return false;
+	return !PicksUpByTouch(special->GetClass());
+}
+
+// One press of Use. Takes the item in view and returns true when that press is spent, so a door behind it stays shut.
+// The town door check and Doom's own use check both ask during one tic, and only the first acts.
+bool DD_UsePress(player_t *player)
+{
+	static int lastTic = -1;
+	static bool lastResult;
+	if (!useRules || !DD_BridgeHasSession() || !player || !player->mo || player->health <= 0) return false;
+	if (lastTic == gametic) return lastResult;
+	lastTic = gametic;
+	lastResult = false;
+
+	AActor *pmo = player->mo, *best = nullptr;
+	double bestScore = -HUGE_VAL;
+	TThinkerIterator<AActor> it(pmo->Level);
+	while (AActor *mo = it.Next())
+	{
+		const bool pile = IsWorldPile(mo);
+		if (!pile && (!(mo->flags & MF_SPECIAL) || !DD_PickupNeedsUse(mo))) continue;
+		const double score = AimScore(pmo, player, mo);
+		if (score > bestScore && P_CheckSight(pmo, mo, SF_IGNOREVISIBILITY))
+		{
+			bestScore = score;
+			best = mo;
+		}
+	}
+	if (!best) return false;
+
+	if (IsWorldPile(best))
+	{
+		const uint64_t id = strtoull(best->StringVar(FName("dfId")).GetChars(), nullptr, 16);
+		const bool crouching = (player->cmd.buttons & BT_CROUCH) || player->crouchfactor < 1;
+		SendTake(id, crouching ? DFB_TAKE_STEAL : DFB_TAKE_GRAB);
+		lastResult = id != refusedPile;
+		return lastResult;
+	}
+	best->CallTouch(pmo);
+	// A refused pickup, such as a weapon the player already holds, stays in the world and leaves the press for a door.
+	lastResult = (best->ObjectFlags & OF_EuthanizeMe) || !(best->flags & MF_SPECIAL);
+	return lastResult;
+}
+
+// The Interact control is the same action as Use, without Doom's door use.
 bool DD_ItemsNetEvent(dfb_session *session, const char *name)
 {
-	static constexpr char prefix[] = "dfi_take:";
-	if (strncmp(name, prefix, sizeof(prefix) - 1)) return false;
-	if (!session) return true;
-	dfb_item_take take{};
-	take.id = strtoull(name + sizeof(prefix) - 1, nullptr, 16);
-	take.request = nextRequest++;
-	dfb_event e{};
-	e.kind = DFB_KIND_ITEM_TAKE;
-	e.tic = gametic;
-	memcpy(e.payload, &take, sizeof(take));
-	dfb_send(session, &e);
+	if (strcmp(name, "df_interact")) return false;
+	if (session && consoleplayer >= 0) DD_UsePress(&players[consoleplayer]);
 	return true;
 }

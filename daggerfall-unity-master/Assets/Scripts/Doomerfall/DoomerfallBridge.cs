@@ -303,7 +303,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         DoomerfallInput.Enqueue(ev.uiInput.type, ev.uiInput.a, ev.uiInput.b, ev.uiInput.sentNs);
                         break;
                     case Dfb.KIND_ITEM_TAKE:
-                        items.OnTake(ev.itemTake.request, ev.itemTake.id);
+                        items.OnTake(ev.itemTake.request, ev.itemTake.id, ev.itemTake.mode);
                         break;
                     case Dfb.KIND_MONSTER_DEATH:
                         monsters.OnDeath(ev.monsterDeath.id, ev.monsterDeath.target, ev.monsterDeath.x, ev.monsterDeath.y, ev.monsterDeath.z);

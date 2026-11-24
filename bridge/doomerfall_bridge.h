@@ -118,6 +118,8 @@ extern "C" {
 #define DFB_ITEM_TOO_HEAVY 2u  /* nothing moved, because of the weight limit */
 #define DFB_ITEM_GONE      3u  /* no such pile here */
 #define DFB_ITEM_REFUSED   4u  /* Daggerfall cannot do this now, or the player is too far away */
+#define DFB_TAKE_GRAB      0u  /* Daggerfall's Grab interaction */
+#define DFB_TAKE_STEAL     1u  /* Daggerfall's Steal interaction; the player is crouching */
 
 #define DFB_TRANSITION_ENTER_BUILDING 1u
 #define DFB_TRANSITION_EXIT_BUILDING  2u
@@ -304,7 +306,7 @@ typedef struct dfb_item_take
 {
 	uint64_t id;
 	uint32_t request;
-	uint32_t pad;
+	uint32_t mode;        /* DFB_TAKE_* */
 } dfb_item_take;
 
 typedef struct dfb_item_result
