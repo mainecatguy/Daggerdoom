@@ -3,8 +3,14 @@
 //   uzdoom ... -ddenctest <areaLevel> [-ddenctestdungeon <index> <typeName>] +map MAP01
 // 45 tics in (after DRLA's spawners have been claimed), it places the map's encounters with Privateer's Hold's facts (encounter card 4's paired run), checks
 // them again a second later, and quits. p_tick.cpp calls DD_EncounterTestTick once per tic.
+// Card 7: -ddenctestperf <tics> keeps running after the check: every placed monster is woken against the (god mode)
+// player, and the playsim think time of each tic (the "think" stat) is logged as a summary before quitting.
 
+#include <algorithm>
+#include <chrono>
 #include <cinttypes>
+#include <cstdio>
+#include <vector>
 #include <cstdlib>
 #include <cstring>
 
@@ -16,6 +22,8 @@
 #include "m_argv.h"
 #include "p_local.h"
 #include "printf.h"
+#include "stats.h"
+#include "d_player.h"
 
 void DD_MonstersTestEncounters(FLevelLocals *Level, const dfb_encounter_area &a, const char *location, const char *region, const char *type);
 
@@ -46,6 +54,11 @@ static void SaveQuitTick(FLevelLocals *Level)
 	}
 	if (quitAt >= 0 && Level->maptime >= quitAt) { quitAt = -1; AddCommandString("quit"); }
 }
+
+static int perfTics = 0, perfEnd = 0;
+static bool perfStarted = false;
+static std::chrono::steady_clock::time_point lastTic;
+static std::vector<double> thinkMs, wallMs;
 
 void DD_EncounterTestTick(FLevelLocals *Level)
 {
@@ -96,6 +109,51 @@ void DD_EncounterTestTick(FLevelLocals *Level)
 				by ? by->GetClass()->TypeName.GetChars() : (mo->BlockingLine ? "a line" : "floor or ceiling"), by && by->ddRecordId ? " (a mook)" : "");
 		}
 		Printf("DDENCTEST after 1 s: %d placed monsters, %d stuck\n", monsters, stuck);
+		const int perf = FindArg("-ddenctestperf");
+		perfTics = perf && perf + 1 < Args->NumArgs() ? atoi(Args->GetArg(perf + 1)) : 0;
+		if (perfTics > 0 && Level->PlayerInGame(consoleplayer) && Level->Players[consoleplayer]->mo)
+		{
+			player_t *pl = Level->Players[consoleplayer];
+			pl->cheats |= CF_GODMODE;
+			int woken = 0;
+			auto wake = Level->GetThinkerIterator<AActor>();
+			while (AActor *mo = wake.Next())
+				if (mo->ddRecordId && mo->health > 0 && mo->SeeState) { mo->target = pl->mo; mo->SetState(mo->SeeState); woken++; }
+			Printf("DDENCTEST perf: woke %d monsters, measuring %d tics\n", woken, perfTics);
+			perfEnd = Level->maptime + perfTics;
+			state = 2;
+			return;
+		}
+		Printf("DDENCTEST done\n");
+		state = 3;
+		AddCommandString("quit");
+	}
+	else if (state == 2)
+	{
+		// The think stat still holds the previous tic's playsim time (RunThinkers resets it when it starts).
+		auto *stat = static_cast<FTextStat *>(FStat::FindStat("think"));
+		double think = 0;
+		int thinkers = 0;
+		if (stat) sscanf(stat->GetStats().GetChars(), "Think time = %lf ms - %d", &think, &thinkers);
+		const auto now = std::chrono::steady_clock::now();
+		if (perfStarted) { thinkMs.push_back(think); wallMs.push_back(std::chrono::duration<double, std::milli>(now - lastTic).count()); }
+		perfStarted = true;
+		lastTic = now;
+		if (Level->maptime < perfEnd) return;
+		auto summary = [](std::vector<double> v, const char *what) {
+			if (v.empty()) return;
+			std::sort(v.begin(), v.end());
+			double sum = 0;
+			for (double x : v) sum += x;
+			Printf("DDENCTEST perf %s ms: mean %.2f median %.2f p95 %.2f max %.2f over %d tics\n", what, sum / v.size(), v[v.size() / 2],
+				v[std::min(v.size() - 1, v.size() * 95 / 100)], v.back(), int(v.size()));
+		};
+		summary(thinkMs, "think");
+		summary(wallMs, "tic-to-tic (minimized window)");
+		int alive = 0;
+		auto it = Level->GetThinkerIterator<AActor>();
+		while (AActor *mo = it.Next()) if (mo->ddRecordId && mo->health > 0) alive++;
+		Printf("DDENCTEST perf: %d thinkers, %d placed monsters alive at the end\n", thinkers, alive);
 		Printf("DDENCTEST done\n");
 		state = 3;
 		AddCommandString("quit");

@@ -421,6 +421,8 @@ public:
 	{
 		State &s = st[p];
 		s.processed = true;
+		// Card 7: points moved here from an earlier placement were added to the plan after ChooseLeader read it.
+		ReadMooks(p);
 		if (s.mooks.empty() || PlaceRest(s)) return;
 		int pending = 0;
 		for (int tries = 0;; tries++)
@@ -598,7 +600,8 @@ bool DD_PlaceEncounters(FLevelLocals *Level, const FString &header, const std::v
 	// Re-read every placement (moves may have added to any of them) and hand back the spots.
 	uint64_t digest = 14695981039346656037ULL;
 	auto mix = [&](int64_t v) { for (int k = 0; k < 8; k++) { digest ^= uint8_t(v >> (8 * k)); digest *= 1099511628211ULL; } };
-	int unplaced = 0;
+	int unplaced = 0, emptyPlacements = 0;
+	int64_t placedCost = 0;
 	size_t cells = 0;
 	for (size_t i = 0; i < list.size(); i++)
 	{
@@ -610,12 +613,14 @@ bool DD_PlaceEncounters(FLevelLocals *Level, const FString &header, const std::v
 		{
 			if (int(m) >= s.placed || s.spot[m] < 0) { unplaced++; continue; }
 			out.push_back({ s.mooks[m].id, s.mooks[m].cls, s.pos[m], int(i), int(m), faction < 0 ? -1 : (faction & 15), faction < 0 ? 0 : (faction >> 4) });
+			placedCost += s.mooks[m].cost;
 			mix(int64_t(s.mooks[m].id));
 			mix(lround(s.pos[m].X * 8)); mix(lround(s.pos[m].Y * 8)); mix(lround(s.pos[m].Z * 8));
 			if (dd_enc_log)
-				Printf("DDENC mook %016" PRIx64 " %s p %d m %d at %.1f,%.1f,%.1f%s\n", s.mooks[m].id, s.mooks[m].cls ? s.mooks[m].cls->TypeName.GetChars() : "?",
-					int(i), int(m), s.pos[m].X, s.pos[m].Y, s.pos[m].Z, m == 0 ? " leader" : "");
+				Printf("DDENC mook %016" PRIx64 " %s p %d m %d at %.1f,%.1f,%.1f%s cost %d\n", s.mooks[m].id, s.mooks[m].cls ? s.mooks[m].cls->TypeName.GetChars() : "?",
+					int(i), int(m), s.pos[m].X, s.pos[m].Y, s.pos[m].Z, m == 0 ? " leader" : "", s.mooks[m].cost);
 		}
+		if (s.placed < 1 || s.mooks.empty() || s.spot[0] < 0) emptyPlacements++;
 	}
 	const FString summary = pl.CallText("Summary");
 	for (auto &line : summary.Split("\n")) Printf("DDENC %s\n", line.GetChars());
@@ -628,6 +633,8 @@ bool DD_PlaceEncounters(FLevelLocals *Level, const FString &header, const std::v
 		int(list.size()), int(out.size()), unplaced, hasEntrance ? "yes" : "none", int(entrance.size()), walkKnown, piles, int(chests.size()), int(treasure.size()),
 		pl.cheapestLeaders, pl.cheapestPoints,
 		pl.stuckLeaders, pl.promotes, pl.moves, pl.droppedPoints, *dd_enc_spacing, std::min(*dd_enc_spacing, *dd_enc_min_spacing), pl.crowded, int(cells), pl.checks, pl.skippedFull);
+	// Card 7 contract check: the plan's spent points must equal the summed cost of the mooks actually handed out.
+	Printf("DDENC contract placed-cost %lld empty-placements %d\n", (long long)placedCost, emptyPlacements);
 	if (!hasEntrance) Printf("DDENC warning: no entrance marker (player start); bosses use the planner's fallback\n");
 	Printf("DDENC timing measure %.1f ms plan %.1f ms place %.1f ms finish %.1f ms total %.1f ms digest %016" PRIx64 "\n",
 		ms(t1 - t0), ms(t2 - t1), ms(t3 - t2), ms(t4 - t3), ms(t4 - t0), digest);

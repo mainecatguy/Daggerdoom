@@ -1,6 +1,8 @@
 """Encounter card 5: the mook placer, run in UZDoom alone (no Daggerfall) on Privateer's Hold.
 
-usage: placer_test.py wad | run LEVEL NAME [--drla] [--spacing S] [--dungeon INDEX TYPE] | check NAME... | compare NAME_A NAME_B
+usage: placer_test.py wad | run LEVEL NAME [--drla | --ch] [--spacing S] [--dungeon INDEX TYPE] [--perf TICS] | check NAME... | compare NAME_A NAME_B
+
+--ch     Colourful Hell + DRLA + ch-compat (the project load order); --perf wakes every monster and logs think time
 
 wad      card 4's map (encounter markers) plus the fresh converter's treasure markers
 run      starts UZDoom with -ddenctest, places the map's encounters at area level LEVEL with Privateer's Hold's facts,
@@ -27,6 +29,8 @@ IWAD = r"D:\dev\DoomDaggerfall\GameResources\wads\DOOM2.WAD"
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 MODS = Path(r"D:\dev\DoomDaggerfall\GameMods")
 DRLA = ["DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3"]
+CH = "ColourfulHell_1_04.pk3"
+CHCOMPAT = Path(r"D:\dev\DoomDaggerfall-build\ch-compat.pk3")
 WAD = "privateershold.wad"
 FATAL = ("Script error", "VM execution aborted", "Unhandled exception", "Execution could not continue", "FATAL")
 
@@ -48,20 +52,22 @@ def make_wad():
     md.write_wad(out / ("placer_" + WAD), [(n, text if n == "TEXTMAP" else d) for n, d in base])
 
 
-def run(level, name, drla, spacing, dungeon=None):
+def run(level, name, drla, spacing, dungeon=None, ch=False, perf=None):
     runs = REVIEW / "run"
     runs.mkdir(parents=True, exist_ok=True)
     log = runs / f"log-{name}.txt"   # UZDoom names a relative +logfile log-<name>.txt
     log.unlink(missing_ok=True)
     data = CARD4 / "data"
-    files = ([str(MODS / n) for n in DRLA] if drla else []) + [str(data / n) for n in ("ddruntime.pk3", "overworld.pk3")] + \
+    drla = drla or ch
+    files = ([str(MODS / CH)] if ch else []) + ([str(MODS / n) for n in DRLA] if drla else []) + ([str(CHCOMPAT)] if ch else []) + [str(data / n) for n in ("ddruntime.pk3", "overworld.pk3")] + \
         [str(REVIEW / "wad" / ("placer_" + WAD))] + [str(data / n) for n in ("privateershold_mesh.pk3", "privateershold_doors.pk3")] + \
         [str(WORKTREE / "mods" / "doomerfall" / "src")]
     args = [str(UZ), "-iwad", IWAD, "-file", *files, "-noactivate", "-nosound", "-noautoload", "-config", str(runs / "placer.ini"), "-skill", "3",
             "-ddenctest", str(level), "+logfile", name, "+vid_fullscreen", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1",
             "+vid_lowerinbackground", "0", "+dd_enc_log", "1"] + (["+dd_enc_spacing", str(spacing)] if spacing else []) + \
-        (["-ddenctestdungeon", *dungeon] if dungeon else []) + ["+map", "MAP01"]
-    code = subprocess.call([sys.executable, QUIET, "--timeout", "40", "--cwd", str(runs), "--", *args], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        (["-ddenctestdungeon", *dungeon] if dungeon else []) + (["-ddenctestperf", str(perf)] if perf else []) + ["+map", "MAP01"]
+    timeout = 40 + (int(perf) // 35 if perf else 0)
+    code = subprocess.call([sys.executable, QUIET, "--timeout", str(timeout), "--cwd", str(runs), "--", *args], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     body = log.read_text(errors="replace") if log.exists() else ""
     fatal = [k for k in FATAL if k in body and not (drla and k == "Script error")]  # the DRLA set always logs known script errors
     print(f"{name}: exit {code}, log {len(body)} bytes, fatal {fatal or 'none'}, done {'DDENCTEST done' in body}")
@@ -84,6 +90,48 @@ def mooks(name):
     return body, [(int(i, 16), c, int(p), int(m), float(x), float(y), float(z)) for i, c, p, m, x, y, z in rows]
 
 
+def contract(name):
+    """Card 7: every placement has a mook, every leader is on its origin, and the points add up."""
+    body = (REVIEW / "run" / f"log-{name}.txt").read_text(errors="replace")
+    plan = re.search(r"DDENC plan .*? pool (\d+) spent (\d+) mooks (\d+) moved-dropped (\d+) bosses (\S+) titan (-?\d+) leftover (-?\d+) titanclass (\S+)", body)
+    placer = re.search(r"DDENC placer placements (\d+) mooks (\d+) unplaced (\d+) .*?cheapest-leaders (\d+) \(\+(\d+) pts\).*?dropped-points \(map full\) (\d+)", body)
+    con = re.search(r"DDENC contract placed-cost (\d+) empty-placements (\d+)", body)
+    if not (plan and placer and con):
+        print(f"  CONTRACT {name}: FAIL, summary lines missing (plan {bool(plan)}, placer {bool(placer)}, contract {bool(con)})")
+        return False
+    pool, spent, nmooks, moved, bosses, titan_at, left, titan_cls = plan.groups()
+    pool, spent, nmooks, moved, left = int(pool), int(spent), int(nmooks), int(moved), int(left)
+    nplace, placed, unplaced, ncheap, cheap, dropped = map(int, placer.groups())
+    cost, empty = map(int, con.groups())
+    rows = re.findall(r"DDENC mook ([0-9a-f]+) (\S+) p (\d+) m (\d+) at (-?[\d.]+),(-?[\d.]+),(-?[\d.]+)( leader)? cost (\d+)", body)
+    per = {}
+    for r in rows:
+        per.setdefault(int(r[2]), []).append(int(r[3]))
+    no_mook = [i for i in range(nplace) if i not in per]
+    no_leader = [i for i, ms in per.items() if 0 not in ms]
+    row_cost = sum(int(r[8]) for r in rows)
+    mk = markers()
+    leaders = {int(r[0], 16): (float(r[4]), float(r[5])) for r in rows if r[3] == "0"}
+    off = [hex(i) for i, (x, y) in leaders.items() if i in mk and (abs(x - mk[i][0]) > 0.05 or abs(y - mk[i][1]) > 0.05)]
+    unmatched = [hex(i) for i in mk if i not in leaders]
+    balance = spent + left + moved - cheap
+    checks = [
+        ("every placement has a mook", not no_mook and empty == 0, f"{nplace - len(no_mook)}/{nplace}, empty {empty}"),
+        ("every placement has its member-0 leader", not no_leader, f"missing {no_leader[:5]}"),
+        ("every leader on its origin marker", not off and not unmatched, f"{len(leaders) - len(off)}/{len(mk)} on, off {off[:3]}, markers without leader {unmatched[:3]}"),
+        ("no mook left unplaced", unplaced == 0, f"unplaced {unplaced}"),
+        ("plan mook count = mooks handed out", nmooks == placed == len(rows), f"plan {nmooks}, placer {placed}, logged {len(rows)}"),
+        ("summed mook costs = plan spent", cost == spent == row_cost, f"placer {cost}, plan {spent}, logged {row_cost}"),
+        ("pool = spent + leftover + moved-dropped - cheapest-leader additions", balance == pool, f"{spent} + {left} + {moved} - {cheap} = {balance} vs pool {pool}"),
+        ("no points dropped for a full map", moved == 0 and dropped == 0, f"moved-dropped {moved}, map full {dropped}"),
+    ]
+    ok = all(c[1] for c in checks)
+    print(f"  CONTRACT {name}: {'PASS' if ok else 'FAIL'} (leftover {left} centipoints, bosses {bosses}, titan {titan_cls} at {titan_at})")
+    for what, good, detail in checks:
+        print(f"    {'ok  ' if good else 'FAIL'} {what}: {detail}")
+    return ok
+
+
 def check(name):
     body, rows = mooks(name)
     for key in ("DDENCTEST level", "DDENC plan", "DDENC placer", "DDENC timing", "DDENC spawned", "DDENC warning", "DDWAR"):
@@ -98,6 +146,10 @@ def check(name):
     print(f"  {name}: mooks {len(rows)}, leaders planned {len(leaders)}, leaders spawned {len(logged)}, on marker {len(logged) - len(off)}, off marker {len(off)}, markers without a leader {len(missing)}")
     ids = [r[0] for r in rows]
     print(f"  unique ids {len(set(ids)) == len(ids)}; classes {len({r[1] for r in rows})}")
+    for line in body.splitlines():
+        if line.startswith(("DDENC contract", "DDENCTEST perf", "DDENCTEST after")):
+            print(" ", line)
+    contract(name)
 
 
 def compare(a, b):
@@ -119,7 +171,8 @@ if __name__ == "__main__":
     elif cmd == "run":
         sp = sys.argv[sys.argv.index("--spacing") + 1] if "--spacing" in sys.argv else None
         dg = sys.argv[sys.argv.index("--dungeon") + 1:sys.argv.index("--dungeon") + 3] if "--dungeon" in sys.argv else None
-        run(int(sys.argv[2]), sys.argv[3], "--drla" in sys.argv, sp, dg)
+        pf = sys.argv[sys.argv.index("--perf") + 1] if "--perf" in sys.argv else None
+        run(int(sys.argv[2]), sys.argv[3], "--drla" in sys.argv, sp, dg, "--ch" in sys.argv, pf)
         check(sys.argv[3])
     elif cmd == "check":
         for n in sys.argv[2:]:
