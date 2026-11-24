@@ -137,6 +137,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             sheet = new DoomerfallSheet(this, sync, Environment.GetCommandLineArgs());
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfsheettest") >= 0)
                 gameObject.AddComponent<DoomerfallSheetTest>().Init(this, sync);
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfloottest") >= 0)
+                gameObject.AddComponent<DoomerfallLootTest>().Init(this);
             ui =gameObject.AddComponent<DoomerfallUi>();
             ui.Init(this);
             save = gameObject.AddComponent<DoomerfallSave>();
@@ -144,6 +146,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             items = gameObject.AddComponent<DoomerfallItems>();
             items.Init(this, sync);
             save.Items = items;
+            ui.Items = items;
             newGame = gameObject.AddComponent<DoomerfallNewGame>();
             newGame.Init(this, sync, Environment.GetCommandLineArgs());
             newGame.Items = items;

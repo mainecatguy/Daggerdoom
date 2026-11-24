@@ -961,6 +961,14 @@ namespace DaggerfallWorkshop.Game
             uiManager.PushWindow(DaggerfallUI.Instance.InventoryWindow);
         }
 
+        // Doomerfall: Doom's Use button reached this container. Doom measured the reach, in Daggerfall units.
+        public void DoomerfallActivateLoot(DaggerfallLoot loot, float distance)
+        {
+            RaycastHit hit = new RaycastHit();
+            hit.distance = distance;
+            ActivateLootContainer(hit, loot);
+        }
+
         void DisableEmptyCorpseContainer(GameObject go)
         {
             if (go)

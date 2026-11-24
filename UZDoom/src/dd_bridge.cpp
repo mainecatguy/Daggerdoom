@@ -529,7 +529,7 @@ void PumpUi(int64_t now)
 
 const char *UiCommandName(uint32_t id)
 {
-	return id == DFB_UI_INVENTORY ? "netevent df_inventory" : id == DFB_UI_MAP ? "togglemap" : "netevent df_fast_travel";
+	return id == DFB_UI_INVENTORY || id == DFB_UI_LOOT ? "netevent df_inventory" : id == DFB_UI_MAP ? "togglemap" : "netevent df_fast_travel";
 }
 
 void RunUiTest(int64_t now)
@@ -649,6 +649,12 @@ bool DD_BridgeToggleMap()
 }
 
 bool DD_BridgeHasSession() { return session != nullptr; }
+
+// Daggerfall answered Use on a container with its own window. Doom shows it like any other Daggerfall menu.
+void DD_BridgeOpenLoot()
+{
+	if (session && uiState == UiClosed && UiCanOpen()) OpenUi(DFB_UI_LOOT);
+}
 
 static void RefreshSheet()
 {

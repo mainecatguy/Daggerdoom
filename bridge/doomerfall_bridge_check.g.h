@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0xf4ef81f7964dde81ULL
+#define DFB_SCHEMA_HASH 0x3b5392a681da2830ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -66,6 +66,7 @@ static_assert((DFB_KIND_ITEMS_END) == (42), DFB_STALE);
 static_assert((DFB_KIND_ITEM_TAKE) == (43), DFB_STALE);
 static_assert((DFB_KIND_ITEM_RESULT) == (44), DFB_STALE);
 static_assert((DFB_KIND_ITEMS_REQUEST) == (45), DFB_STALE);
+static_assert((DFB_KIND_CONTAINER) == (80), DFB_STALE);
 static_assert((DFB_KIND_MONSTER_DEATH) == (50), DFB_STALE);
 static_assert((DFB_KIND_MONSTERS_BEGIN) == (51), DFB_STALE);
 static_assert((DFB_KIND_MONSTER) == (52), DFB_STALE);
@@ -87,6 +88,7 @@ static_assert((DFB_ITEM_PARTIAL) == (1u), DFB_STALE);
 static_assert((DFB_ITEM_TOO_HEAVY) == (2u), DFB_STALE);
 static_assert((DFB_ITEM_GONE) == (3u), DFB_STALE);
 static_assert((DFB_ITEM_REFUSED) == (4u), DFB_STALE);
+static_assert((DFB_ITEM_WINDOW) == (5u), DFB_STALE);
 static_assert((DFB_TAKE_GRAB) == (0u), DFB_STALE);
 static_assert((DFB_TAKE_STEAL) == (1u), DFB_STALE);
 static_assert((DFB_TRANSITION_ENTER_BUILDING) == (1u), DFB_STALE);
@@ -138,6 +140,7 @@ static_assert((DFB_UI_TRAVEL_MAP) == (1u), DFB_STALE);
 static_assert((DFB_UI_INVENTORY) == (2u), DFB_STALE);
 static_assert((DFB_UI_MAP) == (3u), DFB_STALE);
 static_assert((DFB_UI_NEW_GAME) == (4u), DFB_STALE);
+static_assert((DFB_UI_LOOT) == (5u), DFB_STALE);
 static_assert((DFB_UI_CLOSED) == (0u), DFB_STALE);
 static_assert((DFB_UI_OPENED) == (1u), DFB_STALE);
 static_assert((DFB_UI_REASON_NONE) == (0u), DFB_STALE);
@@ -323,6 +326,26 @@ static_assert(offsetof(dfb_world_item, height) == 40, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_world_item::height), float>::value, DFB_STALE);
 static_assert(offsetof(dfb_world_item, pad) == 44, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_world_item::pad), uint32_t>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_world_container) == 40, DFB_STALE);
+static_assert(offsetof(dfb_world_container, id) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_world_container::id), uint64_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_world_container, generation) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_world_container::generation), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_world_container, pad) == 12, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_world_container::pad), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_world_container, min_x) == 16, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_world_container::min_x), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_world_container, min_y) == 20, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_world_container::min_y), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_world_container, min_z) == 24, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_world_container::min_z), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_world_container, max_x) == 28, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_world_container::max_x), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_world_container, max_y) == 32, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_world_container::max_y), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_world_container, max_z) == 36, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_world_container::max_z), float>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_item_take) == 16, DFB_STALE);
 static_assert(offsetof(dfb_item_take, id) == 0, DFB_STALE);

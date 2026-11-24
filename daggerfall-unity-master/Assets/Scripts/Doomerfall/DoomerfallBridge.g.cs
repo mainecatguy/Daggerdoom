@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0xf4ef81f7964dde81UL;
+        public const ulong SchemaHash = 0x3b5392a681da2830UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 6;
@@ -66,6 +66,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_ITEM_TAKE = 43;  // UZ to DF; the player pressed Interact on a pile; payload: dfb_item_take
         public const ushort KIND_ITEM_RESULT = 44;  // DF to UZ; what Daggerfall did with that request; payload: dfb_item_result
         public const ushort KIND_ITEMS_REQUEST = 45;  // UZ to DF; send the current list again; payload: dfb_world_items
+        public const ushort KIND_CONTAINER = 80;  // DF to UZ; one furniture container in an item list, between ITEMS_BEGIN and ITEMS_END; payload: dfb_world_container
         public const ushort KIND_MONSTER_DEATH = 50;  // UZ to DF; a tagged monster died; payload: dfb_monster_death
         public const ushort KIND_MONSTERS_BEGIN = 51;  // DF to UZ; starts one full list for a dungeon; payload: dfb_world_items
         public const ushort KIND_MONSTER = 52;  // DF to UZ; one quest foe to place, or one dead id; payload: dfb_monster
@@ -87,6 +88,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint ITEM_TOO_HEAVY = 2;  // nothing moved, because of the weight limit
         public const uint ITEM_GONE = 3;  // no such pile here
         public const uint ITEM_REFUSED = 4;  // Daggerfall cannot do this now, or the player is too far away
+        public const uint ITEM_WINDOW = 5;  // Daggerfall will show its own window for this container; Doom opens DFB_UI_LOOT
         public const uint TAKE_GRAB = 0;  // Daggerfall's Grab interaction
         public const uint TAKE_STEAL = 1;  // Daggerfall's Steal interaction; the player is crouching
         public const uint TRANSITION_ENTER_BUILDING = 1;
@@ -138,6 +140,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint UI_INVENTORY = 2;
         public const uint UI_MAP = 3;  // the map for where the player is; dfb_ui_command.context is Doom's DFB_WORLD_*
         public const uint UI_NEW_GAME = 4;  // Daggerfall's character creation and new game cinematics
+        public const uint UI_LOOT = 5;  // the window for the container Daggerfall just answered DFB_ITEM_WINDOW for
         public const uint UI_CLOSED = 0;
         public const uint UI_OPENED = 1;
         public const uint UI_REASON_NONE = 0;
@@ -169,8 +172,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const int UZ_PHASE_SAVING = 4;
 
         // Native size of every generated struct, for the attach check.
-        public static readonly Type[] StructTypes = { typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbNpc), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
-        public static readonly int[] StructSizes = { 64, 24, 24, 16, 24, 24, 48, 32, 32, 32, 16, 48, 16, 48, 32, 32, 16, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
+        public static readonly Type[] StructTypes = { typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbWorldContainer), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbNpc), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
+        public static readonly int[] StructSizes = { 64, 24, 24, 16, 24, 24, 48, 32, 32, 32, 16, 48, 40, 16, 48, 32, 32, 16, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
     }
 
     static class DfbBytes
@@ -247,6 +250,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public DfbWorldItem worldItem;  // ITEM
         [FieldOffset(16)] public DfbItemTake itemTake;  // ITEM_TAKE
         [FieldOffset(16)] public DfbItemResult itemResult;  // ITEM_RESULT
+        [FieldOffset(16)] public DfbWorldContainer worldContainer;  // CONTAINER
         [FieldOffset(16)] public DfbMonsterDeath monsterDeath;  // MONSTER_DEATH
         [FieldOffset(16)] public DfbMonster monster;  // MONSTER
         [FieldOffset(16)] public DfbNpc npc;  // NPC
@@ -401,6 +405,20 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(36)] public float width;
         [FieldOffset(40)] public float height;
         [FieldOffset(44)] public uint pad;
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 40)]
+    struct DfbWorldContainer
+    {
+        [FieldOffset(0)] public ulong id;
+        [FieldOffset(8)] public uint generation;
+        [FieldOffset(12)] public uint pad;
+        [FieldOffset(16)] public float minX;
+        [FieldOffset(20)] public float minY;
+        [FieldOffset(24)] public float minZ;
+        [FieldOffset(28)] public float maxX;
+        [FieldOffset(32)] public float maxY;
+        [FieldOffset(36)] public float maxZ;
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 16)]
