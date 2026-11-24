@@ -54,7 +54,12 @@ def patch_route():
     edits = [("\tbool presave;\n", MENU_CLOSER),
              ("\t\t\t\tif (pile)\n", "\t\t\t\tif (pile && st.kills >= 3)\n"),
              ("\t\t\t\t\tst.phase = 3;\n", "\t\t\t\t\tst.phase = 4;\n"),
-             ("Finish(now == st.alive && !present ?", "Finish(now == st.alive && present ?")]
+             ("Finish(now == st.alive && !present ?", "Finish(now == st.alive && present ?"),
+             # Card 7: with Civil War and infighting a monster can die after the save (Daggerfall records it), so the
+             # re-entry count is compared with the living count when the player leaves, not at the save.
+             ("\t\t\tConsole.Printf(\"MDCHECK living %d, expected %d,",
+              "\t\t\tif (Living() != st.alive) Console.Printf(\"MDLATE %d died after the save\", st.alive - Living());\n"
+              "\t\t\tst.alive = Living();\n\t\t\tConsole.Printf(\"MDCHECK living %d, expected %d,")]
     for old, new in edits:
         assert text.count(old) == 1, old
         text = text.replace(old, new, 1)
