@@ -60,6 +60,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DoomerfallHp hp;
         DoomerfallSave save;
         DoomerfallItems items;
+        DoomerfallDoomItems doomItems;
         DoomerfallNewGame newGame;
         DoomerfallMonsters monsters;
         DoomerfallNpcs npcs;
@@ -149,6 +150,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             items.Init(this, sync);
             save.Items = items;
             ui.Items = items;
+            DoomerfallDoomItems.Register();
+            doomItems = gameObject.AddComponent<DoomerfallDoomItems>();
+            doomItems.Init(this, sync);
             newGame = gameObject.AddComponent<DoomerfallNewGame>();
             newGame.Init(this, sync, Environment.GetCommandLineArgs());
             newGame.Items = items;
@@ -349,6 +353,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         break;
                     case Dfb.KIND_INFO:
                         info.OnRequest(ev.infoRequest.request, ev.infoRequest.target, ev.infoRequest.id, ev.infoRequest.worldX, ev.infoRequest.worldZ);
+                        break;
+                    case Dfb.KIND_DOOM_ITEM_TAKE:
+                        doomItems.OnTake(ev.doomItem.request, DoomerfallDoomItems.ClassOf(ev.doomItem));
+                        break;
+                    case Dfb.KIND_DOOM_ITEM_USED:
+                        doomItems.OnUsed(ev.doomItem.request, ev.doomItem.status, DoomerfallDoomItems.ClassOf(ev.doomItem));
+                        break;
+                    case Dfb.KIND_DOOM_ITEM_ART:
+                        doomItems.OnArt(ev.doomItem.request, ev.doomItem.status, DoomerfallDoomItems.ClassOf(ev.doomItem));
                         break;
                     default:
                         unknownKinds++; // contract rule 7: skip, never fatal

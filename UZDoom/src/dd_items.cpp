@@ -10,11 +10,16 @@
 
 #include "../../bridge/doomerfall_bridge.h"
 #include "actor.h"
+#include "bitmap.h"
+#include "r_state.h"
+#include "s_sound.h"
+#include "texturemanager.h"
 #include "actorinlines.h"
 #include "d_player.h"
 #include "doomstat.h"
 #include "events.h"
 #include "g_levellocals.h"
+#include "gstrings.h"
 #include "gamestate.h"
 #include "info.h"
 #include "p_linetracedata.h"
@@ -38,6 +43,20 @@ int32_t currentTarget = -1;
 bool spaceValid, wantList, useRules;
 dfb_session *itemSession;
 uint64_t refusedPile; // A pile Daggerfall just refused must not keep a door behind it from opening.
+
+// Doom items held by Daggerfall. A Use press asks Daggerfall, and the actor waits on the floor for the answer.
+struct PendingTake
+{
+	uint32_t request;
+	FName cls;
+	DVector3 pos;
+	int tic;
+};
+constexpr int PendingTics = 5 * TICRATE; // An unanswered request stops blocking presses after this.
+std::deque<PendingTake> pendingTakes;
+std::deque<FString> doomOutgoing; // Answers that must act inside the playsim, sent as network events.
+uint32_t nextDoomRequest = 1;
+TMap<FName, FTextureID> seenArt; // The sprite each class showed when the player took it.
 
 // Only health and ammo pick up by touch. DRLA's versions are CustomInventory, and DRLA also uses Ammo
 // classes as hidden tokens, so its pickups are named here. Each name covers its subclasses.
@@ -208,6 +227,210 @@ void ShowResult(const dfb_item_result &r)
 		break;
 	}
 }
+
+// Guns stay usable in Doom when Daggerfall takes them, until the weapon hotkey task gives Doom only the active gun.
+bool IsGun(const PClass *cls)
+{
+	static const FName weapon("Weapon"), drlaPickup("RLBaseWeaponPickup");
+	for (; cls; cls = cls->ParentClass)
+		if (cls->TypeName == weapon || cls->TypeName == drlaPickup) return true;
+	return false;
+}
+
+void SendDoomItem(uint16_t kind, uint32_t request, uint32_t status, const char *cls)
+{
+	if (!itemSession) return;
+	dfb_doom_item body{};
+	body.request = request;
+	body.status = status;
+	strncpy(body.cls, cls, sizeof(body.cls) - 1);
+	dfb_event e{};
+	e.kind = kind;
+	e.tic = gametic;
+	memcpy(e.payload, &body, sizeof(body));
+	dfb_send(itemSession, &e);
+}
+
+FString ClassOf(const dfb_doom_item &d)
+{
+	char cls[sizeof(d.cls) + 1] = {};
+	memcpy(cls, d.cls, sizeof(d.cls));
+	return cls;
+}
+
+FTextureID FrameTexture(int sprite, int frame)
+{
+	if (sprite <= SPR_NOCHANGE || (unsigned)sprite >= sprites.Size()) return FNullTextureID();
+	bool mirror;
+	return sprites[sprite].GetSpriteFrame(frame, 0, nullAngle, &mirror);
+}
+
+// The floor sprite of a class: the one the player saw, else the first drawn frame of its spawn states, else its inventory icon.
+FTextureID ArtFor(PClassActor *cls)
+{
+	if (FTextureID *seen = seenArt.CheckKey(cls->TypeName)) return *seen;
+	FName labels[] = { NAME_Spawn, FName("SpawnFrame") };
+	for (FName label : labels)
+	{
+		FState *st = cls->FindState(1, &label);
+		for (int i = 0; st && i < 16; i++, st = st->GetNextState())
+		{
+			FTextureID tex = FrameTexture(st->sprite, st->GetFrame());
+			if (tex.isValid()) return tex;
+		}
+	}
+	AActor *def = GetDefaultByType(cls);
+	return cls->IsDescendantOf(NAME_Inventory) ? def->TextureIDVar(FName("Icon")) : FNullTextureID();
+}
+
+// A display name without Doom's color codes or DRLA's "[Pickup]" suffix.
+FString CleanTag(const char *tag)
+{
+	FString out;
+	for (const char *c = tag; *c; c++)
+	{
+		if (*c == TEXTCOLOR_ESCAPE)
+		{
+			if (c[1] == '[') { while (c[1] && c[1] != ']') c++; }
+			if (c[1]) c++;
+			continue;
+		}
+		out += *c;
+	}
+	const char *suffix = " [Pickup]";
+	const size_t n = strlen(suffix);
+	if (out.Len() > n && !strcmp(out.GetChars() + out.Len() - n, suffix)) out.Truncate(out.Len() - n);
+	return out;
+}
+
+// The item's tag, or its pickup message when it has none (DRLA's RLBlurSphere says "Partial Invisibility").
+FString ItemName(AActor *mo)
+{
+	const char *tag = mo->GetTag("");
+	if (!tag[0] && mo->IsKindOf(NAME_Inventory))
+	{
+		const FString &msg = mo->StringVar(NAME_PickupMsg);
+		tag = msg.GetChars();
+		if (tag[0] == '$') tag = GStrings.GetString(tag + 1);
+	}
+	return CleanTag(tag[0] ? tag : mo->GetClass()->TypeName.GetChars());
+}
+
+// Writes the sprite and name of one class to the art slot. Larger sprites are shrunk to fit the slot.
+void SendArt(uint32_t request, const FString &name)
+{
+	PClassActor *cls = PClass::FindActor(name.GetChars());
+	FTextureID texid = cls ? ArtFor(cls) : FNullTextureID();
+	FGameTexture *tex = texid.isValid() ? TexMan.GetGameTexture(texid) : nullptr;
+	if (!tex)
+	{
+		SendDoomItem(DFB_KIND_DOOM_ITEM_ART, request, DFB_ITEM_GONE, name.GetChars());
+		return;
+	}
+	FBitmap bmp = tex->GetTexture()->GetBgraBitmap(nullptr);
+	const int srcW = bmp.GetWidth(), srcH = bmp.GetHeight();
+	const int maxPixels = int(DFB_BULK_BYTES - DFB_ITEM_ART_HEADER) / 4;
+	int w = srcW, h = srcH;
+	while (w * h > maxPixels) { w = w * 3 / 4; h = h * 3 / 4; }
+	if (w <= 0 || h <= 0)
+	{
+		SendDoomItem(DFB_KIND_DOOM_ITEM_ART, request, DFB_ITEM_GONE, name.GetChars());
+		return;
+	}
+	static TArray<uint8_t> buffer;
+	buffer.Resize(DFB_ITEM_ART_HEADER + w * h * 4);
+	dfb_item_art header{};
+	header.request = request;
+	header.width = w;
+	header.height = h;
+	strncpy(header.cls, name.GetChars(), sizeof(header.cls) - 1);
+	strncpy(header.tag, ItemName(GetDefaultByType(cls)).GetChars(), sizeof(header.tag) - 1);
+	memcpy(buffer.Data(), &header, sizeof(header));
+	const uint8_t *src = bmp.GetPixels();
+	uint8_t *dst = buffer.Data() + DFB_ITEM_ART_HEADER;
+	for (int y = 0; y < h; y++)
+		for (int x = 0; x < w; x++)
+			memcpy(dst + (y * w + x) * 4, src + (y * srcH / h) * bmp.GetPitch() + (x * srcW / w) * 4, 4);
+	uint32_t version;
+	const bool ok = dfb_bulk_write(itemSession, DFB_ITEM_ART_SLOT, buffer.Data(), buffer.Size(), &version) == DFB_OK;
+	SendDoomItem(DFB_KIND_DOOM_ITEM_ART, request, ok ? DFB_ITEM_TAKEN : DFB_ITEM_REFUSED, name.GetChars());
+}
+
+// Daggerfall answered a Use press. Runs inside the playsim.
+void FinishTake(uint32_t request, uint32_t status)
+{
+	PendingTake take{};
+	bool found = false;
+	for (auto it = pendingTakes.begin(); it != pendingTakes.end(); ++it)
+		if (it->request == request) { take = *it; pendingTakes.erase(it); found = true; break; }
+	if (!found || consoleplayer < 0 || !players[consoleplayer].mo || !primaryLevel) return;
+	AActor *pmo = players[consoleplayer].mo;
+	if (status == DFB_ITEM_TOO_HEAVY) { Printf(PRINT_HIGH, "You cannot carry any more.\n"); return; }
+	if (status != DFB_ITEM_TAKEN) { Printf(PRINT_HIGH, "You cannot take that now.\n"); return; }
+
+	AActor *item = nullptr;
+	double best = 64;
+	TThinkerIterator<AActor> it(primaryLevel);
+	while (AActor *mo = it.Next())
+	{
+		if (mo->GetClass()->TypeName != take.cls || !(mo->flags & MF_SPECIAL)) continue;
+		const double d = (mo->Pos() - take.pos).Length();
+		if (d < best) { best = d; item = mo; }
+	}
+	FString tag = item ? ItemName(item) : CleanTag(take.cls.GetChars());
+	if (item && IsGun(item->GetClass()))
+	{
+		item->CallTouch(pmo); // Doom's normal pickup gives the gun, or only ammo when it is already held.
+		if (!(item->ObjectFlags & OF_EuthanizeMe) && (item->flags & MF_SPECIAL)) item->Destroy();
+	}
+	else if (item)
+	{
+		S_Sound(pmo, CHAN_ITEM, 0, "misc/i_pkup", 1, ATTN_NORM);
+		item->Destroy();
+	}
+	Printf(PRINT_HIGH, "You take %s.\n", tag.GetChars());
+	Printf(PRINT_LOG, "doomitems: took %s (request %u) into Daggerfall's inventory%s\n", take.cls.GetChars(), request, item ? "" : ", actor already gone");
+}
+
+// The player used a Doom item in Daggerfall's inventory: Doom picks up a fresh copy at the player. Runs inside the playsim.
+void UseFromDaggerfall(uint32_t request, const char *name)
+{
+	PClassActor *cls = PClass::FindActor(name);
+	player_t *player = consoleplayer >= 0 ? &players[consoleplayer] : nullptr;
+	bool used = false;
+	if (cls && cls->IsDescendantOf(NAME_Inventory) && player && player->mo && player->health > 0 && primaryLevel && gamestate == GS_LEVEL)
+	{
+		AActor *mo = Spawn(primaryLevel, cls, player->mo->Pos(), NO_REPLACE);
+		if (mo)
+		{
+			mo->ClearCounters();
+			mo->flags |= MF_SPECIAL; // DRLA pickups turn this on only when they land.
+			mo->CallTouch(player->mo);
+			used = (mo->ObjectFlags & OF_EuthanizeMe) || !(mo->flags & MF_SPECIAL);
+			if (!used) mo->Destroy();
+		}
+	}
+	if (!used) Printf(PRINT_HIGH, "You cannot use that now.\n");
+	Printf(PRINT_LOG, "doomitems: use %s from Daggerfall (request %u): %s\n", name, request, used ? "applied" : "refused");
+	SendDoomItem(DFB_KIND_DOOM_ITEM_USED, request, used ? DFB_ITEM_TAKEN : DFB_ITEM_REFUSED, name);
+}
+
+// A Use press on a Doom item. Daggerfall decides, and the press is spent either way.
+void AskDaggerfall(AActor *item)
+{
+	const FName cls = item->GetClass()->TypeName;
+	for (auto it = pendingTakes.begin(); it != pendingTakes.end();)
+	{
+		if (gametic - it->tic > PendingTics) it = pendingTakes.erase(it);
+		else if (it->cls == cls && (it->pos - item->Pos()).Length() < 1) return; // Already asked.
+		else ++it;
+	}
+	FTextureID seen = FrameTexture(item->sprite, item->frame);
+	if (seen.isValid()) seenArt[cls] = seen;
+	const uint32_t request = nextDoomRequest++;
+	pendingTakes.push_back({ request, cls, item->Pos(), gametic });
+	SendDoomItem(DFB_KIND_DOOM_ITEM_TAKE, request, 0, cls.GetChars());
+}
 }
 
 // True when the event belonged to world items.
@@ -256,6 +479,22 @@ bool DD_ItemsEvent(const dfb_event &e)
 		else ShowResult(r);
 		return true;
 	}
+	case DFB_KIND_DOOM_ITEM_RESULT:
+	case DFB_KIND_DOOM_ITEM_USE:
+	{
+		dfb_doom_item d;
+		memcpy(&d, e.payload, sizeof(d));
+		if (e.kind == DFB_KIND_DOOM_ITEM_RESULT) doomOutgoing.push_back(FStringf("dfd_result:%u:%u", d.request, d.status));
+		else doomOutgoing.push_back(FStringf("dfd_use:%u:%s", d.request, ClassOf(d).GetChars()));
+		return true;
+	}
+	case DFB_KIND_DOOM_ITEM_ART_REQUEST:
+	{
+		dfb_doom_item d;
+		memcpy(&d, e.payload, sizeof(d));
+		SendArt(d.request, ClassOf(d));
+		return true;
+	}
 	default:
 		return false;
 	}
@@ -288,6 +527,11 @@ void DD_ItemsFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t
 	{
 		if (!primaryLevel->localEventManager->SendNetworkEvent(outgoing.front(), 0, 0, 0, false)) break;
 		outgoing.pop_front();
+	}
+	for (int i = 0; i < MaxEventsPerFrame && !doomOutgoing.empty(); i++)
+	{
+		if (!primaryLevel->localEventManager->SendNetworkEvent(doomOutgoing.front(), 0, 0, 0, false)) break;
+		doomOutgoing.pop_front();
 	}
 }
 
@@ -329,6 +573,13 @@ bool DD_UsePress(player_t *player)
 		lastResult = id != refusedPile;
 		return lastResult;
 	}
+	// Daggerfall holds every Doom item taken with Use. A class name too long for the bridge keeps Doom's own pickup.
+	if (strlen(best->GetClass()->TypeName.GetChars()) < sizeof(dfb_doom_item::cls))
+	{
+		AskDaggerfall(best);
+		lastResult = true;
+		return true;
+	}
 	best->CallTouch(pmo);
 	// A refused pickup, such as a weapon the player already holds, stays in the world and leaves the press for a door.
 	lastResult = (best->ObjectFlags & OF_EuthanizeMe) || !(best->flags & MF_SPECIAL);
@@ -349,6 +600,18 @@ bool DD_ItemsInfoPress(player_t *player)
 // The Interact control is the same action as Use, without Doom's door use.
 bool DD_ItemsNetEvent(dfb_session *session, const char *name)
 {
+	const bool result = !strncmp(name, "dfd_result:", 11);
+	if (result || !strncmp(name, "dfd_use:", 8))
+	{
+		char *end;
+		const uint32_t request = uint32_t(strtoul(name + (result ? 11 : 8), &end, 10));
+		if (*end == ':')
+		{
+			if (result) FinishTake(request, uint32_t(strtoul(end + 1, nullptr, 10)));
+			else UseFromDaggerfall(request, end + 1);
+		}
+		return true;
+	}
 	if (strcmp(name, "df_interact")) return false;
 	if (session && consoleplayer >= 0) DD_UsePress(&players[consoleplayer]);
 	return true;
