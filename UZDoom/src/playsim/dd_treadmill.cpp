@@ -31,6 +31,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "../../../bridge/doomerfall_bridge.h"
 #include "dd_treadmill.h"
 #include "dd_towncache.h"
 #include "fs_files.h"
@@ -57,6 +58,9 @@
 #include "texturemanager.h"
 #include "serializer.h"
 #include "serializer_doom.h"
+
+FString DD_MonstersSavePlans();	// dd_monsters.cpp: each dungeon's first encounter request, so a revisit rebuilds the same mooks.
+void DD_MonstersLoadPlans(const FString &text);
 
 CVAR(Int, dd_tm_originx, 0, CVAR_NOSAVE)
 CVAR(Int, dd_tm_originy, 0, CVAR_NOSAVE)
@@ -99,21 +103,30 @@ namespace
 	constexpr double UNITS_PER_SAMPLE = 1.5 * 40.0;	// Daggerfall Unity's vertical terrain scale, in Daggerfall units.
 
 	constexpr uint64_t SEED_BIT = 1ull << 62, DYNAMIC_BIT = 1ull << 63;
+	// Items the map itself places get tag 1 (bit 61 alone, which no other id uses): a hash of the class and the spot in
+	// world units, so the id is the same on every visit and a take leaves a tombstone.
+	constexpr uint64_t MAP_ITEM_TAG = 1ull << 61, TAG_MASK = 7ull << 61;
+	bool IsMapItemId(uint64_t id) { return (id & TAG_MASK) == MAP_ITEM_TAG; }
+	// Rebuilt on every visit by the encounter plan (5) or by Daggerfall's lists (6 stationary NPCs, 7 townspeople).
+	bool IsRebuiltId(uint64_t id) { const uint64_t tag = id >> 61; return tag == DFB_MONSTER_TAG || tag == DFB_NPC_TAG || tag == DFB_TOWNSPERSON_TAG; }
 	constexpr int SPAWNS_PER_TIC = 64;
 	constexpr double SKY_HEIGHT = 40000;
 
 	enum RecordKind { KMonster, KCorpse, KItem, KGone };
 
 	// The world table row. Coordinates are Daggerfall world units so that
-	// Daggerfall can take over as the authority for this data.
+	// Daggerfall can take over as the authority for this data. Only changes from what a seed, the map, or a Daggerfall
+	// placement rebuilds are stored: dead, taken, dropped, moved or hurt.
 	struct Record
 	{
 		uint64_t id = 0;
-		FName cls = NAME_None, stateOwner = NAME_None;
+		FName cls = NAME_None;
+		FString death;	// A corpse's death state label, such as "Death" or "XDeath.Fire". Never a state index.
 		double x = 0, y = 0, z = 0, angle = 0, height = 0;
-		int health = 0, kind = KGone, amount = 0, stateIdx = -1;
+		int health = 0, kind = KGone, amount = 0;
 		bool dropped = false;
 	};
+	constexpr int TABLE_FORMAT = 2;	// Rows carry a death label. Format 1 (a state index) is not read.
 
 	struct SeedSpawn { uint64_t id; FName cls; double x, y; };	// Global Doom XY.
 	struct PendingChunk
@@ -147,8 +160,12 @@ namespace
 		TileRect visual{};
 		std::vector<TileRect> rects;
 		// A building interior or dungeon. It has a private area of the world table, far outside the real world.
+		// The space id and map name follow the converter's group order and are for this session only. History is keyed
+		// by Daggerfall's own place key ("D<map id>" or "B<map id>:<building key>"), which also fixes where the space
+		// sits in the world table.
 		bool space = false;
 		int spaceId = -1, dungeonMapId = 0;
+		FString place;
 		std::vector<SpaceLanding> landings;
 		std::vector<SpaceExit> exits;
 		// The exit line is farther out than the entry line, so the border cannot cause repeated loads.
@@ -569,6 +586,42 @@ namespace
 			|| (mo->Pos().XY() - mo->SpawnPoint.XY()).LengthSquared() > 1;
 	}
 
+	// Whatever rebuilds this actor on the next visit puts it back exactly as it is now, so storing it adds nothing.
+	bool IsUnchanged(AActor *mo, bool monster)
+	{
+		const uint64_t id = mo->ddRecordId;
+		if (!id || table.count(id)) return false;
+		if (!monster)	// A map item still on its spot, with its default amount.
+			return IsMapItemId(id) && !(mo->flags & MF_DROPPED) && (mo->Pos().XY() - mo->SpawnPoint.XY()).LengthSquared() <= 1
+				&& mo->IntVar(NAME_Amount) == GetDefaultByType(mo->GetClass())->IntVar(NAME_Amount);
+		if (mo->health <= 0) return false;
+		const uint64_t tag = id >> 61;
+		if (tag == DFB_NPC_TAG || tag == DFB_TOWNSPERSON_TAG)	// Daggerfall decides where they are, so walking is no change.
+			return mo->health >= mo->SpawnHealth();
+		return ((id & SEED_BIT) && !(id & DYNAMIC_BIT)) || tag == DFB_MONSTER_TAG ? !IsTouched(mo) : false;
+	}
+
+	// The frame a death sequence rests on (infinite tics), or null when it ends in Stop or never settles.
+	FState *FinalFrame(FState *st)
+	{
+		for (int n = 0; st && st->Tics != -1 && n < 256; n++) st = st->GetNextState();
+		return st && st->Tics == -1 ? st : nullptr;
+	}
+
+	// The death label whose sequence rests on this frame. A label is a name, so it survives a mod reordering its states.
+	FString DeathLabel(AActor *mo, FState *final)
+	{
+		const FName type = mo->DamageTypeReceived;
+		const bool typed = type != NAME_None && type != NAME_Normal;
+		if (typed)
+			for (FName label : { FName(NAME_XDeath), FName(NAME_Death) })
+				if (FinalFrame(mo->FindState(label, type, true)) == final) return FStringf("%s.%s", label.GetChars(), type.GetChars());
+		if (FinalFrame(mo->FindState(NAME_XDeath)) == final) return "XDeath";
+		return "Death";	// Death, or a sequence reached some other way (a crush or a script), shown as an ordinary death.
+	}
+
+	int unchangedCount, missingClassCount;	// For the table summary in the log.
+
 	void Park(AActor *mo, int fromX, int fromY)
 	{
 		const bool monster = (mo->flags3 & MF3_ISMONSTER) != 0, item = mo->IsKindOf(NAME_Inventory);
@@ -579,9 +632,10 @@ namespace
 		}
 		uint64_t id = mo->ddRecordId;
 		if (id) expected.erase(id);
-		if (monster && mo->health > 0 && (id & SEED_BIT) && !table.count(id) && !IsTouched(mo))
+		if (IsUnchanged(mo, monster))
 		{
-			mo->Destroy();	// Untouched: its chunk seed rebuilds it.
+			unchangedCount++;
+			mo->Destroy();	// Its seed, the map, or Daggerfall's placement rebuilds it.
 			return;
 		}
 		if (!id) id = DYNAMIC_BIT | ++nextDynamic;
@@ -604,25 +658,16 @@ namespace
 		}
 		else if (mo->health <= 0)
 		{
-			// Corpses are stored in their final frame. A death that ends in Stop leaves nothing behind.
-			FState *st = mo->state;
-			for (int n = 0; st && st->Tics != -1 && n < 256; n++) st = st->GetNextState();
-			if (!st || st->Tics != -1)
-			{
-				mo->Destroy();
-				MarkGone(id);
-				return;
-			}
-			PClassActor *owner = FState::StaticFindStateOwner(st);
-			if (!owner)
+			// A corpse is stored as dead, with the label of its death. A death that ends in Stop leaves nothing behind.
+			FState *st = FinalFrame(mo->state);
+			if (!st)
 			{
 				mo->Destroy();
 				MarkGone(id);
 				return;
 			}
 			r.kind = KCorpse;
-			r.stateOwner = owner->TypeName;
-			r.stateIdx = int(st - owner->GetStates());
+			r.death = DeathLabel(mo, st);
 		}
 		else r.kind = KMonster;
 		Store(r);
@@ -633,7 +678,13 @@ namespace
 	void Restore(FLevelLocals *Level, const Record &r)
 	{
 		PClassActor *cls = PClass::FindActor(r.cls);
-		if (!cls) return;
+		if (!cls)
+		{
+			// Kept in the table, so the row comes back if the class does (for example after a mod is restored).
+			missingClassCount++;
+			Printf(TEXTCOLOR_ORANGE "DDTM row %016" PRIx64 " kind %d: class %s no longer exists, not restored\n", r.id, r.kind, r.cls.GetChars());
+			return;
+		}
 		AActor *mo = Spawn(Level, cls, ToLocal(r.x, r.y, r.z), NO_REPLACE);
 		if (!mo) return;
 		mo->ddRecordId = r.id;
@@ -643,9 +694,19 @@ namespace
 		if (r.kind == KItem) mo->IntVar(NAME_Amount) = r.amount;
 		if (r.kind == KCorpse)
 		{
-			PClassActor *owner = PClass::FindActor(r.stateOwner);
-			if (owner && r.stateIdx >= 0 && r.stateIdx < owner->GetStateCount())
-				mo->SetState(owner->GetStates() + r.stateIdx, true);
+			// The class's own death sequence, by label, to its resting frame.
+			FState *st = nullptr;
+			if (const long dot = r.death.IndexOf('.'); dot > 0) st = mo->FindState(FName(r.death.Left(dot)), FName(r.death.Mid(dot + 1)), true);
+			else if (r.death.IsNotEmpty()) st = mo->FindState(FName(r.death));
+			if (!st) st = mo->FindState(NAME_Death);
+			FState *final = FinalFrame(st);
+			if (!final)
+			{
+				Printf(TEXTCOLOR_ORANGE "DDTM corpse %016" PRIx64 " %s has no resting %s frame, not restored\n", r.id, r.cls.GetChars(), r.death.GetChars());
+				mo->Destroy();
+				return;
+			}
+			mo->SetState(final, true);
 			mo->ClearCounters();
 			mo->flags &= ~(MF_SOLID | MF_SHOOTABLE | MF_FLOAT | MF_SKULLFLY);
 			mo->flags |= MF_CORPSE | MF_DROPOFF;
@@ -770,6 +831,7 @@ namespace
 				if (AActor *mo = Spawn(Level, cls, pos, ALLOW_REPLACE))
 				{
 					mo->ddRecordId = s.id;
+					mo->SpawnPoint = mo->Pos();	// Spawn() leaves it at zero, which made every seeded monster look moved.
 					expected.insert(s.id);
 				}
 				budget--;
@@ -936,12 +998,24 @@ namespace
 		Printf("DDTCACHE index: %d location groups\n", int(groups.size()));
 	}
 
-	// Gives a space its own rectangle of world-table coordinates, beyond the 128,000-tile world.
-	void PlaceSpace(Town &t, int id)
+	// The world-table slot of a place, from Daggerfall's keys only: 20 bits of map id, then for a building the block's
+	// layout position (3 bits each, a location is at most 8 by 8 blocks) and its record index (8 bits). Dungeons use bit 34.
+	uint64_t InteriorSlot(int mapId, int buildingKey)
 	{
-		const int tileX = (1 << 22) + (id & 0xFFF) * 1024, tileY = (id >> 12) * 1024;
+		const int x = (buildingKey >> 16) & 0xFF, y = (buildingKey >> 8) & 0xFF;
+		if (x > 7 || y > 7) Printf(TEXTCOLOR_ORANGE "DDTM building key %d of map %d is outside an 8 by 8 location\n", buildingKey, mapId);
+		return (uint64_t(mapId & 0xFFFFF) << 14) | uint64_t((x & 7) << 11) | uint64_t((y & 7) << 8) | uint64_t(buildingKey & 0xFF);
+	}
+	uint64_t DungeonSlot(int mapId) { return (1ull << 34) | uint64_t(mapId & 0xFFFFF); }
+
+	// Gives a space its own rectangle of world-table coordinates, beyond the 128,000-tile world. The rectangle comes from
+	// the place's slot, so a place keeps its history when the converter numbers its spaces differently.
+	void PlaceSpace(Town &t, int id, uint64_t slot, const FString &place)
+	{
+		const int tileX = (1 << 22) + int(slot & 0x3FFFF) * 1024, tileY = int(slot >> 18) * 1024;
 		t.space = true;
 		t.spaceId = id;
+		t.place = place;
 		t.originX = tileX * 256.0;
 		t.originY = tileY * 256.0;
 		t.margin = 1;
@@ -966,7 +1040,6 @@ namespace
 		{
 			auto data = fileSystem.ReadFile(lump);
 			Town t;
-			PlaceSpace(t, DUNGEON_SPACE + n);
 			FString text((const char *)data.data(), data.size());
 			for (auto &line : text.Split("\n"))
 			{
@@ -976,7 +1049,10 @@ namespace
 				else if (sscanf(line.GetChars(), "map %15s", name) == 1) t.map = name;
 				else if (sscanf(line.GetChars(), "exit %lf %lf %lf %lf %lf", &e.x, &e.y, &e.z, &e.nx, &e.ny) == 5) t.exits.push_back(e);
 			}
-			if (t.map.IsNotEmpty()) towns.push_back(std::move(t));
+			if (t.map.IsEmpty()) continue;
+			if (!t.dungeonMapId) Printf(TEXTCOLOR_ORANGE "DDTM dungeon %s has no map id; its history is kept under map id 0\n", t.map.GetChars());
+			PlaceSpace(t, DUNGEON_SPACE + n, DungeonSlot(t.dungeonMapId), FStringf("D%d", t.dungeonMapId));
+			towns.push_back(std::move(t));
 		}
 	}
 
@@ -1010,17 +1086,24 @@ namespace
 		const auto *info = entry ? entry->Find("DDTOWN") : nullptr;
 		if (!info) return -1;
 		Town t;
-		PlaceSpace(t, id);
-		t.map = SpaceMapName(id);
 		FString text((const char *)info->data(), info->size());
+		int mapId = 0, buildingKey = -1;
 		for (auto &line : text.Split("\n"))
 		{
 			SpaceLanding l;
 			SpaceExit e;
 			if (sscanf(line.GetChars(), "entry %d %lf %lf %lf %lf", &l.index, &l.x, &l.y, &l.z, &l.yaw) == 5) t.landings.push_back(l);
 			else if (sscanf(line.GetChars(), "exit %lf %lf %lf %lf %lf", &e.x, &e.y, &e.z, &e.nx, &e.ny) == 5) t.exits.push_back(e);
+			else sscanf(line.GetChars(), "place %d %d", &mapId, &buildingKey);
 		}
 		if (t.landings.empty()) return -1;
+		if (buildingKey < 0)	// The cache reader rebuilds such files, so this is a converter without place keys.
+		{
+			Printf(TEXTCOLOR_RED "DDTM interior %d has no Daggerfall place key; refusing it so its history cannot land on another building\n", id);
+			return -1;
+		}
+		PlaceSpace(t, id, InteriorSlot(mapId, buildingKey), FStringf("B%d:%d", mapId, buildingKey));
+		t.map = SpaceMapName(id);
 		towns.push_back(std::move(t));
 		return int(towns.size()) - 1;
 	}
@@ -1330,7 +1413,10 @@ namespace
 		while (AActor *mo = it.Next())
 			if (!mo->player && !IsOwned(mo) && ((mo->flags3 & MF3_ISMONSTER) || mo->IsKindOf(NAME_Inventory)))
 				keep.push_back(mo);
+		unchangedCount = 0;
+		const int parkedBefore = parkCount;
 		for (AActor *mo : keep) Park(mo, originX, originY);
+		Printf("DDTM left %s: %d stored as changed, %d unchanged not stored, table rows %d\n", Level->MapName.GetChars(), parkCount - parkedBefore, unchangedCount, int(table.size()));
 
 		// This tic's move still happens on the old map, so the arrival point is one tic ahead.
 		const DVector3 world = ToWorld(pmo->Pos() + pmo->Vel, originX, originY);
@@ -1637,6 +1723,38 @@ namespace
 		DDTownCache::Pin(t.group >= 0 ? t.group : t.space && returnPoint.valid ? GroupOfMap(returnPoint.map.GetChars()) : -1);
 	}
 
+	uint64_t MixId(uint64_t h, uint64_t v)
+	{
+		h ^= v + 0x9E3779B97F4A7C15ull + (h << 6) + (h >> 2);
+		h ^= h >> 30; h *= 0xBF58476D1CE4E5B9ull;
+		h ^= h >> 27; h *= 0x94D049BB133111EBull;
+		return h ^ (h >> 31);
+	}
+
+	// Gives each item the map placed a stable id: its class and its spot in world units (which include the place), so
+	// the same item gets the same id on every visit and a take or move can be recorded against it.
+	int AssignMapItemIds(FLevelLocals *Level)
+	{
+		std::unordered_set<uint64_t> used;
+		int count = 0;
+		auto it = Level->GetThinkerIterator<AActor>();
+		while (AActor *mo = it.Next())
+		{
+			if (mo->ddRecordId || mo->player || !mo->IsKindOf(NAME_Inventory) || IsOwned(mo) || (mo->flags & MF_DROPPED)) continue;
+			uint64_t h = 0xCBF29CE484222325ull;
+			for (const char *c = mo->GetClass()->TypeName.GetChars(); *c; c++) h = (h ^ uint8_t(tolower(*c))) * 0x100000001B3ull;
+			const DVector3 w = ToWorld(mo->Pos(), originX, originY);
+			h = MixId(MixId(MixId(h, uint64_t(llround(w.X))), uint64_t(llround(w.Y))), uint64_t(llround(w.Z)));
+			uint64_t id;
+			do { id = MAP_ITEM_TAG | (h & (MAP_ITEM_TAG - 1)); h = MixId(h, 1); } while (!used.insert(id).second);	// Two alike on one spot.
+			mo->ddRecordId = id;
+			mo->SpawnPoint = mo->Pos();
+			expected.insert(id);	// So a take becomes a tombstone (Reconcile).
+			count++;
+		}
+		return count;
+	}
+
 	void StartTown(FLevelLocals *Level, int index)
 	{
 		if (multiplayer || !LoadWorld()) return;
@@ -1650,19 +1768,26 @@ namespace
 		useHeld = true;	// The press that opened the door must not also use the door on the far side.
 		PinHomeTown(t);
 		LoadTownDoors(t);
-		// A revisited space comes back from the table, so what the map places by default must not return.
-		const bool firstVisit = t.space && !visitedSpaces.count(t.map.GetChars());
-		if (t.space && t.spaceId >= DUNGEON_SPACE) DD_MonstersEnterDungeon(Level, t.dungeonMapId, firstVisit, DD_BridgeHasSession());
-		if (t.space && !visitedSpaces.insert(t.map.GetChars()).second)
+		const int mapItems = AssignMapItemIds(Level);
+		// What the map places by default stays unless the table has a row for it (taken, moved, changed). On a revisit,
+		// map things without an id, such as a mod's spawner standing in for a monster, came back from the table instead.
+		const bool firstVisit = t.space && !visitedSpaces.count(t.place.GetChars());
+		if (t.space) visitedSpaces.insert(t.place.GetChars());
+		int replaced = 0;
 		{
 			std::vector<AActor *> stale;
 			auto it = Level->GetThinkerIterator<AActor>();
 			while (AActor *mo = it.Next())
-				if (!mo->player && !IsOwned(mo) && ((mo->flags3 & MF3_ISMONSTER) || mo->IsKindOf(NAME_Inventory)
-					|| (GetDefaultByType(mo->GetClass()->GetReplacee(Level))->flags3 & MF3_ISMONSTER))) stale.push_back(mo);	// A mod's spawner stands in for a monster.
-			for (AActor *mo : stale) mo->Destroy();
+			{
+				if (mo->player || IsOwned(mo) || !((mo->flags3 & MF3_ISMONSTER) || mo->IsKindOf(NAME_Inventory)
+					|| (GetDefaultByType(mo->GetClass()->GetReplacee(Level))->flags3 & MF3_ISMONSTER))) continue;
+				if (mo->ddRecordId ? table.count(mo->ddRecordId) != 0 : t.space && !firstVisit) stale.push_back(mo);
+			}
+			for (AActor *mo : stale) { expected.erase(mo->ddRecordId); mo->Destroy(); }
+			replaced = int(stale.size());
 		}
 		int restored = 0;
+		unchangedCount = missingClassCount = 0;
 		for (auto &kv : table)
 		{
 			const Record &r = kv.second;
@@ -1670,6 +1795,10 @@ namespace
 			Restore(Level, r);
 			restored++;
 		}
+		// After the rows, so a monster the table brought back counts as present and is not placed twice.
+		if (t.space && t.spaceId >= DUNGEON_SPACE) DD_MonstersEnterDungeon(Level, t.dungeonMapId, firstVisit, DD_BridgeHasSession());
+		if (t.space) Printf("DDTM place %s map %s %s: map items %d, replaced by rows %d, restored %d, missing classes %d\n", t.place.GetChars(), t.map.GetChars(),
+			firstVisit ? "first visit" : "revisit", mapItems, replaced, restored, missingClassCount);
 		if (t.group >= 0 || (t.space && t.spaceId < DUNGEON_SPACE)) SpawnTownContents(Level, t.space);
 		FinishHandoff(Level);
 		if (FindArg("-ddtmverify")) VerifySeam(Level, t);
@@ -1696,6 +1825,7 @@ namespace
 			table.clear();
 			buckets.clear();
 			visitedSpaces.clear();
+			DD_MonstersLoadPlans("");
 			returnPoint = ReturnPoint();
 			nextDynamic = 0;
 			shifts = 0;
@@ -1788,8 +1918,8 @@ namespace
 		for (auto &kv : table)
 		{
 			const Record &r = kv.second;
-			out.AppendFormat("%llu %s %s %.17g %.17g %.17g %.17g %.17g %d %d %d %d %d\n", (unsigned long long)r.id, r.cls.GetChars(),
-				r.stateOwner.GetChars(), r.x, r.y, r.z, r.angle, r.height, r.health, r.kind, r.amount, r.stateIdx, int(r.dropped));
+			out.AppendFormat("%llu %s %s %.17g %.17g %.17g %.17g %.17g %d %d %d %d\n", (unsigned long long)r.id, r.cls.GetChars(),
+				r.death.IsEmpty() ? "-" : r.death.GetChars(), r.x, r.y, r.z, r.angle, r.height, r.health, r.kind, r.amount, int(r.dropped));
 		}
 		return out;
 	}
@@ -1822,16 +1952,16 @@ namespace
 			if (!nextLine() || sscanf(line, "%d %d", &cx, &cy) < 2) return;
 			QueueChunk(cx, cy);
 		}
-		char cls[128], owner[128];
+		char cls[128], death[128];
 		unsigned long long id;
 		int dropped;
 		Record r;
-		while (nextLine() && sscanf(line, "%llu %127s %127s %lf %lf %lf %lf %lf %d %d %d %d %d", &id, cls, owner, &r.x, &r.y, &r.z, &r.angle, &r.height,
-			&r.health, &r.kind, &r.amount, &r.stateIdx, &dropped) >= 13)
+		while (nextLine() && sscanf(line, "%llu %127s %127s %lf %lf %lf %lf %lf %d %d %d %d", &id, cls, death, &r.x, &r.y, &r.z, &r.angle, &r.height,
+			&r.health, &r.kind, &r.amount, &dropped) >= 12)
 		{
 			r.id = id;
 			r.cls = FName(cls);
-			r.stateOwner = FName(owner);
+			r.death = strcmp(death, "-") ? death : "";
 			r.dropped = dropped != 0;
 			Store(r);
 		}
@@ -1846,11 +1976,19 @@ void DDTreadmill_Serialize(FLevelLocals *Level, FSerializer &arc)
 		if ((!DDTreadmill_Active && !townActive) || Level != primaryLevel) return;
 		Reconcile(Level);
 		FString state = EncodeState();
+		int format = TABLE_FORMAT;
+		arc("ddtableformat", format);
 		arc("ddoverworld", state);
 		FString spaces;
 		if (returnPoint.valid) spaces.AppendFormat("R %s %.17g %.17g %.17g %.17g\n", returnPoint.map.GetChars(), returnPoint.x, returnPoint.y, returnPoint.z, returnPoint.yaw);
 		for (const std::string &name : visitedSpaces) spaces.AppendFormat("V %s\n", name.c_str());
 		arc("ddspaces", spaces);
+		FString plans = DD_MonstersSavePlans();
+		arc("ddplans", plans);
+		int kinds[4] = {};
+		for (auto &kv : table) kinds[std::clamp(kv.second.kind, 0, 3)]++;
+		Printf("DDTM saved table: %d rows (%d monsters, %d corpses, %d items, %d gone), %d bytes; places %d bytes; plans %d bytes\n", int(table.size()),
+			kinds[KMonster], kinds[KCorpse], kinds[KItem], kinds[KGone], int(state.Len()), int(spaces.Len()), int(plans.Len()));
 		if (townActive)
 		{
 			int inTown = 1;
@@ -1865,11 +2003,22 @@ void DDTreadmill_Serialize(FLevelLocals *Level, FSerializer &arc)
 	handoff.pending = false;
 	resumePending = false;
 	resumeTown = -1;
-	if (arc.HasKey("ddoverworld"))
+	int format = 0;
+	if (arc.HasKey("ddtableformat")) arc("ddtableformat", format);
+	if (arc.HasKey("ddoverworld") && format != TABLE_FORMAT)
+	{
+		Printf(TEXTCOLOR_RED "DDTM this save's world table is format %d, not %d; its history is not loaded\n", format, TABLE_FORMAT);
+		DecodeState("");	// Empties the table rather than keep the previous session's.
+		DD_MonstersLoadPlans("");
+	}
+	else if (arc.HasKey("ddoverworld"))
 	{
 		FString state;
 		arc("ddoverworld", state);
 		DecodeState(state);
+		FString plans;
+		if (arc.HasKey("ddplans")) arc("ddplans", plans);
+		DD_MonstersLoadPlans(plans);
 		if (arc.HasKey("ddintown")) resumeTown = 1;
 		returnPoint = ReturnPoint();
 		visitedSpaces.clear();
@@ -1879,13 +2028,13 @@ void DDTreadmill_Serialize(FLevelLocals *Level, FSerializer &arc)
 			arc("ddspaces", spaces);
 			for (auto &line : spaces.Split("\n"))
 			{
-				char name[16];
-				if (sscanf(line.GetChars(), "R %15s %lf %lf %lf %lf", name, &returnPoint.x, &returnPoint.y, &returnPoint.z, &returnPoint.yaw) == 5)
+				char name[40];
+				if (sscanf(line.GetChars(), "R %39s %lf %lf %lf %lf", name, &returnPoint.x, &returnPoint.y, &returnPoint.z, &returnPoint.yaw) == 5)
 				{
 					returnPoint.map = name;
 					returnPoint.valid = true;
 				}
-				else if (sscanf(line.GetChars(), "V %15s", name) == 1) visitedSpaces.insert(name);
+				else if (sscanf(line.GetChars(), "V %39s", name) == 1) visitedSpaces.insert(name);
 			}
 		}
 	}

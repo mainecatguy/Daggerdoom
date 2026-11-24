@@ -136,6 +136,13 @@ namespace DDTownCache
 				entry->lumps.emplace(h.name, std::move(raw));
 			}
 			fclose(f);
+			// A building interior from a converter without Daggerfall place keys (dd_treadmill.cpp TownForSpace) is
+			// treated as unreadable, so it is rebuilt once instead of attaching history by the space id.
+			if (const auto *town = entry->Find("DDTOWN"))
+			{
+				const std::string body(town->begin(), town->end());
+				if (body.rfind("space\n", 0) == 0 && body.find("\nplace ") == std::string::npos) return nullptr;
+			}
 			return entry;
 		}
 
