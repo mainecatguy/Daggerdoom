@@ -1,0 +1,268 @@
+// Audit build only. loot_seeds.py copies this into the Unity project, builds a separate audit game, and removes it,
+// so the shipped game has no audit code. Started with -dflootseedaudit <output file>.
+//
+// It starts Daggerfall Unity with no bridge and no save, scrambles Unity's random state from the clock, builds a
+// real dungeon twice, and writes every treasure pile and every placed enemy's corpse loot. It also rolls
+// Doomerfall enemy drops and checks that each seeded roll leaves Unity's and DFRandom's shared state as it was.
+// Two runs of this build must write the same PILE, DOOM, and FIXED lines.
+
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using DaggerfallConnect;
+using DaggerfallConnect.Arena2;
+using DaggerfallWorkshop.Game.Entity;
+using DaggerfallWorkshop.Game.Items;
+using DaggerfallWorkshop.Game.Utility;
+using DaggerfallWorkshop.Utility;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+namespace DaggerfallWorkshop.Game.Doomerfall
+{
+    internal sealed class LootSeedAudit : MonoBehaviour
+    {
+        const string DungeonName = "Privateer's Hold";
+        string path, daggerfallPath;
+        readonly StringBuilder output = new StringBuilder();
+        int failures;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        static void Boot()
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            int at = Array.IndexOf(args, "-dflootseedaudit");
+            if (at < 0 || at + 2 >= args.Length)
+                return;
+            if (!DaggerfallUnityApplication.IsPortableInstall)
+            {
+                Debug.LogError("LOOTSEED refused: needs a portable install.");
+                Application.Quit(2);
+                return;
+            }
+            GameObject go = new GameObject("Loot seed audit");
+            DontDestroyOnLoad(go);
+            LootSeedAudit audit = go.AddComponent<LootSeedAudit>();
+            audit.path = args[at + 1];
+            audit.daggerfallPath = args[at + 2];
+        }
+
+        void Line(string text) { output.Append(text).Append('\n'); }
+        void Fail(string text) { failures++; Line("FAIL " + text); }
+
+        IEnumerator Start()
+        {
+            var settings = DaggerfallUnity.Settings;
+            settings.MyDaggerfallPath = daggerfallPath;
+            settings.Fullscreen = false;
+            settings.ExclusiveFullscreen = false;
+            settings.ResolutionWidth = 640;
+            settings.ResolutionHeight = 480;
+            settings.RunInBackground = true;
+            settings.SoundVolume = 0;
+            settings.MusicVolume = 0;
+            Application.runInBackground = true;
+
+            yield return SceneManager.LoadSceneAsync(1);
+            while (!DaggerfallUnity.Instance.IsReady || !GameManager.Instance.IsReady)
+                yield return null;
+            var start = FindObjectOfType<StartGameBehaviour>();
+            start.EnableVideos = false;
+            start.StartMethod = StartGameBehaviour.StartMethods.Void;
+            for (int i = 0; i < 5; i++)
+                yield return null;
+            DaggerfallUI.Instance.PopToHUD();
+
+            bool ok = true;
+            try
+            {
+                // Different in every run, so a roll that still read the shared state would differ between runs.
+                int clock = Environment.TickCount;
+                UnityEngine.Random.InitState(clock);
+                DFRandom.Seed = (uint)clock;
+                Line("INFO ambient seed " + clock + " player level " + GameManager.Instance.PlayerEntity.Level);
+                StateChecks();
+                DoomDrops();
+                Control();
+            }
+            catch (Exception e)
+            {
+                Fail("exception " + e);
+                ok = false;
+            }
+
+            if (ok)
+            {
+                DFLocation location;
+                if (!FindDungeon(out location))
+                    Fail("dungeon not found: " + DungeonName);
+                else
+                {
+                    List<string> first = null;
+                    for (int pass = 1; pass <= 2; pass++)
+                    {
+                        // Scramble again, so the second build starts from another state.
+                        UnityEngine.Random.InitState(Environment.TickCount + pass * 7777);
+                        var enterExit = GameManager.Instance.PlayerEnterExit;
+                        if (enterExit.Dungeon)
+                        {
+                            Destroy(enterExit.Dungeon.gameObject);
+                            yield return null;
+                        }
+                        enterExit.StartDungeonInterior(location, false, true);
+                        for (int i = 0; i < 10; i++)
+                            yield return null;
+                        List<string> lines = DumpDungeon(enterExit.Dungeon, pass);
+                        List<string> piles = lines.Where(l => l.StartsWith("PILE")).ToList();
+                        if (first == null)
+                        {
+                            first = piles;
+                            foreach (string l in lines)
+                                Line(l);
+                        }
+                        else if (!first.SequenceEqual(piles))
+                        {
+                            Fail("pile loot changed when the same dungeon was built again in one run");
+                            foreach (string l in piles.Except(first))
+                                Line("PASS2 " + l);
+                        }
+                        else
+                            Line("CHECK rebuild in one run kept all " + piles.Count + " piles identical");
+                    }
+                }
+            }
+
+            Line(failures == 0 ? "AUDIT PASS" : "AUDIT FAIL " + failures);
+            File.WriteAllText(path, output.ToString());
+            Application.Quit(failures == 0 ? 0 : 1);
+        }
+
+        static string State()
+        {
+            return JsonUtility.ToJson(UnityEngine.Random.state) + "/" + DFRandom.Seed;
+        }
+
+        static string Describe(DaggerfallUnityItem item)
+        {
+            return string.Format("{0}[{1}:{2} x{3} v{4} d{5} m{6} r{7}]", item.LongName, (int)item.ItemGroup, item.TemplateIndex,
+                item.stackCount, item.CurrentVariant, (int)item.dyeColor, item.nativeMaterialValue, item.PotionRecipeKey);
+        }
+
+        static string Describe(ItemCollection items)
+        {
+            var parts = new List<string>();
+            for (int i = 0; i < items.Count; i++)
+                parts.Add(Describe(items.GetItem(i)));
+            return parts.Count + ": " + string.Join(", ", parts.ToArray());
+        }
+
+        void StateChecks()
+        {
+            // A seeded pile roll and a seeded Doomerfall drop must leave both shared generators untouched.
+            string before = State();
+            GameObject holder = new GameObject("audit pile");
+            DaggerfallLoot loot = holder.AddComponent<DaggerfallLoot>();
+            LootTables.GenerateLoot(loot, (int)DFRegion.DungeonTypes.HumanStronghold, 12345);
+            string afterPile = State();
+            Destroy(holder);
+            // An enemy roll also rolls health and other unseeded values from the shared state, as Daggerfall does.
+            // Its loot seed must leave no trace: the same starting state with two different seeds ends the same.
+            UnityEngine.Random.InitState(4242);
+            DFRandom.Seed = 4242;
+            DoomerfallDrops.RollEnemy(MobileTypes.Archer, 1, null, 12345);
+            string afterA = State();
+            UnityEngine.Random.InitState(4242);
+            DFRandom.Seed = 4242;
+            DoomerfallDrops.RollEnemy(MobileTypes.Archer, 1, null, 999);
+            string afterB = State();
+            if (before != afterPile)
+                Fail("seeded pile roll changed the shared random state");
+            else if (afterA != afterB)
+                Fail("an enemy's loot seed leaked into the shared random state");
+            else
+                Line("CHECK shared random state restored after a seeded pile roll; an enemy's loot seed leaves no trace");
+            Line("INFO state sample " + (afterA.Length > 60 ? afterA.Substring(0, 60) : afterA));
+            if (LootSeed.Active)
+                Fail("a loot seed scope was left open");
+        }
+
+        void DoomDrops()
+        {
+            MobileTypes[] types = { MobileTypes.Archer, MobileTypes.Orc, MobileTypes.Imp, MobileTypes.Warrior, MobileTypes.Spellsword };
+            foreach (int area in new[] { 1, 20 })
+                foreach (MobileTypes type in types)
+                    for (int placement = 0; placement < 3; placement++)
+                    {
+                        int seed = LootSeed.Of(LootSeed.DoomerfallEnemy, null, 0x1000 + placement);
+                        string a = Describe(DoomerfallDrops.RollEnemy(type, area, null, seed));
+                        UnityEngine.Random.InitState(Environment.TickCount ^ 0x5a5a);
+                        string b = Describe(DoomerfallDrops.RollEnemy(type, area, null, seed));
+                        if (a != b)
+                            Fail(string.Format("Doomerfall drop {0} area {1} placement {2} changed on a second roll", type, area, placement));
+                        Line(string.Format("DOOM {0} area {1} placement {2} -> {3}", type, area, placement, a));
+                    }
+        }
+
+        // Unseeded rolls, for comparison: these may differ between runs.
+        void Control()
+        {
+            ItemCollection items = new ItemCollection();
+            DaggerfallLoot.GenerateItems("N", items);
+            Line("CONTROL unseeded N -> " + Describe(items));
+        }
+
+        List<string> DumpDungeon(DaggerfallDungeon dungeon, int pass)
+        {
+            var lines = new List<string>();
+            if (!dungeon)
+            {
+                Fail("dungeon did not build on pass " + pass);
+                return lines;
+            }
+            Transform root = dungeon.transform;
+            foreach (DaggerfallLoot loot in dungeon.GetComponentsInChildren<DaggerfallLoot>(true))
+            {
+                if (loot.ContainerType != LootContainerTypes.RandomTreasure)
+                    continue;
+                Vector3 p = root.InverseTransformPoint(loot.transform.position);
+                // Height is left out: Daggerfall snaps a pile to the ground by its randomly chosen icon's size.
+                lines.Add(string.Format("PILE {0:F1} {1:F1} -> {2}", p.x, p.z, Describe(loot.Items)));
+            }
+            foreach (DaggerfallEnemy enemy in dungeon.GetComponentsInChildren<DaggerfallEnemy>(true))
+            {
+                DaggerfallEntityBehaviour behaviour = enemy.GetComponent<DaggerfallEntityBehaviour>();
+                EnemyEntity entity = behaviour ? behaviour.Entity as EnemyEntity : null;
+                if (entity == null)
+                    continue;
+                Vector3 p = root.InverseTransformPoint(enemy.transform.position);
+                // Daggerfall picks a random marker's enemy type from the clock, so only same-type enemies can be compared.
+                lines.Add(string.Format("ENEMY {0:F0} {1:F0} {2} -> {3}", p.x, p.z, (MobileTypes)entity.MobileEnemy.ID, Describe(entity.Items)));
+            }
+            lines.Sort(StringComparer.Ordinal);
+            Line(string.Format("INFO pass {0}: {1} piles, {2} enemies", pass, lines.Count(l => l.StartsWith("PILE")), lines.Count(l => l.StartsWith("ENEMY"))));
+            return lines;
+        }
+
+        static bool FindDungeon(out DFLocation location)
+        {
+            MapsFile maps = DaggerfallUnity.Instance.ContentReader.MapFileReader;
+            for (int r = 0; r < maps.RegionCount; r++)
+            {
+                DFRegion region = maps.GetRegion(r);
+                if (region.MapNames == null)
+                    continue;
+                int index = Array.IndexOf(region.MapNames, DungeonName);
+                if (index < 0)
+                    continue;
+                location = maps.GetLocation(r, index);
+                if (location.HasDungeon)
+                    return true;
+            }
+            location = new DFLocation();
+            return false;
+        }
+    }
+}

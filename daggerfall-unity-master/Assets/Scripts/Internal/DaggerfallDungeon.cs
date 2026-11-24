@@ -305,7 +305,11 @@ namespace DaggerfallWorkshop
                 for (int i = 0; i < summary.LocationData.Dungeon.Blocks.Length; i++)
                 {
                     DFLocation.DungeonBlock block = summary.LocationData.Dungeon.Blocks[i];
-                    GameObject go = GameObjectHelper.CreateRDBBlockGameObject(
+                    GameObject go;
+                    Game.Items.LootSeed.BeginDungeonBlock(summary.ID, block.BlockName, block.X, block.Z);   // Doomerfall: fixed loot seeds
+                    try
+                    {
+                    go = GameObjectHelper.CreateRDBBlockGameObject(
                         block.BlockName,
                         DungeonTextureTable,
                         block.IsStartingBlock,
@@ -315,6 +319,8 @@ namespace DaggerfallWorkshop
                         (int)DateTime.Now.Ticks/*Summary.ID*/,      // TODO: Add more options for seed
                         dfUnity.Option_DungeonBlockPrefab,
                         importEnemies);
+                    }
+                    finally { Game.Items.LootSeed.EndDungeonBlock(); }
                     go.transform.parent = this.transform;
                     go.transform.position = new Vector3(block.X * RDBLayout.RDBSide, 0, block.Z * RDBLayout.RDBSide);
 

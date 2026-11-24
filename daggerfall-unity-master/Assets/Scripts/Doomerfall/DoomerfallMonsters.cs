@@ -394,16 +394,31 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             MobileTypes type = MobileTypes.None;
             DaggerfallUnityItem[] queued = null;
             Foe foe = FindFoe(id);
+            int lootSeed;
             if (foe != null)
             {
                 type = foe.FoeType;
                 queued = foe.GetClonedItemQueue();
+                lootSeed = QuestFoeLootSeed(death.mapId, foe, id);
             }
-            else if (!placements.TryGetValue((id >> (int)Dfb.MONSTER_MEMBER_BITS) & PlacementMask, out type))
-                bridge.LogLine("monsters: no Daggerfall placement for " + Key(id) + ", so no drop");
-            ItemCollection items = DoomerfallDrops.RollEnemy(type, placementsLevel, queued); // ShowDrops runs after BuildPlacements for the same map
+            else
+            {
+                // A placement id is built only from the dungeon, block, marker, and pack member, so it is a fixed fact.
+                lootSeed = LootSeed.Of(LootSeed.DoomerfallEnemy, null, (long)(id & ((1UL << (int)Dfb.MONSTER_TAG_SHIFT) - 1)));
+                if (!placements.TryGetValue((id >> (int)Dfb.MONSTER_MEMBER_BITS) & PlacementMask, out type))
+                    bridge.LogLine("monsters: no Daggerfall placement for " + Key(id) + ", so no drop");
+            }
+            ItemCollection items = DoomerfallDrops.RollEnemy(type, placementsLevel, queued, lootSeed);
             death.drop = items.SerializeItems();
             bridge.LogLine(string.Format("monsters: rolled {0} as {1}, {2} items", Key(id), type, items.Count));
+        }
+
+        // A quest's UID differs in every save, so a foe's loot seed uses the dungeon, the quest's name, the foe's
+        // symbol, and the pack member instead.
+        static int QuestFoeLootSeed(int mapId, Foe foe, ulong id)
+        {
+            string quest = foe.ParentQuest != null ? foe.ParentQuest.QuestName : string.Empty;
+            return LootSeed.Of(LootSeed.QuestFoe, quest + "/" + foe.Symbol.Name, mapId, (long)(id & 0xff));
         }
 
         // Test only: starts a real quest whose random dungeon resolves to the one at this location.

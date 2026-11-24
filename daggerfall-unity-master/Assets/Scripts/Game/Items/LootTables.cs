@@ -118,6 +118,13 @@ namespace DaggerfallWorkshop.Game.Items
             return DefaultLootTables[0];
         }
 
+        /// <summary>Doomerfall: rolls a treasure pile from a fixed loot seed (see LootSeed).</summary>
+        public static bool GenerateLoot(DaggerfallLoot loot, int locationIndex, int lootSeed)
+        {
+            using (new LootSeed.Scope(lootSeed))
+                return GenerateLoot(loot, locationIndex);
+        }
+
         public static bool GenerateLoot(DaggerfallLoot loot, int locationIndex)
         {
             string[] lootTableKeys = {
@@ -187,8 +194,9 @@ namespace DaggerfallWorkshop.Game.Items
             float chance;
             List<DaggerfallUnityItem> items = new List<DaggerfallUnityItem>();
 
-            // Reseed random
-            Random.InitState(items.GetHashCode());
+            // Reseed random. Doomerfall: a roll at a fixed place is already seeded by LootSeed.
+            if (!LootSeed.Active)
+                Random.InitState(items.GetHashCode());
 
             // Random gold
             int goldCount = Random.Range(matrix.MinGold, matrix.MaxGold + 1) * playerEntity.Level;

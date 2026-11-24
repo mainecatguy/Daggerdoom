@@ -176,7 +176,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     int use = Mathf.Max(level, 1), withGold = 0, items = 0, weapons = 0;
                     for (int n = 0; n < RollsPerType; n++)
                     {
-                        ItemCollection bag = DoomerfallDrops.RollEnemy(type, level, null);
+                        ItemCollection bag = DoomerfallDrops.RollEnemy(type, level, null, LootSeed.Of(LootSeed.DoomerfallEnemy, null, enemy.ID, level, n));   // a different fixed seed per sample
                         total++;
                         if (player.Level != 17) { Fail("player level not restored"); player.Level = 17; }
                         bool hasWeapon = false;

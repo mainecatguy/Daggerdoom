@@ -247,6 +247,10 @@ namespace DaggerfallWorkshop.Game.Entity
         /// </summary>
         public void SetEnemyCareer(MobileEnemy mobileEnemy, EntityTypes entityType)
         {
+            // Doomerfall: a placed enemy's loot and equipment roll from its fixed loot seed. Nothing else here is seeded.
+            int lootSeed;
+            bool seeded = LootSeed.TakeEnemy(out lootSeed);
+
             // Try custom career first
             career = GetCustomCareerTemplate(mobileEnemy.ID);
 
@@ -326,6 +330,9 @@ namespace DaggerfallWorkshop.Game.Entity
                 skills.SetPermanentSkillValue(i, skillsLevel);
             }
 
+            LootSeed.Scope lootScope = seeded ? new LootSeed.Scope(lootSeed) : default(LootSeed.Scope);
+            try
+            {
             // Generate loot table items
             DaggerfallLoot.GenerateItems(mobileEnemy.LootTableKey, items);
 
@@ -346,6 +353,8 @@ namespace DaggerfallWorkshop.Game.Entity
             {
                 SetEnemyEquipment(UnityEngine.Random.Range(0, 2)); // 0 or 1
             }
+            }
+            finally { lootScope.Dispose(); }
 
             // Assign spell lists
             if (entityType == EntityTypes.EnemyMonster)
@@ -385,6 +394,9 @@ namespace DaggerfallWorkshop.Game.Entity
                 SetEnemySpells(EnemyClassSpells[spellListLevel]);
             }
 
+            lootScope = seeded ? new LootSeed.Scope(LootSeed.Of(LootSeed.EnemyExtras, null, lootSeed)) : default(LootSeed.Scope);
+            try
+            {
             // Chance of adding map
             DaggerfallLoot.RandomlyAddMap(mobileEnemy.MapChance, items);
 
@@ -395,6 +407,8 @@ namespace DaggerfallWorkshop.Game.Entity
                 // Chance of adding potion recipe
                 DaggerfallLoot.RandomlyAddPotionRecipe(2, items);
             }
+            }
+            finally { lootScope.Dispose(); }
 
             OnLootSpawned?.Invoke(this, new EnemyLootSpawnedEventArgs { MobileEnemy = mobileEnemy, EnemyCareer = career, Items = items });
 
