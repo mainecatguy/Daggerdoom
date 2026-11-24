@@ -1554,6 +1554,8 @@ DEFINE_ACTION_FUNCTION(APlayerPawn, CheckEnvironment)
 //
 //----------------------------------------------------------------------------
 
+bool DD_UsePress(player_t *player); // [Doomerfall] false outside a generated map in a bridge session
+
 void P_CheckUse(player_t *player)
 {
 	// check for use
@@ -1562,7 +1564,7 @@ void P_CheckUse(player_t *player)
 		if (!player->usedown)
 		{
 			player->usedown = true;
-			if (!P_TalkFacing(player->mo))
+			if (!DD_UsePress(player) && !P_TalkFacing(player->mo)) // [Doomerfall] An item in view takes the press.
 			{
 				P_UseLines(player);
 			}

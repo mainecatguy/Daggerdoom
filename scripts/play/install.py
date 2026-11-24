@@ -17,7 +17,7 @@ SOUND_DLLS = Path(r"D:\dev\DoomDaggerfall-build\uzdoom-launcher\Release")
 GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
 
 PLAY = r'''@echo off
-rem Doomerfall: choose New Game in Doom's menu. E interacts, I opens the inventory, K opens fast travel.
+rem Doomerfall: choose New Game in Doom's menu. Use picks up what you look at (crouch to Steal), and health and ammo pick up by touch. E is a second Interact key, I opens the inventory, K opens fast travel.
 rem Rebind them in Options, Customize Controls, Doomerfall Controls.
 set "HERE=%~dp0"
 set "DATA=%HERE%data"
@@ -60,7 +60,7 @@ def main():
     launcher = build("launcher", "launcher", "doomerfall-launcher")
     TARGET.mkdir(parents=True, exist_ok=True)
 
-    uzdoom = replace_tree(BUILD / "uzdoom" / "Release", "uzdoom")
+    uzdoom = replace_tree(build("UZDoom", "uzdoom", "zdoom"), "uzdoom")  # Always rebuilt, so it matches this checkout's bridge.
     (uzdoom / "check.ini").unlink(missing_ok=True)
     for dll in ("sndfile.dll", "soft_oal.dll"):
         shutil.copy2(SOUND_DLLS / dll, uzdoom / dll)

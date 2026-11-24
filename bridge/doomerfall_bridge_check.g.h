@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x301df8b31af17d7fULL
+#define DFB_SCHEMA_HASH 0xf4ef81f7964dde81ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -87,6 +87,8 @@ static_assert((DFB_ITEM_PARTIAL) == (1u), DFB_STALE);
 static_assert((DFB_ITEM_TOO_HEAVY) == (2u), DFB_STALE);
 static_assert((DFB_ITEM_GONE) == (3u), DFB_STALE);
 static_assert((DFB_ITEM_REFUSED) == (4u), DFB_STALE);
+static_assert((DFB_TAKE_GRAB) == (0u), DFB_STALE);
+static_assert((DFB_TAKE_STEAL) == (1u), DFB_STALE);
 static_assert((DFB_TRANSITION_ENTER_BUILDING) == (1u), DFB_STALE);
 static_assert((DFB_TRANSITION_EXIT_BUILDING) == (2u), DFB_STALE);
 static_assert((DFB_TRANSITION_ENTER_DUNGEON) == (3u), DFB_STALE);
@@ -327,8 +329,8 @@ static_assert(offsetof(dfb_item_take, id) == 0, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_item_take::id), uint64_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_item_take, request) == 8, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_item_take::request), uint32_t>::value, DFB_STALE);
-static_assert(offsetof(dfb_item_take, pad) == 12, DFB_STALE);
-static_assert(std::is_same<decltype(dfb_item_take::pad), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_item_take, mode) == 12, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_item_take::mode), uint32_t>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_item_result) == 48, DFB_STALE);
 static_assert(offsetof(dfb_item_result, id) == 0, DFB_STALE);

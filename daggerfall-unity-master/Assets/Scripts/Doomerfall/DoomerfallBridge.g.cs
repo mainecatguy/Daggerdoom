@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x301df8b31af17d7fUL;
+        public const ulong SchemaHash = 0xf4ef81f7964dde81UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 6;
@@ -87,6 +87,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint ITEM_TOO_HEAVY = 2;  // nothing moved, because of the weight limit
         public const uint ITEM_GONE = 3;  // no such pile here
         public const uint ITEM_REFUSED = 4;  // Daggerfall cannot do this now, or the player is too far away
+        public const uint TAKE_GRAB = 0;  // Daggerfall's Grab interaction
+        public const uint TAKE_STEAL = 1;  // Daggerfall's Steal interaction; the player is crouching
         public const uint TRANSITION_ENTER_BUILDING = 1;
         public const uint TRANSITION_EXIT_BUILDING = 2;
         public const uint TRANSITION_ENTER_DUNGEON = 3;
@@ -406,7 +408,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
     {
         [FieldOffset(0)] public ulong id;
         [FieldOffset(8)] public uint request;
-        [FieldOffset(12)] public uint pad;
+        [FieldOffset(12)] public uint mode;  // DFB_TAKE_*
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 48)]
