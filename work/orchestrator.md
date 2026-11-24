@@ -36,7 +36,7 @@ Keep each item in one place. When work starts, it moves to the goal. When it is 
 
 ## Working with the owner
 
-- **Game design belongs to the owner.** Make ordinary engineering calls, recommend on design, and ask when a choice changes how the game plays.
+- **Game design and major software architectural decisions belong to the owner.** Make ordinary engineering calls, recommend on design, and ask when a choice changes how the game plays.
 - **Preview agent briefs before sending them,** unless the owner explicitly says to just send one. Send exactly the text they approved. If anything changes, show the change first, including setup details.
 - **Do not launch work from a discussion.** If the owner is thinking aloud, answer and wait.
 - **Do not do the worker's research.** If an agent will need to read the code anyway, leave that to it. Check facts yourself only when your recommendation depends on them.
@@ -121,11 +121,12 @@ The owner has a Pro plan with extra usage off. Check usage before dispatching an
 
 Replace this section as the state changes.
 
-- **Running:** lanes `sync` and `dungeon_r4` (trapdoors), started directly through `queue.ps1`, so they have no supervisor crash restart. The PC has 15 GB of RAM, and the owner accepts paging to run extra lanes.
+- **Current game:** `D:\dev\DoomDaggerfall-loop\play\play.bat`. Refresh it with `python scripts/play/install.py` from a checkout with fresh UZDoom and Daggerfall builds.
+- **Running:** lanes `deaths` (monster deaths) and `towndoor` (first town door use bug), started directly through `queue.ps1`, so they have no supervisor crash restart. The PC has 15 GB of RAM, and the owner accepts paging to run extra lanes.
 - **Survey:** the Daggerfall data and quest survey is merged, with a review copy at `work/rpg-survey-review.md`. Its proposed tasks are not in the todo until the owner approves them.
-- **Merged to `integration`:** `c73f16c`, recorded in `CHANGELOG.md`. `main` has not been updated. Saving and loading passed scripted tests with both real games, but nobody has used the menus by hand.
-- **Queued cards:** `work/queue/engine` has transition speed, New Game, item pickup, monster deaths, and stationary NPCs. Hold it until terrain, map, and sync land, because it would conflict with them. The owner reviews new cards before launch.
-- **Lane branches:** verified work lands on `overnight/sync` and `overnight/dungeon_r4`. The owner wants finished work merged to `integration` regularly when it does not make things worse and does not interrupt running work.
-- **Usage:** weekly was 9% at last check and resets on 2026-11-25 at 08:00 UTC. The stop line is 95%.
+- **Merged to `integration`:** `e6a658c`, recorded in `CHANGELOG.md`. The owner updated `main` to `eda92b4`, which does not include position sync, trapdoors, the generated bridge definitions, the re-entry fix, item pickup, the transition speedup, or New Game. Saving and loading passed scripted tests with both real games, but nobody has used the menus by hand.
+- **Queued cards:** `work/queue/engine` has stationary NPCs, which can start now that New Game has landed. The city freeze is tracked in the backlog and is not to start until the owner says so. Its draft card is in `work/queue/cityload`. Item pickup uses bridge kinds 40-45, so new lanes running beside `newgame` should number from 50. New bridge cards must say to edit the header and run `python bridge/generate_bindings.py`. The owner reviews new cards before launch.
+- **Lane branches:** verified work lands on `overnight/deaths` and `overnight/towndoor`. The owner wants finished work merged to `integration` regularly when it does not make things worse and does not interrupt running work.
+- **Usage:** weekly was 20% at last check and resets on 2026-11-25 at 08:00 UTC. The stop line is 95%.
 - **Inventory:** Daggerfall's existing inventory stays. The owner is working out Doom weapon hotkeys separately, and the design is in the backlog.
 - **Local build notes:** `uzdoom-launcher` is the current engine build. `sndfile.dll` and `soft_oal.dll` must sit beside the exe for sound.

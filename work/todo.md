@@ -22,43 +22,39 @@ The owner approved this work on 2026-11-23. Each item runs from its reviewed car
 - Leave quick keys and quit behavior alone for now.
 - Autosaves on Daggerfall maps use the bundled save. Their frequency can be revisited if they slow the game down a lot.
 
+### Fix first use of a town door (running)
 
-### Generate the C# bridge definitions (highest priority)
+Owner report (2026-11-23): the first use of a town door shows a message such as "opening" but does not work. After waiting a few seconds, using the door again loads the map.
 
-Owner decision (2026-11-23): `bridge/doomerfall_bridge.h` is the single definition of the bridge. A script generates the C# side, and a normal build fails if the generated file is stale. Do this before further bridge work, starting from `integration` once position sync is merged. The card is `work/queue/bridge/01.opus.generate-bridge-definitions.md`.
+### Autopickup  [Rework Doom autopickup](backlog/rework-doom-autopickup.md): As long as doom and daggerfall are running together, only health and ammo pick up by touch.
+Other items need to be picked up.
+
+### Enable the remaining hinged trapdoors
+
+Owner decision (2026-11-23): getting stuck is not a concern during testing, because the owner has noclip, so this does not need to wait for climbing. Fix and enable the other 19 main quest tiles first, then the roughly 2,560 in other dungeons. Include the known broken walking surface and the Mantellan Crux record 46 chain that did not fire. Needs a card.
 
 ### Piles and containers and trade
-Piles and containers open Daggerfall's real loot window as do NPCs.
+Piles and containers open Daggerfall's real loot window as do NPCs when interacted with in modes that correspond to Daggerfall modes appropriately.
+
+## Steal Mode
+Daggerdoom does not have a separate steal mode button. Instead, when crouching,  you are "Sneaking".
+For now: Show a message on the bottom of the screen that says this when crouching. 
+Functionally, when using the interaction hotkey, perform Daggerfall actions in the Steal mode while crouching.
+Next, make a list of features that need to be added for stealing. (E.g. can the player steal from NPCs, from their chests?) This may be one or two cards but it may be more based on what stealing does.
+
+##Info Mode
+Make a doom keybind for an info interaction. This triggers inspecting an item in Info mode as Daggerfall. If necessary, pause both games while interacting. The message popup should show in doom.
 
 
 ## NPC Dialogue (After Stationary NPCs)
 NPCs should be interactible. An interact key should be added to Doom. 
 
 
-### Sync player position at about 10 Hz, including indoors (running)
+### Recheck Daggerfall's reported location after New Game
 
-Daggerfall's hidden player follows the Doom player at about 10 updates per second in towns, the wilderness, interiors, and dungeons, so Daggerfall's map shows the right place. Measure the overhead.
+Owner report (2026-11-23): with the Doom player in the overworld, Daggerfall's info button said "You are in Privateers Hold" while the character appeared to be in the wilderness. The cause is unknown, and the test start may be involved. Recheck with a character made through the real New Game flow, then find and fix the cause if it still happens.
 
-### Speed up town and interior transitions
-
-Owner request (2026-11-23): going between towns and interiors works, but with big stuttering. Find where the time goes and make it much smoother. Measure with the connected Daggerfall transitions in place.
-
-Scripted timings so far: entering a converted building takes 44 to 84 ms, returning to the City of Daggerfall group takes 1.8 to 2.5 s, returning to the Gothway Garden group takes 0.66 to 1.4 s, entering Privateer's Hold takes 0.32 to 0.58 s, and a first interior conversion takes 4 to 8 s in the background. Returning to the big city is the slowest common step, and its cause is unknown. It is also slower than the 1.0 s recorded for walking into that city.
-
-These timings come from the fastest consumer SSD available, so they are a best case. Players will have slower drives. Measure CPU and disk time separately, and do not accept a fix that only feels smooth because this drive is fast. Reduce how much is read and rebuilt on each transition, and estimate how the result holds up on a slower SSD.
-
-Owner's suggestion, not a required solution: keep the town cached in memory while the player is in an interior, even if Doom can only run one map at a time, so returning does not rebuild it from scratch.
-
-### New Game through Daggerfall's real menus
-
-New Game runs Daggerfall's real character creation and cutscenes inside Doom, then a temporary difficulty prompt and fixed Doom class, and starts in Privateer's Hold.
-
-### Pick up Daggerfall items from inside Doom and Daggerfall Interaction
-As one task:
-Interaction should be generic. Doom should have an interact button that works like daggerfall's.
-Daggerfall items appear in Doom, and Interact puts them into the real Daggerfall inventory. 
-
-### Report monster deaths to Daggerfall
+### Report monster deaths to Daggerfall (running)
 
 Each replaced monster gets an ID that can later cover a pack of mooks. Its death is reported to Daggerfall, which should update quests, fire death events and produce Daggerfall drops in doom. Runs after item pickup, so drops can use its path.
 
@@ -66,22 +62,11 @@ Each replaced monster gets an ID that can later cover a pack of mooks. Its death
 
 NPCs, including wanderers, appear standing still with their real sprites and stable IDs. Talking, damage, and behavior are separate backlog tasks.
 
-### Document the shared memory bus
-
-Write one document that shows where the Daggerfall and Doom shared memory bus lives and how it is organized: the shared state, events, surfaces, owners, and where to add a field. Run it after the map and position sync lanes land, because both change the bridge. It comes before the skill and climbing tasks.
-
 ### Daggerfall publishes character skills to Doom
 
-Daggerfall keeps Doom informed of the character's skills through shared memory. Daggerfall stays the authority. Depends on the bus document.
+Daggerfall keeps Doom informed of the character's skills through shared memory. Daggerfall stays the authority. Depends on the generated bridge definitions.
 
 ### Climb function in Doom
 
-Initial release target, to start fairly soon. Doom gets a climb function that uses the Daggerfall character's real climbing skill and matches Daggerfall's rules for starting, continuing, and failing a climb. Start from `FrictionMotor.cs` and `ClimbingMotor.cs`. Depends on skill publishing. A read-only research card on Daggerfall's climbing rules is running first.
+Initial release target, to start fairly soon. Doom gets a climb function that uses the Daggerfall character's real climbing skill and matches Daggerfall's rules for starting, continuing, and failing a climb. Start from `FrictionMotor.cs` and `ClimbingMotor.cs`. Weapons stay usable while climbing (owner, 2026-11-23). Depends on skill publishing and three remaining owner decisions in `work/questions.md`. The research is in `work/notes/20261123-171304.md` on `integration`.
 
-### Enable main quest trapdoors (running)
-
-Owner decision (2026-11-23): trapdoors work as they do in Daggerfall. Enable the 4 static trapdoors in Wayrest and Lysandus' Tomb, and check the 3 existing action 8 trapdoor records in Wayrest. Their pits need climbing to escape until the climb function lands, so report any soft lock this creates.
-
-### High-level code quality audit (running)
-
-Review the code we have written, not vendored engine code. Is it unnecessarily complex, can it be simplified, and should it be? Keep this a high-level review with a short ranked list of recommendations. Do not change code.

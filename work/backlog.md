@@ -10,6 +10,8 @@ This is a one-line-per-item index. Open an item's file only when you need its de
 
 ## MVP
 
+- [Remove the city return freeze](backlog/city-return-freeze.md): Returning to the City of Daggerfall still freezes for about 1.2 s.
+
 The MVP target is that the player can run around the world, kill enemies, enter and exit towns, use the fast travel menu, and do other basic things. Position sync, the fast travel menu, and synchronized saving and loading are in `work/todo.md`. Everything in this section is required before MVP is complete. Items come after the others and depend on the inventory menu.
 
 - [Rework Doom autopickup](backlog/rework-doom-autopickup.md): On DF maps, only health and ammo pick up by touch.
@@ -43,11 +45,17 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [Support main quest dungeon quest steps](backlog/support-main-quest-dungeon-quest-steps.md): Reverse engineer and support their quest steps.
 - [Investigate sealed 5-block graveyards](backlog/investigate-sealed-5-block-graveyards.md): Check two dungeons with disconnected blocks.
 - [Climbing, levitation, and steep surfaces](backlog/climbing-levitation-and-steep-surfaces.md): Match DF slope limits, climbing, and levitation.
+- [Exhaustion rework](backlog/exhaustion-rework.md): Slow and collapse instead of passing out or dying.
 
 ## Inventory
 
 - [Doom weapon equipping and hotkeys](backlog/doom-weapon-equipping-and-hotkeys.md): Assign Doom weapons, items, and spells to hotkeys.
 - [Inventory translation](backlog/inventory-translation.md): Translate DF items and DRLA gear both ways.
+- [Ammunition system](backlog/ammunition-system.md): Add material-tiered ammo as real inventory items.
+- [What DRLA armor does](backlog/drla-armor-role.md): Decide its role beside Daggerfall armor.
+- [Rework the Doom HUD](backlog/rework-doom-hud.md): Remove weapon slots and rework the HUD.
+- [Hotkey clothing](backlog/hotkey-clothing.md): Allow clothing on hotkeys later.
+- [Area level replaces player level](backlog/area-level-replaces-player-level.md): Scale by area and reroll Daedric results.
 - [Grid inventory (shelved by owner, 2026-11-22)](backlog/grid-inventory.md): Diablo-style inventory grid. Shelved.
 
 ## Collision and combat polish
