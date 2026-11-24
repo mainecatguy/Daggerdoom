@@ -1,18 +1,17 @@
-// Doomerfall: Daggerfall's side of world item pickups. Runs only in a bridge session.
+// Doomerfall: Daggerfall's side of world items and containers. Runs only in a bridge session.
 //
-// Daggerfall stays the authority. It lists the real loot piles in the space the player is in, and it
-// moves items into the real inventory. Doom only draws the list and asks for a pickup.
+// Daggerfall stays the authority. It lists the real loot containers in the space the player is in. Doom
+// draws the piles, aims Use at them and at furniture containers, and asks. Daggerfall then opens its own
+// window for that container, exactly as its activation would, and Doom shows the window.
 //
-// Daggerfall rebuilds and rerolls a dungeon on every entry, so a small ledger records each pile the
-// player has touched and what is left in it. It travels inside the save bundle.
+// Daggerfall rebuilds and rerolls a dungeon on every entry, so a small ledger records each container the
+// player has opened and what is left in it. It travels inside the save bundle.
 
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
-using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop.Game.Items;
-using DaggerfallWorkshop.Game.Questing;
 using DaggerfallWorkshop.Game.Serialization;
 using DaggerfallWorkshop.Utility;
 using FullSerializer;
@@ -26,12 +25,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         const float DoomPerDaggerfall = 0.75f;
         // Daggerfall's treasure reach, doubled because the hidden player trails Doom by a few frames.
         const float MaxReach = PlayerActivate.TreasureActivationDistance * 2f;
+        const float WindowAnswerSeconds = 3f;
         const string LedgerFile = "DoomerfallItems.json";
 
         [fsObject("v1")]
         public sealed class LedgerData
         {
             public Dictionary<string, ItemData_v1[]> piles = new Dictionary<string, ItemData_v1[]>();
+            // Shop shelves and house containers restock by date, so their stocked date is kept with their contents.
+            public Dictionary<string, int> stocked = new Dictionary<string, int>();
         }
 
         struct Pile
@@ -45,6 +47,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             public DaggerfallLoot loot;
             public Vector3 local;
+            public Bounds box; // Furniture only: space-local bounds, Daggerfall units.
             public ulong id;
         }
 
@@ -57,17 +60,20 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         readonly List<int> gone = new List<int>();
         readonly List<DaggerfallLoot> found = new List<DaggerfallLoot>();
         readonly List<DfbWorldItem> rows = new List<DfbWorldItem>();
+        readonly List<DfbWorldContainer> boxes = new List<DfbWorldContainer>();
         uint generation;
         ulong lastHash;
         int lastSpace;
-        bool resend, weightTest;
+        bool resend;
         float nextPoll;
+        Pile window;          // The container Doom was told to open a window for, then the one whose window is open.
+        float windowAnswerBy;
+        bool windowOpen;
 
         internal void Init(DoomerfallBridge owner, DoomerfallPositionSync positionSync)
         {
             bridge = owner;
             sync = positionSync;
-            weightTest = Array.IndexOf(Environment.GetCommandLineArgs(), "-dfitemweighttest") >= 0;
             DaggerfallWorkshop.Game.Utility.StartGameBehaviour.OnStartGame += OnStartGame;
         }
 
@@ -99,6 +105,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             restored.Clear();
             lastHash = 0;
             resend = true;
+            if (!windowOpen)
+                window = default(Pile);
         }
 
         internal void OnRequest()
@@ -150,27 +158,54 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return h == 0 ? 1 : h;
         }
 
+        // Shop shelves and house containers are furniture models with no sprite. Doom aims at their box.
+        static bool IsFurniture(DaggerfallLoot loot)
+        {
+            return loot.ContainerType == LootContainerTypes.ShopShelves || loot.ContainerType == LootContainerTypes.HouseContainers;
+        }
+
+        static Bounds LocalBounds(Transform space, DaggerfallLoot loot)
+        {
+            Bounds world;
+            Collider collider = loot.GetComponent<Collider>();
+            Renderer renderer = loot.GetComponent<Renderer>();
+            if (collider)
+                world = collider.bounds;
+            else if (renderer)
+                world = renderer.bounds;
+            else
+                world = new Bounds(loot.transform.position, Vector3.one * 0.5f);
+            Bounds local = new Bounds(space.InverseTransformPoint(world.center), Vector3.zero);
+            for (int i = 0; i < 8; i++)
+                local.Encapsulate(space.InverseTransformPoint(world.center + Vector3.Scale(world.extents, new Vector3((i & 1) != 0 ? 1 : -1, (i & 2) != 0 ? 1 : -1, (i & 4) != 0 ? 1 : -1))));
+            return local;
+        }
+
         ulong Collect(Transform space)
         {
             string place = PlaceKey();
             live.Clear();
             rows.Clear();
+            boxes.Clear();
             // A pile's object can briefly leave the space's hierarchy while staying intact, so each pile is
             // remembered for the whole visit. Only emptying or destroying it takes it off the list.
             space.GetComponentsInChildren(true, found);
             foreach (DaggerfallLoot candidate in found)
             {
-                // Shop shelves, house containers, and corpses belong to the separate containers task.
-                if (candidate.ContainerType != LootContainerTypes.RandomTreasure && candidate.ContainerType != LootContainerTypes.DroppedLoot)
+                if (candidate.ContainerType == LootContainerTypes.Nothing)
                     continue;
                 if (!roster.ContainsKey(candidate.GetInstanceID()))
                 {
                     Vector3 at = space.InverseTransformPoint(candidate.transform.position);
-                    roster[candidate.GetInstanceID()] = new Known { loot = candidate, local = at, id = PileId(candidate.LoadID, at) };
+                    Known known = new Known { loot = candidate, local = at, id = PileId(candidate.LoadID, at) };
+                    if (IsFurniture(candidate))
+                        known.box = LocalBounds(space, candidate);
+                    roster[candidate.GetInstanceID()] = known;
                 }
             }
             gone.Clear();
             ulong hash = 17;
+            float units = DoomPerDaggerfall / MeshReader.GlobalScale;
             foreach (KeyValuePair<int, Known> known in roster)
             {
                 DaggerfallLoot loot = known.Value.loot;
@@ -182,9 +217,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 Vector3 local = known.Value.local;
                 ulong id = known.Value.id;
                 string key = place + "|" + id.ToString("x16");
+                bool furniture = IsFurniture(loot);
                 if (!loot.customDrop && restored.Add(known.Key))
-                    ApplyLedger(loot, key);
-                if (!loot.gameObject.activeSelf || loot.Items.Count == 0)
+                    ApplyLedger(loot, key, furniture);
+                // An empty shelf or wardrobe can still be opened, and Daggerfall restocks it then.
+                if (!loot.gameObject.activeSelf || (loot.Items.Count == 0 && !furniture))
                     continue;
                 if (live.ContainsKey(id))
                 {
@@ -193,11 +230,28 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 }
                 live[id] = new Pile { loot = loot, key = key, local = local };
 
+                if (furniture)
+                {
+                    Bounds box = known.Value.box;
+                    boxes.Add(new DfbWorldContainer
+                    {
+                        id = id,
+                        minX = box.min.x * units,
+                        minY = box.min.z * units,
+                        minZ = box.min.y * units,
+                        maxX = box.max.x * units,
+                        maxY = box.max.z * units,
+                        maxZ = box.max.y * units,
+                    });
+                    hash = (hash ^ id) * 1099511628211UL;
+                    hash = (hash ^ (ulong)box.center.GetHashCode()) * 1099511628211UL;
+                    continue;
+                }
+
                 Vector2 size = new Vector2(1, 1);
                 DaggerfallBillboard billboard = loot.GetComponent<DaggerfallBillboard>();
                 if (billboard)
                     size = billboard.Summary.Size;
-                float units = DoomPerDaggerfall / MeshReader.GlobalScale;
                 rows.Add(new DfbWorldItem
                 {
                     id = id,
@@ -219,18 +273,19 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return hash;
         }
 
-        void ApplyLedger(DaggerfallLoot loot, string key)
+        void ApplyLedger(DaggerfallLoot loot, string key, bool furniture)
         {
             ItemData_v1[] left;
             if (!ledger.piles.TryGetValue(key, out left))
                 return;
             loot.Items.Clear();
             if (left != null && left.Length > 0)
-            {
                 loot.Items.DeserializeItems(left);
-                bridge.LogLine("items: restored the remainder of " + key + ", first stack " + loot.Items.GetItem(0).stackCount);
-            }
-            else
+            int date;
+            if (furniture && ledger.stocked != null && ledger.stocked.TryGetValue(key, out date))
+                loot.stockedDate = date;
+            bridge.LogLine(string.Format("items: restored {0} with {1} items, stocked {2}", key, loot.Items.Count, loot.stockedDate));
+            if (loot.Items.Count == 0 && !furniture)
                 GameObjectHelper.RemoveLootContainer(loot);
         }
 
@@ -254,212 +309,111 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 item.worldItem.generation = generation;
                 bridge.Send(ref item);
             }
+            foreach (DfbWorldContainer box in boxes)
+            {
+                DfbEvent item = default(DfbEvent);
+                item.kind = Dfb.KIND_CONTAINER;
+                item.tic = (uint)Time.frameCount;
+                item.worldContainer = box;
+                item.worldContainer.generation = generation;
+                bridge.Send(ref item);
+            }
             e.kind = Dfb.KIND_ITEMS_END;
             bridge.Send(ref e);
-            bridge.LogLine(string.Format("items: list {0} has {1} piles, context {2}, target {3}", generation, rows.Count, peer.worldContext, peer.spaceTarget));
+            bridge.LogLine(string.Format("items: list {0} has {1} piles and {2} containers, context {3}, target {4}", generation, rows.Count, boxes.Count, peer.worldContext, peer.spaceTarget));
         }
 
-        // Test only: the real weight rule with the player loaded to the limit, then with room for half the pile.
-        void RunWeightTest(ulong id)
-        {
-            weightTest = false;
-            PlayerEntity player = GameManager.Instance.PlayerEntity;
-            Pile pile;
-            DfbUzState peer;
-            bridge.ReadPeerState(out peer);
-            Transform space = sync.ItemSpace(ref peer);
-            if (!space)
-                return;
-            Collect(space);
-            if (!live.TryGetValue(id, out pile) || pile.loot.Items.Count != 1 || !pile.loot.Items.GetItem(0).IsOfTemplate(ItemGroups.Currency, (int)Currency.Gold_pieces) || pile.loot.Items.GetItem(0).stackCount < 2)
-            {
-                bridge.LogLine("items: weight test skipped, the pile is not one stack of gold");
-                return;
-            }
-            int goldBefore = player.GoldPieces, stack = pile.loot.Items.GetItem(0).stackCount, half = stack / 2;
-            int room = Mathf.RoundToInt(player.MaxEncumbrance * 400f) - Mathf.RoundToInt(player.CarriedWeight * 400f);
-            player.GoldPieces += room;
-            int taken = 0, remaining = 0;
-            string name = string.Empty;
-            uint full = Take(id, ref taken, ref remaining, ref name);
-            int takenFull = taken;
-            player.GoldPieces -= half;
-            taken = 0;
-            uint part = Take(id, ref taken, ref remaining, ref name);
-            int left = pile.loot.Items.Count > 0 ? pile.loot.Items.GetItem(0).stackCount : 0;
-            player.GoldPieces -= room - half;
-            bridge.LogLine(string.Format("items: weight test stack {0}: at the limit status {1} took {2}; with room for {3} status {4} took {5}, pile keeps {6}; gold {7} to {8}, conserved {9}",
-                stack, full, takenFull, half, part, taken, left, goldBefore, player.GoldPieces, player.GoldPieces - goldBefore + left == stack && takenFull == 0));
-            resend = true;
-        }
-
-        // Grab and Steal do the same thing to a treasure pile in Daggerfall (PlayerActivate.ActivateLootContainer ignores the
-        // mode), so the mode is only recorded until containers that care about it reach Doom.
+        // Use on a container. Daggerfall decides everything in its own activation, once Doom has opened the window
+        // that will show it. Grab and Steal are the same to a container in PlayerActivate.ActivateLootContainer, so
+        // the mode is only recorded.
         internal void OnTake(uint request, ulong id, uint mode)
         {
-            if (weightTest)
+            uint status = Dfb.ITEM_REFUSED;
+            Pile pile = default(Pile);
+            float distance = 0;
+            if (!windowOpen && Find(id, out pile, out status, out distance))
             {
-                RunWeightTest(id);
-                return;
+                window = pile;
+                windowAnswerBy = Time.unscaledTime + WindowAnswerSeconds;
+                status = Dfb.ITEM_WINDOW;
             }
-            int taken = 0, remaining = 0;
-            string name = string.Empty;
-            uint status = Take(id, ref taken, ref remaining, ref name);
-            SendResult(request, id, status, taken, remaining, name);
-            bridge.LogLine(string.Format("items: take {0} pile {1:x16} ({9}): status {2}, took {3}, left {4}, first \"{5}\", carried {6:F2}/{7} kg, gold {8}", request, id, status, taken, remaining, name,
-                GameManager.Instance.PlayerEntity.CarriedWeight, GameManager.Instance.PlayerEntity.MaxEncumbrance, GameManager.Instance.PlayerEntity.GoldPieces, mode == Dfb.TAKE_STEAL ? "steal" : "grab"));
-            resend = true;
+            SendResult(request, id, status, pile.loot ? pile.loot.Items.Count : 0);
+            bridge.LogLine(string.Format("items: use {0} on {1:x16} ({2}, {3}): status {4}, distance {5:F2}", request, id, mode == Dfb.TAKE_STEAL ? "steal" : "grab",
+                pile.loot ? pile.loot.ContainerType.ToString() : "none", status, distance));
         }
 
-        uint Take(ulong id, ref int taken, ref int remaining, ref string name)
+        bool Find(ulong id, out Pile pile, out uint status, out float distance)
         {
+            pile = default(Pile);
+            distance = 0;
+            status = Dfb.ITEM_REFUSED;
             if (sync.LoadRunning || !GameManager.HasInstance || GameManager.IsGamePaused)
-                return Dfb.ITEM_REFUSED;
+                return false;
             DfbUzState peer;
             bridge.ReadPeerState(out peer);
             Transform space = sync.ItemSpace(ref peer);
             if (!space)
-                return Dfb.ITEM_REFUSED;
+                return false;
             Collect(space);
-            Pile pile;
             if (!live.TryGetValue(id, out pile) || !pile.loot)
-                return Dfb.ITEM_GONE;
-
-            Vector3 offset = space.TransformPoint(pile.local) - GameManager.Instance.PlayerObject.transform.position;
+            {
+                status = Dfb.ITEM_GONE;
+                return false;
+            }
+            Vector3 player = GameManager.Instance.PlayerObject.transform.position;
+            Vector3 target = space.TransformPoint(pile.local);
+            Known known;
+            if (IsFurniture(pile.loot) && roster.TryGetValue(pile.loot.GetInstanceID(), out known))
+                target = space.TransformPoint(known.box.ClosestPoint(space.InverseTransformPoint(player)));
+            Vector3 offset = target - player;
             offset.y = 0;
-            if (offset.magnitude > MaxReach)
-            {
-                remaining = pile.loot.Items.Count;
-                return Dfb.ITEM_REFUSED;
-            }
-
-            bool tooHeavy = false;
-            ItemCollection items = pile.loot.Items;
-            for (int i = items.Count - 1; i >= 0; i--)
-            {
-                DaggerfallUnityItem item = items.GetItem(i);
-                string itemName = item.LongName;
-                int moved = TakeItem(item, items, ref tooHeavy);
-                if (moved > 0)
-                {
-                    taken += moved;
-                    if (name.Length == 0)
-                        name = itemName;
-                }
-            }
-            remaining = items.Count;
-            if (taken == 0)
-                return tooHeavy ? Dfb.ITEM_TOO_HEAVY : Dfb.ITEM_REFUSED;
-
-            if (!pile.loot.customDrop)
-                ledger.piles[pile.key] = items.SerializeItems();
-            if (remaining == 0)
-            {
-                GameObjectHelper.RemoveLootContainer(pile.loot);
-                return Dfb.ITEM_TAKEN;
-            }
-            return Dfb.ITEM_PARTIAL;
+            distance = offset.magnitude;
+            return distance <= MaxReach;
         }
 
-        // Follows DaggerfallInventoryWindow.TransferItem for a move from a loot pile to the player.
-        static int TakeItem(DaggerfallUnityItem item, ItemCollection from, ref bool tooHeavy)
+        // DoomerfallUi calls this once Doom has asked for DFB_UI_LOOT and the window target is in place.
+        internal bool OpenWindow()
         {
-            PlayerEntity player = GameManager.Instance.PlayerEntity;
-            if (item.IsSummoned)
-                return 0;
-
-            if (item.IsOfTemplate(ItemGroups.MiscItems, (int)MiscItems.Map))
+            if (windowOpen || !window.loot || Time.unscaledTime > windowAnswerBy)
             {
-                RevealMapLocation();
-                from.RemoveItem(item);
-                return 1;
+                window = default(Pile);
+                return false;
             }
-
-            Item questItem = null;
-            if (item.IsQuestItem)
-            {
-                Quest quest = QuestMachine.Instance.GetQuest(item.QuestUID);
-                questItem = quest != null ? quest.GetItem(item.QuestItemSymbol) : null;
-                if (questItem == null)
-                    return 0;
-            }
-
-            int canCarry = CanHold(item.stackCount, item.EffectiveUnitWeightInKg(), player.MaxEncumbrance, player.CarriedWeight);
-            if (canCarry <= 0)
-            {
-                tooHeavy = true;
-                return 0;
-            }
-            DaggerfallUnityItem moving = item;
-            if (canCarry < item.stackCount)
-            {
-                tooHeavy = true;
-                if (!item.IsAStack())
-                    return 0;
-                moving = from.SplitStack(item, canCarry);
-                if (moving == null)
-                    return 0;
-            }
-
-            // Only once the item is certain to move, so a refused quest item keeps its quest state.
-            if (questItem != null)
-            {
-                questItem.PlayerDropped = false;
-                if (questItem.MadePermanent)
-                    moving.MakePermanent();
-            }
-
-            int count = moving.stackCount;
-            if (moving.IsOfTemplate(ItemGroups.Currency, (int)Currency.Gold_pieces))
-            {
-                player.GoldPieces += count;
-                from.RemoveItem(moving);
-                return count;
-            }
-            player.Items.Transfer(moving, from, moving.IsQuestItem ? ItemCollection.AddPosition.Front : ItemCollection.AddPosition.DontCare);
-            return count;
+            windowOpen = true;
+            bridge.LogLine(string.Format("items: opening {0} {1} with {2} items", window.loot.ContainerType, window.key, window.loot.Items.Count));
+            // Doom has measured the reach already, and Daggerfall's hidden player trails it, so the distance given is Doom's.
+            GameManager.Instance.PlayerActivate.DoomerfallActivateLoot(window.loot, 0);
+            return true;
         }
 
-        // The same rounding as DaggerfallInventoryWindow.ComputeCanHoldAmount.
-        static int CanHold(int available, float unitKg, float capacityKg, float loadKg)
+        // The window is gone, so whatever it did to the container is final. Taken, added, bought, or restocked, the
+        // container's contents now are what must come back after re-entry, save, and load.
+        internal void WindowClosed()
         {
-            int unit = Mathf.RoundToInt(unitKg * 400f);
-            if (unit <= 0)
-                return available;
-            return Math.Min(available, (Mathf.RoundToInt(capacityKg * 400f) - Mathf.RoundToInt(loadKg * 400f)) / unit);
+            if (!windowOpen)
+                return;
+            windowOpen = false;
+            DaggerfallLoot loot = window.loot;
+            if (loot && !loot.customDrop)
+            {
+                ledger.piles[window.key] = loot.Items.SerializeItems();
+                if (IsFurniture(loot))
+                    ledger.stocked[window.key] = loot.stockedDate;
+            }
+            bridge.LogLine(string.Format("items: closed {0}, {1} items left, carried {2:F2}/{3} kg, gold {4}", window.key, loot ? loot.Items.Count : 0,
+                GameManager.Instance.PlayerEntity.CarriedWeight, GameManager.Instance.PlayerEntity.MaxEncumbrance, GameManager.Instance.PlayerEntity.GoldPieces));
+            window = default(Pile);
+            resend = true;
         }
 
-        static void RevealMapLocation()
-        {
-            PlayerGPS gps = GameManager.Instance.PlayerGPS;
-            try
-            {
-                DaggerfallConnect.DFLocation revealed = gps.DiscoverRandomLocation();
-                if (string.IsNullOrEmpty(revealed.Name))
-                    return;
-                string place = TextManager.Instance.GetLocalizedLocationName(revealed.MapTableData.MapId, revealed.Name);
-                gps.LocationRevealedByMapItem = place;
-                GameManager.Instance.PlayerEntity.Notebook.AddNote(TextManager.Instance.GetLocalizedText("readMap").Replace("%map", place));
-            }
-            catch (Exception)
-            {
-                // Every location in this region is already known. Daggerfall still consumes the map.
-            }
-        }
-
-        void SendResult(uint request, ulong id, uint status, int taken, int remaining, string name)
+        void SendResult(uint request, ulong id, uint status, int remaining)
         {
             byte[] body = new byte[48];
             BitConverter.GetBytes(id).CopyTo(body, 0);
             BitConverter.GetBytes(request).CopyTo(body, 8);
             BitConverter.GetBytes(status).CopyTo(body, 12);
-            BitConverter.GetBytes(taken).CopyTo(body, 16);
+            BitConverter.GetBytes(0).CopyTo(body, 16);
             BitConverter.GetBytes(remaining).CopyTo(body, 20);
-            byte[] text = Encoding.UTF8.GetBytes(name);
-            int length = Math.Min(text.Length, 23);
-            while (length > 0 && length < text.Length && (text[length] & 0xC0) == 0x80)
-                length--; // Never cut a UTF-8 character in half.
-            Array.Copy(text, 0, body, 24, length);
             DfbEvent e = default(DfbEvent);
             e.kind = Dfb.KIND_ITEM_RESULT;
             e.tic = (uint)Time.frameCount;
@@ -480,6 +434,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             ledger = File.Exists(path) ? (LedgerData)SaveLoadManager.Deserialize(typeof(LedgerData), File.ReadAllText(path)) ?? new LedgerData() : new LedgerData();
             if (ledger.piles == null)
                 ledger.piles = new Dictionary<string, ItemData_v1[]>();
+            if (ledger.stocked == null)
+                ledger.stocked = new Dictionary<string, int>();
             ForgetSpace();
             bridge.LogLine("items: ledger restored with " + ledger.piles.Count + " piles");
         }

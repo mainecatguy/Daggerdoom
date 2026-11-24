@@ -98,6 +98,7 @@ extern "C" {
 #define DFB_KIND_ITEM_TAKE     43  /* UZ to DF; the player pressed Interact on a pile; payload: dfb_item_take */
 #define DFB_KIND_ITEM_RESULT   44  /* DF to UZ; what Daggerfall did with that request; payload: dfb_item_result */
 #define DFB_KIND_ITEMS_REQUEST 45  /* UZ to DF; send the current list again; payload: dfb_world_items */
+#define DFB_KIND_CONTAINER     80  /* DF to UZ; one furniture container in an item list, between ITEMS_BEGIN and ITEMS_END; payload: dfb_world_container */
 
 /* Monsters. A monster id is 64 bits: tag (3, value 5) | placement hash (53) | pack member (8).
    Every member of one placement shares the hash, so a pack needs no new id format. */
@@ -128,6 +129,7 @@ extern "C" {
 #define DFB_ITEM_TOO_HEAVY 2u  /* nothing moved, because of the weight limit */
 #define DFB_ITEM_GONE      3u  /* no such pile here */
 #define DFB_ITEM_REFUSED   4u  /* Daggerfall cannot do this now, or the player is too far away */
+#define DFB_ITEM_WINDOW    5u  /* Daggerfall will show its own window for this container; Doom opens DFB_UI_LOOT */
 #define DFB_TAKE_GRAB      0u  /* Daggerfall's Grab interaction */
 #define DFB_TAKE_STEAL     1u  /* Daggerfall's Steal interaction; the player is crouching */
 
@@ -189,6 +191,7 @@ extern "C" {
 #define DFB_UI_INVENTORY   2u
 #define DFB_UI_MAP         3u  /* the map for where the player is; dfb_ui_command.context is Doom's DFB_WORLD_* */
 #define DFB_UI_NEW_GAME    4u  /* Daggerfall's character creation and new game cinematics */
+#define DFB_UI_LOOT        5u  /* the window for the container Daggerfall just answered DFB_ITEM_WINDOW for */
 
 #define DFB_UI_CLOSED      0u
 #define DFB_UI_OPENED      1u
@@ -348,6 +351,20 @@ typedef struct dfb_world_item
 	float height;
 	uint32_t pad;
 } dfb_world_item;
+
+/* A container without a sprite, such as a shop shelf or a wardrobe. Doom units within the space: the box Doom's Use aims at. */
+typedef struct dfb_world_container
+{
+	uint64_t id;
+	uint32_t generation;
+	uint32_t pad;
+	float min_x;
+	float min_y;
+	float min_z;
+	float max_x;
+	float max_y;
+	float max_z;
+} dfb_world_container;
 
 typedef struct dfb_item_take
 {

@@ -307,7 +307,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             waitFrames = hudFrames = 0;
             showingTravelMap = id == Dfb.UI_TRAVEL_MAP;
             bool creating = id == Dfb.UI_NEW_GAME && DoomerfallNewGame.HoldsNewCharacter;
-            if ((id != Dfb.UI_TRAVEL_MAP && id != Dfb.UI_INVENTORY && id != Dfb.UI_MAP && !creating) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
+            if ((id != Dfb.UI_TRAVEL_MAP && id != Dfb.UI_INVENTORY && id != Dfb.UI_MAP && id != Dfb.UI_LOOT && !creating) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
             {
                 Finish(Dfb.UI_REASON_REFUSED);
                 return;
@@ -364,10 +364,21 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return;
             }
             LogWorldState("before");
+            if (id == Dfb.UI_LOOT)
+            {
+                // Daggerfall's own activation pushes whatever the container calls for: the loot window, the trade
+                // window, or the private property question. Some containers answer with no window at all.
+                if (!Items || !Items.OpenWindow())
+                    Finish(Dfb.UI_REASON_REFUSED);
+                else if (DaggerfallUI.UIManager.TopWindow == null || DaggerfallUI.UIManager.TopWindow is DaggerfallHUD)
+                    Finish(Dfb.UI_REASON_RESULT);
+                return;
+            }
             DaggerfallUI.PostMessage(message);
         }
 
         internal DoomerfallNewGame NewGame { get; set; }
+        internal DoomerfallItems Items { get; set; }
 
         /// <summary>The wizard is closing because a character was made, not because the player backed out.</summary>
         internal static void MarkResult()
@@ -394,6 +405,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             waitingForWindow = windowOpen = false;
             if (id == Dfb.UI_NEW_GAME && NewGame)
                 NewGame.CreationClosed(reason == Dfb.UI_REASON_RESULT);
+            if (id == Dfb.UI_LOOT && Items)
+                Items.WindowClosed();
             DoomerfallInput.End();
             if (DaggerfallUI.Instance)
                 DaggerfallUI.Instance.CustomRenderTarget = null;

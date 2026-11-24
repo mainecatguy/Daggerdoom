@@ -36,6 +36,34 @@ class DoomerfallWorldItem : Actor
 	}
 }
 
+// A Daggerfall furniture container, such as a shop shelf or a wardrobe. The furniture itself is map geometry, so this
+// only holds the box that Use aims at (dd_items.cpp). It sits at the bottom center of the box.
+class DoomerfallWorldContainer : Actor
+{
+	String dfId;
+	int dfGeneration;
+	double dfMinX, dfMinY, dfMinZ, dfMaxX, dfMaxY, dfMaxZ;
+
+	Default
+	{
+		+NOINTERACTION
+		+NOBLOCKMAP
+		+NOGRAVITY
+		+DONTSPLASH
+		+NOTONAUTOMAP
+		RenderStyle "None";
+		Radius 8;
+		Height 16;
+	}
+
+	States
+	{
+	Spawn:
+		TNT1 A -1;
+		Stop;
+	}
+}
+
 // Shows Daggerfall's list. The engine's Use handling (dd_items.cpp) aims at these piles and asks Daggerfall.
 class DoomerfallItems : EventHandler
 {
@@ -43,6 +71,7 @@ class DoomerfallItems : EventHandler
 	{
 		if (e.Name == "dfi_clear") RemoveExcept(-1);
 		else if (e.Name.Left(9) == "dfi_item:") AddItem(e.Name);
+		else if (e.Name.Left(8) == "dfi_box:") AddBox(e.Name);
 		else if (e.Name.Left(8) == "dfi_end:")
 		{
 			Array<String> f;
@@ -71,6 +100,35 @@ class DoomerfallItems : EventHandler
 		item.Show(f[3].ToInt(), f[4].ToInt(), f[9].ToDouble(), f[10].ToDouble());
 	}
 
+	void AddBox(String row)
+	{
+		Array<String> f;
+		row.Split(f, ":");
+		if (f.Size() < 9) return;
+		String id = f[2];
+		DoomerfallWorldContainer box = null;
+		let it = ThinkerIterator.Create("DoomerfallWorldContainer");
+		DoomerfallWorldContainer each;
+		while (each = DoomerfallWorldContainer(it.Next()))
+			if (each.dfId == id) box = each;
+		double x0 = f[3].ToDouble(), y0 = f[4].ToDouble(), z0 = f[5].ToDouble(), x1 = f[6].ToDouble(), y1 = f[7].ToDouble(), z1 = f[8].ToDouble();
+		vector3 at = ((x0 + x1) / 2, (y0 + y1) / 2, z0);
+		if (box == null)
+		{
+			box = DoomerfallWorldContainer(Actor.Spawn("DoomerfallWorldContainer", at, NO_REPLACE));
+			if (box == null) return;
+			box.dfId = id;
+		}
+		else box.SetOrigin(at, false);
+		box.dfGeneration = f[1].ToInt();
+		box.dfMinX = x0;
+		box.dfMinY = y0;
+		box.dfMinZ = z0;
+		box.dfMaxX = x1;
+		box.dfMaxY = y1;
+		box.dfMaxZ = z1;
+	}
+
 	DoomerfallWorldItem Find(String id)
 	{
 		let it = ThinkerIterator.Create("DoomerfallWorldItem");
@@ -86,5 +144,9 @@ class DoomerfallItems : EventHandler
 		DoomerfallWorldItem item;
 		while (item = DoomerfallWorldItem(it.Next()))
 			if (item.dfGeneration != generation) item.Destroy();
+		let boxes = ThinkerIterator.Create("DoomerfallWorldContainer");
+		DoomerfallWorldContainer box;
+		while (box = DoomerfallWorldContainer(boxes.Next()))
+			if (box.dfGeneration != generation) box.Destroy();
 	}
 }

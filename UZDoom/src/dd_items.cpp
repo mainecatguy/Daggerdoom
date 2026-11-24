@@ -1,7 +1,8 @@
-// [Doomerfall] Doom's side of world items. Daggerfall lists the piles in the current space and performs
-// each pickup. This file passes the list to ZScript and passes Interact back. Nothing here runs
-// without a bridge session.
+// [Doomerfall] Doom's side of world items. Daggerfall lists the piles and furniture containers in the current
+// space and opens its own window for each one. This file passes the list to ZScript and passes Use back.
+// Nothing here runs without a bridge session.
 
+#include <algorithm>
 #include <cinttypes>
 #include <cstdlib>
 #include <cstring>
@@ -16,10 +17,12 @@
 #include "g_levellocals.h"
 #include "gamestate.h"
 #include "info.h"
+#include "p_linetracedata.h"
 #include "p_local.h"
 #include "printf.h"
 
 bool DD_BridgeHasSession();
+void DD_BridgeOpenLoot();
 
 namespace
 {
@@ -54,6 +57,61 @@ bool IsWorldPile(AActor *mo)
 {
 	static const FName pile("DoomerfallWorldItem");
 	return mo->GetClass()->TypeName == pile;
+}
+
+bool IsWorldContainer(AActor *mo)
+{
+	static const FName container("DoomerfallWorldContainer");
+	return mo->GetClass()->TypeName == container;
+}
+
+// How far the view ray travels before entering a container's box, or a negative value when it misses within reach.
+double BoxHit(const DVector3 &from, const DVector3 &dir, AActor *box)
+{
+	static const FName names[6] = { "dfMinX", "dfMinY", "dfMinZ", "dfMaxX", "dfMaxY", "dfMaxZ" };
+	const double origin[3] = { from.X, from.Y, from.Z }, step[3] = { dir.X, dir.Y, dir.Z };
+	double enter = 0, leave = UseReach;
+	for (int a = 0; a < 3; a++)
+	{
+		const double lo = box->FloatVar(names[a]), hi = box->FloatVar(names[a + 3]);
+		if (fabs(step[a]) < 1e-9)
+		{
+			if (origin[a] < lo || origin[a] > hi) return -1;
+			continue;
+		}
+		double t1 = (lo - origin[a]) / step[a], t2 = (hi - origin[a]) / step[a];
+		if (t1 > t2) std::swap(t1, t2);
+		enter = std::max(enter, t1);
+		leave = std::min(leave, t2);
+		if (enter > leave) return -1;
+	}
+	return enter;
+}
+
+// The nearest furniture container on the view ray pitched down by `lower`, and its distance. A wall in front of it hides it.
+AActor *ContainerOnRay(AActor *pmo, player_t *player, DAngle lower, double &distance)
+{
+	const DAngle pitch = std::min(pmo->Angles.Pitch + lower, DAngle::fromDeg(89.));
+	const DVector3 dir(pitch.Cos() * pmo->Angles.Yaw.Cos(), pitch.Cos() * pmo->Angles.Yaw.Sin(), -pitch.Sin());
+	const DVector3 eye(pmo->X(), pmo->Y(), player->viewz);
+	AActor *best = nullptr;
+	distance = HUGE_VAL;
+	TThinkerIterator<AActor> it(pmo->Level);
+	while (AActor *mo = it.Next())
+	{
+		if (!IsWorldContainer(mo)) continue;
+		const double t = BoxHit(eye, dir, mo);
+		if (t >= 0 && t < distance)
+		{
+			distance = t;
+			best = mo;
+		}
+	}
+	if (!best) return nullptr;
+	// The converted furniture is often solid itself, so the trace may stop at the box's own face.
+	FLineTraceData trace;
+	if (P_LineTrace(pmo, pmo->Angles.Yaw, distance, pitch, TRF_THRUACTORS, player->viewz - pmo->Z(), 0, 0, &trace) && trace.Distance < distance - 8) return nullptr;
+	return best;
 }
 
 // How well the player is aiming at an item, or a negative infinity when it is out of reach.
@@ -145,6 +203,14 @@ bool DD_ItemsEvent(const dfb_event &e)
 			outgoing.push_back(FStringf("dfi_item:%u:%016" PRIx64 ":%d:%d:%d:%.3f:%.3f:%.3f:%.3f:%.3f", i.generation, i.id, i.archive, i.record, i.item_count, i.x, i.y, i.z, i.width, i.height));
 		return true;
 	}
+	case DFB_KIND_CONTAINER:
+	{
+		dfb_world_container c;
+		memcpy(&c, e.payload, sizeof(c));
+		if (acceptedGeneration && c.generation == acceptedGeneration)
+			outgoing.push_back(FStringf("dfi_box:%u:%016" PRIx64 ":%.3f:%.3f:%.3f:%.3f:%.3f:%.3f", c.generation, c.id, c.min_x, c.min_y, c.min_z, c.max_x, c.max_y, c.max_z));
+		return true;
+	}
 	case DFB_KIND_ITEMS_END:
 	{
 		dfb_world_items b;
@@ -158,7 +224,8 @@ bool DD_ItemsEvent(const dfb_event &e)
 		dfb_item_result r;
 		memcpy(&r, e.payload, sizeof(r));
 		refusedPile = r.status == DFB_ITEM_TOO_HEAVY || r.status == DFB_ITEM_REFUSED ? r.id : 0;
-		ShowResult(r);
+		if (r.status == DFB_ITEM_WINDOW) DD_BridgeOpenLoot();
+		else ShowResult(r);
 		return true;
 	}
 	default:
@@ -235,9 +302,16 @@ bool DD_UsePress(player_t *player)
 			best = mo;
 		}
 	}
+	// Furniture under the crosshair wins over an item that only counts because it lies on the floor ahead. Doom players
+	// rarely look down, so a low chest also counts a little below the crosshair when nothing else is there.
+	double boxDistance;
+	if (bestScore <= 0)
+		if (AActor *box = ContainerOnRay(pmo, player, nullAngle, boxDistance)) best = box;
+	if (!best)
+		best = ContainerOnRay(pmo, player, DAngle::fromDeg(20.), boxDistance);
 	if (!best) return false;
 
-	if (IsWorldPile(best))
+	if (IsWorldPile(best) || IsWorldContainer(best))
 	{
 		const uint64_t id = strtoull(best->StringVar(FName("dfId")).GetChars(), nullptr, 16);
 		const bool crouching = (player->cmd.buttons & BT_CROUCH) || player->crouchfactor < 1;
