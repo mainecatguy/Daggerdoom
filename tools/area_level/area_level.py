@@ -1,7 +1,8 @@
 """Proposed area level (1 to 30) for every Daggerfall location.
 
-Proposal only. Nothing in the game reads this yet. See
-work/notes/20261123-225515-area-level-proposal.md.
+Approved formula (work/notes/20261123-225515-area-level-proposal.md). The game computes the same
+levels in daggerfall-unity-master/Assets/Scripts/Doomerfall/DoomerfallAreaLevels.cs. Change both
+together, then run compare_runtime.py (via runtime_check.py dump) to prove they still match.
 
     python tools/area_level/area_level.py [--arena2 DIR] [--csv OUT.csv] [--png OUT.png]
 
