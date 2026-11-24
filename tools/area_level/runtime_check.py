@@ -1,8 +1,9 @@
 """Runs the area level checks against a real Daggerfall Unity build, minimized.
 
-usage: runtime_check.py stage | dump | paired NAME [--area N]
+usage: runtime_check.py build | stage | dump | paired NAME [--area N] [--kill]
 
-stage   copies Builds/Windows64 to a private review folder, with the current bridge DLL and isolated settings.
+build   builds the bridge, launcher, UZDoom, and doomerfall.pk3 from this worktree into the review folder.
+stage  copies Builds/Windows64 to a private review folder, with the current bridge DLL and isolated settings.
 dump    starts that Daggerfall alone with -dfarealeveldump, then compares its levels with area_level.py.
 paired  starts both games with the Doom items demo (review\\doom-items, read only) and this Daggerfall,
         walks into Privateer's Hold, and prints the monsters lines that give the area level the drops use.
@@ -27,7 +28,8 @@ sys.argv = argv
 
 REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\area-levels")
 DEMO = Path(r"D:\dev\DoomDaggerfall-loop\review\doom-items")  # Doom side, data, and harness source. Not modified.
-BRIDGE_DLL = Path(r"D:\dev\DoomDaggerfall-build\bridge-doomitems\Release\doomerfall_bridge.dll")
+BRIDGE_DLL = REVIEW / "build" / "bridge" / "Release" / "doomerfall_bridge.dll"
+SOUND = Path(r"D:\dev\DoomDaggerfall-build\uzdoom-launcher\Release")
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
 MODS = GAME.parent / "GameMods"
@@ -39,6 +41,23 @@ FATAL = ("DIED WITH FATAL", "VM execution aborted", "Execution could not continu
 
 def read(path):
     return path.read_text(errors="replace") if path.exists() else ""
+
+
+def build():
+    """Bridge, launcher, and UZDoom from this worktree, so the bridge schema matches this Daggerfall build."""
+    out = REVIEW / "build"
+    out.mkdir(parents=True, exist_ok=True)
+    for name, source in (("bridge", REPO / "bridge"), ("launcher", REPO / "launcher"), ("uzdoom", REPO / "UZDoom")):
+        log = out / f"{name}-build.log"
+        with log.open("w", encoding="utf-8", errors="replace") as f:
+            steps = [] if (out / name / "CMakeCache.txt").exists() else [["cmake", "-S", str(source), "-B", str(out / name), "-G", "Visual Studio 18 2026", "-A", "x64"]]
+            for step in steps + [["cmake", "--build", str(out / name), "--config", "Release", "--parallel", "6"]]:
+                if subprocess.call(step, stdin=subprocess.DEVNULL, stdout=f, stderr=subprocess.STDOUT, cwd=REPO):
+                    sys.exit(f"{name} failed: see {log}")
+        print("built", name)
+    for dll in ("sndfile.dll", "soft_oal.dll"):
+        shutil.copy2(SOUND / dll, out / "uzdoom" / "Release" / dll)
+    subprocess.check_call([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), str(REVIEW / "doomerfall.pk3")])
 
 
 def stage():
@@ -72,6 +91,30 @@ def dump():
     sys.exit(subprocess.call([sys.executable, str(HERE / "compare_runtime.py"), str(out)]))
 
 
+def kill_harness():
+    """The monster deaths route: enter, kill until a drop appears, take it, leave, and come back."""
+    door = demo_door()
+    with zipfile.ZipFile(DEMO / "data" / "privateershold_doors.pk3") as z:
+        exit_row = next(l.split()[1:] for l in z.read("DDDUNGN").decode().splitlines() if l.startswith("exit"))
+    text = (REPO / "tools" / "monster_deaths" / "harness.zs").read_text()
+    text = text.replace("@DOOR@", ", ".join(door[3:8])).replace("@EXIT@", ", ".join(exit_row[:5])).replace("@MODE@", "normal")
+    path = REVIEW / "run" / "kill_harness.pk3"
+    with zipfile.ZipFile(path, "w") as z:
+        z.writestr("zscript.txt", text)
+        z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "MDHarness" }\n')
+    return path
+
+
+def demo_door():
+    cache = DEMO / "data" / "cache" / f"T{GROUP:05d}.ddt"
+    with open(cache, "rb") as f:
+        f.read(4)
+        count = struct.unpack("<i", f.read(4))[0]
+        heads = [(f.read(8).rstrip(b"\0").decode(), *struct.unpack("<II", f.read(8))) for _ in range(count)]
+        lumps = {name: zlib.decompress(f.read(packed)) if raw else b"" for name, raw, packed in heads}
+    return next(l.split() for l in lumps["DDDOORS"].decode().splitlines() if l.startswith("1 187853213"))
+
+
 def harness():
     cache = DEMO / "data" / "cache" / f"T{GROUP:05d}.ddt"
     with open(cache, "rb") as f:
@@ -89,7 +132,7 @@ def harness():
     return path
 
 
-def paired(name, area):
+def paired(name, area, kill=False):
     runs = REVIEW / "run"
     saves = runs / "saves"
     saves.mkdir(parents=True, exist_ok=True)
@@ -104,11 +147,15 @@ def paired(name, area):
     df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
     if area is not None:
         df += ["-dfarealevel", str(area)]
+    if kill:
+        uz.insert(0, "-ddmontest")
+        df += ["-dfmonsterquest", "N0C00Y12"]  # The monster deaths quest: one Imp at a marker in this dungeon.
     timeout = 75
-    command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(DEMO / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
-               "--uzdoom", str(DEMO / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
+    native = REVIEW / "build"
+    command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(native / "launcher" / "Release" / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
+               "--uzdoom", str(native / "uzdoom" / "Release" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
                "--uzdoom-cwd", str(runs), "--log", str(launcher)]
-    for mod in [MODS / n for n in DRLA] + [DEMO / "data" / n for n in DATA] + [DEMO / "dfitems.pk3", DEMO / "doomerfall.pk3", harness()]:
+    for mod in [MODS / n for n in DRLA] + [DEMO / "data" / n for n in DATA] + [DEMO / "dfitems.pk3", REVIEW / "doomerfall.pk3", kill_harness() if kill else harness()]:
         command += ["--mod", str(mod)]
     for arg in uz:
         command += ["--uzdoom-arg", arg]
@@ -118,7 +165,11 @@ def paired(name, area):
     reason, end = "timeout", time.time() + timeout + 3
     while time.time() < end and proc.poll() is None:
         time.sleep(0.25)
-        if "placements at area level" in read(df_log):
+        if kill and "MDDONE" in read(console):
+            reason = "route finished"
+            time.sleep(1)
+            break
+        if not kill and "placements at area level" in read(df_log):
             reason = "dungeon placements built"
             time.sleep(2)
             break
@@ -129,6 +180,9 @@ def paired(name, area):
         subprocess.call(["taskkill", "/F", "/T", "/PID", str(proc.pid)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         proc.wait()
     print("stopped:", reason)
+    for line in read(console).splitlines():
+        if re.match(r"MD[A-Z]+ ", line) or line.startswith("You ") or any(k in line for k in FATAL):
+            print("uz", line[:200])
     for line in read(df_log).splitlines():
         if "monsters:" in line or "area level" in line or "error" in line.lower():
             print("df", line[:240])
@@ -140,11 +194,13 @@ def paired(name, area):
 
 if __name__ == "__main__":
     command = sys.argv[1] if len(sys.argv) > 1 else ""
-    if command == "stage":
+    if command == "build":
+        build()
+    elif command == "stage":
         stage()
     elif command == "dump":
         dump()
     elif command == "paired" and len(sys.argv) > 2:
-        paired(sys.argv[2], int(sys.argv[sys.argv.index("--area") + 1]) if "--area" in sys.argv else None)
+        paired(sys.argv[2], int(sys.argv[sys.argv.index("--area") + 1]) if "--area" in sys.argv else None, "--kill" in sys.argv)
     else:
         sys.exit(__doc__)
