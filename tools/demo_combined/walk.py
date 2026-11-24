@@ -51,7 +51,7 @@ def main():
     for arg in df:
         command += ["--dfu-arg", arg]
     proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    deadline, result, hwnd, tries, last, closed, pressed = time.time() + TIMEOUT, "timeout", None, 0, "", 0, False
+    deadline, result, hwnd, tries, last, closed, pressed, answered = time.time() + TIMEOUT, "timeout", None, 0, "", 0, False, 0
     try:
         while time.time() < deadline and proc.poll() is None:
             time.sleep(0.1)
@@ -77,9 +77,17 @@ def main():
                 ng.act(hwnd, top, tries)
                 time.sleep(0.15)
                 continue
+            # A window Daggerfall opened by itself, such as the tutorial question: answer No, then Esc if it stays.
+            own = dft.count("ui: menu 7 opened") - dft.count("ui: menu 7 closed")
+            if own > 0 and answered < 12:
+                time.sleep(1.5)
+                ng.key(hwnd, 0x4E if answered % 2 == 0 else 0x1B)
+                answered += 1
+                time.sleep(0.5)
+                continue
             # After DWTALK or DWTRAVEL, close each Daggerfall window that opens, after it has been shown a moment.
             opened = dft.count("opened, surface") - dft.count("closed, reason")
-            if "DWTALK" in text and opened > 0 and closed < 4:
+            if "DWTALK" in text and opened > 0 and closed < 6:
                 time.sleep(1.5)
                 ng.key(hwnd, 0x1B)
                 closed += 1
@@ -95,7 +103,7 @@ def main():
         if line.startswith("DW") or "Script error" in line and "DoomRL" not in line and "translation" not in line:
             print(line[:200])
     for line in ng.read(df_log).splitlines():
-        if re.search(r"new game:|talk:|townspeople|town:|ui: top window|transition|error", line):
+        if re.search(r"new game:|talk:|townspeople|town:|ui: |transition|error", line):
             print("df", line[:200])
 
 

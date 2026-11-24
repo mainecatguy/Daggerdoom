@@ -70,8 +70,16 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 npcUseResult = new DfbNpcUseResult { id = id, request = request, status = status },
             };
             bridge.Send(ref e);
-            bridge.LogLine(string.Format("talk: use {0} on {1:x16} ({2}, {3:F2} m): {4}, status {5}", request, id, activateMode,
-                meters, npc ? npc.DisplayName : "none", status));
+            bridge.LogLine(string.Format("talk: use {0} on {1:x16} ({2}, {3:F2} m): {4}, status {5}{6}", request, id, activateMode,
+                meters, npc ? npc.DisplayName : "none", status, status == Dfb.NPC_USE_REFUSED ? RefusedBecause() : ""));
+        }
+
+        string RefusedBecause()
+        {
+            if (sync.LoadRunning) return ", a load is running";
+            if (!GameManager.HasInstance || !sync.InGame) return ", no game in progress";
+            IUserInterfaceWindow top = DaggerfallUI.UIManager.TopWindow;
+            return ", Daggerfall is paused, top window " + (top == null ? "none" : top.GetType().Name);
         }
 
         // DoomerfallUi calls this once Doom has asked for DFB_UI_TALK and the window target is in place.

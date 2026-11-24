@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0xd4059a6c7bfc66b4UL;
+        public const ulong SchemaHash = 0x6507230cc336bc46UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -60,6 +60,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_NEWGAME = 22;  // DF to UZ; a character is made and Daggerfall is held at its start; payload: dfb_new_game
         public const ushort KIND_NEWGAME_ARRIVED = 23;  // UZ to DF; the payload's first 8 bytes are 1 when Doom is in the same place, 0 if it could not get there
         public const ushort KIND_NEWGAME_GO = 24;  // DF to UZ; Daggerfall started its quests and clock, so both games run
+        public const ushort KIND_UI_ASK = 25;  // DF to UZ; Daggerfall opened a window by itself, such as a quest message, and is paused behind it; Doom opens DFB_UI_DAGGERFALL when it can; payload: dfb_ui_command
         public const ushort KIND_ITEMS_BEGIN = 40;  // DF to UZ; starts one full list for a space; payload: dfb_world_items
         public const ushort KIND_ITEM = 41;  // DF to UZ; one pile in that list; payload: dfb_world_item
         public const ushort KIND_ITEMS_END = 42;  // DF to UZ; the list is complete, and anything not in it is gone; payload: dfb_world_items
@@ -201,6 +202,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint UI_NEW_GAME = 4;  // Daggerfall's character creation and new game cinematics
         public const uint UI_LOOT = 5;  // the window for the container Daggerfall just answered DFB_ITEM_WINDOW for
         public const uint UI_TALK = 6;  // whatever Daggerfall opens for the NPC it just answered DFB_NPC_USE_WINDOW for
+        public const uint UI_DAGGERFALL = 7;  // the window Daggerfall opened by itself and asked for with DFB_KIND_UI_ASK
         public const uint UI_CLOSED = 0;
         public const uint UI_OPENED = 1;
         public const uint UI_REASON_NONE = 0;
@@ -296,7 +298,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public DfbHello hello;  // HELLO
         [FieldOffset(16)] public DfbPing ping;  // PING, PONG
         [FieldOffset(16)] public DfbArea area;  // AREA
-        [FieldOffset(16)] public DfbUiCommand uiCommand;  // UI_OPEN, UI_CLOSE
+        [FieldOffset(16)] public DfbUiCommand uiCommand;  // UI_OPEN, UI_CLOSE, UI_ASK
         [FieldOffset(16)] public DfbUiInput uiInput;  // UI_INPUT
         [FieldOffset(16)] public DfbUiState uiState;  // UI_STATE
         [FieldOffset(16)] public DfbUiResult uiResult;  // UI_RESULT

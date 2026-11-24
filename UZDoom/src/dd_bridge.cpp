@@ -94,6 +94,7 @@ CVAR(Int, dd_ui_test_hold, 0, CVAR_NOSAVE | CVAR_MOD) // Test only: a route hold
 CVAR(Int, dd_ui_test_menu, 1, CVAR_NOSAVE) // Test only: the menu -dfuitest opens. 1 is the travel map, 2 the inventory, 3 the map command.
 CVAR(Bool, dd_ui_test_doommap, false, CVAR_NOSAVE) // Test only: opens Doom's own map just before -dfuitest opens its menu.
 EXTERN_CVAR(Bool, dfmesh_view)
+static bool UiCanOpen();
 
 namespace
 {
@@ -237,6 +238,7 @@ void PublishPosition()
 
 void HandleUiState(const dfb_event &e);
 void HandleUiResult(const dfb_event &e);
+void HandleUiAsk();
 void HandleTravel(const dfb_event &e);
 void HandleSaveReply(const dfb_event &e);
 void HandleLoadReady(const dfb_event &e);
@@ -264,6 +266,9 @@ void HandleEvent(const dfb_event &e, int64_t now)
 		break;
 	case DFB_KIND_UI_RESULT:
 		HandleUiResult(e);
+		break;
+	case DFB_KIND_UI_ASK:
+		HandleUiAsk();
 		break;
 	case DFB_KIND_TRAVEL:
 		HandleTravel(e);
@@ -468,6 +473,14 @@ void HandleUiResult(const dfb_event &e)
 	Log("ui: fast travel to %s at map pixel %d,%d", body.name, body.map_pixel_x, body.map_pixel_y);
 }
 
+// Daggerfall opened a window by itself, such as a quest message, and is paused behind it. It asks again until shown.
+void HandleUiAsk()
+{
+	if (uiState != UiClosed || !UiCanOpen()) return;
+	Log("ui: Daggerfall asked to show a window it opened by itself");
+	OpenUi(DFB_UI_DAGGERFALL);
+}
+
 void HandleTravel(const dfb_event &e)
 {
 	dfb_travel body;
@@ -612,6 +625,7 @@ bool IsOpenMenuKey(long long lParam)
 	int key = int((lParam >> 16) & 0xFF);
 	if ((lParam >> 24) & 1) key |= 0x80;
 	const FString &bound = Bindings.GetBinding(key);
+	if (uiId == DFB_UI_DAGGERFALL) return false; // No Doom control opened it. The player answers it in Daggerfall.
 	if (uiId == DFB_UI_TALK && bound.CompareNoCase("netevent df_interact") == 0) return true; // Interact opens talk too.
 	return bound.CompareNoCase(UiCommandName(uiId)) == 0;
 }

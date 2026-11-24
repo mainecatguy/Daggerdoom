@@ -90,6 +90,7 @@ extern "C" {
 #define DFB_KIND_NEWGAME       22  /* DF to UZ; a character is made and Daggerfall is held at its start; payload: dfb_new_game */
 #define DFB_KIND_NEWGAME_ARRIVED 23 /* UZ to DF; the payload's first 8 bytes are 1 when Doom is in the same place, 0 if it could not get there */
 #define DFB_KIND_NEWGAME_GO    24  /* DF to UZ; Daggerfall started its quests and clock, so both games run */
+#define DFB_KIND_UI_ASK        25  /* DF to UZ; Daggerfall opened a window by itself, such as a quest message, and is paused behind it; Doom opens DFB_UI_DAGGERFALL when it can; payload: dfb_ui_command */
 
 /* World items. Daggerfall owns them: it lists what is in the current space and performs every pickup. */
 #define DFB_KIND_ITEMS_BEGIN   40  /* DF to UZ; starts one full list for a space; payload: dfb_world_items */
@@ -278,6 +279,7 @@ extern "C" {
 #define DFB_UI_NEW_GAME    4u  /* Daggerfall's character creation and new game cinematics */
 #define DFB_UI_LOOT        5u  /* the window for the container Daggerfall just answered DFB_ITEM_WINDOW for */
 #define DFB_UI_TALK        6u  /* whatever Daggerfall opens for the NPC it just answered DFB_NPC_USE_WINDOW for */
+#define DFB_UI_DAGGERFALL  7u  /* the window Daggerfall opened by itself and asked for with DFB_KIND_UI_ASK */
 
 #define DFB_UI_CLOSED      0u
 #define DFB_UI_OPENED      1u

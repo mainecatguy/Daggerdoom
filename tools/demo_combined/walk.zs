@@ -29,6 +29,22 @@ class DWHarness : StaticEventHandler // Static: it keeps its phase across map ch
 		return n;
 	}
 
+	// A standing NPC answers Use with Daggerfall's window. A walking townsperson answers "gone" by design.
+	Actor StandingNpc(Actor from)
+	{
+		double best = 1e9;
+		Actor nearest = null;
+		ThinkerIterator it = ThinkerIterator.Create("Actor");
+		Actor a;
+		while (a = Actor(it.Next()))
+		{
+			if (a.GetClassName() != 'DFNpc' || a.bINVISIBLE) continue;
+			double d = a.Distance2D(from);
+			if (d < best) { best = d; nearest = a; }
+		}
+		return nearest;
+	}
+
 	override void WorldTick()
 	{
 		if (done || !playeringame[0] || !players[0].mo) return;
@@ -75,15 +91,16 @@ class DWHarness : StaticEventHandler // Static: it keeps its phase across map ch
 		case 4: // Stand in front of the nearest one and press Use, in the same tic, so it cannot walk off.
 		{
 			if (timer < 35 * 3) break; // Also leaves time for the runner to close a window from the first press.
-			Actor near;
-			Townsfolk(p, near);
+			Actor near = StandingNpc(p);
+			String what = "a standing NPC";
+			if (!near) { Townsfolk(p, near); what = "a townsperson"; }
 			if (!near) { Fail("townsperson gone"); break; }
 			p.SetOrigin((near.pos.xy + (cos(near.angle), sin(near.angle)) * 48, near.pos.z), false);
 			p.vel = (0, 0, 0);
 			p.angle = atan2(near.pos.y - p.pos.y, near.pos.x - p.pos.x);
 			p.pitch = 0;
 			talks++;
-			Console.Printf("DWTALK %d pressing Use on a townsperson at %.0f,%.0f", talks, near.pos.x, near.pos.y);
+			Console.Printf("DWTALK %d pressing Use on %s at %.0f,%.0f", talks, what, near.pos.x, near.pos.y);
 			EventHandler.SendNetworkEvent("df_interact");
 			timer = 0;
 			if (talks == 2) phase = 5;

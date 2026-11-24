@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0xd4059a6c7bfc66b4ULL
+#define DFB_SCHEMA_HASH 0x6507230cc336bc46ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -60,6 +60,7 @@ static_assert((DFB_KIND_TRANSITION) == (21), DFB_STALE);
 static_assert((DFB_KIND_NEWGAME) == (22), DFB_STALE);
 static_assert((DFB_KIND_NEWGAME_ARRIVED) == (23), DFB_STALE);
 static_assert((DFB_KIND_NEWGAME_GO) == (24), DFB_STALE);
+static_assert((DFB_KIND_UI_ASK) == (25), DFB_STALE);
 static_assert((DFB_KIND_ITEMS_BEGIN) == (40), DFB_STALE);
 static_assert((DFB_KIND_ITEM) == (41), DFB_STALE);
 static_assert((DFB_KIND_ITEMS_END) == (42), DFB_STALE);
@@ -201,6 +202,7 @@ static_assert((DFB_UI_MAP) == (3u), DFB_STALE);
 static_assert((DFB_UI_NEW_GAME) == (4u), DFB_STALE);
 static_assert((DFB_UI_LOOT) == (5u), DFB_STALE);
 static_assert((DFB_UI_TALK) == (6u), DFB_STALE);
+static_assert((DFB_UI_DAGGERFALL) == (7u), DFB_STALE);
 static_assert((DFB_UI_CLOSED) == (0u), DFB_STALE);
 static_assert((DFB_UI_OPENED) == (1u), DFB_STALE);
 static_assert((DFB_UI_REASON_NONE) == (0u), DFB_STALE);

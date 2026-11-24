@@ -211,6 +211,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         const float TravelSettleSeconds = 20f;
         const int OpenWaitFrames = 30;
         const int MaxPendingReadbacks = 3;
+        const float AskSettleSeconds = 0.25f, AskRepeatSeconds = 1f;
 
         static DoomerfallUi instance;
 
@@ -220,7 +221,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         RenderTexture scaled;
         uint openId;
         bool waitingForWindow, windowOpen, travelArriving, showingTravelMap;
-        float travelWaitUntil;
+        float travelWaitUntil, nextAskAt;
         uint closeReason;
         int waitFrames, hudFrames, pending, surfaceWidth, surfaceHeight;
         uint frameId;
@@ -242,7 +243,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bridge.DrainEvents();
             DoomerfallInput.Step();
             if (openId == 0)
+            {
+                AskForOwnWindow();
                 return;
+            }
+            nextAskAt = 0;
 
             if (target)
             {
@@ -298,6 +303,33 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
         }
 
+        // Daggerfall can open a window by itself, such as a quest's message or prompt, and pauses behind it. Nobody
+        // sees it unless Doom shows it, so ask Doom for a menu until it opens one or the window goes away.
+        void AskForOwnWindow()
+        {
+            DoomerfallPositionSync sync = bridge.PositionSync;
+            IUserInterfaceWindow top = DaggerfallUI.Instance ? DaggerfallUI.UIManager.TopWindow : null;
+            if (top == null || top is DaggerfallHUD || !GameManager.HasInstance || sync.LoadRunning || !sync.InGame || sync.Phase != Dfb.DF_PHASE_PLAY)
+            {
+                nextAskAt = 0;
+                return;
+            }
+            float now = Time.unscaledTime;
+            if (nextAskAt == 0)
+                nextAskAt = now + AskSettleSeconds; // A window that closes on its own in a moment needs no menu.
+            if (now < nextAskAt)
+                return;
+            nextAskAt = now + AskRepeatSeconds; // Doom cannot open a menu while going through a door, so ask again.
+            var e = new DfbEvent
+            {
+                kind = Dfb.KIND_UI_ASK,
+                tic = (uint)Time.frameCount,
+                uiCommand = new DfbUiCommand { uiId = Dfb.UI_DAGGERFALL },
+            };
+            bridge.Send(ref e);
+            bridge.LogLine("ui: Daggerfall opened " + top.GetType().Name + " by itself, asking Doom to show it");
+        }
+
         public void OnOpen(uint id, uint doomContext)
         {
             if (openId != 0)
@@ -307,7 +339,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             waitFrames = hudFrames = 0;
             showingTravelMap = id == Dfb.UI_TRAVEL_MAP;
             bool creating = id == Dfb.UI_NEW_GAME && DoomerfallNewGame.HoldsNewCharacter;
-            if ((id != Dfb.UI_TRAVEL_MAP && id != Dfb.UI_INVENTORY && id != Dfb.UI_MAP && id != Dfb.UI_LOOT && id != Dfb.UI_TALK && !creating) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
+            if ((id != Dfb.UI_TRAVEL_MAP && id != Dfb.UI_INVENTORY && id != Dfb.UI_MAP && id != Dfb.UI_LOOT && id != Dfb.UI_TALK && id != Dfb.UI_DAGGERFALL && !creating) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
             {
                 Finish(Dfb.UI_REASON_REFUSED);
                 return;
@@ -364,6 +396,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return;
             }
             LogWorldState("before");
+            if (id == Dfb.UI_DAGGERFALL)
+            {
+                // The window is already there. It may have closed by itself while Doom was opening the menu.
+                if (DaggerfallUI.UIManager.TopWindow == null || DaggerfallUI.UIManager.TopWindow is DaggerfallHUD)
+                    Finish(Dfb.UI_REASON_RESULT);
+                return;
+            }
             if (id == Dfb.UI_LOOT)
             {
                 // Daggerfall's own activation pushes whatever the container calls for: the loot window, the trade
