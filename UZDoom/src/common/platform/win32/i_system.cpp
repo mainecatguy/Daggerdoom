@@ -615,6 +615,8 @@ void DestroyCustomCursor()
 //
 //==========================================================================
 
+bool I_NoActivateParm(); // Doomerfall
+
 bool I_WriteIniFailed(const char* filename)
 {
 	char *lpMsgBuf;
@@ -632,6 +634,11 @@ bool I_WriteIniFailed(const char* filename)
 	);
 	errortext.Format ("The config file %s could not be written:\n%s", filename, lpMsgBuf);
 	LocalFree (lpMsgBuf);
+	if (I_NoActivateParm()) // Doomerfall: an unattended run logs this and does not ask to retry.
+	{
+		fprintf (stderr, "%s\n", errortext.GetChars());
+		return false;
+	}
 	return MessageBoxA(mainwindow.GetHandle(), errortext.GetChars(), GAMENAME " configuration not saved", MB_ICONEXCLAMATION | MB_RETRYCANCEL) == IDRETRY;
 }
 

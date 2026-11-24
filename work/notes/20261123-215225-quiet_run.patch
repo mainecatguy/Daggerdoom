@@ -1,0 +1,126 @@
+--- a/scripts/overnight/quiet_run.py
++++ b/scripts/overnight/quiet_run.py
+@@ -1,7 +1,10 @@
+ """Run a desktop program minimized, and keep it from taking focus.
+ 
+-Usage: python quiet_run.py [--timeout SECONDS] [--cwd DIR] -- PROGRAM [ARGS...]
++Usage: python quiet_run.py [--timeout SECONDS] [--cwd DIR] [--desktop] -- PROGRAM [ARGS...]
+ Exits with the program's exit code, or 124 if it timed out.
++
++--desktop runs the program, and anything it starts, on a private desktop the user never sees, so no window,
++dialog, or focus change can reach the user's desktop. Sound is not affected.
+ """
+ import argparse
+ import ctypes
+@@ -16,6 +19,7 @@
+ POLL_SECONDS = 0.01
+ 
+ user32 = ctypes.WinDLL("user32", use_last_error=True)
++kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+ EnumWindowsProc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+ user32.EnumWindows.argtypes = [EnumWindowsProc, wintypes.LPARAM]
+ user32.GetForegroundWindow.restype = wintypes.HWND
+@@ -24,6 +28,32 @@
+ user32.IsWindowVisible.argtypes = [wintypes.HWND]
+ user32.SetForegroundWindow.argtypes = [wintypes.HWND]
+ user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
++user32.CreateDesktopW.restype = wintypes.HANDLE
++user32.CreateDesktopW.argtypes = [wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.LPVOID, wintypes.DWORD, wintypes.DWORD,
++                                  wintypes.LPVOID]
++user32.CloseDesktop.argtypes = [wintypes.HANDLE]
++
++
++class STARTUPINFOW(ctypes.Structure):
++    _fields_ = [("cb", wintypes.DWORD), ("lpReserved", wintypes.LPWSTR), ("lpDesktop", wintypes.LPWSTR),
++                ("lpTitle", wintypes.LPWSTR), ("dwX", wintypes.DWORD), ("dwY", wintypes.DWORD),
++                ("dwXSize", wintypes.DWORD), ("dwYSize", wintypes.DWORD), ("dwXCountChars", wintypes.DWORD),
++                ("dwYCountChars", wintypes.DWORD), ("dwFillAttribute", wintypes.DWORD), ("dwFlags", wintypes.DWORD),
++                ("wShowWindow", wintypes.WORD), ("cbReserved2", wintypes.WORD), ("lpReserved2", ctypes.c_void_p),
++                ("hStdInput", wintypes.HANDLE), ("hStdOutput", wintypes.HANDLE), ("hStdError", wintypes.HANDLE)]
++
++
++class PROCESS_INFORMATION(ctypes.Structure):
++    _fields_ = [("hProcess", wintypes.HANDLE), ("hThread", wintypes.HANDLE), ("dwProcessId", wintypes.DWORD),
++                ("dwThreadId", wintypes.DWORD)]
++
++
++kernel32.CreateProcessW.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.LPVOID, wintypes.LPVOID, wintypes.BOOL,
++                                    wintypes.DWORD, wintypes.LPVOID, wintypes.LPCWSTR, ctypes.POINTER(STARTUPINFOW),
++                                    ctypes.POINTER(PROCESS_INFORMATION)]
++kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
++kernel32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
++kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+ 
+ 
+ def window_pid(hwnd):
+@@ -44,6 +74,38 @@
+         user32.SetForegroundWindow(previous)
+ 
+ 
++class DesktopProcess:
++    """A process started on a new private desktop, with the small part of the Popen interface used here."""
++
++    def __init__(self, command, cwd):
++        self.name = f"quiet-run-{os.getpid()}"
++        self.desktop = user32.CreateDesktopW(self.name, None, None, 0, 0x10000000, None)  # GENERIC_ALL
++        if not self.desktop:
++            raise OSError(f"could not create a private desktop (error {ctypes.get_last_error()})")
++        startup = STARTUPINFOW(cb=ctypes.sizeof(STARTUPINFOW), lpDesktop=self.name)
++        info = PROCESS_INFORMATION()
++        line = ctypes.create_unicode_buffer(subprocess.list2cmdline(command))
++        if not kernel32.CreateProcessW(None, line, None, None, True, 0, None, cwd, ctypes.byref(startup),
++                                       ctypes.byref(info)):
++            raise OSError(f"could not start {command[0]} (error {ctypes.get_last_error()})")
++        kernel32.CloseHandle(info.hThread)
++        self.handle, self.pid, self.returncode = info.hProcess, info.dwProcessId, None
++
++    def poll(self):
++        if self.returncode is None and kernel32.WaitForSingleObject(self.handle, 0) == 0:
++            code = wintypes.DWORD()
++            kernel32.GetExitCodeProcess(self.handle, ctypes.byref(code))
++            self.returncode = ctypes.c_int32(code.value).value
++            kernel32.CloseHandle(self.handle)
++            user32.CloseDesktop(self.desktop)
++        return self.returncode
++
++    def wait(self):
++        while self.poll() is None:
++            time.sleep(POLL_SECONDS)
++        return self.returncode
++
++
+ def main():
+     argv = sys.argv[1:]
+     if "--" not in argv or argv.index("--") == len(argv) - 1:
+@@ -52,21 +114,26 @@
+     parser = argparse.ArgumentParser()
+     parser.add_argument("--timeout", type=float)
+     parser.add_argument("--cwd")
++    parser.add_argument("--desktop", action="store_true")
+     options = parser.parse_args(argv[:split])
+ 
+-    startup = subprocess.STARTUPINFO()
+-    startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+-    startup.wShowWindow = SW_SHOWMINNOACTIVE
+     previous = user32.GetForegroundWindow()
+     command = argv[split + 1:]
+     if os.path.basename(command[0]).lower() in ("uzdoom", "uzdoom.exe"):
+         command[1:1] = ["+vid_fullscreen", "0"]
+-    process = subprocess.Popen(command, cwd=options.cwd, startupinfo=startup)
++    if options.desktop:
++        process = DesktopProcess(command, options.cwd)
++    else:
++        startup = subprocess.STARTUPINFO()
++        startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
++        startup.wShowWindow = SW_SHOWMINNOACTIVE
++        process = subprocess.Popen(command, cwd=options.cwd, startupinfo=startup)
+     print(f"quiet_run: pid {process.pid}", file=sys.stderr, flush=True)
+ 
+     deadline = time.monotonic() + options.timeout if options.timeout else None
+     while process.poll() is None:
+-        keep_quiet(process.pid, previous)
++        if not options.desktop:
++            keep_quiet(process.pid, previous)
+         if deadline and time.monotonic() >= deadline:
+             subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"], capture_output=True)
+             process.wait()

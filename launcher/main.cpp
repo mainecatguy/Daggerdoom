@@ -35,7 +35,8 @@ const wchar_t Usage[] =
 	L"--uzdoom-cwd <dir>   UZDoom working directory (default: its exe folder)\n"
 	L"--grace-ms <n>       Time the other game gets to close (default 5000)\n"
 	L"--log <file>         Log file (default: doomerfall-launcher.log beside the launcher)\n"
-	L"--minimized          Keep both games minimized and unfocused, with no dialogs (for tests)\n"
+	L"--minimized          For tests: keep both games silent and unfocused, with no dialogs. UZDoom stays\n"
+	L"                     minimized and Daggerfall Unity runs on a private desktop the user never sees\n"
 	L"--no-bridge          Do not create a bridge session\n"
 	L"--nodraw             Daggerfall keeps its world loaded but does not draw it in 3D\n";
 
@@ -290,8 +291,9 @@ std::wstring DfuCommandLine(const Options &options)
 }
 
 // Starts a game suspended and inside the job, so it cannot spawn anything outside it.
+// A desktop name puts the game, and anything it starts, on that desktop instead of the user's.
 bool StartSuspended(Game &game, const std::wstring &exe, std::wstring commandLine, const std::wstring &cwd,
-	HANDLE job, bool minimized, std::wstring &error)
+	HANDLE job, bool minimized, std::wstring desktop, std::wstring &error)
 {
 	STARTUPINFOW startup{};
 	startup.cb = sizeof(startup);
@@ -300,6 +302,7 @@ bool StartSuspended(Game &game, const std::wstring &exe, std::wstring commandLin
 		startup.dwFlags = STARTF_USESHOWWINDOW;
 		startup.wShowWindow = SW_SHOWMINNOACTIVE;
 	}
+	if (!desktop.empty()) startup.lpDesktop = desktop.data();
 	if (!CreateProcessW(exe.c_str(), commandLine.data(), nullptr, nullptr, FALSE,
 		CREATE_SUSPENDED | CREATE_DEFAULT_ERROR_MODE, nullptr, cwd.c_str(), &startup, &game.process))
 	{
@@ -361,7 +364,8 @@ DWORD ActiveProcesses(HANDLE job)
 }
 
 // Asks the surviving game to close, then lets the job drain so a crash handler can finish its dump.
-void ShutDown(HANDLE job, Game &survivor, DWORD graceMs)
+// A game on a private desktop has its windows looked up there.
+void ShutDown(HANDLE job, Game &survivor, HDESK desktop, DWORD graceMs)
 {
 	const ULONGLONG deadline = GetTickCount64() + graceMs;
 	while (GetTickCount64() < deadline)
@@ -369,6 +373,10 @@ void ShutDown(HANDLE job, Game &survivor, DWORD graceMs)
 		if (WaitForSingleObject(survivor.process.hProcess, 0) == WAIT_OBJECT_0)
 		{
 			if (ActiveProcesses(job) == 0) break;
+		}
+		else if (desktop)
+		{
+			EnumDesktopWindows(desktop, PostClose, static_cast<LPARAM>(survivor.process.dwProcessId));
 		}
 		else
 		{
@@ -407,6 +415,21 @@ int Run(Options options)
 		Log(L"bridge session " + wideId);
 	}
 
+	// Test mode: both games silent, and Daggerfall on a desktop nobody sees, because Unity shows and
+	// activates its window on start whatever it is asked. UZDoom stays here, minimized, so it renders as before.
+	HDESK desktop = nullptr;
+	std::wstring desktopName;
+	if (options.minimized)
+	{
+		options.uzdoomArgs.push_back(L"-nosound");
+		options.uzdoomArgs.push_back(L"-noactivate");
+		options.dfuArgs.push_back(L"-dfmute");
+		desktopName = L"doomerfall-test-" + std::to_wstring(GetCurrentProcessId());
+		desktop = CreateDesktopW(desktopName.c_str(), nullptr, nullptr, 0, GENERIC_ALL, nullptr);
+		if (!desktop) return Fail(ExitLaunchFailed, L"Could not create the test desktop: " + LastError());
+		Log(L"test desktop " + desktopName);
+	}
+
 	HANDLE job = CreateJobObjectW(nullptr, nullptr);
 	if (!job) return Fail(ExitLaunchFailed, L"Could not create the job object: " + LastError());
 
@@ -420,8 +443,8 @@ int Run(Options options)
 	HWND previous = GetForegroundWindow();
 
 	std::wstring error;
-	if (!StartSuspended(games[0], options.uzdoom, UZDoomCommandLine(options), uzdoomCwd, job, options.minimized, error) ||
-		!StartSuspended(games[1], options.dfu, DfuCommandLine(options), ParentDir(options.dfu), job, options.minimized, error))
+	if (!StartSuspended(games[0], options.uzdoom, UZDoomCommandLine(options), uzdoomCwd, job, options.minimized, L"", error) ||
+		!StartSuspended(games[1], options.dfu, DfuCommandLine(options), ParentDir(options.dfu), job, options.minimized, desktopName, error))
 	{
 		TerminateJobObject(job, 1);
 		return Fail(ExitLaunchFailed, error);
@@ -452,8 +475,9 @@ int Run(Options options)
 	swprintf_s(hex, L"0x%08X", exitCode);
 	Log(std::wstring(games[first].name) + L" exited first with code " + std::to_wstring(exitCode) + L" (" + hex + L")");
 
-	ShutDown(job, games[1 - first], options.graceMs);
+	ShutDown(job, games[1 - first], first == 0 ? desktop : nullptr, options.graceMs);
 	CloseHandle(job);
+	if (desktop) CloseDesktop(desktop);
 	dfb_close(bridge);
 	Log(L"launcher done");
 	return static_cast<int>(exitCode);
