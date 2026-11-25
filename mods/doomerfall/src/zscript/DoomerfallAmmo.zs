@@ -19,6 +19,7 @@ class DoomerfallAmmoTiers : StaticEventHandler
 	Array<Inventory> pending;
 	Array<int> pendingTic;
 	Array<double> pendingX, pendingY, pendingZ; // Where each spawned: the roll uses this, not where it fell.
+	Array<bool> pendingDropped; // Dropped by a monster (WasDropped), judged when it spawned, before it lands.
 
 
 	override void OnRegister()
@@ -157,21 +158,43 @@ class DoomerfallAmmoTiers : StaticEventHandler
 		pendingX.Clear();
 		pendingY.Clear();
 		pendingZ.Clear();
+		pendingDropped.Clear();
 	}
 
 	// 0 bullets, 1 shells, 2 rockets, 3 cells, or -1 for anything that is not a loose ammo pickup.
 	static int PlainType(Actor a)
 	{
+		bool box;
+		return PlainKind(a, box);
+	}
+
+	// The ammo type, as PlainType, and whether the pickup is Doom's large one (box of bullets, box of shells, box of
+	// rockets, cell pack). ClipBox inherits Clip, so each class is checked for a box name before its parent is.
+	static int PlainKind(Actor a, out bool box)
+	{
+		box = false;
 		for (class<Object> c = a.GetClass(); c != null; c = c.GetParentClass())
 		{
 			name n = c.GetClassName();
 			if (n == 'DoomerfallAmmoPickup' || n == 'Inventory') return -1;
-			if (n == 'Clip' || n == 'ClipBox' || n == 'RLClip' || n == 'RLClipBox') return 0;
-			if (n == 'Shell' || n == 'ShellBox' || n == 'RLShell' || n == 'RLShellBox') return 1;
-			if (n == 'RocketAmmo' || n == 'RocketBox' || n == 'RLRocketAmmo' || n == 'RLRocketBox') return 2;
-			if (n == 'Cell' || n == 'CellPack' || n == 'RLCell' || n == 'RLCellPack') return 3;
+			if (n == 'ClipBox' || n == 'RLClipBox') { box = true; return 0; }
+			if (n == 'ShellBox' || n == 'RLShellBox') { box = true; return 1; }
+			if (n == 'RocketBox' || n == 'RLRocketBox') { box = true; return 2; }
+			if (n == 'CellPack' || n == 'RLCellPack') { box = true; return 3; }
+			if (n == 'Clip' || n == 'RLClip') return 0;
+			if (n == 'Shell' || n == 'RLShell') return 1;
+			if (n == 'RocketAmmo' || n == 'RLRocketAmmo') return 2;
+			if (n == 'Cell' || n == 'RLCell') return 3;
 		}
 		return -1;
+	}
+
+	// Dropped by a monster: Doom's drop code marks the item DROPPED. With DRLA the drop is a RandomSpawner, which does not
+	// pass DROPPED on (randomspawner.zs only clears it), but it does copy its toss velocity and its spawn flags, which are
+	// empty for anything not placed by the map. A map pickup always carries skill flags and starts at rest.
+	static bool WasDropped(Inventory inv)
+	{
+		return inv.bDROPPED || (inv.SpawnFlags == 0 && inv.vel != (0, 0, 0));
 	}
 
 	// A player's ammo is spawned and given in the same tic, so a pickup is judged a tic later, once it has no owner.
@@ -184,6 +207,7 @@ class DoomerfallAmmoTiers : StaticEventHandler
 		pendingX.Push(inv.pos.x);
 		pendingY.Push(inv.pos.y);
 		pendingZ.Push(inv.pos.z);
+		pendingDropped.Push(WasDropped(inv));
 	}
 
 	override void WorldTick()
@@ -203,7 +227,9 @@ class DoomerfallAmmoTiers : StaticEventHandler
 				continue;
 			}
 			if (areaLevel < 0) continue;
-			Convert(inv, PlainType(inv), (pendingX[i], pendingY[i], pendingZ[i]));
+			bool box;
+			int type = PlainKind(inv, box);
+			Convert(inv, type, box, pendingDropped[i], (pendingX[i], pendingY[i], pendingZ[i]));
 			Forget(i);
 		}
 	}
@@ -215,6 +241,7 @@ class DoomerfallAmmoTiers : StaticEventHandler
 		pendingX.Delete(i);
 		pendingY.Delete(i);
 		pendingZ.Delete(i);
+		pendingDropped.Delete(i);
 	}
 
 	// ---- The roll ----------------------------------------------------------------------------------------------
@@ -283,7 +310,8 @@ class DoomerfallAmmoTiers : StaticEventHandler
 		return RollTiers[3];
 	}
 
-	void Convert(Inventory plain, int type, vector3 spawned)
+	// Each tiered pickup keeps the size of the pickup it replaces (small, large, or dropped), in Doom's amounts.
+	void Convert(Inventory plain, int type, bool box, bool dropped, vector3 spawned)
 	{
 		static const int TownTiers[] = { 1, 3, 4, 6, 7 }; // Steel, Moonstone, Dwemer, Orichalcum, Mithril
 		static const String TypeNames[] = { "Clip", "Shell", "Rocket", "Cell" };
@@ -294,7 +322,7 @@ class DoomerfallAmmoTiers : StaticEventHandler
 			int count = type == 2 ? 10 : 20;
 			for (int i = 0; i < count; i++)
 			{
-				let p = SpawnTier(plain, type, tier);
+				let p = SpawnTier(plain, type, tier, box, dropped);
 				if (p == null) continue;
 				double angle = Unit(seed, 10 + i) * 360, speed = 2 + Unit(seed, 40 + i) * 6;
 				p.vel = (cos(angle) * speed, sin(angle) * speed, 4 + Unit(seed, 70 + i) * 5);
@@ -304,19 +332,23 @@ class DoomerfallAmmoTiers : StaticEventHandler
 		else
 		{
 			int tier = RollTier(areaLevel, Unit(seed, 3), Unit(seed, 4));
-			let p = SpawnTier(plain, type, tier);
+			let p = SpawnTier(plain, type, tier, box, dropped);
 			if (p != null) p.vel = plain.vel;
 			DDLog.Debug(String.Format("DFAMMO drop %s tier %d at %.0f %.0f level %d", TypeNames[type], tier, plain.pos.x, plain.pos.y, areaLevel));
 		}
+		Console.PrintfEx(PRINT_LOG, "DFAMMO size %s%s %s -> %d rounds", box ? "large " : "small ", TypeNames[type], dropped ? "dropped" : "placed",
+			DoomerfallAmmoPickup.Rounds(type, 0, box, dropped));
 		plain.Destroy();
 	}
 
-	static Actor SpawnTier(Actor at, int type, int tier)
+	static Inventory SpawnTier(Actor at, int type, int tier, bool box, bool dropped)
 	{
 		static const String TypeNames[] = { "Clip", "Shell", "Rocket", "Cell" };
 		class<Actor> cls = String.Format("DFAmmo_%s_%d", TypeNames[type], tier);
 		if (cls == null) return null;
-		return Actor.Spawn(cls, at.pos, NO_REPLACE);
+		let p = Inventory(Actor.Spawn(cls, at.pos, NO_REPLACE));
+		if (p) p.Amount = DoomerfallAmmoPickup.Rounds(type, tier, box, dropped);
+		return p;
 	}
 }
 
@@ -335,19 +367,27 @@ class DoomerfallAmmoPickup : Inventory abstract
 		Inventory.MaxAmount 0x7fffffff;
 	}
 
-	static int Rounds(int type, int tier)
+	// Rounds in one pickup (owner, 2026-11-24): Regular gives stock Doom's amounts, from id Software's p_inter.c
+	// (clipammo {10, 4, 20, 1}; a large pickup is five of them; a dropped clip is half). A dropped pickup of any size is
+	// half, at least one, as UZDoom's Ammo.ModifyDropAmount does. This is the only place pickup amounts are decided:
+	// Daggerfall receives the count with dfa_take.
+	static int Rounds(int type, int tier, bool box = false, bool dropped = false)
 	{
-		// DoomerfallAmmoTiers.cs: rounds per pack at a 1x stack size, and each tier's stack size in quarters.
-		static const int BaseStack[] = { 40, 10, 4, 50 };
-		static const int StackQuarters[] = { 8, 6, 4, 3, 4, 3, 2, 2, 2, 1 };
-		// Rounded half away from zero, at least one, as DoomerfallAmmoTiers.Stack does.
-		return max(1, (BaseStack[type] * StackQuarters[tier] + 2) / 4);
+		static const int Small[] = { 10, 4, 1, 20 };  // Clip, 4 shotgun shells, rocket, energy cell.
+		static const int Large[] = { 50, 20, 5, 100 }; // Box of bullets, box of shells, box of rockets, cell pack.
+		// Each tier's amount in eighths of Regular's: the owner's stack multipliers (DoomerfallAmmoTiers.cs stackMul),
+		// relative to Regular's 2x. Steel 3/4, Silver 1/2, Moonstone 3/8, ... Daedric 1/8.
+		static const int TierEighths[] = { 8, 6, 4, 3, 4, 3, 2, 2, 2, 1 };
+		int n = box ? Large[type] : Small[type];
+		if (dropped) n = max(1, n / 2);
+		// Rounded half away from zero, at least one (my proposal, awaiting the owner).
+		return max(1, (n * TierEighths[tier] + 4) / 8);
 	}
 
 	override void BeginPlay()
 	{
 		Super.BeginPlay();
-		Amount = Rounds(ammoType, tier);
+		Amount = Rounds(ammoType, tier); // A small placed pickup; the converter (SpawnTier) and the treadmill set the real size.
 		A_SetTranslation(String.Format("DFAmmoTier%d", tier));
 	}
 

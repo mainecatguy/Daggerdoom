@@ -37,13 +37,13 @@ argv, sys.argv = sys.argv, sys.argv[:1]
 import install  # noqa: E402  (only for its registry isolation)
 sys.argv = argv
 
-REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\weapon-material-damage")  # Was review\ammo, ammo-pickup, ammo-equip, ammo-tiers, then ammo-change, for earlier ammo runs.
+REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\ammosize")  # Was review\ammo, ammo-pickup, ammo-equip, ammo-tiers, ammo-change, then weapon-material-damage, for earlier ammo runs.
 SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\doom-items")  # Data, sprite package, and demo items.
 BUILD = Path(r"D:\dev\DoomDaggerfall-build")
-UZ_BUILD = BUILD / "uzdoom-items" / "Release"  # Built from this worktree.
+UZ_BUILD = BUILD / "uzdoom-ammosize" / "Release"  # Built from this worktree (earlier runs: the *-items trees).
 SOUND = BUILD / "uzdoom-launcher" / "Release"
-BRIDGE_DLL = BUILD / "bridge-items" / "Release" / "doomerfall_bridge.dll"
-LAUNCHER = BUILD / "launcher-items" / "Release" / "doomerfall-launcher.exe"
+BRIDGE_DLL = BUILD / "bridge-ammosize" / "Release" / "doomerfall_bridge.dll"
+LAUNCHER = BUILD / "launcher-ammosize" / "Release" / "doomerfall-launcher.exe"
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
 MODS = GAME.parent / "GameMods"
@@ -66,13 +66,13 @@ def lumps(path):
         return {name: zlib.decompress(f.read(packed)) if raw else b"" for name, raw, packed in heads}
 
 
-def harness(load, equip=False, tiers=False, change=False, material=False):
+def harness(load, equip=False, tiers=False, change=False, material=False, sizes=False):
     cache = REVIEW / "data" / "cache" / f"T{GROUP:05d}.ddt"
     for other in cache.parent.glob("T*.ddt"):
         other.unlink()
     shutil.copy(SOURCE / "data" / "cache" / cache.name, cache)
     door = next(l.split() for l in lumps(cache)["DDDOORS"].decode().splitlines() if l.startswith("1 187853213"))
-    text = (HERE / "harness.zs").read_text().replace("@DOOR@", ", ".join(door[3:8])).replace("@LOADRUN@", "1" if load else "0").replace("@EQUIPRUN@", "1" if equip else "0").replace("@TIERRUN@", "1" if tiers else "0").replace("@CHANGERUN@", "1" if change else "0").replace("@MATERIALRUN@", "1" if material else "0")
+    text = (HERE / "harness.zs").read_text().replace("@DOOR@", ", ".join(door[3:8])).replace("@LOADRUN@", "1" if load else "0").replace("@EQUIPRUN@", "1" if equip else "0").replace("@TIERRUN@", "1" if tiers else "0").replace("@CHANGERUN@", "1" if change else "0").replace("@MATERIALRUN@", "1" if material else "0").replace("@SIZERUN@", "1" if sizes else "0")
     path = REVIEW / "run" / "harness.pk3"
     with zipfile.ZipFile(path, "w") as z:
         z.writestr("zscript.txt", text)
@@ -138,7 +138,8 @@ def run(name):
     load, equip, tiers = name in ("load", "equipload", "tierload", "changeload", "materialload"), name in ("equip", "equipload"), name in ("tiers", "tierload")
     change = name in ("change", "changeload")
     material = name in ("material", "materialload")
-    if name in ("take", "equip", "tiers", "change", "material"):
+    sizes = name == "sizes"
+    if name in ("take", "equip", "tiers", "change", "material", "sizes"):
         for old in saves.glob("*.zds"):
             old.unlink()
     autosaves = sorted(saves.glob("auto*.zds"), key=lambda p: p.stat().st_mtime)
@@ -152,12 +153,12 @@ def run(name):
           "+logfile", name, "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{GROUP:05d}"]
     if load:
         uz += ["-dfloadtest", f"resume:{autosaves[-1]}"]
-    df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), *(["-dfequiptest"] if equip else ["-dfshoptest"] if tiers else ["-dfchangeammotest"] if change else ["-dfmaterialtest"] if material else ["-dfammotest"]), "-dfarealevel", "20", "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
-    timeout = 180 if change and not load else 120  # The reload checks add about 35 s.
+    df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), *(["-dfequiptest"] if equip else ["-dfshoptest"] if tiers else ["-dfchangeammotest"] if change else ["-dfmaterialtest"] if material else [] if sizes else ["-dfammotest"]), "-dfarealevel", "1" if sizes else "20", "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
+    timeout = 180 if (change or sizes) and not load else 120  # The reload checks add about 35 s; the sizes run touches about 15 pickups 2 s apart.
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
                "--uzdoom-cwd", str(runs), "--log", str(launcher)]
-    for mod in [MODS / n for n in DRLA] + [REVIEW / "data" / n for n in DATA] + [REVIEW / "dfitems.pk3", REVIEW / "doomerfall.pk3", harness(load, equip, tiers, change, material)]:
+    for mod in [MODS / n for n in DRLA] + [REVIEW / "data" / n for n in DATA] + [REVIEW / "dfitems.pk3", REVIEW / "doomerfall.pk3", harness(load, equip, tiers, change, material, sizes)]:
         command += ["--mod", str(mod)]
     for arg in uz:
         command += ["--uzdoom-arg", arg]
@@ -180,7 +181,7 @@ def run(name):
         proc.wait()
     print("stopped:", reason)
     for line in read(console).splitlines():
-        if re.match(r"AM[A-Z]+ ", line) or "loaded ammo" in line or "ammo unload" in line or "change ammo" in line or "DFAMMO jackpot" in line or "DFAMMO reload" in line or "DFAMMO redraw" in line or "ammo add" in line or "ready weapon" in line or "damage bonus" in line or "Script error" in line or any(k in line for k in FATAL):
+        if re.match(r"AM[A-Z]+ ", line) or "loaded ammo" in line or "ammo unload" in line or "change ammo" in line or "DFAMMO jackpot" in line or "DFAMMO size" in line or "DFAMMO reload" in line or "DFAMMO redraw" in line or "ammo add" in line or "ready weapon" in line or "damage bonus" in line or "Script error" in line or any(k in line for k in FATAL):
             print("uz", line[:220])
     for line in read(uz_log).splitlines():
         if re.search(r"save|load test", line, re.I):
@@ -230,6 +231,8 @@ def run(name):
             print("daedric/iron damage ratio %.4f, table ratio 1.6/0.9 = %.4f, %s" % (ratio, 1.6 / 0.9, "PASS" if abs(ratio - 1.6 / 0.9) < 0.002 else "FAIL"))
     if change and not load:
         reload_checks(read(console))
+    if sizes:
+        size_checks(read(console), df_body)
     print("MATCH" if doom and all(doom.get(c) == dagger.get(c) for c in CLASSES) else "MISMATCH")
 
 
@@ -261,6 +264,48 @@ def reload_checks(body):
             print("  ", line[:160])
 
 
+# Stock Doom's amounts, from id Software's linuxdoom-1.10 p_inter.c: clipammo {10, 4, 20, 1} per small pickup, five
+# clip loads per large pickup, half a clip load for a dropped clip. Dropped pickups of other sizes: half, at least one
+# (UZDoom Ammo.ModifyDropAmount). Kept apart from DoomerfallAmmo.zs on purpose, so the check is independent.
+DOOM_SMALL, DOOM_LARGE = (10, 4, 1, 20), (50, 20, 5, 100)
+TIER_SHARE = (1, 0.75, 0.5, 0.375, 0.5, 0.375, 0.25, 0.25, 0.25, 0.125)  # The owner's stackMul relative to Regular's 2x.
+TIER_NAMES = ("Regular", "Steel", "Silver", "Moonstone", "Dwemer", "Adamantium", "Orichalcum", "Mithril", "Ebony", "Daedric")
+LARGE = ("ClipBox", "ShellBox", "RocketBox", "CellPack")
+
+
+def expected(type_, tier, large, dropped):
+    n = (DOOM_LARGE if large else DOOM_SMALL)[type_]
+    if dropped:
+        n = max(1, n // 2)
+    return max(1, int(n * TIER_SHARE[tier] + 0.5))
+
+
+def size_checks(body, df_body):
+    """Each touched pickup gives Doom's amount (scaled by its tier) in Doom's pickup and in Daggerfall's inventory, and
+    a pickup of the loaded tier raises Doom's counter by the same amount."""
+    kinds = []
+    for m in re.finditer(r"AMSIZE (?:placed (\w+)|dropped by (\w+)) -> \w+ tier (-?\d+) amount (\d+) type (-?\d+)", body):
+        kinds.append((m.group(1) or "drop:" + m.group(2), m.group(1) in LARGE, m.group(2) is not None, int(m.group(3)), int(m.group(4)), int(m.group(5))))
+    counts = [dict(re.findall(r"(\w+)=(\d+)", l)) for l in body.splitlines() if l.startswith("AMCOUNT before touches") or l.startswith("AMCOUNT after touch")]
+    takes = re.findall(r"ammo: picked up (\w+) ([\w ]+?) x(\d+)( \(loaded tier, goes to Doom\))?", df_body)
+    print("pickups", len(kinds), "| Daggerfall takes", len(takes), "| count lines", len(counts))
+    ok_all = bool(kinds) and len(takes) == len(kinds)
+    for i, (what, large, dropped, tier, amount, type_) in enumerate(kinds):
+        want = expected(type_, tier, large, dropped) if tier >= 0 else None
+        take = takes[i] if i < len(takes) else None
+        df_ok = take is not None and take[0] == TIER_NAMES[tier] and int(take[2]) == want
+        delta = None
+        if i + 1 < len(counts):
+            delta = int(counts[i + 1].get(CLASSES[type_], 0)) - int(counts[i].get(CLASSES[type_], 0))
+        doom_ok = delta == want if take and take[3] else delta == 0
+        ok = amount == want and df_ok and doom_ok
+        ok_all &= ok
+        print(f"  {i}: {what:24} {TIER_NAMES[tier] if tier >= 0 else '?':10} {CLASSES[type_] if type_ >= 0 else '?':10} expected {want} | Doom pickup {amount}"
+              f" | Daggerfall {take[2] + ' ' + take[0] if take else 'none'}{' (loaded)' if take and take[3] else ''} | Doom counter +{delta} | {'PASS' if ok else 'FAIL'}")
+    drops = any(k[2] for k in kinds)
+    print("sizes:", "PASS" if ok_all and drops else "FAIL", "" if drops else "(no monster drop seen)")
+
+
 def check():
     runs = REVIEW / "run"
     runs.mkdir(parents=True, exist_ok=True)
@@ -280,7 +325,7 @@ def check():
 
 
 ap = argparse.ArgumentParser()
-ap.add_argument("command", choices=("assemble", "uzdoom", "take", "load", "equip", "equipload", "tiers", "tierload", "change", "changeload", "material", "materialload", "check"))
+ap.add_argument("command", choices=("assemble", "uzdoom", "sizes", "take", "load", "equip", "equipload", "tiers", "tierload", "change", "changeload", "material", "materialload", "check"))
 args = ap.parse_args()
 if args.command == "assemble":
     assemble()

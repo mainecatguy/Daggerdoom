@@ -13,8 +13,44 @@ class AMHarness : EventHandler
 	const TIERRUN = @TIERRUN@; // The tiers run: tiered drops roll with the area level, and tiered pickups reach Daggerfall.
 	const CHANGERUN = @CHANGERUN@; // The change run: the change ammo key, the automatic change, and the magazine unload.
 	const MATERIALRUN = @MATERIALRUN@; // The material run: an Iron and a Daedric copy of one gun scale damage by their material.
+	const SIZERUN = @SIZERUN@; // The sizes run: each pickup size, and monster drops, give Doom's amounts in both games.
 	const SAVED = 10;
 	vector3 dropSpot;
+	Array<Inventory> sized;
+	Array<String> sizedWhat;
+	Array<Actor> victims;
+	int touchIndex;
+
+	// A spot whose seeded roll (DoomerfallAmmoTiers.Convert) gives this tier, and no jackpot.
+	vector3 SpotFor(int type, int want, int k)
+	{
+		let p = players[0].mo;
+		int lvl = DoomerfallAmmoTiers.Get().areaLevel;
+		for (int j = 0; j < 2000; j++)
+		{
+			vector3 at = p.pos + (96 + k * 48, (j % 40) * 16 - 320, (j / 40) * 16);
+			int seed = DoomerfallAmmoTiers.Seed(at, type);
+			if (DoomerfallAmmoTiers.Unit(seed, 1) < DoomerfallAmmoTiers.JackpotChance) continue;
+			if (DoomerfallAmmoTiers.RollTier(lvl, DoomerfallAmmoTiers.Unit(seed, 3), DoomerfallAmmoTiers.Unit(seed, 4)) == want) return at;
+		}
+		return (0, 0, 0);
+	}
+
+	static Inventory PickupNear(vector3 at, double range, Array<Inventory> skip)
+	{
+		Actor mo;
+		Inventory best = null;
+		double bestD = range;
+		let it = ThinkerIterator.Create("DoomerfallAmmoPickup");
+		while (mo = Actor(it.Next()))
+		{
+			let inv = Inventory(mo);
+			if (inv.Owner || skip.Find(inv) != skip.Size()) continue;
+			double d = (mo.pos.xy - at.xy).Length();
+			if (d < bestD) { bestD = d; best = inv; }
+		}
+		return best;
+	}
 
 	int phase, timer, startClip, startShell;
 	bool done, sawShells, windowDrop, windowBack;
@@ -211,6 +247,7 @@ class AMHarness : EventHandler
 			if (TIERRUN) phase = 40;
 			if (CHANGERUN) phase = 50;
 			if (MATERIALRUN) phase = 80;
+			if (SIZERUN) phase = 90;
 			break;
 		case 2: // A box of bullets by touch. Stock ClipBox, not DRLA's spawner, so the amount is known.
 		{
@@ -382,6 +419,83 @@ class AMHarness : EventHandler
 			if (timer == 175) { Report(String.Format("after change%d", k)); Next(); }
 			break;
 		}
+		// The sizes run: plain pickups of every size, placed where they roll Regular (and two where they roll Silver, to
+		// show rounding), and DRLA zombies killed for their drops. Each converted pickup is touched alone; ammo.py checks
+		// Daggerfall's "picked up" line and Doom's counter against Doom's amounts.
+		case 90:
+		{
+			let tiers = DoomerfallAmmoTiers.Get();
+			if (timer > LIMIT) { Finish("no area level"); break; }
+			if (!tiers || tiers.areaLevel < 0 || timer < 35) break;
+			static const String PLAIN[] = { "Clip", "ClipBox", "Shell", "ShellBox", "RocketAmmo", "RocketBox", "Cell", "CellPack", "ClipBox", "RocketAmmo" };
+			static const int TYPES[] = { 0, 0, 1, 1, 2, 2, 3, 3, 0, 2 };
+			static const int WANT[] = { 0, 0, 0, 0, 0, 0, 0, 0, 2, 2 };
+			for (int k = 0; k < PLAIN.Size(); k++)
+			{
+				vector3 at = SpotFor(TYPES[k], WANT[k], k);
+				if (at == (0, 0, 0)) { Console.Printf("AMSIZE no spot for %s tier %d", PLAIN[k], WANT[k]); continue; }
+				Actor.Spawn(PLAIN[k], at, NO_REPLACE);
+				sized.Push(null);
+				sizedWhat.Push(String.Format("%s %.0f %.0f %.0f", PLAIN[k], at.x, at.y, at.z));
+			}
+			for (int i = 0; i < 4; i++)
+			{
+				let z = Actor.Spawn("Zombieman", p.pos + (-200 - i * 64, 0, 0), ALLOW_REPLACE);
+				if (z) victims.Push(z);
+			}
+			Console.Printf("AMSIZE level %d, %d plain pickups, %d zombies (%s)", tiers.areaLevel, sizedWhat.Size(), victims.Size(),
+				victims.Size() ? String.Format("%s", victims[0].GetClassName()) : "none");
+			Next();
+			break;
+		}
+		case 91: // Find what each plain pickup became, then kill the zombies.
+		{
+			if (timer < 5) break;
+			Array<Inventory> none;
+			for (int k = 0; k < sizedWhat.Size(); k++)
+			{
+				Array<String> f;
+				sizedWhat[k].Split(f, " ");
+				sized[k] = PickupNear((f[1].ToDouble(), f[2].ToDouble(), f[3].ToDouble()), 24, none);
+				let s = DoomerfallAmmoPickup(sized[k]);
+				Console.Printf("AMSIZE placed %s -> %s tier %d amount %d type %d", f[0], s ? String.Format("%s", s.GetClassName()) : "none", s ? s.tier : -1, s ? s.Amount : 0, s ? s.ammoType : -1);
+			}
+			for (int i = 0; i < victims.Size(); i++)
+				if (victims[i]) victims[i].DamageMobj(null, null, 100000, 'None');
+			Next();
+			break;
+		}
+		case 92: // The drops: any tiered pickup near a corpse.
+		{
+			if (timer < 140) break;
+			for (int i = 0; i < victims.Size(); i++)
+			{
+				if (!victims[i]) continue;
+				Inventory d;
+				while (d = PickupNear(victims[i].pos, 96, sized))
+				{
+					let s = DoomerfallAmmoPickup(d);
+					sized.Push(d);
+					sizedWhat.Push("drop");
+					Console.Printf("AMSIZE dropped by %s -> %s tier %d amount %d type %d", victims[i].GetClassName(), d.GetClassName(), s.tier, d.Amount, s.ammoType);
+				}
+			}
+			Report("before touches");
+			touchIndex = 0;
+			Next();
+			break;
+		}
+		case 93: // Touch one pickup every 70 tics, so each round trip through Daggerfall shows on its own.
+			if (timer % 70 != 1) break;
+			if (touchIndex > 0) Report(String.Format("after touch %d", touchIndex - 1));
+			if (touchIndex >= sized.Size()) { phase = 7; timer = 0; break; }
+			{
+				let s = DoomerfallAmmoPickup(sized[touchIndex]);
+				if (s) { Console.Printf("AMTOUCH %d %s tier %d amount %d type %d", touchIndex, s.GetClassName(), s.tier, s.Amount, s.ammoType); s.Touch(p); }
+				else Console.Printf("AMTOUCH %d none", touchIndex);
+			}
+			touchIndex++;
+			break;
 		case SAVED:
 			if (timer > 35 * 8) Finish("saved");
 			break;
