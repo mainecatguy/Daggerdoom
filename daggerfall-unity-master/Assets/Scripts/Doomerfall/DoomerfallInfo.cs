@@ -79,8 +79,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     StaticBuilding building;
                     if (!FindBuilding(worldX, worldZ, out building))
                         return string.Format("point {0:F0},{1:F0} (no building)", worldX, worldZ);
+                    PlayerGPS gps = GameManager.Instance.PlayerGPS;
+                    PlayerGPS.DiscoveredBuilding known;
+                    bool before = gps.GetDiscoveredBuilding(building.buildingKey, out known);
                     GameManager.Instance.PlayerActivate.DoomerfallInfoBuilding(building);
-                    return string.Format("building {0} at {1:F0},{2:F0}", building.buildingKey, worldX, worldZ);
+                    return string.Format("building {0} at {1:F0},{2:F0} (on the map before: {3}, after: {4})", building.buildingKey, worldX, worldZ,
+                        before, gps.GetDiscoveredBuilding(building.buildingKey, out known));
             }
             return "unknown target";
         }

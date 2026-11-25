@@ -35,6 +35,7 @@ extern "C" __declspec(dllimport) short __stdcall GetKeyState(int key); // Avoids
 bool DD_BridgeHasSession();
 void DD_BridgeOpenLoot();
 bool DD_InfoUseNpc(dfb_session *session, player_t *player, bool crouching);
+void DD_InfoUseWall(dfb_session *session, player_t *player);
 bool DD_PickupNeedsUse(AActor *special);
 bool DD_BridgeMapPixel(int &x, int &y);
 
@@ -947,6 +948,12 @@ bool DD_UsePress(player_t *player)
 	// A refused pickup, such as a weapon the player already holds, stays in the world and leaves the press for a door.
 	lastResult = (best->ObjectFlags & OF_EuthanizeMe) || !(best->flags & MF_SPECIAL);
 	return lastResult;
+}
+
+// A press of Use outdoors that no door, item or NPC took: Daggerfall's Info on the building wall in view, if any.
+void DD_UseWall(player_t *player)
+{
+	if (useRules && itemSession) DD_InfoUseWall(itemSession, player);
 }
 
 // Daggerfall's Info on a pile or container is the same as Grab (PlayerActivate.ActivateLootContainer), so the Info

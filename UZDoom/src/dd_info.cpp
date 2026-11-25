@@ -235,6 +235,23 @@ bool DD_InfoUseNpc(dfb_session *session, player_t *player, bool crouching)
 	return true;
 }
 
+// Use on a wall outdoors: Daggerfall's Info on the building it belongs to, which names the building and marks it on
+// the town map. dd_treadmill calls this only for a press no door, item or NPC took, so doors work as before. Daggerfall
+// decides from its footprints whether the wall is a building's.
+void DD_InfoUseWall(dfb_session *session, player_t *player)
+{
+	if (!session || gamestate != GS_LEVEL || !player || !player->mo || player->health <= 0) return;
+	double worldX, worldY, worldZ, yaw;
+	if (DDTreadmill_PlayerWorld(worldX, worldY, worldZ, yaw) != DD_AREA_EXTERIOR) return;
+	bool npc, wall;
+	double distance;
+	FLineTraceData trace;
+	if (Pick(player, npc, distance, wall, trace) || !wall || trace.HitType != TRACE_HitWall) return;
+	AActor *pmo = player->mo;
+	const DVector3 &hit = trace.HitLocation;
+	SendRequest(session, DFB_INFO_BUILDING, 0, worldX + (hit.X - pmo->X()) / DoomPerDf, worldY + (hit.Y - pmo->Y()) / DoomPerDf);
+}
+
 // True when the event belonged to Info or to Use on an NPC.
 bool DD_InfoEvent(const dfb_event &e)
 {

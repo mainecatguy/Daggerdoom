@@ -81,6 +81,7 @@ void DD_NpcSetup(AActor *mo, uint64_t id, bool awaitList);
 void DD_TownsfolkTick(FLevelLocals *Level);
 bool DD_BridgeHasSession();
 bool DD_UsePress(player_t *player);
+void DD_UseWall(player_t *player);
 void DD_LightsFlat(AActor *mo, bool interior);	// dd_lights.cpp
 void DD_LightsInterior(FLevelLocals *Level);
 void DD_LightsTick(FLevelLocals *Level);
@@ -1722,7 +1723,7 @@ namespace
 			const DoorSpot &d = townDoors[i];
 			if (CanUse(pmo, d.x, d.y, d.z, d.nx, d.ny, distance) && distance < bestDistance) { best = int(i); bestDistance = distance; }
 		}
-		if (best < 0) return;
+		if (best < 0) { if (fresh) DD_UseWall(pmo->player); return; }	// Use on a building's wall names it, as Daggerfall's Info does.
 		const DoorSpot d = townDoors[best];
 		if (d.kind == 1 && DungeonTown(d.target) < 0) { Printf(PRINT_HIGH, "This dungeon is not available yet.\n"); return; }
 		if (EnterDoor(Level, pmo, d)) return;
