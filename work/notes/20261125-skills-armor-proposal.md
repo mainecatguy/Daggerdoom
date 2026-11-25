@@ -77,7 +77,7 @@ with skill. Lean (b).
 | 100 | +100% + 25% = +125% | none | triple jump |
 
 - Jump height grows linearly to +100% at skill 100, and the 25 spike adds +25% on top from skill 25 onward.
-  **Open:** does the spike count inside the +100% (top out at +100%) or on top (top out at +125%, as in the table)?
+  The spike stacks on top, so the total is +125% at skill 100 (owner, 2026-11-25).
 - Fall damage shrinks with Jumping until immunity at 75. **Lean:** linear from 0% reduction at skill 0 to 50% just
   below 75, then immune. The owner gave no curve.
 - Implementation notes: Doom jump height grows with the square of jump speed, so +100% height is about 1.41x jump
