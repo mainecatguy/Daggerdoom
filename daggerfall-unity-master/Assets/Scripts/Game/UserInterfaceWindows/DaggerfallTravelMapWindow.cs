@@ -415,6 +415,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                     zoomPosition = currentMousePos;
                     ZoomMapTextures();
                 }
+                PanWithKeys();
                 if (DaggerfallShortcut.GetBinding(DaggerfallShortcut.Buttons.TravelMapList).IsUpWith(keyModifiers))
                 {
 
@@ -982,6 +983,50 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                 CreatePopUpWindow();
             else
                 StopIdentify();
+        }
+
+        // Doomerfall: the region map has no keyboard panning. In Doom, the player's movement keys arrive as arrow keys
+        // (dd_bridge.cpp MapPanKey). Held, they pan the zoomed view. Unzoomed, a press steps to the neighbouring part
+        // of a region drawn on several maps, like the arrow buttons. Plain Daggerfall Unity is unchanged.
+        protected const float keyPanSpeed = 120f; // Native pixels per second.
+
+        protected virtual void PanWithKeys()
+        {
+            if (!DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.Active)
+                return;
+            if (zoom)
+            {
+                int dx = (DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.GetKey(KeyCode.RightArrow) ? 1 : 0) - (DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.GetKey(KeyCode.LeftArrow) ? 1 : 0);
+                int dy = (DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.GetKey(KeyCode.DownArrow) ? 1 : 0) - (DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.GetKey(KeyCode.UpArrow) ? 1 : 0);
+                if (dx == 0 && dy == 0)
+                    return;
+                zoomPosition += new Vector2(dx, dy) * keyPanSpeed * Time.unscaledDeltaTime;
+                ZoomMapTextures();
+                // Pull the centre back inside the clamped view, so holding a key past an edge stores up no travel.
+                int width = (int)regionTextureOverlayPanelRect.width;
+                int height = (int)regionTextureOverlayPanelRect.height;
+                zoomPosition = new Vector2(zoomOffset.x + width / (zoomfactor * 2), height - zoomOffset.y - height / (zoomfactor * 2) + regionPanelOffset);
+                UpdateMouseOverLocation();
+                return;
+            }
+            if (!HasMultipleMaps)
+                return;
+            int newIndex = mapIndex;
+            if (DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.GetKeyDown(KeyCode.LeftArrow) && newIndex % 2 == 1)
+                newIndex -= 1;
+            if (DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.GetKeyDown(KeyCode.RightArrow) && newIndex % 2 == 0)
+                newIndex += 1;
+            if (DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.GetKeyDown(KeyCode.UpArrow) && newIndex > 1)
+                newIndex -= 2;
+            if (DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.GetKeyDown(KeyCode.DownArrow) && newIndex < 2 && HasVerticalMaps)
+                newIndex += 2;
+            if (newIndex == mapIndex || newIndex >= selectedRegionMapNames.Length)
+                return;
+            mapIndex = newIndex;
+            SetupArrowButtons();
+            UpdateMapTextures();
+            UpdateCrosshair();
+            UpdateMouseOverLocation();
         }
 
         /// <summary>
