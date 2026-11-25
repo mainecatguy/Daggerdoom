@@ -1,10 +1,10 @@
 """Extract a Daggerfall Unity .dfmod (or the Nexus zip holding one) and decompile its assemblies.
 
 Usage (keep the output folder outside the repo; the extracted bundle is reference material, not committed):
-    python tools/expanded_inventory/extract.py <zip-or-dfmod> <out-dir> [--ilspy <ilspycmd.cmd>]
+    python tools/expanded_inventory/extract.py <zip-or-dfmod> <out-dir> [--ilspy <ilspycmd.cmd>] [--ref <dir>]
 
 Writes every TextAsset (mod json, .cs sources, .dll.bytes assemblies) and every other asset name to
-<out-dir>/assets, and decompiles each assembly into a C# project at <out-dir>/src/<name>.
+<out-dir>/assets, textures as PNG to <out-dir>/textures, and decompiles each assembly into a C# project at <out-dir>/src/<name>.
 Needs UnityPy (pip) and ilspycmd (dotnet tool), both outside the repo.
 """
 import argparse
@@ -36,6 +36,9 @@ def main():
     ap.add_argument("source")
     ap.add_argument("out")
     ap.add_argument("--ilspy", default=r"D:\dev\DoomDaggerfall-build\tools\ilspy\ilspycmd.cmd")
+    ap.add_argument("--ref", action="append", default=[],
+                    help="folder of reference assemblies (for example a DFU build's DaggerfallUnity_Data/Managed)")
+    ap.add_argument("--no-decompile", action="store_true", help="only write the assets and textures")
     a = ap.parse_args()
 
     assets_dir = os.path.join(a.out, "assets")
@@ -53,6 +56,10 @@ def main():
                 continue
             name = getattr(data, "m_Name", "") or getattr(data, "name", "") or f"path{obj.path_id}"
             listing.append(f"{kind}\t{name}")
+            if kind == "Texture2D":
+                tex_dir = os.path.join(a.out, "textures")
+                os.makedirs(tex_dir, exist_ok=True)
+                data.image.save(os.path.join(tex_dir, os.path.basename(name) + ".png"))
             if kind != "TextAsset":
                 continue
             raw = data.m_Script
@@ -73,10 +80,15 @@ def main():
         f.write("\n".join(sorted(listing)) + "\n")
     print(f"{len(listing)} objects, {len(dlls)} assemblies -> {a.out}")
 
-    for dll in dlls:
+    for dll in [] if a.no_decompile else dlls:
         dest = os.path.join(a.out, "src", os.path.splitext(os.path.basename(dll))[0])
         os.makedirs(dest, exist_ok=True)
-        r = subprocess.run([a.ilspy, "-p", "-o", dest, dll])
+        # Unity 2019.4 compiles C# 7.3, so ask for source that compiles there (no file-scoped namespaces, no
+        # primary constructors).
+        cmd = [a.ilspy, "-p", "-lv", "CSharp7_3", "-o", dest, dll]
+        for ref in a.ref:
+            cmd += ["-r", ref]
+        r = subprocess.run(cmd)
         print(f"decompile {os.path.basename(dll)}: exit {r.returncode}")
     return 0
 
