@@ -151,6 +151,8 @@ DEFINE_ACTION_FUNCTION_NATIVE(DMenu, StartGameDirect, StartGameDirect)
 
 bool DD_BridgeNewGameMenu(); // Doomerfall
 bool DD_BridgeEndGame(); // Doomerfall
+bool DD_BridgeBlocksMainMenu(); // Doomerfall
+void DD_BridgeAbandonCharacter(); // Doomerfall
 
 // Doomerfall: the difficulty prompt after character creation, with one fixed class for now.
 void M_DDOpenSkillMenu()
@@ -161,10 +163,21 @@ void M_DDOpenSkillMenu()
 	M_SetMenu(NAME_SkillMenu, 0);
 }
 
+// Doomerfall: Escape at the difficulty prompt asks before the new character (or plain-loaded save) is dropped.
+void M_DDConfirmAbandon(bool plain)
+{
+	if (CurrentMenu == nullptr) M_StartControlPanel(false);
+	DMenu *newmenu = CreateMessageBoxMenu(CurrentMenu, plain ? "Return to the title without loading this save?" :
+		"Abandon this character and return to the title?", 0, false, NAME_None, []() { M_ClearMenus(); DD_BridgeAbandonCharacter(); });
+	newmenu->IntVar("messageSelection") = 1; // No is highlighted, so Enter after a stray Escape keeps the character.
+	M_ActivateMenu(newmenu);
+}
+
 bool M_SetSpecialMenu(FName& menu, int param)
 {
 	// Doomerfall: New Game goes to Daggerfall's character creation. No effect without -dfflow.
 	if ((menu.GetIndex() == NAME_PlayerclassMenu || menu.GetIndex() == NAME_EpisodeMenu) && DD_BridgeNewGameMenu()) return false;
+	if (menu.GetIndex() == NAME_MainMenu && DD_BridgeBlocksMainMenu()) { M_ClearMenus(); return false; } // Doomerfall
 
 	// some menus need some special treatment
 	switch (menu.GetIndex())

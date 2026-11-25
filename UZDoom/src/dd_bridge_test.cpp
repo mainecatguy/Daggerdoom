@@ -4,7 +4,7 @@
 //   -dfhptest basic|monsters           tools/hp_sync
 //   -dfsavetest file|autoN             tools/synchronized_save, bridge/test (the fault injection -dfsavetestfail stays in dd_bridge.cpp)
 //   -dfloadtest mode:file              tools/synchronized_load and many paired tests ("resume" loads a save, then the route continues)
-//   -dfnewgametest once|twice          tools/new_game, tools/demo_combined/walk.py, tools/reported_location
+//   -dfnewgametest once|twice|escape          tools/new_game, tools/demo_combined/walk.py, tools/reported_location
 //   -dfplainloadtest once              tools/plain_load
 
 #include <algorithm>
@@ -33,7 +33,7 @@
 #include "printf.h"
 #include "zstring.h"
 
-FARG_ADVANCED(dfnewgametest, "Doomerfall", "once|twice", "Bridge test only: chooses New Game and a difficulty through the real menu path.");
+FARG_ADVANCED(dfnewgametest, "Doomerfall", "once|twice|escape", "Bridge test only: chooses New Game and a difficulty through the real menu path (escape: New Game at every return to the title, no difficulty).");
 FARG_ADVANCED(dfplainloadtest, "Doomerfall", "once", "Bridge test only: runs dd_load_daggerfall at the title and chooses a difficulty.");
 FARG_ADVANCED(dfbridgetestpause, "Doomerfall", "ext|game|menu", "Bridge test only: enters a pause state for six seconds.");
 FARG_ADVANCED(dfsavetest, "Doomerfall", "file|autoN", "Save test only: makes one synchronized save to this file, or N real autosaves, then quits.");
@@ -221,7 +221,7 @@ void RunNewGameTest(int64_t now)
 		return;
 	}
 	const char *mode = ngTest;
-	ngTest = strcmp(mode, "twice") ? nullptr : "once";
+	ngTest = !strcmp(mode, "escape") ? mode : strcmp(mode, "twice") ? nullptr : "once"; // escape: every time, and the driver picks the difficulty
 	Log("new game test: choosing New Game");
 	M_StartControlPanel(false);
 	M_SetMenu(FName("PlayerclassMenu"), -1);
@@ -411,7 +411,7 @@ void Parse()
 	saveTestFile = Args->CheckValue(FArg_dfsavetest);
 	ngTest = Args->CheckValue(FArg_dfnewgametest);
 	plainTest = Args->CheckValue(FArg_dfplainloadtest);
-	difficultyTest = ngTest || plainTest;
+	difficultyTest = (ngTest && strcmp(ngTest, "escape")) || plainTest;
 	if (const char *test = Args->CheckValue(FArg_dfloadtest))
 	{
 		static std::string mode(test);
