@@ -57,6 +57,7 @@ The Daggerfall world is at **75% scale** in Doom (owner decision, 2026-11-22): 1
 - **Doom WAD compatibility:** Preserve compatibility with Doom WADs and mods. UZDoom must keep reading existing WADs, maps, and mods as stock UZDoom does.
 - **Platforms:** Testing is on Windows only, but do not kill Linux support if possible. Keep OS-specific code behind small, replaceable seams.
 - **Small context per task:** Our main software goal is that an agent can do a job while reading as little code as possible. Keep clear boundaries between classes and files, so a class's inputs, outputs, and side effects can be understood from its public surface and a short header comment, without reading its body. New features go in their own files behind a narrow hook, not spread through large shared classes. When a contract changes, update the header comment in the same commit.
+- **No debug output in normal play (owner, 2026-11-24):** a normal launch shows the player only messages meant for the player. Diagnostic and test output goes to log files, and reaches the on-screen messages or the game console only with a special logging flag or setting. This holds for both games.
 - **Daggerfall's world is inert:** Daggerfall's 3D world is not rendered, and its entity logic is disabled, so nothing in it can act on the player. When Daggerfall spawns an object or entity, such as guards after a crime, it tells Doom, and Doom creates and runs the real thing.
 
 ## Doomerfall PK3
