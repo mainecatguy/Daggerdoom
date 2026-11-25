@@ -13,6 +13,11 @@ What is done on the project, newest first. Agents do not need to read this unles
 
 ## 2026-11-24
 
+### Merged to `integration` (`9242824`)
+
+- **Expanded Inventory (`overnight/expandedinv`):** the Expanded Inventory mod is decompiled into our repo and built with Daggerfall Unity; player list 4 columns, other list 2, scroll bar between. Its pictures are derived from Daggerfall, never committed; `install.py` extracts them from the zip in `GameMods/ExpandedInventory`. Review flags: layout cut from the art at fixed pixels; ~1800 decompiled lines replace the stock window; shops keep the stock trade window. Notes: `work/notes/20261124-215049.md`.
+- **Play folder** reinstalled from `9242824`.
+
 ### Merged to `integration` (`9172d09`)
 
 - **Map keys (`overnight/mapkeys`):** Doom's forward, back and strafe keys pan the automaps; on the travel map they pan the zoomed view or step between map parts. Notes: `work/notes/20261124-202831.md`.

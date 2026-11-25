@@ -16,11 +16,15 @@ Owner decisions from earlier runs are recorded in `CHANGELOG.md`, `architecture.
 
 ### Running
 
-- `expandedinv`: Expanded Inventory mod decompiled into our repo, 4 and 2 column layout (owner, 2026-11-24).
+- `fixeddrops` and `doorsolid` card 04: run by the owner's own sessions. Leave alone.
+- `ammosize` lane: ammo pickups and drops back to stock Doom amounts.
+- `uselabels` lane, in order: NPC refusal message, building look, Doomerfall HUD text one size up (only our own
+  messages, not global), look-at label (reuses the HUD text display from the card before it).
+- `menus` lane, in order: New Game while playing, journal with hotkey.
 
 ### Passed, waiting for the owner's merge
 
-- `doorsolid`: open doors solid; monsters narrower for movement only on Daggerfall maps, stock hitbox.
+- `expandedinv`: merged into integration 2026-11-24 23:31.
 
 ### Waiting on an owner answer from finished work
 
@@ -35,7 +39,6 @@ Owner decisions from earlier runs are recorded in `CHANGELOG.md`, `architecture.
 
 ### Waiting on an owner answer before a card
 
-- Ammo pickup sizes: proposed Doom-like base stacks 10/4/1/20 (Regular gives 20/8/2/40).
 - Mouse lost in Daggerfall menus: likely fullscreen Doom never releasing the mouse (`i_mouse.cpp`); fix waits on the owner confirming the cause.
 - nodraw follow-ups: Doom should not call Daggerfall stale during its known loading freezes; the hidden world radius should come from Doom's loaded area.
 
