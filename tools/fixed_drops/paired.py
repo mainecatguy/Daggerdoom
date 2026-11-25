@@ -184,7 +184,12 @@ def summary(out, name):
     drops = Counter(re.findall(r"^PDDROP (.*?)(?: @ .*)?$", text, re.M))  # Where a drop lands is physics, not compared.
     take = re.findall(r"^PDTAKE (.*)$", text, re.M)
     material = re.findall(r'doomitems: take \d+ ("[^"]+") .*?(stored as .*)$', text, re.M)
-    return {"result": text.splitlines()[0], "kills": kills, "drops": drops, "take": take, "material": material}
+    # Anything not fixed by a seed: a victim the blow did not kill, a monster that died without a seed (no Daggerfall
+    # id) anywhere on the level, a corpse or floor item without one, a plain ammo drop without one.
+    unseeded = re.findall(r"^(PDALIVE .*|PDNOID .*|PDUNSEEDED .*|PDAMMOUNSEEDED .*|PDCORPSE .* seed 00000000)$", text, re.M)
+    plain = re.findall(r"^PDAMMOPLAIN (\d+)$", text, re.M)
+    return {"result": text.splitlines()[0], "kills": kills, "drops": drops, "take": take, "material": material,
+            "unseeded": unseeded, "plain": plain}
 
 
 def compare(out, names):
@@ -192,7 +197,10 @@ def compare(out, names):
     ok = True
     for n, s in runs.items():
         print(f"{n:6} {s['result']}, {sum(s['kills'].values())} killed, {sum(s['drops'].values())} drops, take {s['take']}, Daggerfall {s['material']}")
-        ok &= s["result"] == "result: passed" and bool(s["material"]) and sum(s["drops"].values()) > 0
+        print(f"       {len(s['unseeded'])} unseeded, plain ammo drops checked {s['plain']}")
+        for line in s["unseeded"][:20]:
+            print("       ", line)
+        ok &= s["result"] == "result: passed" and bool(s["material"]) and sum(s["drops"].values()) > 0 and not s["unseeded"]
     base = runs[names[0]]
     for n in names[1:]:
         for key in ("kills", "drops", "take", "material"):

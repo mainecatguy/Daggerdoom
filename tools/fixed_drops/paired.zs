@@ -9,7 +9,7 @@ class PDHarness : EventHandler // Not static: a bundled load restores phase from
 	// 0 fresh, 1 save before the kill, 2 load the save run's autosave. A function, not a const and not a field: constant
 	// conditions upset UZDoom's script VM, and a field would be replaced from the save on load.
 	static int Mode() { return @MODE@; }
-	int phase, timer;
+	int phase, timer, ammoSeen;
 	bool done, resumed;
 	vector3 start;
 	Array<Actor> before, victims;
@@ -30,6 +30,25 @@ class PDHarness : EventHandler // Not static: a bundled load restores phase from
 	{
 		String n = a.GetClassName();
 		return a.DD_LootSeed() != 0 && n.Left(2) == "RL" && n.Mid(n.Length() - 6) == "Pickup";
+	}
+
+	// Anywhere on the level, at any time: a monster that dies without a loot seed (it had no Daggerfall id, so its drops
+	// would be random) is reported. The engine seeds a dying monster before its Die runs, so the seed is set here.
+	override void WorldThingDied(WorldEvent e)
+	{
+		let a = e.Thing;
+		if (!done && a && a.bISMONSTER && !a.player && !a.DD_LootSeed())
+			Console.Printf("PDNOID %s spawned at %.0f %.0f %.0f", a.GetClassName(), a.SpawnPoint.x, a.SpawnPoint.y, a.SpawnPoint.z);
+	}
+
+	// A plain ammo pickup dropped during the kill becomes a tiered DFAmmo_ pickup (DoomerfallAmmo.zs), which rolls its
+	// tier from this pickup's seed and is itself spawned outside the roll. So the plain pickup's seed is what to check.
+	override void WorldThingSpawned(WorldEvent e)
+	{
+		let a = Inventory(e.Thing);
+		if (done || phase < 3 || phase > 4 || !a || a.Owner || !(a is "Ammo")) return;
+		ammoSeen++;
+		if (!a.DD_LootSeed()) Console.Printf("PDAMMOUNSEEDED %s at %.0f %.0f %.0f", a.GetClassName(), a.pos.x, a.pos.y, a.pos.z);
 	}
 
 	override void WorldTick()
@@ -99,7 +118,17 @@ class PDHarness : EventHandler // Not static: a bundled load restores phase from
 			{
 				a = victims[i];
 				Console.Printf("PDKILL %s spawned at %.0f %.0f %.0f", a.GetClassName(), a.SpawnPoint.x, a.SpawnPoint.y, a.SpawnPoint.z);
+				// Some DRLA monsters (RLFormerShocktrooper) wait unshootable and invisible until they see a target and
+				// "teleport in". Doom refuses all damage, even DMG_FORCED, to an unshootable actor (p_interaction.cpp
+				// DamageMobj), so the blow alone left them alive. A player meets them only once awake, so wake them.
+				if (!a.bSHOOTABLE && a.SeeState)
+				{
+					a.target = p;
+					a.SetState(a.SeeState);
+					Console.Printf("PDWOKE %s shootable %d", a.GetClassName(), a.bSHOOTABLE);
+				}
 				a.DamageMobj(p, p, 100000, 'None', DMG_FORCED);
+				if (a.health > 0) Console.Printf("PDALIVE %s after the blow", a.GetClassName());
 			}
 			Console.Printf("PDKILLED %d, %d near the start already dead", victims.Size(), dead);
 			phase = 4; timer = 0;
@@ -110,7 +139,9 @@ class PDHarness : EventHandler // Not static: a bundled load restores phase from
 			if (timer < 35 * 8) break;
 			// A corpse's loot seed comes from its Daggerfall id; 0 means it died without one, so its drops are random.
 			for (int i = 0; i < victims.Size(); i++)
-				if (victims[i])
+				if (victims[i] && victims[i].health > 0)
+					Console.Printf("PDALIVE %s spawned at %.0f %.0f %.0f", victims[i].GetClassName(), victims[i].SpawnPoint.x, victims[i].SpawnPoint.y, victims[i].SpawnPoint.z);
+				else if (victims[i])
 					Console.Printf("PDCORPSE %s spawned at %.0f %.0f %.0f seed %08x", victims[i].GetClassName(), victims[i].SpawnPoint.x, victims[i].SpawnPoint.y, victims[i].SpawnPoint.z, victims[i].DD_LootSeed());
 			let it = ThinkerIterator.Create("Inventory");
 			Inventory a;
@@ -133,6 +164,7 @@ class PDHarness : EventHandler // Not static: a bundled load restores phase from
 				if (IsGunPickup(a) && a.bSPECIAL && (!gun || a.DD_LootSeed() < best)) { gun = a; best = a.DD_LootSeed(); }
 			}
 			Console.Printf("PDDROPS %d", n);
+			Console.Printf("PDAMMOPLAIN %d", ammoSeen);
 			if (!gun) { Finish("nogun"); break; }
 			Console.Printf("PDTAKE %s seed %08x", gun.GetClassName(), best);
 			phase = 5; timer = 0;
