@@ -103,8 +103,8 @@ function Write-Morning {
         foreach ($r in (Get-Runs $l)) { $o += "| $($r.Run) | $($r.Model) | $($r.Result) | `$$($r.CostUsd) | $($r.Minutes) |" }
         $o += ''
     }
-    $reports = Join-Path $Repo 'work\agent-reports.md'
-    if (Test-Path $reports) { $o += '## Agent questions and reports', '', 'See `work/agent-reports.md`.', '' }
+    $reports = @(Get-ChildItem -LiteralPath (Join-Path $Repo 'work\agent-reports') -Filter '*.md' -File -ErrorAction SilentlyContinue)
+    if ($reports.Count) { $o += '## Agent questions and reports', '', "See ``work/agent-reports/`` ($($reports.Count) files).", '' }
     [IO.File]::WriteAllText($Morning, ($o -join "`n"), (New-Object Text.UTF8Encoding($false)))
 }
 

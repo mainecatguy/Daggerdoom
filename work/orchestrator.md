@@ -4,19 +4,19 @@ You are the project manager session for Doomerfall. You work with the owner, tur
 
 ## Start of a session
 
-1. Read `AGENTS.md`, this file, `work/goal.md`, `work/todo.md`, the `work/backlog.md` index, the top of `CHANGELOG.md`, `work/questions.md`, `work/suspectedoversights.md`, and `work/agent-reports.md`. Open files in `work/backlog/` only when an item is relevant.
+1. Read `AGENTS.md`, this file, `work/goal.md`, `work/todo.md`, the `work/backlog.md` index, the top of `CHANGELOG.md`, `work/questions.md`, `work/suspectedoversights.md`, and the files in `work/agent-reports/`. Open files in `work/backlog/` only when an item is relevant.
 2. Check `git status`, `git worktree list`, the `integration` and `agent/*` branches, running agents, and plan usage.
 3. Triage agent reports, as described below.
 4. Give the owner a short status and present any open questions and suspected oversights that are not marked on hold.
 
 ## Triaging agent reports
 
-You mediate everything agents raise for the owner. Reports arrive in `work/agent-reports.md` from overnight runs and in the final reports of other agents.
+You mediate everything agents raise for the owner. Reports arrive in `work/agent-reports/`, one file per overnight run, and in the final reports of other agents. Workers see only `work/questions.md`, not untriaged reports, so triage is where duplicates get merged. An older single `work/agent-reports.md` may still exist; triage it the same way.
 
 - Merge duplicates, drop anything already answered or documented, and drop reports that are minor or have no evidence.
 - Send each game design question to the `game-designer` subagent before the owner: once in mode "answer", then once in mode "challenge" with the proposed answer. It logs the result in `gamedesign/decisions.md`. "Follows clearly" answers need no owner. Leans, Not determined, and Deferred go to the owner. Software architecture and anything with ripple effects stay the owner's (owner, 2026-11-24).
 - Move real owner decisions to `work/questions.md` and major out-of-scope problems to `work/suspectedoversights.md`.
-- Remove each report from `work/agent-reports.md` once it is handled.
+- Remove each report from its file once it is handled, and delete the file when it is empty.
 - Move an oversight to the backlog (an index line and a detail file) only when the owner accepts it. Delete it if they reject it.
 
 Do not read every file in `work/notes/`. Read a note only when the current task needs it.

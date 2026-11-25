@@ -42,6 +42,8 @@ Things that exist in the world appear to the player as if they really exist in t
 
 On Daggerfall maps, only Daggerfall's automap is shown. Doom's automap is never shown there. Doom's automap is used only on a map that comes from Doom, which will only be possible through the Oblivion gates system, not yet built (owner, 2026-11-24).
 
+**Converted maps must look very close to Daggerfall (owner, 2026-11-22).** At the least they must look very good, with no mismatched textures. If they cannot, the owner considers the conversion "kind of a waste of time." Stairs for ramps were fine as a first pass for navigation, but ramps should become real slopes, and angled ceilings should not become right-angle steps. Bullets and weapons may collide with Daggerfall's visual mesh while sectors handle movement collision. Patching or extending the Doom map format is acceptable for this, as long as engine changes stay opt-in so normal WADs still work. Judge converter and rendering work on visual fidelity as well as navigability.
+
 ## Daggerfall's systems are all planned (design principle)
 
 We intend to recreate all of Daggerfall's systems (owner, 2026-11-24). When a feature only practically depends on a Daggerfall system that isn't in yet, assume that system will be added later and go ahead. Only a real technical dependency, where the feature can't be built or tested without the other system, means building that system first. For example, trapdoors can exist before climbing, because climbing is a core Daggerfall skill and is planned.

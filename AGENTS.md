@@ -29,7 +29,7 @@ These pillars must survive every decision:
 | `work/backlog/` | One detail file per backlog item. Open only the items you need. |
 | `work/future-ideas.md` | Unplanned ideas for after the initial release. Never start these unless the owner asks. |
 | `work/notes/` | Plans, findings, and play-test lists, one file per run. |
-| `work/agent-reports.md` | Raw questions and oversights from overnight agents, awaiting orchestrator triage. Not committed. |
+| `work/agent-reports/` | Raw questions and oversights from overnight agents, one file per run, awaiting orchestrator triage. Not committed. |
 | `work/questions.md` | Triaged open questions for the owner. Managed by the orchestrator and not committed. |
 | `work/suspectedoversights.md` | Triaged major oversights outside any agent's task. Managed by the orchestrator and not committed. |
 | `art/` | Original custom art made for Doomerfall, listed in `art/README.md`. Our own work, so it may be committed. |

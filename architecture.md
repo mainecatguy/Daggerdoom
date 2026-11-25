@@ -101,10 +101,18 @@ reason and are written down here.
   changed), the place is rebuilt from the record and only live combat details are lost (`work/backlog/rebuild-load.md`).
 - The snapshot leaves out what UZDoom generates from DFU's data, such as the overworld treadmill's terrain sectors
   (88% of an overworld save today). Those are rebuilt on load.
+- **A save is tied to its Doom mod set (owner, 2026-11-24).** Any WAD or mod set can be loaded, but switching mods means
+  a new save. So saved records may name Doom classes directly, or through a per-save class table, without handling
+  classes that vanish or change between mod sets. Whether a mod-set check on load exists is not yet verified.
 
 **DFU objects on the current map.** Loot piles, containers, NPCs and townspeople belong to DFU even on the current map.
 UZDoom draws them and forwards Use; DFU holds their contents and decides whether they exist. The snapshot's copy is
 presentation only and follows DFU's list.
+
+**Doom items on the ground stay Doom items (owner, 2026-11-24).** Avoid making Daggerfall loot piles whenever possible.
+Doom items on the ground, such as player drops and monster drops, stay visible as the Doom item, because a pile hides
+what is there. DFU only records them (class, spot, amount, carried state) and has them spawned back as the same Doom
+pickup; it does not wrap them in a pile.
 
 **DFU's scene cache stays short-lived (owner, 2026-11-24).** Daggerfall Unity's own scene cache keeps wiping on every
 map pixel change, as in vanilla. Doomerfall's stores are the only permanent copy: `DoomerfallItems` for opened

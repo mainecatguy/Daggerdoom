@@ -94,7 +94,7 @@ function Save-Work {
 function Add-AgentReports($Items, $Kind) {
     $new = @($Items | ForEach-Object { ([string]$_ -replace '\s+', ' ').Trim() } | Where-Object { $_ })
     if (-not $new.Count) { return }
-    $lines = if (Test-Path $ReportsFile) { @([IO.File]::ReadAllLines($ReportsFile)) } else { @('# Agent reports awaiting orchestrator triage', '') }
+    $lines = if (Test-Path $ReportsFile) { @([IO.File]::ReadAllLines($ReportsFile)) } else { @("# Agent reports from run $Stamp ($(Split-Path $GoalFile -Leaf))", '') }
     foreach ($q in $new) {
         if (-not @($lines | Where-Object { $_.EndsWith("] [$Kind] $q") }).Count) { $lines += "- [$Stamp] [$Kind] $q" }
     }
@@ -234,8 +234,11 @@ RepoGit $Worktree switch -q -c $Branch $Base | Out-Null
 
 $Goal = [IO.File]::ReadAllText($GoalFile)
 $QuestionsFile = Join-Path $Repo 'work\questions.md'
-$ReportsFile = Join-Path $Repo 'work\agent-reports.md'
-$OpenQuestions = (@($QuestionsFile, $ReportsFile) | Where-Object { Test-Path $_ } | ForEach-Object { [IO.File]::ReadAllText($_) }) -join "`n"
+# One file per run, so parallel lanes never rewrite each other's reports. The orchestrator deletes each once triaged.
+$ReportsDir = Join-Path $Repo 'work\agent-reports'
+$ReportsFile = Join-Path $ReportsDir ("$Stamp" + $(if ($Lane) { "-$Lane" }) + '.md')
+# Only triaged questions. Untriaged reports stay out of the prompt to keep it small; triage removes duplicates.
+$OpenQuestions = if (Test-Path $QuestionsFile) { [IO.File]::ReadAllText($QuestionsFile) } else { '' }
 if (-not $OpenQuestions) { $OpenQuestions = 'None.' }
 $VerifierPrompt = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'verifier.md'))
 $ReviewerPrompt = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'reviewer.md'))
@@ -343,8 +346,8 @@ if (-not $metricSaved) {
 }
 
 $report = Join-Path $RunDir 'report.md'
-$openCount = if (Test-Path $ReportsFile) { @(Get-Content $ReportsFile | Where-Object { $_ -like '- *' }).Count } else { 0 }
-$entry = @("## Run $Stamp", "- Result: $outcome", "- Branch: $Branch ($($commits.Count) commits)", "- Rounds: $round, turns: $Turns, estimated cost: `$$cost, minutes: $minutes", "- Agent reports awaiting triage: $openCount (work/agent-reports.md)", "- Notes: work/notes/$Stamp.md", "- Logs: $Logs")
+$openCount = @(Get-ChildItem -LiteralPath $ReportsDir -Filter '*.md' -File -ErrorAction SilentlyContinue | Get-Content | Where-Object { $_ -like '- *' }).Count
+$entry = @("## Run $Stamp", "- Result: $outcome", "- Branch: $Branch ($($commits.Count) commits)", "- Rounds: $round, turns: $Turns, estimated cost: `$$cost, minutes: $minutes", "- Agent reports awaiting triage: $openCount (work/agent-reports/)", "- Notes: work/notes/$Stamp.md", "- Logs: $Logs")
 if ($ReviewFlags.Count) { $entry += "- Review flags for the owner ($($ReviewFlags.Count)):"; $entry += @($ReviewFlags | ForEach-Object { "  - $(([string]$_ -replace '\s+', ' ').Trim())" }) }
 $entry += ''
 Add-Content -LiteralPath $report -Value $entry -Encoding utf8
