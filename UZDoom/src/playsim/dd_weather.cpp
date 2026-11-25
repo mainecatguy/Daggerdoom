@@ -1,12 +1,12 @@
 // [Doomerfall] Daggerfall's sky, time-of-day light, weather and ambient sounds, drawn and played by Doom.
 //
 // Daggerfall owns time and weather. DoomerfallWorldLook.cs sends what its own sky, light and weather objects show,
-// as the bridge text "sky <index> <frame> <stars> <night> <ambient> <weather> <loop> <sun>", and every ambient one-shot
+// as the bridge text "sky <index> <frame> <stars> <night> <ambient> <weather> <loop> <sun> [<elevation>]", and every ambient one-shot
 // Daggerfall's AmbientEffectsPlayer plays as "amb <clip>". Doom only renders them:
 //   - Sky: the DFSKY texture is rewritten from SKYnn.DAT (frame, afternoon mirror) or NITEnnI0.IMG with stars, as
 //     DaggerfallSky does. Read from the arena2 folder given by -ddarena2; nothing is written to disk.
 //   - Light: in exteriors, Daggerfall's daylight: its exterior ambient (PlayerAmbientLight) plus its sun light
-//     (SunlightManager) on an average surface. The town mesh takes it as is, Doom's sectors on a curve. Interiors take
+//     (SunlightManager) on an average surface, weighted by the sun's height (a low sun lights flat ground less). The town mesh takes it as is, Doom's sectors on a curve. Interiors take
 //     Daggerfall's slight night tint. Dungeons are unchanged (Daggerfall has no time of day there).
 //   - Fog: Daggerfall's exponential weather fog (WeatherManager), in sector fog and on the DFMesh layer.
 //   - Rain and snow: particles around the player, outdoors only (PlayerWeather).
@@ -53,7 +53,7 @@ constexpr double DOOM_PER_METER = 100 * 0.75;		// Unity units are 100 Daggerfall
 constexpr int LOOP_CHANNEL = 77;					// player channel for the rain and cricket loops
 constexpr int SKY_W = 512, SKY_H = 220, NIGHT_H = 219;
 
-struct World { int index = -1, frame = 0, stars = 0, night = 0, ambient = 0, weather = 0, loop = 0, sun = 0; };
+struct World { int index = -1, frame = 0, stars = 0, night = 0, ambient = 0, weather = 0, loop = 0, sun = 0, elevation = 90; };	// elevation: sun height in degrees, 90 when not sent
 World world;
 bool haveWorld;
 FRandom pr_weather("DDWeather");
@@ -197,8 +197,14 @@ PalEntry FogTint()
 	return FogDensity() > 0.003f * 64000 / DOOM_PER_METER + 0.01f ? PalEntry(128, 128, 128) : PalEntry(fogColor.r, fogColor.g, fogColor.b);
 }
 
-// Unity lights in gamma space: a surface shows albedo x (ambient + sun x facing), full at 1.
-float Daylight() { return world.ambient / 255.f + *dd_sun_share * world.sun / 100.f; }
+// Unity lights in gamma space: a surface shows albedo x (ambient + sun x facing), full at 1. Facing is the share an
+// average surface gets (dd_sun_share) times the sine of the sun's height, as on flat ground; fitted to Daggerfall's
+// own camera (tools/daynight/brightness.py).
+float Daylight()
+{
+	const float facing = float(std::max(sin(world.elevation * (M_PI / 180)), 0.0));
+	return world.ambient / 255.f + *dd_sun_share * facing * world.sun / 100.f;
+}
 
 int place = -1, applied = -1;	// applied: a key of the light state the current map's sectors hold
 
@@ -221,7 +227,7 @@ void ApplyLight(FLevelLocals *Level)
 			sec.SetFade(tint);
 			sec.SetFogDensity(int(density + 0.5f));
 		}
-		DD_DebugPrintf("DDWEATHER exterior light %d (ambient %d, sun %d), weather %d, fog %.1f, %d sectors\n", light, world.ambient, world.sun, world.weather, density, int(Level->sectors.Size()));
+		DD_DebugPrintf("DDWEATHER exterior light %d (ambient %d, sun %d at %d deg), weather %d, fog %.1f, %d sectors\n", light, world.ambient, world.sun, world.elevation, world.weather, density, int(Level->sectors.Size()));
 	}
 	else if (place == 2)
 	{
@@ -348,7 +354,7 @@ bool DD_WeatherText(const char *text)
 	World w;
 	int clip;
 	if (sscanf(text, "amb %d", &clip) == 1) { PlayOneShot(clip); return true; }
-	if (sscanf(text, "sky %d %d %d %d %d %d %d %d", &w.index, &w.frame, &w.stars, &w.night, &w.ambient, &w.weather, &w.loop, &w.sun) != 8) return false;
+	if (sscanf(text, "sky %d %d %d %d %d %d %d %d %d", &w.index, &w.frame, &w.stars, &w.night, &w.ambient, &w.weather, &w.loop, &w.sun, &w.elevation) < 8) return false;
 	if (!haveWorld || w.weather != world.weather || w.index != world.index || w.stars != world.stars)
 		DD_DebugPrintf("DDWEATHER from Daggerfall: sky %d frame %d stars %d night %d ambient %d weather %d loop %d\n", w.index, w.frame, w.stars, w.night, w.ambient, w.weather, w.loop);
 	world = w;

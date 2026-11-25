@@ -1,6 +1,6 @@
 // Doomerfall: Daggerfall owns time and weather, and Doom draws them. This sends what Daggerfall's own hidden sky,
 // light and weather objects show, so Doom ports none of their curves or tables (UZDoom/src/playsim/dd_weather.cpp):
-//   "sky <index> <frame> <stars> <night> <ambient> <weather> <loop> <sun>"
+//   "sky <index> <frame> <stars> <night> <ambient> <weather> <loop> <sun> <elevation>"
 //     index, frame   DaggerfallSky.SkyIndex and SkyFrame (0-63; 32 and up is the mirrored afternoon)
 //     stars          1 when DaggerfallSky shows the starry night sky (night and normal weather)
 //     night          WorldTime.Now.IsNight
@@ -8,6 +8,8 @@
 //     weather        PlayerWeather.WeatherType
 //     loop           the clip AmbientEffectsPlayer loops: rain, crickets, or 0
 //     sun            SunlightManager's sun light intensity x 100 (0 at night); exterior daylight is ambient plus sun
+//     elevation      the sun light's height above the horizon in whole degrees (negative below); flat ground gets
+//                    the sun's light times the sine of it
 // on change and every few seconds, and "amb <clip>" for each ambient one-shot AmbientEffectsPlayer plays.
 
 using UnityEngine;
@@ -55,6 +57,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             int ambient = Mathf.Clamp(Mathf.RoundToInt(c.r * 255), 0, 255);
             Light sunLight = sun.GetComponent<Light>();
             int sunPercent = sunLight && sunLight.enabled ? Mathf.Clamp(Mathf.RoundToInt(sunLight.intensity * 100), 0, 999) : 0;
+            int elevation = sunLight ? Mathf.RoundToInt(Mathf.Asin(Mathf.Clamp(-sunLight.transform.forward.y, -1f, 1f)) * Mathf.Rad2Deg) : 0;
             int loop = 0;
             if (weather.WeatherEffects)
             {
@@ -64,8 +67,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 else if (presets == AmbientEffectsPlayer.AmbientSoundPresets.ClearNight)
                     loop = (int)SoundClips.AmbientCrickets;
             }
-            string line = string.Format("sky {0} {1} {2} {3} {4} {5} {6} {7}", sky.SkyIndex, sky.SkyFrame, stars ? 1 : 0, night ? 1 : 0,
-                ambient, (int)weather.PlayerWeather.WeatherType, loop, sunPercent);
+            string line = string.Format("sky {0} {1} {2} {3} {4} {5} {6} {7} {8}", sky.SkyIndex, sky.SkyFrame, stars ? 1 : 0, night ? 1 : 0,
+                ambient, (int)weather.PlayerWeather.WeatherType, loop, sunPercent, elevation);
             if (line == sent && Time.unscaledTime < nextSend) return;
             string key = sky.SkyIndex + " " + stars + " " + weather.PlayerWeather.WeatherType + " " + loop;
             if (key != logged) bridge.LogLine("world look " + line + " at " + dfUnity.WorldTime.Now.MinuteOfDay / 60 + "h");
