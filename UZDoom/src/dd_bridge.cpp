@@ -90,7 +90,7 @@ FARG_ADVANCED(dfsavetestfail, "Doomerfall", "uz_zip|uz_commit|uz_crash", "Save t
 
 CVAR(Int, dd_sync_df_phase, 0, CVAR_NOSAVE) // Read by the position sync test route.
 CVAR(Int, dd_ui_test_hold, 0, CVAR_NOSAVE | CVAR_MOD) // Test only: a route holds -dfuitest until it reaches the place to open the menu.
-CVAR(Int, dd_ui_test_menu, 1, CVAR_NOSAVE) // Test only: the menu -dfuitest opens. 1 is the travel map, 2 the inventory, 3 the map command.
+CVAR(Int, dd_ui_test_menu, 1, CVAR_NOSAVE | CVAR_MOD) // Test only: the menu -dfuitest opens. 1 is the travel map, 2 the inventory, 3 the map command.
 CVAR(Bool, dd_ui_test_doommap, false, CVAR_NOSAVE) // Test only: opens Doom's own map just before -dfuitest opens its menu.
 EXTERN_CVAR(Bool, dfmesh_view)
 static bool UiCanOpen();
@@ -627,6 +627,21 @@ bool IsOpenMenuKey(long long lParam)
 	if (uiId == DFB_UI_DAGGERFALL) return false; // No Doom control opened it. The player answers it in Daggerfall.
 	return bound.CompareNoCase(UiCommandName(uiId)) == 0;
 }
+
+// In Daggerfall's map screens, the keys the player bound to Doom's movement pan the view. Daggerfall's maps pan
+// with the arrow keys, so those keys are sent as arrows. Every other key, and every other menu, is sent unchanged.
+int MapPanKey(int vk, long long lParam)
+{
+	if (uiId != DFB_UI_MAP && uiId != DFB_UI_TRAVEL_MAP) return vk;
+	int key = int((lParam >> 16) & 0xFF);
+	if ((lParam >> 24) & 1) key |= 0x80;
+	const FString &bound = Bindings.GetBinding(key);
+	if (bound.CompareNoCase("+forward") == 0) return 0x26;
+	if (bound.CompareNoCase("+back") == 0) return 0x28;
+	if (bound.CompareNoCase("+moveleft") == 0) return 0x25;
+	if (bound.CompareNoCase("+moveright") == 0) return 0x27;
+	return vk;
+}
 }
 
 void DD_BridgeTransition(int action, double x, double y, int target)
@@ -815,11 +830,11 @@ bool DD_BridgeUiWndProc(unsigned int message, unsigned long long wParam, long lo
 			SendUiCommand(DFB_KIND_UI_CLOSE, uiId);
 			return true;
 		}
-		SendUiInput(DFB_UI_INPUT_KEY_DOWN, SidedVirtualKey(wParam, lParam));
+		SendUiInput(DFB_UI_INPUT_KEY_DOWN, MapPanKey(SidedVirtualKey(wParam, lParam), lParam));
 		return true;
 	case WmSysKeyUp:
 	case WmKeyUp:
-		SendUiInput(DFB_UI_INPUT_KEY_UP, SidedVirtualKey(wParam, lParam));
+		SendUiInput(DFB_UI_INPUT_KEY_UP, MapPanKey(SidedVirtualKey(wParam, lParam), lParam));
 		return true;
 	case WmChar:
 		if (wParam >= 32) SendUiInput(DFB_UI_INPUT_CHAR, int(wParam));
