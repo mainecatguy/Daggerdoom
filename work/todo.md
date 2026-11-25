@@ -25,8 +25,8 @@ Every lane approved before 2026-11-24 evening has run and is merged. Owner decis
 
 - Running: `usekey` (critical): Doom's base Use key and Doomerfall's interact key are separate; they must be one (owner play test, 2026-11-24).
 - Running: `ammoinv` (critical): ammo does not appear in Daggerfall's inventory (owner play test, 2026-11-24). Card 02 after it: changing ammo type plays DRLA's reload, and the new type is loaded when it finishes.
-- `newgameesc`: Escape during Daggerfall's New Game screens opens Doom's menus and breaks the game (owner play test, 2026-11-24).
-- `cleanlaunch`: the launcher's startup is a mess: Doom windowed, Daggerfall fullscreen, random timing (owner play test, 2026-11-24).
+- Running: `newgameesc`: Escape during Daggerfall's New Game screens opens Doom's menus and breaks the game (owner play test, 2026-11-24).
+- Running: `cleanlaunch`: the launcher's startup is a mess: Doom windowed, Daggerfall fullscreen, random timing (owner play test, 2026-11-24).
 
 ### Proposed cards waiting on owner choices
 

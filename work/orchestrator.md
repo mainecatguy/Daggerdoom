@@ -105,7 +105,7 @@ The owner has a Pro plan with extra usage off. Check usage before dispatching an
 
 `scripts/overnight/run.ps1` runs one goal on its own branch, has an independent verifier check it, and adds passing work to `integration`. It does not pick the next task. `scripts/overnight/overnight.ps1` is the outer loop: run from its own PowerShell window, it runs the goal cards in `work/queue/<lane>` in parallel lanes, keeps the PC awake, and writes `work/queue/morning.md`. The orchestrator writes the cards and the owner approves them. It has no clock deadline. It runs until its cards finish, a cost or failure limit stops it, or the owner says to stop.
 
-- Run at most 3 to 4 lanes at a time (owner). Verified work lands on `overnight/<lane>`. `queue.ps1 -From` applies only when `overnight/<lane>` does not exist yet, so for a follow-up run, first point `overnight/<lane>` at the work to finish.
+- Run at most 6 lanes at a time (owner, 2026-11-24; was 3 to 4). Verified work lands on `overnight/<lane>`. `queue.ps1 -From` applies only when `overnight/<lane>` does not exist yet, so for a follow-up run, first point `overnight/<lane>` at the work to finish.
 - **Bridge kinds:** parallel lanes must not pick the same numbers. Give each card that adds bridge kinds its own range of 10 above the highest reserved so far: `locationledger` 200-209, `qabot` 210-219, `plainsaves` 220-221. The next range starts at 230.
 
 ## Play folder
