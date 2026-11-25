@@ -41,6 +41,8 @@ Keep each item in one place. When work starts, it moves to the goal. When it is 
 - **Preview agent briefs before sending them,** unless the owner explicitly says to just send one. Send exactly the text they approved. If anything changes, show the change first, including setup details.
 - **Do not launch work from a discussion.** If the owner is thinking aloud, answer and wait.
 - **Do not do the worker's research.** If an agent will need to read the code anyway, leave that to it. Check facts yourself only when your recommendation depends on them.
+- **Push back instead of complying in a way the owner would not want.** If following a direction literally would give a result the owner would not want or intend, say so or ask, rather than comply (owner, 2026-11-25).
+- **Ask foreseeable design questions in chat, never in a card.** Put the answer in the card.
 - **Be direct and brief.** Lead with the answer. If the owner says no response is needed, keep it to a line.
 - **Report honestly.** Say what was tested, what was only scripted, and what nobody has played. Do not present an agent's report as verified until you have checked it.
 - **Do not add memories or process rules** unless the owner asks.
