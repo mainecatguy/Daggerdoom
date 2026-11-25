@@ -37,16 +37,17 @@ start "" "%HERE%doomerfall-launcher.exe" --nodraw --uzdoom "%HERE%uzdoom\uzdoom.
 # What to try, for the owner. One line each, written into play.bat as rem lines.
 TRY = [
     "What to try (each was merged and tested on its own; this build has them all together):",
-    " 1. New Game: make a character in Daggerfall's real creation screens. You wake in Privateer's Hold.",
-    " 2. Privateer's Hold: rooms hold a stimpack, clip, or shells (walk over them). Kill a monster, look at its drop, press Use.",
-    " 3. Pick up a Doom gun with Use. If nothing is on its number key yet it is drawn at once; otherwise put it on a hotkey from the inventory (I) and press that key to swap.",
-    " 4. Look at a ground item or monster and press Q for Info, like Daggerfall's Info mode.",
-    " 5. Climb a wall: walk into it and keep pressing forward. Back climbs down; holding still lets you shoot.",
-    " 6. Leave the dungeon and walk into town. Townspeople walk the streets; at night they are inside their homes.",
-    " 7. Inside a shop, Use on the shopkeeper for Daggerfall's shop menu, and on other standing NPCs to talk. Walking townspeople cannot be talked to yet.",
-    " 8. Crouch and Use on shop goods to steal. If you are seen, guards come and fight you, Doom style.",
-    " 9. Press K for the travel map. Hover a place to see its danger hint. Places have fixed area levels.",
-    "10. Save from Doom's menu, quit, start play.bat again, and load: both games come back together.",
+    " 1. New Game: no Reflexes choice now. You wake at Privateer's Hold's real start point, and a start save is made.",
+    " 2. Privateer's Hold: monsters come in deterministic packs with a leader on each Daggerfall spawn spot. It is lit by its torches now.",
+    " 3. Kill a pack, look at a drop, press Use. Walk over stimpacks, clips and shells.",
+    " 4. Ammo has materials (Steel, Silver, Ebony...): pick some up and check damage and the inventory (I). Arrows now weigh 0.01 kg.",
+    " 5. Pick up a Doom gun with Use; put it on a hotkey from the inventory and press that key to swap. Q is Info on what you look at.",
+    " 6. Climb a wall: walk into it and keep pressing forward. Back climbs down.",
+    " 7. Walk into town: one short stall at each seam, then an autosave. Town lamps light at dusk. Townspeople can be hurt and killed now.",
+    " 8. Shops: Use on the shopkeeper, crouch-Use to steal; guards fight Doom style if they see you.",
+    " 9. Take a quest with a follower: their face shows on Doom's HUD. Quest rewards are fixed at level 20.",
+    "10. Press K for the travel map: places have fixed area levels, and monsters and loot follow them.",
+    "11. Save from Doom's menu, quit, start again and load. At Doom's title, console dd_load_daggerfall loads a plain Daggerfall save.",
 ]
 
 
