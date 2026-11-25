@@ -27,8 +27,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         const int DefaultSyncHz = 10;
         const float IndoorFootClearance = 0.05f;
         const int TeleportPixels = 2; // Farther than this, streaming would have nothing loaded at the target.
-        const int GameSceneIndex = 1;
-        const int TestStartPixelX = 207, TestStartPixelY = 213;
         const long TravelHoldNs = 30000000000;
 
         long applyIntervalNs = 1000000000L / DefaultSyncHz;
@@ -43,7 +41,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DoomerfallTransition transition;
         bool logAfterExit;
         bool engaged, savedDisableAI, savedMotor, savedController, savedLook, savedActivate, savedWeapons;
-        bool areaDirty, areaPending, verifyPending, noDraw, testWorldReady, testEnemySpawned, testImageTaken;
+        bool areaDirty, areaPending, verifyPending, noDraw;
         uint phase = Dfb.DF_PHASE_BOOT;
         int areaX, areaY, targetX, targetZ, teleports, applies;
         bool aligned;
@@ -51,10 +49,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         int slowFrames, alignedFrames, indoorFrames;
         long nextApplyNs, areaSentNs, nextCameraCheckNs;
         double worstApplyError, worstLag;
-        int startHealth = -1;
-        GameObject testEnemy;
-        Vector3 testEnemyStart;
-        bool testEnemyAI; // Negative control: leaves enemy AI on, to prove the test can see an attack.
+        DoomerfallSyncTest syncTest; // Test only (-dfsynctest), null in normal play.
         float lastFrameTime;
         readonly DoomerfallBridge.Samples frameMs = new DoomerfallBridge.Samples();
         readonly DoomerfallBridge.Samples areaLatency = new DoomerfallBridge.Samples();
@@ -62,7 +57,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public uint Phase { get { return phase; } }
 
         // True once Daggerfall is in a game, from the test start or a normal one.
-        public bool InGame { get { return testWorldReady || (GameManager.HasInstance && GameManager.Instance.StateManager.GameInProgress); } }
+        public bool InGame { get { return (syncTest && syncTest.WorldReady) || (GameManager.HasInstance && GameManager.Instance.StateManager.GameInProgress); } }
 
         public void Init(DoomerfallBridge owner, string[] args)
         {
@@ -75,66 +70,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 applyIntervalNs = 1000000000L / hz;
             if (DaggerfallUnityApplication.IsPortableInstall)
                 testSink = Array.IndexOf(args, "-dfsynctestsink") >= 0 ? 1 : Array.IndexOf(args, "-dfsynctestsinknoguard") >= 0 ? 2 : 0;
-            int test = Array.IndexOf(args, "-dfsynctest");
-            if (test < 0)
-                return;
-            testEnemyAI = Array.IndexOf(args, "-dfsynctestenemyai") >= 0;
-            if (!DaggerfallUnityApplication.IsPortableInstall || test + 1 >= args.Length)
-            {
-                bridge.LogLine("error: -dfsynctest needs a portable install and a Daggerfall path");
-                return;
-            }
-            StartCoroutine(TestStart(args[test + 1]));
-        }
-
-        // Test only. The real startup flow is a separate task.
-        IEnumerator TestStart(string daggerfallPath)
-        {
-            var settings = DaggerfallUnity.Settings; // In memory only; the portable install keeps it private.
-            settings.MyDaggerfallPath = daggerfallPath;
-            settings.RunInBackground = true;
-            settings.SoundVolume = 0;
-            settings.MusicVolume = 0;
-            Application.runInBackground = true;
-            settings.VSync = false; // Frame times should show work rather than the display rate.
-            settings.TargetFrameRate = 0;
-            QualitySettings.vSyncCount = 0;
-            Application.targetFrameRate = -1;
-
-            yield return SceneManager.LoadSceneAsync(GameSceneIndex);
-            while (!DaggerfallUnity.Instance.IsReady || !GameManager.Instance.IsReady)
-                yield return null;
-
-            var start = FindObjectOfType<StartGameBehaviour>();
-            start.EnableVideos = false;
-            start.StartMethod = StartGameBehaviour.StartMethods.Void;
-            for (int i = 0; i < 5; i++)
-                yield return null;
-            DaggerfallUI.Instance.PopToHUD();
-
-            GameManager.Instance.PlayerEnterExit.EnableExteriorParent();
-            StreamingWorld world = GameManager.Instance.StreamingWorld;
-            world.suppressWorld = false;
-            world.TeleportToCoordinates(TestStartPixelX, TestStartPixelY);
-            GameManager.Instance.PauseGame(false);
-
-            PlayerEntity player = GameManager.Instance.PlayerEntity;
-            player.MaxHealth = 100;
-            player.SetHealth(100, true);
-            player.GoldPieces = 5000; // Lets the travel menu test afford any trip.
-            if (player.SkillUses == null) // The blank test character has none, and travel's skill check reads them.
-                player.SkillUses = new short[DaggerfallSkills.Count];
-            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfinventorytest") >= 0) // Something to equip and move in the inventory test.
-            {
-                // The blank test character's career can forbid every weapon.
-                player.Career.ForbiddenProficiencies = 0;
-                player.Career.ForbiddenMaterials = 0;
-                player.Items.AddItem(DaggerfallWorkshop.Game.Items.ItemBuilder.CreateWeapon(DaggerfallWorkshop.Game.Items.Weapons.Longsword, DaggerfallWorkshop.Game.Items.WeaponMaterialTypes.Iron));
-                player.Items.AddItem(DaggerfallWorkshop.Game.Items.ItemBuilder.CreateWeapon(DaggerfallWorkshop.Game.Items.Weapons.Dagger, DaggerfallWorkshop.Game.Items.WeaponMaterialTypes.Steel));
-            }
-            startHealth = player.CurrentHealth;
-            testWorldReady = true;
-            bridge.LogLine("sync test: entered the world, health " + startHealth);
+            syncTest = DoomerfallSyncTest.Attach(owner, gameObject, args);
         }
 
         public void OnAreaEvent(uint context, int pixelX, int pixelY, long sentNs)
@@ -183,7 +119,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (InGame && transition.Update(game))
             {
                 Engage(game);
-                game.DisableAI = !testEnemyAI;
+                game.DisableAI = !(syncTest && syncTest.EnemyAI);
                 game.PlayerEntity.PreventEnemySpawns = true;
                 long indoorNowNs = DfbNative.dfb_now_ns();
                 if (noDraw && indoorNowNs >= nextCameraCheckNs)
@@ -203,7 +139,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return;
 
             Engage(game);
-            game.DisableAI = !testEnemyAI;
+            game.DisableAI = !(syncTest && syncTest.EnemyAI);
             game.PlayerEntity.PreventEnemySpawns = true; // Cleared by PlayerEntity after each update.
 
             long nowNs = DfbNative.dfb_now_ns();
@@ -288,12 +224,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     bridge.LogLine(string.Format("sync: area {0},{1} loaded {2:F1} ms after Doom entered it", areaX, areaY, (nowNs - areaSentNs) / 1e6));
             }
 
-            // After the first teleport, because a teleport clears loose enemies.
-            if (testWorldReady && !testEnemySpawned && aligned)
-                SpawnTestEnemy(game);
-
-            if (testWorldReady && !testImageTaken && alignedTime > 3f)
-                CaptureTestImage(game);
+            if (syncTest)
+                syncTest.Frame(game, aligned, alignedTime);
 
             if (!areaDirty && nowNs < nextApplyNs)
                 return;
@@ -523,44 +455,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bridge.LogLine("sync: engaged, hidden player stopped" + (noDraw ? ", 3D drawing off" : ""));
         }
 
-        // Test only: renders what the main camera would show, which works while the window is minimized.
-        void CaptureTestImage(GameManager game)
-        {
-            testImageTaken = true;
-            const int width = 320, height = 180;
-            Camera main = game.MainCamera;
-            RenderTexture target = RenderTexture.GetTemporary(width, height, 24);
-            RenderTexture previousTarget = main.targetTexture, previousActive = RenderTexture.active;
-            main.targetTexture = target;
-            main.Render();
-            main.targetTexture = previousTarget;
-            RenderTexture.active = target;
-            var image = new Texture2D(width, height, TextureFormat.RGB24, false);
-            image.ReadPixels(new Rect(0, 0, width, height), 0, 0);
-            RenderTexture.active = previousActive;
-            RenderTexture.ReleaseTemporary(target);
-
-            int lit = 0;
-            Color32[] pixels = image.GetPixels32();
-            foreach (Color32 pixel in pixels)
-                if (pixel.r > 8 || pixel.g > 8 || pixel.b > 8)
-                    lit++;
-            bridge.LogLine(string.Format("sync test: main camera image {0:F1}% non-black, culling mask {1}, enabled cameras {2}",
-                100f * lit / pixels.Length, main.cullingMask, Camera.allCamerasCount));
-            Destroy(image);
-        }
-
-        // Test only: a hostile enemy beside the player, which must neither move nor attack.
-        void SpawnTestEnemy(GameManager game)
-        {
-            testEnemySpawned = true;
-            Transform player = game.PlayerObject.transform;
-            testEnemy = GameObjectHelper.CreateEnemy("SyncTestEnemy", MobileTypes.Rat, player.position + player.forward * 3f,
-                MobileGender.Unspecified, game.StreamingWorld.StreamingTarget.transform);
-            testEnemyStart = testEnemy.transform.position; // World space: its parent can be re-based while it stands still.
-            bridge.LogLine("sync test: hostile enemy placed 3 m from the player");
-        }
-
         void Release()
         {
             if (!engaged)
@@ -602,18 +496,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return;
             GameManager game = GameManager.HasInstance ? GameManager.Instance : null;
             bool ready = game && game.IsReady && game.StreamingWorld;
-            string enemy = "none";
-            if (testEnemy)
-            {
-                Vector3 moved = testEnemy.transform.position - testEnemyStart;
-                enemy = string.Format("{0:F3},{1:F3},{2:F3}", moved.x, moved.y, moved.z);
-            }
+            string enemy = syncTest ? syncTest.EnemyMoved() : "none";
             bridge.LogLine(string.Format(
                 "sync engaged={0} nodraw={1} gps={2},{3} pixel={4},{5} applies={6} teleports={7} wrong_pixel_s={8:F2}/{9:F1} worst_wrong_pixel_s={18:F2} worst_apply_err={10:F2} worst_lag={11:F0} health={12}/{13} enemy_moved={14} mem_mb={15} all_frames={19} over_16ms={20} worst_frame_ms={21:F1} indoor_frames={22} frame {16} | area {17}",
                 engaged, noDraw, ready ? game.PlayerGPS.WorldX : -1, ready ? game.PlayerGPS.WorldZ : -1,
                 ready ? game.StreamingWorld.MapPixelX : -1, ready ? game.StreamingWorld.MapPixelY : -1,
                 applies, teleports, mismatchTotal, alignedTime, worstApplyError, worstLag,
-                ready && game.PlayerEntity != null ? game.PlayerEntity.CurrentHealth : -1, startHealth, enemy,
+                ready && game.PlayerEntity != null ? game.PlayerEntity.CurrentHealth : -1, syncTest ? syncTest.StartHealth : -1, enemy,
                 GC.GetTotalMemory(false) / (1024 * 1024), frameMs.Summary(), areaLatency.Summary(), worstMismatch, alignedFrames, slowFrames, worstFrame * 1000f, indoorFrames));
             bridge.LogLine("syncstat hz=" + (1000000000L / applyIntervalNs) + " outdoor " + outdoorStats.Summary() + " | indoor " + indoorStats.Summary() +
                 " | water test=" + testSink + " flooded_block=" + testWaterBlocks + " saw_swimming=" + sawSwimming + " saw_submerged=" + sawSubmerged);

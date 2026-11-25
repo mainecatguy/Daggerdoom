@@ -65,19 +65,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         ulong lastHash;
         bool resend;
         float nextPoll, popupUntil;
-        string testQuest;
-        bool reportQuest;
-        int lastReportedKills = -1;
+        DoomerfallMonsterQuestTest questTest; // Test only, null without -dfmonsterquest or -dfmonsterreport.
 
         internal void Init(DoomerfallBridge owner, DoomerfallPositionSync positionSync)
         {
             bridge = owner;
             sync = positionSync;
-            string[] args = Environment.GetCommandLineArgs();
-            int at = Array.IndexOf(args, "-dfmonsterquest");
-            if (at >= 0 && at + 1 < args.Length)
-                testQuest = args[at + 1];
-            reportQuest = at >= 0 || Array.IndexOf(args, "-dfmonsterreport") >= 0;
+            questTest = DoomerfallMonsterQuestTest.Create(owner);
             DaggerfallWorkshop.Game.Utility.StartGameBehaviour.OnStartGame += OnStartGame;
         }
 
@@ -179,8 +173,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             nextPoll = Time.unscaledTime + PollSeconds;
             if (sync.LoadRunning || !GameManager.HasInstance || !sync.InGame)
                 return;
-            RunTestQuest();
-            ReportQuest();
+            if (questTest != null)
+                questTest.Poll();
 
             DfbUzState peer;
             bridge.ReadPeerState(out peer);
@@ -543,69 +537,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             string quest = foe.ParentQuest != null ? foe.ParentQuest.QuestName : string.Empty;
             return LootSeed.Of(LootSeed.QuestFoe, quest + "/" + foe.Symbol.Name, mapId, foeMember);
-        }
-
-        // Test only: starts a real quest whose random dungeon resolves to the one at this location.
-        void RunTestQuest()
-        {
-            if (string.IsNullOrEmpty(testQuest))
-                return;
-            GameManager game = GameManager.Instance;
-            if (game.PlayerEnterExit.IsPlayerInside || !game.PlayerGPS.HasCurrentLocation || !game.PlayerGPS.CurrentLocation.HasDungeon)
-                return;
-            string name = testQuest;
-            testQuest = null;
-            DFLocation location = game.PlayerGPS.CurrentLocation;
-            Quest quest = QuestMachine.Instance.ParseQuest(name, QuestMachine.Instance.GetQuestSourceText(name));
-            Place place = quest != null ? quest.GetPlace(new Symbol("_mondung_")) : null;
-            if (place == null)
-            {
-                bridge.LogLine("error: quest " + name + " did not parse with its dungeon place");
-                return;
-            }
-            string rolled = place.SiteDetails.locationName;
-            // Doom has one converted dungeon, so the test points the quest's dungeon at it. Its markers are the real ones.
-            const BindingFlags Any = BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static;
-            object[] markerArgs = { location, null, null };
-            typeof(Place).GetMethod("EnumerateDungeonQuestMarkers", Any).Invoke(place, markerArgs);
-            SiteDetails site = new SiteDetails
-            {
-                questUID = quest.UID,
-                siteType = SiteTypes.Dungeon,
-                mapId = location.MapTableData.MapId,
-                locationId = location.Exterior.ExteriorData.LocationId,
-                regionIndex = location.RegionIndex,
-                regionName = location.RegionName,
-                locationName = location.Name,
-                questSpawnMarkers = (QuestMarker[])markerArgs[1],
-                questItemMarkers = (QuestMarker[])markerArgs[2],
-            };
-            typeof(Place).GetField("siteDetails", Any).SetValue(place, site);
-            QuestMachine.Instance.StartQuest(quest);
-            bridge.LogLine(string.Format("monsters: started quest {0} uid {1}; rolled {2}, test site {3} with {4} spawn markers", name, quest.UID, rolled, location.Name, site.questSpawnMarkers.Length));
-        }
-
-        void ReportQuest()
-        {
-            if (!reportQuest)
-                return;
-            Quest quest = null;
-            foreach (ulong uid in QuestMachine.Instance.GetAllActiveQuests())
-            {
-                Quest candidate = QuestMachine.Instance.GetQuest(uid);
-                if (candidate != null && candidate.GetFoe(new Symbol("_imp_")) != null)
-                    quest = candidate;
-            }
-            if (quest == null)
-                return;
-            Foe foe = quest.GetFoe(new Symbol("_imp_"));
-            Task task = quest.GetTask(new Symbol("_mondead_"));
-            bool triggered = task != null && task.IsTriggered;
-            int state = foe.KillCount * 2 + (triggered ? 1 : 0);
-            if (state == lastReportedKills)
-                return;
-            lastReportedKills = state;
-            bridge.LogLine(string.Format("monsters: quest {0} kills {1}, injured {2}, killed task triggered {3}", quest.UID, foe.KillCount, foe.InjuredTrigger, triggered));
         }
 
         internal void WriteLedger(string folder)

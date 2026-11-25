@@ -23,7 +23,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         DoomerfallBridge bridge;
         DoomerfallPositionSync sync;
-        string testSave; // Test only (-dfplainloadtest <save name>): loads this save when the window opens.
         bool armed, holding;
         string starterClass = "";
         int starterSlot = -1, starterAmmoType = -1, starterAmmo;
@@ -38,9 +37,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             bridge = owner;
             sync = positionSync;
-            int test = Array.IndexOf(args, "-dfplainloadtest");
-            if (test >= 0 && test + 1 < args.Length)
-                testSave = args[test + 1];
             SaveLoadManager.OnStartLoad += OnStartLoad;
             SaveLoadManager.OnLoad += OnLoad;
         }
@@ -64,25 +60,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         // DoomerfallUi: Daggerfall's Load window is showing in Doom.
         internal void WindowOpened()
         {
-            if (testSave != null)
-                StartCoroutine(TestLoad(testSave));
-        }
-
-        // Test only: picks the named save as the player would in the window.
-        IEnumerator TestLoad(string saveName)
-        {
-            yield return new WaitForSecondsRealtime(1f);
-            SaveLoadManager saves = GameManager.Instance.SaveLoadManager;
-            saves.EnumerateSaves();
-            foreach (string character in saves.GetCharacterNames())
-                if (saves.FindSaveFolderByNames(character, saveName) >= 0)
-                {
-                    bridge.LogLine("plain load test: loading \"" + saveName + "\" of " + character);
-                    saves.Load(character, saveName);
-                    DaggerfallUI.Instance.PopToHUD();
-                    yield break;
-                }
-            bridge.LogLine("plain load test: no save named \"" + saveName + "\"");
+            DoomerfallPlainLoadTest.WindowOpened(this, bridge); // Test only, does nothing without -dfplainloadtest
         }
 
         // DoomerfallUi: the Load window closed while the save chosen in it is loading.
