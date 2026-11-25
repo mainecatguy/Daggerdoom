@@ -95,7 +95,7 @@ reason and are written down here.
   a cache only; it is not saved.
 - Monsters spawned during play (summons, lost souls) are not kept once the player leaves.
 - Measured: a cleared level-30 dungeon (about 1,170 corpses, 780 loose items) is a 24 KB blob; the whole
-  `DoomerfallLocations.json` 33 KB raw, 20 KB packed. Door and action states are not kept yet.
+  `DoomerfallLocations.json` 33 KB raw, 20 KB packed. Hinged door positions are planned (card 5); lifts, platforms and action chains reset on each visit.
 
 **Saves.**
 

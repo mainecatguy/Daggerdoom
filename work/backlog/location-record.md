@@ -1,7 +1,7 @@
 # Lightweight location record (replaces location ledger cards 2-3)
 
 **Status (2026-11-24, branch `worktree-agent-aaac61bc76d3610ff`, notes `work/notes/20261124-190017.md`):** cards 1-4
-and 6 built and proven in paired runs; card 5 (doors and actions) not started. Remaining: card 5, and the open items
+and 6 built and proven in paired runs; card 5 (doors only, owner 2026-11-25) not built yet. Remaining: card 5, and the open items
 below.
 
 Started 2026-11-24 in its own session, by the owner's request. Card 1 of the location ledger branch is
@@ -51,7 +51,9 @@ every place the player is not in. (Same pattern as ammo: Doom owns the live load
 - Quest enemies never change the seeded army (`gamedesign.md`, encounters). Quest foes are added on top with their own
   IDs.
 - Map things used up (pickups taken, barrels exploded, keys used) are kept.
-- Doors, switches, lifts and Daggerfall action objects keep their state.
+- Hinged doors keep their position (owner, 2026-11-25). Lifts, platforms, switches, lever chains, riddles and traps
+  (`DFAction`) reset on each visit: a wrong saved state there could softlock a dungeon permanently. Keeping them
+  waits on QA (see `work/future-ideas.md`).
 - Monsters spawned during play (lost souls, summons) are not kept when the player leaves. Doom's snapshot of the
   current map may keep them across a save and load in that map.
 - Items the player drops must be kept, as Doom items, never piles (owner decisions below).
@@ -110,9 +112,9 @@ mook index 14 | dead 1 | x 13 | y 13 | height band 6 | then
 - **`dfi_clear` from `DD_ItemsResync`** (ghost pile fix).
 - **Map pickups:** a used-up bitset in converter order. The tiered ammo pickup inherits its marker's index; jackpot
   members get their own bits or go in the loose list. Area level at first visit goes in the place header.
-- **Doors and `DFAction` movers keep their state**, about 2 bits each (at start or at end, plus used), in `DFDOORS` and
-  `DFACTIONS` order, applied after the plan, mid-move snapped to the destination, sight blockers and collision restored.
-  Its own card near the end, so it can be dropped.
+- **Hinged doors keep their position** (owner, 2026-11-25: doors only), 1 bit each (closed or open) in `DFDOORS` order,
+  applied after the plan, mid-move snapped to the destination, sight blockers and collision restored. A converter
+  version stamp in the place record drops the door bits after a re-convert. `DFAction` objects reset.
 - **Switching Doom mods ends a save.** A mod-set stamp check on load is a follow-up, not part of this work.
 
 ## Decisions added while building (2026-11-24)
@@ -140,8 +142,8 @@ mook index 14 | dead 1 | x 13 | y 13 | height band 6 | then
 
 ## Open items
 
-- Card 5: door, switch, lift and action states. `door_objects.zs` (ddruntime.pk3) and `action_objects.zs` (each
-  dungeon's doors pk3) come from `tools/dungeon_converter`, so the change needs a converter rebuild.
+- Card 5: hinged door positions only. `door_objects.zs` (ddruntime.pk3) comes from `tools/dungeon_converter`, so the
+  runtime pk3 is rebuilt; `action_objects.zs` is not touched.
 - Leaders' drop `ItemData` is most of the death ledger's size; moving it into the loose list needs an owner call.
 - FireMelt's stretched scale is not kept; a burned DRLA corpse comes back at its normal scale.
 - Check DRLA monster drop lists for more than 15 slots (only matters if drops are ever seeded again).
