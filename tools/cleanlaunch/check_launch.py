@@ -92,13 +92,16 @@ def describe(info):
     return f"{exe} [{cls}] '{title}' {state}"
 
 
+EXTRA = []  # More launcher arguments, from --launcher-arg (for example --show-dfu as a negative control).
+
+
 def test_bat(play, run_name):
     text = (play / "play.bat").read_text()
     text = text.replace("%HERE%run", "%HERE%" + run_name)
     launch = re.search(r'^start "" "%HERE%doomerfall-launcher.exe" ', text, re.M)
     if not launch:
         raise SystemExit("play.bat has no launcher line")
-    extra = "--uzdoom-arg -noactivate --uzdoom-arg -nosound --dfu-arg -dfmute "
+    extra = "--uzdoom-arg -noactivate --uzdoom-arg -nosound --dfu-arg -dfmute " + "".join(a + " " for a in EXTRA)
     # Run the launcher in this console instead of start, so this script can wait on it.
     text = text[:launch.start()] + '"%HERE%doomerfall-launcher.exe" ' + extra + text[launch.end():]
     bat = play / "check-launch.bat"
@@ -197,7 +200,9 @@ def main():
     ap.add_argument("--launches", type=int, default=3)
     ap.add_argument("--seconds", type=float, default=40)
     ap.add_argument("--fresh", action="store_true")
+    ap.add_argument("--launcher-arg", action="append", default=[])
     args = ap.parse_args()
+    EXTRA.extend(args.launcher_arg)
     print("screen", SCREEN)
     results = [launch_once(args.play, i + 1, args.seconds, args.fresh or i == 0) for i in range(args.launches)]
     print(f"{sum(results)} of {len(results)} launches passed")
