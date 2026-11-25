@@ -88,7 +88,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_HOTKEY = 150;  // UZ to DF; a hotkey press on a generated map; request is the key 0-9, status DFB_HOTKEY_PLAIN, _CTRL, or _ALT
         public const ushort KIND_GUN_STATE = 151;  // both ways; one state line of the gun named by the next GUN_EQUIP (DF to UZ) or GUN_STASHED (UZ to DF) with the same request
         public const ushort KIND_GUN_EQUIP = 152;  // DF to UZ; take every gun Doom holds and give this one (a world pickup class), without changing ammo; status DFB_GUN_*
-        public const ushort KIND_GUN_STASHED = 153;  // UZ to DF; Doom took this gun (pickup class) away; its GUN_STATE lines came just before. Request 0, status 8: Doom's own drop (DRLA WeaponDrop, weapdrop) left the active gun on the ground as this pickup, carrying its state
+        public const ushort KIND_GUN_STASHED = 153;  // UZ to DF; Doom took this gun (pickup class) away; its GUN_STATE lines came just before
         public const ushort KIND_GUN_KEPT = 154;  // UZ to DF; DFB_GUN_ADOPT kept Doom's ready gun (pickup class) as the active one
         public const ushort KIND_GUN_EQUIPPED = 155;  // UZ to DF; the request is done; status DFB_ITEM_TAKEN, or DFB_ITEM_REFUSED when Doom could not give the gun
         public const uint HOTKEY_PLAIN = 0;

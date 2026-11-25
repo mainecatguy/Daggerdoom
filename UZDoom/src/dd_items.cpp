@@ -994,8 +994,7 @@ bool DD_ItemsNetEvent(dfb_session *session, const char *name)
 	{
 		static const struct { const char *word; uint16_t kind; } kinds[] = {
 			{ "state:", DFB_KIND_GUN_STATE }, { "stashed:", DFB_KIND_GUN_STASHED }, { "kept:", DFB_KIND_GUN_KEPT }, { "done:", DFB_KIND_GUN_EQUIPPED },
-			{ "dropped:", DFB_KIND_DOOM_ITEM_USED },	// [Doomerfall] a dropped Doom item's pickup was spawned, or not
-			{ "lost:", DFB_KIND_GUN_STASHED } };	// [Doomerfall] Doom's own drop took the active gun: request 0, status 8
+			{ "dropped:", DFB_KIND_DOOM_ITEM_USED } };	// [Doomerfall] a dropped Doom item's pickup was spawned, or not
 		for (auto &k : kinds)
 		{
 			const size_t n = strlen(k.word);

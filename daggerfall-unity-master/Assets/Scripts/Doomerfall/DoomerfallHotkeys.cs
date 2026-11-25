@@ -328,9 +328,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 case Dfb.KIND_GUN_STATE:
                     if (req == request) stashLines.Add(cls + "=" + status);
                     break;
-                case Dfb.KIND_GUN_STASHED:
-                    if (req == 0 && status == LostStatus) OnLost(cls); else OnStashed(req, cls);
-                    break;
+                case Dfb.KIND_GUN_STASHED: OnStashed(req, cls); break;
                 case Dfb.KIND_GUN_KEPT: OnKept(req, cls); break;
                 case Dfb.KIND_GUN_EQUIPPED: OnEquipped(req, status, cls); break;
             }
@@ -463,47 +461,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
             else
                 Log(string.Format("Doom held an unexpected gun \"{0}\" (state \"{1}\"); not added", cls, state));
-        }
-
-        // Doom's own drop (DRLA's WeaponDrop, weapdrop) left the active gun on the ground as this pickup, carrying the
-        // gun's state (DoomerfallGuns.LostGun). The gun is no longer Daggerfall's: its item leaves the inventory and its
-        // squares are cleared at once, so a quick retake finds its key free. Doom has already put it away, so nothing
-        // is sent back; the gun lives on only as the pickup, which a Use take brings back as a new item.
-        const uint LostStatus = 8;
-
-        static string GunBase(string cls)
-        {
-            if (cls.EndsWith("Modded")) cls = cls.Substring(0, cls.Length - 6);
-            if (cls.EndsWith("Pickup")) cls = cls.Substring(0, cls.Length - 6);
-            return cls;
-        }
-
-        void OnLost(string cls)
-        {
-            DoomerfallDoomItem active = activeItem as DoomerfallDoomItem;
-            if (active == null || GunBase(active.DoomClass) != GunBase(cls))
-            {
-                Log(string.Format("Doom dropped \"{0}\", which is not the active gun \"{1}\"; nothing changed", cls, active != null ? active.DoomClass : "none"));
-                return;
-            }
-            activeItem = null;
-            activeKey = activeSquare = -1;
-            for (int k = 0; k < Keys; k++)
-                for (int q = 0; q < Squares; q++)
-                    if (table[k, q] != null && table[k, q].uid == active.UID)
-                        Clear(k, q);
-            ItemCollection items = GameManager.Instance.PlayerEntity.Items;
-            items.RemoveItem(active);
-            Log(string.Format("Doom dropped the active gun \"{0}\" as \"{1}\"; removed from the inventory, doom items {2}", active.ItemName, cls, CountDoomItems(items)));
-            RefreshInventory();
-        }
-
-        static int CountDoomItems(ItemCollection items)
-        {
-            int n = 0;
-            for (int i = 0; i < items.Count; i++)
-                if (items.GetItem(i) is DoomerfallDoomItem) n++;
-            return n;
         }
 
         DoomerfallDoomItem Adopt(string cls)
