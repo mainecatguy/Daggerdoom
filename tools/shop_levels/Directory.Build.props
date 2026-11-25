@@ -1,0 +1,8 @@
+<Project>
+  <!-- Keep build output outside the repository. Lane worktrees pass -p:ShopLevelsBuildRoot=... -->
+  <PropertyGroup>
+    <ShopLevelsBuildRoot Condition="'$(ShopLevelsBuildRoot)' == ''">$(MSBuildThisFileDirectory)..\..\..\DoomDaggerfall-build\shop_levels\</ShopLevelsBuildRoot>
+    <BaseIntermediateOutputPath>$(ShopLevelsBuildRoot)obj\</BaseIntermediateOutputPath>
+    <BaseOutputPath>$(ShopLevelsBuildRoot)bin\</BaseOutputPath>
+  </PropertyGroup>
+</Project>
