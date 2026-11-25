@@ -334,8 +334,10 @@ namespace DaggerfallWorkshop
                 RaiseOnMapPixelChangedEvent(pos);
 
                 // Clear non-permanent scenes from cache, unless going to/from owned ship
+                // Doomerfall: persistence is total, so a bridge session never forgets a place's cached state.
                 DFPosition shipCoords = DaggerfallBankManager.GetShipCoords();
-                if (shipCoords == null || (!(pos.X == shipCoords.X && pos.Y == shipCoords.Y) && !(lastMapPixelX == shipCoords.X && lastMapPixelY == shipCoords.Y)))
+                if (!Game.Doomerfall.DoomerfallBridge.SessionActive &&
+                    (shipCoords == null || (!(pos.X == shipCoords.X && pos.Y == shipCoords.Y) && !(lastMapPixelX == shipCoords.X && lastMapPixelY == shipCoords.Y))))
                     SaveLoadManager.ClearSceneCache(false);
 
                 lastMapPixelX = pos.X;
