@@ -272,7 +272,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         internal void OnTake(uint request, uint flags, string cls)
         {
             // The same floor item rolls the same material in every game; an item without a lasting id rolls freely.
-            int lootSeed = takeIdRequest == request && takeId != 0 ? LootSeed.Of(LootSeed.DoomFloorItem, cls, (long)takeId) : 0;
+            ulong floorId = takeIdRequest == request ? takeId : 0;
+            int lootSeed = floorId != 0 ? LootSeed.Of(LootSeed.DoomFloorItem, cls, (long)floorId) : 0;
             takeIdRequest = 0;
             takeId = 0;
             uint status = Dfb.ITEM_TAKEN;
@@ -299,7 +300,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 DoomerfallHotkeys.Instance.OnGunTaken(taken, (int)((flags & Dfb.DOOM_ITEM_SLOT_MASK) >> (int)Dfb.DOOM_ITEM_SLOT_SHIFT) - 1);
             bridge.LogLine(string.Format("doomitems: take {0} \"{1}\" flags 0x{6:x}: status {2}, carried {3:F2}/{4} kg, doom items {5}{7}",
                 request, cls, status, player != null ? player.CarriedWeight : 0, player != null ? player.MaxEncumbrance : 0, player != null ? Count(player.Items) : 0,
-                flags, taken != null ? ", stored as \"" + taken.shortName + "\"" + (taken.IsGun ? " material " + taken.Material + " at area level " + WorldLevel.Current : "") : ""));
+                flags, taken != null ? ", stored as \"" + taken.shortName + "\"" + (taken.IsGun ? " material " + taken.Material + " at area level " + WorldLevel.Current : "") : "")
+                + string.Format(", floor id {0:x16}", floorId));
         }
 
         static int Count(ItemCollection items)
