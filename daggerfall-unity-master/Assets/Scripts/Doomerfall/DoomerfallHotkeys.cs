@@ -102,6 +102,16 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         // The gun Doom holds, or null. Its loaded ammo tier is DoomerfallAmmo's business.
         internal DoomerfallDoomItem ActiveGun { get { return activeItem as DoomerfallDoomItem; } }
 
+        // The gun Doom held was dropped to the ground as its Doom pickup (DoomerfallDoomItems.DropToDoom): Doom's hands are empty.
+        internal void ForgetActive(DaggerfallUnityItem item)
+        {
+            if (item == null || item != activeItem)
+                return;
+            activeItem = null;
+            activeKey = activeSquare = -1;
+            Log(string.Format("the active gun \"{0}\" was dropped; no gun is active", item.ItemName));
+        }
+
         void OnNewGame() { ResetState(); DoomerfallAmmo.LoadTiers(null); Log("new game: table cleared, the starting gun will be adopted"); }
         void OnStartLoad(SaveData_v1 data) { request = 0; stashLines.Clear(); }
 

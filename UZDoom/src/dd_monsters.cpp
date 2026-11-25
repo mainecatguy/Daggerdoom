@@ -17,6 +17,7 @@
 
 #include "../../bridge/doomerfall_bridge.h"
 #include "dd_encounter_placer.h"
+#include "dd_locations.h"
 #include "vm.h"
 #include "actor.h"
 #include "c_cvars.h"
@@ -50,9 +51,11 @@ struct Facts
 };
 // One request placement: a map marker, or a living quest foe's encounter from Daggerfall's list.
 struct Placement { uint64_t placement; DVector3 pos; int enemyType; bool quest; };
-// A dungeon's first encounter request. The world table stores only changed mooks (dd_treadmill.cpp Park), so every
-// visit plans again and spawns the mooks that are neither dead nor present. The plan depends on the whole request, so
-// a revisit reuses the first visit's quest placements, dead or alive, and gets the same mooks on the same spots.
+// A dungeon's seeded army. Every visit plans again and spawns the mooks that are neither dead nor present. The army's
+// request holds only the map's markers and its placer ignores who stands where, so every visit plans the same mooks on
+// the same spots (PlanVersion names that rule). Quest foes are a second request, planned around the army's spots, so a
+// quest never changes the army (gamedesign.md, encounters). `quests` is no longer filled; it stays for old records.
+constexpr int PlanVersion = 1;
 struct DungeonPlan { std::vector<Placement> quests; int mooks = 0; };
 std::unordered_map<int, DungeonPlan> plans;
 
@@ -176,7 +179,7 @@ void CollectMarkers(FLevelLocals *Level)
 }
 
 // Plans and places every mook (dd_encounter_placer.cpp). False when the planner or the facts are missing.
-bool PlaceMooks(FLevelLocals *Level, const std::vector<Placement> &list, std::vector<DDEncMookOut> &mooks)
+bool PlaceMooks(FLevelLocals *Level, const std::vector<Placement> &list, std::vector<DDEncMookOut> &mooks, const std::vector<DDEncMookOut> *occupied)
 {
 	if (!facts.have) return false;
 	const dfb_encounter_area &a = facts.area;
@@ -186,7 +189,7 @@ bool PlaceMooks(FLevelLocals *Level, const std::vector<Placement> &list, std::ve
 	header.AppendFormat("location\t%s\nregion\t%s\n", facts.location.GetChars(), facts.region.GetChars());
 	std::vector<DDEncPlacementIn> in;
 	for (const Placement &p : list) in.push_back({ p.placement, p.pos, p.enemyType, p.quest });
-	if (!DD_PlaceEncounters(Level, header, in, mooks)) return false;
+	if (!DD_PlaceEncounters(Level, header, in, mooks, occupied)) return false;
 	int mismatched = 0;
 	for (const DDEncMookOut &m : mooks)
 		mismatched += m.member == 0 && m.id != LeaderId(list[m.placement].placement);
@@ -194,96 +197,88 @@ bool PlaceMooks(FLevelLocals *Level, const std::vector<Placement> &list, std::ve
 	return true;
 }
 
-// Builds the request from the markers and the quest foes, plans and places every mook, then spawns the ones that are
-// missing and not dead. Map encounters are spawned once, on a first visit; quest foe encounters whenever Daggerfall
-// lists their leader alive and it is missing.
+// Plans one request and spawns the wanted placements' mooks that are neither dead nor present (spawn false: plan only).
+// planOut receives the planned mooks; occupied are an earlier request's mooks to keep clear of.
 void SpawnPass(FLevelLocals *Level, const std::vector<Placement> &list, const std::unordered_set<uint64_t> &wanted, const std::unordered_set<uint64_t> &dead,
-	const std::unordered_set<uint64_t> &present, bool mapLeaders, bool revisit, int *planned);
+	const std::unordered_set<uint64_t> &present, bool spawn, const char *what, std::vector<DDEncMookOut> *planOut, const std::vector<DDEncMookOut> *occupied);
 
+// Two requests. The army: the map's markers alone, planned on every visit that still has mooks to spawn (a cleared
+// dungeon is not planned again). The quest foes: Daggerfall's living quest leaders, planned around the army's spots
+// whenever one is missing, so the army is the same whatever quests are active. A quest request needs the army's
+// spots, so it plans the army (without spawning) when the army itself was not needed.
 void SpawnEncounters(FLevelLocals *Level, bool mapLeaders)
 {
 	std::unordered_set<uint64_t> dead, present;
-	std::vector<Placement> list, living;
-	for (const Marker &m : markers) list.push_back({ m.placement, m.pos, m.record == 16 ? (m.mobile & 0xff) : -1, false });
+	std::vector<Placement> army, quests;
+	for (const Marker &m : markers) army.push_back({ m.placement, m.pos, m.record == 16 ? (m.mobile & 0xff) : -1, false });
 	for (const Row &r : incoming)
 	{
 		if (r.state == DFB_MONSTER_DEAD) dead.insert(r.id);
-		else if (r.state == DFB_MONSTER_PLACE && (r.id & MemberMask) == 0) living.push_back({ PlacementOf(r.id), r.pos, r.enemyType, true });
+		else if (r.state == DFB_MONSTER_PLACE && (r.id & MemberMask) == 0) quests.push_back({ PlacementOf(r.id), r.pos, r.enemyType, true });
 	}
-	auto byPlacement = [](const Placement &a, const Placement &b) { return a.placement < b.placement; };
-	std::sort(living.begin(), living.end(), byPlacement);
+	std::sort(quests.begin(), quests.end(), [](const Placement &a, const Placement &b) { return a.placement < b.placement; });
 	{
 		auto it = Level->GetThinkerIterator<AActor>();
 		while (AActor *mo = it.Next()) if (IsMonsterId(mo->ddRecordId)) present.insert(mo->ddRecordId);
 		for (const Claim &c : claims) present.insert(c.id);
 	}
-	// Pass 1 is the first visit's request. Pass 2 holds quest foes that came after it, planned with everything, as before.
 	auto known = plans.find(dungeonMapId);
 	const bool revisit = known != plans.end();
-	const std::vector<Placement> stored = revisit ? known->second.quests : living;
-	std::unordered_set<uint64_t> inStored;
-	for (const Placement &p : stored) inStored.insert(p.placement);
-	std::vector<Placement> extra;
-	for (const Placement &p : living) if (!inStored.count(p.placement)) extra.push_back(p);
-	const int quests = int(stored.size() + extra.size());
 	auto missing = [&](const Placement &p) { return !dead.count(LeaderId(p.placement)) && !present.count(LeaderId(p.placement)); };
-	std::unordered_set<uint64_t> wantedFirst, wantedExtra;
+	std::unordered_set<uint64_t> wantedArmy, wantedQuests;
 	if (mapLeaders)
 	{
-		// Every placement of the first request. A cleared dungeon (all its mooks dead or present) is not planned again.
-		std::unordered_set<uint64_t> placements;
-		for (const Placement &p : list) placements.insert(p.placement);
-		for (const Placement &p : stored) placements.insert(p.placement);
 		int accounted = 0;
+		std::unordered_set<uint64_t> placements;
+		for (const Placement &p : army) placements.insert(p.placement);
 		for (const auto *set : { &dead, &present })
 			for (uint64_t id : *set) accounted += placements.count(PlacementOf(id)) != 0 && !(set == &present && dead.count(id));
-		if (!revisit || accounted < known->second.mooks) wantedFirst = placements;
+		if (!revisit || accounted < known->second.mooks) wantedArmy = placements;
 		else Printf("DDENC all %d planned mooks are dead or present; not planning again\n", known->second.mooks);
 	}
-	else
-		for (const Placement &p : stored) if (missing(p)) wantedFirst.insert(p.placement);
-	for (const Placement &p : extra) if (mapLeaders || missing(p)) wantedExtra.insert(p.placement);
-	std::vector<Placement> first = list;
-	first.insert(first.end(), stored.begin(), stored.end());
-	const bool needed = !wantedFirst.empty() || !wantedExtra.empty();
+	for (const Placement &p : quests) if (mapLeaders || missing(p)) wantedQuests.insert(p.placement);
 	if (mapLeaders && facts.have)
 	{
 		const dfb_encounter_area &a = facts.area;
-		Printf("DDENC facts map %d dungeonIndex %d locationId %d name '%s' region %d '%s' world %.1f,%.1f type %d (%s) areaLevel %d seedOffset %d markers %d quest %d dead %d\n",
+		Printf("DDENC facts map %d dungeonIndex %d locationId %d name '%s' region %d '%s' world %.1f,%.1f type %d (%s) areaLevel %d seedOffset %d markers %d quest %d dead %d plan version %d\n",
 			a.map_id, a.dungeon_index, a.location_id, facts.location.GetChars(), a.region_index, facts.region.GetChars(), a.world_x, a.world_y,
-			a.dungeon_type, facts.type.GetChars(), a.area_level, a.seed_offset, int(markers.size()), quests, int(dead.size()));
+			a.dungeon_type, facts.type.GetChars(), a.area_level, a.seed_offset, int(markers.size()), int(quests.size()), int(dead.size()), PlanVersion);
 	}
-	if (!needed) return;
-	int planned = -1;
-	if (!wantedFirst.empty()) SpawnPass(Level, first, wantedFirst, dead, present, mapLeaders, revisit && mapLeaders, &planned);
-	if (mapLeaders && !revisit && planned >= 0) plans[dungeonMapId] = DungeonPlan{ stored, planned };
-	if (!wantedExtra.empty())
+	if (wantedArmy.empty() && wantedQuests.empty()) return;
+	std::vector<DDEncMookOut> armyMooks;
+	if (!army.empty())
 	{
-		std::vector<Placement> all = first;
-		all.insert(all.end(), extra.begin(), extra.end());
-		std::sort(all.begin() + markers.size(), all.end(), byPlacement);
-		SpawnPass(Level, all, wantedExtra, dead, present, mapLeaders, false, nullptr);
+		SpawnPass(Level, army, wantedArmy, dead, present, !wantedArmy.empty(), wantedArmy.empty() ? "army spots for the quest foes" : revisit ? "army, revisit" : "army",
+			&armyMooks, nullptr);
+		if (mapLeaders && !revisit && !armyMooks.empty()) plans[dungeonMapId] = DungeonPlan{ {}, int(armyMooks.size()) };
 	}
+	if (!wantedQuests.empty()) SpawnPass(Level, quests, wantedQuests, dead, present, true, "quest foes", nullptr, &armyMooks);
 }
 
 // Plans one request and spawns the mooks of the wanted placements that are neither dead nor present. A quest foe that
 // arrives during a visit comes back whole only when its leader is missing; its followers are skipped by id.
 void SpawnPass(FLevelLocals *Level, const std::vector<Placement> &list, const std::unordered_set<uint64_t> &wanted, const std::unordered_set<uint64_t> &dead,
-	const std::unordered_set<uint64_t> &present, bool mapLeaders, bool revisit, int *planned)
+	const std::unordered_set<uint64_t> &present, bool spawn, const char *what, std::vector<DDEncMookOut> *planOut, const std::vector<DDEncMookOut> *occupied)
 {
 	std::vector<DDEncMookOut> mooks;
 	const auto t0 = std::chrono::steady_clock::now();
-	// A revisit plans with the monsters the table brought back out of the way, as they were on the first visit, so the
-	// rebuilt mooks get the same spots.
+	// The plan must not depend on who stands where: every player and monster (restored, spawned, or a mod's) is out of
+	// the way while placing. Door and action objects stay solid; no state is applied to them before the plan, so they
+	// are always at their start pose here.
 	std::vector<AActor *> unsolid;
-	if (revisit)
 	{
 		auto it = Level->GetThinkerIterator<AActor>();
 		while (AActor *mo = it.Next())
-			if (IsMonsterId(mo->ddRecordId) && (mo->flags & MF_SOLID)) { mo->flags &= ~MF_SOLID; unsolid.push_back(mo); }
+			if ((mo->player || (mo->flags3 & MF3_ISMONSTER)) && (mo->flags & MF_SOLID)) { mo->flags &= ~MF_SOLID; unsolid.push_back(mo); }
 	}
-	const bool ok = PlaceMooks(Level, list, mooks);
+	const bool ok = PlaceMooks(Level, list, mooks, occupied);
 	for (AActor *mo : unsolid) mo->flags |= MF_SOLID;
+	if (ok && planOut) *planOut = mooks;
+	if (ok && !spawn)
+	{
+		Printf("DDENC planned %d mooks for %d placements (%s), none spawned\n", int(mooks.size()), int(list.size()), what);
+		return;
+	}
 	if (!ok)
 	{
 		Printf("DDENC no plan (planner or facts missing); using the stock roster\n");
@@ -297,7 +292,6 @@ void SpawnPass(FLevelLocals *Level, const std::vector<Placement> &list, const st
 		Printf("DDENC spawned %d stock leaders of %d placements\n", spawned, int(list.size()));
 		return;
 	}
-	if (planned) *planned = int(mooks.size());
 	int spawned = 0, leaders = 0, skippedDead = 0, skippedPresent = 0, stuck = 0, stuckLeaders = 0, warSide[2] = { 0, 0 }, warStance[2] = { 0, 0 };
 	for (const DDEncMookOut &m : mooks) if (m.side >= 0) warStance[m.side & 1] = m.stance;
 	std::vector<std::pair<AActor *, bool>> fresh;
@@ -321,14 +315,14 @@ void SpawnPass(FLevelLocals *Level, const std::vector<Placement> &list, const st
 		if (!(f.first->ObjectFlags & OF_EuthanizeMe) && !P_TestMobjLocation(f.first)) { stuck++; stuckLeaders += f.second; }
 	const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
 	Printf("DDENC spawned %d mooks (%d leaders) of %d planned for %d placements (%d dead, %d already present), stuck %d (%d leaders), %.1f ms with spawning%s\n",
-		spawned, leaders, int(mooks.size()), int(list.size()), skippedDead, skippedPresent, stuck, stuckLeaders, ms, revisit ? ", revisit" : mapLeaders ? "" : ", quest foes only");
+		spawned, leaders, int(mooks.size()), int(list.size()), skippedDead, skippedPresent, stuck, stuckLeaders, ms, FStringf(", %s", what).GetChars());
 	if (warSide[0] + warSide[1])
 		Printf("DDWAR civil war: army A %d mooks stance %d, army B %d mooks stance %d\n", warSide[0], warStance[0], warSide[1], warStance[1]);
 }
 
 void ApplyRows(FLevelLocals *Level)
 {
-	if (!incomingReady) return;
+	if (!incomingReady || DD_LocationsWaiting()) return;	// Daggerfall's record of the place comes first.
 	incomingReady = false;
 	facts = incomingFacts;
 	const bool mapLeaders = leadersPending && facts.have && facts.area.map_id == dungeonMapId;
@@ -427,6 +421,26 @@ void DD_MonstersLoadPlans(const FString &text)
 	}
 }
 
+// The location ledger (dd_locations.cpp) keeps each dungeon's plan in Daggerfall's record, so a rebuilt place plans
+// exactly as its first visit did even when Doom's own copy is gone.
+bool DD_MonstersPlanOf(int mapId, int &mooks, std::vector<DDPlanQuest> &quests)
+{
+	auto it = plans.find(mapId);
+	if (it == plans.end()) return false;
+	mooks = it->second.mooks;
+	quests.clear();
+	for (const Placement &p : it->second.quests) quests.push_back({ p.placement, p.pos.X, p.pos.Y, p.pos.Z, p.enemyType });
+	return true;
+}
+
+void DD_MonstersSetPlan(int mapId, int mooks, const std::vector<DDPlanQuest> &quests)
+{
+	DungeonPlan &plan = plans[mapId];
+	plan.mooks = mooks;
+	plan.quests.clear();
+	for (const DDPlanQuest &q : quests) plan.quests.push_back({ q.placement, DVector3(q.x, q.y, q.z), q.enemyType, true });
+}
+
 // Test only (dd_encounter_test.cpp, -ddenctest): plans and spawns this map's encounters from given facts.
 void DD_MonstersTestEncounters(FLevelLocals *Level, const dfb_encounter_area &a, const char *location, const char *region, const char *type)
 {
@@ -438,6 +452,7 @@ void DD_MonstersTestEncounters(FLevelLocals *Level, const dfb_encounter_area &a,
 
 void DD_MonstersTick(FLevelLocals *Level)
 {
+	DD_LocationsTick(Level);
 	ApplyRows(Level);
 	RunClaims(Level);
 	RunTestKill(Level);

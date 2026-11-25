@@ -25,6 +25,17 @@ class Doomerfall_Events : StaticEventHandler
 		if (at < 0) at = d.mItems.Size();
 		let item = new("OptionMenuItemSubmenu").Init("Doomerfall Controls", 'DoomerfallControlsMenu');
 		d.mItems.Insert(at, item);
+		// Items leave only by Daggerfall's inventory window (d_net.cpp, DoomerfallGuns), so the drop keys are hidden.
+		// The commands and bindings stay for other wads.
+		HideControls('InventoryControlsMenu', 'weapdrop', 'invdrop');
+		HideControls('DRLAControlsMenu', '+zoom', 'rl_specialitemdropper'); // DRLA's "Drop Item", "Remove Special Item"
+	}
+
+	static ui void HideControls(Name menu, Name a, Name b)
+	{
+		let d = OptionMenuDescriptor(MenuDescriptor.GetDescriptor(menu));
+		for (int i = d ? d.mItems.Size() - 1 : -1; i >= 0; i--)
+			if (d.mItems[i] is "OptionMenuItemControlBase" && (d.mItems[i].GetAction() == a || d.mItems[i].GetAction() == b)) d.mItems.Delete(i);
 	}
 
 	// True on a generated Daggerfall map in a bridge session. The engine sends it when the map context changes (dd_items.cpp).
