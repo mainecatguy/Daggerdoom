@@ -114,7 +114,6 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 
 - [Daggerfall skills in Doom](backlog/skills-in-doom.md): Owner decisions so far and the proposal; 35 skills for now.
 - [Original weapon skills in Doom](backlog/original-weapon-skills.md): Short Blade, Long Blade, Axe, Blunt, Archery stay; make them work.
-- [Akimbo pistols](backlog/akimbo-pistols.md): Second pistol hotkey draws it in the other hand; alternating fire. Feasible.
 - [Brutal Doom and a melee mod](backlog/brutal-melee-mods.md): Later, after mod compatibility research.
 - [Mod compatibility research](backlog/mod-compatibility-research.md): Specialist reviews history; new mods' weapons work with Daggerfall systems.
 - [Player manual](backlog/player-manual.md): Specialist task; main-only features, referenced in the repo map.
