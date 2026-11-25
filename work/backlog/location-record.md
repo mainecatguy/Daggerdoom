@@ -1,8 +1,8 @@
 # Lightweight location record (replaces location ledger cards 2-3)
 
 **Status (2026-11-24, branch `worktree-agent-aaac61bc76d3610ff`, notes `work/notes/20261124-190017.md`):** cards 1-4
-and 6 built and proven in paired runs; card 5 (doors only, owner 2026-11-25) not built yet. Remaining: card 5, and the open items
-below.
+and 6 built and proven in paired runs; card 5 (doors only, owner 2026-11-25) built 2026-11-25 (dungeon doors; city gates not
+covered, see the notes' "Card 5"). Remaining: the open items below.
 
 Started 2026-11-24 in its own session, by the owner's request. Card 1 of the location ledger branch is
 merged into integration (`69a48fd`); cards 2-3 (`agent/locationledger-20261124-141035`) are replaced by this design.
@@ -142,8 +142,8 @@ mook index 14 | dead 1 | x 13 | y 13 | height band 6 | then
 
 ## Open items
 
-- Card 5: hinged door positions only. `door_objects.zs` (ddruntime.pk3) comes from `tools/dungeon_converter`, so the
-  runtime pk3 is rebuilt; `action_objects.zs` is not touched.
+- Card 5 left city gates (`DFGATES` in town maps, exterior chunk records) resetting; they need their own stamp and a
+  chunk key, and Daggerfall's gates may follow their own open hours.
 - Leaders' drop `ItemData` is most of the death ledger's size; moving it into the loose list needs an owner call.
 - FireMelt's stretched scale is not kept; a burned DRLA corpse comes back at its normal scale.
 - Check DRLA monster drop lists for more than 15 slots (only matters if drops are ever seeded again).

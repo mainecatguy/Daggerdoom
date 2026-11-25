@@ -2261,6 +2261,26 @@ bool DDTreadmill_CurrentDungeon(int &mapId)
 	return true;
 }
 
+// [Doomerfall] Hinged doors keep their position: one fact whose name text is door_objects.zs's "<stamp> <bits>".
+static FString DoorRecord()
+{
+	VMFunction *func = nullptr;
+	FString text;
+	PClass::FindFunction(&func, "DFDoorHandler", "Distill");
+	if (func) { VMReturn ret(&text); VMCall(func, nullptr, 0, &ret, 1); }
+	return text;
+}
+
+static void RestoreDoors(const char *place, FString text)
+{
+	VMFunction *func = nullptr;
+	int open = -2;
+	PClass::FindFunction(&func, "DFDoorHandler", "Restore");
+	if (func) { VMValue params[] = { &text }; VMReturn ret(&open); VMCall(func, params, 1, &ret, 1); }
+	if (open >= 0) Printf("DDLOC %s: doors restored, %d open\n", place, open);
+	else Printf("DDLOC %s: the doors were recorded from another conversion; they reset\n", place);
+}
+
 // The current dungeon's record as it stands: its cached rows, overridden by what every live actor would park as.
 void DDTreadmill_SnapshotPlace(FLevelLocals *Level, std::vector<DDPlaceFact> &out)
 {
@@ -2299,15 +2319,20 @@ void DDTreadmill_SnapshotPlace(FLevelLocals *Level, std::vector<DDPlaceFact> &ou
 			break;
 		}
 	}
-	out.reserve(rows.size());
+	out.reserve(rows.size() + 1);
 	for (auto &kv : rows) out.push_back(ToFact(kv.second, t));
+	DDPlaceFact doors;
+	doors.death = DoorRecord();
+	doors.kind = DFB_FACT_DOORS;
+	doors.cls = "DFDOORS";
+	if (doors.death.IsNotEmpty()) out.push_back(doors);
 }
 
 // Daggerfall's record of the dungeon just entered. When Doom's cache already holds the same facts, nothing changes.
 // Otherwise (the cache is gone or older, as after a load without the world table) the place is rebuilt from the
 // record: what the cache restored is removed, and every fact is applied. Mooks the record does not list are spawned
 // afterwards by the encounter plan, as on any visit.
-void DDTreadmill_ApplyPlace(FLevelLocals *Level, const DDPlaceKey &place, const std::vector<DDPlaceFact> &facts)
+void DDTreadmill_ApplyPlace(FLevelLocals *Level, const DDPlaceKey &place, const std::vector<DDPlaceFact> &record)
 {
 	DDPlaceKey current;
 	if (!DDTreadmill_CurrentSpace(current) || !(current == place))
@@ -2318,6 +2343,10 @@ void DDTreadmill_ApplyPlace(FLevelLocals *Level, const DDPlaceKey &place, const 
 	const Town &t = towns[currentTown];
 	const char *name = t.place.GetChars();
 	visitedSpaces.insert(t.place.GetChars());
+	std::vector<DDPlaceFact> facts;
+	for (const DDPlaceFact &f : record)
+		if (f.kind != DFB_FACT_DOORS) facts.push_back(f);
+		else RestoreDoors(name, f.death);
 	std::vector<uint64_t> oldIds;
 	std::vector<std::string> mine, theirs;
 	for (auto &kv : table)

@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x472f8d2d3df37658UL;
+        public const ulong SchemaHash = 0xdc96ae104c8f1256UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -268,6 +268,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint FACT_CORPSE = 1;  // dead, lying here
         public const uint FACT_ITEM = 2;  // an item lying here: moved, changed, or dropped
         public const uint FACT_GONE = 3;  // taken or destroyed
+        public const uint FACT_DOORS = 4;  // a dungeon's hinged doors: death is the name "<stamp> <hex bits>" (door_objects.zs), id 0
         public const uint FACT_DROPPED = 1;  // dfb_place_fact.flags: Doom's MF_DROPPED
         public const uint FACT_SESSION = 2;  // dfb_place_fact.flags: the id is Doom's own for this session (a drop), not a Daggerfall id
         public const uint PLACE_NO_NAME = 65535;

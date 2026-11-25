@@ -656,6 +656,7 @@ typedef struct dfb_encounter_text
 #define DFB_FACT_CORPSE         1u   /* dead, lying here */
 #define DFB_FACT_ITEM           2u   /* an item lying here: moved, changed, or dropped */
 #define DFB_FACT_GONE           3u   /* taken or destroyed */
+#define DFB_FACT_DOORS          4u   /* a dungeon's hinged doors: death is the name "<stamp> <hex bits>" (door_objects.zs), id 0 */
 #define DFB_FACT_DROPPED        1u   /* dfb_place_fact.flags: Doom's MF_DROPPED */
 #define DFB_FACT_SESSION        2u   /* dfb_place_fact.flags: the id is Doom's own for this session (a drop), not a Daggerfall id */
 #define DFB_PLACE_NO_NAME       65535u
