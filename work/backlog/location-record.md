@@ -95,8 +95,10 @@ mook index 14 | dead 1 | x 13 | y 13 | height band 6 | then
 
 ## Open items
 
-- Player drops: confirm every player drop goes through a Daggerfall loot pile (ammo dropped from the inventory window
-  already does). If Doom has its own drop path, route it into a pile.
+- Player drops (owner, 2026-11-24): no piles. Doom has three drop paths that bypass piles (DRLA weapon drop, DRLA
+  backpack toss, `weapdrop`/`invdrop`). Loose Doom items stay Doom items: one packed list per place in Daggerfall,
+  with carried state (gun mods). Proposal in `work/notes/20261124-170415.md`.
+- Doors: owner answer read as "resetting on leave is acceptable"; to confirm against the rule above.
 - Check DRLA monster drop lists for more than 15 slots.
 - Doors: list which door, lift and action states exist on converted Daggerfall maps.
 
