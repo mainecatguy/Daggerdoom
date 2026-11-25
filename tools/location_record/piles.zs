@@ -5,8 +5,8 @@ version "4.14"
 // Route "first": in town, Daggerfall drops a pile; step out of town, warp 300 tiles away (more than two map pixels, so
 // Daggerfall wipes its scene cache), warp back and walk into town again. Enter Privateer's Hold, clear it; Daggerfall
 // drops a pile and a modded DRLA shotgun (its own Doom pickup); print the pickup; leave and return; print it again,
-// take it with Use, let the hotkeys draw it and print the drawn gun's mods; leave and save in town (a save made inside
-// the dungeon does not load on this machine: Daggerfall's dungeon build stalls its heartbeat past the bridge's limit).
+// take it with Use, let the hotkeys draw it and print the drawn gun's mods; leave and save in town. Monsters die by fire,
+// plain deaths, barrels and gibbing; corpses are counted (LRCORPSES, LRLOOK) at leaving, on return and after the load.
 // Route "load": load that save in town and wait there, then enter the dungeon and wait (Daggerfall logs the piles).
 class MDState : Inventory
 {

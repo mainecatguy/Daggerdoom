@@ -1,6 +1,10 @@
 # Lightweight location record (replaces location ledger cards 2-3)
 
-**Status:** started 2026-11-24 in its own session, by the owner's request. Card 1 of the location ledger branch is
+**Status (2026-11-24, branch `worktree-agent-aaac61bc76d3610ff`, notes `work/notes/20261124-190017.md`):** cards 1-4
+and 6 built and proven in paired runs; card 5 (doors and actions) not started. Remaining: card 5, and the open items
+below.
+
+Started 2026-11-24 in its own session, by the owner's request. Card 1 of the location ledger branch is
 merged into integration (`69a48fd`); cards 2-3 (`agent/locationledger-20261124-141035`) are replaced by this design.
 Designed with the owner on 2026-11-24. The high-level rules are in `architecture.md`, "State ownership: live and
 permanent".
@@ -111,8 +115,35 @@ mook index 14 | dead 1 | x 13 | y 13 | height band 6 | then
   Its own card near the end, so it can be dropped.
 - **Switching Doom mods ends a save.** A mod-set stamp check on load is a follow-up, not part of this work.
 
+## Decisions added while building (2026-11-24)
+
+- **Dropped Daggerfall piles** (coordinator): each place's record keeps its dropped piles in their own section (id,
+  position in the place frame, texture archive and record, `ItemData_v1` list), updated when a pile changes and on
+  save. On entry, or for an exterior chunk within one chunk of the player, a missing pile is recreated with
+  Daggerfall's dropped-loot creation unless one with that id exists. Exterior piles use the `O<chunk>` key.
+- **Doom items dropped from Daggerfall's inventory** (owner): each becomes its own Doom pickup in the loose list; its
+  stored gun state becomes the pickup's carried inventory and picks the plain or `PickupModded` class. Daggerfall
+  removes the item only when Doom confirms the spawn.
+- **Corpse look from the class** (owner bug, DRLA): a dead mook is always kept as a corpse; its look comes from its
+  class and death label, following DRLA's by-name jumps to the class's frames, because DRLA corpses loop and never rest.
+- **Followers in the death ledger:** a follower whose death the record keeps is left out of
+  `DoomerfallMonsters.json` and restored from the record on read. Leaders stay, with their rolled drops.
+
+## Results (paired runs, details in the notes)
+
+- Cleared level-30 Privateer's Hold: dungeon blob 24 KB (1,162-1,165 corpses, 781 loose items); `DoomerfallLocations.json`
+  33 KB raw / 20 KB packed (was 134 / 37 KB); `DoomerfallMonsters.json` 185 KB raw / 11 KB packed (was 282 / 24 KB),
+  mostly leaders' drop `ItemData`. The `.zds` keeps 12-20 bytes of treadmill state.
+- Leave, return, and save and load in a new launch keep counts (95 alive, 1,165 dead, 781 items); exterior chunks, a
+  house and the wilderness match after a load.
+- DRLA set: corpses from fire, plain, barrel and gib kills keep count and look through leave, return and load.
+
 ## Open items
 
+- Card 5: door, switch, lift and action states. `door_objects.zs` (ddruntime.pk3) and `action_objects.zs` (each
+  dungeon's doors pk3) come from `tools/dungeon_converter`, so the change needs a converter rebuild.
+- Leaders' drop `ItemData` is most of the death ledger's size; moving it into the loose list needs an owner call.
+- FireMelt's stretched scale is not kept; a burned DRLA corpse comes back at its normal scale.
 - Check DRLA monster drop lists for more than 15 slots (only matters if drops are ever seeded again).
 
 ## Related
