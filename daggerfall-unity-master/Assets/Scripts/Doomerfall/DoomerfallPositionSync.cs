@@ -61,6 +61,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         public uint Phase { get { return phase; } }
 
+        // True while the hidden player is held still for Doom.
+        internal bool Engaged { get { return engaged; } }
+
         // True once Daggerfall is in a game, from the test start or a normal one.
         public bool InGame { get { return testWorldReady || (GameManager.HasInstance && GameManager.Instance.StateManager.GameInProgress); } }
 
