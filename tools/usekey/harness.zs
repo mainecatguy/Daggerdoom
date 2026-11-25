@@ -201,21 +201,36 @@ class UKHarness : StaticEventHandler
 			}
 			Next(2);
 			break;
-		case 2: // The Doom drop: Use takes it (Daggerfall answers, then it leaves the floor).
-			if (!target) { Report(false, "the Doom drop vanished before the press"); Next(3); break; }
-			if (timer == 20) { StandBy(p, target.pos + (0, 0, 8), 40); Console.Printf("UKPRESS doom drop"); Press(p); }
-			if (timer > 21 && !target.bSPECIAL) { Report(true, String.Format("Use took the Doom drop %s", target.GetClassName())); Next(3); break; }
-			if (timer > 35 * 4) { Report(false, "the Doom drop is still on the floor"); Next(3); }
-			break;
 		case 3: // A Daggerfall pile: Use opens Daggerfall's loot window (the runner checks Daggerfall's log).
 			if (timer == 1)
 			{
-				target = Nearest(p, "DoomerfallWorldItem");
-				if (!target || !StandBy(p, target.pos + (0, 0, 4), 40)) Console.Printf("UKNOTE no clear spot by a pile");
-				Console.Printf("UKPRESS pile %s", target ? DoomerfallWorldItem(target).dfId : "none");
+				// The pile lying closest to its floor (some sit on ledges or mesh shelves), from about 40 units away.
+				target = null;
+				let it = ThinkerIterator.Create("DoomerfallWorldItem");
+				Actor mo;
+				while (mo = Actor(it.Next()))
+				{
+					Console.Printf("UKPILE %s at %.0f,%.0f,%.0f floor %.0f", DoomerfallWorldItem(mo).dfId, mo.pos.x, mo.pos.y, mo.pos.z, mo.floorz);
+					if (!target || abs(mo.pos.z - mo.floorz) < abs(target.pos.z - target.floorz)) target = mo;
+				}
+				if (!target) { Report(false, "no Daggerfall pile here"); Next(4); break; }
+				if (!StandBy(p, (target.pos.xy, target.floorz), 40)) p.SetOrigin((target.pos.xy + (40, 0), target.floorz), false);
+				p.vel = (0, 0, 0);
+			}
+			if (target && timer <= 35) Face(p, target.pos); // From where the player landed.
+			if (timer == 35) // The hidden Daggerfall player catches up with the move first, as Daggerfall checks the reach.
+			{
+				Console.Printf("UKPRESS pile %s at distance %.0f, in sight %d", target ? DoomerfallWorldItem(target).dfId : "none",
+					target ? (target.pos - p.pos).Length() : 0, target && p.CheckSight(target, SF_IGNOREVISIBILITY));
 				Press(p);
 			}
-			if (timer == 35 * 3) Next(4);
+			if (timer == 35 + 35 * 3) Next(4);
+			break;
+		case 2: // The Doom drop: Use takes it (Daggerfall answers, then it leaves the floor).
+			if (timer <= 20 && !target) { Report(false, "the Doom drop vanished before the press"); Next(3); break; }
+			if (timer == 20) { StandBy(p, target.pos + (0, 0, 8), 40); Console.Printf("UKPRESS doom drop"); Press(p); }
+			if (timer > 21 && (!target || !target.bSPECIAL)) { Report(true, "Use took the Doom drop (Daggerfall answered, then it left the floor)"); Next(3); break; }
+			if (timer > 35 * 4) { Report(false, "the Doom drop is still on the floor"); Next(3); }
 			break;
 		case 4: // A hinged Daggerfall door: Use swings it.
 			if (timer == 1)
@@ -244,13 +259,14 @@ class UKHarness : StaticEventHandler
 				let it = ThinkerIterator.Create("DFAction");
 				DFAction a;
 				while (a = DFAction(it.Next()))
-					if (!a.door && (a.trigger == DFAction.TR_DIRECT || a.trigger == DFAction.TR_DIRECT6) && a.cells.Size()
-						&& (!lever || (a.center - p.pos).Length() < (lever.center - p.pos).Length())) lever = a;
+					if (!a.door && (a.trigger == DFAction.TR_DIRECT || a.trigger == DFAction.TR_DIRECT6 || a.trigger == DFAction.TR_MULTI || a.trigger == DFAction.TR_COLLIDE9)
+						&& (!lever || (a.ToWorld(a.center, a.fraction) - p.pos).Length() < (lever.ToWorld(lever.center, lever.fraction) - p.pos).Length())) lever = a;
 				target = lever;
 				if (!lever) { Console.Printf("UKNOTE no directly used action object here"); Finish(); break; }
-				if (!StandBy(p, lever.center, 48) && !StandBy(p, lever.center, 32)) Console.Printf("UKNOTE no clear spot by the lever");
+				vector3 at = lever.ToWorld(lever.center, lever.fraction);
+				if (!StandBy(p, at, 48) && !StandBy(p, at, 32)) Console.Printf("UKNOTE no clear spot by the lever");
 				before = lever.activationCount;
-				Console.Printf("UKPRESS lever at %.0f,%.0f,%.0f trigger %d", lever.center.x, lever.center.y, lever.center.z, lever.trigger);
+				Console.Printf("UKPRESS lever at %.0f,%.0f,%.0f trigger %d", at.x, at.y, at.z, lever.trigger);
 				Press(p);
 			}
 			if (timer == 20)

@@ -97,7 +97,52 @@ def assemble():
     shutil.copy2(LAUNCHER, REVIEW / "doomerfall-launcher.exe")
     shutil.copy2(DATA_SOURCE / "dfitems.pk3", REVIEW / "dfitems.pk3")
     subprocess.check_call([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), str(REVIEW / "doomerfall.pk3")])
+    write_demo()
     print("assembled", REVIEW)
+
+
+def write_demo():
+    """play.bat: town start facing a general store, Doom's default binds plus Q, I and K only. E is Doom's Use."""
+    door = door_row("shop", fresh_town())
+    start = f"""version "4.14"
+// Demo only: starts the player a few steps from a general store door, facing it.
+class UKDemoStart : StaticEventHandler
+{{
+	bool done;
+	override void WorldLoaded(WorldEvent e) {{ if (e.IsSaveGame) done = true; }}
+	override void WorldTick()
+	{{
+		if (done || level.maptime < 5 || !players[0].mo) return;
+		done = true;
+		let p = players[0].mo;
+		p.SetOrigin(({door[3]} + {door[6]} * 160, {door[4]} + {door[7]} * 160, {door[5]}), false);
+		p.angle = atan2(-({door[7]}), -({door[6]}));
+	}}
+}}
+"""
+    with zipfile.ZipFile(REVIEW / "demo_start.pk3", "w") as z:
+        z.writestr("zscript.txt", start)
+        z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "UKDemoStart" }\n')
+    mods = " ".join(f'--mod "{MODS / n}"' for n in DRLA)
+    data = " ".join(f'--mod "%HERE%data\\{n}"' for n in DATA)
+    dagger = GAME / "DAGGER"
+    (REVIEW / "play.bat").write_text(
+        "@echo off\r\n"
+        "rem Doom's Use key (E by default, or whatever you bind as Use) is the only interact key. Starts in town facing a general store, with DRLA.\r\n"
+        "rem Try: Use on the door (enters), on a shelf (opens it), on the shopkeeper (shop menu, Talk), crouch (Ctrl) and Use on them (Steal), Use on the door out.\r\n"
+        "rem Options, Customize Controls has no separate Interact entry any more. Q is Info, I the inventory, K fast travel.\r\n"
+        "set \"HERE=%~dp0\"\r\n"
+        "if not exist \"%HERE%play\" mkdir \"%HERE%play\"\r\n"
+        "set BINDS=\r\n"
+        "if not exist \"%HERE%play\\uzdoom.ini\" set BINDS=--uzdoom-arg +bind --uzdoom-arg q --uzdoom-arg \"netevent df_info\" "
+        "--uzdoom-arg +bind --uzdoom-arg i --uzdoom-arg \"netevent df_inventory\" --uzdoom-arg +bind --uzdoom-arg k --uzdoom-arg \"netevent df_fast_travel\"\r\n"
+        f"start \"\" \"%HERE%doomerfall-launcher.exe\" --nodraw --uzdoom \"%HERE%uzdoom\\uzdoom.exe\" --dfu \"%HERE%dfu\\DaggerfallUnity.exe\" --iwad \"{GAME / 'wads' / 'DOOM2.WAD'}\" {mods} {data} "
+        "--mod \"%HERE%dfitems.pk3\" --mod \"%HERE%doomerfall.pk3\" --mod \"%HERE%demo_start.pk3\" --uzdoom-cwd \"%HERE%play\" --log \"%HERE%play\\launcher.log\" "
+        "--uzdoom-arg -config --uzdoom-arg \"%HERE%play\\uzdoom.ini\" --uzdoom-arg -savedir --uzdoom-arg \"%HERE%play\\saves\" --uzdoom-arg -dfbridgelog --uzdoom-arg \"%HERE%play\\uz.log\" "
+        "--uzdoom-arg -ddtowncache --uzdoom-arg \"%HERE%data\\cache\" --uzdoom-arg -ddconverter --uzdoom-arg \"%HERE%data\\converter\\DungeonConverter.exe\" "
+        f"--uzdoom-arg -ddarena2 --uzdoom-arg \"{dagger}\\ARENA2\" --uzdoom-arg -skill --uzdoom-arg 3 --uzdoom-arg +map --uzdoom-arg DDT{GROUP:05d} --uzdoom-arg +vid_fullscreen --uzdoom-arg 0 --uzdoom-arg +i_pauseinbackground --uzdoom-arg 0 "
+        f"--dfu-arg -dfbridgelog --dfu-arg \"%HERE%play\\df.log\" --dfu-arg -dfsynctest --dfu-arg \"{dagger}\" --dfu-arg -screen-fullscreen --dfu-arg 0 --dfu-arg -screen-width --dfu-arg 1280 --dfu-arg -screen-height --dfu-arg 800 %BINDS%\r\n",
+        newline="")
 
 
 def fresh_town():
@@ -178,8 +223,17 @@ def run(mode, name, stock_mods, old_bind):
     for line in read(df_log).splitlines():
         if re.search(r"talk:|shoptest:|items: |doomitems|ui: (menu|top|world|inventory|loot)|error", line):
             print("df", line[:240])
-    stored = re.findall(r"(?m)^e=(.*)$", read(ini))
-    print("saved config binds e to:", stored or "(nothing written)")
+    # What Daggerfall did with the presses, from its own log.
+    checks = {"shop": [("a shelf opened (Grab)", r"items: opening .* with \d+ items"),
+                       ("the shopkeeper's shop menu opened", r"top window after activation is DaggerfallMerchant\w*PopupWindow"),
+                       ("talk opened", r"shoptest: window DaggerfallTalkWindow"),
+                       ("crouching Use stole (Steal mode)", r"talk: activating .* in Steal mode")],
+              "dungeon": [("Daggerfall took the Doom drop", r"doomitems: take \d+ .*: status 0"),
+                          ("Use sent Grab on a Daggerfall pile", r"items: use \d+ on \S+ \(grab, RandomTreasure|items: use \d+ on \S+ \(grab"),
+                          ("the pile's loot window opened", r"items: opening .* with \d+ items")]}[mode]
+    dflog = read(df_log)
+    for what, pattern in checks:
+        print("UKCHECK", "pass" if re.search(pattern, dflog) else "FAIL", what)
 
 
 def wad():
