@@ -72,7 +72,29 @@ def assemble():
                     data = new.encode("utf-8")
                 zout.writestr(info, data)
         print(name, "gated", patched, "runtime prints")
+    write_play()
     print("assembled", REVIEW)
+
+
+NOTES = r"""rem Doomerfall without debug messages on screen (run 20261124-202353). Choose New Game in Doom's menu.
+rem Use picks up what you look at, E is a second Interact key, Q is Info, I opens the inventory, K opens fast travel.
+rem What to try: New Game, switch weapons (no more "Doomerfall: loaded ammo ..." at the top), pick things up, open
+rem doors, walk into town, use a shop, save and load. Only messages meant for you should appear at the top of the
+rem screen, and the console (~) should hold no DD.../DF.../[bridge] lines.
+rem The diagnostics still go to run\log-uzdoom.txt (and Doom's bridge log run\uz.log as before).
+rem play-debug.bat is the same game with +dd_debugmessages 1: the diagnostics show on screen and in the console again."""
+
+
+def write_play():
+    """play.bat from cleanlaunch's, with +logfile uzdoom (run\\log-uzdoom.txt); play-debug.bat adds +dd_debugmessages 1."""
+    lines = (SOURCE / "play.bat").read_text(encoding="utf-8").splitlines()
+    rest = [l for l in lines if not l.startswith(("@echo off", "rem"))]
+    start = next(i for i, l in enumerate(rest) if l.startswith('start "" '))
+    log = "--uzdoom-arg -dfflow --uzdoom-arg +logfile --uzdoom-arg uzdoom"
+    for name, extra in (("play.bat", ""), ("play-debug.bat", " --uzdoom-arg +dd_debugmessages --uzdoom-arg 1")):
+        cmd = rest[start].replace("--uzdoom-arg -dfflow", log + extra, 1)
+        body = ["@echo off", *NOTES.splitlines(), *rest[:start], cmd, *rest[start + 1:]]
+        (REVIEW / name).write_text("\r\n".join(body) + "\r\n", encoding="utf-8", newline="")
 
 
 def run_uz(name, args, timeout=40):
