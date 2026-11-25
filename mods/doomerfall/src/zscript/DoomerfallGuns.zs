@@ -23,10 +23,11 @@ class DoomerfallGuns : EventHandler
 	int stateRequest;
 
 	// DRLA's own weapon drop (Zoom twice, or the Technician's drop and scrap) is blocked: a gun leaves the player only
-	// by Daggerfall's inventory window. Its confirm tokens are taken each tic, so the second press never drops.
+	// by Daggerfall's inventory window. Its confirm tokens are taken each tic, so the second press never drops. The
+	// backpack toss (M, "use RLSpecialItemDropper") is blocked too: the dropper is kept at 0, so its use fails.
 	override void WorldTick()
 	{
-		static const String dropTokens[] = { "RLWeaponDrop", "RLScavengerDrop" };
+		static const String dropTokens[] = { "RLWeaponDrop", "RLScavengerDrop", "RLSpecialItemDropper" };
 		let mo = consoleplayer >= 0 ? players[consoleplayer].mo : null;
 		for (int i = 0; mo && i < dropTokens.Size(); i++) { class<Inventory> c = dropTokens[i]; if (c) mo.TakeInventory(c, 999); }
 	}

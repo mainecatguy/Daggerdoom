@@ -28,7 +28,7 @@ class Doomerfall_Events : StaticEventHandler
 		// Items leave only by Daggerfall's inventory window (d_net.cpp, DoomerfallGuns), so the drop keys are hidden.
 		// The commands and bindings stay for other wads.
 		HideControls('InventoryControlsMenu', 'weapdrop', 'invdrop');
-		HideControls('DRLAControlsMenu', '+zoom', '+zoom'); // DRLA's "Drop Item"
+		HideControls('DRLAControlsMenu', '+zoom', 'rl_specialitemdropper'); // DRLA's "Drop Item", "Remove Special Item"
 	}
 
 	static ui void HideControls(Name menu, Name a, Name b)

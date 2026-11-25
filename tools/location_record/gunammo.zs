@@ -6,7 +6,7 @@ version "4.14"
 // this prints the player's Doom ammo for the gun's types (LRAMMO) at every step:
 //   map take:      a gun pickup placed in front of the player (not dropped), taken with Use;
 //   window x3:     Daggerfall's inventory window drops the gun (the hook), the pickup is taken back with Use;
-//   blocked drops: DRLA's weapon drop (Zoom twice) on DRLA runs, while weapdrop and invdrop run every second all run
+//   blocked drops: DRLA's weapon drop (Zoom twice) and backpack toss on DRLA runs, while weapdrop and invdrop run every second all run
 //                  long (gunammo.py); the gun must stay held with nothing on the ground;
 //   monster take:  a ShotgunGuy is killed and the gun it drops is taken with Use.
 // Ammo for those types must not change on any take, and Daggerfall's Doom item count (df "doom items N") must rise
@@ -41,7 +41,7 @@ class MDHarness : EventHandler
 	ui int menuTicks;
 	override void UiTick()
 	{
-		if (++menuTicks == 105) Console.Printf("LRSTEP menus: InventoryControlsMenu %s; DRLAControlsMenu %s", Controls('InventoryControlsMenu', 'weapdrop', 'invdrop'), Controls('DRLAControlsMenu', '+zoom', '+zoom'));
+		if (++menuTicks == 105) Console.Printf("LRSTEP menus: InventoryControlsMenu %s; DRLAControlsMenu %s", Controls('InventoryControlsMenu', 'weapdrop', 'invdrop'), Controls('DRLAControlsMenu', '+zoom', 'rl_specialitemdropper'));
 	}
 
 	static ui String Controls(Name menu, Name a, Name b)
@@ -166,9 +166,27 @@ class MDHarness : EventHandler
 				if (s) p.player.SetPsprite(PSP_WEAPON, s);
 				Console.Printf("LRSTEP DRLA weapon drop pressed (%s)", s ? "Zoom" : "no Zoom state");
 			}
+			if (drla && st.tries == 70)
+			{
+				// DRLA's backpack toss (M runs "use RLSpecialItemDropper"), wearing a combat backpack (BPACK_COMBAT 1).
+				String token = "RLCombatBackpackToken", type = "RLBackpackType", dropper = "RLSpecialItemDropper";
+				p.GiveInventory(token, 1);
+				p.SetInventory(type, 1);
+				let d = p.FindInventory(dropper);
+				Console.Printf("LRSTEP backpack toss: use %s", d && p.UseInventory(d) ? "succeeded" : "failed");
+			}
 			if (++st.tries < 35 * 4) break;
 			Ammo(p, "blocked drops");
 			Console.Printf("LRSTEP blocked drops: %s held %d, on the ground %s", weaponName, p.CountInv(weaponName), FindGun(p) ? "a gun" : "nothing");
+			if (drla)
+			{
+				int packs = 0;
+				let it = ThinkerIterator.Create("Inventory");
+				Inventory inv;
+				while (inv = Inventory(it.Next())) { String n = inv.GetClassName(); if (!inv.Owner && n.IndexOf("Backpack") >= 0) packs++; }
+				String token = "RLCombatBackpackToken";
+				Console.Printf("LRSTEP backpack toss blocked check: backpack worn %d, backpacks on the ground %d", p.CountInv(token), packs);
+			}
 			Next(st, 8);
 			break;
 		case 8: // A monster's drop.

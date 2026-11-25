@@ -103,7 +103,7 @@ Ammunition will eventually be an inventory object. Damage rules, including mater
 - Daggerfall can tell Doom that the player has more than Doom's max ammo, and Doom accepts it.
 - There may be limits on how much ammo the player can carry. That is a future system.
 - **Guns never give ammo** (owner, 2026-11-24). They're guns, not ammo. Taking a gun with Use gives no ammo, whatever its source: map-placed, monster-dropped or player-dropped, on a first take or a retake. A DRLA gun's loaded magazine is part of the gun and travels with it.
-- **Items are dropped only from Daggerfall's inventory window** (owner, 2026-11-24). Doom's weapdrop, invdrop and drop and DRLA's own weapon drop do nothing, and their entries are hidden from the controls menus.
+- **Items are dropped only from Daggerfall's inventory window** (owner, 2026-11-24). Doom's weapdrop, invdrop and drop, DRLA's own weapon drop and DRLA's backpack toss do nothing, and their entries are hidden from the controls menus.
 
 Other todos:
 DFU loot should persist no matter where it is dropped if possible.
