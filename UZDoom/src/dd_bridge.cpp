@@ -1520,7 +1520,7 @@ void D_StartTitle();
 
 namespace
 {
-constexpr int64_t LoadTimeoutNs = 30000000000LL, LoadPeerWaitNs = 15000000000LL, DeathViewNs = 2500000000LL;
+constexpr int64_t LoadTimeoutNs = 30000000000LL, LoadPeerWaitNs = 15000000000LL, DeathViewNs = 2500000000LL, LoadStallNs = 10000000000LL;
 enum LoadState { LoadIdle, LoadPending, LoadWaitDf, LoadWaitResume };
 enum DeathState { DeathNone, DeathView, DeathMenu };
 LoadState loadState = LoadIdle;
@@ -1851,7 +1851,8 @@ void PumpLoad(int64_t now)
 	if (loadState == LoadWaitDf || loadState == LoadWaitResume)
 	{
 		pauseext = true;
-		if (now - loadStartNs > LoadTimeoutNs || peerStale)
+		// Daggerfall's load blocks its main thread for seconds (its scene build), as a new character's does (NgStallNs).
+		if (now - loadStartNs > LoadTimeoutNs || (peerStale && now - peerStaleAt > LoadStallNs))
 		{
 			SendLoadDone(false);
 			LoadBreak("Daggerfall stopped responding");

@@ -26,6 +26,7 @@
 #include <cstring>
 #include <deque>
 #include <limits>
+#include <map>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -645,22 +646,101 @@ namespace
 		return ((id & SEED_BIT) && !(id & DYNAMIC_BIT)) || tag == DFB_MONSTER_TAG ? !IsTouched(mo) : false;
 	}
 
-	// The frame a death sequence rests on (infinite tics), or null when it ends in Stop or never settles.
-	FState *FinalFrame(FState *st)
+	// Where a death sequence settles, following each state's own next link: a frame with infinite tics, or the loop a
+	// corpse ticks in (DRLA Monsters' corpses loop a 1-tic CanRaise frame and never rest). A loop is named by its first
+	// state in memory, so any point in it gives the same answer. Those frames keep ("####" "#") the sprite and frame
+	// shown before them, so the look is the last sprite and frame the sequence set. rest is null when it ends in Stop.
+	// DRLA's base class jumps by name ("A_JumpIf(1, "DeathMain")", then Goto DeathMain for the parser), which the game
+	// resolves in the dying actor's own class, where its death frames are; the Goto's link is the base class's state.
+	// So a state an ancestor owns under a label the class redefines is followed into the class's own state instead.
+	struct Settled { FState *rest = nullptr; int sprite = -1, frame = -1; };
+	FState *ClassVersion(PClassActor *cls, FState *st)
 	{
-		for (int n = 0; st && st->Tics != -1 && n < 256; n++) st = st->GetNextState();
-		return st && st->Tics == -1 ? st : nullptr;
+		PClassActor *owner = FState::StaticFindStateOwner(st, cls);
+		if (!owner || owner == cls) return st;
+		const FStateLabels *labels = owner->GetStateLabels();
+		for (int i = 0; labels && i < labels->NumLabels; i++)
+		{
+			const FStateLabel &l = labels->Labels[i];
+			if (l.State == st)
+				if (FState *own = cls->FindState(1, const_cast<FName *>(&l.Label), true); own && own != st) return own;
+			for (int j = 0; l.Children && j < l.Children->NumLabels; j++)
+				if (l.Children->Labels[j].State == st)
+				{
+					FName names[2] = { l.Label, l.Children->Labels[j].Label };
+					if (FState *own = cls->FindState(2, names, true); own && own != st) return own;
+				}
+		}
+		return st;
+	}
+	Settled SettleWalk(PClassActor *cls, FState *st)
+	{
+		Settled out;
+		std::vector<FState *> seen;
+		for (int n = 0; st && n < 1024; n++)
+		{
+			st = ClassVersion(cls, st);
+			if (st->sprite != SPR_FIXED)
+			{
+				if (!st->GetSameFrame()) out.frame = st->GetFrame();
+				if (st->sprite != SPR_NOCHANGE) out.sprite = st->sprite;
+			}
+			if (st->Tics == -1)
+			{
+				out.rest = st;
+				return out;
+			}
+			auto again = std::find(seen.begin(), seen.end(), st);
+			if (again != seen.end())
+			{
+				out.rest = *std::min_element(again, seen.end(), std::less<FState *>());
+				return out;
+			}
+			seen.push_back(st);
+			st = st->GetNextState();
+		}
+		return out;
+	}
+	std::map<std::pair<PClassActor *, FState *>, Settled> settledCache;	// States live as long as the process.
+	Settled Settle(PClassActor *cls, FState *st)
+	{
+		if (!st) return Settled();
+		auto key = std::make_pair(cls, st);
+		auto found = settledCache.find(key);
+		if (found == settledCache.end()) found = settledCache.emplace(key, SettleWalk(cls, st)).first;
+		return found->second;
+	}
+	FState *FinalFrame(AActor *mo, FState *st) { return Settle(mo->GetClass(), st).rest; }
+
+	// The state a stored death label names: "Death", "XDeath", "Death.Fire" or "XDeath.Fire". The engine keeps XDeath as
+	// Death.Extreme (p_interaction.cpp), so "XDeath" alone found nothing and every gibbed corpse came back as a Death.
+	FState *LabelState(AActor *mo, const FString &label)
+	{
+		FName names[3];
+		int n = 0;
+		for (auto &part : label.Split("."))
+		{
+			if (n == 0 && part.CompareNoCase("XDeath") == 0) { names[n++] = NAME_Death; names[n++] = NAME_Extreme; }
+			else if (n < 3) names[n++] = FName(part);
+		}
+		if (n == 0) return nullptr;
+		return mo->GetClass()->FindState(n, names, n > 1);
 	}
 
-	// The death label whose sequence rests on this frame. A label is a name, so it survives a mod reordering its states.
+	// The death label whose sequence settles where this corpse does. A label is a name, so it survives a mod
+	// reordering its states.
 	FString DeathLabel(AActor *mo, FState *final)
 	{
+		if (!final) return "Death";
 		const FName type = mo->DamageTypeReceived;
-		const bool typed = type != NAME_None && type != NAME_Normal;
+		const bool typed = type != NAME_None && type != NAME_Normal && type != NAME_Extreme;
 		if (typed)
-			for (FName label : { FName(NAME_XDeath), FName(NAME_Death) })
-				if (FinalFrame(mo->FindState(label, type, true)) == final) return FStringf("%s.%s", label.GetChars(), type.GetChars());
-		if (FinalFrame(mo->FindState(NAME_XDeath)) == final) return "XDeath";
+			for (const char *label : { "XDeath", "Death" })
+			{
+				const FString name = FStringf("%s.%s", label, type.GetChars());
+				if (FinalFrame(mo, LabelState(mo, name)) == final) return name;
+			}
+		if (FinalFrame(mo, LabelState(mo, "XDeath")) == final) return "XDeath";
 		return "Death";	// Death, or a sequence reached some other way (a crush or a script), shown as an ordinary death.
 	}
 
@@ -726,11 +806,10 @@ namespace
 		}
 		else if (mo->health <= 0)
 		{
-			// A corpse is stored as dead, with the label of its death. A death that ends in Stop leaves nothing behind.
-			FState *st = FinalFrame(mo->state);
-			if (!st) return Parked::Gone;
+			// A corpse is stored as dead, with the label of its death. Its look comes from that label in the class when
+			// it is restored, so a corpse that is still settling (or burning, or looping) is kept all the same.
 			r.kind = KCorpse;
-			r.death = DeathLabel(mo, st);
+			r.death = DeathLabel(mo, FinalFrame(mo, mo->state));
 		}
 		else r.kind = KMonster;
 		return Parked::Stored;
@@ -798,18 +877,18 @@ namespace
 		if (r.kind == KCorpse)
 		{
 			// The class's own death sequence, by label, to its resting frame.
-			FState *st = nullptr;
-			if (const long dot = r.death.IndexOf('.'); dot > 0) st = mo->FindState(FName(r.death.Left(dot)), FName(r.death.Mid(dot + 1)), true);
-			else if (r.death.IsNotEmpty()) st = mo->FindState(FName(r.death));
-			if (!st) st = mo->FindState(NAME_Death);
-			FState *final = FinalFrame(st);
-			if (!final)
+			FState *st = LabelState(mo, r.death);
+			Settled look = Settle(mo->GetClass(), st);
+			if (!look.rest) look = Settle(mo->GetClass(), mo->FindState(NAME_Death));
+			if (!look.rest)
 			{
 				Printf(TEXTCOLOR_ORANGE "DDTM corpse %016" PRIx64 " %s has no resting %s frame, not restored\n", r.id, r.cls.GetChars(), r.death.GetChars());
 				mo->Destroy();
 				return;
 			}
-			mo->SetState(final, true);
+			mo->SetState(look.rest, true);
+			if (look.sprite >= 0 && (look.rest->sprite == SPR_FIXED || look.rest->sprite == SPR_NOCHANGE)) mo->sprite = look.sprite;
+			if (look.frame >= 0 && (look.rest->sprite == SPR_FIXED || look.rest->GetSameFrame())) mo->frame = look.frame;
 			mo->ClearCounters();
 			mo->flags &= ~(MF_SOLID | MF_SHOOTABLE | MF_FLOAT | MF_SKULLFLY);
 			mo->flags |= MF_CORPSE | MF_DROPOFF;
@@ -2250,6 +2329,31 @@ void DDTreadmill_ApplyPlace(FLevelLocals *Level, const DDPlaceKey &place, const 
 	{
 		Printf("DDLOC %s: Doom's cache matches Daggerfall's record (%d facts)\n", name, int(facts.size()));
 		return;
+	}
+	// A save made in this place: its snapshot came back with the live actors (and their record ids), but the save keeps
+	// no world table. The snapshot stands (architecture.md, Saves); Daggerfall's record only refills the cache behind it.
+	if (mine.empty())
+	{
+		std::unordered_set<uint64_t> recorded;
+		for (const DDPlaceFact &f : facts)
+			if (!f.session && (f.kind == KMonster || f.kind == KCorpse)) recorded.insert(f.id);
+		int live = 0;
+		auto it = Level->GetThinkerIterator<AActor>();
+		while (AActor *mo = it.Next())
+			if (!mo->player && mo->ddRecordId && !IsOwned(mo) && recorded.count(mo->ddRecordId)) live++;
+		if (live > 0)
+		{
+			int stored = 0;
+			for (const DDPlaceFact &f : facts)
+			{
+				if (f.session) continue;	// a drop in the snapshot keeps its own session id; leaving records it again
+				Store(FromFact(f, t));
+				stored++;
+			}
+			Printf("DDLOC %s: the save's snapshot stands (%d of the record's monsters and corpses are live); %d facts refill the cache, nothing rebuilt\n",
+				name, live, stored);
+			return;
+		}
 	}
 	std::unordered_set<uint64_t> replace(oldIds.begin(), oldIds.end());
 	for (const DDPlaceFact &f : facts) if (!f.session) replace.insert(f.id);
