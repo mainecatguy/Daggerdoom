@@ -34,6 +34,25 @@ static partial class Program
         PickupRoomNodes = inside ? 60 : 90;
     }
 
+    // Owner decision (2026-11-24): no generated pickups in house interiors. Shops, taverns, temples, guild halls,
+    // palaces and other buildings keep them until the owner says otherwise.
+    static bool PickupsInBuilding(DaggerfallConnect.DFLocation.BuildingTypes kind)
+    {
+        switch (kind)
+        {
+            case DaggerfallConnect.DFLocation.BuildingTypes.House1:
+            case DaggerfallConnect.DFLocation.BuildingTypes.House2:
+            case DaggerfallConnect.DFLocation.BuildingTypes.House3:
+            case DaggerfallConnect.DFLocation.BuildingTypes.House4:
+            case DaggerfallConnect.DFLocation.BuildingTypes.House5:
+            case DaggerfallConnect.DFLocation.BuildingTypes.House6:
+            case DaggerfallConnect.DFLocation.BuildingTypes.HouseForSale:
+                return false;
+            default:
+                return true;
+        }
+    }
+
     static ulong PickupMix(ulong h, long v)
     {
         h ^= (ulong)v + 0x9E3779B97F4A7C15UL + (h << 6) + (h >> 2);
