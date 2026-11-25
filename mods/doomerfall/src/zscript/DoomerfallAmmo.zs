@@ -189,12 +189,14 @@ class DoomerfallAmmoTiers : StaticEventHandler
 		return -1;
 	}
 
-	// Dropped by a monster: Doom's drop code marks the item DROPPED. With DRLA the drop is a RandomSpawner, which does not
-	// pass DROPPED on (randomspawner.zs only clears it), but it does copy its toss velocity and its spawn flags, which are
-	// empty for anything not placed by the map. A map pickup always carries skill flags and starts at rest.
+	// Dropped by a monster. DROPPED cannot tell: every Inventory starts with it (inventory.zs BeginPlay), and only map
+	// things clear it, so pickups the converter's markers spawn keep it. Doom's drop code (A_DropItem, inventory_util.zs)
+	// marks the drop TOSSED and throws it. With DRLA the drop is a RandomSpawner, which passes neither flag on to the
+	// pickup it spawns but copies its toss velocity and its spawn flags, which are empty for anything not placed by the
+	// map. A placed pickup starts at rest.
 	static bool WasDropped(Inventory inv)
 	{
-		return inv.bDROPPED || (inv.SpawnFlags == 0 && inv.vel != (0, 0, 0));
+		return inv.bTOSSED || (inv.SpawnFlags == 0 && inv.vel != (0, 0, 0));
 	}
 
 	// A player's ammo is spawned and given in the same tic, so a pickup is judged a tic later, once it has no owner.

@@ -302,8 +302,9 @@ def size_checks(body, df_body):
         ok_all &= ok
         print(f"  {i}: {what:24} {TIER_NAMES[tier] if tier >= 0 else '?':10} {CLASSES[type_] if type_ >= 0 else '?':10} expected {want} | Doom pickup {amount}"
               f" | Daggerfall {take[2] + ' ' + take[0] if take else 'none'}{' (loaded)' if take and take[3] else ''} | Doom counter +{delta} | {'PASS' if ok else 'FAIL'}")
-    drops = any(k[2] for k in kinds)
-    print("sizes:", "PASS" if ok_all and drops else "FAIL", "" if drops else "(no monster drop seen)")
+    drops = sum(k[2] for k in kinds)
+    regular_drop = any(k[2] and k[3] == 0 and k[4] == 5 and k[5] == 0 for k in kinds)  # A Regular dropped clip: 5 bullets.
+    print("sizes:", "PASS" if ok_all and regular_drop else "FAIL", f"({drops} monster drops, {'a' if regular_drop else 'NO'} Regular dropped clip of 5)")
 
 
 def check():

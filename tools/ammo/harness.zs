@@ -438,9 +438,11 @@ class AMHarness : EventHandler
 				sized.Push(null);
 				sizedWhat.Push(String.Format("%s %.0f %.0f %.0f", PLAIN[k], at.x, at.y, at.z));
 			}
-			for (int i = 0; i < 4; i++)
+			for (int i = 0; i < 10; i++)
 			{
-				let z = Actor.Spawn("Zombieman", p.pos + (-200 - i * 64, 0, 0), ALLOW_REPLACE);
+				// Eight stock Zombiemen (their clip drop goes through DRLA's RLClipSpawner), two of DRLA's replacements.
+				// Spaced so each drop lands nearest its own corpse.
+				let z = Actor.Spawn("Zombieman", p.pos + (-200 - i * 96, 0, 0), i < 8 ? NO_REPLACE : ALLOW_REPLACE);
 				if (z) victims.Push(z);
 			}
 			Console.Printf("AMSIZE level %d, %d plain pickups, %d zombies (%s)", tiers.areaLevel, sizedWhat.Size(), victims.Size(),
@@ -460,19 +462,32 @@ class AMHarness : EventHandler
 				let s = DoomerfallAmmoPickup(sized[k]);
 				Console.Printf("AMSIZE placed %s -> %s tier %d amount %d type %d", f[0], s ? String.Format("%s", s.GetClassName()) : "none", s ? s.tier : -1, s ? s.Amount : 0, s ? s.ammoType : -1);
 			}
+			// DRLA replaces Zombieman with a spawner that removes itself: kill the monsters standing where they spawned.
+			Array<Actor> spots;
+			spots.Move(victims);
+			Actor mo;
+			let it = ThinkerIterator.Create("Actor");
+			while (mo = Actor(it.Next()))
+			{
+				if (!mo.bISMONSTER || mo.player || mo.health <= 0) continue;
+				for (int i = 0; i < 10; i++)
+					if ((mo.pos.xy - (p.pos.xy + (-200 - i * 96, 0))).Length() < 24) { victims.Push(mo); break; }
+			}
+			Console.Printf("AMSIZE killing %d monsters (%s)", victims.Size(), victims.Size() ? String.Format("%s", victims[0].GetClassName()) : "none");
 			for (int i = 0; i < victims.Size(); i++)
-				if (victims[i]) victims[i].DamageMobj(null, null, 100000, 'None');
+				victims[i].DamageMobj(null, null, 100000, 'None');
 			Next();
 			break;
 		}
 		case 92: // The drops: any tiered pickup near a corpse.
 		{
-			if (timer < 140) break;
+			if (timer < 175) break;
 			for (int i = 0; i < victims.Size(); i++)
 			{
+				Console.Printf("AMSIZE victim %d: %s", i, victims[i] ? String.Format("%s health %d at %.0f %.0f %.0f floor %.0f", victims[i].GetClassName(), victims[i].health, victims[i].pos.x, victims[i].pos.y, victims[i].pos.z, victims[i].floorz) : "gone");
 				if (!victims[i]) continue;
 				Inventory d;
-				while (d = PickupNear(victims[i].pos, 96, sized))
+				while (d = PickupNear(victims[i].pos, 44, sized))
 				{
 					let s = DoomerfallAmmoPickup(d);
 					sized.Push(d);
