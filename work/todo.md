@@ -30,6 +30,7 @@ Every lane approved before 2026-11-24 evening has run and is merged. Owner decis
 
 - `flatcollision`: Daggerfall sprites such as braziers keep their original collision (owner, 2026-11-24). Waiting for a free lane.
 - `doorsolid`: open doors are solid; reverses the earlier match with Daggerfall; door and parity tests update to the new rule (owner, 2026-11-24). Waiting for a free lane.
+- `hotkeyunique`: hotkeying an item removes its other hotkeys (owner, 2026-11-24). Waiting for a free lane.
 - `quietlog`: no debug messages on screen in normal play, for example on weapon switches (owner play test, 2026-11-24). Waiting for a free lane.
 
 ### Proposed cards waiting on owner choices
