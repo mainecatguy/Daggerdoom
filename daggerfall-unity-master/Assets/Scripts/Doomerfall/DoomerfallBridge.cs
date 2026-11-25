@@ -185,6 +185,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DoomerfallShopStockTest.Attach(this); // test only: -dfshoptest
             DoomerfallWorldLevelTest.Attach(this); // test only: -dfworldleveltest N
             DoomerfallChangeAmmoTest.Attach(this, ammo); // test only: -dfchangeammotest
+            DoomerfallMaterialDamageTest.Attach(this, ammo); // test only: -dfmaterialtest
             newGame = gameObject.AddComponent<DoomerfallNewGame>();
             newGame.Init(this, sync, Environment.GetCommandLineArgs());
             newGame.Items = items;
@@ -435,7 +436,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         ammo.OnReport(ev.doomItem.request, ev.doomItem.status, DoomerfallDoomItems.ClassOf(ev.doomItem));
                         break;
                     case Dfb.KIND_AMMO_READY:
-                        ammo.OnReady(DoomerfallDoomItems.ClassOf(ev.doomItem));
+                        ammo.OnReady(DoomerfallDoomItems.ClassOf(ev.doomItem), ev.doomItem.status == 1);
                         break;
                     case Dfb.KIND_AMMO_TAKE:
                         ammo.OnTake(DoomerfallDoomItems.ClassOf(ev.doomItem), (int)ev.doomItem.request, ev.doomItem.status);

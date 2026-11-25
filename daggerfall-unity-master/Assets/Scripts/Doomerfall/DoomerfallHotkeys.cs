@@ -363,7 +363,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
             if (plainDraw == null && !string.IsNullOrEmpty(pistolClass))
             {
-                plainDraw = new DoomerfallDoomItem(pistolClass, true);
+                plainDraw = DoomerfallDoomItem.Create(pistolClass, Dfb.DOOM_ITEM_GUN);
                 items.AddItem(plainDraw);
                 if (ammoType >= 0 && ammoType < DoomerfallAmmo.Types.Length && ammo > 0)
                     items.AddItem(new DoomerfallAmmoItem(ammoType, DoomerfallAmmoTiers.Regular, ammo));
@@ -529,9 +529,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         DoomerfallDoomItem Adopt(string cls)
         {
-            DoomerfallDoomItem item = new DoomerfallDoomItem(cls, true);
+            DoomerfallDoomItem item = DoomerfallDoomItem.Create(cls, Dfb.DOOM_ITEM_GUN);
             GameManager.Instance.PlayerEntity.Items.AddItem(item);
-            Log(string.Format("adopted Doom's \"{0}\" into Daggerfall's inventory", cls));
+            Log(string.Format("adopted Doom's \"{0}\" into Daggerfall's inventory, material {1}", cls, item.Material));
             return item;
         }
 

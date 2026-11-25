@@ -202,7 +202,11 @@ def check():
 
 ap = argparse.ArgumentParser()
 ap.add_argument("command", choices=("assemble", "take", "load", "check"))
+ap.add_argument("--builds", default="doomitems", help="native build trees to assemble from: uzdoom-, bridge-, launcher-NAME")
 args = ap.parse_args()
+UZ_BUILD = BUILD / f"uzdoom-{args.builds}" / "Release"
+BRIDGE_DLL = BUILD / f"bridge-{args.builds}" / "Release" / "doomerfall_bridge.dll"
+LAUNCHER = BUILD / f"launcher-{args.builds}" / "Release" / "doomerfall-launcher.exe"
 if args.command == "assemble":
     assemble()
 elif args.command == "check":

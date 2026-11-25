@@ -11,6 +11,8 @@ odds:     world_level.py odds LEVEL: material shares of piles, shelves, containe
           rolled at area levels 1, 10, 20, 30 in that run, against the owner's approved table; plus the classic
           formula at level 20 with the Doomerfall hook off, which must differ. Also quest reward magic items rolled with
           the player at level 1, which must follow the approved odds at the fixed quest reward level (20).
+          Doom weapon items ("doomguns") must match the approved table on their own at each level, and one rolled
+          gun must keep its material, name and info through Daggerfall's item save format ("doomgun roundtrip").
 """
 import math
 import re
@@ -175,6 +177,15 @@ def odds(level):
         print("no materialodds lines in", REVIEW / "run" / f"level{level}-df.log")
         return False
     ok = True
+    if not any(k[2] == "doomguns" for k in rows):
+        print("no doomguns materialodds lines (Doom weapon materials)")
+        ok = False
+    trips = re.findall(r"materialodds: doomgun roundtrip .*", body)
+    for line in trips:
+        print(line)
+    if not trips or any(" FAIL " in l for l in trips):
+        print("Doom gun material save round trip: FAIL")
+        ok = False
     if not any(k[0] == "quest" for k in rows):
         print("no quest reward materialodds line (DoomerfallQuestRewardTest)")
         ok = False
@@ -192,6 +203,12 @@ def odds(level):
                 chain += ch
                 z = zscores(items, approved(lvl))
                 print(f"  {source:8s} n={sum(items):6d}  max|z| {max(abs(x) for x in z):5.2f}")
+                if source == "doomguns":
+                    # Doom weapon materials must match the approved table on their own, not only inside the total.
+                    fits = max(abs(x) for x in z) < 4
+                    ok = ok and fits
+                    print("  doomguns", " ".join(f"{t}:{100 * c / max(1, sum(items)):.2f}%/{100 * p:.2f}%" for t, c, p in zip(TIERS, items, approved(lvl))))
+                    print("  -> doomguns", "MATCH approved table" if fits else "DO NOT MATCH approved table")
             exp = approved(lvl)
             z = zscores(total, exp)
             n = sum(total)

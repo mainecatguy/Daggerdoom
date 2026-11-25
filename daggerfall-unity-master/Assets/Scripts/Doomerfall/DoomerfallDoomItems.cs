@@ -7,6 +7,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using DaggerfallConnect.Arena2;
 using DaggerfallConnect.FallExe;
 using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop.Game.Items;
@@ -17,8 +18,8 @@ using UnityEngine;
 
 namespace DaggerfallWorkshop.Game.Doomerfall
 {
-    // One Doom item. Plain for now: no material, condition, enchantments, or value.
-    public class DoomerfallDoomItem : DaggerfallUnityItem, ICustomItemImage
+    // One Doom item. A gun has a Daggerfall material; no Doom item has condition, enchantments, or value yet.
+    public class DoomerfallDoomItem : DaggerfallUnityItem, ICustomItemImage, ICustomItemInfo
     {
         internal const int DoomTemplate = 9100;
         internal const float DefaultWeightKg = 2f; // Every Doom item until real weights are chosen.
@@ -72,7 +73,42 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return IsGun && type >= 0;
         }
         internal void SetAmmoTier(int type, int tier) { typeDependentData = (byte)((type + 1) * 16 + tier); }
-        public override string ItemName { get { return DoomerfallDoomItems.NameFor(DoomClass); } }
+
+        // A gun's Daggerfall weapon material (owner, 2026-11-24). Kept in nativeMaterialValue, where Daggerfall weapons keep
+        // theirs, so Daggerfall's own rules read it (GetWeaponMaterialModifier; price later), and saved with the item. It never
+        // changes which Doom weapon this is. A gun saved before guns had materials reads as Iron (0).
+        public WeaponMaterialTypes Material
+        {
+            get { return (WeaponMaterialTypes)Mathf.Clamp(nativeMaterialValue, 0, (int)WeaponMaterialTypes.Daedric); }
+            set { nativeMaterialValue = (int)value; }
+        }
+
+        // Every Doom item Daggerfall creates comes from here. A gun gets a material rolled with the approved odds
+        // (DoomerfallDrops.RollMaterial) at the area level where it is created, like any other loot.
+        internal static DoomerfallDoomItem Create(string doomClass, uint flags)
+        {
+            DoomerfallDoomItem item = new DoomerfallDoomItem(doomClass, flags);
+            if (item.IsGun)
+                item.Material = DoomerfallDrops.RollMaterial(WorldLevel.Current);
+            return item;
+        }
+
+        string MaterialName { get { return DaggerfallUnity.Instance.TextProvider.GetWeaponMaterialName(Material); } }
+        public override string ItemName
+        {
+            get { return IsGun ? MaterialName + " " + DoomerfallDoomItems.NameFor(DoomClass) : DoomerfallDoomItems.NameFor(DoomClass); }
+        }
+
+        // Daggerfall's misc item text for most Doom items. A gun's info names its material.
+        public TextFile.Token[] GetInfoTokens()
+        {
+            if (!IsGun)
+                return DaggerfallUnity.Instance.TextProvider.GetRSCTokens(1003); // ItemHelper.GetItemInfo's miscTextId
+            return DaggerfallUnity.Instance.TextProvider.CreateTokens(TextFile.Formatting.JustifyCenter,
+                ItemName,
+                string.Format("Material: {0}", MaterialName),
+                string.Format("Weight: {0:0.##} kilograms", weightInKg));
+        }
         public override string LongName { get { return ItemName; } }
         public override bool IsStackable() { return false; }
         public override bool UseItem(ItemCollection collection)
@@ -173,7 +209,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 DoomerfallDoomItem item = items.GetItem(i) as DoomerfallDoomItem;
                 if (item == null)
                     continue;
-                list.AppendFormat(" \"{0}\" {1} kg;", item.DoomClass, item.weightInKg);
+                list.AppendFormat(" \"{0}\" {1} kg named \"{2}\" material {3};", item.DoomClass, item.weightInKg, item.ItemName, item.IsGun ? item.Material.ToString() : "none");
                 if (testFolder != null)
                     RequestArt(item.DoomClass); // As the inventory window would on opening.
             }
@@ -225,7 +261,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DoomerfallDoomItem taken = null;
             if (status == Dfb.ITEM_TAKEN)
             {
-                taken = new DoomerfallDoomItem(cls, flags);
+                taken = DoomerfallDoomItem.Create(cls, flags);
                 if (taken.IsGun && takeStateRequest == request)
                     taken.GunState = string.Join(";", takeState.ToArray()); // A DRLA modded pickup's mods.
                 player.Items.AddItem(taken);
@@ -240,7 +276,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 DoomerfallHotkeys.Instance.OnGunTaken(taken, (int)((flags & Dfb.DOOM_ITEM_SLOT_MASK) >> (int)Dfb.DOOM_ITEM_SLOT_SHIFT) - 1);
             bridge.LogLine(string.Format("doomitems: take {0} \"{1}\" flags 0x{6:x}: status {2}, carried {3:F2}/{4} kg, doom items {5}{7}",
                 request, cls, status, player != null ? player.CarriedWeight : 0, player != null ? player.MaxEncumbrance : 0, player != null ? Count(player.Items) : 0,
-                flags, taken != null ? ", stored as \"" + taken.shortName + "\"" : ""));
+                flags, taken != null ? ", stored as \"" + taken.shortName + "\"" + (taken.IsGun ? " material " + taken.Material + " at area level " + WorldLevel.Current : "") : ""));
         }
 
         static int Count(ItemCollection items)

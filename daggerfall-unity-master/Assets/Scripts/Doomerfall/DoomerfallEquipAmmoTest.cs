@@ -45,6 +45,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DoomerfallDoomItem shotgun = new DoomerfallDoomItem("Shotgun", true);
             items.AddItem(shotgun);
             hotkeys.Assign(3, 0, shotgun);
+            DoomerfallMaterialDamageTest.SteelGuns(bridge, items);
             bridge.LogLine("equiptest: added a shotgun on key 3");
         }
     }

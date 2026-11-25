@@ -8,6 +8,7 @@ using DaggerfallConnect;
 using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop.Game.Formulas;
 using DaggerfallWorkshop.Game.Items;
+using DaggerfallWorkshop.Game.Serialization;
 using DaggerfallWorkshop.Utility;
 using UnityEngine;
 
@@ -22,6 +23,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         static readonly DFLocation.BuildingTypes[] Shops = { DFLocation.BuildingTypes.WeaponSmith, DFLocation.BuildingTypes.Armorer, DFLocation.BuildingTypes.PawnShop, DFLocation.BuildingTypes.GeneralStore };
         static readonly int[] HouseModels = { 0, 2, 4, 11, 15 };
         static readonly MobileTypes[] Enemies = { MobileTypes.Knight, MobileTypes.Warrior, MobileTypes.Barbarian, MobileTypes.Spellsword };
+        static readonly string[] DoomGuns = { "RLPistolPickup", "RLShotgunPickup", "RLChaingunPickup", "RLPlasmaRiflePickup" };
+        const int DoomGunsPerRound = 20;
 
         internal sealed class Tally
         {
@@ -32,7 +35,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             {
                 if (item == null)
                     return;
-                if (item.ItemGroup == ItemGroups.Weapons && !item.IsOfTemplate(ItemGroups.Weapons, (int)Weapons.Arrow))
+                DoomerfallDoomItem doom = item as DoomerfallDoomItem;
+                if (doom != null)
+                {
+                    if (doom.IsGun) weapon[(int)doom.Material]++;
+                }
+                else if (item.ItemGroup == ItemGroups.Weapons && !item.IsOfTemplate(ItemGroups.Weapons, (int)Weapons.Arrow))
                 {
                     int m = item.nativeMaterialValue;
                     if (m >= 0 && m < Tiers) weapon[m]++;
@@ -82,11 +90,19 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         static void RunLevel(DoomerfallBridge bridge, string mode, int level)
         {
             PlayerEntity player = GameManager.Instance.PlayerEntity;
-            Tally piles = new Tally(), shops = new Tally(), houses = new Tally(), magic = new Tally(), enemies = new Tally();
+            Tally piles = new Tally(), shops = new Tally(), houses = new Tally(), magic = new Tally(), enemies = new Tally(), doomGuns = new Tally();
             GameObject holder = new GameObject("Doomerfall material odds test");
             DaggerfallLoot container = holder.AddComponent<DaggerfallLoot>();
             for (int round = 0; round < Rounds; round++)
             {
+                // Doom guns through the one factory every Doom item creation uses (a take, an adopted or starter gun).
+                using (new LootSeed.Scope(LootSeed.Of(7600 + level, "doomgun", round)))
+                    for (int i = 0; i < DoomGunsPerRound; i++)
+                    {
+                        doomGuns.rolls++;
+                        doomGuns.Add(DoomerfallDoomItem.Create(DoomGuns[i % DoomGuns.Length], Dfb.DOOM_ITEM_GUN));
+                    }
+
                 foreach (string key in Piles)
                     using (new LootSeed.Scope(LootSeed.Of(7000 + level, key, round)))
                     {
@@ -150,6 +166,31 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bridge.LogLine(string.Format("materialodds: {0} level {1} houses {2}", mode, level, houses.Line()));
             bridge.LogLine(string.Format("materialodds: {0} level {1} magic {2}", mode, level, magic.Line()));
             bridge.LogLine(string.Format("materialodds: {0} level {1} enemies {2}", mode, level, enemies.Line()));
+            if (mode == "approved")
+            {
+                bridge.LogLine(string.Format("materialodds: {0} level {1} doomguns {2}", mode, level, doomGuns.Line()));
+                RoundTrip(bridge, level);
+            }
+        }
+
+        // One rolled gun through Daggerfall's own item save format and back, as a save and load would carry it.
+        static void RoundTrip(DoomerfallBridge bridge, int level)
+        {
+            DoomerfallDoomItem gun;
+            using (new LootSeed.Scope(LootSeed.Of(7700 + level, "doomgun")))
+                do gun = DoomerfallDoomItem.Create("RLPlasmaRiflePickup", Dfb.DOOM_ITEM_GUN);
+                while (gun.Material == WeaponMaterialTypes.Iron); // Iron is also what a gun saved without a material reads as.
+            ItemCollection saved = new ItemCollection();
+            saved.AddItem(gun);
+            string json = SaveLoadManager.Serialize(typeof(ItemData_v1[]), saved.SerializeItems());
+            ItemCollection loaded = new ItemCollection();
+            loaded.DeserializeItems((ItemData_v1[])SaveLoadManager.Deserialize(typeof(ItemData_v1[]), json));
+            DoomerfallDoomItem back = loaded.Count == 1 ? loaded.GetItem(0) as DoomerfallDoomItem : null;
+            string info = back != null ? string.Join(" | ", Array.ConvertAll(back.GetInfoTokens(), t => t.text ?? "")) : "";
+            bool ok = back != null && back.Material == gun.Material && back.ItemName == gun.ItemName && back.ItemName.StartsWith(back.Material.ToString() + " ")
+                && info.Contains("Material: " + back.Material) && back.GetWeaponMaterialModifier() == gun.GetWeaponMaterialModifier();
+            bridge.LogLine(string.Format("materialodds: doomgun roundtrip level {0}: {1} rolled {2}, loaded {3} named \"{4}\" modifier {5}, info \"{6}\"",
+                level, ok ? "PASS" : "FAIL", gun.Material, back != null ? back.Material.ToString() : "nothing", back != null ? back.ItemName : "", back != null ? back.GetWeaponMaterialModifier() : 0, info));
         }
     }
 }
