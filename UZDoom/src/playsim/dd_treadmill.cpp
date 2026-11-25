@@ -110,6 +110,9 @@ namespace
 	// Items the map itself places get tag 1 (bit 61 alone, which no other id uses): a hash of the class and the spot in
 	// world units, so the id is the same on every visit and a take leaves a tombstone.
 	constexpr uint64_t MAP_ITEM_TAG = 1ull << 61, TAG_MASK = 7ull << 61;
+	// A map item id: the tag, 41 bits naming the map, and the item's index in map order (Daggerfall packs taken ones as bits).
+	constexpr int MAP_ITEM_INDEX_BITS = 20;
+	constexpr uint64_t MAP_ITEM_PLACE_MASK = (1ull << (61 - MAP_ITEM_INDEX_BITS)) - 1;
 	bool IsMapItemId(uint64_t id) { return (id & TAG_MASK) == MAP_ITEM_TAG; }
 	// Rebuilt on every visit by the encounter plan (5) or by Daggerfall's lists (6 stationary NPCs, 7 townspeople).
 	bool IsRebuiltId(uint64_t id) { const uint64_t tag = id >> 61; return tag == DFB_MONSTER_TAG || tag == DFB_NPC_TAG || tag == DFB_TOWNSPERSON_TAG; }
@@ -125,7 +128,8 @@ namespace
 	{
 		uint64_t id = 0;
 		FName cls = NAME_None;
-		FString death;	// A corpse's death state label, such as "Death" or "XDeath.Fire". Never a state index.
+		FString death;	// A corpse's death state label, such as "Death" or "XDeath.Fire". Never a state index. For an item:
+						// what it carries (CarriedText), such as a DRLA modded gun's mods.
 		double x = 0, y = 0, z = 0, angle = 0, height = 0;
 		int health = 0, kind = KGone, amount = 0;
 		bool dropped = false;
@@ -559,20 +563,41 @@ namespace
 	}
 
 	// Records anything that vanished since the last check, such as a picked-up item.
+	DVector3 ToLocal(double x, double y, double z);
+
 	void Reconcile(FLevelLocals *Level)
 	{
 		std::unordered_set<uint64_t> live;
+		std::vector<AActor *> loose;	// unowned items without an id: drops, or a map item's replacement
 		live.reserve(expected.size() * 2);
 		auto it = Level->GetThinkerIterator<AActor>();
 		while (AActor *mo = it.Next())
 		{
-			if (!mo->ddRecordId) continue;
+			if (!mo->ddRecordId) { if (mo->IsKindOf(NAME_Inventory) && !IsOwned(mo)) loose.push_back(mo); continue; }
 			if (IsOwned(mo)) mo->ddRecordId = 0;
 			else live.insert(mo->ddRecordId);
 		}
 		for (auto e = expected.begin(); e != expected.end();)
 		{
 			if (live.count(*e)) { ++e; continue; }
+			// DoomerfallAmmo replaces a placed ammo pickup with a tiered one on the same spot a few tics after the map
+			// loads. The replacement is still the map's item: it takes the id, so it is neither a take nor a drop. Only an
+			// item that never moved counts (a tossed jackpot pickup stays a loose item).
+			if (IsMapItemId(*e))
+				if (auto spot = itemSpots.find(*e); spot != itemSpots.end())
+				{
+					const DVector3 at = ToLocal(spot->second.X, spot->second.Y, spot->second.Z);
+					auto heir = std::find_if(loose.begin(), loose.end(), [&](AActor *mo) {
+						return (mo->Pos().XY() - at.XY()).LengthSquared() <= 1 && fabs(mo->Z() - at.Z) <= 8; });
+					if (heir != loose.end())
+					{
+						(*heir)->ddRecordId = *e;
+						(*heir)->SpawnPoint = (*heir)->Pos();
+						loose.erase(heir);
+						++e;
+						continue;
+					}
+				}
 			MarkGone(*e);
 			e = expected.erase(e);
 		}
@@ -641,6 +666,38 @@ namespace
 
 	int unchangedCount, missingClassCount;	// For the table summary in the log.
 
+	// What an item lying on the ground carries as its own inventory, as "Class=amount;Class=amount", the text a gun's
+	// state uses in Daggerfall (dd_items.cpp). A DRLA modded pickup carries its gun's mods this way (+INVENTORY.TRANSFER).
+	FString CarriedText(AActor *mo)
+	{
+		FString out;
+		for (AActor *inv = mo->Inventory; inv; inv = inv->Inventory)
+		{
+			const int amount = inv->IntVar(NAME_Amount);
+			if (amount <= 0) continue;
+			if (!out.IsEmpty()) out += ";";
+			out.AppendFormat("%s=%d", inv->GetClass()->TypeName.GetChars(), amount);
+		}
+		return out;
+	}
+
+	// Gives a restored item what it carried. DRLA's modded pickup also asks for its mods when it spawns
+	// (GetWeaponMods), but only from the player who dropped it (its master); a restored pickup has none, so the script
+	// stops and these stay.
+	void GiveCarried(AActor *mo, const FString &text)
+	{
+		if (text.IsEmpty()) return;
+		for (auto &part : text.Split(";"))
+		{
+			const long eq = part.IndexOf('=');
+			if (eq <= 0) continue;
+			PClassActor *cls = PClass::FindActor(FName(part.Left(eq)));
+			const int amount = atoi(part.Mid(eq + 1).GetChars());
+			if (!cls || !cls->IsDescendantOf(NAME_Inventory) || amount <= 0) continue;
+			if (AActor *inv = mo->GiveInventoryType(cls)) inv->IntVar(NAME_Amount) = amount;
+		}
+	}
+
 	enum class Parked { Skip, Unchanged, Stored, Gone };
 
 	// What a row for this actor would be. Shared by Park and the location ledger's snapshot (DDTreadmill_SnapshotPlace).
@@ -665,6 +722,7 @@ namespace
 		{
 			r.kind = KItem;
 			r.amount = mo->IntVar(NAME_Amount);
+			r.death = CarriedText(mo);
 		}
 		else if (mo->health <= 0)
 		{
@@ -732,7 +790,11 @@ namespace
 		mo->Angles.Yaw = DAngle::fromDeg(r.angle);
 		mo->health = r.health;
 		if (r.dropped) mo->flags |= MF_DROPPED;
-		if (r.kind == KItem) mo->IntVar(NAME_Amount) = r.amount;
+		if (r.kind == KItem)
+		{
+			mo->IntVar(NAME_Amount) = r.amount;
+			GiveCarried(mo, r.death);
+		}
 		if (r.kind == KCorpse)
 		{
 			// The class's own death sequence, by label, to its resting frame.
@@ -751,7 +813,16 @@ namespace
 			mo->ClearCounters();
 			mo->flags &= ~(MF_SOLID | MF_SHOOTABLE | MF_FLOAT | MF_SKULLFLY);
 			mo->flags |= MF_CORPSE | MF_DROPOFF;
-			mo->Height = r.height;
+			if (r.height > 0) mo->Height = r.height;
+			else	// Daggerfall's saved record keeps no height: the class's own death height
+			{
+				IFVIRTUALPTR(mo, AActor, GetDeathHeight)
+				{
+					VMValue params[] = { mo };
+					VMReturn ret(&mo->Height);
+					VMCall(func, params, 1, &ret, 1);
+				}
+			}
 		}
 		expected.insert(r.id);
 		restoreCount++;
@@ -1777,11 +1848,14 @@ namespace
 		return h ^ (h >> 31);
 	}
 
-	// Gives each item the map placed a stable id: its class and its spot in world units (which include the place), so
-	// the same item gets the same id on every visit and a take or move can be recorded against it.
+	// Gives each item the map placed a stable id: the map and the item's index in map order (thinkers are created in
+	// the map's thing order, and a marker spawns its item as it is created), so the same item gets the same id on every
+	// visit and Daggerfall's record keeps a taken map item as one bit (MAP_ITEM_INDEX_BITS).
 	int AssignMapItemIds(FLevelLocals *Level)
 	{
-		std::unordered_set<uint64_t> used;
+		uint64_t place = 0xCBF29CE484222325ull;
+		for (const char *c = Level->MapName.GetChars(); *c; c++) place = (place ^ uint8_t(toupper(*c))) * 0x100000001B3ull;
+		place = MixId(place, 0x4D41504954454D53ull) & MAP_ITEM_PLACE_MASK;
 		int count = 0;
 		auto it = Level->GetThinkerIterator<AActor>();
 		while (AActor *mo = it.Next())
@@ -1789,12 +1863,9 @@ namespace
 			// Everything loose at map start is the map's, before the rows are restored. MF_DROPPED cannot tell: items a
 			// map marker spawns keep it (Inventory.BeginPlay sets it, and only map things clear it in LevelSpawned).
 			if (mo->ddRecordId || mo->player || !mo->IsKindOf(NAME_Inventory) || IsOwned(mo)) continue;
-			uint64_t h = 0xCBF29CE484222325ull;
-			for (const char *c = mo->GetClass()->TypeName.GetChars(); *c; c++) h = (h ^ uint8_t(tolower(*c))) * 0x100000001B3ull;
+			if (count >= (1 << MAP_ITEM_INDEX_BITS)) break;
 			const DVector3 w = ToWorld(mo->Pos(), originX, originY);
-			h = MixId(MixId(MixId(h, uint64_t(llround(w.X))), uint64_t(llround(w.Y))), uint64_t(llround(w.Z)));
-			uint64_t id;
-			do { id = MAP_ITEM_TAG | (h & (MAP_ITEM_TAG - 1)); h = MixId(h, 1); } while (!used.insert(id).second);	// Two alike on one spot.
+			const uint64_t id = MAP_ITEM_TAG | (place << MAP_ITEM_INDEX_BITS) | uint64_t(count);
 			mo->ddRecordId = id;
 			mo->SpawnPoint = mo->Pos();
 			itemSpots[id] = w;
@@ -1961,12 +2032,12 @@ namespace
 		Printf("DDTM resumed origin=%d,%d records=%d pending=%d floors drawn=%d of %d\n", originX, originY, int(table.size()), int(pending.size()), drawn, int(tris.size()));
 	}
 
-	FString EncodeState()
+	FString EncodeState(bool rows = true)
 	{
 		FString out;
 		out.AppendFormat("%d %d %d %llu %d\n", originX, originY, shifts, (unsigned long long)nextDynamic, int(pending.size()));
 		for (auto &p : pending) out.AppendFormat("%d %d\n", p.cx, p.cy);
-		for (auto &kv : table)
+		if (rows) for (auto &kv : table)
 		{
 			const Record &r = kv.second;
 			out.AppendFormat("%llu %s %s %.17g %.17g %.17g %.17g %.17g %d %d %d %d\n", (unsigned long long)r.id, r.cls.GetChars(),
@@ -2374,20 +2445,18 @@ void DDTreadmill_Serialize(FLevelLocals *Level, FSerializer &arc)
 	{
 		if ((!DDTreadmill_Active && !townActive) || Level != primaryLevel) return;
 		Reconcile(Level);
-		FString state = EncodeState();
+		// Daggerfall's location record is the only saved copy of every place (it got the current place's record just
+		// before this save, dd_locations.cpp DD_LocationsSave). The save keeps the window's origin and the way back
+		// out of a building; the table, the visited places and the plans are rebuilt from Daggerfall after a load.
+		FString state = EncodeState(false);
 		int format = TABLE_FORMAT;
 		arc("ddtableformat", format);
 		arc("ddoverworld", state);
 		FString spaces;
 		if (returnPoint.valid) spaces.AppendFormat("R %s %.17g %.17g %.17g %.17g\n", returnPoint.map.GetChars(), returnPoint.x, returnPoint.y, returnPoint.z, returnPoint.yaw);
-		for (const std::string &name : visitedSpaces) spaces.AppendFormat("V %s\n", name.c_str());
 		arc("ddspaces", spaces);
-		FString plans = DD_MonstersSavePlans();
-		arc("ddplans", plans);
-		int kinds[4] = {};
-		for (auto &kv : table) kinds[std::clamp(kv.second.kind, 0, 3)]++;
-		Printf("DDTM saved table: %d rows (%d monsters, %d corpses, %d items, %d gone), %d bytes; places %d bytes; plans %d bytes\n", int(table.size()),
-			kinds[KMonster], kinds[KCorpse], kinds[KItem], kinds[KGone], int(state.Len()), int(spaces.Len()), int(plans.Len()));
+		Printf("DDTM saved without the world table (%d rows stay with Daggerfall's record): state %d bytes, places %d bytes\n",
+			int(table.size()), int(state.Len()), int(spaces.Len()));
 		if (townActive)
 		{
 			int inTown = 1;
