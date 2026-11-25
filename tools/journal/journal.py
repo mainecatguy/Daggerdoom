@@ -40,7 +40,7 @@ DATA = ["ddruntime.pk3", "overworld.pk3", "privateershold.wad", "privateershold_
 GROUP = 7154
 FATAL = ("DIED WITH FATAL", "VM execution aborted", "Execution could not continue", "Unable to open map")
 TEST_MARK = 0x8000
-VK = {"J": 0x4A, "N": 0x4E, "Y": 0x59, "ESC": 0x1B, "UP": 0x26, "DOWN": 0x28}
+VK = {"J": 0x4A, "N": 0x4E, "Y": 0x59, "ESC": 0x1B, "UP": 0x26, "DOWN": 0x28}  # Y and N answer Daggerfall's Yes/No boxes.
 JOURNAL = "DaggerfallQuestJournalWindow"
 # Journal buttons in Daggerfall's 320x200 native layout (DaggerfallQuestJournalWindow.Setup).
 TAB_BUTTON, DOWN_ARROW, UP_ARROW, EXIT_BUTTON, FIRST_LINE = (66, 192), (215, 191), (187, 191), (293, 191), (100, 44)
@@ -102,6 +102,9 @@ class Doom:
 
     def __init__(self, launcher_log):
         self.user = ctypes.WinDLL("user32", use_last_error=True)
+        # Doom is DPI aware. From a DPI-unaware sender, Windows rescales posted mouse coordinates by the display scale
+        # (2.25 on this machine), so the driver declares itself per-monitor aware (-4) before posting anything.
+        self.user.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))
         self.user.PostMessageW.argtypes = (wt.HWND, wt.UINT, wt.WPARAM, wt.LPARAM)
         self.user.OpenDesktopW.restype = wt.HANDLE
         self.user.OpenDesktopW.argtypes = (wt.LPCWSTR, wt.DWORD, wt.BOOL, wt.DWORD)
@@ -163,11 +166,13 @@ class Doom:
     def click(self, xy):
         lp = self.point(*xy)
         self.user.PostMessageW(self.hwnd, 0x200, TEST_MARK, lp)
-        time.sleep(0.2)
+        time.sleep(0.4)
+        self.user.PostMessageW(self.hwnd, 0x200, TEST_MARK, lp)  # A second move, so the hover is settled before the press.
+        time.sleep(0.4)
         self.user.PostMessageW(self.hwnd, 0x201, 1 | TEST_MARK, lp)
-        time.sleep(0.08)
+        time.sleep(0.25)
         self.user.PostMessageW(self.hwnd, 0x202, TEST_MARK, lp)
-        time.sleep(0.6)
+        time.sleep(0.8)
 
 
 class Run:
@@ -186,7 +191,7 @@ class Run:
     def view(self):
         """The last logged state line, without its time."""
         lines = [l for l in read(self.views).splitlines() if " top " in l]
-        return lines[-1].split(" ", 1)[1] if lines else ""
+        return lines[-1].split(" ", 1)[1].split(" | ")[0] if lines else ""
 
     def journal(self):
         """(mode, page, count) of the open journal, or None when the journal is not on top."""
@@ -327,12 +332,19 @@ class Run:
         before = self.closes() - 1  # So the menu still open is before + 1 and closed is before + 2.
         doom.click(FIRST_LINE)
         asked = "message box" in self.view()
+        mark = len(read(self.views))
         doom.press("Y")
-        time.sleep(1.5)
-        travel = self.view()
+        self.wait(self.views, r"top DaggerfallTravelMapWindow", 3)
+        travel = next((l for l in read(self.views)[mark:].splitlines() if "top DaggerfallTravelMapWindow" in l), "").split(" | ")[0]
         print(f"  find: asked {asked}, then {travel}")
-        self.case(asked and "DaggerfallTravelMapWindow" in travel and self.closes() == before + 1,
+        self.case(asked and "finding True" in travel and self.closes() == before + 1,
                   f"clicking an active quest offers its place, and Yes shows it on the travel map inside the same menu ({travel})")
+        # When the find animation ends, Daggerfall asks whether to travel there (stock). Answer No, then leave the map.
+        self.wait(self.views, r"top DaggerfallMessageBox [^\n]*\n?$", 6)
+        asked_travel = "message box" in self.view()
+        doom.press("N")
+        time.sleep(0.5)
+        self.case(asked_travel and "DaggerfallTravelMapWindow" in self.view(), f"Daggerfall asked to travel to the found place, and No kept the travel map open ({self.view()})")
         for _ in range(3):  # The region view steps back to the world map first, then the map closes.
             if self.closes() > before + 1:
                 break

@@ -106,7 +106,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             {
                 view = "message box";
             }
-            return string.Format("top {0} view {1}", top == null ? "none" : top.GetType().Name, view);
+            Vector2 mouse = InputManager.Instance.MousePosition;
+            return string.Format("top {0} view {1} | mouse {2:F0},{3:F0} button {4}", top == null ? "none" : top.GetType().Name, view, mouse.x, mouse.y,
+                DoomerfallInput.GetKey(KeyCode.Mouse0));
         }
     }
 }
