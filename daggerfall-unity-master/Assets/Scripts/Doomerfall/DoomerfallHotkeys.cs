@@ -149,8 +149,24 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             ItemCollection items = GameManager.Instance.PlayerEntity.Items;
             activeItem = loadedActiveUid != 0 ? items.GetItem(loadedActiveUid) : null;
             adoptWanted = activeItem == null; // An older save, or a lost gun: take what Doom holds.
-            Log(string.Format("loaded: active {0} \"{1}\" key {2} square {3}, {4} squares: {5}", loadedActiveUid,
-                activeItem != null ? activeItem.ItemName : "none", activeKey, activeSquare, CountSquares(), Describe()));
+            Log(string.Format("loaded: active {0} \"{1}\" key {2} square {3}, {4} squares: {5}; Doom items: {6}", loadedActiveUid,
+                activeItem != null ? activeItem.ItemName : "none", activeKey, activeSquare, CountSquares(), Describe(), DoomItemList(items)));
+        }
+
+        // Every Doom gun and ammo stack the player carries, for the logs.
+        internal static string DoomItemList(ItemCollection items)
+        {
+            StringBuilder s = new StringBuilder();
+            int n = 0;
+            for (int i = 0; i < items.Count; i++)
+            {
+                DaggerfallUnityItem item = items.GetItem(i);
+                if (item is DoomerfallDoomItem || item is DoomerfallAmmoItem)
+                {
+                    s.AppendFormat("{0}[{1} x{2}]", n++ == 0 ? "" : " ", item.ItemName, item.stackCount);
+                }
+            }
+            return n + " " + s;
         }
 
         int CountSquares()
@@ -308,6 +324,62 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DrawGun(gun, pendingDrawKey, 0);
         }
 
+        // ---- Plain Daggerfall load (DoomerfallPlainLoad) ----
+
+        DoomerfallDoomItem plainDraw; // Drawn once Doom has put its new game guns away.
+        int plainKey = -1, plainSquare = -1;
+
+        // Doom started its default class with that class's guns. The owner's rules (2026-11-24): Doom keeps only its fist,
+        // then draws the first Doom gun by hotkey order (keys 1-9, then 0), else the first Doom gun in the inventory.
+        // With none, the starter pistol and Regular (Iron) ammo of the class's start amount become real items, the pistol
+        // goes on its weapon slot key by the auto-hotkey rule (OnGunTaken), and it is drawn.
+        internal void BeginPlainStart(string pistolClass, int slot, int ammoType, int ammo)
+        {
+            activeItem = null; // Whatever the save's table called active, Doom does not hold it.
+            activeKey = activeSquare = -1;
+            adoptWanted = false; // Doom's new game guns are not the player's.
+            pendingDraw = null;
+            plainDraw = null;
+            plainKey = plainSquare = -1;
+            ItemCollection items = GameManager.Instance.PlayerEntity.Items;
+            string how = null;
+            for (int n = 0; n < Keys && plainDraw == null; n++)
+            {
+                int k = (n + 1) % Keys;
+                for (int q = 0; q < Squares && plainDraw == null; q++)
+                {
+                    Square sq = table[k, q];
+                    DoomerfallDoomItem gun = sq != null && sq.kind == 'g' ? Resolve(sq) as DoomerfallDoomItem : null;
+                    if (gun != null && gun.IsGun) { plainDraw = gun; plainKey = k; plainSquare = q; how = string.Format("first by hotkey order, key {0} square {1}", k, q); }
+                }
+            }
+            int guns = 0;
+            for (int i = 0; i < items.Count; i++)
+            {
+                DoomerfallDoomItem gun = items.GetItem(i) as DoomerfallDoomItem;
+                if (gun == null || !gun.IsGun) continue;
+                guns++;
+                if (plainDraw == null) { plainDraw = gun; how = "first in the inventory, not hotkeyed"; }
+            }
+            if (plainDraw == null && !string.IsNullOrEmpty(pistolClass))
+            {
+                plainDraw = new DoomerfallDoomItem(pistolClass, true);
+                items.AddItem(plainDraw);
+                if (ammoType >= 0 && ammoType < DoomerfallAmmo.Types.Length && ammo > 0)
+                    items.AddItem(new DoomerfallAmmoItem(ammoType, DoomerfallAmmoTiers.Regular, ammo));
+                how = string.Format("no Doom gun in the inventory: gave the starter \"{0}\" and {1} Regular {2}", pistolClass, ammo,
+                    ammoType >= 0 && ammoType < DoomerfallAmmo.Types.Length ? DoomerfallAmmo.Types[ammoType].lowerName : "(no ammo type)");
+                bool keyFree = slot >= 0 && slot < Keys;
+                for (int q = 0; keyFree && q < Squares; q++)
+                    if (table[slot, q] != null) keyFree = false;
+                if (keyFree) { Assign(slot, 0, plainDraw); plainKey = slot; plainSquare = 0; }
+            }
+            Log(string.Format("plain load: {0} Doom gun(s) in the inventory; drawing \"{1}\" ({2}); Doom keeps only its fist first",
+                guns, plainDraw != null ? plainDraw.ItemName : "nothing", how ?? "no starter pistol known"));
+            Begin(Dfb.GUN_CLEAR, null, -1, -1);
+            Send(Dfb.KIND_GUN_EQUIP, request, Dfb.GUN_CLEAR, "");
+        }
+
         // ---- Presses ----
 
         internal void OnEvent(ushort kind, uint req, uint status, string cls)
@@ -449,6 +521,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 item.GunState = state;
                 adopted.Add(item);
             }
+            else if (requestFlags == Dfb.GUN_CLEAR && plainDraw != null)
+                Log(string.Format("plain load: Doom put away its new game gun \"{0}\"; not added", cls));
             else
                 Log(string.Format("Doom held an unexpected gun \"{0}\" (state \"{1}\"); not added", cls, state));
         }
@@ -498,6 +572,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             Log(string.Format("request {0} flags {1} done, status {2}: active \"{3}\" key {4} square {5}; table {6}", req, flags, status,
                 activeItem != null ? activeItem.ItemName : "none", activeKey, activeSquare, Describe()));
             RefreshInventory();
+            if (flags == Dfb.GUN_CLEAR && plainDraw != null)
+            {
+                DoomerfallDoomItem gun = plainDraw;
+                plainDraw = null;
+                if (GameManager.Instance.PlayerEntity.Items.Contains(gun.UID))
+                    DrawGun(gun, plainKey, plainSquare);
+            }
         }
 
         void Update()

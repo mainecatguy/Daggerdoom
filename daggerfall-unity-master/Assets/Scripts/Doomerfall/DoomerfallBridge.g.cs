@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x5eca3bae34bb56ccUL;
+        public const ulong SchemaHash = 0xf7762cbdcd0e32c6UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -109,6 +109,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_AMMO_UNLOAD = 178;  // DF to UZ; request is a number; status 1 is automatic (refused while the magazine holds rounds); cls is the reserve class
         public const ushort KIND_AMMO_UNLOADED = 179;  // UZ to DF; request echoes AMMO_UNLOAD; status is the rounds taken out of the magazine, or 0xFFFFFFFF refused
         public const ushort KIND_AMMO_LOADED = 180;  // DF to UZ; request is the loaded tier (0xFFFFFFFF none), status the ammo type (0 Clip to 3 Cell); cls is the ammo's tags, comma separated
+        public const ushort KIND_PLAIN_LOAD = 220;  // DF to UZ; payload: dfb_plain_load
+        public const ushort KIND_STARTER = 221;  // UZ to DF; the starter gun; payload: dfb_doom_item, cls the pistol's world pickup class (empty for none), request its weapon slot (low 8 bits, 255 for none) plus (reserve ammo type + 1) << 8 (0 Clip to 3 Cell), status the class's start amount of that ammo
         public const ushort KIND_NPC_USE = 100;  // UZ to DF; payload: dfb_npc_use
         public const ushort KIND_NPC_USE_RESULT = 101;  // DF to UZ; payload: dfb_npc_use_result
         public const ushort KIND_MONSTER_DEATH = 50;  // UZ to DF; a tagged monster died; payload: dfb_monster_death
@@ -222,6 +224,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint UI_LOOT = 5;  // the window for the container Daggerfall just answered DFB_ITEM_WINDOW for
         public const uint UI_TALK = 6;  // whatever Daggerfall opens for the NPC it just answered DFB_NPC_USE_WINDOW for
         public const uint UI_DAGGERFALL = 7;  // the window Daggerfall opened by itself and asked for with DFB_KIND_UI_ASK
+        public const uint UI_LOAD_GAME = 8;  // Daggerfall's own Load window, from Doom's title; a save loaded there has no Doom half (DFB_KIND_PLAIN_LOAD)
         public const uint UI_CLOSED = 0;
         public const uint UI_OPENED = 1;
         public const uint UI_REASON_NONE = 0;
@@ -255,8 +258,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint TOWNSFOLK_INTERIOR = 1;
 
         // Native size of every generated struct, for the attach check.
-        public static readonly Type[] StructTypes = { typeof(DfbFaces), typeof(DfbFace), typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbWorldContainer), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbInfoRequest), typeof(DfbInfoText), typeof(DfbDoomItem), typeof(DfbItemArt), typeof(DfbClimbUses), typeof(DfbNpcUse), typeof(DfbNpcUseResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbEncounterArea), typeof(DfbEncounterText), typeof(DfbNpc), typeof(DfbTownsfolk), typeof(DfbTownsperson), typeof(DfbTownspersonDeath), typeof(DfbGuardSpawn), typeof(DfbGuardDeath), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
-        public static readonly int[] StructSizes = { 8, 16, 64, 24, 24, 16, 24, 24, 48, 32, 48, 32, 16, 48, 40, 16, 48, 32, 48, 48, 144, 8, 24, 16, 32, 32, 48, 48, 16, 32, 40, 24, 40, 8, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
+        public static readonly Type[] StructTypes = { typeof(DfbFaces), typeof(DfbFace), typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbPlainLoad), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbWorldContainer), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbInfoRequest), typeof(DfbInfoText), typeof(DfbDoomItem), typeof(DfbItemArt), typeof(DfbClimbUses), typeof(DfbNpcUse), typeof(DfbNpcUseResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbEncounterArea), typeof(DfbEncounterText), typeof(DfbNpc), typeof(DfbTownsfolk), typeof(DfbTownsperson), typeof(DfbTownspersonDeath), typeof(DfbGuardSpawn), typeof(DfbGuardDeath), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
+        public static readonly int[] StructSizes = { 8, 16, 64, 24, 24, 16, 24, 24, 48, 32, 48, 48, 32, 16, 48, 40, 16, 48, 32, 48, 48, 144, 8, 24, 16, 32, 32, 48, 48, 16, 32, 40, 24, 40, 8, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
     }
 
     static class DfbBytes
@@ -352,8 +355,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public DfbWorldContainer worldContainer;  // CONTAINER
         [FieldOffset(16)] public DfbInfoRequest infoRequest;  // INFO
         [FieldOffset(16)] public DfbInfoText infoText;  // INFO_TEXT, INFO_NAME
-        [FieldOffset(16)] public DfbDoomItem doomItem;  // DOOM_ITEM_TAKE, DOOM_ITEM_RESULT, DOOM_ITEM_USE, DOOM_ITEM_USED, DOOM_ITEM_ART_REQUEST, DOOM_ITEM_ART
+        [FieldOffset(16)] public DfbDoomItem doomItem;  // DOOM_ITEM_TAKE, DOOM_ITEM_RESULT, DOOM_ITEM_USE, DOOM_ITEM_USED, DOOM_ITEM_ART_REQUEST, DOOM_ITEM_ART, STARTER
         [FieldOffset(16)] public DfbClimbUses climbUses;  // CLIMB_USES
+        [FieldOffset(16)] public DfbPlainLoad plainLoad;  // PLAIN_LOAD
         [FieldOffset(16)] public DfbNpcUse npcUse;  // NPC_USE
         [FieldOffset(16)] public DfbNpcUseResult npcUseResult;  // NPC_USE_RESULT
         [FieldOffset(16)] public DfbMonsterDeath monsterDeath;  // MONSTER_DEATH
@@ -485,6 +489,21 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(36)] public float startY;
         [FieldOffset(40)] public float startZ;
         [FieldOffset(44)] public float startYaw;
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 48)]
+    struct DfbPlainLoad
+    {
+        [FieldOffset(0)] public double worldX;
+        [FieldOffset(8)] public double worldZ;
+        [FieldOffset(16)] public float yawDegrees;
+        [FieldOffset(20)] public int dungeonMapId;
+        [FieldOffset(24)] public uint context;
+        [FieldOffset(28)] public float startX;
+        [FieldOffset(32)] public float startY;
+        [FieldOffset(36)] public float startZ;
+        [FieldOffset(40)] public float startYaw;
+        [FieldOffset(44)] public uint pad;
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 32)]

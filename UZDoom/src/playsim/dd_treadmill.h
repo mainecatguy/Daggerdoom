@@ -22,6 +22,7 @@ bool DDTreadmill_PlayerSpace(double &x, double &y, double &z, double &yawDegrees
 bool DDTreadmill_RequestTravel(double x, double y, double yawDegrees);	// Daggerfall world units. Moves the player on the next tic.
 void DDTreadmill_PressDoor();	// Daggerfall's Info on a door also enters: one press of Use on a location door, on the next tic.
 void DDTreadmill_RequestDungeon(int mapId, const double *start = nullptr);	// Doomerfall New Game: enters this dungeon through the current town's door on the next tic. start (x, y, z, yaw in Daggerfall space units and Doom degrees) replaces the map start.
+void DDTreadmill_RequestBuilding(double doorX, double doorY, double tolerance, const double *start);	// Doomerfall plain load: enters the building whose town door is nearest this world point (within tolerance), landing at start (as RequestDungeon).
 bool DDTreadmill_CurrentDoor(int &action, double &x, double &y, int &target);	// After a load: which side of which door the player is on. False off Daggerfall maps.
 void DD_BridgeTransition(int action, double x, double y, int target);	// Tells Daggerfall about a door. Does nothing without a bridge session.
 
@@ -32,7 +33,7 @@ bool DDTreadmill_MapMesh(const char *mapname, const uint8_t *&data, size_t &size
 bool DDTreadmill_LodMesh(const uint8_t *&data, size_t &size, int &key);
 bool DDTreadmill_RuntimeTowns();
 level_info_t *DDTreadmill_LevelInfoAt(unsigned index);	// Null past the end. Empty unless a generated location was used.
-bool DDTreadmill_HandoffPending();	// True during a stitched map change, which must not autosave and hitch.
+bool DDTreadmill_HandoffPending();	// True during a stitched map change. Its autosave runs before the first frame, not a tic later.
 
 void DDTreadmill_Serialize(FLevelLocals *Level, FSerializer &arc);
 void DDTreadmill_FrameEnd();

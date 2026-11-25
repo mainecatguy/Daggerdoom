@@ -163,6 +163,12 @@ extern "C" {
 #define DFB_KIND_AMMO_UNLOADED 179  /* UZ to DF; request echoes AMMO_UNLOAD; status is the rounds taken out of the magazine, or 0xFFFFFFFF refused */
 #define DFB_KIND_AMMO_LOADED   180  /* DF to UZ; request is the loaded tier (0xFFFFFFFF none), status the ammo type (0 Clip to 3 Cell); cls is the ammo's tags, comma separated */
 
+/* A plain Daggerfall save (no Doom half) loaded from DFB_UI_LOAD_GAME. Daggerfall holds the game; Doom starts a game of
+   its default class through the New Game chain, goes to the saved place, sends STARTER, then DFB_KIND_NEWGAME_ARRIVED.
+   Daggerfall answers DFB_KIND_NEWGAME_GO and gives the starting weapon (the owner's rules, 2026-11-24). */
+#define DFB_KIND_PLAIN_LOAD    220  /* DF to UZ; payload: dfb_plain_load */
+#define DFB_KIND_STARTER       221  /* UZ to DF; the starter gun; payload: dfb_doom_item, cls the pistol's world pickup class (empty for none), request its weapon slot (low 8 bits, 255 for none) plus (reserve ammo type + 1) << 8 (0 Clip to 3 Cell), status the class's start amount of that ammo */
+
 /* Use on an NPC Doom draws. Daggerfall runs its own activation of that NPC (Grab, or Steal while crouching). Any HUD
    message it shows comes back as DFB_KIND_INFO_TEXT with the same request number. */
 #define DFB_KIND_NPC_USE        100 /* UZ to DF; payload: dfb_npc_use */
@@ -327,6 +333,7 @@ typedef struct dfb_face
 #define DFB_UI_LOOT        5u  /* the window for the container Daggerfall just answered DFB_ITEM_WINDOW for */
 #define DFB_UI_TALK        6u  /* whatever Daggerfall opens for the NPC it just answered DFB_NPC_USE_WINDOW for */
 #define DFB_UI_DAGGERFALL  7u  /* the window Daggerfall opened by itself and asked for with DFB_KIND_UI_ASK */
+#define DFB_UI_LOAD_GAME   8u  /* Daggerfall's own Load window, from Doom's title; a save loaded there has no Doom half (DFB_KIND_PLAIN_LOAD) */
 
 #define DFB_UI_CLOSED      0u
 #define DFB_UI_OPENED      1u
@@ -456,6 +463,25 @@ typedef struct dfb_new_game
 	float start_z;
 	float start_yaw;
 } dfb_new_game;
+
+/* Where a loaded plain Daggerfall save has the player (DFB_KIND_PLAIN_LOAD). context is DFB_WORLD_*. Outdoors world_x/z
+   and yaw_degrees are the exact position and facing (Doom degrees). In a dungeon, world_x/z is the middle of its map
+   pixel and dungeon_map_id names it. In a building, world_x/z is the building's door in Daggerfall world units.
+   Indoors, start_* is the player's feet in Daggerfall units relative to the space (Doom's space coordinates: x east,
+   y north, z up) and start_yaw the facing in Doom degrees. */
+typedef struct dfb_plain_load
+{
+	double world_x;
+	double world_z;
+	float yaw_degrees;
+	int32_t dungeon_map_id;
+	uint32_t context;
+	float start_x;
+	float start_y;
+	float start_z;
+	float start_yaw;
+	uint32_t pad;
+} dfb_plain_load;
 
 /* The outside door used, in Daggerfall world units. target is Doom's interior space or dungeon map id, for logs. */
 typedef struct dfb_transition

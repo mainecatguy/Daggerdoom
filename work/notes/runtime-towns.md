@@ -21,7 +21,7 @@ Demo: `D:\dev\DoomDaggerfall-loop\review\runtime-towns\play.bat`. You start east
 
 - Stock save code only writes snapshots for maps in MAPINFO. Generated maps need their own loop, or a load silently restarts the map.
 - Stock autosave code assumes a map came from a loaded file. It crashed on a generated map until the map reported the runtime package as its file.
-- Every handoff also triggered an autosave, a 220 to 240 ms hitch about a second after arrival. Stitched changes no longer autosave. See the questions below.
+- Every handoff also triggered an autosave, a 220 to 240 ms hitch about a second after arrival. Stitched changes no longer autosave. See the questions below. (2026-11-24: owner decision, autosaves are back; they now run before the new map's first frame. See `work/notes/20261124-123655.md`.)
 - Two groups were too wide for one map, including Wayrest. They now become one map per location.
 
 ## Engine changes
@@ -33,7 +33,7 @@ All marked `[DoomDaggerfall]`, and inactive without the runtime package and its 
 | `playsim/dd_towncache.cpp`, `.h` | New: cache, converter process, worker reads, test crash capture |
 | `playsim/dd_treadmill.cpp`, `.h` | Location index, requests, distant view, handoff to generated maps |
 | `p_openmap.cpp` | Opens a generated map from the cache |
-| `gamedata/g_mapinfo.cpp`, `g_level.cpp` | Level info and save snapshots for generated maps. No autosave on a stitched change |
+| `gamedata/g_mapinfo.cpp`, `g_level.cpp` | Level info and save snapshots for generated maps. A stitched change autosaves through the bridge before its first frame |
 | `hw_dfmesh.cpp` | Mesh can come from the cache |
 
 ## Evidence
@@ -88,5 +88,5 @@ Run with `tools/overworld/runtime_test.py`. Logs are in `D:\dev\DoomDaggerfall-b
 
 ## Questions for the owner
 
-1. Stitched map changes no longer autosave, because each autosave caused a visible hitch. Should autosaves happen at some other moment, such as on a timer or when resting?
+1. ~~Stitched map changes no longer autosave, because each autosave caused a visible hitch. Should autosaves happen at some other moment, such as on a timer or when resting?~~ Answered 2026-11-22: keep normal autosaving; the hitch is acceptable during a load.
 2. Should adjacent locations that are too wide for one map, like Wayrest and Merwark Hollow, show each other's buildings from inside? It needs a second mesh layer.

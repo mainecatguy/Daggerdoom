@@ -847,6 +847,42 @@ void DD_ItemsResync()
 	sentLevel = -2;
 }
 
+// Plain Daggerfall load (no Doom half): tells Daggerfall the starter gun, the loaded mods' pistol (DRLA's RLPistol, else
+// stock Pistol) by its world pickup class, its weapon slot, and the player class's start amount of its reserve ammo.
+void DD_ItemsSendStarter()
+{
+	PClassActor *weapon = PClass::FindActor("RLPistol");
+	if (!weapon || !weapon->IsDescendantOf(NAME_Weapon)) weapon = PClass::FindActor("Pistol");
+	player_t *player = consoleplayer >= 0 ? &players[consoleplayer] : nullptr;
+	if (!weapon || !weapon->IsDescendantOf(NAME_Weapon) || !player || !player->mo)
+	{
+		SendDoomItem(DFB_KIND_STARTER, 0, 0, "");
+		Printf(PRINT_LOG, "doomitems: starter: no pistol class is loaded\n");
+		return;
+	}
+	FString pickup = FStringf("%sPickup", weapon->TypeName.GetChars());	// As DoomerfallGuns.zs PickupFor names a held gun.
+	if (!PClass::FindActor(pickup.GetChars())) pickup = weapon->TypeName.GetChars();
+	int slot = -1, index = -1;
+	if (!player->weapons.LocateWeapon(weapon, &slot, &index)) slot = -1;
+	PClassActor *magazine;
+	const int kind = WeaponAmmo(GetDefaultByType(weapon), &magazine);
+	int amount = 0;
+	bool listed = false;
+	if (kind >= 0)
+		for (FDropItem *di = player->mo->GetClass()->ActorInfo()->DropItems; di; di = di->Next)
+		{
+			PClassActor *item = PClass::FindActor(di->Name);
+			if (item && item->IsDescendantOf(FName(AmmoClasses[kind]))) { amount += di->Amount; listed = true; }
+		}
+	// Some classes (DRLA X) give their start ammo by script, not Player.StartItem. Doom has been frozen since its new game
+	// started, so what the player holds now is still the class's start amount.
+	if (kind >= 0 && !listed)
+		if (AActor *inv = player->mo->FindInventory(FName(AmmoClasses[kind]))) amount = std::max(0, inv->IntVar(NAME_Amount));
+	Printf(PRINT_LOG, "doomitems: starter %s (slot %d), class %s starts with %d %s%s\n", pickup.GetChars(), slot,
+		player->mo->GetClass()->TypeName.GetChars(), amount, kind >= 0 ? AmmoClasses[kind] : "no reserve ammo", listed ? "" : " (none listed)");
+	SendDoomItem(DFB_KIND_STARTER, uint32_t(slot & 0xff) | uint32_t(kind + 1) << 8, uint32_t(amount), pickup.GetChars());
+}
+
 // True when this item must wait for the Use button. False for everything outside a generated map.
 bool DD_PickupNeedsUse(AActor *special)
 {

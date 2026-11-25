@@ -1476,6 +1476,7 @@ namespace
 	int dungeonRequest = -1;
 	bool dungeonRequestHasStart = false;
 	double dungeonRequestStart[4];
+	struct BuildingRequest { bool pending = false; double x = 0, y = 0, tolerance = 0, start[4] = {}; } buildingRequest;	// [Doomerfall]
 
 	void BeginTravel(FLevelLocals *Level, AActor *pmo)
 	{
@@ -1624,6 +1625,8 @@ namespace
 			const SpaceLanding *landing = &space.landings[0];
 			for (const SpaceLanding &l : space.landings) if (l.index == d.index) landing = &l;
 			target = { landing->x / DOOM_PER_DF + space.originX, landing->y / DOOM_PER_DF + space.originY, landing->z / DOOM_PER_DF, landing->yaw, false, DD_AREA_INTERIOR };
+			if (dungeonStart)	// [Doomerfall] Plain Daggerfall load: where the save had the player in the building.
+				target = { dungeonStart[0] + space.originX, dungeonStart[1] + space.originY, dungeonStart[2], dungeonStart[3], false, DD_AREA_INTERIOR };
 			map = space.map;
 		}
 		else
@@ -2165,6 +2168,29 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 			}
 		Printf("DDTRAVEL no door to dungeon %d in %s\n", wanted, Level->MapName.GetChars());
 	}
+	if (buildingRequest.pending && townActive && !handoff.pending)	// [Doomerfall] Plain Daggerfall load: into the saved building.
+	{
+		buildingRequest.pending = false;
+		const Town &t = towns[currentTown];
+		const DoorSpot *best = nullptr;
+		double bestDistance = 1e30;
+		for (const DoorSpot &d : townDoors)
+		{
+			if (d.kind != 0) continue;
+			const double dx = d.x / DOOM_PER_DF + t.originX - buildingRequest.x, dy = d.y / DOOM_PER_DF + t.originY - buildingRequest.y;
+			const double distance = sqrt(dx * dx + dy * dy);
+			if (distance < bestDistance) { bestDistance = distance; best = &d; }
+		}
+		if (best && bestDistance <= buildingRequest.tolerance)
+		{
+			Printf("DDPLAINLOAD building door %d is %.1f units from the saved door\n", best->target, bestDistance);
+			if (EnterDoor(Level, pmo, *best, buildingRequest.start)) return;
+			Printf("DDPLAINLOAD building %d is not converted yet, trying again\n", best->target);
+			buildingRequest.pending = true;
+		}
+		else Printf("DDPLAINLOAD no building door within %.0f units of %.1f,%.1f in %s (nearest %.1f)\n", buildingRequest.tolerance,
+			buildingRequest.x, buildingRequest.y, Level->MapName.GetChars(), best ? bestDistance : -1.0);
+	}
 
 	if (townActive)
 	{
@@ -2260,6 +2286,15 @@ void DDTreadmill_RequestDungeon(int mapId, const double *start)
 	dungeonRequest = mapId;
 	dungeonRequestHasStart = start != nullptr;
 	if (start) memcpy(dungeonRequestStart, start, sizeof(dungeonRequestStart));
+}
+
+void DDTreadmill_RequestBuilding(double doorX, double doorY, double tolerance, const double *start)
+{
+	buildingRequest.pending = true;
+	buildingRequest.x = doorX;
+	buildingRequest.y = doorY;
+	buildingRequest.tolerance = tolerance;
+	memcpy(buildingRequest.start, start, sizeof(buildingRequest.start));
 }
 
 bool DDTreadmill_CurrentDoor(int &action, double &x, double &y, int &target)

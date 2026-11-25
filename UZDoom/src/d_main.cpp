@@ -381,6 +381,7 @@ bool OkForLocalization(FTextureID texnum, const char* substitute);
 void D_DoomLoop ();
 void DD_BridgeInit(); // Doomerfall
 void DD_BridgeFrame(); // Doomerfall
+bool DD_BridgeHoldFrame(); // Doomerfall
 void DD_BridgeDrawUi(); // Doomerfall
 bool DD_BridgeUiActive(); // Doomerfall
 void DD_FacesDraw(); // Doomerfall
@@ -1607,7 +1608,7 @@ void D_DoomLoop ()
 			// Update display, next frame, with current state.
 			I_StartTic ();
 			D_ProcessEvents();
-			D_Display ();
+			if (!DD_BridgeHoldFrame()) D_Display (); // Doomerfall: a map change's autosave keeps the frame from before it
 			S_UpdateMusic();
 
 			if (gameloop_abort)
