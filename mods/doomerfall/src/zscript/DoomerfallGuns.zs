@@ -7,6 +7,8 @@
 //   dfg_drop:<request>:<flags>:<pickup>   Daggerfall's inventory window dropped this Doom item: spawn its pickup in front
 //                                         of the player, carrying the gun's dfg_state lines (flags 0x200: the gun Doom
 //                                         holds, whose live state goes instead); answers dfg_out:dropped
+//   dfg_out:lost:0:8:<pickup>             (to Daggerfall) the gun left the player by Doom's own drop (DRLA's WeaponDrop,
+//                                         weapdrop); its pickup lies on the ground carrying the gun's state
 //
 // A gun's state is its per-class inventory, every item named <Weapon>... (DRLA's RL<Weapon>Clip magazine,
 // <Weapon>ModLimit, and its mods). It leaves Doom with the gun and comes back with it, so swapping never reloads.
@@ -22,6 +24,16 @@ class DoomerfallGuns : EventHandler
 	Array<int> stateAmounts;
 	int stateRequest;
 
+	// Doom's own drops (DRLA's WeaponDrop, weapdrop) take a gun from the player without Daggerfall asking. Each tic the
+	// guns the player holds are compared with the last tic's; a gun gone by anything but this handler is "lost", and a
+	// few tics later (DRLA's pickup fetches its mods by ACS first) its pickup is found, given what of the gun's state
+	// stayed with the player (DRLA's magazine), and Daggerfall is told, so it lets go of the gun (DoomerfallHotkeys).
+	const Lost = 8;
+	bool driven;	// Daggerfall has sent a gun event, so it keeps the gun table.
+	bool ownChange;
+	Array<String> heldGuns, lostGuns;
+	Array<int> lostAt;
+
 	override void NetworkProcess(ConsoleEvent e)
 	{
 		if (e.Name.Left(4) != "dfg_" || e.Name.Left(8) == "dfg_out:") return;
@@ -35,8 +47,87 @@ class DoomerfallGuns : EventHandler
 			stateNames.Push(f[3]);
 			stateAmounts.Push(f[2].ToInt());
 		}
-		else if (f[0] == "dfg_equip" && f.Size() >= 4) Equip(mo, f[1].ToInt(), f[2].ToInt(), f[3]);
-		else if (f[0] == "dfg_drop" && f.Size() >= 4) Drop(mo, f[1].ToInt(), f[2].ToInt(), f[3]);
+		else if (f[0] == "dfg_equip" && f.Size() >= 4) { driven = true; ownChange = true; Equip(mo, f[1].ToInt(), f[2].ToInt(), f[3]); }
+		else if (f[0] == "dfg_drop" && f.Size() >= 4) { ownChange = true; Drop(mo, f[1].ToInt(), f[2].ToInt(), f[3]); }
+	}
+
+	override void WorldLoaded(WorldEvent e) { lostGuns.Clear(); lostAt.Clear(); ownChange = true; }
+
+	override void WorldTick()
+	{
+		if (!driven || consoleplayer < 0 || !playeringame[consoleplayer]) return;
+		let mo = players[consoleplayer].mo;
+		if (!mo) return;
+		Array<String> now;
+		for (Inventory i = mo.Inv; i; i = i.Inv)
+		{
+			let w = Weapon(i);
+			if (w && PickupFor(w) != "") now.Push(w.GetClassName());
+		}
+		if (!ownChange && mo.health > 0)
+			for (int j = 0; j < heldGuns.Size(); j++)
+				if (now.Find(heldGuns[j]) == now.Size()) { lostGuns.Push(heldGuns[j]); lostAt.Push(level.maptime); }
+		ownChange = false;
+		heldGuns.Move(now);
+		for (int j = lostGuns.Size() - 1; j >= 0; j--)
+			if (level.maptime - lostAt[j] >= 4)
+			{
+				LostGun(PlayerPawn(mo), lostGuns[j]);
+				lostGuns.Delete(j);
+				lostAt.Delete(j);
+			}
+	}
+
+	void LostGun(PlayerPawn mo, String wname)
+	{
+		if (!mo) return;
+		// Its pickup: DRLA's RL<Weapon>Pickup[Modded], or the stock weapon itself, tossed. New, unowned and near.
+		Inventory pickup;
+		double best = 512;
+		let it = ThinkerIterator.Create("Inventory");
+		Inventory inv;
+		while (inv = Inventory(it.Next()))
+		{
+			if (inv.Owner) continue;
+			String n = inv.GetClassName();
+			// A tossed stock weapon is the player's own actor, old but now dropped; DRLA spawns a new pickup.
+			if (n == wname ? !inv.bDROPPED : (inv.GetAge() > 35 || (n != wname .. "Pickup" && n != wname .. "PickupModded"))) continue;
+			double d = mo.Distance3D(inv);
+			if (d < best) { best = d; pickup = inv; }
+		}
+		if (!pickup)
+		{
+			// A gun that turned into another (DRLA assemblies) or was taken by a script leaves no pickup.
+			Console.Printf("dfg lost: %s left the player, but no pickup of it is near; Daggerfall not told", wname);
+			return;
+		}
+		// What of the gun's state stayed with the player (DRLA's drop leaves the magazine) goes with the pickup, as
+		// the inventory window's drop sends it.
+		Array<Inventory> extras;
+		for (Inventory i = mo.Inv; i; i = i.Inv)
+		{
+			if (i is "Weapon") continue;
+			String name = i.GetClassName();
+			if (name.Length() <= wname.Length() || name.Left(wname.Length()) != wname || EndsWith(name, "TypeWeapon")) continue;
+			extras.Push(i);
+		}
+		int moved = 0;
+		for (int j = 0; j < extras.Size(); j++)
+		{
+			let x = extras[j];
+			if (!x) continue;
+			class<Inventory> c = (class<Inventory>)(x.GetClass());
+			if (x.Amount > 0 && !EndsWith(x.GetClassName(), "Selected") && !pickup.FindInventory(c))
+			{
+				let carried = pickup.GiveInventoryType(c);
+				if (carried) { carried.Amount = x.Amount; moved++; }
+			}
+			mo.TakeInventory(c, 0x7fffffff);
+		}
+		String carriedText = "";
+		for (Inventory i = pickup.Inv; i; i = i.Inv) carriedText = carriedText .. String.Format(" %s=%d", i.GetClassName(), i.Amount);
+		Console.Printf("dfg lost: %s dropped by Doom as %s, %d state items moved from the player; carries%s", wname, pickup.GetClassName(), moved, carriedText);
+		Tell("lost", 0, Lost, pickup.GetClassName());
 	}
 
 	// A DRLA gun with any mod on it drops as its ...PickupModded class, which shows the mods and hands them over.

@@ -10,6 +10,10 @@ version "4.14"
 //   monster take:  a ShotgunGuy is killed and the gun it drops is taken with Use.
 // Ammo for those types must not change on any take. A retake needs the gun held again: Daggerfall's hotkeys draw a newly
 // taken gun when its key is free; if no shotgun is held when a drop path starts, the route says so and moves on.
+// Gun duplication (owner, 2026-11-24): a gun Doom drops by its own paths (2, 3) leaves Daggerfall's inventory, so every
+// retake keeps Daggerfall's Doom item count (df "doom items N") and leaves one gun. On DRLA runs the gun gets a power mod
+// after the map take; LRAMMO shows its mods, which must survive every drop and retake. Each retake presses the gun's
+// hotkey (3), which must find the gun (df "press key 3 square 0").
 class MDState : Inventory
 {
 	Default { Inventory.MaxAmount 1; +INVENTORY.UNDROPPABLE +INVENTORY.UNTOSSABLE }
@@ -68,7 +72,12 @@ class MDHarness : EventHandler
 	{
 		let w = p.player.ReadyWeapon;
 		String clip = clipName != "" ? String.Format(" %s %d", clipName, p.CountInv(clipName)) : "";
-		Console.Printf("LRAMMO %-16s Shell %d%s | ready %s, %s held %d", when, p.CountInv("Shell"), clip, w ? w.GetClassName() : 'none', weaponName, p.CountInv(weaponName));
+		String mods = drla ? String.Format(", mods power %d limit %d", p.CountInv(weaponName .. "PowerMod"), p.CountInv(weaponName .. "ModLimit")) : "";
+		int ground = 0;
+		let it = ThinkerIterator.Create("Inventory");
+		Inventory inv;
+		while (inv = Inventory(it.Next())) if (IsGunPickup(inv)) ground++;
+		Console.Printf("LRAMMO %-16s Shell %d%s | ready %s, %s held %d%s, on the ground %d", when, p.CountInv("Shell"), clip, w ? w.GetClassName() : 'none', weaponName, p.CountInv(weaponName), mods, ground);
 	}
 
 	bool HoldsGun(PlayerPawn p)
@@ -77,6 +86,9 @@ class MDHarness : EventHandler
 		let pending = p.player.PendingWeapon;
 		return w && w.GetClassName() == weaponName && (pending == null || pending == WP_NOCHANGE);
 	}
+
+	// A retake's hotkey check: shortly before the retake is reported, press the gun's key.
+	void Press(int t) { if (t == 35 * 5) { EventHandler.SendNetworkEvent("dd_hotkey:3"); Console.Printf("LRSTEP pressed hotkey 3 after the retake"); } }
 
 	// Stands before the pickup, looks at it and presses Use (DD_UsePress through the harness's df_interact).
 	void Take(PlayerPawn p, MDState st, Inventory gun)
@@ -126,6 +138,12 @@ class MDHarness : EventHandler
 			if (st.timer < 35 * 5) break;
 			Ammo(p, "map take");
 			if (FindGun(p)) Console.Printf("LRSTEP the map gun was not taken");
+			if (drla && p.CountInv(weaponName) > 0)
+			{
+				p.GiveInventory(weaponName .. "PowerMod", 1);	// by name at run time: a stock run has no DRLA classes
+				p.GiveInventory(weaponName .. "ModLimit", 1);
+				Ammo(p, "mod given");
+			}
 			NextPath(st, 0);
 			break;
 		case 2: // Path 1: Daggerfall's hook drops the gun about 6 s after it is in the inventory.
@@ -135,6 +153,7 @@ class MDHarness : EventHandler
 			break;
 		case 3:
 			Take(p, st, FindGun(p));
+			Press(st.timer);
 			if (st.timer < 35 * 6) break;
 			Ammo(p, String.Format("p1 retake %d", ++st.cycle));
 			if (st.cycle < 3) Next(st, 2);
@@ -186,6 +205,7 @@ class MDHarness : EventHandler
 					p.pitch = 25;
 					EventHandler.SendNetworkEvent("df_interact");
 				}
+				Press(t);
 				if (t < 35 * 6) break;
 			}
 			Ammo(p, String.Format("p%d retake %d", st.phase == 5 ? 2 : 3, ++st.cycle));

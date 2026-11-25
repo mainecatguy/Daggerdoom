@@ -35,10 +35,10 @@ def route(drla, paths):
 
 def report(name):
     for line in l2.log(name).splitlines():
-        if line.startswith(("LRAMMO", "LRSTEP", "MDDONE", "MDFAIL", "dfg drop")) or "doomitems: took" in line:
+        if line.startswith(("LRAMMO", "LRSTEP", "MDDONE", "MDFAIL", "dfg drop", "dfg lost")) or "doomitems: took" in line:
             print(" ", line[:200])
     for line in base.read(REVIEW / "run" / f"{name}-df.log").splitlines():
-        if any(k in line for k in ("gundroptest:", "doomitems: take", "doomitems: dropped", "hotkeys: key", "hotkeys: press", "hotkeys: took", "status 4")):
+        if any(k in line for k in ("gundroptest:", "doomitems: take", "doomitems: dropped", "hotkeys: key", "hotkeys: press", "hotkeys: took", "hotkeys: Doom dropped", "hotkeys: assigned", "hotkeys: cleared", "Nothing is assigned", "status 4")):
             print("  df", line[:200])
 
 
