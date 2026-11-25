@@ -1282,7 +1282,7 @@ namespace DaggerfallWorkshop
         /// <param name="buildingKey">Key of building to query.</param>
         /// <param name="buildingDiscoveryData">[out] building discovery data of queried building</param>
         /// <returns>True if building information was found.</returns>
-        bool GetBaseBuildingDiscoveryData(int buildingKey, out DiscoveredBuilding buildingDiscoveryData)
+        public bool GetBaseBuildingDiscoveryData(int buildingKey, out DiscoveredBuilding buildingDiscoveryData) // Doomerfall: public, for the look label
         {
             buildingDiscoveryData = new DiscoveredBuilding();
 

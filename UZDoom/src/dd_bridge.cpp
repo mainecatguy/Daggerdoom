@@ -69,6 +69,8 @@ void DD_NpcsFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t 
 void DD_NpcsResync();
 bool DD_InfoEvent(const dfb_event &e);
 bool DD_InfoNetEvent(dfb_session *session, const char *name);
+bool DD_LookEvent(const dfb_event &e);
+void DD_LookFrame(dfb_session *session);
 bool DD_TownsfolkEvent(const dfb_event &e);
 void DD_TownsfolkFrame(dfb_session *session, uint32_t context);
 void DD_TownsfolkResync();
@@ -323,7 +325,7 @@ void HandleEvent(const dfb_event &e, int64_t now)
 		Log("hello from Daggerfall (seq %u)", e.seq);
 		break;
 	default:
-		if (!DD_ItemsEvent(e) && !DD_MonstersEvent(e) && !DD_NpcsEvent(e) && !DD_InfoEvent(e) && !DD_TownsfolkEvent(e) && !DD_GuardsEvent(e)) unknownKinds++; // contract rule 7: skip, never fatal
+		if (!DD_ItemsEvent(e) && !DD_MonstersEvent(e) && !DD_NpcsEvent(e) && !DD_InfoEvent(e) && !DD_LookEvent(e) && !DD_TownsfolkEvent(e) && !DD_GuardsEvent(e)) unknownKinds++; // contract rule 7: skip, never fatal
 		break;
 	}
 }
@@ -2401,6 +2403,7 @@ void DD_BridgeFrame()
 	DD_ClimbFrame(session);
 	DD_FacesFrame(session);
 	DD_GuardsFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
+	DD_LookFrame(session);
 
 	ownState.uz_heartbeat++;
 	ownState.uz_tic = gametic;

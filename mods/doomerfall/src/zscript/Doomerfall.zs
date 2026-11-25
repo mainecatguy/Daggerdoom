@@ -41,7 +41,7 @@ class Doomerfall_Events : StaticEventHandler
 		if (!(p.cmd.buttons & BT_CROUCH) && p.crouchfactor >= 1) return;
 
 		String text = "Sneaking";
-		int scale = max(1, CleanXfac_1);
+		int scale = DoomerfallText.Scale();
 		int w = SmallFont.StringWidth(text) * scale;
 		int h = SmallFont.GetHeight() * scale;
 		int bottom = min(StatusBar.GetTopOfStatusBar(), int(Screen.GetHeight() * 0.85));

@@ -1,11 +1,13 @@
 version "3.3"
 
 #include "zscript/DoomerfallLog.zs"
+#include "zscript/DoomerfallText.zs"
 #include "zscript/Doomerfall.zs"
 #include "zscript/DoomerfallItems.zs"
 #include "zscript/DoomerfallGuns.zs"
 #include "zscript/DoomerfallPickups.zs"
 #include "zscript/DoomerfallClimb.zs"
+#include "zscript/DoomerfallLook.zs"
 #include "zscript/DoomerfallReload.zs"
 #include "zscript/DoomerfallAmmo.zs"
 #include "zscript/EncounterPool.zs"

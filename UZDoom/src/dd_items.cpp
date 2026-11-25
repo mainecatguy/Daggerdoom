@@ -35,7 +35,9 @@ extern "C" __declspec(dllimport) short __stdcall GetKeyState(int key); // Avoids
 bool DD_BridgeHasSession();
 void DD_BridgeOpenLoot();
 bool DD_InfoUseNpc(dfb_session *session, player_t *player, bool crouching);
+void DD_InfoUseWall(dfb_session *session, player_t *player);
 bool DD_PickupNeedsUse(AActor *special);
+bool DD_PickupVisible(AActor *special);
 bool DD_BridgeMapPixel(int &x, int &y);
 
 namespace
@@ -163,7 +165,7 @@ double AimScore(AActor *pmo, player_t *player, AActor *item)
 }
 
 // The pile, container, or (with `doomItems`) Doom pickup that Use would take, or null.
-AActor *ItemInView(player_t *player, bool doomItems)
+AActor *ItemInView(player_t *player, bool doomItems, bool touchToo = false)
 {
 	AActor *pmo = player->mo, *best = nullptr;
 	double bestScore = -HUGE_VAL;
@@ -171,7 +173,7 @@ AActor *ItemInView(player_t *player, bool doomItems)
 	while (AActor *mo = it.Next())
 	{
 		const bool pile = IsWorldPile(mo);
-		if (!pile && (!doomItems || !(mo->flags & MF_SPECIAL) || !DD_PickupNeedsUse(mo))) continue;
+		if (!pile && (!doomItems || !(mo->flags & MF_SPECIAL) || !(touchToo ? DD_PickupVisible(mo) : DD_PickupNeedsUse(mo)))) continue;
 		const double score = AimScore(pmo, player, mo);
 		if (score > bestScore && P_CheckSight(pmo, mo, SF_IGNOREVISIBILITY))
 		{
@@ -904,6 +906,13 @@ void DD_ItemsSendStarter()
 	SendDoomItem(DFB_KIND_STARTER, uint32_t(slot & 0xff) | uint32_t(kind + 1) << 8, uint32_t(amount), pickup.GetChars());
 }
 
+// A pickup the player can see, which touch would take. Invisible helpers are left out.
+bool DD_PickupVisible(AActor *special)
+{
+	static const int noSprite = GetSpriteIndex("TNT1");
+	return special->IsKindOf(NAME_Inventory) && special->sprite != noSprite && !(special->renderflags & RF_INVISIBLE);
+}
+
 // True when this item must wait for the Use button. False for everything outside a generated map.
 bool DD_PickupNeedsUse(AActor *special)
 {
@@ -912,6 +921,20 @@ bool DD_PickupNeedsUse(AActor *special)
 	static const int noSprite = GetSpriteIndex("TNT1");
 	if (special->sprite == noSprite || (special->renderflags & RF_INVISIBLE)) return false;
 	return !PicksUpByTouch(special->GetClass());
+}
+
+// The label under the crosshair (dd_look.cpp): what Use would take, or a visible pickup taken by touch, by Use's own aim
+// and reach. world is true for a Daggerfall pile or container, whose id is then set; otherwise name is Daggerfall's
+// inventory name for a Doom item (DoomerfallDoomItems.NameFor gets the same ItemName through the art slot).
+AActor *DD_LookItem(player_t *player, bool &world, uint64_t &id, FString &name)
+{
+	if (!useRules || !DD_BridgeHasSession() || !player || !player->mo) return nullptr;
+	AActor *best = ItemInView(player, true, true);
+	if (!best) return nullptr;
+	world = IsWorldPile(best) || IsWorldContainer(best);
+	if (world) id = strtoull(best->StringVar(FName("dfId")).GetChars(), nullptr, 16);
+	else name = ItemName(best);
+	return best;
 }
 
 // One press of Use. Takes the item in view and returns true when that press is spent, so a door behind it stays shut.
@@ -947,6 +970,12 @@ bool DD_UsePress(player_t *player)
 	// A refused pickup, such as a weapon the player already holds, stays in the world and leaves the press for a door.
 	lastResult = (best->ObjectFlags & OF_EuthanizeMe) || !(best->flags & MF_SPECIAL);
 	return lastResult;
+}
+
+// A press of Use outdoors that no door, item or NPC took: Daggerfall's Info on the building wall in view, if any.
+void DD_UseWall(player_t *player)
+{
+	if (useRules && itemSession) DD_InfoUseWall(itemSession, player);
 }
 
 // Daggerfall's Info on a pile or container is the same as Grab (PlayerActivate.ActivateLootContainer), so the Info
