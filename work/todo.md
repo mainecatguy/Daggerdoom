@@ -16,9 +16,11 @@ Owner decisions from earlier runs are recorded in `CHANGELOG.md`, `architecture.
 
 ### Running
 
-- `doorsolid` (card 03): monsters narrower for movement only on Daggerfall maps, stock hitbox; big monsters stuck behind doorways accepted (owner, 2026-11-24).
-- `mapkeys`: Doom's forward, back and strafe keys pan Daggerfall's map screens (owner play test, 2026-11-24).
-- `housepickups`: no Doom health and ammo pickups in houses (owner play test, 2026-11-24).
+- `expandedinv`: Expanded Inventory mod decompiled into our repo, 4 and 2 column layout (owner, 2026-11-24).
+
+### Passed, waiting for the owner's merge
+
+- `doorsolid`: open doors solid; monsters narrower for movement only on Daggerfall maps, stock hitbox.
 
 ### Waiting on an owner answer from finished work
 
@@ -26,7 +28,6 @@ Owner decisions from earlier runs are recorded in `CHANGELOG.md`, `architecture.
 
 ### Held by the owner
 
-- `expandedinv`: install the Expanded Inventory mod and maintain it in our repo; player list 4 columns, other list 2, scroll bar between (owner, 2026-11-24). Card written; owner will say when.
 - `liftcollision`: moving objects (lifts, raising platforms, the Privateer's Hold throne dais) have no collision to stand on; solve it as a general problem. Owner will say when.
 - `corpsekeep`: corpses vanish on leaving and re-entering Privateer's Hold. First see whether the location record rewrite fixes it. Card in `work/queue/corpsekeep/held`.
 - `flatcollision`: blocked. Daggerfall has no solid flag for sprites and Daggerfall Unity makes all of them walk-through, so which sprites block is the owner's call (`work/notes/20261124-201628.md` on `agent/flatcollision-20261124-201628`).

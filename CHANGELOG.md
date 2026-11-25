@@ -13,6 +13,12 @@ What is done on the project, newest first. Agents do not need to read this unles
 
 ## 2026-11-24
 
+### Merged to `integration` (`9172d09`)
+
+- **Map keys (`overnight/mapkeys`):** Doom's forward, back and strafe keys pan the automaps; on the travel map they pan the zoomed view or step between map parts. Notes: `work/notes/20261124-202831.md`.
+- **No pickups in houses (`overnight/housepickups`):** house interiors get no Doom pickups; shops and other buildings keep them. Notes: `work/notes/20261124-205249.md`.
+- **Play folder** reinstalled from `9172d09`.
+
 ### Merged to `integration` (`8722921`)
 
 - **One hotkey per item (`overnight/hotkeyunique`):** putting an item on a hotkey clears its other hotkeys. Notes: `work/notes/20261124-202337.md`.
