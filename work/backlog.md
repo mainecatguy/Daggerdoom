@@ -96,9 +96,26 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [Locked doors with Daggerfall's requirements](backlog/locked-doors-with-daggerfalls-requirements.md): Use DF's real lock data and rules in Doom.
 - [Doors that swing in both directions](backlog/doors-that-swing-in-both-directions.md): Experiment with two-way swinging doors.
 
+## Magic
+
+- [Casting and self spells](backlog/magic-casting-and-self-spells.md): Cast key, Daggerfall-run self effects, Doom mirrors flight, invisibility, light, and so on. First slice.
+- [Effects on enemies](backlog/magic-effects-on-enemies.md): Generic Pacify and Charm, Paralyze, Soul Trap, Ranged Attack Suppression, Detect.
+- [Open and Lock](backlog/magic-open-and-lock.md): After the lockpicking work is finished; check first.
+- [Mark and Recall](backlog/magic-mark-and-recall.md): Recall plus a new Mark with up to 12 places.
+- [Fractional magicka](backlog/fractional-magicka.md): Costs under one point for big packs; fraction carry for now.
+- [Damage magic rework](backlog/damage-magic-rework.md): Stock damage spells cannot compete with DRLA guns; needs owner design.
+- [Enemy-class enchantments](backlog/magic-enemy-class-enchantments.md): Potent Vs, Low Damage Vs, Health Leech, Vampiric, Ring of Namira; waits on enemy tagging.
+- [Strike artifacts](backlog/magic-strike-artifacts.md): Mace of Molag Bal, Mehrunes' Razor, Wabbajack; waits on Cast When Strikes.
+- [Lycanthropy and vampirism](backlog/lycanthropy-and-vampirism.md): Whole conditions and beast forms; needs owner design.
+- [Enchantment drawbacks](backlog/magic-enchantment-drawbacks.md): Item Deteriorates, User Takes Damage, Extra Weight, Weakens Armor; later.
+- [Soul Bound](backlog/magic-soul-bound.md): Bind trapped souls into items; a broken item releases its creature in Doom.
+
 ## Before initial release
 
 - [Daggerfall skills in Doom](backlog/skills-in-doom.md): Owner decisions so far and the proposal; 35 skills for now.
+- [Original weapon skills in Doom](backlog/original-weapon-skills.md): Short Blade, Long Blade, Axe, Blunt, Archery stay; make them work.
+- [Akimbo pistols](backlog/akimbo-pistols.md): Second pistol hotkey draws it in the other hand; alternating fire. Feasible.
+- [Brutal Doom and a melee mod](backlog/brutal-melee-mods.md): Later, after mod compatibility research.
 - [Mod compatibility research](backlog/mod-compatibility-research.md): Specialist reviews history; new mods' weapons work with Daggerfall systems.
 - [Player manual](backlog/player-manual.md): Specialist task; main-only features, referenced in the repo map.
 - [Final Doom class and difficulty for New Game](backlog/full-daggerfall-new-game-flow.md): Replace the temporary prompt and fixed class.
