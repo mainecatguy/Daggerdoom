@@ -434,8 +434,7 @@ void FinishTake(uint32_t request, uint32_t status)
 	FString tag = item ? ItemName(item) : CleanTag(take.cls.GetChars());
 	if (item && IsGun(item->GetClass()))
 	{
-		// Daggerfall holds the gun and a hotkey draws it. Doom gives only the ammo the gun comes with (DoomerfallGuns.zs).
-		doomOutgoing.push_back(FStringf("dfg_ammo:%s", take.cls.GetChars()));
+		// Daggerfall holds the gun and a hotkey draws it. Guns never give ammo (owner, 2026-11-24, gamedesign.md).
 		S_Sound(pmo, CHAN_ITEM, 0, "misc/w_pkup", 1, ATTN_NORM);
 		item->Destroy();
 	}
@@ -895,6 +894,12 @@ bool DD_UsePress(player_t *player)
 		AskDaggerfall(player, best);
 		lastResult = true;
 		return true;
+	}
+	// Guns never give ammo, and Doom's own pickup of a gun would (DRLA's Pickup states, a Weapon's AmmoGive).
+	if (IsGun(best->GetClass()))
+	{
+		Printf(PRINT_HIGH, "You cannot take that.\n");
+		return lastResult = true;
 	}
 	best->CallTouch(pmo);
 	// A refused pickup, such as a weapon the player already holds, stays in the world and leaves the press for a door.

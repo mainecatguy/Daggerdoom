@@ -4,7 +4,6 @@
 //
 //   dfg_state:<request>:<amount>:<class>  one state line of the gun the next dfg_equip gives
 //   dfg_equip:<request>:<flags>:<pickup>  take every gun and give this one; flags 1 keep the ready gun, 2 give nothing
-//   dfg_ammo:<pickup>                     a gun went to Daggerfall's inventory; give only the ammo it comes with
 //   dfg_drop:<request>:<flags>:<pickup>   Daggerfall's inventory window dropped this Doom item: spawn its pickup in front
 //                                         of the player, carrying the gun's dfg_state lines (flags 0x200: the gun Doom
 //                                         holds, whose live state goes instead); answers dfg_out:dropped
@@ -37,7 +36,6 @@ class DoomerfallGuns : EventHandler
 			stateAmounts.Push(f[2].ToInt());
 		}
 		else if (f[0] == "dfg_equip" && f.Size() >= 4) Equip(mo, f[1].ToInt(), f[2].ToInt(), f[3]);
-		else if (f[0] == "dfg_ammo" && f.Size() >= 2 && mo) GiveAmmoOnly(mo, f[1]);
 		else if (f[0] == "dfg_drop" && f.Size() >= 4) Drop(mo, f[1].ToInt(), f[2].ToInt(), f[3]);
 	}
 
@@ -290,15 +288,5 @@ class DoomerfallGuns : EventHandler
 		stateAmounts.Clear();
 		stateRequest = 0;
 		Tell("done", request, ok ? Taken : Refused, pickup);
-	}
-
-	// A gun taken into Daggerfall's inventory gives the ammo its pickup would, but not the gun.
-	static void GiveAmmoOnly(Actor mo, String pickup)
-	{
-		class<Weapon> w = WeaponFor(pickup);
-		if (!w) return;
-		let def = GetDefaultByType(w);
-		if (def.AmmoType1 && def.AmmoGive1 > 0) mo.GiveAmmo(def.AmmoType1, def.AmmoGive1);
-		if (def.AmmoType2 && def.AmmoGive2 > 0) mo.GiveAmmo(def.AmmoType2, def.AmmoGive2);
 	}
 }
