@@ -32,6 +32,8 @@ These pillars must survive every decision:
 | `work/agent-reports.md` | Raw questions and oversights from overnight agents, awaiting orchestrator triage. Not committed. |
 | `work/questions.md` | Triaged open questions for the owner. Managed by the orchestrator and not committed. |
 | `work/suspectedoversights.md` | Triaged major oversights outside any agent's task. Managed by the orchestrator and not committed. |
+| `art/` | Original custom art made for Doomerfall, listed in `art/README.md`. Our own work, so it may be committed. |
+| `mods/doomerfall/src/sprites/` | Game-ready copies of the custom art, loaded by the Doomerfall mod. |
 | `GameResources/` | Local copyrighted game data. Never commit it. |
 | `GameMods/` | Local Doom mods. Never commit it. |
 | `GameMods/ExtractedData/` | Extracted DRLA Arsenal, DRLA Monsters, and DRLAX PK3s. Look here to see what is in the mods. Read-only. |
