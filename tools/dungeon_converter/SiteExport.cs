@@ -98,6 +98,7 @@ static partial class Program
             DFLocation location = default;
             DFBlock.RmbSubRecord record = default;
             string blockName = null, buildingType = "?";
+            DFLocation.BuildingTypes buildingKind = DFLocation.BuildingTypes.None;
             int recordIndex = -1, ordinal = 0, layoutX = 0, layoutY = 0;
             foreach (var place in groups[groupId])
             {
@@ -108,7 +109,7 @@ static partial class Program
                         string name = maps.GetRmbBlockName(loc, x, y);
                         var subs = blocksFile.GetBlock(name).RmbBlock.SubRecords;
                         for (int r = 0; r < subs.Length; r++, ordinal++)
-                            if (ordinal == wanted) { location = loc; record = subs[r]; blockName = name; recordIndex = r; layoutX = x; layoutY = y; buildingType = blocksFile.GetBlock(name).RmbBlock.FldHeader.BuildingDataList[r].BuildingType.ToString(); break; }
+                            if (ordinal == wanted) { location = loc; record = subs[r]; blockName = name; recordIndex = r; layoutX = x; layoutY = y; buildingKind = blocksFile.GetBlock(name).RmbBlock.FldHeader.BuildingDataList[r].BuildingType; buildingType = buildingKind.ToString(); break; }
                     }
                 if (blockName != null) break;
             }
@@ -212,7 +213,10 @@ static partial class Program
             int startNode = FindStart(nodes, entranceMarker);
             string wad = Path.Combine(outDir, "interior.wad");
             SetPickupPlace(PickupInterior, ((long)(location.MapTableData.MapId & 0xFFFFF) << 24) | (uint)buildingKey);
-            var stats = WriteMap(wad, nodes[startNode], WritePoints(nodes, edges, startNode), nodes, edges);
+            // Houses get no generated pickups (owner, 2026-11-24); other buildings keep them.
+            bool pickups = PickupsInBuilding(buildingKind);
+            var stats = WriteMap(wad, nodes[startNode], WritePoints(nodes, edges, startNode), pickups ? nodes : null, pickups ? edges : null);
+            if (!pickups) Console.WriteLine($"pickups: none in a house ({buildingType})");
             scene.WriteRuntimeEntry(ddtPath, wad, info.ToString(), OutputMapName);
             File.Delete(wad);
             Console.WriteLine($"interior {OutputMapName} {location.Name} {blockName}:{recordIndex} type {buildingType} models {scene.Models} triangles {scene.Triangles} sectors {stats.sectors} doors {interiorDoors.Count} entries {entryIndex} {clock.ElapsedMilliseconds} ms");
