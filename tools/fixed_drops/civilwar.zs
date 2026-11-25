@@ -4,7 +4,7 @@ version "4.14"
 // armies fight unfrozen with the player out of it (god mode, no target), and print the war's state at fixed war times.
 // War time counts from the tic the war's thinker first appears, so it does not depend on when or how the player came.
 // Modes (@MODE@): 0 watch; 1 watch and save at war time SAVE_AT; 2 the load of mode 1's autosave; 3 watch while the
-// player walks about and burns numbers from Doom's shared random streams every tic; 4 the player kills, at war time
+// player walks about (not solid, not shootable) and burns numbers from Doom's shared random streams every tic; 4 the player kills, at war time
 // KILL_AT, exactly the monsters listed in @KILLS@ (those the other army killed in a mode 0 run), so their drops can be
 // compared. In every mode the rest is made dormant at the end and the new loose items are listed.
 // Test only, loaded by tools/fixed_drops/civilwar.py. Every line starts with CW.
@@ -36,6 +36,23 @@ class CWHarness : EventHandler // Not static: a bundled load restores its state 
 		if (e.Inflictor && e.Inflictor.player) by = "player";
 		else if (e.Thing.target && e.Thing.target.player) by = "player";
 		Console.Printf("CWDIED %d %s seed %08x war %d by %s", level.maptime - warStart, Id(e.Thing), e.Thing.DD_LootSeed(), InWar(e.Thing), by);
+	}
+
+	// DRLAX places random gizmos (solid machines, a Skull Shrine that spawns a skull: Gizmos.zscript) 35 tics after a map
+	// loads, drawn from Doom's shared streams, so whether one appears and where differs with anything else that drew from
+	// them (mode 3 does on purpose). That is DRLAX's own unseeded system, not the war: a gizmo and its items are removed
+	// as they appear, and reported, so the runs compare the war alone.
+	override void WorldThingSpawned(WorldEvent e)
+	{
+		if (done || !e.Thing || !(e.Thing is "DRLAX_GizmoObject")) return;
+		Console.Printf("CWGIZMO %s removed", e.Thing.GetClassName());
+		let it = BlockThingsIterator.Create(e.Thing, 128);
+		while (it.Next())
+		{
+			let i = Inventory(it.thing);
+			if (i && !i.Owner && before.Find(i) == before.Size()) { Console.Printf("CWGIZMOITEM %s removed", i.GetClassName()); i.Destroy(); }
+		}
+		e.Thing.Destroy();
 	}
 
 	void Snapshot(String tag)
@@ -102,7 +119,9 @@ class CWHarness : EventHandler // Not static: a bundled load restores its state 
 	{
 		if (done || !playeringame[0] || !players[0].mo) return;
 		let p = players[0].mo;
-		players[0].cheats |= CF_GODMODE;
+		// Out of the war: monsters never look for the player (the cheat; the actor flag alone does not stop Doom's
+		// player search), so the war is between the armies alone.
+		players[0].cheats |= CF_GODMODE | CF_NOTARGET;
 		p.bNOTARGET = true;
 		if (Mode() == 2 && !saved) return; // The load run waits for the bridge to bring back mode 1's autosave.
 		if (Mode() == 2 && !resumed) { resumed = true; Console.Printf("CWRESUMED %s at war %d", level.MapName, level.maptime - warStart); }
@@ -130,7 +149,10 @@ class CWHarness : EventHandler // Not static: a bundled load restores its state 
 		int t = level.maptime - warStart;
 		if (Mode() == 3)
 		{
-			// A different route: the player paces about the start instead of standing still.
+			// A different route: the player paces about the start instead of standing still. It walks through the
+			// armies without touching them (a body in the way would stop shots and monsters, which is taking part).
+			p.bSOLID = false;
+			p.bSHOOTABLE = false;
 			double ang = t * 3.0;
 			p.vel.xy = (cos(ang), sin(ang)) * 4;
 			p.angle = ang;

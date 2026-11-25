@@ -58,6 +58,7 @@ def summary(out, name):
         "snaps": re.findall(r"^PDCWSNAP .*$", text, re.M),
         "killed": re.findall(r"^PDCWKILLED .*$", text, re.M),
         "nf": re.findall(r"^PDCW(?:NOTFOUND|ALIVEAFTER) .*$", text, re.M),
+        "gizmo": re.findall(r"^PDCWGIZMO.*$", text, re.M),
         "noseed": [l for l in re.findall(r"^PDCWDIED (.*)$", text, re.M) if " seed 00000000 " in l],
     }
 
@@ -76,7 +77,7 @@ def compare(out, names):
     ok = True
     for n, s in runs.items():
         print(f"{n:10} {s['result']}, {sum(s['died'].values())} deaths, {sum(s['drops'].values())} drops; {'; '.join(s['snaps'])} {' '.join(s['killed'])}")
-        for line in s["nf"][:10] + s["noseed"][:10]:
+        for line in s["nf"][:10] + s["noseed"][:10] + s["gizmo"][:10]:
             print("           ", line)
         ok &= s["result"] == "result: passed" and not s["noseed"]
     base = runs["fresh"]
