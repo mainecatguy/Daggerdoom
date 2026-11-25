@@ -92,6 +92,35 @@ class AMHarness : EventHandler
 		Console.Printf("AMMAG %s RLPistolClip=%d ready=%s", why, players[0].mo.CountInv("RLPistolClip"), players[0].ReadyWeapon ? String.Format("%s", players[0].ReadyWeapon.GetClassName()) : "none");
 	}
 
+	// One line per change of what the ready gun is doing after a change ammo key: its state (reload, down, up, ready,
+	// other), whether it can fire, its magazine, and its reserve. ammo.py checks that the new tier fires only after it.
+	String watched;
+	void Watch(String label)
+	{
+		let w = players[0].ReadyWeapon;
+		let psp = players[0].FindPSprite(PSP_WEAPON);
+		String st = "none", mag = "none", reserve = "none";
+		int magCount = -1;
+		if (w && psp)
+		{
+			st = "other";
+			State reload = w.FindState("Reload");
+			if (reload && Actor.InStateSequence(psp.CurState, reload)) st = "reload";
+			else if (Actor.InStateSequence(psp.CurState, w.GetDownState())) st = "down";
+			else if (Actor.InStateSequence(psp.CurState, w.GetUpState())) st = "up";
+			else if (Actor.InStateSequence(psp.CurState, w.GetReadyState())) st = "ready";
+			reserve = ReserveOf(w.AmmoType1);
+			if (reserve == "none") reserve = ReserveOf(w.AmmoType2);
+			if (w.AmmoType1 && ReserveOf(w.AmmoType1) == "none") { mag = w.AmmoType1.GetClassName(); magCount = players[0].mo.CountInv(w.AmmoType1); }
+		}
+		class<Inventory> rc = reserve;
+		String line = String.Format("%s gun=%s state=%s fire=%d mag=%d reserve=%s:%d", label, w ? String.Format("%s", w.GetClassName()) : "none", st,
+			(players[0].WeaponState & WF_WEAPONREADY) ? 1 : 0, magCount, reserve, rc ? players[0].mo.CountInv(rc) : -1);
+		if (line == watched) return;
+		watched = line;
+		Console.Printf("AMRELOAD %s tic=%d", line, timer);
+	}
+
 	void TierCensus(String why, int areaLevel)
 	{
 		int counts[10];
@@ -181,7 +210,7 @@ class AMHarness : EventHandler
 			if (EQUIPRUN) phase = 30; // No break inside this constant if: one with a break crashed UZDoom's compiler.
 			if (TIERRUN) phase = 40;
 			if (CHANGERUN) phase = 50;
-			if (MATERIALRUN) phase = 60;
+			if (MATERIALRUN) phase = 80;
 			break;
 		case 2: // A box of bullets by touch. Stock ClipBox, not DRLA's spawner, so the amount is known.
 		{
@@ -291,8 +320,8 @@ class AMHarness : EventHandler
 			if (timer == 1) EventHandler.SendNetworkEvent("df_change_ammo");
 			if (timer == 105) { Report("after change"); Magazine("after change"); Hit("steel"); Next(); }
 			break;
-		case 52: // Spend every loaded round: with the magazine empty, the next tier (Silver) loads by itself.
-			if (timer == 1) p.TakeInventory("Clip", p.CountInv("Clip"));
+		case 52: // Spend every loaded round, the magazine the change's reload filled included: the next tier (Silver) loads by itself.
+			if (timer == 1) { p.TakeInventory("Clip", p.CountInv("Clip")); p.TakeInventory("RLPistolClip", p.CountInv("RLPistolClip")); }
 			if (timer == 140) { Report("after running dry"); Magazine("after running dry"); Hit("automatic"); Next(); }
 			break;
 		case 53: // Each gun remembers its own tier: the starting gun on key 2 loads its own (Regular, or no bullets at all).
@@ -301,35 +330,58 @@ class AMHarness : EventHandler
 			break;
 		case 54: // Back to the pistol on key 4: Silver again.
 			if (timer == 1) EventHandler.SendNetworkEvent("dd_hotkey:4");
-			if (timer == 175) { Report("pistol again"); Magazine("pistol again"); Hit("pistol again"); phase = 7; timer = 0; }
+			if (timer == 175) { Report("pistol again"); Magazine("pistol again"); Hit("pistol again"); Next(); }
 			break;
 		// The material run (-dfmaterialtest): Daggerfall adds an Iron Shotgun on key 3 and a Daedric one on key 4, and gives
 		// shells a stand-in +25%. Hits are 1000, so the bridge's integer damage shows the ratio exactly.
-		case 60:
+		case 80:
 			if (timer == 35 * 4) Hit("start gun", 1000); // DRLA X's starting gun, often the Blaster (no reserve ammo): its own material.
 			if (timer == 35 * 5) EventHandler.SendNetworkEvent("dd_hotkey:3");
 			if (timer == 35 * 12) { Hit("iron", 1000); Next(); } // Waits are long: a busy machine runs Daggerfall at about 1 fps.
 			break;
-		case 61:
+		case 81:
 			if (timer == 1) EventHandler.SendNetworkEvent("dd_hotkey:4");
 			if (timer == 245) { Hit("daedric", 1000); Next(); }
 			break;
-		case 62:
+		case 82:
 			if (timer == 1) EventHandler.SendNetworkEvent("dd_hotkey:3");
 			if (timer == 245) { Hit("iron again", 1000); Next(); }
 			break;
-		case 63: // Fists have no material: no bonus at all.
+		case 83: // Fists have no material: no bonus at all.
 			if (timer == 1) SelectMelee(p);
-			if (timer == 105) { Hit("melee", 1000); phase = 65; timer = 0; }
+			if (timer == 105) { Hit("melee", 1000); phase = 85; timer = 0; }
 			break;
-		case 65: // An Ebony Blaster: no reserve ammo, but a gun, so it gets its material bonus.
+		case 85: // An Ebony Blaster: no reserve ammo, but a gun, so it gets its material bonus.
 			if (timer == 1) EventHandler.SendNetworkEvent("dd_hotkey:5");
-			if (timer == 245) { Hit("blaster", 1000); phase = 64; timer = 0; }
+			if (timer == 245) { Hit("blaster", 1000); phase = 84; timer = 0; }
 			break;
-		case 64:
+		case 84:
 			if (timer == 1) EventHandler.SendNetworkEvent("dd_hotkey:4");
 			if (timer == 245) { Hit("daedric again", 1000); Report("daedric up"); phase = 7; timer = 0; }
 			break;
+		// The reload checks: each gun is raised by its hotkey, then the change ammo key; Watch logs every tic that differs.
+		case 55: case 57: case 59: case 61:
+		{
+			static const String KEYS[] = { "dd_hotkey:5", "dd_hotkey:6", "dd_hotkey:7", "dd_hotkey:4" };
+			int k = (phase - 55) / 2;
+			if (timer == 1) EventHandler.SendNetworkEvent(KEYS[k]);
+			if (timer == 175)
+			{
+				Report(String.Format("raised %s", KEYS[k]));
+				watched = "";
+				Watch(String.Format("change%d before", k));
+				if (k == 3) { phase = 7; timer = 0; } else Next();
+			}
+			break;
+		}
+		case 56: case 58: case 60:
+		{
+			int k = (phase - 56) / 2;
+			if (timer == 1) EventHandler.SendNetworkEvent("df_change_ammo");
+			Watch(String.Format("change%d", k));
+			if (timer == 175) { Report(String.Format("after change%d", k)); Next(); }
+			break;
+		}
 		case SAVED:
 			if (timer > 35 * 8) Finish("saved");
 			break;

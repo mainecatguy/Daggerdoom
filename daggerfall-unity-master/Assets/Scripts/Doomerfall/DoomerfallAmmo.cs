@@ -379,7 +379,23 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     Hud(string.Format("You have no other {0}.", Types[readyType].lowerName));
                     return;
                 }
-                BeginUnload(readyType, next, false);
+                // The key is a reload (owner, 2026-11-24): the new tier replaces the old one in Doom's reserve first,
+                // then Doom empties the magazine (its rounds come back as the old tier) and plays the gun's reload,
+                // which fills the magazine from the new tier (DoomerfallAmmo.zs TickReload). Doom handles the two
+                // events in the order they are sent.
+                Track track = tracks[readyType];
+                if (track.report < 0)
+                    return;
+                int from = loadedTier[readyType];
+                SwitchTier(readyType, next);
+                int total = LoadedTotal(items, readyType);
+                if (total != track.synced)
+                {
+                    SendDelta(track, readyType, total - track.synced, "for the change");
+                    track.synced = total;
+                }
+                Hud(string.Format("Loading {0}.", DoomerfallAmmoTiers.Name(readyType, next)));
+                BeginUnload(readyType, from, next, false);
                 return;
             }
             // Doom may have lowered an empty stock gun to fists already, so the bound gun's type is used then.
@@ -394,14 +410,24 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (other < 0)
                 return;
             nextAuto = Time.unscaledTime + AutoInterval;
-            BeginUnload(auto, other, true);
+            BeginUnload(auto, loadedTier[auto], other, true);
         }
 
-        void BeginUnload(int type, int to, bool automatic)
+        // The ready gun now loads this tier, and remembers it.
+        void SwitchTier(int type, int to)
+        {
+            SetLoadedTier(type, to);
+            DoomerfallHotkeys hotkeys = DoomerfallHotkeys.Instance;
+            DoomerfallDoomItem gun = hotkeys != null ? hotkeys.ActiveGun : null;
+            if (gun != null && gun == boundGun && boundReady && gunType == type)
+                gun.SetAmmoTier(type, to);
+        }
+
+        void BeginUnload(int type, int from, int to, bool automatic)
         {
             unloadRequest = nextUnload++;
             unloadType = type;
-            unloadFrom = loadedTier[type];
+            unloadFrom = from;
             unloadTo = to;
             unloadAuto = automatic;
             unloadDeadline = Time.unscaledTime + UnloadTimeout;
@@ -432,15 +458,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return; // An automatic change waits until the magazine is empty too.
             if (unloadedRounds > 0 && unloadedRounds < 100000)
                 items.AddItem(new DoomerfallAmmoItem(type, unloadFrom, (int)unloadedRounds));
-            int to = TierTotal(items, type, unloadTo) > 0 ? unloadTo : NextTier(items, type, loadedTier[type]);
+            // A change by the key switched the tier when it began. The automatic one switches now.
+            int to = !unloadAuto ? -1 : TierTotal(items, type, unloadTo) > 0 ? unloadTo : NextTier(items, type, loadedTier[type]);
             if (to >= 0)
             {
-                SetLoadedTier(type, to);
-                DoomerfallHotkeys hotkeys = DoomerfallHotkeys.Instance;
-                DoomerfallDoomItem gun = hotkeys != null ? hotkeys.ActiveGun : null;
-                if (gun != null && gun == boundGun && boundReady && gunType == type)
-                    gun.SetAmmoTier(type, to);
-                Hud(string.Format("{0} {1}.", unloadAuto ? "Out of ammo: loading" : "Loading", DoomerfallAmmoTiers.Name(type, to)));
+                SwitchTier(type, to);
+                Hud(string.Format("Out of ammo: loading {0}.", DoomerfallAmmoTiers.Name(type, to)));
             }
             bridge.LogLine(string.Format("ammo: change{0}: unload {1} gave back {2} rounds of {3}; the gun loads {4}; Daggerfall holds{5}",
                 unloadAuto ? " (automatic)" : "", request, unloadedRounds, DoomerfallAmmoTiers.Name(type, unloadFrom),

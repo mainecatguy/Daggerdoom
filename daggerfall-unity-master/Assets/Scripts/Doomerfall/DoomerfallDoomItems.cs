@@ -52,9 +52,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public bool IsArmor { get { return IsWearable || shortName.EndsWith("|armor|"); } }
         internal const string WearMessage = "Doom armor and boots cannot be worn yet.";
 
-        // Doom guns and armor are listed with Daggerfall's weapons and armor.
+        // Doom guns and armor are listed with Daggerfall's weapons and armor, and so is Doom ammo, next to the guns that
+        // fire it, as Daggerfall lists arrows. In Clothing & Misc the owner could not find it (play test, 2026-11-24).
         public static bool InWeaponsAndArmorTab(DaggerfallUnityItem item)
         {
+            if (item is DoomerfallAmmoItem)
+                return true;
             DoomerfallDoomItem doom = item as DoomerfallDoomItem;
             return doom != null && (doom.IsGun || doom.IsArmor);
         }
