@@ -23,6 +23,7 @@ This is a one-line-per-item index. Open an item's file only when you need its de
 - [Moonstone and Mithril ammo are quiet](backlog/elven-ammo-quiet.md): Silent on one-shot kills, and `reduced_noise` halves aggro and gun volume.
 - [Revisit languages](backlog/revisit-languages.md): Language skills other than Streetwise and Etiquette are on the way out for now. Revisit how they could work better.
 - [Silver ammo bonus against certain enemy types](backlog/silver-ammo-enemy-bonus.md): Also on Daedric. Needs the enemy types and bonus size.
+- [Player HP on Doom's scale](backlog/player-hp-scale.md): Daggerfall HP is about 1/3 of Doom's; normalize now, rethink the formula later.
 - [Megasphere gives max HP plus 100](backlog/megasphere-max-plus-100.md): Daggerfall max + 100 instead of 200. Future.
 - [Decide Doom item weights](backlog/doom-item-weights.md): Replace the default weight once Doom items live in Daggerfall's inventory.
 

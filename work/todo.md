@@ -16,15 +16,11 @@ Owner decisions from earlier runs are recorded in `CHANGELOG.md`, `architecture.
 
 ### Running
 
-- `fixeddrops` and `doorsolid` card 04: run by the owner's own sessions. Leave alone.
-- `ammosize` lane: ammo pickups and drops back to stock Doom amounts.
-- `uselabels` lane, in order: NPC refusal message, building look, Doomerfall HUD text one size up (only our own
-  messages, not global), look-at label (reuses the HUD text display from the card before it).
-- `menus` lane, in order: New Game while playing, journal with hotkey.
+- Nothing.
 
 ### Passed, waiting for the owner's merge
 
-- `expandedinv`: merged into integration 2026-11-24 23:31.
+- `overnight/fixeddrops` and `overnight/doorsolid` card 04: from the owner's own sessions.
 
 ### Waiting on an owner answer from finished work
 

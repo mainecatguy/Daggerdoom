@@ -11,6 +11,15 @@ What is done on the project, newest first. Agents do not need to read this unles
 - **Branches:** `integration` is at `dc90a52`, with steal mode, real enemy drops, the fixed dungeon harness, the area level proposal, automatic hinged trapdoors, container windows, quiet agent launches, the reported location recheck, Use-button pickup, character sheet publishing, stationary NPCs, the DRLA launcher, monster deaths, the first town door fix, New Game, the transition speedup, Daggerfall item pickup, the dungeon re-entry fix, generated bridge definitions, main quest trapdoors, 10 Hz position sync, the wilderness height fix, the Daggerfall map command, door route fixes, both overnight lanes, the bridge and door fixes, dungeon flats, Daggerfall items, synchronized saving and loading, the death screen, fast travel arrival, connected door transitions, and the inventory menu.
 - **Roughest spots:** some walls still bend where they stayed tied to the grid, and false walls and openings remain.
 
+## 2026-11-25
+
+### Merged to `integration` (`8c78edf`)
+
+- **Stock Doom ammo amounts (`overnight/ammosize`):** pickups and drops give stock Doom's small, large and dropped amounts (from id's `p_inter.c`); other tiers take their share of Regular. The tier rounding is a proposal awaiting the owner (`work/questions.md`). Notes: `work/notes/20261124-233842.md`.
+- **New Game while playing and the journal (`overnight/menus`):** New Game from inside a game confirms, drops it, and starts over in both games. J opens Daggerfall's quest journal; tabs, paging and closing pass a paired test 9/9, and travel from it works only outdoors. Notes: `work/notes/20261124-233842-menus.md`.
+- **Use and look labels (`overnight/uselabels`):** an NPC that will not talk shows Daggerfall's refusal message; Use on a town building's wall runs Daggerfall's Info (name and town map); Doomerfall's own HUD labels (Sneaking, loaded ammo, Climbing) are one size larger through their own scale, stock text unchanged; a label under the crosshair names what is in Use reach (paired test 11/11). Notes: `work/notes/20261124-233842-uselabels.md`.
+- The three lanes shared a notes file name, so the menus and uselabels notes were renamed at merge, and the bridge bindings were regenerated (the new bridge IDs do not collide). Merged UZDoom builds and passes the startup check with the Doomerfall mod, and merged Daggerfall Unity builds (`CliBuild result: Succeeded`). The three features have not been played together.
+
 ## 2026-11-24
 
 ### Merged to `integration` (`9242824`)
