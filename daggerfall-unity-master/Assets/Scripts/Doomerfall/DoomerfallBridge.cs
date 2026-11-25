@@ -155,6 +155,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DoomerfallDamageBonusTest.Apply(this, damageBonus, Environment.GetCommandLineArgs()); // Test only, does nothing without -dfdamagetest
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfsheettest") >= 0)
                 gameObject.AddComponent<DoomerfallSheetTest>().Init(this, sync);
+            DoomerfallLookTest.Apply(this, sync); // Test only, does nothing without -dflooktest
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfloottest") >= 0)
                 gameObject.AddComponent<DoomerfallLootTest>().Init(this);
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dftalktest") >= 0 || Array.IndexOf(Environment.GetCommandLineArgs(), "-dftalkrefuse") >= 0)
@@ -203,6 +204,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             ui.Talk = talk;
             townspeople = gameObject.AddComponent<DoomerfallTownspeople>();
             townspeople.Init(this, sync);
+            info.Items = items;
+            info.Townspeople = townspeople;
             save.Townspeople = townspeople;
             newGame.Townspeople = townspeople;
             plainLoad = gameObject.AddComponent<DoomerfallPlainLoad>();
@@ -411,6 +414,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         break;
                     case Dfb.KIND_INFO_NAME:
                         info.OnName(ev.infoText.request, ReadText(8));
+                        break;
+                    case Dfb.KIND_LOOK:
+                        info.OnLook(ev.infoRequest.request, ev.infoRequest.target, ev.infoRequest.id, ev.infoRequest.worldX, ev.infoRequest.worldZ);
                         break;
                     case Dfb.KIND_INFO:
                         info.OnRequest(ev.infoRequest.request, ev.infoRequest.target, ev.infoRequest.id, ev.infoRequest.worldX, ev.infoRequest.worldZ);

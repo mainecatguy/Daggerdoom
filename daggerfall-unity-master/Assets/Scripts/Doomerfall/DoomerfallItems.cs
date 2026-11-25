@@ -343,6 +343,25 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 pile.loot ? pile.loot.ContainerType.ToString() : "none", status, distance));
         }
 
+        // The label under Doom's crosshair for this pile (DoomerfallInfo.OnLook). Daggerfall names no furniture container,
+        // so those get none; a corpse is named as Daggerfall's Info names it; a pile by what lies on top.
+        internal string Label(ulong id)
+        {
+            Pile pile;
+            uint status;
+            float distance;
+            Find(id, out pile, out status, out distance);
+            DaggerfallLoot loot = pile.loot;
+            if (!loot || IsFurniture(loot))
+                return "";
+            if (loot.ContainerType == LootContainerTypes.CorpseMarker && !string.IsNullOrEmpty(loot.entityName))
+                return "Dead " + loot.entityName;
+            if (loot.Items.Count == 0)
+                return "";
+            string first = loot.Items.GetItem(0).LongName;
+            return loot.Items.Count == 1 ? first : first + " and more";
+        }
+
         bool Find(ulong id, out Pile pile, out uint status, out float distance)
         {
             pile = default(Pile);

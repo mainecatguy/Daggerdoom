@@ -2323,6 +2323,36 @@ void DDTreadmill_PressDoor()
 	doorPressTic = gametic;
 }
 
+// [Doomerfall] The label under the crosshair (dd_look.cpp): the location door or exit a Use press would take now, by
+// TickTownDoors' own rule. kind 0 is a building door, with a point just inside it in Daggerfall world units; 1 a dungeon
+// entrance; 2 the exit of the building or dungeon the player is in. index tells doors apart within this map.
+bool DDTreadmill_DoorInReach(AActor *pmo, int &kind, int &index, double &worldX, double &worldY)
+{
+	if (!pmo || !townActive || handoff.pending || pendingDoor >= 0) return false;
+	const Town &t = towns[currentTown];
+	double distance, bestDistance = USE_REACH + 1;
+	index = -1;
+	if (t.space)
+	{
+		if (!returnPoint.valid) return false;
+		for (size_t i = 0; i < t.exits.size(); i++)
+			if (CanUse(pmo, t.exits[i].x, t.exits[i].y, t.exits[i].z, t.exits[i].nx, t.exits[i].ny, distance)) { kind = 2; index = int(i); return true; }
+		return false;
+	}
+	for (size_t i = 0; i < townDoors.size(); i++)
+	{
+		const DoorSpot &d = townDoors[i];
+		if (CanUse(pmo, d.x, d.y, d.z, d.nx, d.ny, distance) && distance < bestDistance) { index = int(i); bestDistance = distance; }
+	}
+	if (index < 0) return false;
+	const DoorSpot &d = townDoors[index];
+	kind = d.kind == 0 ? 0 : 1;
+	const DVector3 world = ToWorld(DVector3(d.x - d.nx * 12, d.y - d.ny * 12, d.z), originX, originY);
+	worldX = world.X;
+	worldY = world.Y;
+	return true;
+}
+
 DDPlayerArea DDTreadmill_PlayerWorld(double &x, double &y, double &z, double &yawDegrees)
 {
 	if (!primaryLevel || (!DDTreadmill_Active && !townActive && !handoff.pending)) return DD_AREA_NONE;

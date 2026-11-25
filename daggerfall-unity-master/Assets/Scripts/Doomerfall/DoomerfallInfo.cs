@@ -30,6 +30,46 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             capture = (text, mid) => { if (!string.IsNullOrEmpty(text)) lines.Add(new KeyValuePair<string, bool>(text, mid)); };
         }
 
+        internal DoomerfallItems Items;
+        internal DoomerfallTownspeople Townspeople;
+
+        // The label under Doom's crosshair (UZDoom/src/dd_look.cpp): the name Daggerfall knows for an NPC, townsperson, pile
+        // or building door. Reads only; it runs no interaction, so nothing is discovered or changed, and it answers while paused.
+        internal void OnLook(uint request, uint target, ulong id, double worldX, double worldZ)
+        {
+            string label = "";
+            if (!sync.LoadRunning && GameManager.HasInstance && sync.InGame)
+                label = Label(target, id, worldX, worldZ) ?? "";
+            Send(request, label, false, Dfb.KIND_LOOK_TEXT);
+            bridge.LogLine(string.Format("look: request {0} target {1} id {2:x16}: [{3}]", request, target, id, label));
+        }
+
+        string Label(uint target, ulong id, double worldX, double worldZ)
+        {
+            switch (target)
+            {
+                case Dfb.INFO_NPC:
+                    StaticNPC npc = DoomerfallNpcs.FindNpc(id);
+                    return npc ? npc.DisplayName : "";
+                case Dfb.INFO_TOWNSPERSON:
+                    TownPerson person = Townspeople ? Townspeople.FindPerson(id) : null;
+                    return person != null ? person.Name : "";
+                case Dfb.INFO_PILE:
+                    return Items ? Items.Label(id) : "";
+                case Dfb.INFO_BUILDING:
+                    // As Daggerfall's Info names a building (PlayerActivate.ActivateBuilding), without discovering it.
+                    StaticBuilding building;
+                    if (!FindBuilding(worldX, worldZ, out building))
+                        return "";
+                    PlayerGPS gps = GameManager.Instance.PlayerGPS;
+                    PlayerGPS.DiscoveredBuilding known;
+                    if (!gps.GetDiscoveredBuilding(building.buildingKey, out known) && !gps.GetBaseBuildingDiscoveryData(building.buildingKey, out known))
+                        return "";
+                    return DaggerfallWorkshop.Localization.GrammarManager.grammarProcessor.ProcessGrammar(known.displayName);
+            }
+            return "";
+        }
+
         internal void OnName(uint request, string name)
         {
             nameRequest = request;
@@ -146,7 +186,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         }
 
         // Long messages go out in parts. Doom joins them until an event without DFB_INFO_MORE.
-        void Send(uint request, string text, bool mid)
+        void Send(uint request, string text, bool mid, ushort kind = Dfb.KIND_INFO_TEXT)
         {
             byte[] bytes = Encoding.UTF8.GetBytes(text);
             int at = 0;
@@ -162,7 +202,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 Array.Copy(bytes, at, body, 8, count);
                 at += count;
                 DfbEvent e = default(DfbEvent);
-                e.kind = Dfb.KIND_INFO_TEXT;
+                e.kind = kind;
                 e.tic = (uint)Time.frameCount;
                 e.flags = (ushort)(at < bytes.Length ? Dfb.INFO_MORE : 0);
                 e.SetPayload(body, body.Length);

@@ -252,6 +252,19 @@ void DD_InfoUseWall(dfb_session *session, player_t *player)
 	SendRequest(session, DFB_INFO_BUILDING, 0, worldX + (hit.X - pmo->X()) / DoomPerDf, worldY + (hit.Y - pmo->Y()) / DoomPerDf);
 }
 
+// The label under the crosshair (dd_look.cpp): the NPC, townsperson or living monster Use's NPC check would aim at
+// first, before a wall, how far along the view ray, and its id (NPCs and townspeople). kind 1 NPC, 2 townsperson, 3 monster.
+AActor *DD_InfoLookPick(player_t *player, double &distance, int &kind, uint64_t &id)
+{
+	bool npc, wall;
+	FLineTraceData trace;
+	AActor *best = Pick(player, npc, distance, wall, trace);
+	if (!best) return nullptr;
+	kind = IsTownsperson(best) ? 2 : npc ? 1 : 3;
+	id = NpcId(best);
+	return best;
+}
+
 // True when the event belonged to Info or to Use on an NPC.
 bool DD_InfoEvent(const dfb_event &e)
 {

@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0xf7762cbdcd0e32c6UL;
+        public const ulong SchemaHash = 0x493911c3ec047f92UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -71,6 +71,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_INFO = 90;  // UZ to DF; payload: dfb_info_request
         public const ushort KIND_INFO_TEXT = 91;  // DF to UZ; one message for that request; payload: dfb_info_text; DFB_INFO_MORE in flags when the text goes on in the next event
         public const ushort KIND_INFO_NAME = 92;  // UZ to DF; a monster's Doom name, sent just before its DFB_KIND_INFO; payload: dfb_info_text
+        public const ushort KIND_LOOK = 93;  // UZ to DF; payload: dfb_info_request, target DFB_INFO_NPC, _TOWNSPERSON, _PILE or _BUILDING
+        public const ushort KIND_LOOK_TEXT = 94;  // DF to UZ; the label for that request, empty for none; payload: dfb_info_text; DFB_INFO_MORE as on INFO_TEXT
         public const ushort KIND_DOOM_ITEM_TAKE = 140;  // UZ to DF; the player pressed Use on a Doom item, which waits for the answer; payload: dfb_doom_item
         public const ushort KIND_DOOM_ITEM_RESULT = 141;  // DF to UZ; status DFB_ITEM_TAKEN, DFB_ITEM_TOO_HEAVY, or DFB_ITEM_REFUSED; payload: dfb_doom_item
         public const ushort KIND_DOOM_ITEM_USE = 142;  // DF to UZ; the player used this item in Daggerfall's inventory; payload: dfb_doom_item
@@ -155,6 +157,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint INFO_NPC = 1;  // dfb_info_request.id is an NPC id
         public const uint INFO_BUILDING = 2;  // world_x and world_z are the point on the building Doom's view ray hit
         public const uint INFO_MONSTER = 3;  // a Doom monster, named by the DFB_KIND_INFO_NAME just before
+        public const uint INFO_TOWNSPERSON = 4;  // DFB_KIND_LOOK: dfb_info_request.id is a townsperson id
+        public const uint INFO_PILE = 5;  // DFB_KIND_LOOK: dfb_info_request.id is a world item (pile or container) id
         public const uint INFO_HUD = 0;  // dfb_info_text.style: Daggerfall's scrolling HUD message
         public const uint INFO_MID = 1;  // dfb_info_text.style: Daggerfall's mid-screen message
         public const uint INFO_MORE = 1;  // dfb_event.flags on DFB_KIND_INFO_TEXT
@@ -353,8 +357,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public DfbItemTake itemTake;  // ITEM_TAKE
         [FieldOffset(16)] public DfbItemResult itemResult;  // ITEM_RESULT
         [FieldOffset(16)] public DfbWorldContainer worldContainer;  // CONTAINER
-        [FieldOffset(16)] public DfbInfoRequest infoRequest;  // INFO
-        [FieldOffset(16)] public DfbInfoText infoText;  // INFO_TEXT, INFO_NAME
+        [FieldOffset(16)] public DfbInfoRequest infoRequest;  // INFO, LOOK
+        [FieldOffset(16)] public DfbInfoText infoText;  // INFO_TEXT, INFO_NAME, LOOK_TEXT
         [FieldOffset(16)] public DfbDoomItem doomItem;  // DOOM_ITEM_TAKE, DOOM_ITEM_RESULT, DOOM_ITEM_USE, DOOM_ITEM_USED, DOOM_ITEM_ART_REQUEST, DOOM_ITEM_ART, STARTER
         [FieldOffset(16)] public DfbClimbUses climbUses;  // CLIMB_USES
         [FieldOffset(16)] public DfbPlainLoad plainLoad;  // PLAIN_LOAD

@@ -106,6 +106,10 @@ extern "C" {
 #define DFB_KIND_INFO          90  /* UZ to DF; payload: dfb_info_request */
 #define DFB_KIND_INFO_TEXT     91  /* DF to UZ; one message for that request; payload: dfb_info_text; DFB_INFO_MORE in flags when the text goes on in the next event */
 #define DFB_KIND_INFO_NAME     92  /* UZ to DF; a monster's Doom name, sent just before its DFB_KIND_INFO; payload: dfb_info_text */
+/* The label under the crosshair. Doom asks once per target it cannot name itself (an NPC, a townsperson, a pile, a
+   building door); Daggerfall answers with the name it knows, without running any interaction or changing any state. */
+#define DFB_KIND_LOOK          93  /* UZ to DF; payload: dfb_info_request, target DFB_INFO_NPC, _TOWNSPERSON, _PILE or _BUILDING */
+#define DFB_KIND_LOOK_TEXT     94  /* DF to UZ; the label for that request, empty for none; payload: dfb_info_text; DFB_INFO_MORE as on INFO_TEXT */
 
 /* Doom items held by Daggerfall. A Doom item is named by the Doom world pickup class the player took. Daggerfall
    keeps the record in its inventory and save; Doom draws the sprite and applies the item when it is used. */
@@ -234,6 +238,8 @@ extern "C" {
 #define DFB_INFO_NPC       1u  /* dfb_info_request.id is an NPC id */
 #define DFB_INFO_BUILDING  2u  /* world_x and world_z are the point on the building Doom's view ray hit */
 #define DFB_INFO_MONSTER   3u  /* a Doom monster, named by the DFB_KIND_INFO_NAME just before */
+#define DFB_INFO_TOWNSPERSON 4u /* DFB_KIND_LOOK: dfb_info_request.id is a townsperson id */
+#define DFB_INFO_PILE      5u  /* DFB_KIND_LOOK: dfb_info_request.id is a world item (pile or container) id */
 #define DFB_INFO_HUD       0u  /* dfb_info_text.style: Daggerfall's scrolling HUD message */
 #define DFB_INFO_MID       1u  /* dfb_info_text.style: Daggerfall's mid-screen message */
 #define DFB_INFO_MORE      1u  /* dfb_event.flags on DFB_KIND_INFO_TEXT */
