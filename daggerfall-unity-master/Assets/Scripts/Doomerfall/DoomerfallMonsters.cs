@@ -613,9 +613,40 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bridge.LogLine(string.Format("monsters: quest {0} kills {1}, injured {2}, killed task triggered {3}", quest.UID, foe.KillCount, foe.InjuredTrigger, triggered));
         }
 
+        // True when the location record keeps this dead mook (its corpse, or that it is gone) in that dungeon's record.
+        // Set by DoomerfallLocations, which restores those followers' deaths after a load (RestoreFollower).
+        internal Func<int, ulong, bool> RecordKeepsMook;
+
+        // A follower's death is only "stays dead", and the location record already keeps every dead mook of a dungeon,
+        // so the saved death ledger leaves those out: a cleared slaughter dungeon is thousands of them. Leaders stay,
+        // with their drops and quest meaning.
         internal void WriteLedger(string folder)
         {
-            File.WriteAllText(Path.Combine(folder, LedgerFile), SaveLoadManager.Serialize(typeof(LedgerData), ledger, false), new UTF8Encoding(false));
+            LedgerData saved = new LedgerData();
+            int left = 0;
+            foreach (KeyValuePair<string, Death> entry in ledger.deaths)
+            {
+                ulong id = Convert.ToUInt64(entry.Key, 16);
+                if (!IsLeader(id) && entry.Value.rolled && (entry.Value.drop == null || entry.Value.drop.Length == 0)
+                    && RecordKeepsMook != null && RecordKeepsMook(entry.Value.mapId, id))
+                {
+                    left++;
+                    continue;
+                }
+                saved.deaths[entry.Key] = entry.Value;
+            }
+            File.WriteAllText(Path.Combine(folder, LedgerFile), SaveLoadManager.Serialize(typeof(LedgerData), saved, false), new UTF8Encoding(false));
+            bridge.LogLine(string.Format("monsters: ledger written with {0} deaths, {1} followers left to the location record", saved.deaths.Count, left));
+        }
+
+        // A follower whose death the location record kept (WriteLedger left it out of this file).
+        internal void RestoreFollower(ulong id, int mapId, float x, float y, float z)
+        {
+            string key = Key(id);
+            if (IsLeader(id) || ledger.deaths.ContainsKey(key))
+                return;
+            ledger.deaths[key] = new Death { mapId = mapId, x = Mathf.RoundToInt(x), y = Mathf.RoundToInt(y), z = Mathf.RoundToInt(z), rolled = true };
+            resend = true;
         }
 
         internal void ReadLedger(string folder)

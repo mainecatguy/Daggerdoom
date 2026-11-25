@@ -15,7 +15,12 @@
 // are Daggerfall units in the place's own frame (for a chunk: x and y from its corner, z the world height). Exterior
 // chunks arrive whenever their facts changed, and an id lives in one chunk only: a monster that walked into another
 // chunk leaves the old one. The ledger also wraps the death ledger: a dungeon corpse whose death never reached
-// DoomerfallMonsters is recorded there when its record arrives.
+// DoomerfallMonsters is recorded there when its record arrives, and the saved death ledger leaves out the followers a
+// record keeps (DoomerfallMonsters.WriteLedger), which come back from here after a load.
+//
+// A place's record has a second, Daggerfall section: the item piles the player dropped from Daggerfall's inventory
+// there (DoomerfallPiles). They are Daggerfall items, so they are kept apart from Doom's facts. On disk the facts are
+// one compact blob per place (DoomerfallPlaceCodec); ledgers written as lines of text are still read.
 
 using System;
 using System.Collections.Generic;
@@ -44,9 +49,21 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             public readonly List<DfbPlacePlan> plan = new List<DfbPlacePlan>();
             public readonly List<string> names = new List<string>();
             public readonly List<DfbPlaceFact> facts = new List<DfbPlaceFact>();
+            public readonly List<PileData> piles = new List<PileData>();
         }
 
-        // On disk: one line of text per fact, so a slaughter-sized dungeon stays small.
+        // A pile the player dropped through Daggerfall's inventory: its LoadID (DoomerfallItems.PileId follows from it
+        // and the position), its position in Daggerfall units in the place's frame (for a chunk: x and y from its
+        // corner, z the world height), its sprite, and its items as Daggerfall serializes them.
+        public sealed class PileData
+        {
+            public ulong loadId;
+            public float x, y, z;
+            public int archive, record;
+            public DaggerfallWorkshop.Game.Serialization.ItemData_v1[] items;
+        }
+
+        // On disk: the plan and facts as one compact blob (DoomerfallPlaceCodec), and the dropped piles.
         public sealed class PlaceData
         {
             public uint kind;          // 0 in ledgers written before interiors and chunks: a dungeon
@@ -54,8 +71,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             public int mapId;
             public int mooks = -1;
             public string[] names;
-            public string[] plan;      // placement x y z enemyType (Doom units)
-            public string[] facts;     // id kind flags cls death x y z angle height health amount
+            public string record;      // DoomerfallPlaceCodec: the plan and the facts
+            public PileData[] piles;
+            public string[] plan;      // older ledgers: placement x y z enemyType (Doom units)
+            public string[] facts;     // older ledgers: id kind flags cls death x y z angle height health amount
         }
 
         [fsObject("v1")]
@@ -75,6 +94,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             bridge = owner;
             monsters = deaths;
+            monsters.RecordKeepsMook = KeepsMook;
             DaggerfallWorkshop.Game.Utility.StartGameBehaviour.OnStartGame += OnStartGame;
         }
 
@@ -140,6 +160,71 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         internal static ulong OverworldMonsterId(int chunkX, int chunkY, int index)
         {
             return (1UL << 62) | ((ulong)(uint)chunkY << 40) | ((ulong)(uint)chunkX << 16) | (ulong)(ushort)index;
+        }
+
+        // Called just before the ledger is written, so the dropped piles of the place the player is in are current.
+        internal Action BeforeWrite;
+
+        // The dropped piles of a place (empty when it has none). The list is the record's own.
+        internal List<PileData> Piles(uint kind, int mapId, int key)
+        {
+            Place place;
+            return places.TryGetValue(PlaceKey(kind, mapId, key), out place) ? place.piles : new List<PileData>();
+        }
+
+        // Replaces a place's dropped piles. A place with no record yet gets one holding only its piles.
+        internal void SetPiles(uint kind, int mapId, int key, List<PileData> piles)
+        {
+            string name = PlaceKey(kind, mapId, key);
+            Place place;
+            if (!places.TryGetValue(name, out place))
+            {
+                if (piles.Count == 0)
+                    return;
+                places[name] = place = new Place { kind = kind, mapId = mapId, key = key };
+            }
+            place.piles.Clear();
+            place.piles.AddRange(piles);
+            if (place.kind == Dfb.PLACE_CHUNK && place.facts.Count == 0 && place.piles.Count == 0)
+                places.Remove(name);
+        }
+
+        // Every place's dropped piles of one kind, for the exterior chunks around the player.
+        internal IEnumerable<KeyValuePair<Place, List<PileData>>> PilesOfKind(uint kind)
+        {
+            foreach (Place place in places.Values)
+                if (place.kind == kind && place.piles.Count > 0)
+                    yield return new KeyValuePair<Place, List<PileData>>(place, place.piles);
+        }
+
+        Dictionary<int, HashSet<ulong>> mookCache;
+        int mookCacheFrame = -1;
+
+        // Whether the dungeon's record keeps this dead mook (a corpse or gone), for the saved death ledger.
+        bool KeepsMook(int mapId, ulong id)
+        {
+            if (mookCache == null || mookCacheFrame != Time.frameCount)
+            {
+                mookCache = new Dictionary<int, HashSet<ulong>>();
+                mookCacheFrame = Time.frameCount;
+                foreach (Place place in places.Values)
+                {
+                    if (place.kind != Dfb.PLACE_DUNGEON)
+                        continue;
+                    HashSet<ulong> ids = new HashSet<ulong>();
+                    foreach (DfbPlaceFact f in place.facts)
+                        if (IsDeadMook(f))
+                            ids.Add(f.id);
+                    mookCache[place.mapId] = ids;
+                }
+            }
+            HashSet<ulong> set;
+            return mookCache.TryGetValue(mapId, out set) && set.Contains(id);
+        }
+
+        static bool IsDeadMook(DfbPlaceFact f)
+        {
+            return (f.kind == Dfb.FACT_CORPSE || f.kind == Dfb.FACT_GONE) && (f.flags & Dfb.FACT_SESSION) == 0 && (f.id >> (int)Dfb.MONSTER_TAG_SHIFT) == Dfb.MONSTER_TAG;
         }
 
         // Where Doom last left this mook's corpse, in Daggerfall units in the dungeon's frame.
@@ -215,6 +300,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         void Accept(Place place)
         {
             string key = PlaceKey(place);
+            Place before;
+            if (places.TryGetValue(key, out before))
+                place.piles.AddRange(before.piles);   // Doom's record is only Doom's facts; the piles are Daggerfall's
             if (place.kind == Dfb.PLACE_CHUNK)
             {
                 AcceptChunk(key, place);
@@ -263,12 +351,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     if (other.Value.kind != Dfb.PLACE_CHUNK || other.Key == key)
                         continue;
                     moved += other.Value.facts.RemoveAll(f => (f.flags & Dfb.FACT_SESSION) == 0 && ids.Contains(f.id));
-                    if (other.Value.facts.Count == 0)
+                    if (other.Value.facts.Count == 0 && other.Value.piles.Count == 0)
                         emptied.Add(other.Key);
                 }
             foreach (string gone in emptied)
                 places.Remove(gone);
-            if (place.facts.Count == 0)
+            if (place.facts.Count == 0 && place.piles.Count == 0)
                 places.Remove(key);
             else
                 places[key] = place;
@@ -419,29 +507,30 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         internal void WriteLedger(string folder)
         {
+            if (BeforeWrite != null)
+                BeforeWrite();
             Stopwatch watch = Stopwatch.StartNew();
             LedgerData data = new LedgerData();
-            int facts = 0;
+            int facts = 0, piles = 0;
+            DoomerfallPlaceCodec.Stats total = new DoomerfallPlaceCodec.Stats();
             foreach (KeyValuePair<string, Place> entry in places)
             {
                 Place place = entry.Value;
                 PlaceData d = new PlaceData { kind = place.kind, key = place.key, mapId = place.mapId, mooks = place.mooks, names = place.names.ToArray() };
-                d.plan = new string[place.plan.Count];
-                for (int n = 0; n < place.plan.Count; n++)
-                {
-                    DfbPlacePlan q = place.plan[n];
-                    d.plan[n] = string.Format(Inv, "{0:x16} {1:R} {2:R} {3:R} {4}", q.placement, q.x, q.y, q.z, q.value);
-                }
-                d.facts = new string[place.facts.Count];
-                for (int n = 0; n < place.facts.Count; n++)
-                    d.facts[n] = FactLine(place.facts[n]);
+                DoomerfallPlaceCodec.Stats stats;
+                d.record = DoomerfallPlaceCodec.Encode(place.mooks, place.plan, place.facts, out stats);
+                d.piles = place.piles.Count > 0 ? place.piles.ToArray() : null;
+                total.corpses += stats.corpses; total.loose += stats.loose; total.gone += stats.gone; total.exceptions += stats.exceptions; total.bytes += stats.bytes;
+                if (place.facts.Count >= 100)
+                    bridge.LogLine(string.Format(Inv, "locations: {0} on disk: {1}", entry.Key, stats));
                 facts += place.facts.Count;
+                piles += place.piles.Count;
                 data.places[entry.Key] = d;
             }
             string path = Path.Combine(folder, LedgerFile);
             File.WriteAllText(path, SaveLoadManager.Serialize(typeof(LedgerData), data, false), new UTF8Encoding(false));
-            bridge.LogLine(string.Format(Inv, "locations: ledger written, {0} places, {1} facts, {2} bytes, {3:F2} ms",
-                places.Count, facts, new FileInfo(path).Length, watch.Elapsed.TotalMilliseconds));
+            bridge.LogLine(string.Format(Inv, "locations: ledger written, {0} places, {1} facts ({2}), {3} dropped piles, {4} bytes, {5:F2} ms",
+                places.Count, facts, total, piles, new FileInfo(path).Length, watch.Elapsed.TotalMilliseconds));
         }
 
         internal void ReadLedger(string folder)
@@ -460,6 +549,22 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     Place place = new Place { kind = d.kind == 0 ? Dfb.PLACE_DUNGEON : d.kind, key = d.key, mapId = d.mapId, mooks = d.mooks };
                     if (d.names != null)
                         place.names.AddRange(d.names);
+                    if (d.piles != null)
+                        foreach (PileData pile in d.piles)
+                            if (pile != null)
+                                place.piles.Add(pile);
+                    if (!string.IsNullOrEmpty(d.record))
+                    {
+                        int mooks;
+                        bool whole = false;
+                        try { whole = DoomerfallPlaceCodec.Decode(d.record, out mooks, place.plan, place.facts); place.mooks = mooks; }
+                        catch (Exception ex) when (ex is FormatException || ex is EndOfStreamException || ex is IndexOutOfRangeException) { }
+                        if (!whole)
+                        {
+                            bad++;
+                            bridge.LogLine("locations: error: the record of " + entry.Key + " is damaged; kept the " + place.facts.Count + " facts that could be read");
+                        }
+                    }
                     if (d.plan != null)
                         foreach (string line in d.plan)
                         {
@@ -487,7 +592,21 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     facts += place.facts.Count;
                     places[entry.Key] = place;
                 }
-            bridge.LogLine(string.Format("locations: ledger restored with {0} places, {1} facts{2}", places.Count, facts, bad > 0 ? ", " + bad + " unreadable lines skipped" : string.Empty));
+            // The saved death ledger left out the dead followers a record keeps; they are dead again from here.
+            int followers = 0;
+            foreach (Place place in places.Values)
+                if (place.kind == Dfb.PLACE_DUNGEON && monsters)
+                    foreach (DfbPlaceFact f in place.facts)
+                        if (IsDeadMook(f) && !monsters.IsDead(f.id))
+                        {
+                            monsters.RestoreFollower(f.id, place.mapId, f.x, f.y, f.z);
+                            followers++;
+                        }
+            int piles = 0;
+            foreach (Place place in places.Values)
+                piles += place.piles.Count;
+            bridge.LogLine(string.Format("locations: ledger restored with {0} places, {1} facts, {2} dropped piles, {3} follower deaths back in the death ledger{4}",
+                places.Count, facts, piles, followers, bad > 0 ? ", " + bad + " unreadable lines or records" : string.Empty));
         }
     }
 }

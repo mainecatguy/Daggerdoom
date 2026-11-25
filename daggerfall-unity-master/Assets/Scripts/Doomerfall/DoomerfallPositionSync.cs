@@ -343,6 +343,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         // A load replaces Daggerfall's place. Doom reports its restored side of the door before the load ends.
         internal bool LoadRunning { get; set; }
+        internal bool Engaged { get { return engaged; } }   // the hidden player follows Doom (before that it stands where a held new game left it)
 
         // Daggerfall has booted and waits behind Doom's title with no game.
         internal void SetMenuPhase() { phase = Dfb.DF_PHASE_MENU; }

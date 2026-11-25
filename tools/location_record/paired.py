@@ -1,10 +1,12 @@
 """Paired runs for the location record, reusing the location ledger harness (tools/location_ledger).
 
-usage: paired.py setup | uzdoom | run NAME [--load] [--notable] | report NAME [FIRST] | plans NAME
+usage: paired.py setup | uzdoom | unity | dfu | run NAME [--load] [--notable] | report NAME [FIRST] | plans NAME
 
 setup:  copies card 2's review folder (locledger2, game data stays outside the repo) to review\\locrecord\\paired,
         without its runs, then copies this worktree's UZDoom build in.
-uzdoom: copies this worktree's UZDoom build in again (after a rebuild).
+uzdoom: copies this worktree's UZDoom build and the doomerfall mod's source in again (after a rebuild).
+unity:  builds this worktree's Daggerfall Unity (windowed, on a private desktop through quiet_run).
+dfu:    copies that build into the review folder, keeping its PortableAppdata and bridge DLL.
 run / report: ledger2.py's dungeon route (Privateer's Hold, area level 30, a real kill quest) in that folder.
 plans:  the encounter plans of a run: each request's digest and what it spawned, so visits can be compared.
 """
@@ -27,11 +29,47 @@ for module in (ledger2.ef, ledger2.md, ledger2.pickup, ledger2.base):
 ledger2.base.BUILD, ledger2.base.RUN = REVIEW / "build", REVIEW / "run"
 
 
+WORKTREE = HERE.parents[1]
+QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
+UNITY = shutil.which("Unity.exe") or r"C:\Program Files\Unity\Hub\Editor\2019.4.41f2\Editor\Unity.exe"
+
+
 def copy_uzdoom():
     for item in UZ_TREE.iterdir():
         if item.suffix.lower() in (".exe", ".pk3", ".dll"):
             shutil.copy2(item, REVIEW / "uzdoom" / item.name)
+    shutil.copytree(WORKTREE / "mods" / "doomerfall" / "src", REVIEW / "doomerfall", dirs_exist_ok=True)
     print("uzdoom from", UZ_TREE)
+
+
+def unity():
+    import subprocess
+    project = WORKTREE / "daggerfall-unity-master"
+    log = project / "Logs" / "cli-build.log"
+    log.unlink(missing_ok=True)
+    code = subprocess.call([sys.executable, QUIET, "--timeout", "1800", "--", UNITY, "-projectPath", str(project), "-buildTarget", "Win64",
+                            "-executeMethod", "CliBuild.BuildWindows64", "-logFile", str(log)], stdin=subprocess.DEVNULL)
+    text = log.read_text(errors="replace") if log.exists() else ""
+    print(f"unity exit {code}, succeeded {'CliBuild result: Succeeded' in text}")
+    for line in text.splitlines():
+        if "error CS" in line:
+            print(line[:220])
+
+
+def copy_dfu():
+    dfu = REVIEW / "dfu"
+    plugin = dfu / "DaggerfallUnity_Data" / "Plugins" / "x86_64" / "doomerfall_bridge.dll"
+    kept = plugin.read_bytes()
+    shutil.copytree(WORKTREE / "daggerfall-unity-master" / "Builds" / "Windows64", dfu, dirs_exist_ok=True,
+                    ignore=shutil.ignore_patterns("*.pdb", "PortableAppdata"))
+    plugin.write_bytes(kept)
+    manager = dfu / "DaggerfallUnity_Data" / "globalgamemanagers"
+    data = manager.read_bytes()
+    if b"Daggerfall Unity" in data:
+        manager.write_bytes(data.replace(b"Daggerfall Unity", b"Doomerfall Local"))
+    elif b"Doomerfall Local" not in data:
+        sys.exit("product name not found; refusing to run an unisolated Daggerfall copy")
+    print("dfu from", WORKTREE / "daggerfall-unity-master" / "Builds" / "Windows64")
 
 
 def setup():
@@ -53,6 +91,10 @@ if __name__ == "__main__":
         setup()
     elif command == "uzdoom":
         copy_uzdoom()
+    elif command == "unity":
+        unity()
+    elif command == "dfu":
+        copy_dfu()
     elif command == "plans":
         plans(sys.argv[2])
     elif command in ("run", "report"):

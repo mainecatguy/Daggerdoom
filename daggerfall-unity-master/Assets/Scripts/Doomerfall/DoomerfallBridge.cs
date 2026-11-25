@@ -195,6 +195,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             newGame.Monsters = monsters;
             locations = gameObject.AddComponent<DoomerfallLocations>();
             locations.Init(this, monsters);
+            gameObject.AddComponent<DoomerfallPiles>().Init(this, sync, locations);
+            DoomerfallPilesTest.Attach(this, sync, locations); // test only: -dfpilestest
             save.Locations = locations;
             newGame.Locations = locations;
             npcs = gameObject.AddComponent<DoomerfallNpcs>();
