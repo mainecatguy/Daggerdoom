@@ -14,7 +14,7 @@ Work that is ready to do automatically, in priority order. Every item here is ap
 
 Every lane approved before 2026-11-24 evening has run and is merged. Owner decisions from earlier runs are recorded in `CHANGELOG.md`, `architecture.md` and `gamedesign/decisions.md`.
 
-### Drafted, waiting for the owner's approval (`work/queue`)
+### Approved and running (owner, 2026-11-24 evening)
 
 - `testhooks`: move test hooks out of game classes.
 - `resets`: turn off Daggerfall's resets and respawns.
