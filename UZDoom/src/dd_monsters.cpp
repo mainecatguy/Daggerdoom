@@ -143,12 +143,28 @@ PClassActor *RosterClass(uint64_t placement)
 	return PClass::FindActor(roster[placement % countof(roster)]);
 }
 
+// The Doomerfall mod narrows monsters on Daggerfall maps when they first tick (DoomerfallBodies). A mook is given that
+// width as soon as it is spawned, so it stands in its spot at the size the placer chose the spot for.
+void NarrowNow(AActor *mo)
+{
+	static VMFunction *scale = nullptr, *narrow = nullptr;
+	if (!scale) PClass::FindFunction(&scale, "DoomerfallBodies", "MonsterScale");
+	if (!narrow) PClass::FindFunction(&narrow, "DoomerfallBodies", "Narrow");
+	if (!scale || !narrow) return;
+	double s = 1;
+	VMReturn ret(&s);
+	VMCall(scale, nullptr, 0, &ret, 1);
+	VMValue params[] = { mo, s };
+	VMCall(narrow, params, 2, nullptr, 0);
+}
+
 // Spawns one mook on its point. A spawned monster takes its id at once; a spawner (such as DRLA's) is claimed.
 AActor *SpawnMook(FLevelLocals *Level, PClassActor *cls, uint64_t id, const DVector3 &at, bool replace, int side = -1, int stance = 0)
 {
 	if (!cls) return nullptr;
 	AActor *mo = Spawn(Level, cls, at, replace ? ALLOW_REPLACE : NO_REPLACE);
 	if (!mo) return nullptr;
+	if (mo->flags3 & MF3_ISMONSTER) NarrowNow(mo);
 	if ((mo->flags3 & MF3_ISMONSTER) && !mo->ddRecordId) { mo->ddRecordId = id; mo->SpawnPoint = mo->Pos(); RigFaction(mo, side, stance); }
 	else claims.push_back({ id, at, Level->maptime + ClaimTics, side, stance });
 	return mo;
