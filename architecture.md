@@ -47,6 +47,7 @@ The Daggerfall world is at **75% scale** in Doom (owner decision, 2026-11-22): 1
 
 - The player stays stock Doom on Daggerfall maps: height 56, eye height 41, step height 24, with stock crouch, speed, weapons, and monsters.
 - The one exception is collision width, which matches Daggerfall's character at world scale: radius 10.5 (21 wide). Regular Doom maps keep radius 16.
+- Monsters get the same help (owner decision, 2026-11-24): on Daggerfall maps every monster's collision radius is its class radius × 10.5/16, so it fits spaces narrowed in the same proportion as the player. Height stays stock. Regular Doom maps keep stock monster sizes. The rule lives in the Doomerfall mod (`DoomerfallBodies.zs`), and the encounter placer and planner size their spots with it.
 - The dungeon converter defaults to 0.75. `--world-scale` overrides it.
 - So far this scale has been applied to dungeons. The terrain treadmill test predates it.
 
