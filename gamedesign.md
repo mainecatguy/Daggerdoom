@@ -27,7 +27,7 @@ Play through one Daggerfall dungeon (e.g., Privateer's Hold) and one town, fast-
 | **Interactive World & Locks** | **Daggerfall** | Lock ratings, lockpicking, door bashing, traps, and secret triggers follow Daggerfall's RPG checks. Open doors are solid to movement, unlike Daggerfall Unity's, because non-solid open doors feel wrong in the Doom engine (owner, 2026-11-24). |
 | **Stealth & Detection** | **Detection bar (similar to Blood West)** | The player has a detection bar. Doom monsters are forced to stay idle until the bar fills or the player fires a gun. Enemies facing the player with line of sight, and sounds, make the bar fill faster. A high Stealth skill makes it fill much slower. |
 | **Resting & Loitering** | **Daggerfall** | Resting advances time and restores vitals, blocked when Doom monsters are nearby and interrupted by Doom ambush packs. |
-| **Progression & Skill XP** | **Daggerfall** | Combat, spellcasting, and traversal drive Daggerfall's use-based skill leveling; DRLX progression remains gear-centric. Skill rules are in `gamedesign/skills.md`. |
+| **Progression & Skill XP** | **Daggerfall** | Combat, spellcasting, and traversal drive Daggerfall's use-based skill leveling; DRLX progression remains gear-centric. |
 | **Audio & Music** | **Daggerfall (music/UI/NPCs) + Doom (combat)** | Daggerfall supplies music, UI sounds, and NPC barks; Doom supplies combat SFX. |
 
 ## The world does not scale to the player (design principle)

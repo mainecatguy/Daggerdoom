@@ -20,9 +20,7 @@ These pillars must survive every decision:
 |---|---|
 | `UZDoom/` | Vendored UZDoom 5.0.3 source. Combat, movement, rendering, and collision. |
 | `daggerfall-unity-master/` | Daggerfall Unity (Unity 2019.4.41f2). World, RPG rules, quests, UI, and saves. |
-| `gamedesign.md` | Game design rules. Details in `gamedesign/` (`damage.md`, `skills.md`, `decisions.md`). |
-| `manual.md` | Player manual: what a player sees on `main`. Only merged-to-`main` features, no undecided design. Update it when the owner merges to `main`. |
-| `mod-compatibility.md` | Checklist for adding a new Doom mod: classes, weapon skill bindings, ammo, items, monsters, tests. Follow it for every new mod. |
+| `gamedesign.md` | Game design rules. |
 | `architecture.md` | Milestones, technical hurdles, and engine ownership. |
 | `designgoals.md` | Original design goals. |
 | `work/goal.md` | The current goal. Written with the owner and not committed. |
