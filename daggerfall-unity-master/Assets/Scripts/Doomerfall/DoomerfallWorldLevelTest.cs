@@ -64,6 +64,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DFLocation dungeon;
             bool hasDungeon = DaggerfallUnity.Instance.ContentReader.GetLocation("Daggerfall", "Daggerfall", out dungeon);
             Roll(area, hasDungeon, dungeon);
+            area.Append(DoomerfallQuestRewardTest.Rolls());
 
             Func<int> place = WorldLevel.CurrentPlaceProvider;
             Func<DFLocation, int> dungeons = WorldLevel.DungeonProvider;
@@ -71,7 +72,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             WorldLevel.CurrentPlaceProvider = null;
             WorldLevel.DungeonProvider = null;
             FormulaHelper.DoomerfallMaterialRoll = null;
-            try { Roll(control, hasDungeon, dungeon); }
+            try { Roll(control, hasDungeon, dungeon); control.Append(DoomerfallQuestRewardTest.Rolls()); }
             finally
             {
                 WorldLevel.CurrentPlaceProvider = place;
@@ -87,6 +88,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bridge.LogLine(string.Format("worldleveltest: area hash {0:x8} ({1} chars)", Hash(area.ToString()), area.Length));
             DoomerfallMaterialOddsTest.Run(bridge, false);
             DoomerfallMaterialOddsTest.Run(bridge, true);
+            DoomerfallQuestRewardTest.Run(bridge);
             bridge.LogLine(string.Format("worldleveltest: control hash {0:x8} ({1} chars)", Hash(control.ToString()), control.Length));
         }
 
