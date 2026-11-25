@@ -104,7 +104,8 @@ public:
 	explicit Placer(FLevelLocals *l) : Level(l) {}
 
 	// A body of stock radius r. With squeeze, as P_TryMove moves monsters: where it is stuck on level geometry or a door
-	// leaf in a gap narrower than itself, it may stand at its squeeze width (DD_InGap, AActor::SqueezeRadius).
+	// leaf in a gap narrower than itself, it may stand at its squeeze width (DD_InGap, AActor::SqueezeRadius). Leaders
+	// on their markers and the fit measurement squeeze; spread mooks take only spots their stock body fits.
 	double lastCeiling = 0;	// ceiling at the last spot Check passed
 
 	bool Check(double x, double y, double z, double r, double h, bool actors, double &floorz, bool squeeze = true)
@@ -365,7 +366,7 @@ public:
 			const Node n = s.search.order[c];
 			const double x = n.i * Grid, y = n.j * Grid;
 			double f;
-			if (!Spaced(x, y, n.z, r, h) || !Check(x, y, n.z, r, h, true, f) || fabs(f - n.z) > Step || !Spaced(x, y, f, r, h) || NearMover(x, y, r)) continue;
+			if (!Spaced(x, y, n.z, r, h) || !Check(x, y, n.z, r, h, true, f, false) || fabs(f - n.z) > Step || !Spaced(x, y, f, r, h) || NearMover(x, y, r)) continue;
 			s.spot[m] = AddSpot(x, y, f, r, h);
 			s.pos[m] = DVector3(x, y, f);
 			c++;
