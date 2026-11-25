@@ -10,6 +10,7 @@ Keep Daggerfall's existing inventory. No inventory layout change is needed. Doom
 
 - Hover over an item or spell and press 1 to 0. A popup shows five gray inventory-style squares: three for the plain key (overloading, so up to 3 things share it and pressing again cycles), one for Ctrl+key, one for Alt+key, each clearly labelled.
 - Clicking a square overwrites it. A small red x in its corner deletes the assignment. The assigned item's icon fills the square.
+- One hotkey per item (owner, 2026-11-24): putting an item on a square clears any other square holding that same inventory item (same UID), so it moves. Separate items of one kind (two daggers, two potion stacks) keep their own squares. Automatic assignment follows the same rule, and an older save holding one item on several squares keeps the first by key order (1-9, then 0).
 - Hotkeys are references only. Hotkeying never removes anything from the inventory.
 - Using a hotkey draws the item, readies the spell, or prepares the item to be used. Using it immediately is acceptable at first.
 - The player starts with a Doom weapon already hotkeyed.
