@@ -852,6 +852,9 @@ class Actor : Thinker native
 	native void RestoreDamage();
 	native clearscope int SpawnHealth() const;
 	native int DD_HealthCheckLimit(int health); // [Doomerfall] see A_JumpIfHealthLower
+	native double DD_MoveRadius(); // [Doomerfall] movement-collision width: radius, narrower for monsters on Daggerfall maps
+	native static double DD_MonsterMoveScale(); // [Doomerfall] 10.5 / 16 on Daggerfall maps, otherwise 1
+	native static bool DD_OnDaggerfallMap(); // [Doomerfall] a generated location, the overworld, or a converted dungeon
 	virtual clearscope int GetMaxHealth(bool withupgrades = false) const	// this only exists to make checks for player health easier so they can avoid the type check and just call this method.
 	{
 		return SpawnHealth();

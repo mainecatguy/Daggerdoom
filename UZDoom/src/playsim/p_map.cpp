@@ -348,6 +348,13 @@ void P_GetFloorCeilingZ(FCheckPosition &tmf, int flags)
 //
 //==========================================================================
 
+// [Doomerfall] Bodies block each other at their movement widths (AActor::MoveRadius). A missile or a charging monster
+// still hits at the stock radius, so hitboxes stay stock.
+static inline double DD_MoveBlockDist(const AActor *mover, const AActor *other)
+{
+	return (mover->flags & (MF_MISSILE | MF_SKULLFLY)) ? mover->radius + other->radius : mover->MoveRadius() + other->MoveRadius();
+}
+
 void P_FindFloorCeiling(AActor *actor, int flags)
 {
 	FCheckPosition tmf;
@@ -381,7 +388,7 @@ void P_FindFloorCeiling(AActor *actor, int flags)
 	validcount++;
 
 	FPortalGroupArray grouplist;
-	FMultiBlockLinesIterator mit(grouplist, actor);
+	FMultiBlockLinesIterator mit(grouplist, actor, actor->MoveRadius()); // [Doomerfall] movement width
 	FMultiBlockLinesIterator::CheckResult cres;
 
 	// if we already have a valid floor/ceiling sector within the current sector,
@@ -465,7 +472,7 @@ bool	P_TeleportMove(AActor* thing, const DVector3 &pos, bool telefrag, bool modi
 	sector_t *sector = thing->Level->PointInSector(pos);
 
 	FPortalGroupArray grouplist;
-	FMultiBlockLinesIterator mit(grouplist, thing->Level, pos.X, pos.Y, pos.Z, thing->Height, thing->radius, sector);
+	FMultiBlockLinesIterator mit(grouplist, thing->Level, pos.X, pos.Y, pos.Z, thing->Height, thing->MoveRadius(), sector);
 	FMultiBlockLinesIterator::CheckResult cres;
 
 	while (mit.Next(&cres))
@@ -476,7 +483,7 @@ bool	P_TeleportMove(AActor* thing, const DVector3 &pos, bool telefrag, bool modi
 
 	if (tmf.touchmidtex) tmf.dropoffz = tmf.floorz;
 
-	FMultiBlockThingsIterator mit2(grouplist, thing->Level, pos.X, pos.Y, pos.Z, thing->Height, thing->radius, false, sector);
+	FMultiBlockThingsIterator mit2(grouplist, thing->Level, pos.X, pos.Y, pos.Z, thing->Height, thing->MoveRadius(), false, sector);
 	FMultiBlockThingsIterator::CheckResult cres2;
 
 	while (mit2.Next(&cres2))
@@ -496,7 +503,7 @@ bool	P_TeleportMove(AActor* thing, const DVector3 &pos, bool telefrag, bool modi
 		if ((th->ThruBits & tmf.thing->ThruBits) && ((th->flags8 | tmf.thing->flags8) & MF8_ALLOWTHRUBITS))
 			continue;
 
-		double blockdist = th->radius + tmf.thing->radius;
+		double blockdist = DD_MoveBlockDist(tmf.thing, th);
 		if (fabs(th->X() - cres2.Position.X) >= blockdist || fabs(th->Y() - cres2.Position.Y) >= blockdist)
 			continue;
 
@@ -599,7 +606,7 @@ void P_PlayerStartStomp(AActor *actor, bool mononly)
 		if (th == actor || (th->player == actor->player && th->player != NULL))
 			continue;
 
-		double blockdist = th->radius + actor->radius;
+		double blockdist = DD_MoveBlockDist(actor, th);
 		if (fabs(th->X() - cres.Position.X) >= blockdist || fabs(th->Y() - cres.Position.Y) >= blockdist)
 			continue;
 
@@ -1135,7 +1142,7 @@ static bool PIT_CheckPortal(FMultiBlockLinesIterator &mit, FMultiBlockLinesItera
 	if (lp->backsector == NULL) lp->backsector = lp->frontsector;
 	tm.thing->AddZ(zofs);
 
-	FBoundingBox pbox(cres.Position.X, cres.Position.Y, tm.thing->radius);
+	FBoundingBox pbox(cres.Position.X, cres.Position.Y, tm.thing->MoveRadius());
 	FBlockLinesIterator it(tm.thing->Level, pbox);
 	bool ret = false;
 	line_t *ld;
@@ -1376,7 +1383,7 @@ bool PIT_CheckThing(FMultiBlockThingsIterator &it, FMultiBlockThingsIterator::Ch
 	if (!((thing->flags & (MF_SOLID | MF_SPECIAL | MF_SHOOTABLE)) || thing->flags6 & MF6_TOUCHY))
 		return true;	// can't hit thing
 
-	double blockdist = thing->radius + tm.thing->radius;
+	double blockdist = DD_MoveBlockDist(tm.thing, thing);
 	if (fabs(thing->X() - cres.Position.X) >= blockdist || fabs(thing->Y() - cres.Position.Y) >= blockdist)
 		return true;
 
@@ -1425,8 +1432,8 @@ bool PIT_CheckThing(FMultiBlockThingsIterator &it, FMultiBlockThingsIterator::Ch
 			{
 				unblocking = true;
 			}
-			else if (fabs(thing->X() - oldpos.X) < (thing->radius + tm.thing->radius) &&
-				fabs(thing->Y() - oldpos.Y) < (thing->radius + tm.thing->radius))
+			else if (fabs(thing->X() - oldpos.X) < blockdist &&
+				fabs(thing->Y() - oldpos.Y) < blockdist)
 
 			{
 				double newdist = thing->Distance2D(cres.Position.X, cres.Position.Y);
@@ -1860,13 +1867,13 @@ bool P_CheckPosition(AActor *thing, const DVector2 &pos, FCheckPosition &tm, boo
 	}
 
 	tm.stepthing = NULL;
-	FBoundingBox box(pos.X, pos.Y, thing->radius);
+	FBoundingBox box(pos.X, pos.Y, thing->MoveRadius());
 
 	FPortalGroupArray pcheck;
 
 	if (!(thing->flags2 & MF2_THRUACTORS))
 	{
-		FMultiBlockThingsIterator it2(pcheck, thing->Level, pos.X, pos.Y, thing->Z(), thing->Height, thing->radius, false, newsec);
+		FMultiBlockThingsIterator it2(pcheck, thing->Level, pos.X, pos.Y, thing->Z(), thing->Height, thing->MoveRadius(), false, newsec);
 		FMultiBlockThingsIterator::CheckResult tcres;
 
 		while ((it2.Next(&tcres)))
@@ -1938,7 +1945,7 @@ bool P_CheckPosition(AActor *thing, const DVector2 &pos, FCheckPosition &tm, boo
 	if (actorsonly || (thing->flags & MF_NOCLIP))
 		return (thing->BlockingMobj = thingblocker) == NULL;
 
-	FMultiBlockLinesIterator it(pcheck, thing->Level, pos.X, pos.Y, thing->Z(), thing->Height, thing->radius, newsec);
+	FMultiBlockLinesIterator it(pcheck, thing->Level, pos.X, pos.Y, thing->Z(), thing->Height, thing->MoveRadius(), newsec);
 	FMultiBlockLinesIterator::CheckResult lcres;
 
 	double thingdropoffz = tm.floorz;
@@ -2095,7 +2102,7 @@ int P_TestMobjZ(AActor *actor, bool quick, AActor **pOnmobj)
 		{ // [RH] Specials and noclippers don't block moves
 			continue;
 		}
-		const double blockdist = thing->radius + actor->radius;
+		const double blockdist = DD_MoveBlockDist(actor, thing);
 		if (fabs(thing->X() - cres.Position.X) >= blockdist || fabs(thing->Y() - cres.Position.Y) >= blockdist)
 		{
 			continue;
@@ -3211,6 +3218,7 @@ void FSlide::SlideMove(AActor *mo, DVector2 tryp, int numsteps)
 
 	hitcount = 3;
 	slidemo = mo;
+	const double moveradius = mo->MoveRadius(); // [Doomerfall] movement width
 
 	if (mo->player && mo->player->mo == mo && mo->reactiontime > 0)
 		return;	// player coming right out of a teleporter.
@@ -3222,24 +3230,24 @@ retry:
 	// trace along the three leading corners
 	if (tryp.X > 0)
 	{
-		lead.X = mo->X() + mo->radius;
-		trail.X = mo->X() - mo->radius;
+		lead.X = mo->X() + moveradius;
+		trail.X = mo->X() - moveradius;
 	}
 	else
 	{
-		lead.X = mo->X() - mo->radius;
-		trail.X = mo->X() + mo->radius;
+		lead.X = mo->X() - moveradius;
+		trail.X = mo->X() + moveradius;
 	}
 
 	if (tryp.Y > 0)
 	{
-		lead.Y = mo->Y() + mo->radius;
-		trail.Y = mo->Y() - mo->radius;
+		lead.Y = mo->Y() + moveradius;
+		trail.Y = mo->Y() - moveradius;
 	}
 	else
 	{
-		lead.Y = mo->Y() - mo->radius;
-		trail.Y = mo->Y() + mo->radius;
+		lead.Y = mo->Y() - moveradius;
+		trail.Y = mo->Y() + moveradius;
 	}
 
 	bestSlidefrac = 1.01;
@@ -6503,7 +6511,7 @@ void P_FindAboveIntersectors(AActor *actor)
 	while (it.Next(&cres))
 	{
 		AActor *thing = cres.thing;
-		double blockdist = actor->radius + thing->radius;
+		double blockdist = DD_MoveBlockDist(actor, thing);
 		if (fabs(thing->X() - cres.Position.X) >= blockdist || fabs(thing->Y() - cres.Position.Y) >= blockdist)
 			continue;
 
@@ -6559,7 +6567,7 @@ void P_FindBelowIntersectors(AActor *actor)
 	while (it.Next(&cres))
 	{
 		AActor *thing = cres.thing;
-		double blockdist = actor->radius + thing->radius;
+		double blockdist = DD_MoveBlockDist(actor, thing);
 		if (fabs(thing->X() - cres.Position.X) >= blockdist || fabs(thing->Y() - cres.Position.Y) >= blockdist)
 			continue;
 

@@ -2057,8 +2057,11 @@ void DDTreadmill_Serialize(FLevelLocals *Level, FSerializer &arc)
 	}
 }
 
+void DD_BodiesBeginMap(FLevelLocals *Level);
+
 void DDTreadmill_BeginMap(FLevelLocals *Level)
 {
+	DD_BodiesBeginMap(Level);	// monster movement width (dd_monsters.cpp)
 	DDTreadmill_WideNodes = false;
 	static const bool hasTowns = fileSystem.CheckNumForName("DDTOWN") >= 0 || fileSystem.CheckNumForName("DDGROUPS") >= 0;
 	if (!hasTowns || !Level->isPrimaryLevel()) return;

@@ -145,7 +145,8 @@ class DFDoor : Actor
 				Actor t = it.thing;
 				if (!t.bSOLID || t is "DFDoorBlocker") continue;
 				if (bodiesOnly && !t.player && !t.bISMONSTER) continue;
-				if (abs(t.pos.x - at.x) >= t.radius + linkRadius || abs(t.pos.y - at.y) >= t.radius + linkRadius) continue;
+				double tr = t.DD_MoveRadius();	// bodies' movement width (narrower for monsters on Daggerfall maps)
+				if (abs(t.pos.x - at.x) >= tr + linkRadius || abs(t.pos.y - at.y) >= tr + linkRadius) continue;
 				if (t.pos.z >= top || t.pos.z + t.height <= bottom) continue;
 				return false;
 			}

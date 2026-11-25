@@ -26,8 +26,29 @@
 #include "m_argv.h"
 #include "p_local.h"
 #include "printf.h"
+#include "filesystem.h"
 
 bool DDTreadmill_PlayerSpace(double &x, double &y, double &z, double &yawDegrees, int &target);
+
+// Monster movement width on Daggerfall maps (architecture.md, World Scale and Player Size). Doomguy is 10.5 wide there
+// instead of 16, so monsters move and block at the same proportion of their radius (AActor::MoveRadius). Their radius,
+// and so every hit test, stays stock. This is the one test for "a Daggerfall map" that monster rules use: generated
+// locations (DDTnnnnn, DDSnnnnn), the overworld (DDOVER*), and converted dungeons (MAP01 with DDDUNGN or DFPOINTS).
+double DD_MonsterMoveScale = 1;
+
+bool DD_OnDaggerfallMap(FLevelLocals *Level)
+{
+	const char *map = Level->MapName.GetChars();
+	if ((strnicmp(map, "DDT", 3) == 0 || strnicmp(map, "DDS", 3) == 0) && strlen(map) == 8) return true;
+	if (strnicmp(map, "DDOVER", 6) == 0) return true;
+	return stricmp(map, "MAP01") == 0 && (fileSystem.CheckNumForName("DDDUNGN") >= 0 || fileSystem.CheckNumForName("DFPOINTS") >= 0);
+}
+
+// Called as each map starts, before its things spawn (P_SetupLevel through DDTreadmill_BeginMap).
+void DD_BodiesBeginMap(FLevelLocals *Level)
+{
+	if (Level->isPrimaryLevel()) DD_MonsterMoveScale = DD_OnDaggerfallMap(Level) ? 10.5 / 16 : 1;
+}
 
 CVAR(Int, dd_mon_test_kill, 0, CVAR_NOSAVE | CVAR_MOD) // Test only, with -ddmontest: 1 kills a placed monster, 2 a quest foe.
 
@@ -143,28 +164,12 @@ PClassActor *RosterClass(uint64_t placement)
 	return PClass::FindActor(roster[placement % countof(roster)]);
 }
 
-// The Doomerfall mod narrows monsters on Daggerfall maps when they first tick (DoomerfallBodies). A mook is given that
-// width as soon as it is spawned, so it stands in its spot at the size the placer chose the spot for.
-void NarrowNow(AActor *mo)
-{
-	static VMFunction *scale = nullptr, *narrow = nullptr;
-	if (!scale) PClass::FindFunction(&scale, "DoomerfallBodies", "MonsterScale");
-	if (!narrow) PClass::FindFunction(&narrow, "DoomerfallBodies", "Narrow");
-	if (!scale || !narrow) return;
-	double s = 1;
-	VMReturn ret(&s);
-	VMCall(scale, nullptr, 0, &ret, 1);
-	VMValue params[] = { mo, s };
-	VMCall(narrow, params, 2, nullptr, 0);
-}
-
 // Spawns one mook on its point. A spawned monster takes its id at once; a spawner (such as DRLA's) is claimed.
 AActor *SpawnMook(FLevelLocals *Level, PClassActor *cls, uint64_t id, const DVector3 &at, bool replace, int side = -1, int stance = 0)
 {
 	if (!cls) return nullptr;
 	AActor *mo = Spawn(Level, cls, at, replace ? ALLOW_REPLACE : NO_REPLACE);
 	if (!mo) return nullptr;
-	if (mo->flags3 & MF3_ISMONSTER) NarrowNow(mo);
 	if ((mo->flags3 & MF3_ISMONSTER) && !mo->ddRecordId) { mo->ddRecordId = id; mo->SpawnPoint = mo->Pos(); RigFaction(mo, side, stance); }
 	else claims.push_back({ id, at, Level->maptime + ClaimTics, side, stance });
 	return mo;

@@ -80,8 +80,8 @@ for name, files in () if only_load else (("e1m1_stock", []), ("e1m1_drla", DRLA)
     fatal = any(b in text for b in BAD if b not in ("Script error", "Unknown class")) if drla else not clean(text)
     report(name, not fatal and entered and inactive, f"entered={entered} actions inactive={inactive}")
 
-# A default conversion, as the game uses. door_check applies the game's 10.5 player radius itself. The Doomerfall mod
-# gives monsters the Daggerfall-map width (DoomerfallBodies), which the real-monster doorway check (monster=) measures.
+# A default conversion, as the game uses. door_check applies the game's 10.5 player radius itself. The engine moves
+# monsters at the Daggerfall-map width (AActor::MoveRadius), which the real-monster doorway check (monster=) measures.
 ph = [os.path.join(holds, "privateershold" + s) for s in (".wad", "_mesh.pk3", "_doors.pk3")]
 MOD = os.path.join(os.path.dirname(os.path.dirname(HERE)), "mods", "doomerfall", "src")
 if not only_load:
@@ -89,7 +89,7 @@ if not only_load:
     rows = [l for l in text.splitlines() if l.startswith("DT door=")]
     rows = rows[:len(rows) // 2] if len(rows) >= 116 and rows[:58] == rows[58:116] else rows
     # Open doors are solid (owner, 2026-11-24): openblock, block and hold check that open and swinging doors stop bodies.
-    # monster= is a real DoomImp at its Daggerfall-map width walking through the open doorway past the solid leaf.
+    # monster= is a real DoomImp at its Daggerfall-map movement width walking through the open doorway past the solid leaf.
     checked = ("use", "closed", "walk", "trace", "ball", "swing", "openblock", "traceopen", "ballopen", "solid", "block", "hold")
     dead_ends = {21, 23, 24, 25, 27, 28, 31, 34, 37, 41, 49, 53}  # no dungeon on their far side; see work/notes/door-objects.md
     bad = [l for l in rows if int(l.split()[1][5:]) not in dead_ends
@@ -98,7 +98,7 @@ if not only_load:
     for l in bad[:4]:
         print("  " + l[:170])
     # Monsters through open doorways (owner, 2026-11-24): a monster narrowed like the player must never be shut out by an
-    # open leaf (0) where the bare doorway fits it. n (the doorway is too narrow even with no leaf) is reported, not failed.
+    # open leaf (0) where the bare doorway fits it. Only its movement width is narrowed: its radius (hitbox) stays 20. n (the doorway is too narrow even with no leaf) is reported, not failed.
     radius = next((l for l in text.splitlines() if l.startswith("DTMONSTER")), "DTMONSTER none")
     marks = {}
     for l in rows:
@@ -108,7 +108,7 @@ if not only_load:
     shut = sorted(d for d, m in marks.items() if m not in ("1", "n"))
     narrow = sorted(d for d, m in marks.items() if m == "n")
     passed = sum(m == "1" for m in marks.values())
-    report("monster_doors", len(marks) == 46 and not shut and "radius=13.125" in radius,
+    report("monster_doors", len(marks) == 46 and not shut and "radius=20.000 move=13.125" in radius,
            f"{radius}: {passed} of {len(marks)} doorways pass, blocked by the leaf {shut}, doorway too narrow {narrow}")
     bodies = next((l for l in text.splitlines() if l.startswith("DTPLAYERSTALL")), "")
     report("door_bodies", "held+stopped+closed" in bodies and not any(w in bodies for w in ("NOTHELD", "NOTSTOPPED", "NOTCLOSED")), bodies)

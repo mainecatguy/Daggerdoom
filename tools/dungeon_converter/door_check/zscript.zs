@@ -21,6 +21,8 @@ class DFTestBody : Actor
 {
 	Default { Radius 10.5; Height 56; +SOLID +ISMONSTER +NOGRAVITY +DONTSPLASH }
 	States { Spawn: TNT1 A -1; Stop; }
+	// A player-sized body: it moves at 10.5 wide, although as a monster its movement width is a share of its radius.
+	override void PostBeginPlay() { Super.PostBeginPlay(); A_SetSize(10.5 * radius / DD_MoveRadius(), height, false); }
 }
 
 class DFSightProbe : Actor
@@ -48,7 +50,7 @@ class DFDoorCheck : EventHandler
 	const MEET = 30;	// tics: an opening door meets a body 20 units from its hinge well within this
 	Array<DFDoorRow> rows;
 	Array<double> nodeX, nodeY, nodeF;
-	double monsterRadius;	// the real DoomImp's radius on this map (MonsterThrough)
+	double monsterRadius, monsterMove;	// the real DoomImp's radius (hit tests) and movement width on this map (MonsterThrough)
 	Actor widthImp;	// spawned early and parked, so it has run its first tic (when spawn handlers size it) before it is measured
 	Map<int, int> walkable;
 	int stallIndex, stallTic;
@@ -260,6 +262,7 @@ class DFDoorCheck : EventHandler
 				{
 					widthImp.bSOLID = true;
 					monsterRadius = widthImp.radius;
+					monsterMove = widthImp.DD_MoveRadius();
 					r.monster = MonsterThrough(widthImp, r);
 					widthImp.bSOLID = false;
 					widthImp.SetOrigin(parking, false);
@@ -293,12 +296,12 @@ class DFDoorCheck : EventHandler
 
 	int WidestThrough(Actor p, DFDoorRow r, bool leafSolid)
 	{
-		double keep = p.radius;
+		double keep = p.radius, k = p.DD_MoveRadius() / p.radius;	// widths below are movement widths
 		if (!leafSolid) foreach (l : r.door.links) l.bSOLID = false;
 		int best = 0;
 		for (int radius = 8; radius <= 26; radius++)
 		{
-			p.A_SetSize(radius, p.height);
+			p.A_SetSize(radius / k, p.height);
 			bool pass = false;
 			for (int s = 0; s < 2 && !pass; s++)
 				if (r.use[s] != "-") pass = WalkThrough(p, r, s == 0 ? 1 : -1, 36, 36, -12, 15);
@@ -310,9 +313,8 @@ class DFDoorCheck : EventHandler
 		return best;
 	}
 
-	// Does a real monster body get through the open doorway? The body is a real DoomImp (radius 20 in stock Doom), spawned
-	// so that whatever loaded rules size monsters on this map apply to it (the Doomerfall mod's DoomerfallBodies narrows it
-	// to 13.125 on Daggerfall maps). 1 passes, 0 the open leaf blocks it, n the doorway itself is too narrow even without
+	// Does a real monster body get through the open doorway? The body is a real DoomImp (radius 20 in stock Doom). On
+	// Daggerfall maps the engine moves it 13.125 wide (AActor::MoveRadius) while its radius, and so its hitbox, stays 20. 1 passes, 0 the open leaf blocks it, n the doorway itself is too narrow even without
 	// the leaf. action_regress.py loads the mod and scores it.
 	String MonsterThrough(Actor body, DFDoorRow r)
 	{
@@ -352,7 +354,7 @@ class DFDoorCheck : EventHandler
 		for (int i = 0; i < r.door.links.Size(); i++)
 		{
 			let l = r.door.links[i];
-			if (abs(l.pos.x - t.pos.x) < l.radius + t.radius && abs(l.pos.y - t.pos.y) < l.radius + t.radius
+			if (abs(l.pos.x - t.pos.x) < l.radius + t.DD_MoveRadius() && abs(l.pos.y - t.pos.y) < l.radius + t.DD_MoveRadius()
 				&& l.pos.z < t.pos.z + t.height && l.pos.z + l.height > t.pos.z) return true;
 		}
 		return false;
@@ -508,7 +510,7 @@ class DFDoorCheck : EventHandler
 				r.ballClosed[0], r.ballClosed[1], r.swing, r.openBlock, r.traceOpen, r.ballOpen[0], r.ballOpen[1], r.solidStates, r.block, r.hold, r.sightClosed, r.sightOpen, r.floorCases - r.floorFails, r.floorCases, r.monster, r.wide);
 		}
 		Console.Printf("DTPLAYERSTALL %s", playerResult);
-		Console.Printf("DTMONSTER radius=%.3f", monsterRadius);
+		Console.Printf("DTMONSTER radius=%.3f move=%.3f", monsterRadius, monsterMove);
 		Console.Printf("DTDONE");
 	}
 

@@ -802,6 +802,8 @@ public:
 const double MinVel = EQUAL_EPSILON;
 
 // Map Object definition.
+extern double DD_MonsterMoveScale;	// [Doomerfall] 1, or 10.5 / 16 on Daggerfall maps (dd_monsters.cpp)
+
 class AActor final : public DThinker
 {
 	DECLARE_CLASS_WITH_META (AActor, DThinker, PClassActor)
@@ -1257,6 +1259,8 @@ public:
 	player_t		*player;		// only valid if type of PlayerPawn
 	TObjPtr<AActor*>	LastLookActor;	// Actor last looked for (if TIDtoHate != 0)
 	uint64_t		ddRecordId = 0;	// [Doomerfall] Overworld table id. Zero on all stock actors.
+	// [Doomerfall] Width for movement collision only. Hit tests keep radius. Differs only for monsters on Daggerfall maps.
+	double MoveRadius() const { return (flags3 & MF3_ISMONSTER) && !player && !(flags & (MF_MISSILE | MF_SKULLFLY)) ? radius * DD_MonsterMoveScale : radius; }
 	DVector3		SpawnPoint; 	// For nightmare respawn
 	int				StartHealth;
 	uint8_t			WeaveIndexXY;	// Separated from special2 because it's used by globally accessible functions.

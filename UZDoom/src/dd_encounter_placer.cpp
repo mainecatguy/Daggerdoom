@@ -105,7 +105,7 @@ public:
 
 	bool Check(double x, double y, double z, double r, double h, bool actors, double &floorz)
 	{
-		probe->radius = r;
+		probe->radius = r / DD_MonsterMoveScale;	// the probe is a monster: its movement width (MoveRadius) is r
 		probe->Height = h;
 		if (actors) probe->flags2 &= ~MF2_THRUACTORS;
 		else probe->flags2 |= MF2_THRUACTORS;
@@ -311,7 +311,7 @@ public:
 
 	// ---- Spots ----
 
-	double bodyScale = 1;	// monster width on this map (DoomerfallBodies.MonsterScale: 10.5 / 16 on Daggerfall maps)
+	double bodyScale = 1;	// monster movement width on this map (DD_MonsterMoveScale: 10.5 / 16 on Daggerfall maps)
 
 	void Body(PClassActor *cls, double &r, double &h) const
 	{
@@ -500,7 +500,7 @@ public:
 		}
 		fitHeight = 0;
 		FCheckPosition tm;
-		probe->radius = std::min(fitRadius, 16.);
+		probe->radius = std::min(fitRadius, 16.) / DD_MonsterMoveScale;
 		probe->Height = 1;
 		probe->flags2 &= ~MF2_THRUACTORS;
 		probe->SetXYZ(s.origin);
@@ -528,9 +528,7 @@ bool DD_PlaceEncounters(FLevelLocals *Level, const FString &header, const std::v
 	pl.fMove = pl.Find("Move");
 	VMFunction *fFaction = pl.Find("Faction");	// card 6: Civil War side and stance
 	if (!pl.fMooks || !pl.fMakeLeader || !pl.fCheapest || !pl.fPromote || !pl.fDrop || !pl.fMove) return false;
-	VMFunction *fScale = nullptr;	// the monster width the mod gives bodies on this map
-	PClass::FindFunction(&fScale, "DoomerfallBodies", "MonsterScale");
-	if (fScale) { VMReturn ret(&pl.bodyScale); VMCall(fScale, nullptr, 0, &ret, 1); }
+	pl.bodyScale = DD_MonsterMoveScale;	// bodies move at this share of their radius here (AActor::MoveRadius)
 
 	// One invisible probe body, never linked into the blockmap, so nothing else can touch it.
 	pl.probe = Spawn(Level, spotClass, DVector3(0, 0, 0), NO_REPLACE);

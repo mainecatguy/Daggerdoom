@@ -799,6 +799,27 @@ DEFINE_ACTION_FUNCTION_NATIVE(AActor, DD_HealthCheckLimit, DD_BridgeHpCheckLimit
 	ACTION_RETURN_INT(DD_BridgeHpCheckLimit(self, health));
 }
 
+// [Doomerfall] Monster movement width on Daggerfall maps (dd_monsters.cpp, AActor::MoveRadius).
+bool DD_OnDaggerfallMap(FLevelLocals *Level);
+
+DEFINE_ACTION_FUNCTION(AActor, DD_MoveRadius)
+{
+	PARAM_SELF_PROLOGUE(AActor);
+	ACTION_RETURN_FLOAT(self->MoveRadius());
+}
+
+DEFINE_ACTION_FUNCTION(AActor, DD_MonsterMoveScale)
+{
+	PARAM_PROLOGUE;
+	ACTION_RETURN_FLOAT(DD_MonsterMoveScale);
+}
+
+DEFINE_ACTION_FUNCTION(AActor, DD_OnDaggerfallMap)
+{
+	PARAM_PROLOGUE;
+	ACTION_RETURN_BOOL(DD_OnDaggerfallMap(primaryLevel));
+}
+
 // Why does this exist twice?
 DEFINE_ACTION_FUNCTION_NATIVE(AActor, GetSpawnHealth, SpawnHealth)
 {
