@@ -115,8 +115,15 @@ def counts_doom(body):
 
 
 def counts_df(body):
-    lines = [l for l in body.splitlines() if "holds Clip" in l and "stacks" in l]
-    return dict(re.findall(r"(Clip|Shell|RocketAmmo|Cell) (\d+);", lines[-1])) if lines else {}
+    # Daggerfall's latest loaded total per class: the full totals lines, and the later equip lines for one class.
+    counts = {}
+    for l in body.splitlines():
+        if "holds Clip" in l and "stacks" in l:
+            counts.update(re.findall(r"(Clip|Shell|RocketAmmo|Cell) (\d+);", l))
+        m = re.search(r"equip: the ready gun loads (Clip|Shell|RocketAmmo|Cell); Daggerfall holds (\d+),", l)
+        if m:
+            counts[m.group(1)] = m.group(2)
+    return counts
 
 
 def run(name):
@@ -141,7 +148,7 @@ def run(name):
     if load:
         uz += ["-dfloadtest", f"resume:{autosaves[-1]}"]
     df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), *(["-dfequiptest"] if equip else ["-dfshoptest"] if tiers else ["-dfchangeammotest"] if change else ["-dfammotest"]), "-dfarealevel", "20", "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
-    timeout = 120
+    timeout = 180 if change and not load else 120  # The reload checks add about 35 s.
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
                "--uzdoom-cwd", str(runs), "--log", str(launcher)]
@@ -168,7 +175,7 @@ def run(name):
         proc.wait()
     print("stopped:", reason)
     for line in read(console).splitlines():
-        if re.match(r"AM[A-Z]+ ", line) or "loaded ammo" in line or "ammo unload" in line or "change ammo" in line or "DFAMMO jackpot" in line or "ammo add" in line or "ready weapon" in line or "damage bonus" in line or "Script error" in line or any(k in line for k in FATAL):
+        if re.match(r"AM[A-Z]+ ", line) or "loaded ammo" in line or "ammo unload" in line or "change ammo" in line or "DFAMMO jackpot" in line or "DFAMMO reload" in line or "DFAMMO redraw" in line or "ammo add" in line or "ready weapon" in line or "damage bonus" in line or "Script error" in line or any(k in line for k in FATAL):
             print("uz", line[:220])
     for line in read(uz_log).splitlines():
         if re.search(r"save|load test", line, re.I):
@@ -200,7 +207,37 @@ def run(name):
                 print("hit", label, weapon, ammo, "bridge", scaled or "unscaled", "expected", expect or "unscaled", "lost", lost, "PASS" if ok else "FAIL")
                 scaled = None
         print("hits", hits)
+    if change and not load:
+        reload_checks(read(console))
     print("MATCH" if doom and all(doom.get(c) == dagger.get(c) for c in CLASSES) else "MISMATCH")
+
+
+def reload_checks(body):
+    """The change ammo key is a reload: after it, the gun reloads (DRLA) or is lowered and raised (no magazine), cannot
+    fire until that ends, and ends ready to fire with its magazine filled."""
+    for k, what in enumerate(("DRLA shotgun", "DRLA chaingun", "stock shotgun")):
+        rows = []
+        for m in re.finditer(rf"AMRELOAD change{k} gun=(\S+) state=(\S+) fire=(\d) mag=(-?\d+) reserve=(\S+) tic=(\d+)", body):
+            gun, state, fire, mag, reserve, tic = m.groups()
+            rows.append((gun, state, int(fire), int(mag), reserve, int(tic)))
+        before = re.search(rf"AMRELOAD change{k} before (.*)", body)
+        print(f"change{k} {what} before:", before.group(1) if before else "missing")
+        for r in rows:
+            print("  ", *r)
+        # The change arrives when the magazine or reserve first differs from the first row. From then on the gun must
+        # not be able to fire a round (an empty DRLA magazine only starts DRLA's own reload) until the reload ends.
+        arrival = next((i for i, r in enumerate(rows) if i and (r[3], r[4]) != (rows[0][3], rows[0][4])), None)
+        start = next((i for i in range(arrival, len(rows)) if not rows[i][2]), None) if arrival is not None else None
+        early = [r[5] for r in rows[arrival:start] if r[2] and r[3] != 0] if start is not None else []
+        last = rows[-1] if rows else None
+        held = start is not None and all(not r[2] for r in rows[start:-1])
+        filled = last is not None and last[2] == 1 and last[3] != 0
+        ok = start is not None and held and filled and not early
+        print(f"change{k} {what}:", "reload seen" if start is not None else "NO RELOAD", "| no fire during it" if held else "| FIRED DURING IT",
+              "| ends ready, magazine filled" if filled else "| NOT READY OR EMPTY AT END", f"| could fire before the reload at tics {early}" if early else "", "PASS" if ok else "FAIL")
+    for line in body.splitlines():
+        if "change ammo reload of" in line or "DFAMMO reload" in line or "DFAMMO redraw" in line:
+            print("  ", line[:160])
 
 
 def check():

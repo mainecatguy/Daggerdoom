@@ -46,6 +46,22 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             items.AddItem(pistol);
             hotkeys.Assign(4, 0, pistol);
             bridge.LogLine("changeammotest: added 30 Regular, 20 Steel, 10 Silver bullets and a DRLA pistol (10 in its magazine) on key 4");
+            // The reload checks: two more DRLA guns with part-full magazines and a stock Doom shotgun (no magazine).
+            items.AddItem(new DoomerfallAmmoItem(1, DoomerfallAmmoTiers.Regular, 12));
+            items.AddItem(new DoomerfallAmmoItem(1, 1, 8)); // Steel shells
+            AddGun(items, hotkeys, 5, "RLShotgunPickup", "RLShotgunClip=1");
+            AddGun(items, hotkeys, 6, "RLChaingunPickup", "RLChaingunClip=7");
+            AddGun(items, hotkeys, 7, "Shotgun", null);
+            bridge.LogLine("changeammotest: added 12 Regular and 8 Steel shells, a DRLA shotgun (1) on key 5, a DRLA chaingun (7) on key 6, a stock shotgun on key 7");
+        }
+
+        static void AddGun(ItemCollection items, DoomerfallHotkeys hotkeys, int key, string doomClass, string state)
+        {
+            DoomerfallDoomItem gun = new DoomerfallDoomItem(doomClass, true);
+            if (state != null)
+                gun.GunState = state;
+            items.AddItem(gun);
+            hotkeys.Assign(key, 0, gun);
         }
     }
 }

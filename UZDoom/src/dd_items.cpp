@@ -669,6 +669,25 @@ void UnloadMagazine(uint32_t request, bool automatic, const char *name)
 		}
 	}
 	SendDoomItem(DFB_KIND_AMMO_UNLOADED, request, rounds, name);
+	// A change by the key is a reload (owner, 2026-11-24). Daggerfall swapped the reserve to the new tier just before.
+	// A ready gun starts now, in this tic, so no round fires first: its Reload state fills the magazine from the
+	// reserve, and a gun with no magazine is lowered and raised. DoomerfallAmmo.zs waits for a busy gun to be ready.
+	AActor *ready = player ? player->ReadyWeapon : nullptr;
+	if (!automatic && ready && !strcmp(gun, ready->GetClass()->TypeName.GetChars()))
+	{
+		PClassActor *magazine = nullptr;
+		WeaponAmmo(ready, &magazine);
+		FState *reload = magazine ? ready->FindState(NAME_Reload) : nullptr;
+		const bool busy = !(player->WeaponState & WF_WEAPONREADY); // Setting a state clears the flag.
+		if (busy) doomOutgoing.push_back(FStringf("dfa_reload:%s", gun));
+		else if (reload) P_SetPsprite(player, PSP_WEAPON, reload);
+		else if (FState *down = ready->FindState(NAME_Deselect))
+		{
+			player->PendingWeapon = ready;
+			P_SetPsprite(player, PSP_WEAPON, down);
+		}
+		Printf(PRINT_LOG, "doomitems: change ammo reload of %s: %s\n", gun, busy ? "the gun is busy, waiting" : reload ? "reload" : "lowered and raised");
+	}
 	Printf(PRINT_LOG, "doomitems: ammo unload %u%s %s: gun %s magazine %s, %s\n", request, automatic ? " (automatic)" : "", name, gun, mag,
 		rounds == 0xFFFFFFFFu ? "refused, the magazine still holds rounds" : FStringf("%u rounds back to Daggerfall", rounds).GetChars());
 }

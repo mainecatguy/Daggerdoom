@@ -47,6 +47,69 @@ class DoomerfallAmmoTiers : StaticEventHandler
 			if (loadedTier < 0 || loadedTier >= TIERNAMES.Size() || loadedType < 0 || loadedType >= AMMOICONS.Size()) loadedTier = -1;
 			Console.Printf("Doomerfall: loaded ammo %s", loadedTier < 0 ? "none" : String.Format("%s %s", TIERNAMES[loadedTier], AMMONAMES[loadedType]));
 		}
+		else if (e.Name.Left(11) == "dfa_reload:" && consoleplayer >= 0)
+		{
+			// dfa_reload:<weapon class>, from dd_items.cpp UnloadMagazine after a change by the key emptied the ready
+			// gun's magazine. Daggerfall had already swapped the reserve to the new tier.
+			let w = players[consoleplayer].ReadyWeapon;
+			if (w && w.GetClassName() == e.Name.Mid(11))
+			{
+				reloadGun = w;
+				reloadTic = level.maptime;
+			}
+		}
+	}
+
+	// ---- The change ammo key is a reload (owner, 2026-11-24) ----------------------------------------------------
+	// The engine starts a ready gun's reload itself (dd_items.cpp UnloadMagazine) and sends dfa_reload only when the
+	// gun was busy (firing, raising). Here the wait ends once the magazine is empty and the gun is ready: the gun plays
+	// its own Reload state, which fills the magazine from the reserve, now the new tier. A gun without a magazine or a
+	// Reload state (stock Doom) is lowered and raised instead, so the new tier fires only after it is back up. A swap,
+	// or the gun reloading by itself (DRLA's Fire state on an empty magazine), ends the wait; so does a gun that never
+	// comes ready.
+	const ReloadWait = 105;
+	Weapon reloadGun;
+	int reloadTic;
+
+	static bool IsReserve(class<Inventory> c)
+	{
+		if (!c) return false;
+		let d = GetDefaultByType(c);
+		return d is "Clip" || d is "Shell" || d is "RocketAmmo" || d is "Cell";
+	}
+
+	void TickReload()
+	{
+		let p = players[consoleplayer];
+		let gun = reloadGun;
+		if (!p.mo || p.health <= 0 || p.ReadyWeapon != gun || p.PendingWeapon != WP_NOCHANGE || level.maptime - reloadTic > ReloadWait)
+		{
+			reloadGun = null;
+			return;
+		}
+		let psp = p.FindPSprite(PSP_WEAPON);
+		State reload = gun.FindState("Reload");
+		bool magazine = gun.AmmoType1 && !IsReserve(gun.AmmoType1) && IsReserve(gun.AmmoType2);
+		if (!psp) return;
+		if (magazine && reload && Actor.InStateSequence(psp.CurState, reload))
+		{
+			reloadGun = null; // Already reloading.
+			return;
+		}
+		if (magazine && p.mo.CountInv(gun.AmmoType1) > 0) return; // The engine has not emptied it yet.
+		if (!(p.WeaponState & WF_WEAPONREADY)) return;
+		reloadGun = null;
+		if (magazine && reload)
+		{
+			p.SetPsprite(PSP_WEAPON, reload);
+			Console.PrintfEx(PRINT_LOG, "DFAMMO reload %s", gun.GetClassName());
+		}
+		else
+		{
+			p.PendingWeapon = gun;
+			p.SetPsprite(PSP_WEAPON, gun.GetDownState());
+			Console.PrintfEx(PRINT_LOG, "DFAMMO redraw %s", gun.GetClassName());
+		}
 	}
 
 	// The ammo loaded in the ready gun, shown at the bottom of the screen: the tier's tinted pickup sprite, its name, and
@@ -88,6 +151,7 @@ class DoomerfallAmmoTiers : StaticEventHandler
 
 	override void WorldUnloaded(WorldEvent e)
 	{
+		reloadGun = null;
 		pending.Clear();
 		pendingTic.Clear();
 		pendingX.Clear();
@@ -124,6 +188,7 @@ class DoomerfallAmmoTiers : StaticEventHandler
 
 	override void WorldTick()
 	{
+		if (reloadGun) TickReload();
 		for (int i = pending.Size() - 1; i >= 0; i--)
 		{
 			let inv = pending[i];
