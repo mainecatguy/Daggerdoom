@@ -83,7 +83,7 @@ FARG_ADVANCED(dfbridge, "Doomerfall", "session", "Attaches to the Doomerfall bri
 FARG_ADVANCED(dfbridgelog, "Doomerfall", "file", "Appends Doomerfall bridge traffic and latency to a log file.");
 FARG_ADVANCED(dfuitest, "Doomerfall", "count", "Bridge test only: opens the fast travel menu this many times.");
 FARG(dfflow, "Doomerfall", "Starts at Doom's title with New Game and Load Game driving both games.", "", "");
-FARG_ADVANCED(dfnewgametest, "Doomerfall", "once|twice", "Bridge test only: chooses New Game and a difficulty through the real menu path.");
+FARG_ADVANCED(dfnewgametest, "Doomerfall", "once|twice|escape", "Bridge test only: chooses New Game and a difficulty through the real menu path (escape: New Game at every return to the title, no difficulty).");
 FARG_ADVANCED(dfplainloadtest, "Doomerfall", "once", "Bridge test only: runs dd_load_daggerfall at the title and chooses a difficulty.");
 FARG_ADVANCED(dfbridgetestpause, "Doomerfall", "ext|game|menu", "Bridge test only: enters a pause state for six seconds.");
 
@@ -254,6 +254,9 @@ bool flowHold; // A load is running, or a failed load or the title left no game 
 // the start location, and only then lets Daggerfall start its clock and quests.
 enum NewGameState { NgIdle, NgWaitDf, NgCreating, NgDifficulty, NgLoading, NgTravel, NgDoor, NgWaitGo };
 bool flowMode, ngHaveWorld, ngResult;
+bool ngAskedAbandon; // Escape closed the difficulty prompt, and the question about dropping the character is open.
+int64_t ngPromptAt; // When the difficulty prompt first opened.
+constexpr int64_t NgEscapeGraceNs = 1000000000LL;
 NewGameState ngState = NgIdle;
 dfb_new_game ngWorld;
 // A plain Daggerfall save (no Doom half) runs the same chain from Daggerfall's Load window (DFB_KIND_PLAIN_LOAD).
@@ -2216,6 +2219,7 @@ static void ReturnToTitle()
 //==========================================================================
 
 void M_DDOpenSkillMenu();
+void M_DDConfirmAbandon(bool plain);
 
 namespace
 {
@@ -2321,7 +2325,7 @@ void PumpNewGame(int64_t now)
 			if (now >= ngTestAt)
 			{
 				const char *mode = ngTest;
-				ngTest = strcmp(mode, "twice") ? nullptr : "once";
+				ngTest = !strcmp(mode, "escape") ? mode : strcmp(mode, "twice") ? nullptr : "once"; // escape: every time, and the driver picks the difficulty
 				ngTestAt = 0;
 				Log("new game test: choosing New Game");
 				M_StartControlPanel(false);
@@ -2357,6 +2361,8 @@ void PumpNewGame(int64_t now)
 		if (ngHaveWorld)
 		{
 			ngState = NgDifficulty;
+			ngAskedAbandon = false;
+			ngPromptAt = now;
 			ngTestAt = now + 1000000000LL;
 			M_DDOpenSkillMenu();
 			Log("new game: asking for a difficulty");
@@ -2370,8 +2376,22 @@ void PumpNewGame(int64_t now)
 		else if (now > ngDeadline) NgFail("Daggerfall did not place the character");
 		return;
 	case NgDifficulty:
-		if (!menuactive && gameaction == ga_nothing) M_DDOpenSkillMenu(); // A difficulty is required once the character exists.
-		else if ((Args->CheckValue(FArg_dfnewgametest) || (ngPlain && Args->CheckValue(FArg_dfplainloadtest))) && menuactive && now >= ngTestAt)
+		if (!menuactive && gameaction == ga_nothing)
+		{
+			// Escape closed the prompt without a choice. Ask before dropping the character; after No, ask for a difficulty again.
+			// An Escape in the prompt's first second is a late one meant for the cinematics, so the prompt just comes back.
+			if (!ngAskedAbandon && now < ngPromptAt + NgEscapeGraceNs)
+			{
+				M_DDOpenSkillMenu();
+				Log("new game: Escape right after the difficulty prompt opened, showing it again");
+				return;
+			}
+			ngAskedAbandon = !ngAskedAbandon;
+			if (ngAskedAbandon) M_DDConfirmAbandon(ngPlain);
+			else M_DDOpenSkillMenu();
+			Log(ngAskedAbandon ? "new game: Escape at the difficulty prompt, asking whether to return to the title" : "new game: asking for a difficulty again");
+		}
+		else if (((Args->CheckValue(FArg_dfnewgametest) && strcmp(Args->CheckValue(FArg_dfnewgametest), "escape")) || (ngPlain && Args->CheckValue(FArg_dfplainloadtest))) && menuactive && now >= ngTestAt)
 		{
 			ngTestAt = now + 5000000000LL;
 			Log("new game test: choosing difficulty 2");
@@ -2549,6 +2569,28 @@ bool DD_BridgeNewGameMenu()
 	}
 	else if (!atTitle) Printf(PRINT_HIGH, "End the current game before starting a new one.\n");
 	return true;
+}
+
+// Escape's main menu stays shut while New Game or a plain load is under way: Daggerfall's screens, the difficulty
+// prompt, and the trip to the start each answer Escape themselves.
+bool DD_BridgeBlocksMainMenu()
+{
+	if (!session || !flowMode || ngState == NgIdle) return false;
+	Log("new game: kept Doom's main menu closed, new game step %d", int(ngState));
+	return true;
+}
+
+// Yes to the question Escape at the difficulty prompt asks: Daggerfall drops the held character, and both games
+// stay at the title, where New Game starts over.
+void DD_BridgeAbandonCharacter()
+{
+	if (!session || ngState != NgDifficulty) return;
+	NgSendArrived(false);
+	Log(ngPlain ? "plain load: returned to the title from the difficulty prompt, Daggerfall's save was not resumed"
+		: "new game: returned to the title from the difficulty prompt, the character was dropped");
+	ngState = NgIdle;
+	ngHaveWorld = ngResult = ngPlain = ngAskedAbandon = false;
+	atTitle = flowHold = true;
 }
 
 // Loads a plain Daggerfall save (one with no Doom half) from Daggerfall's own Load window. Doom then starts its default
