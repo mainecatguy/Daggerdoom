@@ -1005,6 +1005,7 @@ void FLevelLocals::Serialize(FSerializer &arc, bool hubload)
 	arc("linedefs", lines, loadlines);
 	SetCompatLineOnSide(true);
 	arc("sidedefs", sides, loadsides);
+	if (arc.isWriting()) DDTreadmill_PrepareSectorSave(this); // [Doomerfall] the overworld's terrain is rebuilt on load, not saved
 	arc("sectors", sectors, loadsectors);
 	arc("zones", Zones);
 	arc("lineportals", linePortals);

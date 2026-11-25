@@ -1,7 +1,8 @@
 # DRLA drops from a fixed Daggerfall seed
 
-**Waiting on:** the lightweight location record (replacement for location ledger cards 2-3), which rebuilds monster
-drops from a seed instead of storing them. Not started. Owner asked for this item on 2026-11-24.
+**Not needed by the location record any more (owner, 2026-11-24):** the record stores monster drops in each place's
+loose item list (about 8 bytes per item left on the ground) instead of rerolling them. This item stays only in case
+seeded drops are wanted for another reason. Not started.
 
 ## Why
 

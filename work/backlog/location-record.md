@@ -50,7 +50,7 @@ every place the player is not in. (Same pattern as ammo: Doom owns the live load
 - Doors, switches, lifts and Daggerfall action objects keep their state.
 - Monsters spawned during play (lost souls, summons) are not kept when the player leaves. Doom's snapshot of the
   current map may keep them across a save and load in that map.
-- Items the player drops must be kept (see open items).
+- Items the player drops must be kept, as Doom items, never piles (owner decisions below).
 - Guards and hostile NPCs use the same scheme with their Daggerfall IDs.
 
 ## Record per place
@@ -87,24 +87,37 @@ mook index 14 | dead 1 | x 13 | y 13 | height band 6 | then
 4. Deaths and pickups are reported as they happen (they already are). Living mooks' entries (wounded, awake) are sent
    on leaving a place and before each save; at worst about 17 KB, one bulk transfer.
 5. The place record is built from live actors at departure, so a mook an Arch-vile raised shows as alive.
-6. Monster drops are rerolled from the seed on each rebuild (see `drla-fixed-drop-seed.md`). DoomerfallAmmo rolls its
-   tier at spawn, so a placed item is never swapped into a tombstone plus a new row.
+6. Monster drops are stored, not rerolled (owner, 2026-11-24): they go in the place's loose item list with player
+   drops. A placed ammo pickup keeps its map pickup index through the tier swap, so it is never a tombstone plus a row.
 7. The converter cache gets a converter version stamp so old files rebuild.
 8. Fix the town leak where every Doom pickup is stored as changed on each departure (card 3 notes).
 9. Compact format: a small binary blob per place (base64 in JSON is fine).
 
+## Owner decisions (2026-11-24, after the step 1 review)
+
+- **Placer on the bare map.** While placing, players, monsters, `DFDoorBlocker` and `DFActionCell` are non-solid;
+  static decorations stay solid; mooks stay off the start and end spots of every `DFAction` mover. Plan version bumped.
+- **Quest foes are a separate planner request** after the seeded army. Armies of dungeons in old saves may change.
+- **No Daggerfall piles for Doom items.** Loose Doom items (player drops, monster drops, moved items) are one stored list
+  per place in Daggerfall: a u64 per entry (class index into the place's name table, x, y, height band, amount), plus
+  an optional `GunState`-format string for carried inventory (DRLA gun mods). Restore gives that inventory to the
+  pickup (safe: DRLA `GetWeaponMods` terminates when the pickup has no master). Monster drops are stored, not seeded,
+  so `drla-fixed-drop-seed` is not needed for this record.
+- **`dfi_clear` from `DD_ItemsResync`** (ghost pile fix).
+- **Map pickups:** a used-up bitset in converter order. The tiered ammo pickup inherits its marker's index; jackpot
+  members get their own bits or go in the loose list. Area level at first visit goes in the place header.
+- **Doors and `DFAction` movers keep their state**, about 2 bits each (at start or at end, plus used), in `DFDOORS` and
+  `DFACTIONS` order, applied after the plan, mid-move snapped to the destination, sight blockers and collision restored.
+  Its own card near the end, so it can be dropped.
+- **Switching Doom mods ends a save.** A mod-set stamp check on load is a follow-up, not part of this work.
+
 ## Open items
 
-- Player drops (owner, 2026-11-24): no piles. Doom has three drop paths that bypass piles (DRLA weapon drop, DRLA
-  backpack toss, `weapdrop`/`invdrop`). Loose Doom items stay Doom items: one packed list per place in Daggerfall,
-  with carried state (gun mods). Proposal in `work/notes/20261124-170415.md`.
-- Doors: owner answer read as "resetting on leave is acceptable"; to confirm against the rule above.
-- Check DRLA monster drop lists for more than 15 slots.
-- Doors: list which door, lift and action states exist on converted Daggerfall maps.
+- Check DRLA monster drop lists for more than 15 slots (only matters if drops are ever seeded again).
 
 ## Related
 
-- `drla-fixed-drop-seed.md` (needed for rerolled drops).
+- `drla-fixed-drop-seed.md` (no longer needed for this record: drops are stored).
 - `rebuild-load.md`: with this record, rebuilding the current map on load becomes much simpler. It still needs the
   player's Doom gear restorable from Daggerfall (ammo is settled in `architecture.md`; gun mods and magazines are not).
 - `overworld-monsters-outside-the-loaded-window.md` (on hold): with these rules, living off-window monsters could be

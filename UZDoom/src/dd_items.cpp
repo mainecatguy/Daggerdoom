@@ -841,6 +841,12 @@ void DD_ItemsFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t
 // After a load, Doom's restored actors may not match Daggerfall until a fresh list arrives.
 void DD_ItemsResync()
 {
+	// The snapshot's markers carry the saving session's list numbers, which can equal a new list's after a load in a
+	// new launch, so a pile Daggerfall no longer has could survive as a ghost. Remove them all until the list arrives.
+	acceptedGeneration = 0;
+	outgoing.clear();
+	outgoing.push_back("dfi_clear");
+	outgoing.push_back(useRules ? "dfi_rules:1" : "dfi_rules:0");
 	wantList = spaceValid;
 	for (int &count : sentAmmo) count = -1; // Daggerfall forgot its reports when it loaded.
 	sentReadyAmmo = -2;

@@ -35,6 +35,7 @@ level_info_t *DDTreadmill_LevelInfoAt(unsigned index);	// Null past the end. Emp
 bool DDTreadmill_HandoffPending();	// True during a stitched map change, which must not autosave and hitch.
 
 void DDTreadmill_Serialize(FLevelLocals *Level, FSerializer &arc);
+void DDTreadmill_PrepareSectorSave(FLevelLocals *Level);	// before sectors are written: skip the terrain the treadmill rebuilds
 void DDTreadmill_FrameEnd();
 void DDTreadmill_UploadBegin();
 void DDTreadmill_UploadEnd();

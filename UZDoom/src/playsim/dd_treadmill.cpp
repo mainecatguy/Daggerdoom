@@ -2352,6 +2352,22 @@ void DDTreadmill_ApplyChunk(FLevelLocals *Level, int cx, int cy, const std::vect
 	Printf("DDLOC O%d,%d: rebuilt from Daggerfall's record (Doom's cache had %d rows, the record %d)\n", cx, cy, int(mine.size()), int(facts.size()));
 }
 
+// The overworld's terrain sectors are rewritten from Daggerfall's height map on every load (Resume -> PrepareLevel), so
+// a save need not carry them. UZDoom saves sectors as differences from loadsectors; copying the treadmill-owned fields
+// there makes the writer skip them. On DDOVER01 they are 88% of a save (5.45 MB of json, 1.33 MB packed).
+void DDTreadmill_PrepareSectorSave(FLevelLocals *Level)
+{
+	if (!DDTreadmill_Active || townActive || Level != primaryLevel || Level->loadsectors.Size() != Level->sectors.Size()) return;
+	for (auto &t : tris)
+	{
+		sector_t &base = Level->loadsectors[t.sec->Index()];
+		base.floorplane = t.sec->floorplane;
+		base.ceilingplane = t.sec->ceilingplane;
+		for (int k = 0; k < 2; k++) base.planes[k] = t.sec->planes[k];
+	}
+	Printf("DDTM save skips the terrain of %d sectors (rebuilt on load)\n", int(tris.size()));
+}
+
 void DDTreadmill_Serialize(FLevelLocals *Level, FSerializer &arc)
 {
 	if (arc.isWriting())
