@@ -35,7 +35,7 @@ class DFDoorRow
 	double cx, cy, nx, ny;
 	String use[2], closedBlock[2], walk[2], traceClosed[2], ballClosed[2], ballOpen[2];
 	bool openRoom[2];
-	String openBlock, traceOpen, swing, block, hold, sightClosed, sightOpen, wide;
+	String openBlock, traceOpen, swing, block, hold, sightClosed, sightOpen, wide, monster;
 	String solidStates;	// solid in every pose: closed, opening, open, closing, and closed again
 	int floorCases, floorFails;
 	DFTestBall balls[2];
@@ -104,7 +104,7 @@ class DFDoorCheck : EventHandler
 		return false;
 	}
 
-	bool Stand(PlayerPawn p, DFDoorRow r, double x, double y)
+	bool Stand(Actor p, DFDoorRow r, double x, double y)
 	{
 		if (!NearWalkable(x, y)) return false;
 		p.SetOrigin((x, y, FloorOf(r.door) + 2), false);
@@ -117,7 +117,7 @@ class DFDoorCheck : EventHandler
 
 	// Walks from one side of the doorway to the other with real moves.
 	// Lanes shift away from the hinge, as a player would on a diagonal door whose square body is wider across it.
-	bool WalkThrough(PlayerPawn p, DFDoorRow r, double side, double from, double to, int firstLane = 0, int lastLane = 6)
+	bool WalkThrough(Actor p, DFDoorRow r, double side, double from, double to, int firstLane = 0, int lastLane = 6)
 	{
 		double ax = r.ny, ay = -r.nx; // along the closed door, from hinge to tip
 		for (int lane = firstLane; lane <= lastLane; lane += 3)
@@ -244,9 +244,18 @@ class DFDoorCheck : EventHandler
 			}
 			// Diagnostic, not scored: the widest body (radius, 1-unit steps) that walks through the open doorway with the
 			// solid open leaf, then with the leaf made non-solid. Monsters keep stock Doom sizes (most are radius 20).
+			// The third number is the widest monster body (not a player) with the solid open leaf.
 			r.wide = "-";
+			r.monster = "-";
 			if (r.use[0] != "-" || r.use[1] != "-")
-				r.wide = String.Format("%d/%d", WidestThrough(p, r, true), WidestThrough(p, r, false));
+			{
+				int solidFit = WidestThrough(p, r, true), openFit = WidestThrough(p, r, false);
+				p.SetOrigin(parking, false); // out of the doorway the monster body walks through
+				let body = Actor.Spawn("DFTestBody", parking, NO_REPLACE);
+				r.wide = String.Format("%d/%d/%d", solidFit, openFit, WidestThrough(body, r, true));
+				r.monster = MonsterThrough(body, r);
+				body.Destroy();
+			}
 			// Walk into the open panel's face from each side with real moves. The door must stop the body at about the
 			// panel's visible face: no farther than its half thickness plus the body radius, plus one 2-unit step.
 			double a = r.door.closedAngle + 90 * r.door.swingDir;
@@ -273,7 +282,7 @@ class DFDoorCheck : EventHandler
 		}
 	}
 
-	int WidestThrough(PlayerPawn p, DFDoorRow r, bool leafSolid)
+	int WidestThrough(Actor p, DFDoorRow r, bool leafSolid)
 	{
 		double keep = p.radius;
 		if (!leafSolid) foreach (l : r.door.links) l.bSOLID = false;
@@ -290,6 +299,22 @@ class DFDoorCheck : EventHandler
 		foreach (l : r.door.links) l.bSOLID = true;
 		p.A_SetSize(keep, p.height);
 		return best;
+	}
+
+	// Scored: a stock-size monster body (radius 20, as the Imp and the Zombieman) gets through the open doorway whenever
+	// it would with no leaf there. 1 passes, 0 the open leaf blocks it, n the doorway itself is too narrow for it.
+	String MonsterThrough(Actor body, DFDoorRow r)
+	{
+		body.A_SetSize(20, 56);
+		bool pass = false;
+		for (int s = 0; s < 2 && !pass; s++)
+			if (r.use[s] != "-") pass = WalkThrough(body, r, s == 0 ? 1 : -1, 36, 36, -12, 15);
+		if (pass) return "1";
+		foreach (l : r.door.links) l.bSOLID = false;
+		for (int s = 0; s < 2 && !pass; s++)
+			if (r.use[s] != "-") pass = WalkThrough(body, r, s == 0 ? 1 : -1, 36, 36, -12, 15);
+		foreach (l : r.door.links) l.bSOLID = true;
+		return pass ? "0" : "n";
 	}
 
 	// A body on another floor of the door's column must not be blocked by the door.
@@ -468,9 +493,9 @@ class DFDoorCheck : EventHandler
 		int pass = 0;
 		foreach (r : rows)
 		{
-			Console.Printf("DT door=%d use=%s%s closed=%s%s walk=%s%s trace=%s%s ball=%s%s swing=%s openblock=%s traceopen=%s ballopen=%s%s solid=%s block=%s hold=%s sightclosed=%s sightopen=%s floors=%d/%d wide=%s",
+			Console.Printf("DT door=%d use=%s%s closed=%s%s walk=%s%s trace=%s%s ball=%s%s swing=%s openblock=%s traceopen=%s ballopen=%s%s solid=%s block=%s hold=%s sightclosed=%s sightopen=%s floors=%d/%d monster=%s wide=%s",
 				rows.Find(r), r.use[0], r.use[1], r.closedBlock[0], r.closedBlock[1], r.walk[0], r.walk[1], r.traceClosed[0], r.traceClosed[1],
-				r.ballClosed[0], r.ballClosed[1], r.swing, r.openBlock, r.traceOpen, r.ballOpen[0], r.ballOpen[1], r.solidStates, r.block, r.hold, r.sightClosed, r.sightOpen, r.floorCases - r.floorFails, r.floorCases, r.wide);
+				r.ballClosed[0], r.ballClosed[1], r.swing, r.openBlock, r.traceOpen, r.ballOpen[0], r.ballOpen[1], r.solidStates, r.block, r.hold, r.sightClosed, r.sightOpen, r.floorCases - r.floorFails, r.floorCases, r.monster, r.wide);
 		}
 		Console.Printf("DTPLAYERSTALL %s", playerResult);
 		Console.Printf("DTDONE");

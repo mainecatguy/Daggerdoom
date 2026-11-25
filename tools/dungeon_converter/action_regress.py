@@ -87,7 +87,8 @@ if not only_load:
     rows = [l for l in text.splitlines() if l.startswith("DT door=")]
     rows = rows[:len(rows) // 2] if len(rows) >= 116 and rows[:58] == rows[58:116] else rows
     # Open doors are solid (owner, 2026-11-24): openblock, block and hold check that open and swinging doors stop bodies.
-    checked = ("use", "closed", "walk", "trace", "ball", "swing", "openblock", "traceopen", "ballopen", "solid", "block", "hold")
+    # monster checks that a stock radius-20 monster still gets through every open doorway it fits without the leaf.
+    checked = ("use", "closed", "walk", "trace", "ball", "swing", "openblock", "traceopen", "ballopen", "solid", "block", "hold", "monster")
     dead_ends = {21, 23, 24, 25, 27, 28, 31, 34, 37, 41, 49, 53}  # no dungeon on their far side; see work/notes/door-objects.md
     bad = [l for l in rows if int(l.split()[1][5:]) not in dead_ends
            and any(f.split("=")[0] in checked and "0" in f.split("=")[1] for f in l.split()[2:])]
