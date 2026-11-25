@@ -80,6 +80,7 @@ void DD_FacesFrame(dfb_session *session);
 bool DD_ClimbNetEvent(dfb_session *session, const char *name);
 bool DD_GuardsEvent(const dfb_event &e);
 void DD_LightsSetCity(bool on);	// playsim/dd_lights.cpp
+bool DD_WeatherText(const char *text);	// playsim/dd_weather.cpp
 void DD_GuardsFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t target);
 void DD_GuardDied(dfb_session *session, AActor *mo);
 
@@ -318,6 +319,7 @@ void HandleEvent(const dfb_event &e, int64_t now)
 		memcpy(text, e.payload, sizeof(e.payload));
 		int lampsOn;
 		if (sscanf(text, "citylights %d", &lampsOn) == 1) { DD_LightsSetCity(lampsOn != 0); break; }	// Daggerfall's clock, for town lamps
+		if (DD_WeatherText(text)) break;	// Daggerfall's sky, light, weather and ambient sounds (dd_weather.cpp)
 		Log("message from Daggerfall: \"%s\" (seq %u)", text, e.seq);
 		break;
 	}
