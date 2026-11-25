@@ -35,7 +35,7 @@ def segments(path):
 def main():
     for path in sys.argv[1:]:
         print(f"\n### {Path(path).name}\n")
-        print("| # | place | s | frames | mean ms | p95 | p99 | max ms | >33 ms | hitches >50 ms | WS MB | Unity MB | terrains | renderers | colliders | DF enemies (motors on) | census ms |")
+        print("| # | place | s | frames | mean ms | p95 | p99 | max ms | >33 ms | hitches >50 ms | private MB | Unity MB | terrains | renderers | colliders | DF enemies (motors on) | census ms |")
         print("|---|---|---:|---:|---:|---:|---:|---:|---:|---|---:|---:|---:|---:|---:|---|---:|")
         for i, row in enumerate(segments(path), 1):
             f, c = row.get("frames", {}), row.get("census", {})
@@ -44,7 +44,7 @@ def main():
                 hitches = hitches[:57] + "..."
             print("| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |".format(
                 i, row["place"], f.get("seconds", ""), f.get("frames", ""), f.get("mean_ms", ""), f.get("p95_ms", ""), f.get("p99_ms", ""),
-                f.get("max_ms", ""), f.get("over33", ""), hitches, f.get("ws_mb", ""), f.get("unity_alloc_mb", ""),
+                f.get("max_ms", ""), f.get("over33", ""), hitches, f.get("private_mb", ""), f.get("unity_alloc_mb", ""),
                 c.get("terrains", ""), c.get("renderers", ""), c.get("colliders", ""),
                 f"{c['enemies']} ({c['enemy_motors_on']})" if c else "", c.get("census_ms", "")))
 

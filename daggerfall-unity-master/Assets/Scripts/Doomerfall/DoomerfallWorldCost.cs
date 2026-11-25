@@ -60,7 +60,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 censusDone = readyLogged = false;
                 segmentIndex++;
                 bridge.LogLine(string.Format("worldcost begin {0} {1} | {2}", segmentIndex, key, Memory()));
-                return; // This frame's time belongs to the change itself, which the previous segment's last frame shows.
+                // This frame's time is the change itself (a door, load or teleport), so it counts in the new place.
             }
 
             float ms = Time.unscaledDeltaTime * 1000f;
@@ -97,6 +97,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             histogram[Math.Min((int)(ms * 10f), Buckets)]++;
             if (ms > HitchMs && hitches.Count < MaxHitches)
                 hitches.Add(string.Format(CultureInfo.InvariantCulture, "{0:F0}ms@{1:F2}s", ms, atSeconds));
+            if (ms > 100f) // A test may stop the game soon after a big hitch, so its summary comes out a second later.
+                nextPeriodic = Math.Min(nextPeriodic, Time.realtimeSinceStartup + 1f);
         }
 
         string Place()

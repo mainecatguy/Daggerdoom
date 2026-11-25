@@ -63,9 +63,12 @@ def run(route, play, radius, out):
     start = time.time()
     result = subprocess.run(command, stdin=subprocess.DEVNULL, capture_output=True, text=True, errors="replace", env=env, timeout=900)
     text = result.stdout + result.stderr
-    (out / f"{route}-r{radius}-harness.txt").write_text(text)
+    name, n = f"{route}-r{radius}", 2
+    while (out / f"{name}-df.log").exists():  # A repeated route keeps the earlier runs: <route>-r<N>-2, -3...
+        name, n = f"{route}-r{radius}-{n}", n + 1
+    (out / f"{name}-harness.txt").write_text(text)
     if df_log.exists():
-        shutil.copy2(df_log, out / f"{route}-r{radius}-df.log")
+        shutil.copy2(df_log, out / f"{name}-df.log")
     verdict = next((l for l in text.splitlines() if l.startswith(("result:", "stopped:"))), "no result line")
     print(f"{route:6} radius {radius}  {int(time.time() - start):4}s  {verdict}", flush=True)
 
