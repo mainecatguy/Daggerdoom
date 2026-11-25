@@ -244,10 +244,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bridge.LogLine("ammo: after load Daggerfall holds" + Totals() + "; " + SaveTiers());
         }
 
-        // DFB_KIND_AMMO_READY: Doom's ready weapon changed and uses this reserve ammo ("" for none).
-        internal void OnReady(string cls)
+        // DFB_KIND_AMMO_READY: Doom's ready weapon changed and uses this reserve ammo ("" for none). Doom sends status 1
+        // when the ready weapon is a melee weapon such as fists, or none.
+        internal void OnReady(string cls, bool melee)
         {
             readyType = string.IsNullOrEmpty(cls) ? -1 : TypeOfClass(cls);
+            readyMelee = melee;
             readySeq++;
             tellWanted = true;
             bridge.LogLine(string.Format("ammo: Doom's ready gun uses {0}", readyType >= 0 ? Types[readyType].doomClass : "no reserve ammo"));
@@ -260,15 +262,16 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         }
 
         internal int ReadyType { get { return readyType; } }
+        bool readyMelee = true; // Doom's ready weapon is fists (or another melee weapon), or there is none yet.
 
-        // The gun Daggerfall has drawn, once Doom reports it ready and while Doom's ready weapon uses reserve ammo. Null
-        // mid-swap, with no drawn gun, or when Doom holds fists or another weapon without reserve ammo.
+        // The gun Daggerfall has drawn, once Doom reports it ready. Null mid-swap, with no drawn gun, or while Doom holds
+        // fists or another melee weapon. A gun without reserve ammo (DRLA's Blaster) counts.
         internal DoomerfallDoomItem UpGun
         {
             get
             {
                 DoomerfallHotkeys hotkeys = DoomerfallHotkeys.Instance;
-                if (hotkeys == null || hotkeys.SwapInFlight || readyType < 0 || !boundReady || boundGun != hotkeys.ActiveGun)
+                if (hotkeys == null || hotkeys.SwapInFlight || readyMelee || !boundReady || boundGun != hotkeys.ActiveGun)
                     return null;
                 return boundGun;
             }

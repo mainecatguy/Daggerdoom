@@ -567,13 +567,15 @@ void ReportAmmo()
 	player_t *player = &players[consoleplayer];
 	if (!player->mo || player->playerstate != PST_LIVE || player->health <= 0) return;
 	const int ready = ReadyAmmo(player);
-	// Also on a new ready weapon with the same ammo, so Daggerfall knows when a gun it handed over is up (each gun
-	// remembers its own loaded tier). The pointer is only compared.
+	// Also on any new ready weapon, so Daggerfall knows when a gun it handed over is up (each gun remembers its own
+	// loaded tier). The pointer is only compared. Status 1 means the ready weapon is a melee weapon (fists) or none,
+	// which gets no weapon material bonus in Daggerfall; 0 is a gun, with or without reserve ammo (DRLA's Blaster).
 	static const void *sentReadyWeapon;
-	if (ready != sentReadyAmmo || (sentReadyAmmo >= 0 && player->ReadyWeapon != sentReadyWeapon))
+	if (ready != sentReadyAmmo || player->ReadyWeapon != sentReadyWeapon)
 	{
 		sentReadyWeapon = player->ReadyWeapon;
-		SendDoomItem(DFB_KIND_AMMO_READY, 0, 0, ready >= 0 ? AmmoClasses[ready] : "");
+		const bool melee = !player->ReadyWeapon || (player->ReadyWeapon->IntVar(NAME_WeaponFlags) & WIF_MELEEWEAPON);
+		SendDoomItem(DFB_KIND_AMMO_READY, 0, melee ? 1 : 0, ready >= 0 ? AmmoClasses[ready] : "");
 		Printf(PRINT_LOG, "doomitems: ready weapon %s uses %s\n", player->ReadyWeapon ? player->ReadyWeapon->GetClass()->TypeName.GetChars() : "none",
 			ready >= 0 ? AmmoClasses[ready] : "no reserve ammo");
 		sentReadyAmmo = ready;

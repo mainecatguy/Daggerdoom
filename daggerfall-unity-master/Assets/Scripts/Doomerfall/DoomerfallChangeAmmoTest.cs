@@ -45,6 +45,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             pistol.GunState = "RLPistolClip=10";
             items.AddItem(pistol);
             hotkeys.Assign(4, 0, pistol);
+            DoomerfallMaterialDamageTest.SteelGuns(bridge, items);
             bridge.LogLine("changeammotest: added 30 Regular, 20 Steel, 10 Silver bullets and a DRLA pistol (10 in its magazine) on key 4");
         }
     }

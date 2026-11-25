@@ -1,7 +1,8 @@
 // Doomerfall test only (-dfmaterialtest): two copies of one Doom gun in different Daggerfall materials, so a Doom
 // harness (tools/ammo/ammo.py material) can show that the drawn gun's material scales the player's damage by the
 // owner's table and multiplies with the loaded ammo's bonus. Gives shells a stand-in ammo bonus of +25%, and once the
-// starting gun is adopted onto a hotkey, adds an Iron Shotgun on key 3 and a Daedric Shotgun on key 4.
+// starting gun is adopted onto a hotkey, adds an Iron Shotgun on key 3, a Daedric Shotgun on key 4, and an Ebony DRLA
+// Blaster (no reserve ammo) on key 5.
 using System;
 using DaggerfallWorkshop.Game.Items;
 using UnityEngine;
@@ -49,13 +50,27 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     return;
                 }
             }
-            Give(items, hotkeys, 3, WeaponMaterialTypes.Iron);
-            Give(items, hotkeys, 4, WeaponMaterialTypes.Daedric);
+            Give(items, hotkeys, 3, "Shotgun", WeaponMaterialTypes.Iron);
+            Give(items, hotkeys, 4, "Shotgun", WeaponMaterialTypes.Daedric);
+            Give(items, hotkeys, 5, "RLBlasterPickup", WeaponMaterialTypes.Ebony); // A gun with no reserve ammo.
         }
 
-        void Give(ItemCollection items, DoomerfallHotkeys hotkeys, int key, WeaponMaterialTypes material)
+        // For the ammo-only tests (-dfequiptest, -dfchangeammotest): every Doom gun held becomes Steel (0%), so the damage
+        // bonus they check is the ammo's alone.
+        internal static void SteelGuns(DoomerfallBridge bridge, ItemCollection items)
         {
-            DoomerfallDoomItem gun = new DoomerfallDoomItem("Shotgun", true);
+            for (int i = 0; i < items.Count; i++)
+            {
+                DoomerfallDoomItem gun = items.GetItem(i) as DoomerfallDoomItem;
+                if (gun != null && gun.IsGun)
+                    gun.Material = WeaponMaterialTypes.Steel;
+            }
+            bridge.LogLine("test: every Doom gun held is now Steel, so only the ammo bonus shows");
+        }
+
+        void Give(ItemCollection items, DoomerfallHotkeys hotkeys, int key, string cls, WeaponMaterialTypes material)
+        {
+            DoomerfallDoomItem gun = new DoomerfallDoomItem(cls, true);
             gun.Material = material;
             items.AddItem(gun);
             hotkeys.Assign(key, 0, gun);

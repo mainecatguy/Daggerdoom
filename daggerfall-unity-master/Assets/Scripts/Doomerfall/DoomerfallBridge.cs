@@ -436,7 +436,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         ammo.OnReport(ev.doomItem.request, ev.doomItem.status, DoomerfallDoomItems.ClassOf(ev.doomItem));
                         break;
                     case Dfb.KIND_AMMO_READY:
-                        ammo.OnReady(DoomerfallDoomItems.ClassOf(ev.doomItem));
+                        ammo.OnReady(DoomerfallDoomItems.ClassOf(ev.doomItem), ev.doomItem.status == 1);
                         break;
                     case Dfb.KIND_AMMO_TAKE:
                         ammo.OnTake(DoomerfallDoomItems.ClassOf(ev.doomItem), (int)ev.doomItem.request, ev.doomItem.status);

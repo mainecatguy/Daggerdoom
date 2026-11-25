@@ -193,7 +193,15 @@ def run(name):
             want = {"regular": None, "steel": "10 -> 12 (2000 bp)", "automatic": "10 -> 11 (1000 bp)", "other gun": None, "pistol again": "10 -> 11 (1000 bp)", "loaded": "10 -> 11 (1000 bp)"}
         if material:  # Ammo +25% times weapon: Iron 1.25 x 0.9 = 1.125, Daedric 1.25 x 1.6 = 2.0 (adding would give 1.15 and 1.85).
             iron, daedric = "1000 -> 1125 (1250 bp)", "1000 -> 2000 (10000 bp)"
-            want = {"iron": iron, "daedric": daedric, "iron again": iron, "melee": None, "daedric again": daedric, "loaded": daedric}
+            want = {"iron": iron, "daedric": daedric, "iron again": iron, "melee": None, "daedric again": daedric, "loaded": daedric,
+                    "blaster": "1000 -> 1400 (4000 bp)"}  # Ebony +40%, no reserve ammo so no ammo bonus.
+            # The starting gun's material was rolled at adoption. Expected value assumes its ammo has no stand-in bonus
+            # (true unless DRLA X starts the player with a shotgun).
+            m = re.search(r'adopted Doom\'s "(\S+)" into Daggerfall\'s inventory, material (\w+)', df_body)
+            if m:
+                mod = {"Iron": -1, "Steel": 0, "Silver": 0, "Elven": 1, "Dwarven": 2, "Mithril": 3, "Adamantium": 3, "Ebony": 4, "Orcish": 5, "Daedric": 6}[m.group(2)]
+                print("starting gun", m.group(1), "material", m.group(2))
+                want["start gun"] = None if mod == 0 else "1000 -> %d (%d bp)" % (1000 + mod * 100, mod * 1000)
         scaled, hits, dealt = None, 0, {}
         for line in read(console).splitlines():
             m = re.search(r"damage bonus: .* hit by the player, (.+)$", line)

@@ -306,24 +306,29 @@ class AMHarness : EventHandler
 		// The material run (-dfmaterialtest): Daggerfall adds an Iron Shotgun on key 3 and a Daedric one on key 4, and gives
 		// shells a stand-in +25%. Hits are 1000, so the bridge's integer damage shows the ratio exactly.
 		case 60:
+			if (timer == 35 * 4) Hit("start gun", 1000); // DRLA X's starting gun, often the Blaster (no reserve ammo): its own material.
 			if (timer == 35 * 5) EventHandler.SendNetworkEvent("dd_hotkey:3");
-			if (timer == 35 * 9) { Hit("iron", 1000); Next(); }
+			if (timer == 35 * 12) { Hit("iron", 1000); Next(); } // Waits are long: a busy machine runs Daggerfall at about 1 fps.
 			break;
 		case 61:
 			if (timer == 1) EventHandler.SendNetworkEvent("dd_hotkey:4");
-			if (timer == 140) { Hit("daedric", 1000); Next(); }
+			if (timer == 245) { Hit("daedric", 1000); Next(); }
 			break;
 		case 62:
 			if (timer == 1) EventHandler.SendNetworkEvent("dd_hotkey:3");
-			if (timer == 140) { Hit("iron again", 1000); Next(); }
+			if (timer == 245) { Hit("iron again", 1000); Next(); }
 			break;
 		case 63: // Fists have no material: no bonus at all.
 			if (timer == 1) SelectMelee(p);
-			if (timer == 105) { Hit("melee", 1000); Next(); }
+			if (timer == 105) { Hit("melee", 1000); phase = 65; timer = 0; }
+			break;
+		case 65: // An Ebony Blaster: no reserve ammo, but a gun, so it gets its material bonus.
+			if (timer == 1) EventHandler.SendNetworkEvent("dd_hotkey:5");
+			if (timer == 245) { Hit("blaster", 1000); phase = 64; timer = 0; }
 			break;
 		case 64:
 			if (timer == 1) EventHandler.SendNetworkEvent("dd_hotkey:4");
-			if (timer == 140) { Hit("daedric again", 1000); Report("daedric up"); phase = 7; timer = 0; }
+			if (timer == 245) { Hit("daedric again", 1000); Report("daedric up"); phase = 7; timer = 0; }
 			break;
 		case SAVED:
 			if (timer > 35 * 8) Finish("saved");
