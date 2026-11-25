@@ -301,8 +301,8 @@ class DFDoorCheck : EventHandler
 		return best;
 	}
 
-	// Scored: a stock-size monster body (radius 20, as the Imp and the Zombieman) gets through the open doorway whenever
-	// it would with no leaf there. 1 passes, 0 the open leaf blocks it, n the doorway itself is too narrow for it.
+	// Diagnostic, not scored: does a stock-size monster body (radius 20, as the Imp and the Zombieman) get through the open
+	// doorway? 1 passes, 0 the open leaf blocks it, n the doorway itself is too narrow for it even without the leaf.
 	String MonsterThrough(Actor body, DFDoorRow r)
 	{
 		body.A_SetSize(20, 56);

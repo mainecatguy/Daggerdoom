@@ -23,14 +23,6 @@ class DFDoorBlocker : Actor
 	}
 	States { Spawn: TNT1 A -1; Stop; }
 	override bool Used(Actor user) { return door && door.TryUse(user); }
-
-	// A Daggerfall doorway is about one leaf wide, and an open leaf narrows it further. Stock Doom monsters (mostly
-	// radius 20) are much wider than Daggerfall's bodies and would fit past no open leaf, so a monster too wide to pass
-	// beside it walks through the open leaf, as all bodies did before open doors became solid. Closed doors block everyone.
-	override bool CanCollideWith(Actor other, bool passive)
-	{
-		return !door || !door.PassesOpenLeaf(other);
-	}
 }
 
 // Lets a Daggerfall action record react when its door is used. See action_objects.zs.
@@ -45,7 +37,6 @@ class DFDoor : Actor
 
 	const SWING = 90.0;				// DaggerfallActionDoor.OpenAngle -90 is counterclockwise from above
 	const RATE = 90.0 / (1.5 * 35);	// OpenDuration 1.5 s
-	const LEAF_FIT = 14.0;			// widest monster radius that fits past an open leaf in every Privateer's Hold doorway
 
 	Array<DFDoorBlocker> links;
 	Array<double> linkX;
@@ -141,15 +132,7 @@ class DFDoor : Actor
 		foreach (link : links) link.bSOLID = !want;
 	}
 
-	// A non-player body too wide to fit past this door's open leaf. Closed doors and city gates block every body.
-	bool PassesOpenLeaf(Actor other, double at = -1)
-	{
-		if (at < 0) at = swung;
-		return at > 0 && !solidWhenOpen && !other.player && other.bISMONSTER && other.radius > LEAF_FIT;
-	}
-
 	// True when the door row at this swing would not overlap any solid actor, or only any player or monster.
-	// Bodies that pass through the open leaf do not count, except for the fully closed pose.
 	bool Clear(double next, bool bodiesOnly = false)
 	{
 		double angle = closedAngle + next * swingDir;
@@ -162,7 +145,6 @@ class DFDoor : Actor
 				Actor t = it.thing;
 				if (!t.bSOLID || t is "DFDoorBlocker") continue;
 				if (bodiesOnly && !t.player && !t.bISMONSTER) continue;
-				if (PassesOpenLeaf(t, next)) continue;
 				if (abs(t.pos.x - at.x) >= t.radius + linkRadius || abs(t.pos.y - at.y) >= t.radius + linkRadius) continue;
 				if (t.pos.z >= top || t.pos.z + t.height <= bottom) continue;
 				return false;
