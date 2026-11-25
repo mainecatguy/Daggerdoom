@@ -8,7 +8,7 @@ version "4.14"
 //   2  walk into Privateer's Hold, then open the dungeon automap
 //   3  done
 // MKPOS lines give the player's position, so the test can see Doom never moved it while a menu was open.
-class MKHarness : EventHandler
+class MKHarness : StaticEventHandler // Static: it must keep its stage across the trip into the dungeon.
 {
 	static const double DOORDATA[] = { @DOOR@ };
 	int stage, timer, lastMs, walk;
@@ -28,7 +28,7 @@ class MKHarness : EventHandler
 		if (paused || p.pos != lastPos || timer % 35 == 0)
 			Console.Printf("MKPOS stage %d%s %.2f %.2f %.2f", stage, paused ? " after-menu" : "", p.pos.x, p.pos.y, p.pos.z);
 		lastPos = p.pos;
-		bool inside = level.MapName.Left(3) ~== "DDS";
+		bool inside = level.MapName.Left(3) ~== "DDS" || p.pos.z < DOORDATA[2] - 1000; // Dungeons may load below the town.
 		CVar hold = CVar.FindCVar("dd_ui_test_hold"), menu = CVar.FindCVar("dd_ui_test_menu");
 
 		switch (stage)
@@ -47,7 +47,7 @@ class MKHarness : EventHandler
 			Console.Printf("MKSTAGE 2 dungeon automap");
 			break;
 		case 2:
-			if (paused) { stage = 3; Console.Printf("MKDONE"); done = true; break; }
+			if (paused && walk == 2) { stage = 3; Console.Printf("MKDONE"); done = true; break; }
 			if (inside)
 			{
 				if (walk == 1 && timer > 140)

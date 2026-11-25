@@ -1000,12 +1000,15 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                 int dy = (DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.GetKey(KeyCode.DownArrow) ? 1 : 0) - (DaggerfallWorkshop.Game.Doomerfall.DoomerfallInput.GetKey(KeyCode.UpArrow) ? 1 : 0);
                 if (dx == 0 && dy == 0)
                     return;
-                zoomPosition += new Vector2(dx, dy) * keyPanSpeed * Time.unscaledDeltaTime;
+                // Keep the centre inside the range ZoomMapTextures can show, so holding a key past an edge stores up
+                // no travel. Kept in floats: one frame's move is often under a pixel.
+                float width = regionTextureOverlayPanelRect.width, height = regionTextureOverlayPanelRect.height;
+                float halfWidth = width / (zoomfactor * 2), halfHeight = height / (zoomfactor * 2);
+                Vector2 next = zoomPosition + new Vector2(dx, dy) * keyPanSpeed * Time.unscaledDeltaTime;
+                next.x = Mathf.Clamp(next.x, halfWidth, width - halfWidth);
+                next.y = Mathf.Clamp(next.y, height / zoomfactor - halfHeight + regionPanelOffset, height - halfHeight + regionPanelOffset);
+                zoomPosition = next;
                 ZoomMapTextures();
-                // Pull the centre back inside the clamped view, so holding a key past an edge stores up no travel.
-                int width = (int)regionTextureOverlayPanelRect.width;
-                int height = (int)regionTextureOverlayPanelRect.height;
-                zoomPosition = new Vector2(zoomOffset.x + width / (zoomfactor * 2), height - zoomOffset.y - height / (zoomfactor * 2) + regionPanelOffset);
                 UpdateMouseOverLocation();
                 return;
             }

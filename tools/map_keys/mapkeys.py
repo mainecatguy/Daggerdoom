@@ -144,18 +144,35 @@ class Doom:
             return True
 
         callback = win_proc(visit)
+        self.user.SetThreadDesktop.argtypes = (wt.HANDLE,)
         for name in names:
-            desk = self.user.OpenDesktopW(name, 0, False, 0x0001 | 0x0040)  # DESKTOP_READOBJECTS | DESKTOP_ENUMERATE
-            if desk:
-                self.user.EnumDesktopWindows(desk, callback, 0)
-                self.user.CloseDesktop(desk)
+            desk = self.user.OpenDesktopW(name, 0, False, 0x01FF)  # All desktop rights: enumerate, then join it.
+            if not desk:
+                continue
+            before = len(found)
+            self.user.EnumDesktopWindows(desk, callback, 0)
+            if len(found) > before:
+                # A window on another desktop is an invalid handle to threads outside it, so post from inside it.
+                # This thread owns no windows, which SetThreadDesktop requires. The handle stays open while in use.
+                if not self.user.SetThreadDesktop(desk):
+                    print("  SetThreadDesktop failed, error", ctypes.get_last_error())
+                del found[:before]
+                break
+            self.user.CloseDesktop(desk)
         if not found:
             raise RuntimeError(f"could not find this run's Doom window (pids {pids}, desktops {names})")
-        self.hwnd = found[0]
+        info = []
+        for h in found:
+            buf = ctypes.create_unicode_buffer(128)
+            self.user.GetClassNameW(h, buf, 128)
+            info.append((h, buf.value))
+        print("  Doom windows:", info, "desktops:", names)
+        self.hwnd = next((h for h, c in info if "doom" in c.lower()), None) or next((h for h, c in info if not c.startswith(("NV", "IME", "MSCTF", "Default IME"))), found[0])
 
     def down(self, vk):
         scan = self.user.MapVirtualKeyW(vk, 0)
-        self.user.PostMessageW(self.hwnd, 0x100, vk, 1 | (scan << 16))
+        if not self.user.PostMessageW(self.hwnd, 0x100, vk, 1 | (scan << 16)):
+            print("  PostMessage failed, error", ctypes.get_last_error())
 
     def up(self, vk):
         scan = self.user.MapVirtualKeyW(vk, 0)
@@ -269,7 +286,7 @@ class Run:
         zoomed = self.view(window)
         print("  zoomed:", zoomed)
         moves = {}
-        for key in (fwd, right, back, left):
+        for key in (back, fwd, right, left):  # The zoom may start at the top-left edge, so back and right move first.
             b, a = self.pan(doom, window, key)
             pb, pa = re.search(r"at \((.*?)\)", b or ""), re.search(r"at \((.*?)\)", a or "")
             moves[key] = [float(y) - float(x) for x, y in zip(pb.group(1).split(","), pa.group(1).split(","))] if pb and pa else None
@@ -405,4 +422,8 @@ elif args.command == "check":
 elif args.command == "default":
     Run("default", [], ("W", "S", "A", "D")).go()
 else:
-    Run("rebound", ["+unbind", "w", "+bind", "i", "+forward"], ("I", "S", "A", "D")).go()
+    # "+forward" on the command line would start a console command of its own, so the binding goes in a file.
+    binds = REVIEW / "run" / "rebound.cfg"
+    binds.parent.mkdir(parents=True, exist_ok=True)
+    binds.write_text("unbind w\nbind i +forward\n")
+    Run("rebound", ["+exec", str(binds)], ("I", "S", "A", "D")).go()

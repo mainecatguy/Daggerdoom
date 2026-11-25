@@ -96,7 +96,7 @@ FARG_ADVANCED(dfhptest, "Doomerfall", "basic|monsters", "HP sync test only: scri
 
 CVAR(Int, dd_sync_df_phase, 0, CVAR_NOSAVE) // Read by the position sync test route.
 CVAR(Int, dd_ui_test_hold, 0, CVAR_NOSAVE | CVAR_MOD) // Test only: a route holds -dfuitest until it reaches the place to open the menu.
-CVAR(Int, dd_ui_test_menu, 1, CVAR_NOSAVE) // Test only: the menu -dfuitest opens. 1 is the travel map, 2 the inventory, 3 the map command.
+CVAR(Int, dd_ui_test_menu, 1, CVAR_NOSAVE | CVAR_MOD) // Test only: the menu -dfuitest opens. 1 is the travel map, 2 the inventory, 3 the map command.
 CVAR(Bool, dd_ui_test_doommap, false, CVAR_NOSAVE) // Test only: opens Doom's own map just before -dfuitest opens its menu.
 EXTERN_CVAR(Bool, dfmesh_view)
 static bool UiCanOpen();
