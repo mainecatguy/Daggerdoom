@@ -3,6 +3,7 @@
 // Nothing here runs without a bridge session.
 
 #include <algorithm>
+#include "dd_lootrng.h"
 #include <cinttypes>
 #include <cstdlib>
 #include <cstring>
@@ -502,6 +503,15 @@ void AskDaggerfall(player_t *player, AActor *item)
 				Printf(PRINT_LOG, "doomitems: %s carries %s %d\n", cls.GetChars(), name.GetChars(), amount);
 			}
 		}
+	if (const uint64_t id = DD_LootItemId(item); id && itemSession)	// Daggerfall seeds the item's rolls with it.
+	{
+		const dfb_item_take body{ id, request, 0 };
+		dfb_event e{};
+		e.kind = DFB_KIND_DOOM_ITEM_ID;
+		e.tic = gametic;
+		memcpy(e.payload, &body, sizeof(body));
+		dfb_send(itemSession, &e);
+	}
 	SendDoomItem(DFB_KIND_DOOM_ITEM_TAKE, request, flags, cls.GetChars());
 }
 

@@ -18,6 +18,7 @@
 // flattening (DDLOCS), so the ground matches across the handoff.
 
 #include <cinttypes>
+#include "dd_lootrng.h" // [Doomerfall] fixed loot
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -644,6 +645,7 @@ namespace
 			mo->Destroy();	// Its seed, the map, or Daggerfall's placement rebuilds it.
 			return;
 		}
+		if (!id) id = DD_LootItemId(mo);	// A drop from a fixed loot roll keeps the same id in every game.
 		if (!id) id = DYNAMIC_BIT | ++nextDynamic;
 
 		Record r;
@@ -835,6 +837,8 @@ namespace
 				PClassActor *cls = PClass::FindActor(s.cls);
 				if (!cls) continue;
 				const DVector3 pos(s.x - originX * double(SPACING) - HALF, s.y - originY * double(SPACING) - HALF, ONFLOORZ);
+				uint64_t variant = DD_LootSeedOf(s.id, 0x7370776eull);	// A mod's spawner picks the same variant every time.
+				DDLootScope scope(&variant);
 				if (AActor *mo = Spawn(Level, cls, pos, ALLOW_REPLACE))
 				{
 					mo->ddRecordId = s.id;

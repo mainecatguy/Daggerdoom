@@ -19,6 +19,7 @@ class DoomerfallAmmoTiers : StaticEventHandler
 	Array<Inventory> pending;
 	Array<int> pendingTic;
 	Array<double> pendingX, pendingY, pendingZ; // Where each spawned: the roll uses this, not where it fell.
+	Array<int> pendingSeed; // The engine's fixed loot seed (DD_LootSeed), 0 when it has none.
 
 
 	override void OnRegister()
@@ -184,6 +185,7 @@ class DoomerfallAmmoTiers : StaticEventHandler
 		pendingX.Push(inv.pos.x);
 		pendingY.Push(inv.pos.y);
 		pendingZ.Push(inv.pos.z);
+		pendingSeed.Push(inv.DD_LootSeed());
 	}
 
 	override void WorldTick()
@@ -203,7 +205,7 @@ class DoomerfallAmmoTiers : StaticEventHandler
 				continue;
 			}
 			if (areaLevel < 0) continue;
-			Convert(inv, PlainType(inv), (pendingX[i], pendingY[i], pendingZ[i]));
+			Convert(inv, PlainType(inv), (pendingX[i], pendingY[i], pendingZ[i]), pendingSeed[i]);
 			Forget(i);
 		}
 	}
@@ -215,6 +217,7 @@ class DoomerfallAmmoTiers : StaticEventHandler
 		pendingX.Delete(i);
 		pendingY.Delete(i);
 		pendingZ.Delete(i);
+		pendingSeed.Delete(i);
 	}
 
 	// ---- The roll ----------------------------------------------------------------------------------------------
@@ -283,11 +286,13 @@ class DoomerfallAmmoTiers : StaticEventHandler
 		return RollTiers[3];
 	}
 
-	void Convert(Inventory plain, int type, vector3 spawned)
+	void Convert(Inventory plain, int type, vector3 spawned, int lootSeed)
 	{
 		static const int TownTiers[] = { 1, 3, 4, 6, 7 }; // Steel, Moonstone, Dwemer, Orichalcum, Mithril
 		static const String TypeNames[] = { "Clip", "Shell", "Rocket", "Cell" };
-		int seed = Seed(spawned, type);
+		// A drop from a fixed loot roll (or a map thing) rolls from its engine seed, which does not depend on where the
+		// monster happened to die; anything else from its map and spot.
+		int seed = lootSeed != 0 ? Mix(Mix(0x011c9dc5, lootSeed), type + 1) : Seed(spawned, type);
 		if (Unit(seed, 1) < JackpotChance)
 		{
 			int tier = TownTiers[min(4, int(Unit(seed, 2) * 5))];

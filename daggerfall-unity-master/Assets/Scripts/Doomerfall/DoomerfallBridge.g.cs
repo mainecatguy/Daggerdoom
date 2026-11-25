@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0xf7762cbdcd0e32c6UL;
+        public const ulong SchemaHash = 0xd45bb906b29ccc9bUL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -80,6 +80,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint ITEM_ART_SLOT = 5;  // bulk slot written by UZ: one dfb_item_art header, then width * height BGRA pixels, top row first
         public const uint ITEM_ART_HEADER = 144;
         public const ushort KIND_DOOM_ITEM_GUN_STATE = 146;  // UZ to DF; one state line (status amount, cls class) the gun in the next DOOM_ITEM_TAKE with this request carried, such as a DRLA modded pickup's mods
+        public const ushort KIND_DOOM_ITEM_ID = 147;  // UZ to DF; the floor item's lasting id (map item, or a drop from a fixed loot roll), sent just before the DOOM_ITEM_TAKE with this request when it has one; Daggerfall seeds the item's rolls (gun material) with it; payload: dfb_item_take, mode 0
         public const uint DOOM_ITEM_GUN = 1;
         public const uint DOOM_ITEM_ARMOR = 2;
         public const uint DOOM_ITEM_WEARABLE = 4;
@@ -350,7 +351,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public DfbNewGame newGame;  // NEWGAME
         [FieldOffset(16)] public DfbWorldItems worldItems;  // ITEMS_BEGIN, ITEMS_END, ITEMS_REQUEST, MONSTERS_BEGIN, MONSTERS_END, MONSTERS_REQUEST, NPCS_BEGIN, NPCS_END, NPCS_REQUEST
         [FieldOffset(16)] public DfbWorldItem worldItem;  // ITEM
-        [FieldOffset(16)] public DfbItemTake itemTake;  // ITEM_TAKE
+        [FieldOffset(16)] public DfbItemTake itemTake;  // ITEM_TAKE, DOOM_ITEM_ID
         [FieldOffset(16)] public DfbItemResult itemResult;  // ITEM_RESULT
         [FieldOffset(16)] public DfbWorldContainer worldContainer;  // CONTAINER
         [FieldOffset(16)] public DfbInfoRequest infoRequest;  // INFO

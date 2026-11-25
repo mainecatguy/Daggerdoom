@@ -17,6 +17,7 @@
 
 #include "../../bridge/doomerfall_bridge.h"
 #include "dd_encounter_placer.h"
+#include "dd_lootrng.h"
 #include "vm.h"
 #include "actor.h"
 #include "c_cvars.h"
@@ -148,7 +149,12 @@ PClassActor *RosterClass(uint64_t placement)
 AActor *SpawnMook(FLevelLocals *Level, PClassActor *cls, uint64_t id, const DVector3 &at, bool replace, int side = -1, int stance = 0)
 {
 	if (!cls) return nullptr;
-	AActor *mo = Spawn(Level, cls, at, replace ? ALLOW_REPLACE : NO_REPLACE);
+	uint64_t variant = DD_LootSeedOf(id, 0x7370776eull);	// A mod's spawner picks the same variant (and so the same drops) every game.
+	AActor *mo;
+	{
+		DDLootScope scope(&variant);
+		mo = Spawn(Level, cls, at, replace ? ALLOW_REPLACE : NO_REPLACE);
+	}
 	if (!mo) return nullptr;
 	if ((mo->flags3 & MF3_ISMONSTER) && !mo->ddRecordId) { mo->ddRecordId = id; mo->SpawnPoint = mo->Pos(); RigFaction(mo, side, stance); }
 	else claims.push_back({ id, at, Level->maptime + ClaimTics, side, stance });
@@ -380,6 +386,8 @@ FString PayloadText(const char *text, size_t size)
 	return FString(text, n);
 }
 }
+
+void DD_MonstersRunClaimsForTest(FLevelLocals *Level) { RunClaims(Level); }	// -ddloottest only (dd_encounter_test.cpp).
 
 // Called when a dungeon starts, after the world table has brought back the changed monsters. The map's markers are read
 // on every visit, so the request stays the same; once Daggerfall's facts arrive, every mook that is neither dead nor

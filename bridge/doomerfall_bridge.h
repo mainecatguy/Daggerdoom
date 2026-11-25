@@ -118,6 +118,7 @@ extern "C" {
 #define DFB_ITEM_ART_SLOT   5u   /* bulk slot written by UZ: one dfb_item_art header, then width * height BGRA pixels, top row first */
 #define DFB_ITEM_ART_HEADER 144u
 #define DFB_KIND_DOOM_ITEM_GUN_STATE 146 /* UZ to DF; one state line (status amount, cls class) the gun in the next DOOM_ITEM_TAKE with this request carried, such as a DRLA modded pickup's mods */
+#define DFB_KIND_DOOM_ITEM_ID      147  /* UZ to DF; the floor item's lasting id (map item, or a drop from a fixed loot roll), sent just before the DOOM_ITEM_TAKE with this request when it has one; Daggerfall seeds the item's rolls (gun material) with it; payload: dfb_item_take, mode 0 */
 /* In DFB_KIND_DOOM_ITEM_TAKE, status DFB_DOOM_ITEM_GUN marks a gun, DFB_DOOM_ITEM_ARMOR armor (Weapons & Armor tab),
    DFB_DOOM_ITEM_WEARABLE armor or boots Daggerfall cannot put on yet (DRLA's). For a gun, the bits under
    DFB_DOOM_ITEM_SLOT_MASK hold its Doom weapon slot plus 1 (0: no slot). */
