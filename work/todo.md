@@ -21,6 +21,10 @@ Every lane approved before 2026-11-24 evening has run and is merged. Owner decis
 - `doommaterial`: Doom weapons have a Daggerfall material (01), then the material damage bonus (02).
 - `nodraw`: turn off Daggerfall's 3D world (milestone hurdle 4).
 
+### Approved, ready to launch
+
+- `newgameesc`: Escape during Daggerfall's New Game screens opens Doom's menus and breaks the game (owner play test, 2026-11-24).
+
 ### Proposed cards waiting on owner choices
 
 - Quest types: 11 cards in `work/queue/quests/proposed`.
