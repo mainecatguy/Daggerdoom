@@ -26,6 +26,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         StartGameBehaviour start;
         internal DoomerfallItems Items { get; set; }
         internal DoomerfallMonsters Monsters { get; set; }
+        internal DoomerfallLocations Locations { get; set; }
         internal DoomerfallTownspeople Townspeople { get; set; }
         bool holding;
 
@@ -88,6 +89,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bridge.Sheet.CreationStarted();
             Items.ForgetWorld();
             Monsters.ForgetWorld();
+            if (Locations != null)
+                Locations.ForgetWorld();
             if (Townspeople != null)
                 Townspeople.ForgetWorld();
             AudioListener.volume = DoomerfallQuiet.Volume(1);

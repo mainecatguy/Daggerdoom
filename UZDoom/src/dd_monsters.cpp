@@ -17,6 +17,7 @@
 
 #include "../../bridge/doomerfall_bridge.h"
 #include "dd_encounter_placer.h"
+#include "dd_locations.h"
 #include "vm.h"
 #include "actor.h"
 #include "c_cvars.h"
@@ -328,7 +329,7 @@ void SpawnPass(FLevelLocals *Level, const std::vector<Placement> &list, const st
 
 void ApplyRows(FLevelLocals *Level)
 {
-	if (!incomingReady) return;
+	if (!incomingReady || DD_LocationsWaiting()) return;	// Daggerfall's record of the place comes first.
 	incomingReady = false;
 	facts = incomingFacts;
 	const bool mapLeaders = leadersPending && facts.have && facts.area.map_id == dungeonMapId;
@@ -427,6 +428,26 @@ void DD_MonstersLoadPlans(const FString &text)
 	}
 }
 
+// The location ledger (dd_locations.cpp) keeps each dungeon's plan in Daggerfall's record, so a rebuilt place plans
+// exactly as its first visit did even when Doom's own copy is gone.
+bool DD_MonstersPlanOf(int mapId, int &mooks, std::vector<DDPlanQuest> &quests)
+{
+	auto it = plans.find(mapId);
+	if (it == plans.end()) return false;
+	mooks = it->second.mooks;
+	quests.clear();
+	for (const Placement &p : it->second.quests) quests.push_back({ p.placement, p.pos.X, p.pos.Y, p.pos.Z, p.enemyType });
+	return true;
+}
+
+void DD_MonstersSetPlan(int mapId, int mooks, const std::vector<DDPlanQuest> &quests)
+{
+	DungeonPlan &plan = plans[mapId];
+	plan.mooks = mooks;
+	plan.quests.clear();
+	for (const DDPlanQuest &q : quests) plan.quests.push_back({ q.placement, DVector3(q.x, q.y, q.z), q.enemyType, true });
+}
+
 // Test only (dd_encounter_test.cpp, -ddenctest): plans and spawns this map's encounters from given facts.
 void DD_MonstersTestEncounters(FLevelLocals *Level, const dfb_encounter_area &a, const char *location, const char *region, const char *type)
 {
@@ -438,6 +459,7 @@ void DD_MonstersTestEncounters(FLevelLocals *Level, const dfb_encounter_area &a,
 
 void DD_MonstersTick(FLevelLocals *Level)
 {
+	DD_LocationsTick(Level);
 	ApplyRows(Level);
 	RunClaims(Level);
 	RunTestKill(Level);
