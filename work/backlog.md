@@ -69,6 +69,7 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 
 ## Inventory
 
+- [Rethink the inventory window](backlog/rethink-inventory.md): Daggerfall's tabs fit Doom gear poorly. Design chat with the owner first.
 - [Doom weapon equipping and hotkeys](backlog/doom-weapon-equipping-and-hotkeys.md): Assign Doom weapons, items, and spells to hotkeys.
 - [Inventory translation](backlog/inventory-translation.md): Translate DF items and DRLA gear both ways.
 - [Ammunition system](backlog/ammunition-system.md): Add material-tiered ammo as real inventory items.
@@ -117,7 +118,6 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 
 ## Late development polish
 
-- [Rethink the inventory window](backlog/rethink-inventory.md): Daggerfall's tabs fit Doom gear poorly. Design chat with the owner first.
 - [Review native Doom monster drops](backlog/review-native-doom-monster-drops.md): Doom monsters keep native drops for now. Decide later whether to keep them.
 - [Sort out keybinds](backlog/sort-out-keybinds.md): Resolve Doom, DF, and Doomerfall key conflicts.
 - [Graceful save and load screen](backlog/graceful-save-and-load-screen.md): Stop showing "paused" during saves and loads.
