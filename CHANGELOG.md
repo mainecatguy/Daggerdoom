@@ -13,6 +13,15 @@ What is done on the project, newest first. Agents do not need to read this unles
 
 ## 2026-11-24
 
+### Merged to `integration` (`cf0f54e`)
+
+- **Test hooks moved out (`overnight/testhooks`):** bridge test drivers (load, HP, save, new game, plain load, pause) moved from `dd_bridge.cpp` to `dd_bridge_test.cpp`; Daggerfall test hooks (sync test start, plain load, save, monster quest) moved to their own files. Each hook's keep-or-remove decision is in `work/notes/20261124-191013.md`.
+- **Clean launch (`overnight/cleanlaunch`):** Daggerfall runs on the launcher's private desktop, stays windowed and never locks the cursor (`--show-dfu` shows it); `tools/cleanlaunch/check_launch.py` checks the windows. Review flags: Daggerfall's own dialogs are invisible in normal play; `DoomerfallWindow` overrides the cursor lock every frame. Notes: `work/notes/20261124-195345.md`.
+- **One Use key (`overnight/usekey`):** Doom's Use is the only interact key; the separate Interact control is gone. Old configs with E bound to `netevent df_interact` must be fixed in the config (owner: no migration code). Notes: `work/notes/20261124-195226.md`.
+- **Doom weapon materials (`overnight/doommaterial`):** Doom guns carry a Daggerfall material rolled at the area level, and the drawn gun's material scales damage (Iron -10% to Daedric +60%), multiplied with the ammo bonus. Notes: `work/notes/20261124-190702-doommaterial.md`, `work/notes/20261124-194205.md`.
+- **Hidden Daggerfall world (`overnight/nodraw`, hurdle 4):** most of the hidden world was already inert; Daggerfall now streams radius 1 (9 map pixels, not 49) in sessions, and the random encounter gap is closed. Exterior memory 324-363 MB to 207-217 MB; dungeon exit and fast travel hitches roughly halved or better. Review flags: the radius is hard-coded to Doom's window; city builds still freeze Daggerfall 0.7-1.4 s against Doom's 1 s stale limit. Notes: `work/notes/20261124-191013-nodraw.md`.
+- **Escape in New Game (`overnight/newgameesc`):** Doom's main menu stays shut during New Game and plain load; Escape at the difficulty prompt asks to abandon the character. On merge its test mode moved into `dd_bridge_test.cpp`. Notes: `work/notes/20261124-195345-newgameesc.md`.
+
 ### Merged to `integration` (`b48037d`)
 
 - **Lights (`overnight/lights`):** converted places are lit where Daggerfall lights them, with GZDoom dynamic lights: dungeon light records, interior lamps, and town lamps that follow Daggerfall's night hours (bridge text `citylights`). The Daggerfall mesh had been drawn full-bright and now takes sector light and nearby dynamic lights. Interior flats are now all drawn, as in Daggerfall Unity (a tavern went from 11 billboards to 31). Up to about 3 ms a frame in the worst dungeon, 1.5-4.5 ms in a town at night. Tuning cvars and a play-test list are in `work/notes/20261124-124736.md`.

@@ -16,23 +16,18 @@ Every lane approved before 2026-11-24 evening has run and is merged. Owner decis
 
 ### Approved and running (owner, 2026-11-24 evening)
 
-- `testhooks`: move test hooks out of game classes.
 - `resets`: done, **not merged** (owner, 2026-11-24). Its one change turned off DFU's scene cache wipe; the owner keeps the wipe. Its findings stay in `work/notes/20261124-190702.md`.
-- `doommaterial`: Doom weapons have a Daggerfall material (01), then the material damage bonus (02).
-- `nodraw`: turn off Daggerfall's 3D world (milestone hurdle 4).
 
 ### Approved, ready to launch
 
-- Running: `usekey` (critical): Doom's base Use key and Doomerfall's interact key are separate; they must be one (owner play test, 2026-11-24).
 - Running: `ammoinv` (critical): ammo does not appear in Daggerfall's inventory (owner play test, 2026-11-24). Card 02 after it: changing ammo type plays DRLA's reload, and the new type is loaded when it finishes.
-- Running: `newgameesc`: Escape during Daggerfall's New Game screens opens Doom's menus and breaks the game (owner play test, 2026-11-24).
-- Running: `cleanlaunch`: the launcher's startup is a mess: Doom windowed, Daggerfall fullscreen, random timing (owner play test, 2026-11-24).
 
 - `flatcollision`: Daggerfall sprites such as braziers keep their original collision (owner, 2026-11-24). Waiting for a free lane.
 - `doorsolid`: open doors are solid; reverses the earlier match with Daggerfall; door and parity tests update to the new rule (owner, 2026-11-24). Waiting for a free lane.
 - `hotkeyunique`: hotkeying an item removes its other hotkeys (owner, 2026-11-24). Waiting for a free lane.
 - `corpsekeep`: corpses vanish on leaving and re-entering Privateer's Hold (owner play test, 2026-11-24). **On hold** (owner): first see whether the location record rewrite fixes it. Card in `work/queue/corpsekeep/held`.
 - `mainquestlevels`: main quest dungeons get levels from the main quest order; Privateer's Hold is level 1 with a humanoid theme (owner, 2026-11-24). Waiting for a free lane.
+- `mapkeys`: Doom's forward, back and strafe keys pan Daggerfall's map screens (owner play test, 2026-11-24). Waiting for a free lane.
 - `quietlog`: no debug messages on screen in normal play, for example on weapon switches (owner play test, 2026-11-24). Waiting for a free lane.
 
 ### Proposed cards waiting on owner choices
