@@ -6,8 +6,9 @@ version "4.14"
 // this prints the player's Doom ammo for the gun's types (LRAMMO) at every step:
 //   map take:      a gun pickup placed in front of the player (not dropped), taken with Use;
 //   window x3:     Daggerfall's inventory window drops the gun (the hook), the pickup is taken back with Use;
-//   blocked drops: DRLA's weapon drop (Zoom twice) and backpack toss on DRLA runs, while weapdrop and invdrop run every second all run
-//                  long (gunammo.py); the gun must stay held with nothing on the ground;
+//   blocked drops: on DRLA runs a mod pack readied for dropping and the backpack toss, while weapdrop, invdrop and a Zoom
+//                  press (DRLA's Drop Item) run every second all run long (gunammo.py); the gun must stay held
+//                  with nothing on the ground;
 //   monster take:  a ShotgunGuy is killed and the gun it drops is taken with Use.
 // Ammo for those types must not change on any take, and Daggerfall's Doom item count (df "doom items N") must rise
 // only on the map and monster takes.
@@ -152,7 +153,7 @@ class MDHarness : EventHandler
 			Ammo(p, String.Format("window retake %d", ++st.cycle));
 			Next(st, st.cycle < 3 ? 2 : 4);
 			break;
-		case 4: // Blocked drops: DRLA's weapon drop (Zoom twice) here; weapdrop and invdrop run every second all along.
+		case 4: // Blocked drops: weapdrop, invdrop and a Zoom press (DRLA's Drop Item) run every second all along.
 			if (!HoldsGun(p))
 			{
 				// Daggerfall draws a taken gun only when its key is free; otherwise press the shotgun's key, 3.
@@ -160,11 +161,15 @@ class MDHarness : EventHandler
 				if (st.timer > 35 * 12) { Ammo(p, "no gun held"); Console.Printf("LRSTEP no %s held to drop", weaponName); Next(st, 8); }
 				break;
 			}
-			if (drla && (st.tries == 0 || st.tries == 35))
+			if (drla && st.tries == 0)
 			{
-				State s = p.player.ReadyWeapon.FindState("Zoom");
-				if (s) p.player.SetPsprite(PSP_WEAPON, s);
-				Console.Printf("LRSTEP DRLA weapon drop pressed (%s)", s ? "Zoom" : "no Zoom state");
+				// A power mod pack, used once: DRLA then drops it on the next Drop Item (Zoom) press.
+				String pack = "RLPowerModItem";
+				p.GiveInventory(pack, 1);
+				let m = p.FindInventory(pack);
+				if (m) p.UseInventory(m); // its Use state ends in Fail (the pack is kept) after setting RLUsePowerMod
+				String chosen = "RLUsePowerMod";
+				Console.Printf("LRSTEP mod pack selected for dropping: RLUsePowerMod %d", p.CountInv(chosen));
 			}
 			if (drla && st.tries == 70)
 			{
@@ -186,6 +191,12 @@ class MDHarness : EventHandler
 				while (inv = Inventory(it.Next())) { String n = inv.GetClassName(); if (!inv.Owner && n.IndexOf("Backpack") >= 0) packs++; }
 				String token = "RLCombatBackpackToken";
 				Console.Printf("LRSTEP backpack toss blocked check: backpack worn %d, backpacks on the ground %d", p.CountInv(token), packs);
+				int mods = 0;
+				let ai = ThinkerIterator.Create("Actor");
+				Actor a;
+				while (a = Actor(ai.Next())) { String n = a.GetClassName(); if (n.IndexOf("PowerMod") >= 0 && !(a is "Inventory" && Inventory(a).Owner)) mods++; }
+				String pack = "RLPowerModItem";
+				Console.Printf("LRSTEP mod pack drop blocked check: packs held %d, power mods on the ground %d", p.CountInv(pack), mods);
 			}
 			Next(st, 8);
 			break;

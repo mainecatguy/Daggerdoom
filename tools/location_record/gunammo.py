@@ -4,8 +4,9 @@ usage: gunammo.py run NAME [--stock] | report NAME
 
 Runs in town with Daggerfall's -dfgundroptest hook. The DRLA set is loaded unless --stock is given (then the stock
 Shotgun is used). The route prints the player's Doom ammo for the gun's types at every step (LRAMMO): a map gun's first
-take, three drops by Daggerfall's inventory window and their retakes, a check that DRLA's weapon drop, weapdrop and
-invdrop drop nothing (weapdrop and invdrop run every second through the whole run), and a monster-dropped gun's first
+take, three drops by Daggerfall's inventory window and their retakes, a check that Zoom (DRLA's Drop Item), weapdrop and
+invdrop drop nothing (all three run every second through the whole run; DRLA runs add a mod pack and the backpack
+toss), and a monster-dropped gun's first
 take. The route needs about 1.5 minutes, so its limit is 170 s rather than the usual 30 s; it ends at once when it
 finishes or a fatal error is logged.
 """
@@ -20,9 +21,9 @@ import paired  # noqa: E402
 l2 = paired.ledger2
 md, base, pickup, REVIEW = l2.md, l2.base, l2.pickup, paired.REVIEW
 
-# weapdrop and invdrop every second, all run long; they must drop nothing.
+# weapdrop, invdrop and a Zoom press (DRLA's Drop Item) every second, all run long; they must drop nothing.
 _source = inspect.getsource(md.run).replace("timeout = 75", "timeout = 170").replace(
-    '"+map", f"DDT', '"+alias", "dddrops", "echo LRDROPCMD; weapdrop; invdrop; wait 35; dddrops", "+wait", "35;", "dddrops", "+map", f"DDT')
+    '"+map", f"DDT', '"+alias", "dddrops", "echo LRDROPCMD; weapdrop; invdrop; +zoom; wait 3; -zoom; wait 32; dddrops", "+wait", "35;", "dddrops", "+map", f"DDT')
 assert "timeout = 170" in _source and "dddrops" in _source
 exec(compile(_source, md.__file__, "exec"), md.__dict__)
 md.EXTRA_DF = ["-dfgundroptest"]
@@ -37,7 +38,7 @@ def route(drla):
 
 
 def report(name):
-    print("  weapdrop and invdrop sent", l2.log(name).count("LRDROPCMD"), "times")
+    print("  weapdrop, invdrop and Zoom sent", l2.log(name).count("LRDROPCMD"), "times")
     for line in l2.log(name).splitlines():
         if line.startswith(("LRAMMO", "LRSTEP", "MDDONE", "MDFAIL", "dfg drop")) or "doomitems: took" in line:
             print(" ", line[:200])
