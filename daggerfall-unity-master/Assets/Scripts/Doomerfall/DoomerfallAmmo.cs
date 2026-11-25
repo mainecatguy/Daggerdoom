@@ -261,6 +261,19 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         internal int ReadyType { get { return readyType; } }
 
+        // The gun Daggerfall has drawn, once Doom reports it ready and while Doom's ready weapon uses reserve ammo. Null
+        // mid-swap, with no drawn gun, or when Doom holds fists or another weapon without reserve ammo.
+        internal DoomerfallDoomItem UpGun
+        {
+            get
+            {
+                DoomerfallHotkeys hotkeys = DoomerfallHotkeys.Instance;
+                if (hotkeys == null || hotkeys.SwapInFlight || readyType < 0 || !boundReady || boundGun != hotkeys.ActiveGun)
+                    return null;
+                return boundGun;
+            }
+        }
+
         // DFB_KIND_AMMO_CHANGE: the change ammo key.
         internal void OnChangeKey() { changeWanted = true; }
 

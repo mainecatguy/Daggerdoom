@@ -13,6 +13,10 @@ equipload: loads that autosave and checks the damage and the counts again.
 change:   (-dfchangeammotest) draws a DRLA pistol with 10 in its magazine, presses the change ammo key (magazine back to
           Daggerfall, Steel loads), spends every loaded round (Silver loads by itself), and autosaves.
 changeload: loads that autosave and checks that Silver is still loaded.
+material: (-dfmaterialtest) an Iron and a Daedric Shotgun on keys 3 and 4, shells a stand-in +25%: hits for 1000 with
+          each, back and forth, and with fists; checks the weapon material bonus (Iron -10%, Daedric +60%) multiplies
+          with the ammo bonus, and that fists are unscaled. Autosaves with the Daedric gun up.
+materialload: loads that autosave and checks the Daedric bonus again.
 check:    DOOM.WAD E1M1 with no bridge, stock and with the DRLA set.
 """
 import argparse
@@ -33,13 +37,13 @@ argv, sys.argv = sys.argv, sys.argv[:1]
 import install  # noqa: E402  (only for its registry isolation)
 sys.argv = argv
 
-REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\ammo-change")  # Was review\ammo, ammo-pickup, ammo-equip, then ammo-tiers, for earlier ammo runs.
+REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\weapon-material-damage")  # Was review\ammo, ammo-pickup, ammo-equip, ammo-tiers, then ammo-change, for earlier ammo runs.
 SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\doom-items")  # Data, sprite package, and demo items.
 BUILD = Path(r"D:\dev\DoomDaggerfall-build")
-UZ_BUILD = BUILD / "uzdoom-doomitems" / "Release"  # Built from this worktree.
+UZ_BUILD = BUILD / "uzdoom-items" / "Release"  # Built from this worktree.
 SOUND = BUILD / "uzdoom-launcher" / "Release"
-BRIDGE_DLL = BUILD / "bridge-doomitems" / "Release" / "doomerfall_bridge.dll"
-LAUNCHER = BUILD / "launcher-doomitems" / "Release" / "doomerfall-launcher.exe"
+BRIDGE_DLL = BUILD / "bridge-items" / "Release" / "doomerfall_bridge.dll"
+LAUNCHER = BUILD / "launcher-items" / "Release" / "doomerfall-launcher.exe"
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
 MODS = GAME.parent / "GameMods"
@@ -62,13 +66,13 @@ def lumps(path):
         return {name: zlib.decompress(f.read(packed)) if raw else b"" for name, raw, packed in heads}
 
 
-def harness(load, equip=False, tiers=False, change=False):
+def harness(load, equip=False, tiers=False, change=False, material=False):
     cache = REVIEW / "data" / "cache" / f"T{GROUP:05d}.ddt"
     for other in cache.parent.glob("T*.ddt"):
         other.unlink()
     shutil.copy(SOURCE / "data" / "cache" / cache.name, cache)
     door = next(l.split() for l in lumps(cache)["DDDOORS"].decode().splitlines() if l.startswith("1 187853213"))
-    text = (HERE / "harness.zs").read_text().replace("@DOOR@", ", ".join(door[3:8])).replace("@LOADRUN@", "1" if load else "0").replace("@EQUIPRUN@", "1" if equip else "0").replace("@TIERRUN@", "1" if tiers else "0").replace("@CHANGERUN@", "1" if change else "0")
+    text = (HERE / "harness.zs").read_text().replace("@DOOR@", ", ".join(door[3:8])).replace("@LOADRUN@", "1" if load else "0").replace("@EQUIPRUN@", "1" if equip else "0").replace("@TIERRUN@", "1" if tiers else "0").replace("@CHANGERUN@", "1" if change else "0").replace("@MATERIALRUN@", "1" if material else "0")
     path = REVIEW / "run" / "harness.pk3"
     with zipfile.ZipFile(path, "w") as z:
         z.writestr("zscript.txt", text)
@@ -124,9 +128,10 @@ def run(name):
     runs.mkdir(parents=True, exist_ok=True)
     saves = runs / "saves"
     saves.mkdir(exist_ok=True)
-    load, equip, tiers = name in ("load", "equipload", "tierload", "changeload"), name in ("equip", "equipload"), name in ("tiers", "tierload")
+    load, equip, tiers = name in ("load", "equipload", "tierload", "changeload", "materialload"), name in ("equip", "equipload"), name in ("tiers", "tierload")
     change = name in ("change", "changeload")
-    if name in ("take", "equip", "tiers", "change"):
+    material = name in ("material", "materialload")
+    if name in ("take", "equip", "tiers", "change", "material"):
         for old in saves.glob("*.zds"):
             old.unlink()
     autosaves = sorted(saves.glob("auto*.zds"), key=lambda p: p.stat().st_mtime)
@@ -140,12 +145,12 @@ def run(name):
           "+logfile", name, "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{GROUP:05d}"]
     if load:
         uz += ["-dfloadtest", f"resume:{autosaves[-1]}"]
-    df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), *(["-dfequiptest"] if equip else ["-dfshoptest"] if tiers else ["-dfchangeammotest"] if change else ["-dfammotest"]), "-dfarealevel", "20", "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
+    df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), *(["-dfequiptest"] if equip else ["-dfshoptest"] if tiers else ["-dfchangeammotest"] if change else ["-dfmaterialtest"] if material else ["-dfammotest"]), "-dfarealevel", "20", "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
     timeout = 120
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
                "--uzdoom-cwd", str(runs), "--log", str(launcher)]
-    for mod in [MODS / n for n in DRLA] + [REVIEW / "data" / n for n in DATA] + [REVIEW / "dfitems.pk3", REVIEW / "doomerfall.pk3", harness(load, equip, tiers, change)]:
+    for mod in [MODS / n for n in DRLA] + [REVIEW / "data" / n for n in DATA] + [REVIEW / "dfitems.pk3", REVIEW / "doomerfall.pk3", harness(load, equip, tiers, change, material)]:
         command += ["--mod", str(mod)]
     for arg in uz:
         command += ["--uzdoom-arg", arg]
@@ -180,13 +185,16 @@ def run(name):
     doom, dagger = counts_doom(read(console)), counts_df(df_body)
     print("final Doom:", doom)
     print("final Daggerfall:", dagger)
-    if equip or change:
+    if equip or change or material:
         # The bridge logs what Daggerfall's bonus made of each hit ("10 -> 15 (5000 bp)"), or nothing with no bonus.
         # Health lost is shown too, but DRLA X starting perks can multiply it further after the bonus.
         want = {"Clip": "10 -> 15 (5000 bp)", "Shell": "10 -> 12 (2500 bp)"}
         if change:  # By hit label: Regular +0%, Steel +20%, Silver +10% (the automatic change, the pistol again, after the load).
             want = {"regular": None, "steel": "10 -> 12 (2000 bp)", "automatic": "10 -> 11 (1000 bp)", "other gun": None, "pistol again": "10 -> 11 (1000 bp)", "loaded": "10 -> 11 (1000 bp)"}
-        scaled, hits = None, 0
+        if material:  # Ammo +25% times weapon: Iron 1.25 x 0.9 = 1.125, Daedric 1.25 x 1.6 = 2.0 (adding would give 1.15 and 1.85).
+            iron, daedric = "1000 -> 1125 (1250 bp)", "1000 -> 2000 (10000 bp)"
+            want = {"iron": iron, "daedric": daedric, "iron again": iron, "melee": None, "daedric again": daedric, "loaded": daedric}
+        scaled, hits, dealt = None, 0, {}
         for line in read(console).splitlines():
             m = re.search(r"damage bonus: .* hit by the player, (.+)$", line)
             if m:
@@ -195,11 +203,16 @@ def run(name):
             if m:
                 label, weapon, ammo, lost = m.groups()
                 hits += 1
-                expect = want.get(label) if change else want.get(ammo)
+                expect = want.get(label) if change or material else want.get(ammo)
                 ok = scaled == expect
+                if scaled:
+                    dealt[label] = int(scaled.split("->")[1].split()[0])
                 print("hit", label, weapon, ammo, "bridge", scaled or "unscaled", "expected", expect or "unscaled", "lost", lost, "PASS" if ok else "FAIL")
                 scaled = None
         print("hits", hits)
+        if material and "iron" in dealt and "daedric" in dealt:
+            ratio = dealt["daedric"] / dealt["iron"]
+            print("daedric/iron damage ratio %.4f, table ratio 1.6/0.9 = %.4f, %s" % (ratio, 1.6 / 0.9, "PASS" if abs(ratio - 1.6 / 0.9) < 0.002 else "FAIL"))
     print("MATCH" if doom and all(doom.get(c) == dagger.get(c) for c in CLASSES) else "MISMATCH")
 
 
@@ -222,7 +235,7 @@ def check():
 
 
 ap = argparse.ArgumentParser()
-ap.add_argument("command", choices=("assemble", "uzdoom", "take", "load", "equip", "equipload", "tiers", "tierload", "change", "changeload", "check"))
+ap.add_argument("command", choices=("assemble", "uzdoom", "take", "load", "equip", "equipload", "tiers", "tierload", "change", "changeload", "material", "materialload", "check"))
 args = ap.parse_args()
 if args.command == "assemble":
     assemble()

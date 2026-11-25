@@ -12,6 +12,7 @@ class AMHarness : EventHandler
 	const EQUIPRUN = @EQUIPRUN@; // The equip run: guns equipped from Daggerfall set the damage bonus of their loaded ammo.
 	const TIERRUN = @TIERRUN@; // The tiers run: tiered drops roll with the area level, and tiered pickups reach Daggerfall.
 	const CHANGERUN = @CHANGERUN@; // The change run: the change ammo key, the automatic change, and the magazine unload.
+	const MATERIALRUN = @MATERIALRUN@; // The material run: an Iron and a Daedric copy of one gun scale damage by their material.
 	const SAVED = 10;
 	vector3 dropSpot;
 
@@ -57,7 +58,7 @@ class AMHarness : EventHandler
 
 	// Hurts a fresh stock Cyberdemon for 10 with the player as the source, as a shot does, and reports the health lost.
 	// Daggerfall's damage bonus (from the ready gun's loaded ammo) scales it in Doom.
-	void Hit(String label)
+	void Hit(String label, int damage = 10)
 	{
 		let p = players[0].mo;
 		let w = players[0].ReadyWeapon;
@@ -66,7 +67,7 @@ class AMHarness : EventHandler
 		let t = Actor.Spawn("Cyberdemon", p.Vec3Angle(200, p.angle), NO_REPLACE);
 		if (!t) { Console.Printf("AMHIT %s no target", label); return; }
 		int before = t.health;
-		t.DamageMobj(null, p, 10, 'None');
+		t.DamageMobj(null, p, damage, 'None');
 		int lost = before - t.health;
 		t.Destroy();
 		Console.Printf("AMHIT %s weapon=%s ammo=%s lost=%d", label, w ? w.GetClassName() : 'none', ammo, lost);
@@ -180,6 +181,7 @@ class AMHarness : EventHandler
 			if (EQUIPRUN) phase = 30; // No break inside this constant if: one with a break crashed UZDoom's compiler.
 			if (TIERRUN) phase = 40;
 			if (CHANGERUN) phase = 50;
+			if (MATERIALRUN) phase = 60;
 			break;
 		case 2: // A box of bullets by touch. Stock ClipBox, not DRLA's spawner, so the amount is known.
 		{
@@ -301,15 +303,38 @@ class AMHarness : EventHandler
 			if (timer == 1) EventHandler.SendNetworkEvent("dd_hotkey:4");
 			if (timer == 175) { Report("pistol again"); Magazine("pistol again"); Hit("pistol again"); phase = 7; timer = 0; }
 			break;
+		// The material run (-dfmaterialtest): Daggerfall adds an Iron Shotgun on key 3 and a Daedric one on key 4, and gives
+		// shells a stand-in +25%. Hits are 1000, so the bridge's integer damage shows the ratio exactly.
+		case 60:
+			if (timer == 35 * 5) EventHandler.SendNetworkEvent("dd_hotkey:3");
+			if (timer == 35 * 9) { Hit("iron", 1000); Next(); }
+			break;
+		case 61:
+			if (timer == 1) EventHandler.SendNetworkEvent("dd_hotkey:4");
+			if (timer == 140) { Hit("daedric", 1000); Next(); }
+			break;
+		case 62:
+			if (timer == 1) EventHandler.SendNetworkEvent("dd_hotkey:3");
+			if (timer == 140) { Hit("iron again", 1000); Next(); }
+			break;
+		case 63: // Fists have no material: no bonus at all.
+			if (timer == 1) SelectMelee(p);
+			if (timer == 105) { Hit("melee", 1000); Next(); }
+			break;
+		case 64:
+			if (timer == 1) EventHandler.SendNetworkEvent("dd_hotkey:4");
+			if (timer == 140) { Hit("daedric again", 1000); Report("daedric up"); phase = 7; timer = 0; }
+			break;
 		case SAVED:
 			if (timer > 35 * 8) Finish("saved");
 			break;
 		case 20: // Loaded: give Doom's report time to reach Daggerfall.
 			if (EQUIPRUN && timer == 105) { Hit("loaded"); Report("loaded"); }
 			if (CHANGERUN && timer == 105) { Hit("loaded"); Report("loaded"); Magazine("loaded"); }
+			if (MATERIALRUN && timer == 105) { Hit("loaded", 1000); Report("loaded"); }
 			if (TIERRUN && timer == 35) TierCensus("after load", DoomerfallAmmoTiers.Get().areaLevel);
 			if (TIERRUN && timer == 35 * 19) TierCensus("end of load run", DoomerfallAmmoTiers.Get().areaLevel);
-			if (timer == 35 * (EQUIPRUN || CHANGERUN ? 6 : 20)) Finish("loaded"); // Long enough for Daggerfall's hook, window test included, to run again.
+			if (timer == 35 * (EQUIPRUN || CHANGERUN || MATERIALRUN ? 6 : 20)) Finish("loaded"); // Long enough for Daggerfall's hook, window test included, to run again.
 			break;
 		}
 	}
