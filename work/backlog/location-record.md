@@ -95,6 +95,10 @@ mook index 14 | dead 1 | x 13 | y 13 | height band 6 | then
 
 ## Open items
 
+- Piles the player drops through DFU's inventory (`DaggerfallLoot.customDrop`) go in the per-place ground items list,
+  in towns, buildings and dungeons (owner, 2026-11-24). Today they live only in DFU's short-lived scene cache and
+  vanish after a map pixel change or on leaving a dungeon.
+
 - Player drops: confirm every player drop goes through a Daggerfall loot pile (ammo dropped from the inventory window
   already does). If Doom has its own drop path, route it into a pile.
 - Check DRLA monster drop lists for more than 15 slots.

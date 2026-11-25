@@ -105,6 +105,12 @@ reason and are written down here.
 UZDoom draws them and forwards Use; DFU holds their contents and decides whether they exist. The snapshot's copy is
 presentation only and follows DFU's list.
 
+**DFU's scene cache stays short-lived (owner, 2026-11-24).** Daggerfall Unity's own scene cache keeps wiping on every
+map pixel change, as in vanilla. Doomerfall's stores are the only permanent copy: `DoomerfallItems` for opened
+containers (it overwrites the cached copy on every revisit), and the location record for places, including piles the
+player drops through DFU's inventory in towns, buildings and dungeons. Turning the wipe off would make a second,
+ever-growing copy (`work/notes/20261124-190702.md`).
+
 **Ammo.** UZDoom owns the live loaded count and magazines and reports every change (pickups, shots, losses). DFU owns
 all other ammo and keeps an exact mirror of UZDoom's live counts, current at every save. On a normal load UZDoom's
 count stands; if its half cannot be restored, DFU's mirror is used.

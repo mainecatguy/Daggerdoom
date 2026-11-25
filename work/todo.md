@@ -17,7 +17,7 @@ Every lane approved before 2026-11-24 evening has run and is merged. Owner decis
 ### Approved and running (owner, 2026-11-24 evening)
 
 - `testhooks`: move test hooks out of game classes.
-- `resets`: turn off Daggerfall's resets and respawns.
+- `resets`: done, **not merged** (owner, 2026-11-24). Its one change turned off DFU's scene cache wipe; the owner keeps the wipe. Its findings stay in `work/notes/20261124-190702.md`.
 - `doommaterial`: Doom weapons have a Daggerfall material (01), then the material damage bonus (02).
 - `nodraw`: turn off Daggerfall's 3D world (milestone hurdle 4).
 
