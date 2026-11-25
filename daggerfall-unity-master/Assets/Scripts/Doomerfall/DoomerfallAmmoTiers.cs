@@ -52,9 +52,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 dark = new Color32(dr, dg, db, 255), light = new Color32(lr, lg, lb, 255) };
         }
 
-        // Rounds in one pickup or one vendor stack at a 1x stack size (my call: the owner asked for pickups a lot bigger
-        // than Doom's 10 bullets, 4 shells, 1 rocket, and 20 cells). A Regular pickup is twice this.
-        internal static readonly int[] BaseStack = { 40, 10, 4, 50 };
+        // Rounds in one vendor pack at a 1x stack size (a Regular pack is twice this). Shop stock only: pickups and drops
+        // in Doom give stock Doom's amounts, which DoomerfallAmmoPickup.Rounds (DoomerfallAmmo.zs) decides and sends here
+        // with each take, scaled by the same stackMul relative to Regular's. Shop packs are unchanged until the owner
+        // decides whether they should follow Doom's amounts too.
+        internal static readonly int[] ShopPackBase = { 40, 10, 4, 50 };
 
         internal static int Template(int type, int tier)
         {
@@ -79,7 +81,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         internal static float Weight(int type, int tier) { return DoomerfallAmmo.Types[type].baseWeightKg * Tiers[tier].weightMul; }
         internal static int Stack(int type, int tier)
         {
-            return Math.Max(1, (int)Math.Round(BaseStack[type] * Tiers[tier].stackMul, MidpointRounding.AwayFromZero));
+            return Math.Max(1, (int)Math.Round(ShopPackBase[type] * Tiers[tier].stackMul, MidpointRounding.AwayFromZero));
         }
 
         // An ammo's tags (such as reduced_noise), shown as player state while it is loaded (owner, 2026-11-24). None exist
