@@ -15,4 +15,6 @@ struct DDEncMookOut { uint64_t id; PClassActor *cls; DVector3 pos; int placement
 
 // Plans the request (header = the area, location and region lines) and finds a spot for every mook. Member 0 of each
 // placement is its leader, on the placement's exact point. Returns false when there is no planner.
-bool DD_PlaceEncounters(FLevelLocals *Level, const FString &header, const std::vector<DDEncPlacementIn> &list, std::vector<DDEncMookOut> &out);
+// occupied: mooks of an earlier request (the seeded army) that this request's mooks keep clear of.
+bool DD_PlaceEncounters(FLevelLocals *Level, const FString &header, const std::vector<DDEncPlacementIn> &list, std::vector<DDEncMookOut> &out,
+	const std::vector<DDEncMookOut> *occupied = nullptr);
