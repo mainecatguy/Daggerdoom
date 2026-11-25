@@ -1,6 +1,6 @@
 """Assembles the current playable Doomerfall from this checkout. Saves and settings in its run folder are kept.
 
-Usage: install.py [target folder] [--build-dir DIR] [--keep-data]
+Usage: install.py [target folder] [--build-dir DIR] [--keep-data] [--expanded-inventory ZIP-OR-FOLDER]
 Builds UZDoom, the bridge, and the launcher, and copies this checkout's Daggerfall Unity build, which must already be
 built. Then it builds the converter and item sprite tool from this checkout and makes every data file with them, so
 the maps, the town cache, and the sprites always match the code. --keep-data skips the data step.
@@ -47,6 +47,7 @@ TRY = [
     " 8. Open the map (automap or travel map): forward, back and strafe pan it.",
     " 9. Walk into a house: no Doom pickups. Shops and dungeons still have them.",
     "10. Leave the dungeon and fast travel: Daggerfall's hidden world is smaller, so seams should hitch less.",
+    "11. Inventory (I) is the Expanded Inventory mod: your items in 4 columns on the left, the other list in 2 on the right, scroll bar between.",
 ]
 
 
@@ -76,6 +77,29 @@ def isolate_registry(dfu):
         managers.write_bytes(data.replace(stock, private))
     elif private not in data:
         raise SystemExit("could not isolate the Daggerfall registry key")
+
+
+def install_expanded_inventory(dfu, build_dir, source=None):
+    """Expanded Inventory's pictures. Its code is part of the Daggerfall Unity build; the pictures are edits of
+    Daggerfall's art, so they come from the owner's download (by default in GameMods), never from the repository.
+    source may be a folder of PNGs, a folder holding the download, or the download (.zip or .dfmod) itself."""
+    source = Path(source) if source else GAME.parent / "GameMods" / "ExpandedInventory"
+    textures = source / "Textures" if source.is_dir() else source
+    if source.is_dir() and any(source.glob("INVE00I0.png")):
+        textures = source
+    if not textures.is_dir():
+        zips = [source] if source.is_file() else sorted(source.glob("*.zip")) + sorted(source.glob("*.dfmod"))
+        if not zips:
+            print("Expanded Inventory: no download in", source, "- Daggerfall's own inventory window will be used")
+            return
+        out = build_dir / "expanded-inventory"
+        run([sys.executable, REPO / "tools" / "expanded_inventory" / "extract.py", zips[-1], out, "--no-decompile"])
+        textures = out / "textures"
+    target = dfu / "DaggerfallUnity_Data" / "StreamingAssets" / "ExpandedInventory"
+    target.mkdir(parents=True, exist_ok=True)
+    for png in textures.glob("*.png"):
+        shutil.copy2(png, target / png.name)
+    print("Expanded Inventory: pictures from", textures)
 
 
 def make_data(build_dir, target):
@@ -124,6 +148,7 @@ def main():
     ap.add_argument("target", nargs="?", type=Path, default=LOOP / "play")
     ap.add_argument("--build-dir", type=Path, default=REPO.parent / "DoomDaggerfall-build", help="native builds, tool builds, and scratch data")
     ap.add_argument("--keep-data", action="store_true", help="keep the target's data and sprites instead of rebuilding them")
+    ap.add_argument("--expanded-inventory", type=Path, help="Expanded Inventory's download (.zip), or a folder of its pictures; default GameMods\\ExpandedInventory")
     args = ap.parse_args()
     target, build_dir = args.target.resolve(), args.build_dir.resolve()
 
@@ -142,6 +167,7 @@ def main():
     shutil.copy2(bridge / "doomerfall_bridge.dll", plugins / "doomerfall_bridge.dll")
     (dfu / "Portable.txt").write_text("")
     isolate_registry(dfu)
+    install_expanded_inventory(dfu, build_dir, args.expanded_inventory)
 
     if not args.keep_data:
         make_data(build_dir, target)
