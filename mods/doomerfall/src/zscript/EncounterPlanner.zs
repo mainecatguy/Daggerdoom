@@ -113,6 +113,7 @@ class DoomerfallEncounterTheme
 	Array<String> classes;   // lower-case patterns
 	int traits;
 	String size, placement, awareness, tierlean, titan;
+	bool only;               // only=1: every monster must match strictly, not just lean (story themes)
 
 	// Favoured by kind or class name: what an anchor or a guaranteed theme monster must be.
 	bool MatchesStrict(DoomerfallMonster m)
@@ -345,6 +346,7 @@ class DoomerfallEncounterPlanner play
 		theme.awareness = data.ThemeGet(theme.name, "awareness");
 		theme.tierlean = data.ThemeGet(theme.name, "tierlean");
 		theme.titan = data.ThemeGet(theme.name, "titan");
+		theme.only = data.ThemeGet(theme.name, "only") == "1" && theme.HasMonsters();
 	}
 
 	// Section 4.1: for each theme and gene a fixed set of about 9 of the 13 settings is "fitting". Returns the
@@ -417,7 +419,7 @@ class DoomerfallEncounterPlanner play
 			for (int i = 0; i < pool.monsters.Size(); i++)
 			{
 				let m = pool.monsters[i];
-				if (m.kind == k && m.civilWarSafe && !m.capped && !IsTitan(m)) { kinds.Push(k); break; }
+				if (m.kind == k && m.civilWarSafe && !m.capped && !IsTitan(m) && ThemeAllows(m)) { kinds.Push(k); break; }
 			}
 		}
 		result.regionKind = -1;
@@ -444,7 +446,10 @@ class DoomerfallEncounterPlanner play
 	// A Colourful Hell colour, which the colour lock applies to (section 5.4).
 	bool IsColour(DoomerfallMonster m) { return m.tier < 8 && !(m.group ~== "Stock") && !IsFamily(m) && !IsTitan(m); }
 
-	bool Usable(DoomerfallMonster m, bool civil) { return !IsTitan(m) && (!civil || m.civilWarSafe); }
+	bool Usable(DoomerfallMonster m, bool civil) { return !IsTitan(m) && (!civil || m.civilWarSafe) && ThemeAllows(m); }
+
+	// An only=1 theme admits nothing outside it.
+	bool ThemeAllows(DoomerfallMonster m) { return !theme || !theme.only || theme.MatchesStrict(m); }
 
 	bool InArmy(DoomerfallArmy army, DoomerfallMonster m)
 	{

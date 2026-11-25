@@ -464,8 +464,10 @@ set guarantee_share 100
 # ---------------------------------------------------------------------------------------------
 # Theme table (section 4.1): what each Daggerfall dungeon type leans toward.
 #   theme <DungeonType> kinds=<kinds> classes=<patterns> traits=<traits> size=<..> placement=<..>
-#         awareness=<..> tierlean=<..>
-# Every key is optional. Values are comma separated.
+#         awareness=<..> tierlean=<..> only=1
+# Every key is optional. Values are comma separated. only=1 makes the leaning a rule: every monster in the
+# dungeon, titans included, must match the theme's kinds or classes. Story themes such as Humanoid are
+# not dungeon types; Daggerfall sends them for main quest dungeons (DoomerfallAreaLevels.StoryThemes).
 # ---------------------------------------------------------------------------------------------
 theme Crypt               kinds=Revenant,Archvile,LostSoul awareness=asleep placement=deadends
 theme Cemetery            kinds=Revenant,Archvile,LostSoul awareness=asleep placement=deadends
@@ -486,3 +488,5 @@ theme Laboratory          classes=RLCybernetic*,RLFormerCyborg*,RLTechnophobia* 
 theme Mine                kinds=Demon,Spectre traits=melee placement=scattered
 theme NaturalCave         kinds=Demon,Spectre traits=melee placement=scattered
 theme RuinedCastle        kinds=HellKnight,BaronOfHell,ZombieMan,ShotgunGuy,ChaingunGuy
+# Story themes (main quest dungeons).
+theme Humanoid            kinds=ZombieMan,ShotgunGuy,ChaingunGuy placement=chokepoints awareness=sentries only=1

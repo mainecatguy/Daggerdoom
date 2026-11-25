@@ -257,7 +257,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             BuildArea(location, dungeon.Summary.DungeonType, areaLevel);
             bridge.LogLine(string.Format("monsters: {0} has {1} placements at area level {2} ({3})", location.Name, placements.Count, areaLevel, DoomerfallAreaLevels.Status()));
             bridge.LogLine(string.Format(System.Globalization.CultureInfo.InvariantCulture,
-                "encounters: facts map {0} dungeonIndex {1} locationId {2} name '{3}' region {4} '{5}' world {6:F1},{7:F1} type {8} ({9}) areaLevel {10} seedOffset {11}",
+                "encounters: facts map {0} dungeonIndex {1} locationId {2} name '{3}' region {4} '{5}' world {6:F1},{7:F1} type {8} theme {9} areaLevel {10} seedOffset {11}",
                 area.mapId, area.dungeonIndex, area.locationId, areaLocation, area.regionIndex, areaRegion, area.worldX, area.worldY,
                 area.dungeonType, areaType, area.areaLevel, area.seedOffset));
         }
@@ -279,7 +279,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             };
             areaLocation = location.Name ?? string.Empty;
             areaRegion = location.RegionName ?? string.Empty;
-            areaType = type.ToString();
+            // The theme Doom's planner uses: a main quest dungeon's story theme, otherwise the dungeon type's name.
+            areaType = DoomerfallAreaLevels.StoryTheme(area.mapId) ?? type.ToString();
         }
 
         // Counts the map table entries with a dungeon, region by region in file order. Built once per run.
