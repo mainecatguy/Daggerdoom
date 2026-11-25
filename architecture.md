@@ -97,7 +97,7 @@ reason and are written down here.
 
 - A bundled save holds DFU's save and ledgers, plus UZDoom's snapshot of the current map. Loading restores the snapshot
   exactly, and DFU's record is not applied over it.
-- At every save UZDoom also sends the current place's record entries. If the snapshot cannot be restored (a mod or map
+- At every save UZDoom also sends the current place's record entries. If the snapshot cannot be restored (a map
   changed), the place is rebuilt from the record and only live combat details are lost (`work/backlog/rebuild-load.md`).
 - The snapshot leaves out what UZDoom generates from DFU's data, such as the overworld treadmill's terrain sectors
   (88% of an overworld save today). Those are rebuilt on load.
