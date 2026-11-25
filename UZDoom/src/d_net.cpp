@@ -2753,11 +2753,12 @@ void Net_DoCommand(int cmd, TArrayView<uint8_t>& stream, int player)
 				while (item != nullptr && item->InventoryID != which)
 					item = item->Inventory;
 
+				extern bool DD_BridgeHasSession(); // [Doomerfall] items leave only by Daggerfall's inventory window
 				if (item != nullptr)
 				{
 					if (cmd == DEM_INVUSE)
 						players[player].mo->UseInventory(item);
-					else
+					else if (!DD_BridgeHasSession()) // [Doomerfall] no weapdrop, invdrop or drop in a bridge session
 						players[player].mo->DropInventory(item, amt);
 				}
 			}
