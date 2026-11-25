@@ -36,18 +36,14 @@ start "" "%HERE%doomerfall-launcher.exe" --nodraw --uzdoom "%HERE%uzdoom\uzdoom.
 
 # What to try, for the owner. One line each, written into play.bat as rem lines.
 TRY = [
-    "What to try in this build (integration at 9172d09). If E still does nothing, rebind it to Use in Doom's controls.",
-    " 1. Startup: only Doom's window shows, windowed; Daggerfall runs out of sight and never grabs the mouse.",
-    " 2. New Game: press Escape on the Daggerfall screens and at the difficulty prompt; Doom's menu should stay shut.",
-    " 3. Privateer's Hold: humanoid armies only (zombiemen, sergeants, commandos). Use (E) is the one interact key.",
-    " 4. No debug messages on screen when you switch weapons or climb.",
-    " 5. Ammo is on the inventory's Weapons & Armor tab. Bind Change Ammo in Doom's controls (no default key) and press it: the gun reloads with the new type.",
-    " 6. Doom guns have a material (Iron to Daedric) that scales their damage.",
-    " 7. Put an item on a hotkey, then on another: the first key clears.",
-    " 8. Open the map (automap or travel map): forward, back and strafe pan it.",
-    " 9. Walk into a house: no Doom pickups. Shops and dungeons still have them.",
-    "10. Leave the dungeon and fast travel: Daggerfall's hidden world is smaller, so seams should hitch less.",
-    "11. Inventory (I) is the Expanded Inventory mod: your items in 4 columns on the left, the other list in 2 on the right, scroll bar between.",
+    "What to try in this build (integration at e5775de). If a key does nothing, bind it in Options, Customize Controls, Doomerfall Controls.",
+    " 1. New Game from inside a running game: Doom asks to confirm, then both games start over with a fresh character.",
+    " 2. J opens Daggerfall's quest journal: tabs and paging work, and J, Exit or Escape close it back to Doom.",
+    " 3. Look at something within Use reach (NPC, monster, loot pile, Doom gun, door): a label under the crosshair names it. Nothing on bare walls or far things.",
+    " 4. Use an NPC that will not talk: Daggerfall's refusal message shows on Doom's screen.",
+    " 5. In town, Use a building's wall (not its door): its name shows and it is marked on the town map.",
+    " 6. Sneaking, loaded ammo and Climbing labels are one size larger; Doom's own messages are unchanged.",
+    " 7. Ammo pickups and drops give stock Doom amounts (clip 10, box 50, shells 4, rockets 1, cells 20; monster drops half).",
 ]
 
 
