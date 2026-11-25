@@ -23,6 +23,8 @@ Every lane approved before 2026-11-24 evening has run and is merged. Owner decis
 
 ### Approved, ready to launch
 
+- `usekey` (critical): Doom's base Use key and Doomerfall's interact key are separate; they must be one (owner play test, 2026-11-24).
+- `ammoinv` (critical): ammo does not appear in Daggerfall's inventory (owner play test, 2026-11-24).
 - `newgameesc`: Escape during Daggerfall's New Game screens opens Doom's menus and breaks the game (owner play test, 2026-11-24).
 - `cleanlaunch`: the launcher's startup is a mess: Doom windowed, Daggerfall fullscreen, random timing (owner play test, 2026-11-24).
 
