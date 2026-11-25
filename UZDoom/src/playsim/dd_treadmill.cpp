@@ -80,6 +80,11 @@ void DD_NpcSetup(AActor *mo, uint64_t id, bool awaitList);
 void DD_TownsfolkTick(FLevelLocals *Level);
 bool DD_BridgeHasSession();
 bool DD_UsePress(player_t *player);
+void DD_LightsFlat(AActor *mo, bool interior);	// dd_lights.cpp
+void DD_LightsInterior(FLevelLocals *Level);
+void DD_LightsTick(FLevelLocals *Level);
+void DD_LightsReset();
+void DD_LightsTextureName(const char *name, FTextureID tex);
 
 bool DDTreadmill_Active = false;
 bool DDTreadmill_WideNodes = false;
@@ -735,7 +740,7 @@ namespace
 			float sx, sy;
 			if (sscanf(line.GetChars(), "%31s %lf %lf %lf %f %f", name, &x, &y, &z, &sx, &sy) != 6) continue;
 			auto id = ids.find(name);
-			if (id == ids.end()) id = ids.emplace(name, TexMan.CheckForTexture(name, ETextureType::Any)).first;
+			if (id == ids.end()) { id = ids.emplace(name, TexMan.CheckForTexture(name, ETextureType::Any)).first; DD_LightsTextureName(name, id->second); }
 			const double gx = t.originX * DOOM_PER_DF + x, gy = t.originY * DOOM_PER_DF + y;
 			townFlats[ChunkKey(int(floor(gx / chunkDoom)), int(floor(gy / chunkDoom)))].push_back({ id->second, gx, gy, z + t.ground * DOOM_PER_DF - Z_BASE, sx, sy, 0 });
 		}
@@ -754,6 +759,7 @@ namespace
 			mo->picnum = f.tex;
 			mo->Scale = DVector2(f.sx, f.sy);
 			if (f.npc && npcClass) DD_NpcSetup(mo, f.npc, false);
+			else DD_LightsFlat(mo, false);
 		}
 	}
 
@@ -1145,7 +1151,10 @@ namespace
 	{
 		auto id = flatTextures.find(name);
 		if (id == flatTextures.end())
+		{
 			id = flatTextures.emplace(name, TexMan.CheckForTexture(name, ETextureType::Any, FTextureManager::TEXMAN_TryAny | FTextureManager::TEXMAN_ForceLookup)).first;
+			DD_LightsTextureName(name, id->second);
+		}
 		return id->second;
 	}
 
@@ -1173,9 +1182,11 @@ namespace
 				mo->picnum = tex;
 				mo->Scale = DVector2(sx, sy);
 				if (id && npc) { DD_NpcSetup(mo, id, awaitList); people++; }
+				else DD_LightsFlat(mo, interior);
 				spawned++;
 			}
 		}
+		if (interior) DD_LightsInterior(Level);
 		VMFunction *func = nullptr;
 		PClass::FindFunction(&func, "DFRuntimeTown", "SpawnGates");
 		const auto *gates = mapEntry->Find("DFGATES");
@@ -1973,6 +1984,7 @@ namespace
 
 void DDTreadmill_Serialize(FLevelLocals *Level, FSerializer &arc)
 {
+	if (arc.isReading()) DD_LightsReset();	// [Doomerfall] lamps come back as they were saved
 	if (arc.isWriting())
 	{
 		if ((!DDTreadmill_Active && !townActive) || Level != primaryLevel) return;
@@ -2134,6 +2146,7 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 	AActor *pmo = Level->Players[consoleplayer]->mo;
 	if (!pmo) return;
 	if (DD_BridgeHasSession()) DD_TownsfolkTick(Level);	// [Doomerfall] Idle until Daggerfall lists townspeople.
+	DD_LightsTick(Level);
 	if (runtimeTowns) DDTownCache::Poll();
 	if (travel.pending && !handoff.pending)
 	{

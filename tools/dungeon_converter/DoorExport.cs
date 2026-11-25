@@ -168,6 +168,7 @@ static partial class Program
         foreach (var (fa, fr) in actions.Flats.Concat(actions.Ordinary.Select(f => (f.archive, f.record))).Distinct())
             WriteFlatTexture(zip, animdefs, archive(fa), fa, fr);
         if (actions.Ordinary.Count > 0) Text("DFDFLATS", DungeonFlatLump(actions, archive));
+        if (actions.Lights.Count > 0) Text("DFDLIGHTS", DungeonLightLump(actions));
         Text("DFACTIONS", ActionLump(actions));
         Text("zscript.zs", classes.ToString());
         Text("MAPINFO", "GameInfo\n{\n\tAddEventHandlers = \"DFDoorHandler\", \"DFActionHandler\"\n}\n");

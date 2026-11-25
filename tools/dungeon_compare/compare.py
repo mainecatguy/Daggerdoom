@@ -43,10 +43,12 @@ def read_views(path):
     return views
 
 
-def capture_daggerfall(views, out, eye, exe, timeout, dungeon="Privateer's Hold", flood=True):
+def capture_daggerfall(views, out, eye, exe, timeout, dungeon="Privateer's Hold", flood=True, lit=False):
     job = os.path.join(out, "df_job.txt")
     with open(job, "w", encoding="utf-8", newline="\n") as f:
         f.write(f"dungeon\t{dungeon}\nout\t{out}\ndaggerfall\t{DAGGERFALL}\nsize\t{WIDTH}\t{HEIGHT}\nvfov\t{VERTICAL_FOV}\n")
+        if lit:  # keep Daggerfall Unity's own lights and ambient instead of flat light
+            f.write("lit\n")
         # The first viewpoint must be the entrance: the collision flood fill starts there.
         # The flood's position key rounds to even, so a start on a cell center (8 mod 16) merges neighboring cells.
         if flood:
@@ -63,7 +65,7 @@ def capture_daggerfall(views, out, eye, exe, timeout, dungeon="Privateer's Hold"
     return parse_probes(result, "PROBE")
 
 
-def capture_doom(views, out, eye, wad, timeout, scale):
+def capture_doom(views, out, eye, wad, timeout, scale, extra=(), doom_args=()):
     lumps = os.path.join(out, "doom_views")
     os.makedirs(lumps, exist_ok=True)
     with open(os.path.join(lumps, "DFVIEWS"), "w", newline="\n") as f:
@@ -88,17 +90,18 @@ def capture_doom(views, out, eye, wad, timeout, scale):
         startup = subprocess.STARTUPINFO()
         startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         startup.wShowWindow = SW_SHOWNOACTIVATE
-        process = subprocess.Popen([UZDOOM,
-                                    "-iwad", IWAD, "-file", wad, os.path.join(HERE, "doom"), lumps,
+        # quiet_run keeps the window on a private desktop, where it still renders at full size.
+        process = subprocess.Popen([sys.executable, QUIET, "--timeout", str(timeout), "--cwd", out, "--", UZDOOM,
+                                    "-iwad", IWAD, "-file", wad, *extra, os.path.join(HERE, "doom"), lumps,
                                     "-config", os.path.join(out, "doom.ini"), "-stdout", "-noactivate", "-nosound", "-nomonsters",
                                     "-skill", "3", "-width", str(WIDTH), "-height", str(HEIGHT),
                                     "+vid_fullscreen", "0", "+vid_scalefactor", "1", "+screenblocks", "12", "+crosshair", "0",
                                     "+screenshot_type", "png", "+show_messages", "0",
                                     "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0",
-                                    "+logfile", "doomcap", "+map", "MAP01", "+exec", "doom_capture.cfg"],
+                                    "+logfile", "doomcap", *doom_args, "+map", "MAP01", "+exec", "doom_capture.cfg"],
                                    cwd=out, startupinfo=startup, stdout=log, stderr=subprocess.STDOUT)
         try:
-            code = process.wait(timeout)
+            code = process.wait(timeout + 30)
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait()
@@ -190,6 +193,9 @@ def main():
     parser.add_argument("--no-flood", action="store_true", help="capture views only")
     parser.add_argument("--uzdoom", help="UZDoom executable to use")
     parser.add_argument("--world-scale", type=float, default=0.75, help="scale the map was converted at")
+    parser.add_argument("--lit", action="store_true", help="keep each engine's own lighting, for comparing lights")
+    parser.add_argument("--files", nargs="*", default=[], help="more packages for UZDoom after the map, such as <slug>_mesh.pk3 and <slug>_doors.pk3")
+    parser.add_argument("--doom-args", nargs="*", default=[], help="extra UZDoom arguments, such as +dd_light_range 0.6")
     args = parser.parse_args()
     if args.uzdoom:
         global UZDOOM
@@ -202,9 +208,10 @@ def main():
     views = read_views(args.views)
 
     df = parse_probes(os.path.join(out, "df_probes.txt"), "PROBE") if args.skip_df else \
-        capture_daggerfall(views, out, args.eye, os.path.abspath(args.exe), args.timeout, args.dungeon, not args.no_flood)
+        capture_daggerfall(views, out, args.eye, os.path.abspath(args.exe), args.timeout, args.dungeon, not args.no_flood, args.lit)
     doom = parse_probes(os.path.join(out, "log-doomcap.txt"), "DFPROBE") if args.skip_doom else \
-        capture_doom(views, out, args.eye, os.path.abspath(args.map), args.timeout, args.world_scale)
+        capture_doom(views, out, args.eye, os.path.abspath(args.map), args.timeout, args.world_scale,
+                     [os.path.abspath(f) for f in args.files], args.doom_args)
     # Probes are compared in Daggerfall units. A negative distance means the ray hit nothing.
     doom = {k: [d / args.world_scale if d >= 0 else d for d in p] for k, p in doom.items()}
 

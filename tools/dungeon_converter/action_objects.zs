@@ -39,6 +39,13 @@ class DFDungeonFlat : Actor
 // A Daggerfall NPC in a dungeon. It blocks nothing and takes no damage. args[0] and args[1] hold the low and high halves of its id.
 class DFDungeonNpc : DFDungeonFlat {}
 
+// Holds one dungeon light record's light. It draws nothing and touches nothing.
+class DFDungeonLight : Actor
+{
+	Default { +NOINTERACTION +NOBLOCKMAP +NOGRAVITY +DONTSPLASH +NOTONAUTOMAP Radius 1; Height 1; }
+	States { Spawn: TNT1 A -1; Stop; }
+}
+
 // One cube of a moving model's collision. Solid to movement, hitscans, and projectiles, and can be stood on.
 class DFActionCell : Actor
 {
@@ -364,6 +371,7 @@ class DFActionHandler : EventHandler
 		if (e.IsSaveGame || e.IsReopen || !(level.MapName ~== "MAP01")) return;
 		if (Wads.CheckNumForName("DFPOINTS", Wads.ns_global) < 0) return;
 		SpawnFlats();
+		SpawnLights();
 		int lump = Wads.CheckNumForFullName("DFACTIONS");
 		if (lump < 0) return;
 
@@ -441,6 +449,40 @@ class DFActionHandler : EventHandler
 			spawned++;
 		}
 		Console.Printf("DFDFLATS spawned %d billboards, %d outside a sector, %d missing textures", spawned, outside, missing);
+	}
+
+	static double CVarOr(Name n, double fallback)
+	{
+		let v = CVar.FindCVar(n);
+		return v ? v.GetFloat() : fallback;
+	}
+
+	// DFDLIGHTS: x y z range, one RDB light record each (RDBLayout.AddLight). The Dungeon light prefab is white at
+	// intensity 0.8, and DaggerfallLight shrinks its range by up to one meter (75 map units) about 14 times a second.
+	// dd_light_range turns Unity's steep falloff into Doom's linear one; dd_dungeon_light darkens the sectors so the
+	// lights show, as Daggerfall Unity's dungeon ambient does. Both are engine cvars (dd_lights.cpp).
+	void SpawnLights()
+	{
+		int lump = Wads.CheckNumForFullName("DFDLIGHTS");
+		if (lump < 0 || CVarOr('dd_lights', 1) == 0) return;
+		double scale = CVarOr('dd_light_range', 0.4);
+		Array<String> rows;
+		Wads.ReadLump(lump).Split(rows, "\n", TOK_SKIPEMPTY);
+		int spawned = 0;
+		foreach (row : rows)
+		{
+			Array<String> f;
+			row.Split(f, " ", TOK_SKIPEMPTY);
+			if (f.Size() < 4) continue;
+			let a = Actor.Spawn("DFDungeonLight", (f[0].ToDouble(), f[1].ToDouble(), f[2].ToDouble()), NO_REPLACE);
+			double size = f[3].ToDouble() * scale / 2;	// a Doom light reaches twice its size
+			a.A_AttachLight('ddlight', DynamicLight.RandomFlickerLight, Color(255, 255, 255), int(max(size - 75 * scale / 2, 1)), int(size),
+				DynamicLight.LF_ATTENUATE, param: 3.0 / 360, intensity: 0.8);
+			spawned++;
+		}
+		int ambient = int(CVarOr('dd_dungeon_light', 112));
+		for (int i = 0; i < level.Sectors.Size(); i++) level.Sectors[i].SetLightLevel(ambient);
+		Console.Printf("DFDLIGHTS spawned %d lights, sector light %d", spawned, ambient);
 	}
 
 	DFAction Build(Array<String> f, double cellSize)

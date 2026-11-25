@@ -24,6 +24,10 @@ python tools/dungeon_compare/flood_report.py <out>\map\privateershold.points.txt
 
 Open `<out>\compare\index.html` to review. Daggerfall is on the left and UZDoom is on the right. `probes.csv` holds the distances. `--skip-df` and `--skip-doom` reuse an existing capture.
 
+## Lights
+
+`--lit` keeps Daggerfall Unity's own lights and ambient in the capture (job line `lit`). `light_views.py` writes viewpoints that look at a converted dungeon's light records. Doom-side shots and frame times come from `tools/lights/light_shots.py`, which runs through `quiet_run` and renders a scaled 960x720 scene even while minimized; `tools/lights/pair_shots.py` joins the two. Commands are in `work/notes/20261124-124736.md`.
+
 ## Movement parity and bullet check
 
 ```powershell

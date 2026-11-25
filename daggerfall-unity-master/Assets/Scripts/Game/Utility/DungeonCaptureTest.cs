@@ -34,7 +34,7 @@ namespace DaggerfallWorkshop.Game
         string dungeonName, outDir, daggerfallPath;
         int width = 960, height = 720;
         float verticalFov = 73.74f;
-        bool hasFlood;
+        bool hasFlood, lit;
         float floodX, floodY, floodFloor;
         readonly List<View> views = new List<View>();
         readonly StringBuilder results = new StringBuilder();
@@ -69,6 +69,7 @@ namespace DaggerfallWorkshop.Game
                     case "daggerfall": daggerfallPath = p[1]; break;
                     case "size": width = int.Parse(p[1]); height = int.Parse(p[2]); break;
                     case "vfov": verticalFov = Number(p[1]); break;
+                    case "lit": lit = true; break;
                     case "flood": hasFlood = true; floodX = Number(p[1]); floodY = Number(p[2]); floodFloor = Number(p[3]); break;
                     case "view":
                         views.Add(new View { Id = p[1], X = Number(p[2]), Y = Number(p[3]), Z = Number(p[4]), Yaw = Number(p[5]), Pitch = Number(p[6]) });
@@ -130,10 +131,13 @@ namespace DaggerfallWorkshop.Game
             GameManager.Instance.PlayerMotor.enabled = false;
             GameManager.Instance.PlayerMouseLook.enabled = false;
 
-            // Flat light, so geometry can be compared instead of Daggerfall's dark torch lighting.
-            RenderSettings.fog = false;
-            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-            RenderSettings.ambientLight = Color.white;
+            // Flat light, so geometry can be compared instead of Daggerfall's dark torch lighting. A "lit" job keeps the game's lights.
+            if (!lit)
+            {
+                RenderSettings.fog = false;
+                RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+                RenderSettings.ambientLight = Color.white;
+            }
 
             Camera main = GameManager.Instance.MainCamera;
             var cameraObject = new GameObject("CaptureCamera");
