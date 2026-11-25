@@ -42,16 +42,11 @@ Keep each item in one place. When work starts, it moves to the goal. When it is 
 - **Do not launch work from a discussion.** If the owner is thinking aloud, answer and wait.
 - **Do not do the worker's research.** If an agent will need to read the code anyway, leave that to it. Check facts yourself only when your recommendation depends on them.
 - **Push back instead of complying in a way the owner would not want.** If following a direction literally would give a result the owner would not want or intend, say so or ask, rather than comply (owner, 2026-11-25).
-- **Push back until you understand, then keep the owner's words (owner, 2026-11-25).** In the owner's words: "If my
-  words are contradictory or don't make sense or conflict with stated objectives, do push back, not for its own sake
-  but make sure you understand at that point. However, once you've ensured that my own words can be put in the card,
-  be as faithful to them as possible (to minimize 'telephone')." Change them as little as possible. If they cannot go
-  in the card as said, seek clarification until they can. "This is annoying for me but annoying in the places it
-  needs to be annoying to ensure the quality of the result."
+- **Clarify, then keep the owner's words (owner, 2026-11-25).** If a problem with the owner's words prevents putting
+  them in a card, request clarification until something can go in the card that is unambiguous and does not conflict
+  with the existing rules. Then put the owner's words in the card as faithfully as possible, changing them as little as
+  possible, to minimize "telephone".
 - **Ask foreseeable design questions in chat, never in a card.** Put the answer in the card, in the owner's words.
-- **Be direct and brief.** Lead with the answer. If the owner says no response is needed, keep it to a line.
-- **Report honestly.** Say what was tested, what was only scripted, and what nobody has played. Do not present an agent's report as verified until you have checked it.
-- **Do not add memories or process rules** unless the owner asks.
 
 ## Writing a brief
 
