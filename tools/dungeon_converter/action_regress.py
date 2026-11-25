@@ -83,10 +83,11 @@ for name, files in () if only_load else (("e1m1_stock", []), ("e1m1_drla", DRLA)
 # A default conversion, as the game uses. door_check applies the game's 10.5 player radius itself.
 ph = [os.path.join(holds, "privateershold" + s) for s in (".wad", "_mesh.pk3", "_doors.pk3")]
 if not only_load:
-    text = launch("ph_doors", "DOOM2.WAD", [*ph, os.path.join(HERE, "door_check")], ["-nomonsters", "+map", "MAP01"], "DTDONE", 60)
+    text = launch("ph_doors", "DOOM2.WAD", [*ph, os.path.join(HERE, "door_check")], ["-nomonsters", "+map", "MAP01"], "DTDONE", 75)
     rows = [l for l in text.splitlines() if l.startswith("DT door=")]
     rows = rows[:len(rows) // 2] if len(rows) >= 116 and rows[:58] == rows[58:116] else rows
-    checked = ("use", "closed", "walk", "trace", "ball", "swing", "openpass", "traceopen", "ballopen", "solid", "through", "hold")
+    # Open doors are solid (owner, 2026-11-24): openblock, block and hold check that open and swinging doors stop bodies.
+    checked = ("use", "closed", "walk", "trace", "ball", "swing", "openblock", "traceopen", "ballopen", "solid", "block", "hold")
     dead_ends = {21, 23, 24, 25, 27, 28, 31, 34, 37, 41, 49, 53}  # no dungeon on their far side; see work/notes/door-objects.md
     bad = [l for l in rows if int(l.split()[1][5:]) not in dead_ends
            and any(f.split("=")[0] in checked and "0" in f.split("=")[1] for f in l.split()[2:])]
@@ -94,7 +95,7 @@ if not only_load:
     for l in bad[:4]:
         print("  " + l[:170])
     bodies = next((l for l in text.splitlines() if l.startswith("DTPLAYERSTALL")), "")
-    report("door_bodies", "through+passable+solid" in bodies and not any(w in bodies for w in ("FAILED", "NOTPASSABLE", "NOTSOLID")), bodies)
+    report("door_bodies", "held+stopped+closed" in bodies and not any(w in bodies for w in ("NOTHELD", "NOTSTOPPED", "NOTCLOSED")), bodies)
     for old in glob.glob(os.path.join(run_dir, "*.zds")):
         os.remove(old)
 files = [*(os.path.join(scourg, "scourgbarrow" + s) for s in (".wad", "_mesh.pk3", "_doors.pk3")), os.path.join(HERE, "action_save_check")]

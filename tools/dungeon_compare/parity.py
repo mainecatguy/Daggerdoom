@@ -114,7 +114,8 @@ def main():
     print("\n".join(state))
     if not finished:
         sys.exit("UZDoom did not finish the test; see " + log)
-    # Daggerfall's side models closed doors as solid boxes and open doors as absent, so Doom's doors must match.
+    # Daggerfall's side models closed doors as solid boxes and open doors as solid leaves swung about their hinges
+    # (open doors are solid, owner decision 2026-11-24), so Doom's doors must match.
     door_states = {m.group(1): tuple(map(int, m.groups()[1:])) for m in
                    (re.match(r"DFDOORSTATE (closed|opened) links (\d+) solid (\d+) moved (\d+)$", l) for l in state) if m}
     if "closed" not in door_states or "opened" not in door_states:
@@ -123,8 +124,8 @@ def main():
     if not links or solid != links or moved:
         sys.exit(f"closed doors must be in place and solid: links {links} solid {solid} moved {moved}")
     links, solid, moved = door_states["opened"]
-    if moved != links or solid:
-        sys.exit(f"open doors must have swung and be non-solid: links {links} solid {solid} moved {moved}")
+    if moved != links or solid != links:
+        sys.exit(f"open doors must have swung and stay solid: links {links} solid {solid} moved {moved}")
     with open(flood, "w") as f:
         f.writelines(lines)
     convert(args.dungeon, out, parity, args.world_scale, extra)
