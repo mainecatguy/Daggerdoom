@@ -126,7 +126,7 @@ class DoomerfallAmmoTiers : StaticEventHandler
 		if (loadedTier < 0 || !rules || automapactive || consoleplayer < 0) return;
 		let p = players[consoleplayer];
 		if (p.mo == null || p.health <= 0 || p.camera != p.mo) return;
-		int scale = max(1, CleanXfac_1);
+		int scale = DoomerfallText.Scale();
 		int fh = SmallFont.GetHeight() * scale;
 		int bottom = min(StatusBar.GetTopOfStatusBar(), int(Screen.GetHeight() * 0.85)) - fh * 3; // Above "Sneaking".
 		String text = String.Format("%s %s", TIERNAMES[loadedTier], AMMONAMES[loadedType]);

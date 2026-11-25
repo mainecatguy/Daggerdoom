@@ -284,7 +284,7 @@ class DoomerfallClimb : StaticEventHandler
 		let s = st[consoleplayer];
 		if (!s || !s.climbing || p.mo == null || p.camera != p.mo) return;
 		String text = s.slipping ? "Slipping" : "Climbing";
-		int scale = max(1, CleanXfac_1);
+		int scale = DoomerfallText.Scale();
 		int w = SmallFont.StringWidth(text) * scale;
 		int h = SmallFont.GetHeight() * scale;
 		int bottom = min(StatusBar.GetTopOfStatusBar(), int(Screen.GetHeight() * 0.85));
