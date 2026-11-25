@@ -37,6 +37,8 @@ const wchar_t Usage[] =
 	L"--log <file>         Log file (default: doomerfall-launcher.log beside the launcher)\n"
 	L"--minimized          For tests: keep both games silent and unfocused, with no dialogs. UZDoom stays\n"
 	L"                     minimized and Daggerfall Unity runs on a private desktop the user never sees\n"
+	L"--show-dfu           For debugging: show Daggerfall Unity's window. By default it runs on a private\n"
+	L"                     desktop, because Doom shows Daggerfall's UI and reads all input\n"
 	L"--no-bridge          Do not create a bridge session\n"
 	L"--nodraw             Daggerfall keeps its world loaded but does not draw it in 3D\n";
 
@@ -46,6 +48,7 @@ struct Options
 	std::vector<std::wstring> mods, uzdoomArgs, dfuArgs;
 	DWORD graceMs = 5000;
 	bool minimized = false;
+	bool showDfu = false;
 	bool bridge = true;
 };
 
@@ -194,6 +197,11 @@ bool ParseArgs(int argc, wchar_t **argv, Options &options, std::wstring &error)
 		if (arg == L"--minimized")
 		{
 			options.minimized = true;
+			continue;
+		}
+		if (arg == L"--show-dfu")
+		{
+			options.showDfu = true;
 			continue;
 		}
 		if (arg == L"--no-bridge")
@@ -415,19 +423,23 @@ int Run(Options options)
 		Log(L"bridge session " + wideId);
 	}
 
-	// Test mode: both games silent, and Daggerfall on a desktop nobody sees, because Unity shows and
-	// activates its window on start whatever it is asked. UZDoom stays here, minimized, so it renders as before.
-	HDESK desktop = nullptr;
-	std::wstring desktopName;
+	// Daggerfall runs on a desktop nobody sees, because Unity shows and activates its window on start whatever
+	// it is asked, and in play Doom shows Daggerfall's UI and reads all input. So only Doom's window ever appears.
+	// Test mode also keeps both games silent, and UZDoom minimized here, so it renders as before.
 	if (options.minimized)
 	{
 		options.uzdoomArgs.push_back(L"-nosound");
 		options.uzdoomArgs.push_back(L"-noactivate");
 		options.dfuArgs.push_back(L"-dfmute");
-		desktopName = L"doomerfall-test-" + std::to_wstring(GetCurrentProcessId());
+	}
+	HDESK desktop = nullptr;
+	std::wstring desktopName;
+	if (options.minimized || !options.showDfu)
+	{
+		desktopName = L"doomerfall-dfu-" + std::to_wstring(GetCurrentProcessId());
 		desktop = CreateDesktopW(desktopName.c_str(), nullptr, nullptr, 0, GENERIC_ALL, nullptr);
-		if (!desktop) return Fail(ExitLaunchFailed, L"Could not create the test desktop: " + LastError());
-		Log(L"test desktop " + desktopName);
+		if (!desktop) return Fail(ExitLaunchFailed, L"Could not create Daggerfall's desktop: " + LastError());
+		Log(L"Daggerfall desktop " + desktopName);
 	}
 
 	HANDLE job = CreateJobObjectW(nullptr, nullptr);
@@ -449,6 +461,7 @@ int Run(Options options)
 		TerminateJobObject(job, 1);
 		return Fail(ExitLaunchFailed, error);
 	}
+	if (!options.minimized) AllowSetForegroundWindow(games[0].process.dwProcessId); // Doom's window comes up in front.
 	ResumeThread(games[0].process.hThread);
 	ResumeThread(games[1].process.hThread);
 

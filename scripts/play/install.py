@@ -37,6 +37,7 @@ start "" "%HERE%doomerfall-launcher.exe" --nodraw --uzdoom "%HERE%uzdoom\uzdoom.
 # What to try, for the owner. One line each, written into play.bat as rem lines.
 TRY = [
     "What to try (each was merged and tested on its own; this build has them all together):",
+    " 0. Startup: only Doom's window opens and comes to the front; Daggerfall runs out of sight behind it.",
     " 1. New Game: no Reflexes choice now. You wake at Privateer's Hold's real start point, and a start save is made.",
     " 2. Privateer's Hold: monsters come in deterministic packs with a leader on each Daggerfall spawn spot. It is lit by its torches now.",
     " 3. Kill a pack, look at a drop, press Use. Walk over stimpacks, clips and shells.",
