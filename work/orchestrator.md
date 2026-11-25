@@ -47,7 +47,9 @@ Keep each item in one place. When work starts, it moves to the goal. When it is 
 
 ## Writing a brief
 
-Trust the worker. It has the same abilities you do. Give it the problem and context, offer ideas as suggestions, and do not impose a solution or a checklist of how to think. Do not ask it to diagnose a system that is being replaced.
+Keep cards short so the owner can read them quickly (owner, 2026-11-24). Short does not mean thin. Trust the worker: it has the same abilities you do. Give it the problem, offer ideas only as suggestions, and do not impose a solution or a checklist of how to think. Do not ask it to diagnose a system that is being replaced.
+
+**Before writing a card, stop and ask: what context does the worker lack that it cannot find in `AGENTS.md`, the files the card links, or the code?** Usually that is the owner's decisions and the reasons for them, approaches already tried or ruled out, and anything settled only in conversation. Put all of that in, or in a notes or backlog file the card links. Leave out everything the worker can find or work out itself, such as how the current code works.
 
 Do not embellish what the owner asked for. Before sending a card, check it for added requirements and for assumptions that may not be true, and cut them. An inference with a good reason behind it is not an embellishment; keep it and say why.
 
@@ -55,41 +57,18 @@ Use this shape:
 
 ```markdown
 # <Task>
+<The goal: a few lines, the problem in the owner's terms.>
 
-We are trusting your judgment on this. Below are the goal, what exists, and some
-ideas. The ideas are suggestions only. Think it through and do what you believe is
-best.
-
-## Project
-Doomerfall combines Daggerfall Unity (world and game state) with UZDoom
-(movement, combat, rendering). Read D:\dev\DoomDaggerfall\AGENTS.md first. Read
-gamedesign.md and architecture.md only if they affect this work.
-
-## Goal
-## The owner's design or decisions
-(Owner, 2026-11-23: their decisions are intent, not law, and a better way is welcome. This
-does not need to be said in every card.)
-## What exists today
-## Ideas
-
-## The one design constraint
-If something seems extremely hard, think twice about it. We would rather have a solid
-result with known gaps than chase a perfect system.
-
-## Out of scope for now
-## What must stay true
-## Working rules
-## When you finish
+Owner decisions: <what the owner decided and why, dated. Omit if none.>
+Done when: <one to three observable results the verifier can check.>
+Context: <links to the backlog item, notes or research. Omit if none.>
 ```
 
-`AGENTS.md` already covers builds, quiet launches, game data, budget, and asking the owner, so do not repeat those in a brief. Every brief that can touch the engine or generated maps must add:
+Add a section only when it says something the worker could not infer, such as a constraint, an out-of-scope line, or a hard requirement. Hard open problems may still need a longer proposal or prior research; link it rather than pasting it.
 
-- Any engine change stays inactive unless a generated Daggerfall map uses it. Check `DOOM.WAD` E1M1 both stock and with the DRLA set from `play_drlax.bat`.
-- Work on a new branch from `integration` in a named worktree, with its own build directory if another agent is building. Commit there and do not merge.
-- Use a private `-config` for test launches, about 30-second timeouts, and stop on a fatal error.
-- Leave a demo in a new folder under `D:\dev\DoomDaggerfall-loop\review` with a one-click `play.bat`, and write `work/notes/<task>.md`.
+The worker prompt (`scripts/overnight/agent.md`) and `AGENTS.md` already give every worker the standing rules, so never repeat them in a card: trust and judgment, the one design constraint, builds, quiet launches, game data, budget, asking the owner, notes, the E1M1 check for engine changes, private configs and short timeouts, and the review demo. In the overnight loop the worker is already on its own branch, so cards say nothing about branches or worktrees.
 
-Pick the cheapest model that fits the job. Use Opus for hard open problems and complicated implementation. Use Sonnet for bounded work and verification that needs judgment. Use Haiku for trivial checks, such as testing a map and reporting back. Tell Sonnet and Haiku to stop and report if the job turns out to be hard.
+**Models (owner, 2026-11-24):** any card that writes new code or needs engineering judgment uses Opus. Use Sonnet only for bounded checks and lookups that write no code and need no engineering judgment, and Haiku for trivial checks, such as testing a map and reporting back. Tell Sonnet and Haiku to stop and report if the job turns out to be hard.
 
 ## Reviewing finished work
 
