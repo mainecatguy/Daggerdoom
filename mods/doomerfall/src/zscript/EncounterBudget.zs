@@ -183,7 +183,7 @@ extend class DoomerfallEncounterPlanner
 		for (int i = 0; i < pool.monsters.Size(); i++)
 		{
 			let m = pool.monsters[i];
-			if (IsTitan(m) || m.capped || (civil && !m.civilWarSafe)) continue;
+			if (!Usable(m, civil) || m.capped) continue;
 			if (!any || Cost(m) < Cost(any)) any = m;
 			if ((!at || Fits(m, at)) && (!best || Cost(m) < Cost(best))) best = m;
 		}
@@ -322,7 +322,7 @@ extend class DoomerfallEncounterPlanner
 		for (int i = 0; i < pool.monsters.Size(); i++)
 		{
 			let m = pool.monsters[i];
-			if (!(m.group ~== "EX") || (result.civilWar && !m.civilWarSafe)) continue;
+			if (!(m.group ~== "EX") || (result.civilWar && !m.civilWarSafe) || !ThemeAllows(m)) continue;
 			titans.Push(i);
 		}
 		if (!titans.Size()) { result.titanWhy = result.civilWar ? "no Civil War safe titan loaded" : "no titan loaded"; return; }

@@ -50,17 +50,34 @@ class DoomerfallEncounterPlanTest : StaticEventHandler
 			Run(3720 + k * 7,types[(k * 5) % types.Size()], 490 + k * 3, 245 + k * 4, 10 + k);
 			made++;
 		}
+		// The Humanoid story theme (only=1): Privateer's Hold's real facts at level 1 and at other levels, then 30
+		// other dungeon indices across all levels. Every army member must be a Former Human kind.
+		for (int lv = 1; lv <= 30; lv += 7)
+		{
+			RunAt(1506, 50050, 17, "Humanoid", 109.5, 158.5, lv);
+			made++;
+		}
+		for (int k = 0; k < 30; k++)
+		{
+			Run(4100 + k * 13, "Humanoid", (k * 83 + 40) % 1000, (k * 47 + 20) % 500, 1 + k);
+			made++;
+		}
 		Console.Printf("ENCPLAN summary plans=%d", made);
 		Console.Printf("ENCPLAN done");
 	}
 
 	private void Run(int index, String type, double x, double y, int level)
 	{
+		RunAt(index, 50000 + index * 3, (index * 7) % 62, type, x, y, level);
+	}
+
+	private void RunAt(int index, int locationId, int region, String type, double x, double y, int level)
+	{
 		let req = new("DoomerfallEncounterRequest");
 		req.dungeonIndex = index;
-		req.locationId = 50000 + index * 3;
+		req.locationId = locationId;
 		req.locationName = "Fake " .. index;
-		req.regionIndex = (index * 7) % 62;
+		req.regionIndex = region;
 		req.regionName = "Region " .. req.regionIndex;
 		req.worldX = x;
 		req.worldY = y;

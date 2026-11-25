@@ -26,6 +26,7 @@ CH = 'ColourfulHell_1_04.pk3'
 BAD = re.compile(r'Script error, "doomerfall\.pk3|doomerfall\.pk3:zscript/\S+, line \d+|\bFatal error|VM execution aborted|Execution could not continue', re.I)
 FAMILIES = {'Standard', 'Nightmare', 'Technophobia', 'Armageddon'}
 TITANS = {'EX', 'BlackWhite'}
+HUMANOID = {'ZombieMan', 'ShotgunGuy', 'ChaingunGuy'}
 STOCK17 = {'ZombieMan', 'ShotgunGuy', 'ChaingunGuy', 'DoomImp', 'Demon', 'Spectre', 'LostSoul', 'Cacodemon', 'HellKnight',
            'BaronOfHell', 'Arachnotron', 'PainElemental', 'Revenant', 'Fatso', 'Archvile', 'Cyberdemon', 'SpiderMastermind'}
 
@@ -179,6 +180,21 @@ def check_setup(name, lines, out, checks, stock=False):
                 for k, p in enumerate(cluster) for q in cluster[k + 1:]), default=0)
     checks.append((f'{name}: {len(cluster)} neighbours in cell 10,5 share favourite kind {shared}, present in every army, '
                    f'and otherwise differ (fewest differing genes {gmin})', len(cluster) >= 10 and len(shared) == 1 and present and gmin >= 7))
+    # The Humanoid story theme (only=1): every member of every army, both Civil War sides, is a Former Human kind.
+    humanoid, typ, bad = 0, None, []
+    for l in out:
+        if l.startswith('ENCPLAN plan '):
+            typ = kv(l[len('ENCPLAN plan '):])['type']
+            humanoid += typ == 'Humanoid'
+        elif l.startswith('ENCPLAN army ') and typ == 'Humanoid':
+            d = kv(l[len('ENCPLAN army '):])
+            ents = [e.split(':') for e in d['entries'].split('|')] if d['entries'] else []
+            if not ents:
+                bad.append(f'{d["idx"]}{d["side"]} empty')
+            bad += [f'{d["idx"]}{d["side"]} {e[1]}' for e in ents if e[2] not in HUMANOID]
+        elif l.startswith('ENCPLAN warn ') and typ == 'Humanoid':
+            bad.append(l)
+    checks.append((f'{name}: {humanoid} Humanoid plans hold only Former Human kinds {bad[:6]}', humanoid == 35 and not bad))
     ncw = sum(p['civilwar'] == '1' for p in plans.values())
     checks.append((f'{name}: Civil War in {ncw}/{len(plans)} plans (design: about 35%)', 0.2 * len(plans) < ncw < 0.5 * len(plans)))
     return out, warns

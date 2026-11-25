@@ -55,8 +55,21 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         // DragonsDen, BarbarianStronghold, VolcanicCaves, ScorpionNest, Cemetery.
         static readonly double[] TypeLean = { -0.5, 0, 0, -0.5, 0.5, -1.5, -1.5, 1, 1.5, 1, -1, 0, -1, 1, 2, 0, 1.5, -0.5, 0 };
 
-        // Story places with a fixed level, applied after ranking. Every new character wakes up in Privateer's Hold.
+        // Main quest dungeons with a fixed level, set by where they come in the main quest (owner, 2026-11-24), applied
+        // after ranking. Every new character wakes up in Privateer's Hold. The proposed levels for the other main quest
+        // dungeons wait on the owner (work/notes/20261124-202353.md); area_level.py's OVERRIDES must match this table.
         static readonly Dictionary<int, int> Overrides = new Dictionary<int, int> { { 187853213, 1 } };
+
+        // Main quest dungeons with a story encounter theme: a row name in doomerfall_encounters.txt's theme table, sent to
+        // Doom in place of the dungeon type's name. Privateer's Hold is pirates, so humanoid (owner, 2026-11-24).
+        static readonly Dictionary<int, string> StoryThemes = new Dictionary<int, string> { { 187853213, "Humanoid" } };
+
+        /// <summary>The story encounter theme of a main quest dungeon by MapId, or null to use its dungeon type.</summary>
+        internal static string StoryTheme(int mapId)
+        {
+            string theme;
+            return StoryThemes.TryGetValue(mapId, out theme) ? theme : null;
+        }
 
         // Location type bytes that pick a size class. Everything else with a dungeon is a labyrinth.
         const int TypeKeep = 7, TypeRuin = 10, TypeGraveyard = 12;
