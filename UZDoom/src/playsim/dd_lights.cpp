@@ -20,6 +20,7 @@
 #include "g_levellocals.h"
 #include "printf.h"
 #include "texturemanager.h"
+#include "playsim/dd_log.h" // [Doomerfall]
 
 int AttachLightDirect(AActor *self, int _lightid, int type, int color, int radius1, int radius2, int flags, double ofs_x, double ofs_y, double ofs_z, double param, double spoti, double spoto, double spotp, double intensity);
 int RemoveLight(AActor *self, int _lightid);
@@ -140,7 +141,7 @@ void DD_LightsInterior(FLevelLocals *Level)
 {
 	if (!*dd_lights) return;
 	for (auto &sec : Level->sectors) sec.SetLightLevel(*dd_interior_light);
-	Printf("DDLIGHTS interior lamps %d, sector light %d\n", interiorLamps, *dd_interior_light);
+	DD_DebugPrintf("DDLIGHTS interior lamps %d, sector light %d\n", interiorLamps, *dd_interior_light);
 	interiorLamps = 0;
 }
 
@@ -148,7 +149,7 @@ CCMD(dd_lights_status)
 {
 	int n = 0, active = 0;
 	for (FDynamicLight *l = primaryLevel->lights; l; l = l->next) { n++; if (l->IsActive()) active++; }
-	Printf("DDLIGHTS status lights=%d active=%d\n", n, active);
+	DD_DebugPrintf("DDLIGHTS status lights=%d active=%d\n", n, active);
 }
 
 // From the bridge: Daggerfall's WorldTime.Now.IsCityLightsOn.
@@ -181,5 +182,5 @@ void DD_LightsTick(FLevelLocals *Level)
 		else RemoveLight(mo, FName("ddlamp").GetIndex());
 		count++;
 	}
-	if (count) Printf("DDLIGHTS town lamps %s: %d\n", want ? "on" : "off", count);
+	if (count) DD_DebugPrintf("DDLIGHTS town lamps %s: %d\n", want ? "on" : "off", count);
 }

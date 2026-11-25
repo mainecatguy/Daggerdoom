@@ -11,7 +11,7 @@ class DFActionRules play
 	{
 		a.ruleRequests++;
 		if (a.ruleRequests == 1)
-			Console.Printf("DFRULE %s record=%d flag=%d index=%d axis=%d magnitude=%d", kind, a.id, a.flag, a.index, a.axis, a.magnitude);
+			{ let dbg = CVar.FindCVar("dd_debugmessages"); Console.PrintfEx((dbg && dbg.GetBool()) ? PRINT_HIGH : PRINT_HIGH | PRINT_NONOTIFY | PRINT_NOCONSOLE, "DFRULE %s record=%d flag=%d index=%d axis=%d magnitude=%d", kind, a.id, a.flag, a.index, a.axis, a.magnitude); } // diagnostics: on screen only with dd_debugmessages
 	}
 
 	// A type 12 riddle holds its chain until Daggerfall reports the right answer. The bridge calls this.
@@ -414,7 +414,7 @@ class DFActionHandler : EventHandler
 			}
 			a.Place(false);
 		}
-		Console.Printf("DFACTIONS loaded %d records, %d collision cells, %d door links", actions.Size(), cellCount, doorLinks);
+		{ let dbg = CVar.FindCVar("dd_debugmessages"); Console.PrintfEx((dbg && dbg.GetBool()) ? PRINT_HIGH : PRINT_HIGH | PRINT_NONOTIFY | PRINT_NOCONSOLE, "DFACTIONS loaded %d records, %d collision cells, %d door links", actions.Size(), cellCount, doorLinks); } // diagnostics: on screen only with dd_debugmessages
 	}
 
 	// DFDFLATS: texture x y z scaleX scaleY [npc id]. The center of the picture is on the position.
@@ -444,11 +444,11 @@ class DFActionHandler : EventHandler
 			{
 				outside++;
 				let sec = level.PointInSector(at.xy);
-				Console.Printf("DFFLATOUT %s %.0f %.0f %.0f sector %d floor %.0f ceiling %.0f", f[0], at.x, at.y, at.z, sec.Index(), sec.floorplane.ZAtPoint(at.xy), sec.ceilingplane.ZAtPoint(at.xy));
+				{ let dbg = CVar.FindCVar("dd_debugmessages"); Console.PrintfEx((dbg && dbg.GetBool()) ? PRINT_HIGH : PRINT_HIGH | PRINT_NONOTIFY | PRINT_NOCONSOLE, "DFFLATOUT %s %.0f %.0f %.0f sector %d floor %.0f ceiling %.0f", f[0], at.x, at.y, at.z, sec.Index(), sec.floorplane.ZAtPoint(at.xy), sec.ceilingplane.ZAtPoint(at.xy)); } // diagnostics: on screen only with dd_debugmessages
 			}
 			spawned++;
 		}
-		Console.Printf("DFDFLATS spawned %d billboards, %d outside a sector, %d missing textures", spawned, outside, missing);
+		{ let dbg = CVar.FindCVar("dd_debugmessages"); Console.PrintfEx((dbg && dbg.GetBool()) ? PRINT_HIGH : PRINT_HIGH | PRINT_NONOTIFY | PRINT_NOCONSOLE, "DFDFLATS spawned %d billboards, %d outside a sector, %d missing textures", spawned, outside, missing); } // diagnostics: on screen only with dd_debugmessages
 	}
 
 	static double CVarOr(Name n, double fallback)
@@ -482,7 +482,7 @@ class DFActionHandler : EventHandler
 		}
 		int ambient = int(CVarOr('dd_dungeon_light', 112));
 		for (int i = 0; i < level.Sectors.Size(); i++) level.Sectors[i].SetLightLevel(ambient);
-		Console.Printf("DFDLIGHTS spawned %d lights, sector light %d", spawned, ambient);
+		{ let dbg = CVar.FindCVar("dd_debugmessages"); Console.PrintfEx((dbg && dbg.GetBool()) ? PRINT_HIGH : PRINT_HIGH | PRINT_NONOTIFY | PRINT_NOCONSOLE, "DFDLIGHTS spawned %d lights, sector light %d", spawned, ambient); } // diagnostics: on screen only with dd_debugmessages
 	}
 
 	DFAction Build(Array<String> f, double cellSize)

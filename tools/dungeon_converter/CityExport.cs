@@ -316,7 +316,7 @@ class DFRuntimeTown
 			door.solidWhenOpen = true;
 			count++;
 		}
-		Console.Printf(""DFGATES spawned %d leaves"", count);
+		{ let dbg = CVar.FindCVar(""dd_debugmessages""); Console.PrintfEx((dbg && dbg.GetBool()) ? PRINT_HIGH : PRINT_HIGH | PRINT_NONOTIFY | PRINT_NOCONSOLE, ""DFGATES spawned %d leaves"", count); } // diagnostics: on screen only with dd_debugmessages
 	}
 }
 
@@ -1014,7 +1014,7 @@ class DFCityHandler : EventHandler
 			a.picnum = TexMan.CheckForTexture(f[0], TexMan.Type_Any);
 			a.scale = (f[4].ToDouble(), f[5].ToDouble());
 		}
-		Console.Printf(""DFCITY: %d billboards"", rows.Size());
+		{ let dbg = CVar.FindCVar(""dd_debugmessages""); Console.PrintfEx((dbg && dbg.GetBool()) ? PRINT_HIGH : PRINT_HIGH | PRINT_NONOTIFY | PRINT_NOCONSOLE, ""DFCITY: %d billboards"", rows.Size()); } // diagnostics: on screen only with dd_debugmessages
 		SpawnGates();
 	}
 
@@ -1038,7 +1038,7 @@ class DFCityHandler : EventHandler
 			door.solidWhenOpen = true;
 			count++;
 		}
-		Console.Printf(""DFGATES spawned %d leaves"", count);
+		{ let dbg = CVar.FindCVar(""dd_debugmessages""); Console.PrintfEx((dbg && dbg.GetBool()) ? PRINT_HIGH : PRINT_HIGH | PRINT_NONOTIFY | PRINT_NOCONSOLE, ""DFGATES spawned %d leaves"", count); } // diagnostics: on screen only with dd_debugmessages
 	}
 
 	override void PlayerEntered(PlayerEvent e) { if (IsCity()) Fit(players[e.PlayerNumber].mo); }

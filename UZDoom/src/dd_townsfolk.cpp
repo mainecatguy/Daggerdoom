@@ -22,6 +22,7 @@
 #include "p_local.h"
 #include "printf.h"
 #include "texturemanager.h"
+#include "playsim/dd_log.h" // [Doomerfall]
 
 bool DDTreadmill_WorldToLocal(double x, double y, double &doomX, double &doomY);
 
@@ -60,7 +61,7 @@ void LoadScales()
 	if (scalesLoaded) return;
 	scalesLoaded = true;
 	const int lump = fileSystem.CheckNumForName("DFMOBILE");
-	if (lump < 0) { Printf("DDTOWNSFOLK no DFMOBILE lump, so townspeople use unit scale\n"); return; }
+	if (lump < 0) { DD_DebugPrintf("DDTOWNSFOLK no DFMOBILE lump, so townspeople use unit scale\n"); return; }
 	auto data = fileSystem.ReadFile(lump);
 	FString text((const char *)data.data(), data.size());
 	for (auto &line : text.Split("\n"))
@@ -228,7 +229,7 @@ void DD_TownsfolkTick(FLevelLocals *Level)
 		MakeKillable(mo);
 		spawned++;
 	}
-	if (spawned) Printf("DDTOWNSFOLK spawned %d, listed %d\n", spawned, int(rows.size()));
+	if (spawned) DD_DebugPrintf("DDTOWNSFOLK spawned %d, listed %d\n", spawned, int(rows.size()));
 }
 
 bool DD_TownsfolkEvent(const dfb_event &e)
@@ -305,5 +306,5 @@ void DD_TownsfolkDied(dfb_session *session, AActor *mo)
 	e.tic = gametic;
 	memcpy(e.payload, &death, sizeof(death));
 	dfb_send(session, &e);
-	Printf("DDTOWNSFOLK died %016" PRIx64 "\n", death.id);
+	DD_DebugPrintf("DDTOWNSFOLK died %016" PRIx64 "\n", death.id);
 }

@@ -1,5 +1,6 @@
 version "3.3"
 
+#include "zscript/DoomerfallLog.zs"
 #include "zscript/Doomerfall.zs"
 #include "zscript/DoomerfallItems.zs"
 #include "zscript/DoomerfallGuns.zs"

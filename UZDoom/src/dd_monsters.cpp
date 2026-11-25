@@ -26,6 +26,7 @@
 #include "m_argv.h"
 #include "p_local.h"
 #include "printf.h"
+#include "playsim/dd_log.h" // [Doomerfall]
 
 bool DDTreadmill_PlayerSpace(double &x, double &y, double &z, double &yawDegrees, int &target);
 
@@ -123,12 +124,12 @@ void RunClaims(FLevelLocals *Level)
 			best->ddRecordId = c.id;
 			best->SpawnPoint = best->Pos();	// So the world table can tell it has not moved.
 			RigFaction(best, c.side, c.stance);
-			Printf("DDMON claimed %016" PRIx64 " %s at %.1f,%.1f,%.1f\n", c.id, best->GetClass()->TypeName.GetChars(), best->X(), best->Y(), best->Z());
+			DD_DebugPrintf("DDMON claimed %016" PRIx64 " %s at %.1f,%.1f,%.1f\n", c.id, best->GetClass()->TypeName.GetChars(), best->X(), best->Y(), best->Z());
 			claims.erase(claims.begin() + n);
 		}
 		else if (Level->maptime > c.deadline)
 		{
-			Printf("DDMON no monster for %016" PRIx64 "\n", c.id);
+			DD_DebugPrintf("DDMON no monster for %016" PRIx64 "\n", c.id);
 			claims.erase(claims.begin() + n);
 		}
 		else n++;
@@ -157,7 +158,7 @@ AActor *SpawnMook(FLevelLocals *Level, PClassActor *cls, uint64_t id, const DVec
 bool SpawnLeader(FLevelLocals *Level, PClassActor *cls, uint64_t id, const DVector3 &at, bool replace, const char *why)
 {
 	if (!SpawnMook(Level, cls, id, at, replace)) return false;
-	Printf("DDENC leader %016" PRIx64 " %s at %.1f,%.1f,%.1f (%s)\n", id, cls->TypeName.GetChars(), at.X, at.Y, at.Z, why);
+	DD_DebugPrintf("DDENC leader %016" PRIx64 " %s at %.1f,%.1f,%.1f (%s)\n", id, cls->TypeName.GetChars(), at.X, at.Y, at.Z, why);
 	return true;
 }
 
@@ -190,7 +191,7 @@ bool PlaceMooks(FLevelLocals *Level, const std::vector<Placement> &list, std::ve
 	int mismatched = 0;
 	for (const DDEncMookOut &m : mooks)
 		mismatched += m.member == 0 && m.id != LeaderId(list[m.placement].placement);
-	if (mismatched) Printf("DDENC warning: %d leader ids from the plan differ from the placement ids\n", mismatched);
+	if (mismatched) DD_DebugPrintf("DDENC warning: %d leader ids from the plan differ from the placement ids\n", mismatched);
 	return true;
 }
 
@@ -238,7 +239,7 @@ void SpawnEncounters(FLevelLocals *Level, bool mapLeaders)
 		for (const auto *set : { &dead, &present })
 			for (uint64_t id : *set) accounted += placements.count(PlacementOf(id)) != 0 && !(set == &present && dead.count(id));
 		if (!revisit || accounted < known->second.mooks) wantedFirst = placements;
-		else Printf("DDENC all %d planned mooks are dead or present; not planning again\n", known->second.mooks);
+		else DD_DebugPrintf("DDENC all %d planned mooks are dead or present; not planning again\n", known->second.mooks);
 	}
 	else
 		for (const Placement &p : stored) if (missing(p)) wantedFirst.insert(p.placement);
@@ -249,7 +250,7 @@ void SpawnEncounters(FLevelLocals *Level, bool mapLeaders)
 	if (mapLeaders && facts.have)
 	{
 		const dfb_encounter_area &a = facts.area;
-		Printf("DDENC facts map %d dungeonIndex %d locationId %d name '%s' region %d '%s' world %.1f,%.1f type %d (%s) areaLevel %d seedOffset %d markers %d quest %d dead %d\n",
+		DD_DebugPrintf("DDENC facts map %d dungeonIndex %d locationId %d name '%s' region %d '%s' world %.1f,%.1f type %d (%s) areaLevel %d seedOffset %d markers %d quest %d dead %d\n",
 			a.map_id, a.dungeon_index, a.location_id, facts.location.GetChars(), a.region_index, facts.region.GetChars(), a.world_x, a.world_y,
 			a.dungeon_type, facts.type.GetChars(), a.area_level, a.seed_offset, int(markers.size()), quests, int(dead.size()));
 	}
@@ -286,7 +287,7 @@ void SpawnPass(FLevelLocals *Level, const std::vector<Placement> &list, const st
 	for (AActor *mo : unsolid) mo->flags |= MF_SOLID;
 	if (!ok)
 	{
-		Printf("DDENC no plan (planner or facts missing); using the stock roster\n");
+		DD_DebugPrintf("DDENC no plan (planner or facts missing); using the stock roster\n");
 		int spawned = 0;
 		for (const Placement &p : list)
 		{
@@ -294,7 +295,7 @@ void SpawnPass(FLevelLocals *Level, const std::vector<Placement> &list, const st
 			if (wanted.count(p.placement) && !dead.count(id) && !present.count(id))
 				spawned += SpawnLeader(Level, RosterClass(p.placement), id, p.pos, true, p.quest ? "quest roster" : "roster");
 		}
-		Printf("DDENC spawned %d stock leaders of %d placements\n", spawned, int(list.size()));
+		DD_DebugPrintf("DDENC spawned %d stock leaders of %d placements\n", spawned, int(list.size()));
 		return;
 	}
 	if (planned) *planned = int(mooks.size());
@@ -314,16 +315,16 @@ void SpawnPass(FLevelLocals *Level, const std::vector<Placement> &list, const st
 		leaders += m.member == 0;
 		fresh.push_back({ mo, m.member == 0 });
 		if (m.member == 0)
-			Printf("DDENC leader %016" PRIx64 " %s at %.1f,%.1f,%.1f%s\n", m.id, m.cls->TypeName.GetChars(), mo->X(), mo->Y(), mo->Z(), p.quest ? " (quest)" : "");
+			DD_DebugPrintf("DDENC leader %016" PRIx64 " %s at %.1f,%.1f,%.1f%s\n", m.id, m.cls->TypeName.GetChars(), mo->X(), mo->Y(), mo->Z(), p.quest ? " (quest)" : "");
 	}
 	// Stuck: a spawned monster that Doom's own check says does not fit where it stands.
 	for (auto &f : fresh)
 		if (!(f.first->ObjectFlags & OF_EuthanizeMe) && !P_TestMobjLocation(f.first)) { stuck++; stuckLeaders += f.second; }
 	const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
-	Printf("DDENC spawned %d mooks (%d leaders) of %d planned for %d placements (%d dead, %d already present), stuck %d (%d leaders), %.1f ms with spawning%s\n",
+	DD_DebugPrintf("DDENC spawned %d mooks (%d leaders) of %d planned for %d placements (%d dead, %d already present), stuck %d (%d leaders), %.1f ms with spawning%s\n",
 		spawned, leaders, int(mooks.size()), int(list.size()), skippedDead, skippedPresent, stuck, stuckLeaders, ms, revisit ? ", revisit" : mapLeaders ? "" : ", quest foes only");
 	if (warSide[0] + warSide[1])
-		Printf("DDWAR civil war: army A %d mooks stance %d, army B %d mooks stance %d\n", warSide[0], warStance[0], warSide[1], warStance[1]);
+		DD_DebugPrintf("DDWAR civil war: army A %d mooks stance %d, army B %d mooks stance %d\n", warSide[0], warStance[0], warSide[1], warStance[1]);
 }
 
 void ApplyRows(FLevelLocals *Level)
@@ -341,7 +342,7 @@ void ApplyRows(FLevelLocals *Level)
 		AActor *mo = FindById(Level, r.id);
 		if (mo && mo->health > 0)
 		{
-			Printf("DDMON removed %016" PRIx64 ", which Daggerfall has as dead\n", r.id);
+			DD_DebugPrintf("DDMON removed %016" PRIx64 ", which Daggerfall has as dead\n", r.id);
 			mo->Destroy();
 		}
 		for (size_t n = 0; n < claims.size(); n++)
@@ -367,8 +368,8 @@ void RunTestKill(FLevelLocals *Level)
 		for (const Row &r : accepted) quest |= r.id == mo->ddRecordId && r.state == DFB_MONSTER_PLACE;
 		if (quest == (want == 2)) { pick = mo; break; }
 	}
-	if (!pick) { Printf("DDMON test kill found nothing\n"); return; }
-	Printf("DDMON test kill %016" PRIx64 " %s at %.1f,%.1f,%.1f floor %.1f ceiling %.1f\n", pick->ddRecordId, pick->GetClass()->TypeName.GetChars(), pick->X(), pick->Y(), pick->Z(), pick->floorz, pick->ceilingz);
+	if (!pick) { DD_DebugPrintf("DDMON test kill found nothing\n"); return; }
+	DD_DebugPrintf("DDMON test kill %016" PRIx64 " %s at %.1f,%.1f,%.1f floor %.1f ceiling %.1f\n", pick->ddRecordId, pick->GetClass()->TypeName.GetChars(), pick->X(), pick->Y(), pick->Z(), pick->floorz, pick->ceilingz);
 	P_DamageMobj(pick, Level->Players[consoleplayer]->mo, Level->Players[consoleplayer]->mo, pick->health + 1000, NAME_None, DMG_FORCED);
 }
 
@@ -389,13 +390,13 @@ void DD_MonstersEnterDungeon(FLevelLocals *Level, int mapId, bool firstVisit, bo
 	dungeonMapId = mapId;
 	CollectMarkers(Level);
 	leadersPending = bridged;
-	Printf("DDMON dungeon %d has %d encounter markers%s\n", mapId, int(markers.size()), firstVisit ? ", first visit" : "");
+	DD_DebugPrintf("DDMON dungeon %d has %d encounter markers%s\n", mapId, int(markers.size()), firstVisit ? ", first visit" : "");
 	if (bridged) return;
 	int spawned = 0;
 	for (const Marker &m : markers)
 		if (!FindById(Level, LeaderId(m.placement)))
 			spawned += SpawnLeader(Level, RosterClass(m.placement), LeaderId(m.placement), m.pos, true, "no bridge, roster");
-	Printf("DDENC spawned %d stock leaders without a bridge\n", spawned);
+	DD_DebugPrintf("DDENC spawned %d stock leaders without a bridge\n", spawned);
 }
 
 // The plans travel in the save with the world table (dd_treadmill.cpp DDTreadmill_Serialize).
@@ -543,5 +544,5 @@ void DD_MonsterDied(dfb_session *session, AActor *mo)
 	e.tic = gametic;
 	memcpy(e.payload, &death, sizeof(death));
 	dfb_send(session, &e);
-	Printf("DDMON died %016" PRIx64 " target %d\n", death.id, target);
+	DD_DebugPrintf("DDMON died %016" PRIx64 " target %d\n", death.id, target);
 }

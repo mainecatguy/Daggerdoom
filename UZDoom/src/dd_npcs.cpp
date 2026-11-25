@@ -11,6 +11,7 @@
 #include "g_levellocals.h"
 #include "gamestate.h"
 #include "printf.h"
+#include "playsim/dd_log.h" // [Doomerfall]
 
 namespace
 {
@@ -43,7 +44,7 @@ void ApplyList()
 		if (incoming.count(NpcId(mo))) { mo->renderflags &= ~RF_INVISIBLE; shown++; }
 		else { mo->renderflags |= RF_INVISIBLE; hidden++; }
 	}
-	Printf("DDNPC list shown=%d hidden=%d\n", shown, hidden);
+	DD_DebugPrintf("DDNPC list shown=%d hidden=%d\n", shown, hidden);
 }
 }
 

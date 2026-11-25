@@ -223,6 +223,6 @@ class DFDoorHandler : EventHandler
 			int index = f[1].ToInt();
 			if (index < spawned.Size()) { spawned[index].SetupSight(f[2].ToInt()); linked++; }
 		}
-		Console.Printf("DFDOORS spawned %d, sight links %d", spawned.Size(), linked);
+		{ let dbg = CVar.FindCVar("dd_debugmessages"); Console.PrintfEx((dbg && dbg.GetBool()) ? PRINT_HIGH : PRINT_HIGH | PRINT_NONOTIFY | PRINT_NOCONSOLE, "DFDOORS spawned %d, sight links %d", spawned.Size(), linked); } // diagnostics: on screen only with dd_debugmessages
 	}
 }

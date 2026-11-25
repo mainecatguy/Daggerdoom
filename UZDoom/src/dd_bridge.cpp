@@ -47,6 +47,7 @@
 #include "v_draw.h"
 #include "v_font.h"
 #include "v_video.h"
+#include "playsim/dd_log.h" // [Doomerfall]
 
 void G_SaveGame(const char *filename, const char *description, bool quick);
 void G_DoAutoSave();
@@ -151,7 +152,7 @@ void Log(const char *format, ...)
 	va_start(args, format);
 	vsnprintf(line, sizeof(line), format, args);
 	va_end(args);
-	Printf(PRINT_NONOTIFY, "[bridge] %s\n", line);
+	Printf(DD_DebugLevel(), "[bridge] %s\n", line);
 	if (logFile)
 	{
 		fprintf(logFile, "%.3f %s\n", dfb_now_ns() / 1e9, line);

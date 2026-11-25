@@ -58,6 +58,7 @@
 #include "texturemanager.h"
 #include "serializer.h"
 #include "serializer_doom.h"
+#include "playsim/dd_log.h" // [Doomerfall]
 
 FString DD_MonstersSavePlans();	// dd_monsters.cpp: each dungeon's first encounter request, so a revisit rebuilds the same mooks.
 void DD_MonstersLoadPlans(const FString &text);
@@ -687,7 +688,7 @@ namespace
 		{
 			// Kept in the table, so the row comes back if the class does (for example after a mod is restored).
 			missingClassCount++;
-			Printf(TEXTCOLOR_ORANGE "DDTM row %016" PRIx64 " kind %d: class %s no longer exists, not restored\n", r.id, r.kind, r.cls.GetChars());
+			DD_DebugPrintf(TEXTCOLOR_ORANGE "DDTM row %016" PRIx64 " kind %d: class %s no longer exists, not restored\n", r.id, r.kind, r.cls.GetChars());
 			return;
 		}
 		AActor *mo = Spawn(Level, cls, ToLocal(r.x, r.y, r.z), NO_REPLACE);
@@ -707,7 +708,7 @@ namespace
 			FState *final = FinalFrame(st);
 			if (!final)
 			{
-				Printf(TEXTCOLOR_ORANGE "DDTM corpse %016" PRIx64 " %s has no resting %s frame, not restored\n", r.id, r.cls.GetChars(), r.death.GetChars());
+				DD_DebugPrintf(TEXTCOLOR_ORANGE "DDTM corpse %016" PRIx64 " %s has no resting %s frame, not restored\n", r.id, r.cls.GetChars(), r.death.GetChars());
 				mo->Destroy();
 				return;
 			}
@@ -1001,7 +1002,7 @@ namespace
 			}
 		}
 		runtimeTowns = !groups.empty();
-		Printf("DDTCACHE index: %d location groups\n", int(groups.size()));
+		DD_DebugPrintf("DDTCACHE index: %d location groups\n", int(groups.size()));
 	}
 
 	// The world-table slot of a place, from Daggerfall's keys only: 20 bits of map id, then for a building the block's
@@ -1009,7 +1010,7 @@ namespace
 	uint64_t InteriorSlot(int mapId, int buildingKey)
 	{
 		const int x = (buildingKey >> 16) & 0xFF, y = (buildingKey >> 8) & 0xFF;
-		if (x > 7 || y > 7) Printf(TEXTCOLOR_ORANGE "DDTM building key %d of map %d is outside an 8 by 8 location\n", buildingKey, mapId);
+		if (x > 7 || y > 7) DD_DebugPrintf(TEXTCOLOR_ORANGE "DDTM building key %d of map %d is outside an 8 by 8 location\n", buildingKey, mapId);
 		return (uint64_t(mapId & 0xFFFFF) << 14) | uint64_t((x & 7) << 11) | uint64_t((y & 7) << 8) | uint64_t(buildingKey & 0xFF);
 	}
 	uint64_t DungeonSlot(int mapId) { return (1ull << 34) | uint64_t(mapId & 0xFFFFF); }
@@ -1056,7 +1057,7 @@ namespace
 				else if (sscanf(line.GetChars(), "exit %lf %lf %lf %lf %lf", &e.x, &e.y, &e.z, &e.nx, &e.ny) == 5) t.exits.push_back(e);
 			}
 			if (t.map.IsEmpty()) continue;
-			if (!t.dungeonMapId) Printf(TEXTCOLOR_ORANGE "DDTM dungeon %s has no map id; its history is kept under map id 0\n", t.map.GetChars());
+			if (!t.dungeonMapId) DD_DebugPrintf(TEXTCOLOR_ORANGE "DDTM dungeon %s has no map id; its history is kept under map id 0\n", t.map.GetChars());
 			PlaceSpace(t, DUNGEON_SPACE + n, DungeonSlot(t.dungeonMapId), FStringf("D%d", t.dungeonMapId));
 			towns.push_back(std::move(t));
 		}
@@ -1105,7 +1106,7 @@ namespace
 		if (t.landings.empty()) return -1;
 		if (buildingKey < 0)	// The cache reader rebuilds such files, so this is a converter without place keys.
 		{
-			Printf(TEXTCOLOR_RED "DDTM interior %d has no Daggerfall place key; refusing it so its history cannot land on another building\n", id);
+			DD_DebugPrintf(TEXTCOLOR_RED "DDTM interior %d has no Daggerfall place key; refusing it so its history cannot land on another building\n", id);
 			return -1;
 		}
 		PlaceSpace(t, id, InteriorSlot(mapId, buildingKey), FStringf("B%d:%d", mapId, buildingKey));
@@ -1196,7 +1197,7 @@ namespace
 			VMValue params[] = { &text };
 			VMCall(func, params, 1, nullptr, 0);
 		}
-		Printf("DDTOWN contents billboards=%d npcs=%d\n", spawned, people);
+		DD_DebugPrintf("DDTOWN contents billboards=%d npcs=%d\n", spawned, people);
 	}
 
 	// Switches which location the overworld draws in the distance.
@@ -1244,7 +1245,7 @@ namespace
 					flatQueue.push_back(ChunkKey(cx, cy));
 		}
 		RewriteGrid();
-		Printf("DDTLOD town=%s ms=%.1f\n", lodTown >= 0 ? towns[lodTown].map.GetChars() : "none", NsSince(start) / 1e6);
+		DD_DebugPrintf("DDTLOD town=%s ms=%.1f\n", lodTown >= 0 ? towns[lodTown].map.GetChars() : "none", NsSince(start) / 1e6);
 	}
 
 	void ProcessFlatQueue(FLevelLocals *Level, int chunks)
@@ -1344,7 +1345,7 @@ namespace
 		if (multiplayer || Level->MapName.CompareNoCase("DDOVER01") != 0 || Level->sectors.Size() != size_t(CELLS) * CELLS * 2) return false;
 		if (!LoadWorld() || !BuildTriangles(Level))
 		{
-			Printf("DDTM failed to start\n");
+			DD_DebugPrintf("DDTM failed to start\n");
 			return false;
 		}
 		verify = FindArg("-ddtmverify") != 0;
@@ -1403,7 +1404,7 @@ namespace
 	void NotifyTransition(int action, const char *from, const char *to, double x, double y, int target)
 	{
 		static const char *const names[] = { "", "enter-building", "exit-building", "enter-dungeon", "exit-dungeon" };
-		Printf("DDTRANSITION %s from=%s to=%s door=%.2f,%.2f target=%d\n", names[action], from, to, x, y, target);
+		DD_DebugPrintf("DDTRANSITION %s from=%s to=%s door=%.2f,%.2f target=%d\n", names[action], from, to, x, y, target);
 		DD_BridgeTransition(action, x, y, target);
 	}
 
@@ -1427,7 +1428,7 @@ namespace
 		unchangedCount = 0;
 		const int parkedBefore = parkCount;
 		for (AActor *mo : keep) Park(mo, originX, originY);
-		Printf("DDTM left %s: %d stored as changed, %d unchanged not stored, table rows %d\n", Level->MapName.GetChars(), parkCount - parkedBefore, unchangedCount, int(table.size()));
+		DD_DebugPrintf("DDTM left %s: %d stored as changed, %d unchanged not stored, table rows %d\n", Level->MapName.GetChars(), parkCount - parkedBefore, unchangedCount, int(table.size()));
 
 		// This tic's move still happens on the old map, so the arrival point is one tic ahead.
 		const DVector3 world = ToWorld(pmo->Pos() + pmo->Vel, originX, originY);
@@ -1466,7 +1467,7 @@ namespace
 			handoff.pitch = nullAngle;
 			handoff.atMapStart = door->atMapStart;
 		}
-		Printf("DDSTITCH leave %s tic=%d world=%.2f,%.2f,%.2f vel=%.2f,%.2f,%.2f records=%d\n", Level->MapName.GetChars(), Level->maptime, world.X, world.Y, world.Z, pmo->Vel.X, pmo->Vel.Y, pmo->Vel.Z, int(table.size()));
+		DD_DebugPrintf("DDSTITCH leave %s tic=%d world=%.2f,%.2f,%.2f vel=%.2f,%.2f,%.2f records=%d\n", Level->MapName.GetChars(), Level->maptime, world.X, world.Y, world.Z, pmo->Vel.X, pmo->Vel.Y, pmo->Vel.Z, int(table.size()));
 		Level->ChangeLevel(map, 0, CHANGELEVEL_NOINTERMISSION | CHANGELEVEL_KEEPFACING | CHANGELEVEL_PRERAISEWEAPON);
 	}
 
@@ -1503,7 +1504,7 @@ namespace
 		const double ground = town >= 0 ? towns[town].ground : (SampleVertex(int(floor(tx)), int(floor(ty))) + Z_BASE) / DOOM_PER_DF;
 		const DoorTarget target{ travel.x, travel.y, ground, travel.yaw, false, DD_AREA_EXTERIOR };
 		const FString map = town >= 0 ? towns[town].map : FString("DDOVER01");
-		Printf("DDTRAVEL to %s world=%.2f,%.2f yaw=%.1f\n", map.GetChars(), travel.x, travel.y, travel.yaw);
+		DD_DebugPrintf("DDTRAVEL to %s world=%.2f,%.2f yaw=%.1f\n", map.GetChars(), travel.x, travel.y, travel.yaw);
 		BeginHandoff(Level, pmo, map.GetChars(), nullptr, &target);
 	}
 
@@ -1533,7 +1534,7 @@ namespace
 		player->viewz = z + player->viewheight;
 		wipegamestate = gamestate;	// No screen wipe on a stitched change.
 		dd_tm_stitches = ++stitches;
-		Printf("DDSTITCH arrive %s ms=%.1f local=%.2f,%.2f,%.2f dz=%.3f records=%d stitches=%d\n", Level->MapName.GetChars(),
+		DD_DebugPrintf("DDSTITCH arrive %s ms=%.1f local=%.2f,%.2f,%.2f dz=%.3f records=%d stitches=%d\n", Level->MapName.GetChars(),
 			NsSince(handoff.started) / 1e6, target.X, target.Y, z, dz, int(table.size()), stitches);
 	}
 
@@ -1567,12 +1568,12 @@ namespace
 						{
 							logged++;
 							const sector_t *sec = Level->PointInSector(DVector2(lx, ly));
-							Printf("DDSEAM far tile=%d,%d f=%.2f,%.2f local=%.0f,%.0f floor=%.2f expected=%.2f sector=%d lines=%d center=%.0f,%.0f\n", gx, gy, fx, fy, lx, ly, actual, expected, sec->Index(), int(sec->Lines.Size()), sec->centerspot.X, sec->centerspot.Y);
+							DD_DebugPrintf("DDSEAM far tile=%d,%d f=%.2f,%.2f local=%.0f,%.0f floor=%.2f expected=%.2f sector=%d lines=%d center=%.0f,%.0f\n", gx, gy, fx, fy, lx, ly, actual, expected, sec->Index(), int(sec->Lines.Size()), sec->centerspot.X, sec->centerspot.Y);
 						}
 						if (err > worst) { worst = err; worstX = gx; worstY = gy; }
 					}
 				}
-		Printf("DDSEAM points=%d mean=%.4f worst=%.4f at tile %d,%d over0.1=%d over1=%d over10=%d\n", count, count ? sum / count : 0.0, worst, worstX, worstY, over01, over1, over10);
+		DD_DebugPrintf("DDSEAM points=%d mean=%.4f worst=%.4f at tile %d,%d over0.1=%d over1=%d over10=%d\n", count, count ? sum / count : 0.0, worst, worstX, worstY, over01, over1, over10);
 	}
 
 	void LoadTownDoors(const Town &t)
@@ -1587,7 +1588,7 @@ namespace
 			DoorSpot d;
 			if (sscanf(line.GetChars(), "%d %d %d %lf %lf %lf %lf %lf", &d.kind, &d.target, &d.index, &d.x, &d.y, &d.z, &d.nx, &d.ny) == 8) townDoors.push_back(d);
 		}
-		Printf("DDDOORS %d doors\n", int(townDoors.size()));
+		DD_DebugPrintf("DDDOORS %d doors\n", int(townDoors.size()));
 	}
 
 	// True when the player can reach a door: close, on its front side, and looking toward it.
@@ -1638,7 +1639,7 @@ namespace
 			if (dungeonStart)	// [Doomerfall] New Game: where Daggerfall placed the character, not the entrance.
 			{
 				target = { dungeonStart[0] + space.originX, dungeonStart[1] + space.originY, dungeonStart[2], dungeonStart[3], false, DD_AREA_DUNGEON };
-				Printf("DDNEWGAME dungeon start %.1f,%.1f,%.1f yaw %.1f\n", dungeonStart[0], dungeonStart[1], dungeonStart[2], dungeonStart[3]);
+				DD_DebugPrintf("DDNEWGAME dungeon start %.1f,%.1f,%.1f yaw %.1f\n", dungeonStart[0], dungeonStart[1], dungeonStart[2], dungeonStart[3]);
 			}
 			map = space.map;
 		}
@@ -1813,12 +1814,12 @@ namespace
 		}
 		// After the rows, so a monster the table brought back counts as present and is not placed twice.
 		if (t.space && t.spaceId >= DUNGEON_SPACE) DD_MonstersEnterDungeon(Level, t.dungeonMapId, firstVisit, DD_BridgeHasSession());
-		if (t.space) Printf("DDTM place %s map %s %s: map items %d, replaced by rows %d, restored %d, missing classes %d\n", t.place.GetChars(), t.map.GetChars(),
+		if (t.space) DD_DebugPrintf("DDTM place %s map %s %s: map items %d, replaced by rows %d, restored %d, missing classes %d\n", t.place.GetChars(), t.map.GetChars(),
 			firstVisit ? "first visit" : "revisit", mapItems, replaced, restored, missingClassCount);
 		if (t.group >= 0 || (t.space && t.spaceId < DUNGEON_SPACE)) SpawnTownContents(Level, t.space);
 		FinishHandoff(Level);
 		if (FindArg("-ddtmverify")) VerifySeam(Level, t);
-		Printf("DDTOWN active %s restored=%d records=%d\n", t.map.GetChars(), restored, int(table.size()));
+		DD_DebugPrintf("DDTOWN active %s restored=%d records=%d\n", t.map.GetChars(), restored, int(table.size()));
 	}
 
 	void Start(FLevelLocals *Level)
@@ -1884,7 +1885,7 @@ namespace
 			ProcessFlatQueue(Level, std::numeric_limits<int>::max());
 		}
 		DDTreadmill_Active = true;
-		Printf("DDTM active origin=%d,%d spacing=%d sectors=%d packs=%.2f/%d\n", originX, originY, SPACING, int(tris.size()), packChance, packSize);
+		DD_DebugPrintf("DDTM active origin=%d,%d spacing=%d sectors=%d packs=%.2f/%d\n", originX, originY, SPACING, int(tris.size()), packChance, packSize);
 	}
 
 	void Resume(FLevelLocals *Level)
@@ -1907,7 +1908,7 @@ namespace
 			auto it = Level->GetThinkerIterator<AActor>();
 			while (AActor *mo = it.Next())
 				if (mo->ddRecordId && !IsOwned(mo)) expected.insert(mo->ddRecordId);
-			Printf("DDTOWN resumed %s records=%d\n", Level->MapName.GetChars(), int(table.size()));
+			DD_DebugPrintf("DDTOWN resumed %s records=%d\n", Level->MapName.GetChars(), int(table.size()));
 			return;
 		}
 		LoadConfig();
@@ -1923,7 +1924,7 @@ namespace
 		DDTreadmill_Active = true;
 		int drawn = 0;
 		for (auto &t : tris) drawn += t.sec->GetTexture(sector_t::floor) == baseFloor;
-		Printf("DDTM resumed origin=%d,%d records=%d pending=%d floors drawn=%d of %d\n", originX, originY, int(table.size()), int(pending.size()), drawn, int(tris.size()));
+		DD_DebugPrintf("DDTM resumed origin=%d,%d records=%d pending=%d floors drawn=%d of %d\n", originX, originY, int(table.size()), int(pending.size()), drawn, int(tris.size()));
 	}
 
 	FString EncodeState()
@@ -2004,7 +2005,7 @@ void DDTreadmill_Serialize(FLevelLocals *Level, FSerializer &arc)
 		arc("ddplans", plans);
 		int kinds[4] = {};
 		for (auto &kv : table) kinds[std::clamp(kv.second.kind, 0, 3)]++;
-		Printf("DDTM saved table: %d rows (%d monsters, %d corpses, %d items, %d gone), %d bytes; places %d bytes; plans %d bytes\n", int(table.size()),
+		DD_DebugPrintf("DDTM saved table: %d rows (%d monsters, %d corpses, %d items, %d gone), %d bytes; places %d bytes; plans %d bytes\n", int(table.size()),
 			kinds[KMonster], kinds[KCorpse], kinds[KItem], kinds[KGone], int(state.Len()), int(spaces.Len()), int(plans.Len()));
 		if (townActive)
 		{
@@ -2024,7 +2025,7 @@ void DDTreadmill_Serialize(FLevelLocals *Level, FSerializer &arc)
 	if (arc.HasKey("ddtableformat")) arc("ddtableformat", format);
 	if (arc.HasKey("ddoverworld") && format != TABLE_FORMAT)
 	{
-		Printf(TEXTCOLOR_RED "DDTM this save's world table is format %d, not %d; its history is not loaded\n", format, TABLE_FORMAT);
+		DD_DebugPrintf(TEXTCOLOR_RED "DDTM this save's world table is format %d, not %d; its history is not loaded\n", format, TABLE_FORMAT);
 		DecodeState("");	// Empties the table rather than keep the previous session's.
 		DD_MonstersLoadPlans("");
 	}
@@ -2166,7 +2167,7 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 				if (EnterDoor(Level, pmo, d, dungeonRequestHasStart ? dungeonRequestStart : nullptr)) return;
 				break;
 			}
-		Printf("DDTRAVEL no door to dungeon %d in %s\n", wanted, Level->MapName.GetChars());
+		DD_DebugPrintf("DDTRAVEL no door to dungeon %d in %s\n", wanted, Level->MapName.GetChars());
 	}
 	if (buildingRequest.pending && townActive && !handoff.pending)	// [Doomerfall] Plain Daggerfall load: into the saved building.
 	{
@@ -2183,12 +2184,12 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 		}
 		if (best && bestDistance <= buildingRequest.tolerance)
 		{
-			Printf("DDPLAINLOAD building door %d is %.1f units from the saved door\n", best->target, bestDistance);
+			DD_DebugPrintf("DDPLAINLOAD building door %d is %.1f units from the saved door\n", best->target, bestDistance);
 			if (EnterDoor(Level, pmo, *best, buildingRequest.start)) return;
-			Printf("DDPLAINLOAD building %d is not converted yet, trying again\n", best->target);
+			DD_DebugPrintf("DDPLAINLOAD building %d is not converted yet, trying again\n", best->target);
 			buildingRequest.pending = true;
 		}
-		else Printf("DDPLAINLOAD no building door within %.0f units of %.1f,%.1f in %s (nearest %.1f)\n", buildingRequest.tolerance,
+		else DD_DebugPrintf("DDPLAINLOAD no building door within %.0f units of %.1f,%.1f in %s (nearest %.1f)\n", buildingRequest.tolerance,
 			buildingRequest.x, buildingRequest.y, Level->MapName.GetChars(), best ? bestDistance : -1.0);
 	}
 
