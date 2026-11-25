@@ -86,3 +86,7 @@ Research a Daggerfall character that Claude can control for automated QA (`work/
 ### Shop and town levels (owner, 2026-11-24)
 
 - Research shop levels (1-30, from size or quality) and the interim town exterior levels (5 small, 10 medium, 15 large, 20 capital), with proposed cards for owner review (`work/queue/shoplevels`). Planning only.
+
+### Loading screen for long operations (owner, 2026-11-24)
+
+Long operations must not block the main thread so that Windows shows the program as not responding. Build one generic way to run them: pause the game, show a loading message, keep the window responsive, and resume when the work is done. First use: re-entering a dungeon, where planning and spawning a cleared level-30 dungeon takes about 1.9 s (location record notes `work/notes/20261124-190017.md`). The owner accepts that wait once it shows the message and pauses. No card yet; the orchestrator writes one in `work/queue`. Then find the other long operations (bundled save and load, which blocks Daggerfall for 2-3 s, and map and town building) and list them in the card.
