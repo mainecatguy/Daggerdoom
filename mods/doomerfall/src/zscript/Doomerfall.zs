@@ -4,7 +4,7 @@ class Doomerfall_Events : StaticEventHandler
 {
 	override void OnRegister()
 	{
-		Console.Printf("Doomerfall: mod loaded");
+		DDLog.Debug("Doomerfall: mod loaded");
 	}
 
 	ui bool menuDone;
@@ -130,15 +130,15 @@ class Doomerfall_Events : StaticEventHandler
 
 		if (e.Name == "df_fast_travel")
 		{
-			Console.Printf("Doomerfall: action fired: Open Fast Travel");
+			DDLog.Debug("Doomerfall: action fired: Open Fast Travel");
 		}
 		else if (e.Name == "df_inventory")
 		{
-			Console.Printf("Doomerfall: action fired: Open Inventory");
+			DDLog.Debug("Doomerfall: action fired: Open Inventory");
 		}
 		else if (e.Name != "df_interact" && e.Name != "df_info" && e.Name != "df_change_ammo") // The engine handles these in a bridge session (dd_items.cpp, dd_info.cpp).
 		{
-			Console.Printf("Doomerfall: unknown action %s", e.Name);
+			DDLog.Debug(String.Format("Doomerfall: unknown action %s", e.Name));
 		}
 	}
 }

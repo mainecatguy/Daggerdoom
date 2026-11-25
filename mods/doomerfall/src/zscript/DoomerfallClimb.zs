@@ -157,13 +157,13 @@ class DoomerfallClimb : StaticEventHandler
 		mo.bNoGravity = true;
 		mo.vel = (0, 0, 0);
 		if (p == players[consoleplayer]) Console.PrintfEx(PRINT_HIGH, "Climbing");
-		Console.Printf("DFCLIMB start speed=%.3f z=%.1f chances=%d/%d/%d/%d", s.speed, mo.pos.z, chance[0], chance[1], chance[2], chance[3]);
+		DDLog.Debug(String.Format("DFCLIMB start speed=%.3f z=%.1f chances=%d/%d/%d/%d", s.speed, mo.pos.z, chance[0], chance[1], chance[2], chance[3]));
 	}
 
 	void EndClimb(PlayerPawn mo, DoomerfallClimbState s)
 	{
 		if (s.climbing && !s.slipping) mo.bNoGravity = s.savedNoGravity;
-		if (s.climbing) Console.Printf("DFCLIMB stop z=%.1f", mo.pos.z);
+		if (s.climbing) DDLog.Debug(String.Format("DFCLIMB stop z=%.1f", mo.pos.z));
 		s.climbing = false;
 		s.slipping = false;
 		s.pushTics = 0;
@@ -174,7 +174,7 @@ class DoomerfallClimb : StaticEventHandler
 		s.slipping = true;
 		s.rollTics = RegainTics;
 		mo.bNoGravity = s.savedNoGravity;
-		Console.Printf("DFCLIMB slip z=%.1f", mo.pos.z);
+		DDLog.Debug(String.Format("DFCLIMB slip z=%.1f", mo.pos.z));
 	}
 
 	void Think(PlayerInfo p, PlayerPawn mo, DoomerfallClimbState s)
@@ -220,7 +220,7 @@ class DoomerfallClimb : StaticEventHandler
 					s.rollTics = ContinueTics;
 					mo.bNoGravity = true;
 					mo.vel.z = 0; // Daggerfall: regaining a hold clears the fall.
-					Console.Printf("DFCLIMB regain z=%.1f", mo.pos.z);
+					DDLog.Debug(String.Format("DFCLIMB regain z=%.1f", mo.pos.z));
 				}
 				else s.rollTics = RegainTics;
 			}
@@ -273,7 +273,7 @@ class DoomerfallClimb : StaticEventHandler
 		if (atTop)
 		{
 			mo.vel = (-n * 4, sqrt(2 * (max(0.0, top - mo.pos.z) + 4) * mo.GetGravity())); // just clears the ledge
-			Console.Printf("DFCLIMB top z=%.1f ledge=%.1f", mo.pos.z, top);
+			DDLog.Debug(String.Format("DFCLIMB top z=%.1f ledge=%.1f", mo.pos.z, top));
 		}
 	}
 

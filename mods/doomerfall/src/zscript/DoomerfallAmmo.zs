@@ -45,7 +45,7 @@ class DoomerfallAmmoTiers : StaticEventHandler
 			loadedType = f.Size() > 1 ? f[1].ToInt() : -1;
 			loadedTags = f.Size() > 2 ? f[2] : "";
 			if (loadedTier < 0 || loadedTier >= TIERNAMES.Size() || loadedType < 0 || loadedType >= AMMOICONS.Size()) loadedTier = -1;
-			Console.Printf("Doomerfall: loaded ammo %s", loadedTier < 0 ? "none" : String.Format("%s %s", TIERNAMES[loadedTier], AMMONAMES[loadedType]));
+			DDLog.Debug(String.Format("Doomerfall: loaded ammo %s", loadedTier < 0 ? "none" : String.Format("%s %s", TIERNAMES[loadedTier], AMMONAMES[loadedType])));
 		}
 	}
 
@@ -234,14 +234,14 @@ class DoomerfallAmmoTiers : StaticEventHandler
 				double angle = Unit(seed, 10 + i) * 360, speed = 2 + Unit(seed, 40 + i) * 6;
 				p.vel = (cos(angle) * speed, sin(angle) * speed, 4 + Unit(seed, 70 + i) * 5);
 			}
-			Console.Printf("DFAMMO jackpot %s tier %d x%d at %.0f %.0f level %d", TypeNames[type], tier, count, plain.pos.x, plain.pos.y, areaLevel);
+			DDLog.Debug(String.Format("DFAMMO jackpot %s tier %d x%d at %.0f %.0f level %d", TypeNames[type], tier, count, plain.pos.x, plain.pos.y, areaLevel));
 		}
 		else
 		{
 			int tier = RollTier(areaLevel, Unit(seed, 3), Unit(seed, 4));
 			let p = SpawnTier(plain, type, tier);
 			if (p != null) p.vel = plain.vel;
-			Console.Printf("DFAMMO drop %s tier %d at %.0f %.0f level %d", TypeNames[type], tier, plain.pos.x, plain.pos.y, areaLevel);
+			DDLog.Debug(String.Format("DFAMMO drop %s tier %d at %.0f %.0f level %d", TypeNames[type], tier, plain.pos.x, plain.pos.y, areaLevel));
 		}
 		plain.Destroy();
 	}

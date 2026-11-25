@@ -33,6 +33,7 @@
 #include "hw_dynlightdata.h"
 #include "hw_lightbuffer.h"
 #include "a_dynlight.h"
+#include "playsim/dd_log.h" // [Doomerfall]
 
 void AddLightToList(FDynLightData &dld, int group, FDynamicLight *light, bool forceAttenuate);	// hw_dynlightdata.cpp
 
@@ -81,7 +82,7 @@ namespace
 			char name[33] = {};
 			memcpy(name, names + entry[0] * 32, 32);
 			FTextureID id = TexMan.CheckForTexture(name, ETextureType::Any, FTextureManager::TEXMAN_TryAny | FTextureManager::TEXMAN_ForceLookup);
-			if (!id.isValid() || !TexMan.GetGameTexture(id)) { Printf(TEXTCOLOR_RED "DFMesh: missing texture %s\n", name); id.SetInvalid(); }
+			if (!id.isValid() || !TexMan.GetGameTexture(id)) { DD_DebugPrintf(TEXTCOLOR_RED "DFMesh: missing texture %s\n", name); id.SetInvalid(); }
 			loaded.push_back({ id, entry[1], entry[2] });
 		}
 
@@ -133,7 +134,7 @@ namespace
 		}
 		buffer->UnlockVertexBuffer();
 		triangles = vertices / 3;
-		Printf("DFMesh: loaded %d triangles, %d draw batches in %.1f ms\n", triangles, batchCount, (I_nsTime() - start) / 1e6);
+		DD_DebugPrintf("DFMesh: loaded %d triangles, %d draw batches in %.1f ms\n", triangles, batchCount, (I_nsTime() - start) / 1e6);
 	}
 
 	void Load(int lump)

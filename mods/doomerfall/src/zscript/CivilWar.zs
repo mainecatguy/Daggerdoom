@@ -70,7 +70,7 @@ class DoomerfallCivilWar : Thinker
 			{
 				let m = pool.monsters[i];
 				if (m.cls != a.GetClass()) continue;
-				if (!m.civilWarSafe) { w.unsafe++; Console.Printf("DDWAR unsafe %s (%s) in a Civil War", a.GetClassName(), m.unsafeWhy); }
+				if (!m.civilWarSafe) { w.unsafe++; DDLog.Debug(String.Format("DDWAR unsafe %s (%s) in a Civil War", a.GetClassName(), m.unsafeWhy)); }
 				break;
 			}
 		}
@@ -94,7 +94,7 @@ class DoomerfallCivilWar : Thinker
 		if (aliveA > 0 && aliveB > 0) return;
 		ended = true;
 		winner = aliveA > 0 ? 0 : aliveB > 0 ? 1 : -1;
-		if (winner < 0) { Console.Printf("DDWAR both armies are gone"); return; }
+		if (winner < 0) { DDLog.Debug(String.Format("DDWAR both armies are gone")); return; }
 		let it = level.CreateActorIterator(TidOf(winner));
 		Actor m;
 		while (m = it.Next())
@@ -103,6 +103,6 @@ class DoomerfallCivilWar : Thinker
 			level.ExecuteSpecial(177, m, null, false, 0, 0, 3);
 			turned++;
 		}
-		Console.Printf("DDWAR army %s wiped out; %d survivors of army %s turn on the player", winner ? "A" : "B", turned, winner ? "B" : "A");
+		DDLog.Debug(String.Format("DDWAR army %s wiped out; %d survivors of army %s turn on the player", winner ? "A" : "B", turned, winner ? "B" : "A"));
 	}
 }

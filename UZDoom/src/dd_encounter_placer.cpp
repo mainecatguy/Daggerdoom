@@ -38,6 +38,7 @@
 #include "p_maputl.h"
 #include "m_bbox.h"
 #include "printf.h"
+#include "playsim/dd_log.h" // [Doomerfall]
 
 CVAR(Float, dd_enc_spacing, 3.f, CVAR_NOSAVE | CVAR_MOD)	// centre distance between mooks, in sums of their radii (3: a gap of two body widths)
 CVAR(Float, dd_enc_min_spacing, 1.f, CVAR_NOSAVE | CVAR_MOD)	// used when an area is full at dd_enc_spacing, before promoting (1: bodies may not overlap)
@@ -617,26 +618,26 @@ bool DD_PlaceEncounters(FLevelLocals *Level, const FString &header, const std::v
 			mix(int64_t(s.mooks[m].id));
 			mix(lround(s.pos[m].X * 8)); mix(lround(s.pos[m].Y * 8)); mix(lround(s.pos[m].Z * 8));
 			if (dd_enc_log)
-				Printf("DDENC mook %016" PRIx64 " %s p %d m %d at %.1f,%.1f,%.1f%s cost %d\n", s.mooks[m].id, s.mooks[m].cls ? s.mooks[m].cls->TypeName.GetChars() : "?",
+				DD_DebugPrintf("DDENC mook %016" PRIx64 " %s p %d m %d at %.1f,%.1f,%.1f%s cost %d\n", s.mooks[m].id, s.mooks[m].cls ? s.mooks[m].cls->TypeName.GetChars() : "?",
 					int(i), int(m), s.pos[m].X, s.pos[m].Y, s.pos[m].Z, m == 0 ? " leader" : "", s.mooks[m].cost);
 		}
 		if (s.placed < 1 || s.mooks.empty() || s.spot[0] < 0) emptyPlacements++;
 	}
 	const FString summary = pl.CallText("Summary");
-	for (auto &line : summary.Split("\n")) Printf("DDENC %s\n", line.GetChars());
+	for (auto &line : summary.Split("\n")) DD_DebugPrintf("DDENC %s\n", line.GetChars());
 	GC::DelSoftRoot(pl.plan);
 	pl.probe->Destroy();
 	const auto t4 = std::chrono::steady_clock::now();
 	auto ms = [](std::chrono::steady_clock::duration d) { return std::chrono::duration<double, std::milli>(d).count(); };
-	Printf("DDENC placer placements %d mooks %d unplaced %d entrance %s (%d nodes) walk-known %d treasure-markers %d (%d on the walk grid, %d nodes) cheapest-leaders %d (+%d pts) "
+	DD_DebugPrintf("DDENC placer placements %d mooks %d unplaced %d entrance %s (%d nodes) walk-known %d treasure-markers %d (%d on the walk grid, %d nodes) cheapest-leaders %d (+%d pts) "
 		"stuck-leaders %d promotes %d moves %d dropped-points (map full) %d spacing %.2f crowded-at-%.2f %d grid-nodes %d checks %d full-skips %d\n",
 		int(list.size()), int(out.size()), unplaced, hasEntrance ? "yes" : "none", int(entrance.size()), walkKnown, piles, int(chests.size()), int(treasure.size()),
 		pl.cheapestLeaders, pl.cheapestPoints,
 		pl.stuckLeaders, pl.promotes, pl.moves, pl.droppedPoints, *dd_enc_spacing, std::min(*dd_enc_spacing, *dd_enc_min_spacing), pl.crowded, int(cells), pl.checks, pl.skippedFull);
 	// Card 7 contract check: the plan's spent points must equal the summed cost of the mooks actually handed out.
-	Printf("DDENC contract placed-cost %lld empty-placements %d\n", (long long)placedCost, emptyPlacements);
-	if (!hasEntrance) Printf("DDENC warning: no entrance marker (player start); bosses use the planner's fallback\n");
-	Printf("DDENC timing measure %.1f ms plan %.1f ms place %.1f ms finish %.1f ms total %.1f ms digest %016" PRIx64 "\n",
+	DD_DebugPrintf("DDENC contract placed-cost %lld empty-placements %d\n", (long long)placedCost, emptyPlacements);
+	if (!hasEntrance) DD_DebugPrintf("DDENC warning: no entrance marker (player start); bosses use the planner's fallback\n");
+	DD_DebugPrintf("DDENC timing measure %.1f ms plan %.1f ms place %.1f ms finish %.1f ms total %.1f ms digest %016" PRIx64 "\n",
 		ms(t1 - t0), ms(t2 - t1), ms(t3 - t2), ms(t4 - t3), ms(t4 - t0), digest);
 	return true;
 }

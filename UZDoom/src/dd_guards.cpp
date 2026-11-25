@@ -26,6 +26,7 @@
 #include "printf.h"
 #include "r_data/r_translate.h"
 #include "texturemanager.h"
+#include "playsim/dd_log.h" // [Doomerfall]
 
 bool DD_MobileSprite(AActor *mo, int archive, int base, double facing, AActor *camera);
 void P_UnPredictClient();
@@ -121,7 +122,7 @@ void Spawn(FLevelLocals *Level, const Pending &g)
 	int slot = -1;
 	for (int i = 0; i < MAXPLAYERS; i++)
 		if (!playeringame[i]) { slot = i; break; }
-	if (slot < 0) { Printf("DDGUARD no free player slot for %016" PRIx64 "\n", g.id); return; }
+	if (slot < 0) { DD_DebugPrintf("DDGUARD no free player slot for %016" PRIx64 "\n", g.id); return; }
 
 	static const char info[] = "\\name\\Guard\\autoaim\\0\\skin\\base";
 	TArrayView<uint8_t> stream((uint8_t *)info, uint32_t(sizeof(info)));
@@ -143,7 +144,7 @@ void Spawn(FLevelLocals *Level, const Pending &g)
 	start.angle = 0;
 	start.type = int16_t(slot + 1);
 	AActor *mo = Level->SpawnPlayer(&start, slot);
-	if (!mo) { Level->BotInfo.ClearPlayer(slot, false); Printf("DDGUARD could not spawn %016" PRIx64 "\n", g.id); return; }
+	if (!mo) { Level->BotInfo.ClearPlayer(slot, false); DD_DebugPrintf("DDGUARD could not spawn %016" PRIx64 "\n", g.id); return; }
 	mo->ddRecordId = g.id;
 	mo->flags &= ~MF_FRIENDLY;	// Players are teammates only while both are friendly, so the player can hurt guards and they the player.
 	mo->Translation = NO_TRANSLATION;
@@ -153,7 +154,7 @@ void Spawn(FLevelLocals *Level, const Pending &g)
 	const struct Arm &arm = Arms[pr_ddguard() % (sizeof(Arms) / sizeof(Arms[0]))];
 	Arm(mo, arm);
 	DD_MobileSprite(mo, GuardArchive, MoveRecords, mo->Angles.Yaw.Degrees(), Level->Players[consoleplayer]->camera);
-	Printf("DDGUARD spawned %016" PRIx64 " in slot %d with %s at %.1f,%.1f\n", g.id, slot, arm.weapon, mo->X(), mo->Y());
+	DD_DebugPrintf("DDGUARD spawned %016" PRIx64 " in slot %d with %s at %.1f,%.1f\n", g.id, slot, arm.weapon, mo->X(), mo->Y());
 }
 
 int RecordsFor(AActor *mo)
@@ -177,7 +178,7 @@ void Bury(FLevelLocals *Level, int slot)
 		if (mo->player == &players[slot]) mo->player = nullptr;
 	players[slot].mo = nullptr;
 	players[slot].camera = nullptr;
-	Printf("DDGUARD buried slot %d\n", slot);
+	DD_DebugPrintf("DDGUARD buried slot %d\n", slot);
 	Level->BotInfo.ClearPlayer(slot, false);
 }
 }
@@ -209,7 +210,7 @@ void DD_GuardsFrame(dfb_session *, uint32_t context, bool inSpace, int32_t targe
 	{
 		if (g.context != DFB_WORLD_INTERIOR || !spaceValid || g.context != currentContext || g.target != currentTarget)
 		{
-			Printf("DDGUARD dropped %016" PRIx64 ": it is for context %u target %d, Doom is in %u target %d\n", g.id, g.context, g.target, currentContext, currentTarget);
+			DD_DebugPrintf("DDGUARD dropped %016" PRIx64 ": it is for context %u target %d, Doom is in %u target %d\n", g.id, g.context, g.target, currentContext, currentTarget);
 			continue;
 		}
 		Spawn(Level, g);
@@ -236,7 +237,7 @@ void DD_GuardDied(dfb_session *session, AActor *mo)
 	e.tic = gametic;
 	memcpy(e.payload, &death, sizeof(death));
 	dfb_send(session, &e);
-	Printf("DDGUARD died %016" PRIx64 "\n", death.id);
+	DD_DebugPrintf("DDGUARD died %016" PRIx64 "\n", death.id);
 }
 
 // FCajunMaster::End, before a level change: guard bots belong to the place they were spawned in.
@@ -246,7 +247,7 @@ void DD_GuardsLeaveLevel(FCajunMaster &bots)
 	for (int i = 0; i < MAXPLAYERS; i++)
 		if (playeringame[i] && players[i].Bot && DD_IsGuardBot(players[i].mo))
 		{
-			Printf("DDGUARD removed slot %d at a level change\n", i);
+			DD_DebugPrintf("DDGUARD removed slot %d at a level change\n", i);
 			bots.ClearPlayer(i, false);
 		}
 }

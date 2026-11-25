@@ -20,6 +20,7 @@
 #include "dd_towncache.h"
 #include "m_argv.h"
 #include "printf.h"
+#include "playsim/dd_log.h"
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -180,7 +181,7 @@ namespace DDTownCache
 				if (group == running || (slot != slots.end() && slot->second.state == State::Reading)) continue;
 				if (fs::remove(item.path, ec)) { total -= item.size; removed++; }
 			}
-			Printf("DDTCACHE evicted %d files, %.1f MB in use\n", removed, total / 1048576.0);
+			DD_DebugPrintf("DDTCACHE evicted %d files, %.1f MB in use\n", removed, total / 1048576.0);
 		}
 
 		void TrimMemory()
@@ -223,7 +224,7 @@ namespace DDTownCache
 			if (log != INVALID_HANDLE_VALUE) CloseHandle(log);
 			if (!ok)
 			{
-				Printf("DDTCONV group=%d could not start the converter (error %lu)\n", group, GetLastError());
+				DD_DebugPrintf("DDTCONV group=%d could not start the converter (error %lu)\n", group, GetLastError());
 				return false;
 			}
 			if (!job)
@@ -241,7 +242,7 @@ namespace DDTownCache
 			runStart = Clock::now();
 			return true;
 #else
-			Printf("DDTCONV background conversion is only implemented on Windows\n");
+			DD_DebugPrintf("DDTCONV background conversion is only implemented on Windows\n");
 			return false;
 #endif
 		}
@@ -261,14 +262,14 @@ namespace DDTownCache
 			std::error_code ec;
 			if (code == 0 && fs::exists(FileFor(group), ec))
 			{
-				Printf("DDTCONV group=%d ok ms=%.0f bytes=%llu\n", group, ms, (unsigned long long)fs::file_size(FileFor(group), ec));
+				DD_DebugPrintf("DDTCONV group=%d ok ms=%.0f bytes=%llu\n", group, ms, (unsigned long long)fs::file_size(FileFor(group), ec));
 				fs::remove_all(cacheDir / "work" / ("T" + std::to_string(group)), ec);
 				StartRead(group, slot);
 				TrimDisk();
 			}
 			else
 			{
-				Printf("DDTCONV group=%d failed exit=%lu ms=%.0f. The overworld stays playable here.\n", group, code, ms);
+				DD_DebugPrintf("DDTCONV group=%d failed exit=%lu ms=%.0f. The overworld stays playable here.\n", group, code, ms);
 				slot.state = State::Failed;
 			}
 #endif
@@ -293,7 +294,7 @@ namespace DDTownCache
 				fs::remove(FileFor(kv.first), ec);
 				slot.state = slot.retried ? State::Failed : State::Missing;
 				slot.retried = true;
-				Printf("DDTCACHE group=%d unreadable, %s\n", kv.first, slot.state == State::Failed ? "giving up" : "rebuilding");
+				DD_DebugPrintf("DDTCACHE group=%d unreadable, %s\n", kv.first, slot.state == State::Failed ? "giving up" : "rebuilding");
 			}
 		}
 
@@ -343,7 +344,7 @@ namespace DDTownCache
 		fs::create_directories(cacheDir, ec);
 		fs::remove_all(cacheDir / "work", ec);	// Left behind if a previous session was killed.
 		enabled = fs::is_directory(cacheDir, ec);
-		if (enabled) Printf("DDTCACHE dir=%s cap=%llu MB\n", dir, (unsigned long long)(capBytes >> 20));
+		if (enabled) DD_DebugPrintf("DDTCACHE dir=%s cap=%llu MB\n", dir, (unsigned long long)(capBytes >> 20));
 		return enabled;
 	}
 
