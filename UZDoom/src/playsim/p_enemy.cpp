@@ -968,7 +968,7 @@ void P_NewChaseDir(AActor * actor)
 		!(actor->flags2 & MF2_ONMOBJ) &&
 		!(actor->flags & MF_FLOAT) && !(actor->Level->i_compatflags & COMPATF_DROPOFF))
 	{
-		FBoundingBox box(actor->X(), actor->Y(), actor->MoveRadius());
+		FBoundingBox box(actor->X(), actor->Y(), actor->radius);
 		FBlockLinesIterator it(actor->Level, box);
 		line_t *line;
 

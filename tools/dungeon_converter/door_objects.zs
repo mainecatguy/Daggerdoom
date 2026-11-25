@@ -145,7 +145,7 @@ class DFDoor : Actor
 				Actor t = it.thing;
 				if (!t.bSOLID || t is "DFDoorBlocker") continue;
 				if (bodiesOnly && !t.player && !t.bISMONSTER) continue;
-				double tr = t.DD_MoveRadius();	// bodies' movement width (narrower for monsters on Daggerfall maps)
+				double tr = t.DD_MoveRadius();	// door leaves are level geometry: monsters squeeze past them (narrower on Daggerfall maps)
 				if (abs(t.pos.x - at.x) >= tr + linkRadius || abs(t.pos.y - at.y) >= tr + linkRadius) continue;
 				if (t.pos.z >= top || t.pos.z + t.height <= bottom) continue;
 				return false;

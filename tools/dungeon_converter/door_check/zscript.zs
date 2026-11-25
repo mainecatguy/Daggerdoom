@@ -21,7 +21,7 @@ class DFTestBody : Actor
 {
 	Default { Radius 10.5; Height 56; +SOLID +ISMONSTER +NOGRAVITY +DONTSPLASH }
 	States { Spawn: TNT1 A -1; Stop; }
-	// A player-sized body: it moves at 10.5 wide, although as a monster its movement width is a share of its radius.
+	// A player-sized body: it squeezes to 10.5 wide in gaps and past door leaves, as a monster's squeeze width is a share of its radius.
 	override void PostBeginPlay() { Super.PostBeginPlay(); A_SetSize(10.5 * radius / DD_MoveRadius(), height, false); }
 }
 
@@ -116,7 +116,14 @@ class DFDoorCheck : EventHandler
 		p.FindFloorCeiling();
 		if (abs(p.floorz - FloorOf(r.door)) > 24 || p.ceilingz - p.floorz < p.height) return false;
 		p.SetZ(p.floorz);
-		return p.TestMobjLocation();
+		if (p.TestMobjLocation()) return true;
+		if (p.DD_MoveRadius() >= p.radius) return false;
+		// A monster in a gap narrower than itself stands at its squeeze width (P_TryMove), as the real one walks in.
+		double keep = p.radius;
+		p.A_SetSize(p.DD_MoveRadius(), p.height, false);
+		bool fits = p.TestMobjLocation();
+		p.A_SetSize(keep, p.height, false);
+		return fits;
 	}
 
 	// Walks from one side of the doorway to the other with real moves.
@@ -314,7 +321,7 @@ class DFDoorCheck : EventHandler
 	}
 
 	// Does a real monster body get through the open doorway? The body is a real DoomImp (radius 20 in stock Doom). On
-	// Daggerfall maps the engine moves it 13.125 wide (AActor::MoveRadius) while its radius, and so its hitbox, stays 20. 1 passes, 0 the open leaf blocks it, n the doorway itself is too narrow even without
+	// Daggerfall maps it squeezes to 13.125 wide only in gaps and past door leaves (P_TryMove); its radius stays 20. 1 passes, 0 the open leaf blocks it, n the doorway itself is too narrow even without
 	// the leaf. action_regress.py loads the mod and scores it.
 	String MonsterThrough(Actor body, DFDoorRow r)
 	{

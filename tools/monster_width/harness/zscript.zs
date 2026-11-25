@@ -5,7 +5,8 @@ version "4.10"
 //    spawners to resolve, then prints every monster's class, default radius, live radius and movement width (MW lines).
 //    The radius (the hitbox) must always stay stock; only the movement width narrows, and only on Daggerfall maps.
 // 2. Hit tests against a stock DoomImp (radius 20): hitscans and an imp fireball passed beside it at chosen offsets.
-//    Each must hit inside the stock edge and miss outside it, whatever the movement width is (MWHIT lines).
+//    Each must hit inside the stock edge and miss outside it, whatever the squeeze width is (MWHIT lines).
+// 3. Spacing against another monster, the player and an open wall (MWSPACE lines; see Spacing).
 // Then MWDONE.
 class DFHitShooter : Actor
 {
@@ -65,6 +66,7 @@ class DFMonsterWidthCheck : EventHandler
 		if (!pmo) return;
 		if (level.maptime == 2)
 		{
+			startPos = pmo.pos;
 			static const Name kinds[] = { 'ZombieMan', 'ShotgunGuy', 'DoomImp', 'Demon', 'Cacodemon', 'HellKnight', 'Arachnotron', 'Cyberdemon' };
 			for (int i = 0; i < kinds.Size(); i++)
 			{
@@ -119,7 +121,114 @@ class DFMonsterWidthCheck : EventHandler
 			Console.Printf("MWHITSUMMARY hits=%d misses=%d wrong=%d", hits, misses, wrong);
 			target.ClearCounters();
 			target.Destroy();
+			Spacing(pmo);
+			Console.Printf("MWSPACESUMMARY ok=%d wrong=%d skipped=%d", spaceOk, spaceWrong, spaceSkipped);
 			Console.Printf("MWDONE");
 		}
+	}
+
+	// 3. Spacing: monsters squeeze only through gaps in the level, so against another monster, the player and an open
+	//    wall they stop at their stock radius (MWSPACE lines).
+	int spaceOk, spaceWrong, spaceSkipped;
+	vector3 startPos;	// the player's start: spawned monsters may have pushed the player since
+
+	void SpaceReport(String kind, double got, double want, String why = "")
+	{
+		if (why != "") { spaceSkipped++; Console.Printf("MWSPACE %s skipped %s", kind, why); return; }
+		bool ok = abs(got - want) <= 1.01;
+		if (ok) spaceOk++; else spaceWrong++;
+		Console.Printf("MWSPACE %s stopped=%.2f want=%.2f %s", kind, got, want, ok ? "ok" : "WRONG");
+	}
+
+	// An open axis direction from the point (Doom's bodies are square, so contact distances are the radius sums only along
+	// an axis): level traces down the middle and both sides of a 40-wide lane run at least `need` units with no wall.
+	double OpenDir(Actor from, double need)
+	{
+		for (double a = 0; a < 360; a += 90)
+		{
+			bool open = true;
+			for (int side = -1; side <= 1 && open; side++)
+			{
+				FLineTraceData d;
+				from.LineTrace(a, need, 0, TRF_THRUACTORS, 32, 0, side * 24, d);
+				open = d.HitType == TRACE_HitNone;
+			}
+			if (open) return a;
+		}
+		return -1;
+	}
+
+	// Moves the body toward the point in 1-unit steps with real moves until a move fails; returns the distance left.
+	double Approach(Actor body, vector2 to, double dist, double angle)
+	{
+		vector2 dir = (cos(angle), sin(angle));
+		for (double d = dist - 1; d >= 0; d -= 1)
+		{
+			if (!body.TryMove(to - dir * d, true)) return d + 1;
+		}
+		return 0;
+	}
+
+	Actor Imp(vector3 pos)
+	{
+		let mo = Actor.Spawn("DoomImp", pos, NO_REPLACE);
+		if (mo) { mo.Deactivate(null); mo.SetOrigin(pos, false); }
+		return mo;
+	}
+
+	void Spacing(PlayerPawn pmo)
+	{
+		pmo.SetOrigin(startPos, false);
+		pmo.vel = (0, 0, 0);
+		pmo.bSOLID = true; pmo.bSHOOTABLE = true;
+		double a = OpenDir(pmo, 200);
+		if (a < 0) { SpaceReport("monster", 0, 0, "no open direction"); SpaceReport("player", 0, 0, "no open direction"); }
+		else
+		{
+			vector2 dir = (cos(a), sin(a));
+			vector3 base = pmo.pos + (dir * 90, 0);
+			// Two monsters: B walks into A.
+			let ia = Imp(base), ib = Imp(base + (dir * 70, 0));
+			SpaceReport("monster", Approach(ib, base.xy, 70, a + 180), ia.radius + ib.radius);
+			ia.ClearCounters(); ia.Destroy(); ib.ClearCounters(); ib.Destroy();
+			// A monster walks into the player, then the player walks into the monster.
+			ib = Imp(base);
+			SpaceReport("monster-to-player", Approach(ib, pmo.pos.xy, 90, a + 180), ib.radius + pmo.radius);
+			ib.SetOrigin(base, false);
+			vector3 home = pmo.pos;
+			SpaceReport("player-to-monster", Approach(pmo, base.xy, 90, a), ib.radius + pmo.radius);
+			pmo.SetOrigin(home, false);
+			ib.ClearCounters(); ib.Destroy();
+		}
+		// A monster walks straight at a wall in an open room: an axis-aligned wall straight ahead, and open space to both
+		// sides near it, so it is no gap. It must stop at its stock radius, not its squeeze width.
+		for (double wa = 0; wa < 360; wa += 90)
+		{
+			FLineTraceData d;
+			pmo.LineTrace(wa, 600, 0, TRF_THRUACTORS, 32, 0, 0, d);
+			if (d.HitType != TRACE_HitWall || !d.HitLine || d.Distance < 80) continue;
+			vector2 dir = (cos(wa), sin(wa)), delta = d.HitLine.delta.Unit();
+			if (abs(delta dot dir) > 0.01) continue;
+			vector2 wall = pmo.pos.xy + dir * d.Distance;
+			vector2 near = wall - dir * 30;
+			let probe = Actor.Spawn("DFHitShooter", (near, pmo.pos.z), NO_REPLACE);
+			bool open = true;
+			for (int side = -1; side <= 1; side += 2)
+			{
+				FLineTraceData s;
+				probe.LineTrace(wa + 90 * side, 60, 0, TRF_THRUACTORS, 32 - probe.pos.z + pmo.pos.z, 0, 0, s);
+				if (s.HitType != TRACE_HitNone) open = false;
+			}
+			probe.Destroy();
+			if (!open) continue;
+			let imp = Imp((wall - dir * 70, pmo.pos.z));
+			if (!imp) continue;
+			pmo.bSOLID = false;
+			SpaceReport("wall", Approach(imp, wall, 70, wa), imp.radius);
+			pmo.bSOLID = true;
+			imp.ClearCounters(); imp.Destroy();
+			return;
+		}
+		SpaceReport("wall", 0, 0, "no open wall found");
 	}
 }

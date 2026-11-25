@@ -103,18 +103,30 @@ public:
 
 	explicit Placer(FLevelLocals *l) : Level(l) {}
 
-	bool Check(double x, double y, double z, double r, double h, bool actors, double &floorz)
+	// A body of stock radius r. With squeeze, as P_TryMove moves monsters: where it is stuck on level geometry or a door
+	// leaf in a gap narrower than itself, it may stand at its squeeze width (DD_InGap, AActor::SqueezeRadius).
+	double lastCeiling = 0;	// ceiling at the last spot Check passed
+
+	bool Check(double x, double y, double z, double r, double h, bool actors, double &floorz, bool squeeze = true)
 	{
-		probe->radius = r / DD_MonsterMoveScale;	// the probe is a monster: its movement width (MoveRadius) is r
+		probe->radius = r;
 		probe->Height = h;
 		if (actors) probe->flags2 &= ~MF2_THRUACTORS;
 		else probe->flags2 |= MF2_THRUACTORS;
 		probe->SetXYZ(DVector3(x, y, z));
 		FCheckPosition tm;
 		checks++;
-		if (!P_CheckPosition(probe, DVector2(x, y), tm)) return false;
-		floorz = tm.floorz;
-		return true;
+		bool ok = P_CheckPosition(probe, DVector2(x, y), tm);
+		AActor *blocker = probe->BlockingMobj.ForceGet();
+		if (!ok && squeeze && probe->SqueezeRadius() < r && (!blocker || DD_IsDoorLeaf(blocker)) && DD_InGap(probe, DVector2(x, y)))
+		{
+			DD_SqueezeActor = probe;
+			checks++;
+			ok = P_CheckPosition(probe, DVector2(x, y), tm);
+			DD_SqueezeActor = nullptr;
+		}
+		if (ok) { floorz = tm.floorz; lastCeiling = tm.ceilingz; }
+		return ok;
 	}
 
 	bool Walk(int i, int j, double fromZ, double &z)
@@ -125,7 +137,7 @@ public:
 		{
 			double f = 0;
 			// Up by at most a step; down by any height, since a body walking away from the start can drop off a ledge.
-			const bool ok = Check(i * Grid, j * Grid, fromZ, WalkRadius, WalkHeight, false, f) && f - fromZ <= Step;
+			const bool ok = Check(i * Grid, j * Grid, fromZ, WalkRadius, WalkHeight, false, f, false) && f - fromZ <= Step;
 			it = walkCache.emplace(key, ok ? f : NAN).first;
 		}
 		if (std::isnan(it->second)) return false;
@@ -311,12 +323,10 @@ public:
 
 	// ---- Spots ----
 
-	double bodyScale = 1;	// monster movement width on this map (DD_MonsterMoveScale: 10.5 / 16 on Daggerfall maps)
-
 	void Body(PClassActor *cls, double &r, double &h) const
 	{
 		const AActor *def = cls ? GetDefaultByType(cls) : nullptr;
-		r = (def ? std::max(1., def->radius) : 20) * bodyScale;
+		r = def ? std::max(1., def->radius) : 20;	// stock: monsters squeeze only in gaps (Check)
 		h = def ? std::max(1., def->Height) : 56;
 	}
 
@@ -499,13 +509,8 @@ public:
 			if (Check(s.origin.X, s.origin.Y, s.origin.Z, r, 1, true, f) && fabs(f - s.origin.Z) <= Step) { fitRadius = r; break; }
 		}
 		fitHeight = 0;
-		FCheckPosition tm;
-		probe->radius = std::min(fitRadius, 16.) / DD_MonsterMoveScale;
-		probe->Height = 1;
-		probe->flags2 &= ~MF2_THRUACTORS;
-		probe->SetXYZ(s.origin);
-		checks++;
-		if (P_CheckPosition(probe, s.origin.XY(), tm)) fitHeight = std::max(1., tm.ceilingz - std::max(tm.floorz, s.origin.Z));
+		double f;
+		if (Check(s.origin.X, s.origin.Y, s.origin.Z, std::min(fitRadius, 16.), 1, true, f)) fitHeight = std::max(1., lastCeiling - std::max(f, s.origin.Z));
 	}
 };
 }
@@ -528,7 +533,6 @@ bool DD_PlaceEncounters(FLevelLocals *Level, const FString &header, const std::v
 	pl.fMove = pl.Find("Move");
 	VMFunction *fFaction = pl.Find("Faction");	// card 6: Civil War side and stance
 	if (!pl.fMooks || !pl.fMakeLeader || !pl.fCheapest || !pl.fPromote || !pl.fDrop || !pl.fMove) return false;
-	pl.bodyScale = DD_MonsterMoveScale;	// bodies move at this share of their radius here (AActor::MoveRadius)
 
 	// One invisible probe body, never linked into the blockmap, so nothing else can touch it.
 	pl.probe = Spawn(Level, spotClass, DVector3(0, 0, 0), NO_REPLACE);

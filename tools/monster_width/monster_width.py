@@ -1,9 +1,10 @@
-"""Monster width check: monsters move 10.5/16 as wide on Daggerfall maps and at stock width elsewhere, while their
-radius (hitbox) stays stock everywhere: hitscans and a fireball hit inside the stock edge and miss outside it.
+"""Monster width check: on Daggerfall maps monsters squeeze to 10.5/16 of their radius only through gaps in the level;
+their radius (hitbox) stays stock everywhere: hitscans and a fireball hit inside the stock edge and miss outside it,
+and against another monster, the player and an open wall they stop at their stock radius.
 
 Launches (each private, minimized, time limited; wrap the whole script in quiet_run.py):
   e1m1_stock / e1m1_drla   DOOM.WAD E1M1 with the Doomerfall mod (and DRLA): every monster must keep its stock radius and movement width.
-  ph_stock / ph_drla       a converted Privateer's Hold (MAP01) with the mod (and DRLA): every monster must move narrowed, radius stock.
+  ph_stock / ph_drla       a converted Privateer's Hold (MAP01) with the mod (and DRLA): every monster's squeeze width must be narrowed, radius stock.
 
 Usage: python tools/monster_width/monster_width.py --exe <uzdoom.exe> --ph <dir with privateershold.wad, _mesh.pk3, _doors.pk3> --out <dir>
 """
@@ -72,7 +73,10 @@ for name, iwad, files, mapname, daggerfall in cases:
         ok = stock > 0 and narrow == 0 and other == 0
     hit = next((l for l in text.splitlines() if l.startswith("MWHITSUMMARY")), "")
     ok = ok and "hits=4 misses=3 wrong=0" in hit and not any(b in text for b in FATAL)
-    summary += " | " + (hit or "no hit summary")
+    space = next((l for l in text.splitlines() if l.startswith("MWSPACESUMMARY")), "")
+    sf = dict(kv.split("=") for kv in space.split()[1:]) if space else {}
+    ok = ok and int(sf.get("wrong", 1)) == 0 and int(sf.get("ok", 0)) >= 3
+    summary += " | " + (hit or "no hit summary") + " | " + (space or "no spacing summary")
     failures += 0 if ok else 1
     classes = sorted({l.split()[1] for l in text.splitlines() if l.startswith("MW ")})
     print(f"{name}: {'PASS' if ok else 'FAIL'} {summary or 'no summary'} classes={','.join(classes[:12])}{'...' if len(classes) > 12 else ''}")

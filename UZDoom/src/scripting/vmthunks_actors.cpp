@@ -799,13 +799,13 @@ DEFINE_ACTION_FUNCTION_NATIVE(AActor, DD_HealthCheckLimit, DD_BridgeHpCheckLimit
 	ACTION_RETURN_INT(DD_BridgeHpCheckLimit(self, health));
 }
 
-// [Doomerfall] Monster movement width on Daggerfall maps (dd_monsters.cpp, AActor::MoveRadius).
+// [Doomerfall] Monster squeeze width on Daggerfall maps (dd_monsters.cpp, AActor::SqueezeRadius).
 bool DD_OnDaggerfallMap(FLevelLocals *Level);
 
 DEFINE_ACTION_FUNCTION(AActor, DD_MoveRadius)
 {
 	PARAM_SELF_PROLOGUE(AActor);
-	ACTION_RETURN_FLOAT(self->MoveRadius());
+	ACTION_RETURN_FLOAT(self->SqueezeRadius());
 }
 
 DEFINE_ACTION_FUNCTION(AActor, DD_MonsterMoveScale)

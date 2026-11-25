@@ -348,11 +348,11 @@ void P_GetFloorCeilingZ(FCheckPosition &tmf, int flags)
 //
 //==========================================================================
 
-// [Doomerfall] Bodies block each other at their movement widths (AActor::MoveRadius). A missile or a charging monster
-// still hits at the stock radius, so hitboxes stay stock.
+// [Doomerfall] Bodies block each other at their stock radii. Only a monster squeezing through a gap (DD_SqueezeActor,
+// see P_TryMove) meets a Daggerfall door leaf at its narrow width, because door leaves count as level geometry.
 static inline double DD_MoveBlockDist(const AActor *mover, const AActor *other)
 {
-	return (mover->flags & (MF_MISSILE | MF_SKULLFLY)) ? mover->radius + other->radius : mover->MoveRadius() + other->MoveRadius();
+	return mover == DD_SqueezeActor && DD_IsDoorLeaf(other) ? mover->MoveRadius() + other->radius : mover->radius + other->radius;
 }
 
 void P_FindFloorCeiling(AActor *actor, int flags)
@@ -388,7 +388,7 @@ void P_FindFloorCeiling(AActor *actor, int flags)
 	validcount++;
 
 	FPortalGroupArray grouplist;
-	FMultiBlockLinesIterator mit(grouplist, actor, actor->MoveRadius()); // [Doomerfall] movement width
+	FMultiBlockLinesIterator mit(grouplist, actor);
 	FMultiBlockLinesIterator::CheckResult cres;
 
 	// if we already have a valid floor/ceiling sector within the current sector,
@@ -472,7 +472,7 @@ bool	P_TeleportMove(AActor* thing, const DVector3 &pos, bool telefrag, bool modi
 	sector_t *sector = thing->Level->PointInSector(pos);
 
 	FPortalGroupArray grouplist;
-	FMultiBlockLinesIterator mit(grouplist, thing->Level, pos.X, pos.Y, pos.Z, thing->Height, thing->MoveRadius(), sector);
+	FMultiBlockLinesIterator mit(grouplist, thing->Level, pos.X, pos.Y, pos.Z, thing->Height, thing->radius, sector);
 	FMultiBlockLinesIterator::CheckResult cres;
 
 	while (mit.Next(&cres))
@@ -483,7 +483,7 @@ bool	P_TeleportMove(AActor* thing, const DVector3 &pos, bool telefrag, bool modi
 
 	if (tmf.touchmidtex) tmf.dropoffz = tmf.floorz;
 
-	FMultiBlockThingsIterator mit2(grouplist, thing->Level, pos.X, pos.Y, pos.Z, thing->Height, thing->MoveRadius(), false, sector);
+	FMultiBlockThingsIterator mit2(grouplist, thing->Level, pos.X, pos.Y, pos.Z, thing->Height, thing->radius, false, sector);
 	FMultiBlockThingsIterator::CheckResult cres2;
 
 	while (mit2.Next(&cres2))
@@ -503,7 +503,7 @@ bool	P_TeleportMove(AActor* thing, const DVector3 &pos, bool telefrag, bool modi
 		if ((th->ThruBits & tmf.thing->ThruBits) && ((th->flags8 | tmf.thing->flags8) & MF8_ALLOWTHRUBITS))
 			continue;
 
-		double blockdist = DD_MoveBlockDist(tmf.thing, th);
+		double blockdist = th->radius + tmf.thing->radius;
 		if (fabs(th->X() - cres2.Position.X) >= blockdist || fabs(th->Y() - cres2.Position.Y) >= blockdist)
 			continue;
 
@@ -606,7 +606,7 @@ void P_PlayerStartStomp(AActor *actor, bool mononly)
 		if (th == actor || (th->player == actor->player && th->player != NULL))
 			continue;
 
-		double blockdist = DD_MoveBlockDist(actor, th);
+		double blockdist = th->radius + actor->radius;
 		if (fabs(th->X() - cres.Position.X) >= blockdist || fabs(th->Y() - cres.Position.Y) >= blockdist)
 			continue;
 
@@ -1873,7 +1873,7 @@ bool P_CheckPosition(AActor *thing, const DVector2 &pos, FCheckPosition &tm, boo
 
 	if (!(thing->flags2 & MF2_THRUACTORS))
 	{
-		FMultiBlockThingsIterator it2(pcheck, thing->Level, pos.X, pos.Y, thing->Z(), thing->Height, thing->MoveRadius(), false, newsec);
+		FMultiBlockThingsIterator it2(pcheck, thing->Level, pos.X, pos.Y, thing->Z(), thing->Height, thing->radius, false, newsec);
 		FMultiBlockThingsIterator::CheckResult tcres;
 
 		while ((it2.Next(&tcres)))
@@ -2321,7 +2321,7 @@ static void CheckForPushSpecial(line_t *line, int side, AActor *mobj, DVector2 *
 //
 //==========================================================================
 
-bool P_TryMove(AActor *thing, const DVector2 &pos,
+static bool P_TryMoveOnce(AActor *thing, const DVector2 &pos, // [Doomerfall] was P_TryMove; see the wrapper below
 	int dropoff, // killough 3/15/98: allow dropoff as option
 	const secplane_t *onfloor, // [RH] Let P_TryMove keep the thing on the floor
 	FCheckPosition &tm,
@@ -2837,6 +2837,22 @@ pushline:
 	return false;
 }
 
+// [Doomerfall] Squeeze only when stuck. On Daggerfall maps a monster moves at its stock radius. Only when that move fails
+// against level geometry or a door leaf, and the spot is a gap narrower than the monster (DD_InGap), does it retry at its
+// narrow width (AActor::SqueezeRadius). Elsewhere SqueezeRadius equals radius, so this is one stock attempt.
+bool P_TryMove(AActor *thing, const DVector2 &pos, int dropoff, const secplane_t *onfloor, FCheckPosition &tm, bool missileCheck)
+{
+	if (thing->SqueezeRadius() >= thing->radius || thing == DD_SqueezeActor) return P_TryMoveOnce(thing, pos, dropoff, onfloor, tm, missileCheck);
+	if (P_TryMoveOnce(thing, pos, dropoff, onfloor, tm, missileCheck)) return true;
+	AActor *blocker = thing->BlockingMobj.ForceGet();
+	if ((blocker && !DD_IsDoorLeaf(blocker)) || !DD_InGap(thing, pos)) return false;
+	AActor *outer = DD_SqueezeActor;
+	DD_SqueezeActor = thing;
+	const bool moved = P_TryMoveOnce(thing, pos, dropoff, onfloor, tm, missileCheck);
+	DD_SqueezeActor = outer;
+	return moved;
+}
+
 bool P_TryMove(AActor *thing, const DVector2 &pos,
 	int dropoff, // killough 3/15/98: allow dropoff as option
 	const secplane_t *onfloor, bool missilecheck) // [RH] Let P_TryMove keep the thing on the floor
@@ -3218,7 +3234,6 @@ void FSlide::SlideMove(AActor *mo, DVector2 tryp, int numsteps)
 
 	hitcount = 3;
 	slidemo = mo;
-	const double moveradius = mo->MoveRadius(); // [Doomerfall] movement width
 
 	if (mo->player && mo->player->mo == mo && mo->reactiontime > 0)
 		return;	// player coming right out of a teleporter.
@@ -3230,24 +3245,24 @@ retry:
 	// trace along the three leading corners
 	if (tryp.X > 0)
 	{
-		lead.X = mo->X() + moveradius;
-		trail.X = mo->X() - moveradius;
+		lead.X = mo->X() + mo->radius;
+		trail.X = mo->X() - mo->radius;
 	}
 	else
 	{
-		lead.X = mo->X() - moveradius;
-		trail.X = mo->X() + moveradius;
+		lead.X = mo->X() - mo->radius;
+		trail.X = mo->X() + mo->radius;
 	}
 
 	if (tryp.Y > 0)
 	{
-		lead.Y = mo->Y() + moveradius;
-		trail.Y = mo->Y() - moveradius;
+		lead.Y = mo->Y() + mo->radius;
+		trail.Y = mo->Y() - mo->radius;
 	}
 	else
 	{
-		lead.Y = mo->Y() - moveradius;
-		trail.Y = mo->Y() + moveradius;
+		lead.Y = mo->Y() - mo->radius;
+		trail.Y = mo->Y() + mo->radius;
 	}
 
 	bestSlidefrac = 1.01;
@@ -6511,7 +6526,7 @@ void P_FindAboveIntersectors(AActor *actor)
 	while (it.Next(&cres))
 	{
 		AActor *thing = cres.thing;
-		double blockdist = DD_MoveBlockDist(actor, thing);
+		double blockdist = actor->radius + thing->radius;
 		if (fabs(thing->X() - cres.Position.X) >= blockdist || fabs(thing->Y() - cres.Position.Y) >= blockdist)
 			continue;
 
@@ -6567,7 +6582,7 @@ void P_FindBelowIntersectors(AActor *actor)
 	while (it.Next(&cres))
 	{
 		AActor *thing = cres.thing;
-		double blockdist = DD_MoveBlockDist(actor, thing);
+		double blockdist = actor->radius + thing->radius;
 		if (fabs(thing->X() - cres.Position.X) >= blockdist || fabs(thing->Y() - cres.Position.Y) >= blockdist)
 			continue;
 
