@@ -752,6 +752,10 @@ bool DD_ItemsEvent(const dfb_event &e)
 		dfb_doom_item d;
 		memcpy(&d, e.payload, sizeof(d));
 		if (e.kind == DFB_KIND_DOOM_ITEM_RESULT) doomOutgoing.push_back(FStringf("dfd_result:%u:%u", d.request, d.status));
+		// [Doomerfall] Daggerfall's inventory window dropped this Doom item: status bit 0x100 (plus 0x200 when it is
+		// the gun Doom holds). DoomerfallGuns.zs spawns its pickup, carrying the gun's GUN_STATE lines sent just before, and
+		// answers with DOOM_ITEM_USED, so Daggerfall lets go of the item only once the pickup exists.
+		else if (d.status & 0x100) doomOutgoing.push_back(FStringf("dfg_drop:%u:%u:%s", d.request, d.status, ClassOf(d).GetChars()));
 		else doomOutgoing.push_back(FStringf("dfd_use:%u:%s", d.request, ClassOf(d).GetChars()));
 		return true;
 	}
@@ -984,7 +988,8 @@ bool DD_ItemsNetEvent(dfb_session *session, const char *name)
 	if (!strncmp(name, "dfg_out:", 8))
 	{
 		static const struct { const char *word; uint16_t kind; } kinds[] = {
-			{ "state:", DFB_KIND_GUN_STATE }, { "stashed:", DFB_KIND_GUN_STASHED }, { "kept:", DFB_KIND_GUN_KEPT }, { "done:", DFB_KIND_GUN_EQUIPPED } };
+			{ "state:", DFB_KIND_GUN_STATE }, { "stashed:", DFB_KIND_GUN_STASHED }, { "kept:", DFB_KIND_GUN_KEPT }, { "done:", DFB_KIND_GUN_EQUIPPED },
+			{ "dropped:", DFB_KIND_DOOM_ITEM_USED } };	// [Doomerfall] a dropped Doom item's pickup was spawned, or not
 		for (auto &k : kinds)
 		{
 			const size_t n = strlen(k.word);
