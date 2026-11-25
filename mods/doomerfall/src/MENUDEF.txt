@@ -2,6 +2,7 @@
 // next to the other submenus by Doomerfall_Events.UiTick (zscript/Doomerfall.zs), because
 // AddOptionMenu can only append (below "Reset to defaults").
 // All actions are unbound by default; bindings are saved in the player's config like any other.
+// Interacting (Grab, Steal while crouching, talk, shops, containers) is Doom's own Use control, so it has no entry here.
 OptionMenu "DoomerfallControlsMenu"
 {
 	Title "Doomerfall Controls"
@@ -11,7 +12,6 @@ OptionMenu "DoomerfallControlsMenu"
 	StaticText ""
 	Control "Open Fast Travel", "netevent df_fast_travel"
 	Control "Open Inventory", "netevent df_inventory"
-	Control "Interact", "netevent df_interact"
 	Control "Info", "netevent df_info"
 	Control "Change Ammo", "netevent df_change_ammo"
 }

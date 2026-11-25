@@ -939,7 +939,8 @@ bool DD_ItemsInfoPress(player_t *player)
 	return true;
 }
 
-// The Interact control is the same action as Use, without Doom's door use.
+// Doomerfall's own events. df_interact is Use's interaction without the door use; players interact with Doom's Use
+// (P_CheckUse), and only test harnesses still send it.
 bool DD_ItemsNetEvent(dfb_session *session, const char *name)
 {
 	const bool result = !strncmp(name, "dfd_result:", 11);
