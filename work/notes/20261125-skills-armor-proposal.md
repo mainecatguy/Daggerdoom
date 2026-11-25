@@ -78,9 +78,9 @@ with skill. Lean (b).
 
 - Jump height grows linearly to +100% at skill 100, and the 25 spike adds +25% on top from skill 25 onward.
   The spike stacks on top, so the total is +125% at skill 100 (owner, 2026-11-25).
-- The player never takes damage from their own jumps (owner, 2026-11-25): jumping up and landing, including double
-  and triple jumps at any jump height, never hurts. Lean: count a fall only from the takeoff height (or the highest
-  ground stood on), not from the jump's peak, so only real drops below where the player jumped from can hurt.
+- Constraint on the fall damage curve (owner, 2026-11-25): at every skill level, jumping in place and landing
+  (including double and triple jumps) must not cause fall damage. Falls onto lower ground can still hurt. Lean: raise
+  the no-damage fall distance by at least the skill's extra jump height, and apply the percentage reduction above it.
 - Fall damage shrinks with Jumping until immunity at 75. **Lean:** linear from 0% reduction at skill 0 to 50% just
   below 75, then immune. The owner gave no curve.
 - Implementation notes: Doom jump height grows with the square of jump speed, so +100% height is about 1.41x jump

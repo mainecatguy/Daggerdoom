@@ -18,4 +18,5 @@ Owner decisions so far (2026-11-25):
 - Jumping: jump height up to +100% with a +25% spike at 25; double jump at 50; fall damage immunity at 75; triple jump
   at 100; Jumping reduces fall damage below 75. The spike stacks on top: +125% at 100. Open: the fall damage curve
   below 75.
-- The player never takes damage from their own jumps, at any jump height or number of jumps.
+- The fall damage curve must at least ensure that jumping in place (including double and triple jumps) never causes
+  fall damage at any skill level. Falls onto lower ground can still hurt.
