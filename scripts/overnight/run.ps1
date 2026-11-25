@@ -1,6 +1,7 @@
 <#
 Overnight loop: one Claude session works on work/goal.md on its own branch.
-When it reports DONE, real builds and a fresh read-only verifier check it.
+When it reports DONE, real builds and a fresh read-only verifier check it. After a pass, the verifier's session is
+resumed as a reviewer whose architecture and performance flags go to the owner without failing the work.
 Passing work advances local integration. Nothing ever touches main.
 Stops on: verified, blocked, budget, time, or round limit.
 
@@ -34,7 +35,9 @@ $Integration = "refs/heads/$Target"
 # Blocked up front by agent-settings.json. Rechecked here because shell subprocesses can bypass deny rules.
 $Protected = 'AGENTS.md', 'CLAUDE.md', '.claude/', '.github/', 'scripts/overnight/', '.gitignore', 'GameResources/'
 $AgentSchema = '{"type":"object","properties":{"status":{"type":"string","enum":["CONTINUE","DONE","BLOCKED"]},"summary":{"type":"string"},"questions":{"type":"array","items":{"type":"string"}},"oversights":{"type":"array","items":{"type":"string"}}},"required":["status","summary"]}'
-$VerifierSchema = '{"type":"object","properties":{"verdict":{"type":"string","enum":["PASS","FAIL"]},"problems":{"type":"string"}},"required":["verdict","problems"]}'
+# The reviewer resumes the verifier's session with the same schema, so the cached prefix still matches.
+$VerifierSchema = '{"type":"object","properties":{"verdict":{"type":"string","enum":["PASS","FAIL"]},"problems":{"type":"string"},"owner_flags":{"type":"array","items":{"type":"string"}}},"required":["verdict","problems"]}'
+$ReviewerMaxUsd = 0.5
 $MaxDiffChars = 60000
 $UnityArtifacts = @('daggerfall-unity-master/Assets/AddressableAssetsData/Windows/addressables_content_state.bin')
 
@@ -99,7 +102,7 @@ function Add-AgentReports($Items, $Kind) {
     Write-Text $ReportsFile (($lines -join "`n") + "`n")
 }
 
-# Stats cover the worker agent and its subagents. The verifier keeps no transcript. A failed read leaves blanks.
+# Stats cover the worker agent and its subagents, not the verifier or reviewer. A failed read leaves blanks.
 function Get-RunStats {
     $blank = @{ PeakContext = ''; CacheReadTokens = ''; OutputTokens = ''; Messages = ''; ToolOutputChars = '' }
     try {
@@ -154,15 +157,44 @@ function Test-Work([string]$Tag) {
     $stat = (RepoGit $Worktree diff --stat $Base HEAD) -join "`n"
     $prompt = $VerifierPrompt.Replace('{{GOAL}}', $Goal).Replace('{{COMMITS}}', ((RepoGit $Worktree log --oneline "${Base}..HEAD") -join "`n")).Replace('{{STAT}}', $stat).Replace('{{DIFF}}', $diff).Replace('{{CHECK}}', $checkTail)
     $budget = [Math]::Min($VerifierMaxUsd, $MaxUsd - (Get-Spent)).ToString('0.####', [Globalization.CultureInfo]::InvariantCulture)
-    $line = ("$ClaudePrefix -p --no-session-persistence --setting-sources project --strict-mcp-config --model sonnet --tools Read,Grep,Glob --permission-mode dontAsk --allowedTools Read,Grep,Glob --max-turns 40 --max-budget-usd $budget --output-format json $(Get-SchemaArg $VerifierSchema)").Trim()
+    $verifierArgs = "--setting-sources project --strict-mcp-config --model sonnet --tools Read,Grep,Glob --permission-mode dontAsk --allowedTools Read,Grep,Glob --output-format json $(Get-SchemaArg $VerifierSchema)"
+    $line = ("$ClaudePrefix -p $verifierArgs --max-turns 40 --max-budget-usd $budget").Trim()
     $code = Invoke-Logged $ClaudeExe $line $prompt "$Tag-verifier.log"
     $result = Read-Result "$Tag-verifier.log"
     if ($result) { $script:VerifierUsd += [double]$result.total_cost_usd }
     if ((RepoGit $Worktree rev-parse HEAD) -ne $head -or (RepoGit $Worktree status --porcelain)) { throw 'The verifier changed the worktree.' }
     if ($code -ne 0 -or -not $result.structured_output) { return 'The verifier could not finish. Confirm your work is still complete, then report DONE again.' }
-    if ($result.structured_output.verdict -eq 'PASS') { return $null }
+    if ($result.structured_output.verdict -eq 'PASS') {
+        Invoke-Review $Tag $result $verifierArgs $head
+        return $null
+    }
     $script:VerifierFails++
     "An independent verifier rejected this work:`n$($result.structured_output.problems)"
+}
+
+# After a PASS, the verifier's session is resumed as a reviewer, reusing its cached reading. Its flags go to the owner
+# and never fail the work, so any problem here is only a warning.
+function Invoke-Review([string]$Tag, $Verified, [string]$VerifierArgs, [string]$Head) {
+    try {
+        if (-not $Verified.session_id) { Write-Warning 'No verifier session to review from.'; return }
+        $spent = [double]$Verified.total_cost_usd
+        $cap = [Math]::Min($ReviewerMaxUsd, $MaxUsd - (Get-Spent))
+        if ($cap -le 0) { return }
+        # Budgets may count the whole resumed session, so the cap includes what the verifier spent.
+        $budget = ($spent + $cap).ToString('0.####', [Globalization.CultureInfo]::InvariantCulture)
+        $line = ("$ClaudePrefix -p $VerifierArgs --resume $($Verified.session_id) --max-turns 15 --max-budget-usd $budget").Trim()
+        $code = Invoke-Logged $ClaudeExe $line $ReviewerPrompt "$Tag-review.log"
+        $review = Read-Result "$Tag-review.log"
+        if ($review) { $script:VerifierUsd += [Math]::Max(0, [double]$review.total_cost_usd - $spent) }
+        if ((RepoGit $Worktree rev-parse HEAD) -ne $Head -or (RepoGit $Worktree status --porcelain)) { throw 'The reviewer changed the worktree.' }
+        if ($code -ne 0 -or -not $review.structured_output) { Write-Warning "The review did not finish (exit $code)."; return }
+        $script:ReviewFlags = @($review.structured_output.owner_flags | Where-Object { $_ })
+        Add-AgentReports $script:ReviewFlags 'review'
+    }
+    catch {
+        if ($_.Exception.Message -like '*changed the worktree*') { throw }
+        Write-Warning "Review skipped: $($_.Exception.Message)"
+    }
 }
 
 # --- Setup: paths, tools, branch, and persistent worktree ---
@@ -206,6 +238,8 @@ $ReportsFile = Join-Path $Repo 'work\agent-reports.md'
 $OpenQuestions = (@($QuestionsFile, $ReportsFile) | Where-Object { Test-Path $_ } | ForEach-Object { [IO.File]::ReadAllText($_) }) -join "`n"
 if (-not $OpenQuestions) { $OpenQuestions = 'None.' }
 $VerifierPrompt = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'verifier.md'))
+$ReviewerPrompt = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'reviewer.md'))
+$ReviewFlags = @()
 $FirstPrompt = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'agent.md')).Replace('{{GOAL}}', $Goal).Replace('{{NOTES}}', "work/notes/$Stamp.md").Replace('{{QUESTIONS}}', $OpenQuestions)
 if ($ContinueSession) {
     $FirstPrompt = "You are continuing from the planning conversation above, now as an unattended run in a separate checkout on branch $Branch. Use the decisions from that conversation, and use paths relative to the current directory.`n`n$FirstPrompt"
@@ -289,7 +323,7 @@ $stats = Get-RunStats
 $metric = [pscustomobject]@{
     Run = $Stamp; Harness = $harness; Model = $Model; Result = $result; Rounds = $round; Turns = $Turns
     CostUsd = $cost; Minutes = $minutes; Commits = $commits.Count; Verifications = $Verifications
-    CheckFails = $CheckFails; VerifierFails = $VerifierFails; Denials = $Denials
+    CheckFails = $CheckFails; VerifierFails = $VerifierFails; Denials = $Denials; ReviewFlags = $ReviewFlags.Count
     PeakContext = $stats.PeakContext; CacheReadTokens = $stats.CacheReadTokens; OutputTokens = $stats.OutputTokens
     Messages = $stats.Messages; ToolOutputChars = $stats.ToolOutputChars
 }
@@ -310,7 +344,9 @@ if (-not $metricSaved) {
 
 $report = Join-Path $RunDir 'report.md'
 $openCount = if (Test-Path $ReportsFile) { @(Get-Content $ReportsFile | Where-Object { $_ -like '- *' }).Count } else { 0 }
-$entry = @("## Run $Stamp", "- Result: $outcome", "- Branch: $Branch ($($commits.Count) commits)", "- Rounds: $round, turns: $Turns, estimated cost: `$$cost, minutes: $minutes", "- Agent reports awaiting triage: $openCount (work/agent-reports.md)", "- Notes: work/notes/$Stamp.md", "- Logs: $Logs", '')
+$entry = @("## Run $Stamp", "- Result: $outcome", "- Branch: $Branch ($($commits.Count) commits)", "- Rounds: $round, turns: $Turns, estimated cost: `$$cost, minutes: $minutes", "- Agent reports awaiting triage: $openCount (work/agent-reports.md)", "- Notes: work/notes/$Stamp.md", "- Logs: $Logs")
+if ($ReviewFlags.Count) { $entry += "- Review flags for the owner ($($ReviewFlags.Count)):"; $entry += @($ReviewFlags | ForEach-Object { "  - $(([string]$_ -replace '\s+', ' ').Trim())" }) }
+$entry += ''
 Add-Content -LiteralPath $report -Value $entry -Encoding utf8
 $entry | Write-Output
 exit $exitCode
