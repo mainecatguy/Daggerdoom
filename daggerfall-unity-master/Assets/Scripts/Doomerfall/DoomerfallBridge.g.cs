@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0xf7762cbdcd0e32c6UL;
+        public const ulong SchemaHash = 0xe6bcfeba0dff0557UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -225,6 +225,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint UI_TALK = 6;  // whatever Daggerfall opens for the NPC it just answered DFB_NPC_USE_WINDOW for
         public const uint UI_DAGGERFALL = 7;  // the window Daggerfall opened by itself and asked for with DFB_KIND_UI_ASK
         public const uint UI_LOAD_GAME = 8;  // Daggerfall's own Load window, from Doom's title; a save loaded there has no Doom half (DFB_KIND_PLAIN_LOAD)
+        public const uint UI_JOURNAL = 9;  // Daggerfall's quest journal; dfb_ui_command.context is Doom's DFB_WORLD_* (travel from it only outdoors)
         public const uint UI_CLOSED = 0;
         public const uint UI_OPENED = 1;
         public const uint UI_REASON_NONE = 0;

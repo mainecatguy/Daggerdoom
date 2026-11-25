@@ -334,6 +334,7 @@ typedef struct dfb_face
 #define DFB_UI_TALK        6u  /* whatever Daggerfall opens for the NPC it just answered DFB_NPC_USE_WINDOW for */
 #define DFB_UI_DAGGERFALL  7u  /* the window Daggerfall opened by itself and asked for with DFB_KIND_UI_ASK */
 #define DFB_UI_LOAD_GAME   8u  /* Daggerfall's own Load window, from Doom's title; a save loaded there has no Doom half (DFB_KIND_PLAIN_LOAD) */
+#define DFB_UI_JOURNAL     9u  /* Daggerfall's quest journal; dfb_ui_command.context is Doom's DFB_WORLD_* (travel from it only outdoors) */
 
 #define DFB_UI_CLOSED      0u
 #define DFB_UI_OPENED      1u

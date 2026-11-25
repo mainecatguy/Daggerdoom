@@ -136,7 +136,7 @@ class Doomerfall_Events : StaticEventHandler
 		{
 			DDLog.Debug("Doomerfall: action fired: Open Inventory");
 		}
-		else if (e.Name != "df_interact" && e.Name != "df_info" && e.Name != "df_change_ammo") // The engine handles these in a bridge session (dd_items.cpp, dd_info.cpp).
+		else if (e.Name != "df_interact" && e.Name != "df_info" && e.Name != "df_change_ammo" && e.Name != "df_journal") // The engine handles these in a bridge session (dd_items.cpp, dd_info.cpp, dd_bridge.cpp).
 		{
 			DDLog.Debug(String.Format("Doomerfall: unknown action %s", e.Name));
 		}

@@ -2,7 +2,10 @@
 
   run_new_game.py back          Open character creation, press Esc until it closes, and stay at the title.
   run_new_game.py create [mode] Make a character by mouse and keyboard, skip the cinematics, and arrive.
-                                mode: save, death, or menu runs Doom's load test on that character.
+                                mode: save, death, or menu runs Doom's load test on that character; restart saves,
+                                plays on, chooses New Game in the running game (Y confirms), makes a second
+                                character, then loads the first one's save.
+  Options: --review DIR (staged folder), --inside-quiet (the whole script runs under quiet_run.py).
 
 Uses a private config, private saves, and the portable Daggerfall build. Stops at once on a fatal error.
 """
@@ -14,8 +17,21 @@ import sys
 import time
 from pathlib import Path
 
-REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\new-game")
-DATA = REVIEW.parent / "combined-bridge" / "data"
+
+def _option(name):
+    """--review DIR uses another staged folder (e.g. review\\newgame-restart). --inside-quiet: this whole script already
+    runs under quiet_run.py, so the launcher starts directly on the same private desktop, where Doom's window is visible."""
+    if name not in sys.argv:
+        return None
+    at = sys.argv.index(name)
+    value = sys.argv[at + 1] if name == "--review" else "1"
+    del sys.argv[at:at + (2 if name == "--review" else 1)]
+    return value
+
+
+REVIEW = Path(_option("--review") or r"D:\dev\DoomDaggerfall-loop\review\new-game")
+DATA = REVIEW / "data" if (REVIEW / "data").exists() else REVIEW.parent / "combined-bridge" / "data"
+INSIDE_QUIET = _option("--inside-quiet") == "1"
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 IWAD = r"D:\dev\DoomDaggerfall\GameResources\wads\DOOM2.WAD"
 DAGGER = r"D:\dev\DoomDaggerfall\GameResources\DAGGER"
@@ -148,14 +164,20 @@ def main():
                "--uzdoom-cwd", str(run), "--log", str(launcher)]
     for mod in ("ddruntime.pk3", "overworld.pk3", "privateershold.wad", "privateershold_mesh.pk3", "privateershold_doors.pk3"):
         command += ["--mod", str(DATA / mod)]
+    for mod in ("dfitems.pk3", "doomerfall.pk3"):  # Present in folders staged from current integration.
+        if (REVIEW / mod).exists():
+            command += ["--mod", str(REVIEW / mod)]
     for arg in uz_args:
         command += ["--uzdoom-arg", arg]
     for arg in dfu_args:
         command += ["--dfu-arg", arg]
 
-    limit = 85 if load == "again" else TIMEOUT  # Two characters are made in this run.
+    limit = 85 if load in ("again", "restart") else TIMEOUT  # Two characters are made in this run.
     command[command.index("--timeout") + 1] = str(limit)
+    if INSIDE_QUIET:
+        command = command[command.index("--") + 1:]
     proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    confirmed = False
     deadline = time.time() + limit
     result, hwnd, tries, last = "timeout", None, 0, ""
     goal = "backed out" if mode == "back" else "both games running"
@@ -176,6 +198,13 @@ def main():
             if load and re.search(r"load test: (PASS|FAIL)", uz):
                 result = re.search(r"load test: (PASS|FAIL)", uz).group(1)
                 break
+            if load == "restart" and not confirmed and "asking to confirm New Game" in uz:
+                hwnd = hwnd or doom_window(launcher)
+                if hwnd:
+                    time.sleep(1.0)  # The question is on screen for a moment, as for a player.
+                    key(hwnd, 0x59)  # Y answers Yes in Doom's message box.
+                    confirmed = True
+                continue
             size = re.search(r"opened menu 4 at (\d+)x(\d+)", uz)
             if not size or "ui: closed" in uz[uz.rfind("opened menu 4"):]:
                 time.sleep(0.05)

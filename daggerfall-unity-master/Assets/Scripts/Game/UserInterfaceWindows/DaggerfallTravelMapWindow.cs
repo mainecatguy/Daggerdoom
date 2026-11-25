@@ -1764,6 +1764,8 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             }
             else
             {
+                if (Doomerfall.DoomerfallUi.RefuseJournalTravel()) // Doomerfall: Doom cannot follow travel from indoors
+                    return;
                 if (popUp == null)
                 {
                     popUp = (DaggerfallTravelPopUp)UIWindowFactory.GetInstanceWithArgs(UIWindowType.TravelPopUp, new object[] { uiManager, uiManager.TopWindow, this });

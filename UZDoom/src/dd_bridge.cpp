@@ -90,7 +90,7 @@ FARG_ADVANCED(dfsavetestfail, "Doomerfall", "uz_zip|uz_commit|uz_crash", "Save t
 
 CVAR(Int, dd_sync_df_phase, 0, CVAR_NOSAVE) // Read by the position sync test route.
 CVAR(Int, dd_ui_test_hold, 0, CVAR_NOSAVE | CVAR_MOD) // Test only: a route holds -dfuitest until it reaches the place to open the menu.
-CVAR(Int, dd_ui_test_menu, 1, CVAR_NOSAVE | CVAR_MOD) // Test only: the menu -dfuitest opens. 1 is the travel map, 2 the inventory, 3 the map command.
+CVAR(Int, dd_ui_test_menu, 1, CVAR_NOSAVE | CVAR_MOD) // Test only: the menu -dfuitest opens. 1 is the travel map, 2 the inventory, 3 the map command, 9 the journal.
 CVAR(Bool, dd_ui_test_doommap, false, CVAR_NOSAVE) // Test only: opens Doom's own map just before -dfuitest opens its menu.
 EXTERN_CVAR(Bool, dfmesh_view)
 static bool UiCanOpen();
@@ -553,6 +553,7 @@ void PumpUi(int64_t now)
 const char *UiCommandName(uint32_t id)
 {
 	if (id == DFB_UI_TALK) return "+use";
+	if (id == DFB_UI_JOURNAL) return "netevent df_journal";
 	return id == DFB_UI_INVENTORY || id == DFB_UI_LOOT ? "netevent df_inventory" : id == DFB_UI_MAP ? "togglemap" : "netevent df_fast_travel";
 }
 
@@ -764,8 +765,8 @@ bool DD_BridgeNetEvent(const char *name)
 		return true;
 	}
 	if (!session) return false;
-	const bool inventory = !strcmp(name, "df_inventory");
-	if (!inventory && strcmp(name, "df_fast_travel")) return false;
+	const bool inventory = !strcmp(name, "df_inventory"), journal = !strcmp(name, "df_journal");
+	if (!inventory && !journal && strcmp(name, "df_fast_travel")) return false;
 	if (uiState != UiClosed)
 	{
 		SendUiCommand(DFB_KIND_UI_CLOSE, uiId);
@@ -775,6 +776,11 @@ bool DD_BridgeNetEvent(const char *name)
 	if (inventory)
 	{
 		OpenUi(DFB_UI_INVENTORY);
+		return true;
+	}
+	if (journal) // Daggerfall refuses travel from the journal's map unless Doom is outdoors, as below.
+	{
+		OpenUi(DFB_UI_JOURNAL, ownState.world_context);
 		return true;
 	}
 	// Daggerfall's own indoor check cannot see this: its hidden player waits outside the door Doom used.
@@ -2209,19 +2215,37 @@ void PumpNewGameSave(int64_t now)
 }
 }
 
+void M_DDConfirmNewGame();
+
+static void NgBegin()
+{
+	ngState = NgWaitDf;
+	ngDeadline = dfb_now_ns() + 30000000000LL;
+	M_ClearMenus();
+	Log("new game: chosen in Doom's menu");
+}
+
 // Called for the first menu in Doom's new game chain. True means this flow took it.
 bool DD_BridgeNewGameMenu()
 {
 	if (!session || !flowMode || ngState == NgDifficulty) return false;
-	if (ngState == NgIdle && atTitle && loadState == LoadIdle)
-	{
-		ngState = NgWaitDf;
-		ngDeadline = dfb_now_ns() + 30000000000LL;
-		M_ClearMenus();
-		Log("new game: chosen in Doom's menu");
-	}
-	else if (!atTitle) Printf(PRINT_HIGH, "End the current game before starting a new one.\n");
+	if (ngState != NgIdle || loadState != LoadIdle) return true;
+	if (atTitle) NgBegin();
+	else if (saveState == SaveIdle && !saveStartPending) M_DDConfirmNewGame(); // As stock Doom: confirm, then start over.
 	return true;
+}
+
+// Yes to the New Game question in a running game: the game is dropped unsaved, both games go to the title as End
+// Game does (Daggerfall held), and New Game starts from there. Character creation resets Daggerfall's side and
+// entering DDOVER01 resets Doom's world table.
+void DD_BridgeNewGameFromGame()
+{
+	if (!session || !flowMode || atTitle || ngState != NgIdle || loadState != LoadIdle || saveState != SaveIdle || saveStartPending) return;
+	Log("new game: chosen in a running game, campaign %s dropped", campaignId.IsEmpty() ? "-" : campaignId.GetChars());
+	if (gamestate == GS_LEVEL) P_UnPredictClient();
+	ngSave = NgsNone;
+	ReturnToTitle();
+	NgBegin();
 }
 
 // Escape's main menu stays shut while New Game or a plain load is under way: Daggerfall's screens, the difficulty
