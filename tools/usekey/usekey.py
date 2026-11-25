@@ -1,11 +1,10 @@
 """Tests that Doom's own Use key does all of Doomerfall's interaction, with both real games, minimized.
 
-usage: usekey.py assemble | run MODE [NAME] [--stock-mods] [--old-bind] | wad
+usage: usekey.py assemble | run MODE [NAME] [--stock-mods] | wad
 MODE shop:    Use enters a store by its town door, opens a shelf, opens the shop menu, talks, and steals while crouching.
 MODE dungeon: Use enters Privateer's Hold, takes a Doom drop, opens a Daggerfall pile, swings a door, presses a lever.
 Every press is Doom's Use button in the player's command (harness.zs); nothing sends netevent df_interact.
-Each run uses a fresh private config, so Doom's default binds apply. --old-bind adds the old play folder's
-'+bind e "netevent df_interact"' to check that a bridge session turns that key back into Use.
+Each run uses a fresh private config, so Doom's default binds apply.
 wad: DOOM.WAD E1M1 with no bridge, stock and with the DRLA set: Use opens a door and presses the exit switch.
 """
 import argparse
@@ -45,7 +44,6 @@ DATA = ["ddruntime.pk3", "overworld.pk3", "privateershold.wad", "privateershold_
 GROUP = 7154
 DUNGEON_DOOR = "1 187853213"
 FATAL = ("DIED WITH FATAL", "VM execution aborted", "Execution could not continue", "Unable to open map")
-OLD_BIND = ["+bind", "e", "netevent df_interact"]
 
 
 def read(path):
@@ -166,7 +164,7 @@ def door_row(mode, cache):
     return next(r for r in rows if r[0] == "0" and types.get(int(r[1])) == "GeneralStore")
 
 
-def run(mode, name, stock_mods, old_bind):
+def run(mode, name, stock_mods):
     data, runs = REVIEW / "data", REVIEW / "run"
     saves = runs / "saves"
     saves.mkdir(parents=True, exist_ok=True)
@@ -184,7 +182,7 @@ def run(mode, name, stock_mods, old_bind):
     uz = ["-ddqa", str(qa.inbox.parent), "-config", str(ini), "-savedir", str(saves), "-dfbridgelog", str(uz_log), "-noautoload", "-skill", "3",
           "-ddtowncache", str(data / "cache"), "-ddconverter", str(data / "converter" / "DungeonConverter.exe"), "-ddarena2", str(GAME / "DAGGER" / "ARENA2"),
           "+logfile", name, "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0",
-          "+map", f"DDT{GROUP:05d}"] + (OLD_BIND if old_bind else [])
+          "+map", f"DDT{GROUP:05d}"]
     df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), "-dfshoptest", "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
     timeout = 100
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
@@ -271,11 +269,10 @@ ap.add_argument("command", choices=("assemble", "run", "wad"))
 ap.add_argument("mode", nargs="?", choices=("shop", "dungeon"), default="shop")
 ap.add_argument("name", nargs="?", default="")
 ap.add_argument("--stock-mods", action="store_true")
-ap.add_argument("--old-bind", action="store_true")
 args = ap.parse_args()
 if args.command == "assemble":
     assemble()
 elif args.command == "run":
-    run(args.mode, args.name or args.mode, args.stock_mods, args.old_bind)
+    run(args.mode, args.name or args.mode, args.stock_mods)
 else:
     wad()

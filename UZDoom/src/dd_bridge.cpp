@@ -657,18 +657,6 @@ bool IsOpenMenuKey(long long lParam)
 	if (uiId == DFB_UI_DAGGERFALL) return false; // No Doom control opened it. The player answers it in Daggerfall.
 	return bound.CompareNoCase(UiCommandName(uiId)) == 0;
 }
-
-// Doom's Use is the interact key. Older configs bound a separate Interact control (netevent df_interact) on E, Doom's
-// default Use key, which left doors with no key. Those keys become Use again. Bridge sessions only.
-void MigrateInteractBinds()
-{
-	for (unsigned key = 0; key < NUM_KEYS; key++)
-		if (Bindings.GetBinding(key).CompareNoCase("netevent df_interact") == 0)
-		{
-			Bindings.SetBind(key, "+use");
-			Log("binds: key %u was the old Interact control, now Doom's Use", key);
-		}
-}
 }
 
 void DD_BridgeTransition(int action, double x, double y, int target)
@@ -2653,8 +2641,6 @@ void DD_BridgeFrame()
 {
 	DD_QaFrame();
 	if (!session) return;
-	static bool bindsChecked; // After the command line's +bind commands have run.
-	if (!bindsChecked) { bindsChecked = true; MigrateInteractBinds(); }
 
 	const int64_t now = dfb_now_ns();
 	dfb_event e;
