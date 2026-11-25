@@ -107,7 +107,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         // ---- Save ----
 
-        string SaveText()
+        internal string SaveText()
         {
             StringBuilder s = new StringBuilder("doomerfall-hotkeys 1\n");
             s.AppendFormat("active {0} {1} {2}\n", activeItem != null ? activeItem.UID : 0, activeKey, activeSquare);
@@ -122,7 +122,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return s.ToString();
         }
 
-        void LoadText(string text)
+        internal void LoadText(string text)
         {
             ResetState();
             string[] tiers = null;
@@ -145,6 +145,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     }
                     catch (Exception e) { Log("bad save line \"" + line + "\": " + e.Message); }
                 }
+            DropDuplicates();
             DoomerfallAmmo.LoadTiers(tiers); // An older save has none: every type loads Regular.
             ItemCollection items = GameManager.Instance.PlayerEntity.Items;
             activeItem = loadedActiveUid != 0 ? items.GetItem(loadedActiveUid) : null;
@@ -216,10 +217,36 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return 'c';
         }
 
+        // One hotkey per item (owner, 2026-11-24): any other square holding this same inventory item (same UID) is
+        // cleared, so assigning moves it. Other items of the same kind keep their squares.
         internal void Assign(int key, int square, DaggerfallUnityItem item)
         {
+            for (int k = 0; k < Keys; k++)
+                for (int q = 0; q < Squares; q++)
+                    if ((k != key || q != square) && table[k, q] != null && table[k, q].uid == item.UID)
+                    {
+                        Clear(k, q);
+                        if (activeKey == k && activeSquare == q) { activeKey = key; activeSquare = square; } // The drawn gun moved.
+                    }
             table[key, square] = new Square { uid = item.UID, kind = KindOf(item), identity = IdentityOf(item) };
             Log(string.Format("assigned \"{0}\" to key {1} square {2}", item.ItemName, key, square));
+        }
+
+        // An older save may hold one item on several squares. Keeps the first by hotkey order (keys 1-9, then 0).
+        void DropDuplicates()
+        {
+            HashSet<ulong> seen = new HashSet<ulong>();
+            for (int n = 0; n < Keys; n++)
+            {
+                int k = (n + 1) % Keys;
+                for (int q = 0; q < Squares; q++)
+                    if (table[k, q] != null && !seen.Add(table[k, q].uid))
+                    {
+                        Log(string.Format("load: item {0} is already on an earlier hotkey", table[k, q].uid));
+                        Clear(k, q);
+                        if (activeKey == k && activeSquare == q) activeKey = activeSquare = -1;
+                    }
+            }
         }
 
         internal void Clear(int key, int square)
