@@ -20,7 +20,7 @@ WADS = r"D:\dev\DoomDaggerfall\GameResources\wads"
 MODS = r"D:\dev\DoomDaggerfall\GameMods"
 DRLA = [os.path.join(MODS, n) for n in ("DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3")]
 MOD = os.path.join(REPO, "mods", "doomerfall", "src")
-SCALE = 10.5 / 16  # DoomerfallBodies: the player's 16 -> 10.5
+SCALE = 10.5 / 16  # DD_MonsterMoveScale (dd_monsters.cpp): monsters move at the player's 16 -> 10.5
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--exe", required=True)
