@@ -1,11 +1,13 @@
 """Paired check of Daggerfall's time and weather drawn by Doom (dd_weather.cpp, DoomerfallWorldLook.cs).
 
-usage: paired.py stage | run NAME [--steps "6:0 12:4 ..."] [--hold SECONDS] [--weather 0|1]
+usage: paired.py stage | run NAME [--steps "6:0 12:4 ..."] [--hold SECONDS] [--weather 0|1] [--draw] [--doom-args ...]
 
 stage  copies this worktree's Builds/Windows64 to the review folder, with the bridge DLL built from this worktree.
 run    starts both games through the launcher, minimized, in Gothway Garden (the Doom items demo's data, read only).
        Daggerfall steps its clock and weather (-dfworldlooktest); Doom screenshots every 4 s and logs what it drew.
        Prints Daggerfall's "world look" lines next to Doom's DDWEATHER lines, and the frame times Doom measured.
+       --draw keeps Daggerfall's 3D world drawn and saves its camera at the end of each step, with Doom's HUD and
+       weapon hidden, then compares their brightness (brightness.py).
 Builds: ../DoomDaggerfall-build/{uzdoom,bridge,launcher}-daynight. Game data and screenshots stay in the review folder.
 """
 import argparse
@@ -54,7 +56,7 @@ def stage():
     print("staged", dfu)
 
 
-def run(name, steps, hold, weather):
+def run(name, steps, hold, weather, draw, doom_args):
     runs = REVIEW / "run"
     shots = runs / f"{name}-shots"
     shutil.rmtree(shots, ignore_errors=True)
@@ -71,10 +73,17 @@ def run(name, steps, hold, weather):
           "-ddarena2", str(GAME / "DAGGER" / "ARENA2"), "+logfile", name, "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0",
           "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+screenshot_type", "png", "+screenshot_dir", str(shots),
           "+vid_maxfps", "0", "+vid_vsync", "0", "+dd_weather", str(weather), "+map", "DDT07154", "+exec", f"{name}.cfg"]
+    if draw:
+        uz += ["+screenblocks", "12", "+r_drawplayersprites", "0", "+crosshair", "0"]
+    uz += doom_args
     df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360",
           "-dfworldlooktest", steps, str(hold)]
+    df_shots = runs / f"{name}-dfshots"
+    shutil.rmtree(df_shots, ignore_errors=True)
+    if draw:
+        df += ["-dfworldlookshots", str(df_shots)]
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(BUILD / "launcher-daynight" / "Release" / "doomerfall-launcher.exe"),
-               "--minimized", "--nodraw", "--uzdoom", str(BUILD / "uzdoom-daynight" / "Release" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"),
+               "--minimized"] + ([] if draw else ["--nodraw"]) + ["--uzdoom", str(BUILD / "uzdoom-daynight" / "Release" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"),
                "--iwad", str(GAME / "wads" / "DOOM2.WAD"), "--uzdoom-cwd", str(runs), "--log", str(launcher)]
     for mod in [MODS / n for n in DRLA] + [DEMO / "data" / "ddruntime.pk3", DEMO / "data" / "overworld.pk3", DEMO / "dfitems.pk3", DEMO / "doomerfall.pk3"]:
         command += ["--mod", str(mod)]
@@ -86,9 +95,9 @@ def run(name, steps, hold, weather):
     reason, end, last = "timeout", time.time() + timeout + 3, len(steps.split())
     while time.time() < end and proc.poll() is None:
         time.sleep(0.5)
-        if f"worldlooktest: step {last} " in read(df_log) and not hasattr(run, "done"):
+        if (f"worldlooktest: shot step {last} " if draw else f"worldlooktest: step {last} ") in read(df_log) and not hasattr(run, "done"):
             run.done = time.time()
-        if getattr(run, "done", 0) and time.time() > run.done + hold:
+        if getattr(run, "done", 0) and time.time() > run.done + (1 if draw else hold):
             reason = "steps finished"
             break
         if any(k in read(console) for k in FATAL):
@@ -105,6 +114,9 @@ def run(name, steps, hold, weather):
         if line.startswith("DDWEATHER") or any(k in line for k in FATAL):
             print("uz", line[:200])
     print("screenshots:", len(list(shots.glob("*.png"))), "in", shots)
+    if draw:
+        import brightness
+        brightness.compare(df_shots, shots, df_log, hold)
 
 
 if __name__ == "__main__":
@@ -114,5 +126,7 @@ if __name__ == "__main__":
     ap.add_argument("--steps", default=STEPS)
     ap.add_argument("--hold", type=float, default=5)
     ap.add_argument("--weather", type=int, default=1)
+    ap.add_argument("--draw", action="store_true")
+    ap.add_argument("--doom-args", nargs=argparse.REMAINDER, default=[])
     a = ap.parse_args()
-    stage() if a.command == "stage" else run(a.name, a.steps, a.hold, a.weather)
+    stage() if a.command == "stage" else run(a.name, a.steps, a.hold, a.weather, a.draw, a.doom_args)

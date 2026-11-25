@@ -41,6 +41,7 @@ int DDTreadmill_Place();	// dd_treadmill.cpp: 0 none, 1 exterior, 2 building int
 CVAR(Bool, dd_weather, true, CVAR_ARCHIVE)			// Daggerfall's sky, daylight, weather and ambient sounds.
 CVAR(Float, dd_sun_share, 0.5f, CVAR_ARCHIVE)		// How much of Daggerfall's sun light an average surface gets (mean facing).
 CVAR(Int, dd_daylight_max, 192, CVAR_ARCHIVE)		// Exterior sector light at full daylight (the overworld's old fixed 192).
+CVAR(Int, dd_daylight_min, 70, CVAR_ARCHIVE)		// Exterior sector light at no daylight. Fitted to Daggerfall: overworld night ground about 0.2 of noon.
 CVAR(Int, dd_rain_drops, 24, CVAR_ARCHIVE)			// Rain particles spawned per tic.
 CVAR(Int, dd_snow_flakes, 10, CVAR_ARCHIVE)		// Snow particles spawned per tic.
 CVAR(Float, dd_ambient_volume, 1.f, CVAR_ARCHIVE)	// Volume of Daggerfall's weather and ambient sounds.
@@ -204,8 +205,9 @@ int place = -1, applied = -1;	// applied: a key of the light state the current m
 void ApplyLight(FLevelLocals *Level)
 {
 	// The DFMesh layer takes Daggerfall's daylight as it is (DD_WeatherMeshLight). Doom's own sector lighting also
-	// darkens with distance, so a linear level would turn the night terrain black; sectors take a square root instead.
-	const int light = clamp(int(*dd_daylight_max * sqrtf(std::min(Daylight(), 1.f)) + 0.5f), 0, 255);
+	// darkens with distance, so sectors map it onto min..max: fitted so the ground's average brightness follows
+	// Daggerfall's own camera across the day (tools/daynight/brightness.py, work/notes/20261125-080437-daynight.md).
+	const int light = clamp(int(*dd_daylight_min + (*dd_daylight_max - *dd_daylight_min) * std::min(Daylight(), 1.f) + 0.5f), 0, 255);
 	const float density = FogDensity();
 	const PalEntry tint = density > 0 ? FogTint() : PalEntry(0);
 	const int key = place == 1 ? (light << 16) ^ int(density * 100) ^ (int(tint.d) << 3) : place == 2 ? 1 + world.night : 0;
