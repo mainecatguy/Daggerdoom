@@ -33,45 +33,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             hp = playerHp;
             int fail = Array.IndexOf(args, "-dfsavetestfail");
             testFail = fail >= 0 && fail + 1 < args.Length && args[fail + 1] == "df_write";
-            if (Array.IndexOf(args, "-dfplainsavetest") >= 0)
-                StartCoroutine(PlainSaveTest());
-            int load = Array.IndexOf(args, "-dfloadsavetest");
-            if (load >= 0 && load + 1 < args.Length)
-                StartCoroutine(LoadSaveTest(args[load + 1]));
-        }
-
-        // Test only: loads a Daggerfall half taken out of a bundle, through Daggerfall's normal loader.
-        IEnumerator LoadSaveTest(string saveName)
-        {
-            while (!sync.InGame || sync.Phase != Dfb.DF_PHASE_PLAY)
-                yield return null;
-            yield return new WaitForSecondsRealtime(1f);
-            SaveLoadManager saves = GameManager.Instance.SaveLoadManager;
-            saves.EnumerateSaves();
-            SaveLoadManager.OnLoad += LogLoaded;
-            saves.Load(GameManager.Instance.PlayerEntity.Name, saveName);
-        }
-
-        void LogLoaded(SaveData_v1 data)
-        {
-            SaveLoadManager.OnLoad -= LogLoaded;
-            bridge.LogLine(string.Format("load test: loaded health {0}/{1}, position {2},{3}", GameManager.Instance.PlayerEntity.CurrentHealth,
-                GameManager.Instance.PlayerEntity.MaxHealth, data.playerData.playerPosition.worldPosX, data.playerData.playerPosition.worldPosZ));
-        }
-
-        // Test only: a normal Daggerfall save through its own entry point, into the private portable folder.
-        IEnumerator PlainSaveTest()
-        {
-            while (!sync.InGame || sync.Phase != Dfb.DF_PHASE_PLAY)
-                yield return null;
-            yield return new WaitForSecondsRealtime(1f);
-            SaveLoadManager saves = GameManager.Instance.SaveLoadManager;
-            string character = GameManager.Instance.PlayerEntity.Name;
-            saves.Save(character, "PlainSaveTest");
-            yield return new WaitForSecondsRealtime(2f);
-            int key = saves.FindSaveFolderByNames(character, "PlainSaveTest");
-            string folder = key >= 0 ? saves.GetSaveFolder(key) : null;
-            bridge.LogLine("plain save test: " + (folder == null ? "no save found" : "files " + string.Join(",", Array.ConvertAll(Directory.GetFiles(folder), Path.GetFileName))));
+            DoomerfallSaveTest.Attach(this, owner, positionSync, args); // Test only: -dfplainsavetest, -dfloadsavetest
         }
 
         public void OnRequest(uint txn, uint hpSentThrough)
