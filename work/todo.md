@@ -12,25 +12,33 @@ Work that is ready to do automatically, in priority order. Every item here is ap
 
 ## Ready
 
-Every lane approved before 2026-11-24 evening has run and is merged. Owner decisions from earlier runs are recorded in `CHANGELOG.md`, `architecture.md` and `gamedesign/decisions.md`.
+Owner decisions from earlier runs are recorded in `CHANGELOG.md`, `architecture.md` and `gamedesign/decisions.md`.
 
-### Approved and running (owner, 2026-11-24 evening)
+### Running
 
-- `resets`: done, **not merged** (owner, 2026-11-24). Its one change turned off DFU's scene cache wipe; the owner keeps the wipe. Its findings stay in `work/notes/20261124-190702.md`.
+- `doorsolid`: open doors are solid; door and parity tests update to the new rule (owner, 2026-11-24).
+- `mapkeys`: Doom's forward, back and strafe keys pan Daggerfall's map screens (owner play test, 2026-11-24).
+- `housepickups`: no Doom health and ammo pickups in houses (owner play test, 2026-11-24).
 
-### Approved, ready to launch
+### Passed, waiting for the owner's merge
 
-- Running: `ammoinv` (critical): ammo does not appear in Daggerfall's inventory (owner play test, 2026-11-24). Card 02 after it: changing ammo type plays DRLA's reload, and the new type is loaded when it finishes.
+- `ammoinv`: ammo shows in Daggerfall's inventory; changing ammo type plays DRLA's reload.
+- `hotkeyunique`: hotkeying an item removes its other hotkeys.
+- `quietlog`: no debug messages on screen in normal play.
+- `mainquestlevels`: Privateer's Hold armies are humanoid only; a level table for the other main quest dungeons waits on the owner (`work/notes/20261124-202353.md` on `overnight/mainquestlevels`).
 
-- `flatcollision`: Daggerfall sprites such as braziers keep their original collision (owner, 2026-11-24). Waiting for a free lane.
-- `doorsolid`: open doors are solid; reverses the earlier match with Daggerfall; door and parity tests update to the new rule (owner, 2026-11-24). Waiting for a free lane.
-- `hotkeyunique`: hotkeying an item removes its other hotkeys (owner, 2026-11-24). Waiting for a free lane.
-- `corpsekeep`: corpses vanish on leaving and re-entering Privateer's Hold (owner play test, 2026-11-24). **On hold** (owner): first see whether the location record rewrite fixes it. Card in `work/queue/corpsekeep/held`.
-- `mainquestlevels`: main quest dungeons get levels from the main quest order; Privateer's Hold is level 1 with a humanoid theme (owner, 2026-11-24). Waiting for a free lane.
-- `mapkeys`: Doom's forward, back and strafe keys pan Daggerfall's map screens (owner play test, 2026-11-24). Waiting for a free lane.
-- `liftcollision`: moving objects (lifts, raising platforms, the Privateer's Hold throne dais) have no collision to stand on; solve it as a general problem (owner play test, 2026-11-24). **Not started**: owner will say when.
-- `housepickups`: Doom health and ammo pickups appear in houses (owner play test, 2026-11-24). Waiting for a free lane.
-- `quietlog`: no debug messages on screen in normal play, for example on weapon switches (owner play test, 2026-11-24). Waiting for a free lane.
+### Held by the owner
+
+- `liftcollision`: moving objects (lifts, raising platforms, the Privateer's Hold throne dais) have no collision to stand on; solve it as a general problem. Owner will say when.
+- `corpsekeep`: corpses vanish on leaving and re-entering Privateer's Hold. First see whether the location record rewrite fixes it. Card in `work/queue/corpsekeep/held`.
+- `flatcollision`: blocked. Daggerfall has no solid flag for sprites and Daggerfall Unity makes all of them walk-through, so which sprites block is the owner's call (`work/notes/20261124-201628.md` on `agent/flatcollision-20261124-201628`).
+- `resets`: done, not merged (owner). Findings in `work/notes/20261124-190702.md`.
+
+### Waiting on an owner answer before a card
+
+- Ammo pickup sizes: proposed Doom-like base stacks 10/4/1/20 (Regular gives 20/8/2/40).
+- Mouse lost in Daggerfall menus: likely fullscreen Doom never releasing the mouse (`i_mouse.cpp`); fix waits on the owner confirming the cause.
+- nodraw follow-ups: Doom should not call Daggerfall stale during its known loading freezes; the hidden world radius should come from Doom's loaded area.
 
 ### Proposed cards waiting on owner choices
 
