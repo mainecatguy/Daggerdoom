@@ -53,7 +53,7 @@ The Daggerfall world is at **75% scale** in Doom (owner decision, 2026-11-22): 1
 
 ## Standing Requirements
 
-- **Bridge speed:** The bridge between the games must be instantaneous. Speed and performance are paramount, so server-style designs such as gRPC are out.
+- **Bridge speed:** The FIFO bridge between the games must be instantaneous. Speed and performance are paramount, so server-style designs such as gRPC are out.
 - **Doom WAD compatibility:** Preserve compatibility with Doom WADs and mods. UZDoom must keep reading existing WADs, maps, and mods as stock UZDoom does.
 - **Platforms:** Testing is on Windows only, but do not kill Linux support if possible. Keep OS-specific code behind small, replaceable seams.
 - **Small context per task:** Our main software goal is that an agent can do a job while reading as little code as possible. Keep clear boundaries between classes and files, so a class's inputs, outputs, and side effects can be understood from its public surface and a short header comment, without reading its body. New features go in their own files behind a narrow hook, not spread through large shared classes. When a contract changes, update the header comment in the same commit.

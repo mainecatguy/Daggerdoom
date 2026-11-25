@@ -28,6 +28,8 @@ Every lane approved before 2026-11-24 evening has run and is merged. Owner decis
 - `corpsekeep`: corpses vanish on leaving and re-entering Privateer's Hold (owner play test, 2026-11-24). **On hold** (owner): first see whether the location record rewrite fixes it. Card in `work/queue/corpsekeep/held`.
 - `mainquestlevels`: main quest dungeons get levels from the main quest order; Privateer's Hold is level 1 with a humanoid theme (owner, 2026-11-24). Waiting for a free lane.
 - `mapkeys`: Doom's forward, back and strafe keys pan Daggerfall's map screens (owner play test, 2026-11-24). Waiting for a free lane.
+- `liftcollision`: moving objects (lifts, raising platforms, the Privateer's Hold throne dais) have no collision to stand on; solve it as a general problem (owner play test, 2026-11-24). **Not started**: owner will say when.
+- `housepickups`: Doom health and ammo pickups appear in houses (owner play test, 2026-11-24). Waiting for a free lane.
 - `quietlog`: no debug messages on screen in normal play, for example on weapon switches (owner play test, 2026-11-24). Waiting for a free lane.
 
 ### Proposed cards waiting on owner choices
