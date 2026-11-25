@@ -76,6 +76,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     case 0:
                         if (settled < SettleFrames)
                             return;
+                        // A town-start character carries nothing loose, so give it one Daggerfall item to move.
+                        items.AddItem(ItemBuilder.CreateWeapon(Weapons.Longsword, WeaponMaterialTypes.Steel));
                         before = ammo.Totals();
                         Log("start, holds" + before);
                         window.LootTarget = null;
@@ -118,12 +120,17 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         Log("right-hand list after moving across: " + Names(remote));
                         Check(bullets != null && remote.Contains(bullets) && other != null && remote.Contains(other) && !items.Contains(bullets),
                             "both items moved to the right-hand list");
-                        Shot("2-across.png");
-                        foreach (DaggerfallUnityItem item in remote.ToArray())
-                            Click(window, "RemoteItemListScroller_OnItemClick", item);
+                        Shot("2-across.png"); // Captured at the end of this frame, so move back next step.
                         Next();
                         break;
                     case 4:
+                        if (frames < WindowFrames)
+                            return;
+                        foreach (DaggerfallUnityItem item in Filtered(window, "remoteItemsFiltered"))
+                            Click(window, "RemoteItemListScroller_OnItemClick", item);
+                        Next();
+                        break;
+                    case 5:
                         if (frames < WindowFrames)
                             return;
                         List<DaggerfallUnityItem> local = Filtered(window, "localItemsFiltered");
@@ -132,13 +139,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         Shot("3-back.png");
                         Next();
                         break;
-                    case 5:
+                    case 6:
                         if (frames < WindowFrames)
                             return;
                         window.CloseWindow();
                         Next();
                         break;
-                    case 6:
+                    case 7:
                         if (settled < SettleFrames)
                             return;
                         string after = ammo.Totals();
