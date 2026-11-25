@@ -134,6 +134,7 @@ bool DD_BridgeLoadBegin(const char *filename);
 bool DD_BridgeDeathHold(int playernum);
 FString DD_BridgeSlotName(const char *slot);
 bool DD_BridgeHasSession();
+static bool DD_DrlaZoomDrops() { static int drla = -1; if (drla < 0) drla = PClass::FindClass("RLWeaponDrop") != nullptr; return drla; } // [Doomerfall] DRLA makes Zoom its drop key
 void G_DoVictory (void);
 
 void SetupLoadingCVars();
@@ -674,7 +675,7 @@ void G_BuildTiccmd (usercmd_t *cmd)
 	if (buttonMap.ButtonDown(Button_Use))        cmd->buttons |= BT_USE;
 	if (buttonMap.ButtonDown(Button_Jump))       cmd->buttons |= BT_JUMP;
 	if (buttonMap.ButtonDown(Button_Crouch))     cmd->buttons |= BT_CROUCH;
-	if (buttonMap.ButtonDown(Button_Zoom) && !DD_BridgeHasSession()) cmd->buttons |= BT_ZOOM; // [Doomerfall] no Zoom: DRLA's Drop Item key
+	if (buttonMap.ButtonDown(Button_Zoom) && !(DD_BridgeHasSession() && DD_DrlaZoomDrops())) cmd->buttons |= BT_ZOOM; // [Doomerfall] no Zoom with DRLA: its Drop Item key
 	if (buttonMap.ButtonDown(Button_Reload))     cmd->buttons |= BT_RELOAD;
 
 	if (buttonMap.ButtonDown(Button_User1))      cmd->buttons |= BT_USER1;

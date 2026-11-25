@@ -24,6 +24,7 @@ class MDHarness : EventHandler
 	static const double EXITDATA[] = { @EXIT@ };
 	const LIMIT = 35 * 25;
 	bool done, drla;
+	int zoomTics;	// tics whose command carried BT_ZOOM (the +zoom presses of gunammo.py)
 	// DRLA can swap the player's class ("Player swapped to Portia"); a copy of the route state survives it.
 	int kPhase, kTimer, kTries, kCycle;
 	MDState cur;
@@ -120,6 +121,7 @@ class MDHarness : EventHandler
 		if (!st) return;
 		p.bNOTARGET = true;
 		players[0].cheats |= CF_GODMODE;
+		if (players[0].cmd.buttons & BT_ZOOM) zoomTics++;
 		st.timer++;
 		if (level.maptime % 350 == 1) Console.Printf("MDSTATUS step %d cycle %d, timer %d, map %s", st.phase, st.cycle, st.timer, level.MapName);
 		bool ready = level.maptime >= 8 && CVar.FindCVar("dd_sync_df_phase").GetInt() == 3 && CVar.FindCVar("dd_ui_test_hold").GetInt() == 0;
@@ -183,6 +185,7 @@ class MDHarness : EventHandler
 			if (++st.tries < 35 * 4) break;
 			Ammo(p, "blocked drops");
 			Console.Printf("LRSTEP blocked drops: %s held %d, on the ground %s", weaponName, p.CountInv(weaponName), FindGun(p) ? "a gun" : "nothing");
+			Console.Printf("LRSTEP zoom reached the player on %d tics (DRLA: none, its Drop Item key is blocked; stock: Zoom works)", zoomTics);
 			if (drla)
 			{
 				int packs = 0;
