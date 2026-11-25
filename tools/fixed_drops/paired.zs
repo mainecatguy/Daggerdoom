@@ -43,10 +43,24 @@ class PDHarness : EventHandler // Not static: a bundled load restores phase from
 
 	// A plain ammo pickup dropped during the kill becomes a tiered DFAmmo_ pickup (DoomerfallAmmo.zs), which rolls its
 	// tier from this pickup's seed and is itself spawned outside the roll. So the plain pickup's seed is what to check.
+	// As DoomerfallAmmoTiers.PlainType: DRLA's ammo pickups are CustomInventory, not Ammo, so classes are matched by name.
+	static bool IsPlainAmmo(Actor a)
+	{
+		static const name Plain[] = { 'Clip', 'ClipBox', 'RLClip', 'RLClipBox', 'Shell', 'ShellBox', 'RLShell', 'RLShellBox',
+			'RocketAmmo', 'RocketBox', 'RLRocketAmmo', 'RLRocketBox', 'Cell', 'CellPack', 'RLCell', 'RLCellPack' };
+		for (class<Object> c = a.GetClass(); c != null; c = c.GetParentClass())
+		{
+			name n = c.GetClassName();
+			if (n == 'DoomerfallAmmoPickup' || n == 'Inventory') return false;
+			for (int i = 0; i < Plain.Size(); i++) if (n == Plain[i]) return true;
+		}
+		return false;
+	}
+
 	override void WorldThingSpawned(WorldEvent e)
 	{
 		let a = Inventory(e.Thing);
-		if (done || phase < 3 || phase > 4 || !a || a.Owner || !(a is "Ammo")) return;
+		if (done || phase < 3 || phase > 4 || !a || a.Owner || !IsPlainAmmo(a)) return;
 		ammoSeen++;
 		if (!a.DD_LootSeed()) Console.Printf("PDAMMOUNSEEDED %s at %.0f %.0f %.0f", a.GetClassName(), a.pos.x, a.pos.y, a.pos.z);
 	}
