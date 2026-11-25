@@ -33,7 +33,8 @@ if (@($changed | Where-Object { $_ -like 'daggerfall-unity-master/*' }).Count) {
     # Windowed on purpose: batch mode fails the license check on this machine.
     & python $QuietRun --timeout 5400 --desktop -- Unity.exe -projectPath daggerfall-unity-master -buildTarget Win64 -executeMethod CliBuild.BuildWindows64 -logFile $log
     if ($LASTEXITCODE -eq 124) { Write-Output 'Unity build timed out.'; exit 20 }
-    if (-not (Select-String -Path $log -SimpleMatch 'CliBuild result: Succeeded' -Quiet)) { Write-Output 'Unity build failed.'; exit 21 }
+    # A missing log means Unity never ran; it must not read as a pass.
+    if (-not (Test-Path $log) -or -not (Select-String -Path $log -SimpleMatch 'CliBuild result: Succeeded' -Quiet)) { Write-Output 'Unity build failed.'; exit 21 }
     Write-Output 'Daggerfall Unity: build passed.'
 }
 
