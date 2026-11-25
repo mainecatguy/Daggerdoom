@@ -13,6 +13,13 @@ What is done on the project, newest first. Agents do not need to read this unles
 
 ## 2026-11-24
 
+### Merged to `integration` (`8722921`)
+
+- **One hotkey per item (`overnight/hotkeyunique`):** putting an item on a hotkey clears its other hotkeys. Notes: `work/notes/20261124-202337.md`.
+- **No debug messages on screen (`overnight/quietlog`):** debug output shows only with the `dd_debugmessages` setting. Review flags: each debug call looks up the setting even when off; a new print that skips the gate would show again. Notes: `work/notes/20261124-202353.md`.
+- **Ammo in inventory and ammo change reload (`overnight/ammoinv`):** ammo shows in Daggerfall's inventory; the change ammo key plays DRLA's reload and loads the new tier. Review flags: it relies on the FIFO bridge (now written in `architecture.md`); reload logic sits in both `dd_items.cpp` and `DoomerfallAmmo.zs`. On merge the material test's harness phases moved to 80-85. Notes: `work/notes/20261124-195226-ammoinv.md`, `work/notes/20261124-201245.md`.
+- **Main quest levels (`overnight/mainquestlevels`):** Privateer's Hold armies are humanoid only (a new `only=1` story theme). A level table for the other main quest dungeons waits on the owner. Review flag: the level and theme table is kept in C# and in `tools/area_level` by hand. Notes: `work/notes/20261124-202353-mainquestlevels.md`.
+
 ### Merged to `integration` (`cf0f54e`)
 
 - **Test hooks moved out (`overnight/testhooks`):** bridge test drivers (load, HP, save, new game, plain load, pause) moved from `dd_bridge.cpp` to `dd_bridge_test.cpp`; Daggerfall test hooks (sync test start, plain load, save, monster quest) moved to their own files. Each hook's keep-or-remove decision is in `work/notes/20261124-191013.md`.

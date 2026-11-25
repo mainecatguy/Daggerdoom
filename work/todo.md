@@ -20,12 +20,9 @@ Owner decisions from earlier runs are recorded in `CHANGELOG.md`, `architecture.
 - `mapkeys`: Doom's forward, back and strafe keys pan Daggerfall's map screens (owner play test, 2026-11-24).
 - `housepickups`: no Doom health and ammo pickups in houses (owner play test, 2026-11-24).
 
-### Passed, waiting for the owner's merge
+### Waiting on an owner answer from finished work
 
-- `ammoinv`: ammo shows in Daggerfall's inventory; changing ammo type plays DRLA's reload.
-- `hotkeyunique`: hotkeying an item removes its other hotkeys.
-- `quietlog`: no debug messages on screen in normal play.
-- `mainquestlevels`: Privateer's Hold armies are humanoid only; a level table for the other main quest dungeons waits on the owner (`work/notes/20261124-202353.md` on `overnight/mainquestlevels`).
+- Main quest level table for the other main quest dungeons: `work/notes/20261124-202353-mainquestlevels.md`.
 
 ### Held by the owner
 
