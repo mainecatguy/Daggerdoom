@@ -419,7 +419,7 @@ class DoomerfallEncounterPlanner play
 			for (int i = 0; i < pool.monsters.Size(); i++)
 			{
 				let m = pool.monsters[i];
-				if (m.kind == k && m.civilWarSafe && !m.capped && !IsTitan(m) && ThemeAllows(m)) { kinds.Push(k); break; }
+				if (m.kind == k && m.civilWarSafe && !m.capped && !IsTitan(m)) { kinds.Push(k); break; }
 			}
 		}
 		result.regionKind = -1;
@@ -735,6 +735,8 @@ class DoomerfallEncounterPlanner play
 		}
 		int pick = r.Pick(w);
 		if (pick >= 0) { Add(army, pool.monsters[pick], "region"); army.regionHow = "region"; }
+		else if (theme.only && theme.kinds.Find(result.regionKind) == theme.kinds.Size())
+			army.regionHow = "excluded";   // a story theme outranks a regional favourite outside it
 		else { army.regionHow = "unmet"; result.warnings.Push("region kind " .. data.kindName[result.regionKind] .. " has no usable monster"); }
 	}
 
