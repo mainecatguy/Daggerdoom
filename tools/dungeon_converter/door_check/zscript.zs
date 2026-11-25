@@ -48,6 +48,8 @@ class DFDoorCheck : EventHandler
 	const MEET = 30;	// tics: an opening door meets a body 20 units from its hinge well within this
 	Array<DFDoorRow> rows;
 	Array<double> nodeX, nodeY, nodeF;
+	double monsterRadius;	// the real DoomImp's radius on this map (MonsterThrough)
+	Actor widthImp;	// spawned early and parked, so it has run its first tic (when spawn handlers size it) before it is measured
 	Map<int, int> walkable;
 	int stallIndex, stallTic;
 	vector3 parking;
@@ -253,8 +255,15 @@ class DFDoorCheck : EventHandler
 				p.SetOrigin(parking, false); // out of the doorway the monster body walks through
 				let body = Actor.Spawn("DFTestBody", parking, NO_REPLACE);
 				r.wide = String.Format("%d/%d/%d", solidFit, openFit, WidestThrough(body, r, true));
-				r.monster = MonsterThrough(body, r);
 				body.Destroy();
+				if (widthImp)
+				{
+					widthImp.bSOLID = true;
+					monsterRadius = widthImp.radius;
+					r.monster = MonsterThrough(widthImp, r);
+					widthImp.bSOLID = false;
+					widthImp.SetOrigin(parking, false);
+				}
 			}
 			// Walk into the open panel's face from each side with real moves. The door must stop the body at about the
 			// panel's visible face: no farther than its half thickness plus the body radius, plus one 2-unit step.
@@ -301,11 +310,12 @@ class DFDoorCheck : EventHandler
 		return best;
 	}
 
-	// Diagnostic, not scored: does a stock-size monster body (radius 20, as the Imp and the Zombieman) get through the open
-	// doorway? 1 passes, 0 the open leaf blocks it, n the doorway itself is too narrow for it even without the leaf.
+	// Does a real monster body get through the open doorway? The body is a real DoomImp (radius 20 in stock Doom), spawned
+	// so that whatever loaded rules size monsters on this map apply to it (the Doomerfall mod's DoomerfallBodies narrows it
+	// to 13.125 on Daggerfall maps). 1 passes, 0 the open leaf blocks it, n the doorway itself is too narrow even without
+	// the leaf. action_regress.py loads the mod and scores it.
 	String MonsterThrough(Actor body, DFDoorRow r)
 	{
-		body.A_SetSize(20, 56);
 		bool pass = false;
 		for (int s = 0; s < 2 && !pass; s++)
 			if (r.use[s] != "-") pass = WalkThrough(body, r, s == 0 ? 1 : -1, 36, 36, -12, 15);
@@ -498,6 +508,7 @@ class DFDoorCheck : EventHandler
 				r.ballClosed[0], r.ballClosed[1], r.swing, r.openBlock, r.traceOpen, r.ballOpen[0], r.ballOpen[1], r.solidStates, r.block, r.hold, r.sightClosed, r.sightOpen, r.floorCases - r.floorFails, r.floorCases, r.monster, r.wide);
 		}
 		Console.Printf("DTPLAYERSTALL %s", playerResult);
+		Console.Printf("DTMONSTER radius=%.3f", monsterRadius);
 		Console.Printf("DTDONE");
 	}
 
@@ -512,6 +523,8 @@ class DFDoorCheck : EventHandler
 			p.A_SetSize(10.5, p.height); // the real game's width (overworld.pk3, ddruntime.pk3); stock Doom's 16 is not a game setup
 			Console.Printf("DTSTART doors=%d nodes=%d radius=%.2f height=%.1f", rows.Size(), nodeX.Size(), p.radius, p.height);
 			parking = p.pos;
+			widthImp = Actor.Spawn("DoomImp", parking, NO_REPLACE);
+			if (widthImp) { widthImp.Deactivate(null); widthImp.bNOGRAVITY = true; widthImp.bSOLID = false; }
 			ClosedChecks(p);
 			p.SetOrigin(parking, false);
 			SampleSolid();
@@ -519,7 +532,14 @@ class DFDoorCheck : EventHandler
 		}
 		else if (t == 22) { ScoreBalls(false); SetAll(1); }
 		else if (t == 32) SampleSolid(); // opening
-		else if (t == 22 + FULL_SWING) { SampleSolid(); OpenChecks(p); p.SetOrigin(parking, false); SpawnBalls(p, true); }
+		else if (t == 22 + FULL_SWING)
+		{
+			SampleSolid();
+			OpenChecks(p);
+			if (widthImp) { widthImp.ClearCounters(); widthImp.Destroy(); }
+			p.SetOrigin(parking, false);
+			SpawnBalls(p, true);
+		}
 		else if (t == 34 + FULL_SWING) { ScoreBalls(true); SetAll(-1); }
 		else if (t == 44 + FULL_SWING) SampleSolid(); // closing
 		else if (t == 34 + 2 * FULL_SWING) { SampleSolid(); SpawnBodies(); SetAll(1); }

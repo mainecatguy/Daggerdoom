@@ -311,10 +311,12 @@ public:
 
 	// ---- Spots ----
 
-	static void Body(PClassActor *cls, double &r, double &h)
+	double bodyScale = 1;	// monster width on this map (DoomerfallBodies.MonsterScale: 10.5 / 16 on Daggerfall maps)
+
+	void Body(PClassActor *cls, double &r, double &h) const
 	{
 		const AActor *def = cls ? GetDefaultByType(cls) : nullptr;
-		r = def ? std::max(1., def->radius) : 20;
+		r = (def ? std::max(1., def->radius) : 20) * bodyScale;
 		h = def ? std::max(1., def->Height) : 56;
 	}
 
@@ -526,6 +528,9 @@ bool DD_PlaceEncounters(FLevelLocals *Level, const FString &header, const std::v
 	pl.fMove = pl.Find("Move");
 	VMFunction *fFaction = pl.Find("Faction");	// card 6: Civil War side and stance
 	if (!pl.fMooks || !pl.fMakeLeader || !pl.fCheapest || !pl.fPromote || !pl.fDrop || !pl.fMove) return false;
+	VMFunction *fScale = nullptr;	// the monster width the mod gives bodies on this map
+	PClass::FindFunction(&fScale, "DoomerfallBodies", "MonsterScale");
+	if (fScale) { VMReturn ret(&pl.bodyScale); VMCall(fScale, nullptr, 0, &ret, 1); }
 
 	// One invisible probe body, never linked into the blockmap, so nothing else can touch it.
 	pl.probe = Spawn(Level, spotClass, DVector3(0, 0, 0), NO_REPLACE);

@@ -69,7 +69,8 @@ extend class DoomerfallEncounterPlanner
 	// Fits at a placement's origin by the placer's measurement (0 means not measured: everything fits).
 	static bool Fits(DoomerfallMonster m, DoomerfallEncounterPlacement p)
 	{
-		return (p.fitRadius <= 0 || m.radius <= p.fitRadius) && (p.fitHeight <= 0 || m.height <= p.fitHeight);
+		// The pool holds class defaults; on Daggerfall maps the body is narrower (DoomerfallBodies).
+		return (p.fitRadius <= 0 || m.radius * DoomerfallBodies.MonsterScale() <= p.fitRadius) && (p.fitHeight <= 0 || m.height <= p.fitHeight);
 	}
 
 	DoomerfallArmy Side(int side) { return side == 1 && result.b ? result.b : result.a; }
