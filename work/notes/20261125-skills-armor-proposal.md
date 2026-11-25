@@ -1,70 +1,131 @@
-# Skills, classes and armor in Doomerfall: a proposal
+# Skills, perks, classes and armor in Doomerfall: a proposal
 
 **Status: PROPOSAL, UNDECIDED.** Game design belongs to the owner. Everything here is options plus a lean, except
-where marked "owner, date". Nothing in this note changes code, todo, backlog, or questions.
+where marked "owner, date". Nothing in this note changes code, todo, backlog, or questions. Owner decisions are
+also listed in `work/backlog/skills-in-doom.md`.
 
 Sources read: `DFCareer.cs:448` (skill enum), `FormulaHelper.cs` (to-hit, armor, language pacification),
 `DaggerfallEntity.UpdateEquippedArmorValues`, `DaggerfallUnityItem.GetMaterialArmorValue`, `EnemyEntity.cs:323`
-(enemy skill), `DoomerfallHp.cs` (Doom hits applied with no armor yet), `DoomerfallSheet.cs` (armor and skills
-already published to Doom), DRLA `language.classes`, `actors/classes/*.txt`, `actors/base/ArsenalTokens.txt`,
-`ArsenalDamageTypes.txt`, `NormalArmors.txt`, DRLAX `language.pda.txt`, `mapinfo.txt` of both.
+(enemy skill), `DoomerfallHp.cs` (Doom hits applied with no armor yet), `DoomerfallSheet.cs` and
+`bridge/doomerfall_bridge.h` (skills, armor, fatigue and magicka already published to Doom), DRLA
+`language.classes`, `actors/classes/*.txt`, `actors/base/ArsenalTokens.txt`, `ArsenalDamageTypes.txt`,
+`NormalArmors.txt`, DRLAX `language.pda.txt`, `mapinfo.txt` of both.
 
-## 0. General principles proposed
+## 0. Principles
 
-- **Skills shape feel, not success.** No die roll decides whether a shot lands. Skills scale continuous values:
-  damage %, spread, reload and refire speed, swap speed, recoil, ammo efficiency, movement.
-- **Modest.** A skill at 100 should feel like a strong specialist, not a different game. Proposed scale: effects
-  grow linearly from skill 0 to 100, with a typical cap of +15 to +25% on any one value. DRLA class perks (often
-  +50% to 8x) become the far end of a skill, at roughly a third to a half of DRLA's strength.
+Decided (owner, 2026-11-25):
+- **No Doom class.** The Doom player is a normal character. Daggerfall skills apply all perks and modifiers. DRLA
+  classes are inspiration only.
+- **Perks at 25, 50, 75 and 100.** Each skill grants a discrete perk at each threshold, besides any continuous
+  scaling. Perks are where the memorable, playstyle-changing effects live; Jumping is the model (section 3).
+- **Milder than Daggerfall's die rolls.** Continuous effects stay modest.
+- **Stay within Daggerfall's 35 skills.**
+- **Hand-to-Hand governs Doom melee damage** (fists and other melee), for now.
+- **Archery stays a skill;** its Doom role is undecided.
+
+Proposed (undecided):
+- **Skills shape feel, not success.** No die roll decides whether a shot lands. Continuous scaling is secondary:
+  damage %, spread, reload and swap speed, movement, capped around +15 to +20% at skill 100.
 - **Damage bonuses multiply** with material and ammo bonuses (owner, 2026-11-24, `gamedesign/damage.md`).
-- **Deterministic where possible.** "Ammo saving" is an accumulator (every Nth shot free) rather than a random
-  chance, so it never feels like a roll.
+- **Deterministic where possible.** "Free ammo" is an accumulator (every Nth shot free), not a chance.
 - **Use-based progression stays.** Doom streams telemetry (hits and kills by weapon category, damage taken, jumps,
-  climbs, sprint time) and Daggerfall turns it into skill uses with its own advancement rules
-  (`architecture.md`, Progression row).
-- **Perks at 25, 50, 75 and 100 (owner, 2026-11-25).** Besides any continuous scaling, each skill grants a
-  discrete perk at skill 25, 50, 75 and 100. Perks for skills other than Jumping are not designed yet.
-- **Works without DRLA.** Every effect is defined on a Doomerfall weapon *category*, and stock Doom weapons belong to
-  categories too. DRLA type tokens only feed the category table.
+  climbs, sprint time) and Daggerfall turns it into skill uses (`architecture.md`, Progression row).
+- **Works without DRLA.** Every perk is defined on a Doomerfall weapon *category* or on the player, and stock Doom
+  weapons belong to categories too. DRLA type tokens only feed the category table.
 
 ## 1. All 35 Daggerfall skills
 
 Legend: **Keep** = Daggerfall rule unchanged. **Doom** = new Doom-side effect. **Repurpose** = the skill gets a new
-meaning. **Limit/Drop** = reduced or hidden.
+meaning. **Hide** = no effect for now. Perks for every kept skill are in section 3.
 
 | # | Skill | What it does in Daggerfall Unity | Proposal |
 |---|---|---|---|
-| 1 | Medical | Faster health recovery while resting | Keep resting. Doom: health pickups heal +0..+25% more (Medic-like) |
-| 2 | Etiquette | Dialogue reactions; pacifies most human classes, vampires, liches | Keep dialogue. Option: hostile NPC bots more likely to accept surrender / yield (section 5) |
-| 3 | Streetwise | Dialogue with commoners; pacifies thief-type classes | Keep, same as Etiquette |
-| 4 | Jumping | Jump height | **Owner, 2026-11-25:** jump height up to +100%, a +25% spike at 25, double jump at 50, fall damage immunity at 75, triple jump at 100; Jumping also reduces fall damage. See "Jumping perks" below. |
-| 5-12 | Orcish, Harpy, Giantish, Dragonish, Nymph, Daedric, Spriggan, Centaurian, Impish | Each pacifies its monster group on first sight (Orcs, Harpies, Giants and Gargoyles, Dragonlings, Nymphs and Lamias, Daedra, Spriggans, Centaurs, Imps and Dreugh) | Those monsters no longer exist. See section 5 |
-| 13 | Lockpicking | Opens locks | Keep (locks are Daggerfall's, `gamedesign.md`) |
-| 14 | Mercantile | Buy and sell prices | Keep |
-| 15 | Pickpocket | Steal from NPCs | Keep |
-| 16 | Stealth | Sneaking past enemies | Keep. Doom: slows the detection bar (already planned) |
+| 1 | Medical | Faster health recovery while resting | Keep resting. Doom perks: healing, second chance |
+| 2 | Etiquette | Dialogue reactions; pacifies most human classes, vampires, liches | Keep dialogue. Doom perks: hostile humans (nobles, knights, guards) parley and yield |
+| 3 | Streetwise | Dialogue with commoners; pacifies thief-type classes | Keep dialogue. Doom perks: hostile rogues yield; fencing and black market |
+| 4 | Jumping | Jump height | **Owner, 2026-11-25:** see "Jumping perks" in section 3 |
+| 5-12 | Orcish, Harpy, Giantish, Dragonish, Nymph, Daedric, Spriggan, Centaurian, Impish | Each pacifies its monster group on first sight | Those monsters no longer exist. Section 6 |
+| 13 | Lockpicking | Opens locks | Keep (locks are Daggerfall's). Doom perks: breaching, magic locks |
+| 14 | Mercantile | Buy and sell prices | Keep. Perks: appraisal, supply, ordering guns |
+| 15 | Pickpocket | Steal from NPCs | Keep. Doom perks: disarming hostile humans |
+| 16 | Stealth | Sneaking past enemies | Keep. Doom: slows the detection bar (planned); perks change its rules |
 | 17 | Swimming | Swim speed | Keep, applied to Doom swim speed |
 | 18 | Climbing | Wall climbing | Keep (implemented, `DoomerfallClimb`) |
-| 19 | Backstabbing | Hit chance plus 3x damage from behind | Doom: +0..+50% damage to monsters that have not detected you or are hit from behind. Ties into Stealth |
-| 20 | Dodging | Enemy to-hit minus Dodging/4 | Doom: counts as Dodging/4 extra armor points (section 7), option: faster strafe or a short dodge dash |
-| 21 | Running | Run speed | Doom: run speed +0..+10%, slower fatigue drain while sprinting |
-| 22 | Destruction | Destruction spell cost and success | Keep for spells. **Repurpose also** as Energy weapons (section 2) |
-| 23 | Restoration | Healing spells | Keep for spells |
-| 24 | Illusion | Invisibility, chameleon, etc. | Keep for spells |
-| 25 | Alteration | Shield, levitation, etc. | Keep for spells |
-| 26 | Thaumaturgy | Detect, soul trap, etc. | Keep for spells |
-| 27 | Mysticism | Dispel, recall, etc. | Keep for spells |
-| 28 | Short Blade | Daggers, tanto, shortswords, wakazashi | **Repurpose:** Pistols |
-| 29 | Long Blade | Broadsword, saber, longsword, katana, claymore, dai-katana | **Repurpose:** Rapid-fire |
-| 30 | Hand-to-Hand | Unarmed damage and hit chance | **Repurpose/extend:** all Melee |
-| 31 | Axe | Battle axe, war axe | **Repurpose:** Shotguns |
-| 32 | Blunt Weapon | Staff, mace, flail, warhammer | **Repurpose:** Explosives |
-| 33 | Archery | Short and long bow | **Repurpose:** Precision rifles |
-| 34 | Critical Strike | Extra to-hit when a skill roll succeeds | Doom: weak-spot bonus, see below |
+| 19 | Backstabbing | Hit chance plus 3x damage from behind | Doom: bonus against monsters that have not detected you |
+| 20 | Dodging | Enemy to-hit minus Dodging/4 | Doom: Dodging/4 extra armor points (section 8) plus dash perks |
+| 21 | Running | Run speed | Doom: run speed, slide, adrenaline perks |
+| 22 | Destruction | Destruction spell cost and success | Keep for spells. **Repurpose also** as Energy weapons (lean) |
+| 23-27 | Restoration, Illusion, Alteration, Thaumaturgy, Mysticism | Spell schools | Keep for spells. Doom perks that work before spells exist (powerups, healing, items, resurrection) |
+| 28 | Short Blade | Daggers, tanto, shortswords, wakazashi | **Repurpose (lean):** Pistols |
+| 29 | Long Blade | Broadsword, saber, longsword, katana, claymore, dai-katana | **Repurpose (lean):** Rapid-fire |
+| 30 | Hand-to-Hand | Unarmed damage and hit chance | **Owner, 2026-11-25:** governs Doom melee damage (fists and other melee) |
+| 31 | Axe | Battle axe, war axe | **Repurpose (lean):** Shotguns |
+| 32 | Blunt Weapon | Staff, mace, flail, warhammer | **Repurpose (lean):** Explosives |
+| 33 | Archery | Short and long bow | **Owner, 2026-11-25:** stays a skill, role undecided. Options in section 3 |
+| 34 | Critical Strike | Extra to-hit when a skill roll succeeds | Doom: deterministic weak-spot hits |
 
-**Critical Strike** options: (a) every hit has Critical Strike / 5 % chance for +50% damage (a roll, but only on
-damage, never on hitting); (b) deterministic: every Nth hit on the same target deals +50%, N falling from 8 to 4
-with skill. Lean (b).
+## 2. Weapon-type skills
+
+### Categories, confirmed from the data
+
+DRLA marks its weapons with type tokens (`ArsenalTokens.txt:49-57`), used by the class perks:
+
+| DRLA token | Count of weapon files | Used by |
+|---|---|---|
+| `RLMeleeTypeWeapon` | 6 (Fist, Chainsaw, Double/Piercing Chainsaw, Energysaw, Ripper) | Commando |
+| `RLPistolTypeWeapon` | 62 (pistols, revolvers, handcannons, blasters, Uzis) | Scout |
+| `RLShotgunTypeWeapon` | 54 (non-fixed multi-pellet; includes Storm pistols) | Renegade |
+| `RLRapidfireTypeWeapon` | 56 (chainguns, miniguns, rifles, Uzis, flamethrower) | Marine |
+| `RLSingleShotRifleTypeWeapon` | 12 (railgun, gauss, marksman, anti-materiel, Elephant Gun) | Sniper (unfinished class) |
+| `RLEfficientAmmoTypeWeapon` | 54 (uses more than one non-shell ammo per shot: plasma, BFGs) | Demolitionist |
+| Basic/Advanced/Master assembly | assemblies | Technician |
+
+There is no explosive token. Rockets, grenades and missiles are found by ammo (rockets) or splash damage. DRLA damage
+types are Melee, Bullet, Fire (explosions and fire), Plasma, plus Holy, Unholy, Piercing, Slime and specials
+(`ArsenalDamageTypes.txt`). Tokens overlap: a Plasma Uzi is Pistol + Rapidfire + EfficientAmmo.
+
+### Proposed categories and skill mapping (within the 35 skills)
+
+| Category | Stock Doom | DRLA | Skill |
+|---|---|---|---|
+| Melee | Fist, Chainsaw | Melee token, combat knife | Hand-to-Hand (owner, 2026-11-25) |
+| Pistols | Pistol | Pistol token (non-cell) | Short Blade (lean) |
+| Shotguns | Shotgun, Super Shotgun | Shotgun token | Axe (lean) |
+| Rapid-fire | Chaingun | Rapidfire token | Long Blade (lean) |
+| Explosives | Rocket Launcher | rocket/grenade/missile ammo | Blunt Weapon (lean) |
+| Energy | Plasma Rifle, BFG9000 | cell ammo or Plasma damage type, BFGs | Destruction (lean) |
+| Precision | (none in stock) | SingleShotRifle token | Archery is one option (role undecided); else fold into Pistols or Rapid-fire |
+
+Category precedence for overlapping tokens (lean): Melee > Explosives > Energy (uses cells) > Shotguns > Precision >
+Rapid-fire > Pistols. So a Plasma Pistol is Energy and a Storm Pistol is a Shotgun. Alternative: form wins over
+ammo (Plasma Pistol = Pistol). Doomerfall would keep one weapon-to-category table, generated from the tokens plus
+the stock list, so it works without DRLA.
+
+Why repurpose the blade and blunt skills: Daggerfall weapons convert into Doom guns (`gamedesign.md`, the design
+goal's ebony mace), so those skills lose their items, and their class data, guild trainers, sheet, saves and
+advancement keep working unchanged. Display names can change in Doomerfall's text (for example "Axe" shown as
+"Shotguns") without touching save data. Pairing logic (arguable): Short Blade = light and quick; Long Blade =
+sustained flurry; Axe = heavy close-range cleave; Blunt = smash and area; Destruction = energy. Destruction then
+covers energy guns *and* destruction spells when spells arrive, which makes battlemage builds natural but couples
+the two. Alternative for Energy: Thaumaturgy.
+
+## 3. Perks at 25, 50, 75 and 100
+
+### How Doom would apply them (engineering, proposed)
+
+- Doom already receives every skill's base and live value (`DFB_SHEET_SKILLS_BASE/LIVE`). The perk tier is
+  floor(skill / 25), from one shared table, so Daggerfall's numbers decide and Doom only reads them.
+- Without Daggerfall (plain UZDoom) the sheet is invalid, so the player has no perks: a normal Doom marine.
+- Most weapon perks hook in one place: a Doomerfall inventory item on the player that adjusts damage, ammo use and
+  weapon states by category (`ModifyDamage`, `AbsorbDamage`, `DepleteAmmo` overrides, weapon state speed), so
+  stock and DRLA weapons get the same perk without editing either.
+- Not built yet, and needed by some perks: **fall damage** (Jumping), **the detection bar** (Stealth,
+  Backstabbing), **Doom-side spells** (magic schools), **spending magicka or fatigue from Doom** (the bridge only
+  publishes them today), **hostile human surrender** (Etiquette, Streetwise), **monster factions** (languages).
+- Live or base skill? Live lets Fortify and Drain effects switch perks on and off (fun with potions), base is
+  steadier. Lean: live.
+
+Each table: **bold = lean**, then alternatives. "Needs" lists unbuilt systems. The scaling line is secondary.
 
 ### Jumping perks (owner, 2026-11-25)
 
@@ -88,115 +149,256 @@ with skill. Lean (b).
   fall damage is not built (`CHANGELOG.md`, Climbing), so "reduced fall damage" needs falling damage to exist first.
   Extra jumps are midair jumps; the skill uses for Jumping keep coming from Doom's jump telemetry.
 
-## 2. Weapon-type skills
+### Weapon skills
 
-### Categories, confirmed from the data
+**Short Blade: Pistols** (Scout, Trespasser). Scaling: damage +0..+15%, spread -0..-30%.
 
-DRLA marks its weapons with type tokens (`ArsenalTokens.txt:49-57`), used by the class perks:
-
-| DRLA token | Count of weapon files | Used by |
-|---|---|---|
-| `RLMeleeTypeWeapon` | 6 (Fist, Chainsaw, Double/Piercing Chainsaw, Energysaw, Ripper) | Commando |
-| `RLPistolTypeWeapon` | 62 (pistols, revolvers, handcannons, blasters, Uzis) | Scout |
-| `RLShotgunTypeWeapon` | 54 (non-fixed multi-pellet; includes Storm pistols) | Renegade |
-| `RLRapidfireTypeWeapon` | 56 (chainguns, miniguns, rifles, Uzis, flamethrower) | Marine |
-| `RLSingleShotRifleTypeWeapon` | 12 (railgun, gauss, marksman, anti-materiel, Elephant Gun) | Sniper (unfinished class) |
-| `RLEfficientAmmoTypeWeapon` | 54 (uses more than one non-shell ammo per shot: plasma, BFGs) | Demolitionist |
-| Basic/Advanced/Master assembly | assemblies | Technician |
-
-There is no explosive token. Rockets, grenades and missiles are found by ammo (rockets) or splash damage. DRLA damage
-types are Melee, Bullet, Fire (explosions and fire), Plasma, plus Holy, Unholy, Piercing, Slime and specials
-(`ArsenalDamageTypes.txt`). Tokens overlap: a Plasma Uzi is Pistol + Rapidfire + EfficientAmmo.
-
-### Proposed Doomerfall categories and skill mapping (lean: repurpose, no new skills)
-
-| Category | Stock Doom | DRLA | Skill (lean) |
+| Tier | Perk | Alternatives | How in Doom / needs |
 |---|---|---|---|
-| Melee | Fist, Chainsaw | Melee token, combat knife | Hand-to-Hand |
-| Pistols | Pistol | Pistol token (non-cell) | Short Blade |
-| Shotguns | Shotgun, Super Shotgun | Shotgun token | Axe |
-| Rapid-fire | Chaingun | Rapidfire token | Long Blade |
-| Explosives | Rocket Launcher | rocket/grenade/missile ammo | Blunt Weapon |
-| Precision | (none in stock) | SingleShotRifle token | Archery |
-| Energy | Plasma Rifle, BFG9000 | cell ammo or Plasma damage type, BFGs | Destruction |
+| 25 | **Quickdraw:** pistols raise and lower instantly | Pistol swap also reloads | Skip Select/Deselect states for the Pistols category |
+| 50 | **Steady hand:** first shot after 0.4 s without firing has zero spread | Fan the hammer: hold fire for +50% rate, double spread | Spread override in the fire hook |
+| 75 | **Overpenetration:** pistol bullets pass through the first monster into one more (Trespasser) | Upper-body hits +50% (needs hit height vs monster height) | Continue the hitscan trace past the first hit |
+| 100 | **Deadeye:** slow-firing pistols deal 2x, scaled down for fast ones (Scout's 3x-8x, milder) | Akimbo: wield two pistols (overlay sprite, costly on DRLA guns); Last round in a magazine deals 3x (stock pistol has no magazine) | Damage factor by the weapon's refire time |
 
-Category precedence for overlapping tokens (lean): Melee > Explosives > Energy (uses cells) > Shotguns > Precision >
-Rapid-fire > Pistols. So a Plasma Pistol is Energy and a Storm Pistol is a Shotgun. Alternative: form wins over
-ammo (Plasma Pistol = Pistol). Doomerfall would keep one weapon-to-category table, generated from the tokens plus
-the stock list, so it works without DRLA.
+**Long Blade: Rapid-fire** (Marine, Bunker). Scaling: damage +0..+15%, spin-up and swap faster.
 
-Why repurpose:
-- Daggerfall weapons convert into Doom guns (`gamedesign.md`, the design goal's ebony mace), so the blade, axe, blunt
-  and bow skills lose their items. Their existing class data, guild trainers, character sheet, saves and
-  advancement all keep working with no new code in those systems.
-- Adding skills is expensive: `DFCareer.Skills` is a fixed 35-entry enum indexed in arrays sized by
-  `DaggerfallSkills.Count`, read from classic `CLASS*.CFG` careers, saved in save files, shown on fixed sheet pages,
-  used by guild training lists and quest checks, and named by `TextProvider`. New skills would touch all of them.
-- Display names can change in Doomerfall's text (for example "Axe" shown as "Shotguns") without touching save data.
+| Tier | Perk | Alternatives | How in Doom / needs |
+|---|---|---|---|
+| 25 | **Controlled burst:** first 3 rounds of each trigger pull have zero spread | Chaingun/minigun spin-up halved | Spread override by shots since trigger press |
+| 50 | **Ammo chain:** every 4th round is free (Marine, milder) | Every 3rd round | `DepleteAmmo` accumulator |
+| 75 | **Suppression:** a monster taking 6+ of your hits in 1 s is staggered (forced pain) and slowed for 1 s | Walking fire: no spread growth while moving | Per-target hit counter; pain state and speed change |
+| 100 | **Overdrive:** after 2 s of continuous fire, fire rate +25% | Siege stance: while firing and not moving, 25% less damage from the front (Bunker) | Weapon tic scaling while held |
 
-Pairing logic (all arguable): Short Blade = light and quick (pistols); Long Blade = sustained flurry (rapid-fire);
-Axe = heavy close-range cleave (shotguns); Blunt = smash and area (explosives); Archery = aimed ranged (precision);
-Destruction = energy. Destruction then covers energy guns *and* destruction spells when spells arrive. That makes
-"battlemage" builds natural but couples the two. Alternative: energy on Thaumaturgy, or BFG-class alone on
-Mysticism.
+**Axe: Shotguns** (Renegade). Scaling: damage +0..+15%, pump and reload faster.
 
-Options instead of the lean:
-- **B. New skills** for the seven categories, leaving Daggerfall's melee skills as melee. Cleanest meaning,
-  highest cost (see above), and the old melee skills would then govern almost nothing.
-- **C. Hybrid:** repurpose four melee skills, keep Archery as bows if bows ever become Doom weapons, and fold
-  Precision into Pistols.
+| Tier | Perk | Alternatives | How in Doom / needs |
+|---|---|---|---|
+| 25 | **Free shell:** picking up shells makes your next shotgun shot cost nothing (one stored) (Renegade) | Shotgun swap time halved | Token set on shell pickup, consumed in `DepleteAmmo` |
+| 50 | **Buckshot:** +25% pellets, carry-over for fractions (Renegade's +50%, milder) | Tighter spread -30% | Extra pellets in the fire hook |
+| 75 | **Knockdown:** point-blank shotgun hits knock monsters back and stagger them | Instant swap to and from any weapon (Renegade) | Thrust on damage within a short range |
+| 100 | **Slug load:** a toggle key fires one accurate slug carrying all pellet damage | Overkill pellets: pellets that kill keep going; Super Shotgun double-tap then instant reload once per 3 s | Toggle replaces the pellet spray with one trace. Uses its own key, because DRLA uses altfire |
 
-### Per-category effects (skill 0 to 100, linear)
+**Blunt Weapon: Explosives** (Demolitionist, Sarge, Bunker). Scaling: damage +0..+15%, splash radius +0..+10%.
 
-Common to every category: damage +0..+20%, swap speed (raise/lower) +0..+30%, reload speed +0..+15% where the
-weapon reloads. Each category adds one signature effect, a reduced version of the matching DRLA perk:
+| Tier | Perk | Alternatives | How in Doom / needs |
+|---|---|---|---|
+| 25 | **Blast discipline:** your own splash hurts you 50% less | Rockets reload faster | Self-damage factor on splash |
+| 50 | **Rocket jump:** your own splash pushes you 50% harder and deals no damage while you are airborne | Shrapnel: explosions throw 4 bullet fragments | Thrust scaling; pairs with Jumping |
+| 75 | **Fireangel:** immune to your own splash (Demolitionist) | Bouncing grenade mode (Bunker) | Self-splash factor 0 |
+| 100 | **Chain reaction:** monsters killed by your explosions burst for a small blast | Cluster rockets split into 3 bomblets; Second launcher (Sarge) | Spawn a weak explosion on death by explosive. Cap bursts per tic for slaughter packs |
 
-| Category | Signature effect at 100 | DRLA origin |
+**Destruction: Energy weapons** (Demolitionist, Bunker), also spells later. Scaling: damage +0..+15%, BFG charge
+-0..-15%.
+
+| Tier | Perk | Alternatives | How in Doom / needs |
+|---|---|---|---|
+| 25 | **Efficient cells:** every 4th energy shot is free | Destruction spells cost 20% less (needs spells) | `DepleteAmmo` accumulator |
+| 50 | **Ionize:** energy hits leave the target taking +15% from all sources for 2 s | Overcharge: hold fire for one charged bolt | Timed debuff item on the monster |
+| 75 | **Arc:** energy projectiles jump to one nearby monster for 50% damage | BFG tracer count +50% | Spawn a short arc on impact |
+| 100 | **Mana battery:** with no cells, energy weapons draw Daggerfall magicka instead | Kills refund 1 cell; Plasma spray never hurts you | Needs a new bridge event to spend magicka (Daggerfall owns it) |
+
+**Hand-to-Hand: Melee** (Commando, Nano Maniac, Saboteur). Governs melee damage (owner, 2026-11-25). Scaling:
+melee damage, the main continuous effect here (lean up to +60%, Commando's +100% milder).
+
+| Tier | Perk | Alternatives | How in Doom / needs |
+|---|---|---|---|
+| 25 | **Haymaker:** punches knock small monsters back and stagger them | Melee swap is instant | Thrust plus forced pain on fist hits |
+| 50 | **Bloodlust:** a melee gib grants 5 s of berserk (melee x2, red tint) (Commando) | Vengeance: 3 hits taken in 2 s grants berserk | Short custom damage powerup |
+| 75 | **Siphon:** melee kills give a little ammo for your last gun (Nano Maniac) | Melee kills drop a smoke bomb that blinds nearby monsters (Trespasser) | Give ammo on melee kill |
+| 100 | **Finisher:** melee on a staggered monster under 20% health kills it and heals you 5% of max HP | Melee strips resistance for 3 s (Saboteur) | Heal goes over the existing heal event; bosses excluded |
+
+**Archery** (role undecided, owner 2026-11-25). Three candidate roles, each with perks. Lean: **A**, because DRLA
+has a precision family and Daggerfall bows are aimed ranged weapons.
+
+| Tier | A. Precision rifles (Sniper) | B. Aiming, all guns | C. Bows and crossbows (if added as Doom weapons) |
+|---|---|---|---|
+| 25 | Zoom on precision rifles | **Zoom key for any gun** (2x field of view) | Arrows are recovered from bodies |
+| 50 | Hold breath: zoomed and still, zero spread and +25% damage | Crouched or still: spread -50% | Draw-charge: hold fire for up to 2x |
+| 75 | Rifle rounds pierce every monster in line | Look at a monster to see its health | Special arrows (fire, poison) via Daggerfall items |
+| 100 | Longshot: hold fire to charge to 2x, take +25% damage meanwhile (Sniper's 4x, milder) | Mark: an aimed target takes +20% from all your attacks for 3 s | Volley: fire 3 arrows in a fan |
+| Needs | Stock Doom has no precision gun, so without DRLA the perks do nothing | Works on stock guns | New weapons |
+
+**Critical Strike.** Scaling: none (lean), so the perks carry it.
+
+| Tier | Perk | Alternatives | How in Doom / needs |
+|---|---|---|---|
+| 25 | **Weak spot:** every 6th hit on the same monster deals +50% | Random Critical Strike / 5 % chance (a roll, damage only) | Per-target hit counter |
+| 50 | **Telling blow:** weak-spot hits always stagger | Every 5th hit | Forced pain state |
+| 75 | **Exploit:** after a weak-spot hit the target takes +15% from all sources for 3 s | Every 4th hit | Timed debuff |
+| 100 | **Execution:** a weak-spot hit on a non-boss monster under 25% health kills it | Weak-spot hits gib | Bosses excluded |
+
+### Movement and survival skills
+
+**Running** (Scout). Scaling: run speed +0..+10%, slower fatigue drain.
+
+| Tier | Perk | Alternatives | How in Doom / needs |
+|---|---|---|---|
+| 25 | **Long legs:** sprinting costs no fatigue while lightly loaded | Faster acceleration | Needs fatigue spent from Doom (published only today) |
+| 50 | **Slide:** crouch while running to slide, with a lower hitbox and kept momentum | Vault low obstacles | Crouch height plus kept velocity |
+| 75 | **Shoulder charge:** running into a small monster knocks it back | Momentum: +10% speed after 1 s of running | Bump check on the player |
+| 100 | **Adrenaline:** under 25% of max HP, +25% speed and no fatigue cost (Daggerfall's Adrenaline Rush) | Run and gun: full speed while firing heavy weapons | Speed factor from published HP |
+
+**Dodging.** Scaling: Dodging/4 armor points (section 8).
+
+| Tier | Perk | Alternatives | How in Doom / needs |
+|---|---|---|---|
+| 25 | **Sidestep:** double-tap strafe for a short dash (2 s cooldown) | Dash key | Velocity impulse, cooldown token |
+| 50 | **Graze:** hits within 0.3 s after a dash deal half damage | Dash cooldown 1 s | Timed damage factor |
+| 75 | **Second wind:** a kill resets the dash cooldown | Splash damage -30% | Event on kill |
+| 100 | **Untouchable:** a dash makes you invulnerable for 0.25 s | Blur: monsters' hitscan aim wobbles while dashing (Doom's shadow flag) | Brief invulnerability flag |
+
+**Swimming.** Scaling: swim speed.
+
+| Tier | Perk | Alternatives | How in Doom / needs |
+|---|---|---|---|
+| 25 | **Deep lungs:** air lasts 50% longer | Less underwater fog | Air supply factor |
+| 50 | **Swift stroke:** swim speed equals run speed | Fire any weapon underwater at full rate | Water move factor |
+| 75 | **Diver:** no damage landing in water from any height | Dash underwater | Needs fall damage |
+| 100 | **Amphibious:** breathe underwater indefinitely | Water hides you from monsters (bar does not fill submerged) | Air never runs out; the alternative needs the detection bar |
+
+**Climbing** (implemented). Scaling: climb speed and success, as today.
+
+| Tier | Perk | Alternatives | How in Doom / needs |
+|---|---|---|---|
+| 25 | **Mantle:** pull yourself onto ledges within reach while jumping | Climb speed +25% | Ledge check on jump |
+| 50 | **Hang:** holding still on a wall skips skill rolls | Climb down with Back | Matches the open question in `work/questions.md` |
+| 75 | **Wall jump:** jump off the wall you are climbing | Ceiling crawl in low spaces | Impulse away from the wall normal |
+| 100 | **Sure grip:** climbing never fails, and pistols and melee work while climbing | Climb at run speed | Skip the roll; allow one-handed categories |
+
+**Medical** (Medic). Scaling: resting heal rate (Daggerfall's), pickups heal +0..+20%.
+
+| Tier | Perk | Alternatives | How in Doom / needs |
+|---|---|---|---|
+| 25 | **Field dressing:** 10 minutes of loitering heals like an hour | Pickups +25% | Daggerfall-side rest rule |
+| 50 | **Medic's bag:** health pickups taken at full health go into a pool (cap 50 HP) used with a key (Medic) | Overheal to 110% that decays | Pool kept by Daggerfall as a counter |
+| 75 | **Antidote:** poison and disease damage halved | Bleeding stops faster (no bleeding exists) | Daggerfall-side |
+| 100 | **Second chance:** once per game day, a lethal hit leaves you at 1 HP and heals 25% over 5 s | Pickups heal 2x | Daggerfall owns death, so Daggerfall applies it |
+
+### Stealth skills
+
+**Stealth.** Scaling: detection bar fill rate (planned). All perks need the detection bar.
+
+| Tier | Perk | Alternatives | How in Doom / needs |
+|---|---|---|---|
+| 25 | **Soft steps:** your footsteps and landings never fill the bar | Crouch walking at full speed | Mute movement noise |
+| 50 | **Shadow:** in dark sectors the bar fills half as fast | Crouching halves fill | Sector light level |
+| 75 | **Lose them:** breaking line of sight for 5 s returns alerted monsters to searching | Melee and silenced shots do not alert | Monster state reset |
+| 100 | **Ghost:** firing a gun no longer wakes everything; it fills the bar by weapon noise and distance | Standing still makes you invisible to monsters that have not seen you | Changes the "firing wakes all" rule |
+
+**Backstabbing.** Scaling: +0..+50% damage on monsters that have not detected you. Needs the detection bar.
+
+| Tier | Perk | Alternatives | How in Doom / needs |
+|---|---|---|---|
+| 25 | **Silent kill:** killing an unaware monster does not fill the bar | Unaware kills drop no alert sound | Bar hook |
+| 50 | **Assassinate:** melee on an unaware monster deals 3x (Daggerfall's backstab) | Applies to hits from behind too | Damage factor |
+| 75 | **Vanish:** an unaware kill freezes the bar for 3 s | Smoke on unaware kill (Trespasser) | Bar hook |
+| 100 | **Opening shot:** your first hit on an unaware monster with any weapon deals 3x | Unaware kills chain: each within 3 s adds +25% to the next | Damage factor by awareness |
+
+### Social and trade skills
+
+**Etiquette.** Scaling: Daggerfall's dialogue rules. Doom perks need hostile human surrender (not built).
+
+| Tier | Perk | Alternatives | How in Doom / needs |
+|---|---|---|---|
+| 25 | **Parley:** hail a hostile guard or knight; it holds fire for 3 s to let you surrender | Better temple and noble prices | Use key on a hostile human bot |
+| 50 | **Yield:** hostile nobles, knights and guards under 25% health surrender instead of fighting on | Guards accept surrender while you are armed | Bot leaves combat; Daggerfall decides the crime outcome |
+| 75 | **Court access:** no trespass crime inside castles and palaces | Halved fines | Daggerfall-side |
+| 100 | **Stand down:** a hailed group of hostile non-quest humans can be talked out of the fight | Hire a human ally bot | Daggerfall roll on Etiquette, as its own pacification |
+
+**Streetwise.** Same pattern for thieves, rogues and commoners.
+
+| Tier | Perk | Alternatives | How in Doom / needs |
+|---|---|---|---|
+| 25 | **Fence:** pawn shops buy Doom guns and stolen goods | Better prices in poor towns | Ties to the open Doom item pricing question |
+| 50 | **Yield:** hostile thieves and rogues under 25% health surrender | Rogues sometimes pay you off | Needs surrender |
+| 75 | **Word on the street:** rumors name the loot identity of nearby dungeons | Rumors warn of the biggest pack | Daggerfall rumor text |
+| 100 | **Black market:** a contact sells rare Doom guns and ammo tiers | Thieves Guild discount | Shop stock rule |
+
+**Mercantile.** Scaling: prices (Daggerfall's).
+
+| Tier | Perk | Alternatives | How in Doom / needs |
+|---|---|---|---|
+| 25 | **Appraise:** see an item's value under the crosshair | Sell ammo in bulk | Look label (built) shows value |
+| 50 | **Supplier:** shops always stock some ammo for your drawn gun's type | Ammo 20% cheaper | Shop stock rule |
+| 75 | **Repair deal:** armor repair costs halved | Sell at full value to your guild | Daggerfall-side |
+| 100 | **Special order:** order a Doom gun family from a smith, delivered in days | Shops buy at full value | Daggerfall-side; stock guns orderable without DRLA |
+
+**Lockpicking.** Scaling: Daggerfall's lock chance.
+
+| Tier | Perk | Alternatives | How in Doom / needs |
+|---|---|---|---|
+| 25 | **Quiet picks:** picking makes no noise | Faster picking | Needs the detection bar |
+| 50 | **Breacher:** shotgun and explosive hits bash locked doors open | Spot traps | Damage event on a door to Daggerfall's bash rule |
+| 75 | **Second try:** a failed pick can be retried at once | Picking never breaks | Daggerfall-side |
+| 100 | **Master key:** magically locked doors can be picked | Unlock from a distance | Daggerfall-side |
+
+**Pickpocket.** Scaling: Daggerfall's steal chance.
+
+| Tier | Perk | Alternatives | How in Doom / needs |
+|---|---|---|---|
+| 25 | **Light fingers:** stealing from sleeping NPCs never wakes them | Steal from shop counters | Daggerfall-side |
+| 50 | **Quick hands:** taking from piles and bodies is instant | Looting does not fill the bar | Doom Use path |
+| 75 | **Disarm:** melee on a hostile human bot can knock its weapon to the ground | Stun on melee hit | Bot drops its weapon pickup |
+| 100 | **Grand theft:** melee hits on hostile humans steal some of their ammo | Steal a gun outright | Give ammo on hit |
+
+### Magic schools (spells come later; these perks work before spells)
+
+| Skill | 25 | 50 | 75 | 100 |
+|---|---|---|---|---|
+| Restoration | **Out of combat, regenerate to 25% of max HP** | Healing spells cost 20% less (needs spells) | **Purify: nukage and slime damage halved** | **Overflow: healing past max HP becomes 25 temporary armor points** |
+| Alteration | **Powerups last 25% longer** (Marine) | **Armor wears half as fast** | **Radiation suit also blocks splash from hazards** | **Supercharged: during a powerup, fire rate +15%** (Marine) |
+| Illusion | **Invisibility powerups last 50% longer** | **Blur while sprinting (Doom's shadow flag: monster aim wobbles)** | Decoy: alerted monsters lose you 2 s sooner (needs bar) | **Doppelganger: once a minute a heavy hit spawns a decoy monsters target for 3 s** |
+| Thaumaturgy | **Sense: monsters within 20 m show as marks on Daggerfall's automap** | **Item glow: Doom items glow by tier** (Technician beams) | Soul harvest: kills fill soul gems (needs spells) | **Transmute: break unwanted Doom guns into ammo** (Technician scavenger) |
+| Mysticism | **Consecrate: monsters you kill cannot be resurrected** (Sarge's stomp) | Recall costs less (needs spells) | **Banish: summoned monsters die with their summoner** | **Null field: monster projectiles slow near you for 1 s every 10 s** |
+
+Alternatives for the magic schools are kept minimal on purpose: once Doom spells exist, most 50 and 75 perks
+should become spell rules (cost, range, duration), and the owner may prefer that from the start.
+
+### Languages (only if they come back; current lean is hidden)
+
+One template for all eight, assuming option L2 (faction lore, section 6):
+
+| Tier | Perk (lean) | Alternatives |
 |---|---|---|
-| Melee | +60% melee damage (instead of +20%); berserk for 5 s after a melee gib at 75+ | Commando: +100% melee, berserk |
-| Pistols | spread -40%; slow-firing pistols up to +50% damage (scaled by fire rate) | Scout: 3x-8x, half spread |
-| Shotguns | +25% pellets, rounded down per shot with carry-over | Renegade: +50% pellets |
-| Rapid-fire | every 4th round free (25% ammo saved) | Marine: 75% saved |
-| Explosives | own splash damage -60% | Demolitionist: immune |
-| Precision | spread to zero on first shot, +30% damage | Sniper: +100%, perfect accuracy |
-| Energy | every 4th cell charge free; BFG-class charge time -15% | Demolitionist: half ammo |
+| 25 | See that faction's health bars | +5% damage against it |
+| 50 | Its monsters fill the detection bar 25% slower | Its packs show on the automap when near |
+| 75 | When its pack leader dies, stragglers flee | Its monsters infight more easily |
+| 100 | Lone monsters or small groups of it ignore you unless attacked | Turn one weak monster into a temporary ally |
 
-## 3. DRLA classes into skills
+## 4. DRLA classes into skills
 
-**Owner decision (2026-11-25): by default the Doom player is a normal character with no class effects. Unless
-overridden by Daggerfall skills it has nothing; Daggerfall does the work of applying skills and modifiers.** So no
-DRLA perk is ever granted by class. The table below says which Daggerfall skill reproduces each perk, graded, on
-stock and DRLA weapons alike.
+**Owner decision (2026-11-25):** the Doom player is a normal character with no class effects; DRLA classes are
+inspiration only. The table says where each class idea landed in section 3.
 
 Active classes in DRLA 1.1.5 `mapinfo.txt`: Marine, Scout, Technician, Renegade, Demolitionist, Commando. Commented
 out and "unfinished": Sniper, Saboteur, Cyborg, Medic, Scientist, Executive. DRLAX 1.2b adds Mechanoid, Nomad,
 Nano Maniac, Phase Sisters, Sarge, Trespasser, Bunker.
 
-| Class | DRLA effect | Doomerfall home (lean) |
+| Class | DRLA effect | Where it went |
 |---|---|---|
-| Marine | Rapid-fire uses 1 ammo per 4 shots; powerups last 50% longer and raise rapid-fire rate | Long Blade (Rapid-fire) ammo saving. Powerup duration: Alteration or Thaumaturgy +0..+25% (option), or drop |
-| Scout | Pistols 3x-8x damage, half spread; +10% speed, +10% jump; always has map; double jump | Short Blade (Pistols); Running; Jumping (double jump at 50, owner). Map: drop (Daggerfall automap only) |
-| Technician | Scrap exotic+ weapons into modpacks; 8 modpacks; rarity beams; assemblies +10/25/50% damage | No combat skill fits. Option: Mercantile or Lockpicking as "tinkering" (modpack cap, assembly damage +0..+20%). Lean: drop for now, revisit with DRLA mods |
-| Renegade | +50% pellets; instant weapon swap; armor +50% protection to 80%; free shot on shell pickup | Axe (Shotguns) pellets; swap speed from each category skill. Armor bonus: drop (Daggerfall armor rules, section 7) |
-| Demolitionist | Immune to own splash; half ammo on multi-ammo weapons; explodes when armor breaks | Blunt (Explosives) splash reduction; Destruction (Energy) cell saving. Drop the armor-break bombs |
-| Commando | Melee +100%; berserk when hit 3x in 2 s or on melee gib; 10% resist all | Hand-to-Hand (Melee). The 10% resist is Daggerfall armor and resistances' job |
-| Sniper* | Scope charge to 4x, takes +50% damage meanwhile; single-shot rifles +100% and perfect | Archery (Precision) |
-| Saboteur* | Melee debuffs enemy resistance; stronger explosions | Option: Backstabbing or Hand-to-Hand at 75+ adds a short "exposed" debuff. Lean drop |
-| Cyborg* | 200 base HP, no armor, heals from armor repair | Drop (HP is Daggerfall's) |
-| Medic* | Double healing; overflow health pool | Medical (pickup healing) |
-| Scientist* | Thrown chemical beakers; poison melee | Drop; spells and poison are Daggerfall's |
-| Executive* | Bodyguards; datadisks | Drop |
-| Mechanoid | Damage per installed modpack | Drop (DRLA-only) |
-| Nomad | Luck rises per level; inventory wiped per level | Drop (conflicts with object permanence) |
-| Nano Maniac | Melee regenerates ammo; weapons rerolled per level | Option: Hand-to-Hand 75+ melee kills give a little ammo of the drawn gun. Reroll: drop |
-| Phase Sisters | Two characters, Marine plus Renegade | Drop |
-| Sarge | Shoulder rocket weapon; stomp corpses | Drop (option: Blunt 100 reloads rockets faster) |
-| Trespasser | Pistol rounds pierce in a cone; melee kills drop smoke bombs | Option: Short Blade 100 gives pierce to one extra target. Smoke: drop |
-| Bunker | Chaingun shield powered by cells; bouncing rockets | Drop |
+| Marine | Rapid-fire uses 1 ammo per 4 shots; powerups last 50% longer and raise rapid-fire rate | Long Blade 50 Ammo chain; Alteration 25 and 100 |
+| Scout | Pistols 3x-8x, half spread; +10% speed and jump; map; double jump | Short Blade 50 and 100; Running; Jumping 50 (owner). Map dropped (Daggerfall automap only) |
+| Technician | Scrap weapons into modpacks; 8 modpacks; rarity beams; assemblies +10/25/50% | Thaumaturgy 50 and 100. Modpack and assembly perks dropped for now (DRLA only) |
+| Renegade | +50% pellets; instant swap; armor +50%; free shot on shell pickup | Axe 25, 50, 75 alternative. Armor bonus dropped (Daggerfall armor, section 8) |
+| Demolitionist | Immune to own splash; half ammo on multi-ammo weapons; explodes when armor breaks | Blunt 25 and 75; Destruction 25. Armor-break bombs dropped |
+| Commando | Melee +100%; berserk; 10% resist all | Hand-to-Hand scaling and 50. Resist is armor's job |
+| Sniper* | Scope charge to 4x; single-shot rifles +100% and perfect | Archery option A |
+| Saboteur* | Melee strips resistance; stronger explosions | Hand-to-Hand 100 alternative |
+| Cyborg* | 200 base HP, no armor | Dropped (HP is Daggerfall's) |
+| Medic* | Double healing; overflow pool | Medical 50 |
+| Scientist* | Chemical beakers; poison melee | Dropped |
+| Executive* | Bodyguards; datadisks | Etiquette 100 alternative (ally) |
+| Mechanoid | Damage per installed modpack | Dropped (DRLA only) |
+| Nomad | Luck per level; inventory wiped | Dropped (object permanence) |
+| Nano Maniac | Melee regenerates ammo; weapons rerolled | Hand-to-Hand 75 |
+| Phase Sisters | Two characters | Dropped |
+| Sarge | Shoulder rocket weapon; stomp prevents resurrection | Blunt 100 alternative; Mysticism 25 |
+| Trespasser | Pistol rounds pierce in a cone; smoke on melee kill | Short Blade 75; Hand-to-Hand 75 alternative |
+| Bunker | Chaingun shield; bouncing rockets | Long Blade 100 alternative; Blunt 75 alternative |
 
 \* unfinished, disabled in DRLA's own class list.
 
-## 4. Melee skills: consolidate or keep
+## 5. Melee skills
 
 Daggerfall melee skills and their weapons:
 
@@ -209,37 +411,35 @@ Daggerfall melee skills and their weapons:
 | Hand-to-Hand | Unarmed |
 | (Archery) | Short Bow, Long Bow |
 
-Doom has few melee weapons: stock Fist and Chainsaw; DRLA adds 4 chainsaw variants (6 with the Melee token).
+Decided: Hand-to-Hand governs Doom melee damage, for now (owner, 2026-11-25). Doom has few melee weapons: stock Fist
+and Chainsaw; DRLA adds 4 chainsaw variants.
+
+Still open: what the other four do.
 
 | Option | What | For | Against |
 |---|---|---|---|
-| **M1 (lean)** | One Melee skill = Hand-to-Hand; the four blade/blunt skills plus Archery become gun categories | Matches how few Doom melee weapons exist; frees five skills at no cost | Daggerfall veterans see familiar names with new meanings (fixable with display names) |
-| M2 | Keep all four as melee, if Daggerfall melee weapons become real Doom melee weapons | Faithful | Needs new Doom weapons, and gun categories then need new skills (option B) |
-| M3 | Two melee skills: Hand-to-Hand (fists, knives) and Blade/Blunt (chainsaws and any future melee) | Some melee variety | Spends one more skill on a thin weapon pool |
+| **M1 (lean)** | The four blade and blunt skills become gun categories (section 2) | Uses five skills that lost their items; no new skills | Familiar names, new meanings (display names help) |
+| M2 | Keep them as melee, if Daggerfall melee weapons become real Doom melee weapons | Faithful | Needs new Doom weapons, and guns then need homes elsewhere in the 35 |
+| M3 | Hand-to-Hand for fists, one blade skill for chainsaws and future melee, the rest guns | Some melee variety | One skill spent on a thin weapon pool |
 
 Open dependency: how Daggerfall weapon items convert to Doom guns is not documented in `gamedesign.md` beyond
 "drops translate into DRLX weapons". If a sword converts to a specific gun family, the skill mapping should follow
-the same lines (for example Axe items become shotguns).
+the same lines.
 
-## 5. Language skills (not Streetwise or Etiquette)
+## 6. Language skills (not Streetwise or Etiquette)
 
 Current design: "probably on the way out for now" (owner, 2026-11-24; `work/backlog/revisit-languages.md`). In
 Daggerfall each pacifies a monster group on first sight (`FormulaHelper.GetEnemyEntityLanguageSkill`). With Doom
-packs replacing those monsters the skills have no targets. Pacifying a slaughter-sized pack would also undercut the
-core fantasy.
+packs replacing those monsters the skills have no targets, and pacifying a slaughter pack would undercut the game.
 
 | Option | Idea | Notes |
 |---|---|---|
-| **L1 (current lean)** | Hide them; no effect | Cheapest; matches the owner's current note |
-| L2 Faction lore | Each language becomes knowledge of one Doom monster family: +0..+10% damage against it and its detection bar fills up to 25% slower | Keeps 8 skills useful, rewards specialization, no pacifying. Example: Impish = imps and small demons; Daedric = hell nobles and barons; Giantish = mancubi, cyberdemons; Dragonish = cacodemons and flyers; Harpy = lost souls, pain elementals; Orcish = former humans; Centaurian = arachnotrons, spider masterminds; Spriggan and Nymph = DRLA or Colourful Hell variants |
-| L3 Intimidation | High skill in a pack's faction makes stragglers flee when the pack leader dies | Fits "kill the leader" encounters (`gamedesign.md` boss escorts); Doom flee AI exists |
-| L4 Pacify only small or lone groups | Faithful pacification limited to packs under N points | Keeps Daggerfall flavor; must never touch slaughter packs or quest foes |
-| L5 Merge | Fold all languages into one "Demonology" skill (lore + intimidation) and hide the rest | One useful skill instead of eight weak ones |
-| Etiquette / Streetwise extra | Hostile human NPC bots (guards, classes) may surrender or yield at low health, scaled by the matching skill | Fits Daggerfall's surrender to guards |
+| **L1 (current lean)** | Hide them; no effect | Cheapest; matches the owner's note. But the perk rule then leaves 8 skills with no perks |
+| L2 Faction lore | Each language is knowledge of one Doom monster family, with perks per the template in section 3 | Example: Impish = imps and small demons; Daedric = hell nobles and barons; Giantish = mancubi, cyberdemons; Dragonish = cacodemons and flyers; Harpy = lost souls, pain elementals; Orcish = former humans; Centaurian = arachnotrons, spider masterminds; Spriggan and Nymph = DRLA or Colourful Hell variants |
+| L3 Intimidation only | High skill makes a pack's stragglers flee when its leader dies | Fits boss-and-escort encounters |
+| L4 Merge | Fold all languages into one "Demonology" skill and hide the rest | One useful skill instead of eight weak ones |
 
-Lean if languages come back: L2, possibly with L3 at high skill.
-
-## 6. New Game: no DRLA class
+## 7. New Game: no DRLA class
 
 **Decided (owner, 2026-11-25):** the Doom player is a normal character with no class effects. Daggerfall applies
 all skills and modifiers. Today `dd_bridge.cpp:2147` logs "Doom starts with its default class" (DRLA's first class,
@@ -253,16 +453,15 @@ Proposed shape (engineering, within the decision):
   factors) and no class starting weapon. Without DRLA it derives from the stock `DoomPlayer`.
 - DRLA's class menu is skipped in bridged games. Standalone UZDoom with DRLA keeps DRLA's classes (Doom still runs
   without Daggerfall).
-- Daggerfall's class (preset or custom) is the only class: its skill levels, primary/major/minor skills and
-  weapon expertise flow to Doom through the existing sheet.
+- Daggerfall's class (preset or custom) is the only class: its skill levels flow to Doom through the existing sheet,
+  and so its perks follow from its skills.
 - Risk to check: DRLA ACS may assume a known class token. Needs one probe run before relying on it.
 
-Still for the owner (not decided): the starting kit. Lean: the starting gun follows the character's highest
-weapon-category skill (like Daggerfall giving class weapons), plus fists and a pistol. Also Daggerfall class
-specials (Adrenaline Rush, Athleticism, Regenerate Health, weapon Expertise) need Doom meanings later; Expertise
-could add +10% to the matching category.
+Still for the owner (not decided): the starting kit. Lean: the gun of the character's highest weapon skill, plus
+fists and a pistol. Daggerfall class specials (Adrenaline Rush, Athleticism, Regenerate Health, weapon Expertise)
+need Doom meanings later; Expertise could count as +10 skill for perk thresholds in that category.
 
-## 7. Armor: Daggerfall's mitigation as damage reduction
+## 8. Armor: Daggerfall's mitigation as damage reduction
 
 ### Daggerfall's math (verified in code)
 
@@ -341,27 +540,35 @@ is about a permanent blue armor.
 | Order | Damage arrives from Doom, Daggerfall applies armor DR, then resistances, then HP (Daggerfall owns HP; `DoomerfallHp` applies hits unchanged today) | As stated |
 | HP rescale | DR multiplies, so it works with any HP scale. But effective HP = HP / (1 - DR): 300 HP in daedric is about 700 effective HP | Tune the HP curve and K together; if high-level HP is several hundred, prefer H100 or D |
 
-## 8. Questions for the owner (each with a lean)
+## 9. Questions for the owner (each with a lean)
 
-1. Repurpose Short Blade, Long Blade, Axe, Blunt and Archery as gun categories (M1), or add new skills? Lean:
-   repurpose, with Doomerfall display names.
-2. Which skill pairs with which category? Lean: table in section 2.
-3. Should Destruction cover energy weapons as well as destruction spells? Lean yes.
-4. Do cell weapons go to Energy even when shaped like pistols or rifles? Lean yes (ammo wins).
-5. Effect size: about +20% per value at skill 100, signature perks at a third to a half of DRLA's strength? Lean yes.
-6. Languages: keep hidden (L1), or faction lore (L2)? Lean L1 now, L2 when revisited.
-7. Should hostile human NPCs yield based on Etiquette or Streetwise? Lean yes, later.
-8. Starting kit after New Game with no class: highest weapon skill's gun plus fists and pistol? Lean yes.
-9. Armor curve: hyperbolic K=80 (H), H100, or depth-aware (D)? Lean H, revisit with the HP formula.
-10. Armor applied as one weighted average, not per hit location? Lean yes.
-11. Armor full vs physical, half vs fire/plasma/splash, none vs environment and poison? Lean yes.
-12. Total armor cap 75%? Lean yes.
-13. Dodging adds Dodging/4 armor points? Lean yes.
-14. Critical Strike as deterministic every-Nth-hit bonus? Lean yes.
-15. Technician-style perks (modpacks, assemblies): drop for now? Lean yes.
+Skills and perks:
+1. Do the perk leans in section 3 fit, skill by skill? Lean: yes as a first pass; the owner picks per skill.
+2. Short Blade, Long Blade, Axe and Blunt become Pistols, Rapid-fire, Shotguns and Explosives (M1)? Lean yes, with
+   Doomerfall display names.
+3. Archery's role: precision rifles (A), aiming for all guns (B), or bows (C)? Lean A. Note that A does nothing
+   without DRLA, so B is the stock-friendly choice.
+4. Should Destruction cover energy weapons as well as destruction spells? Lean yes.
+5. Do cell weapons go to Energy even when shaped like pistols or rifles? Lean yes (ammo wins).
+6. Perks follow the live skill (Fortify and Drain can switch them) rather than the base skill? Lean live.
+7. Continuous scaling capped around +15% per weapon skill, with Hand-to-Hand's melee damage up to +60%? Lean yes.
+8. Fall damage below Jumping 75: linear to 50% reduction, with the safe height raised by the extra jump height? Lean
+   yes.
+9. Languages: hidden (L1, no perks) or faction lore (L2, perks per the template)? Lean L1 now, L2 when revisited.
+10. Social perks: should hostile humans parley and yield (Etiquette, Streetwise)? Lean yes, built later.
+11. Magic school perks before spells exist, as in section 3, or wait for spells? Lean: use them now, revisit with
+    spells.
+12. Starting kit after New Game: the highest weapon skill's gun plus fists and pistol? Lean yes.
+
+Armor:
+13. Armor curve: hyperbolic K=80 (H), H100, or depth-aware (D)? Lean H, revisit with the HP formula.
+14. One weighted average, not per hit location? Lean yes.
+15. Full vs physical, half vs fire, plasma and splash, none vs environment and poison? Lean yes.
+16. Total armor cap 75%? Lean yes.
+17. Dodging adds Dodging/4 armor points? Lean yes.
 
 ## Suspected oversights
 
 - `DoomerfallHp.cs` applies Doom hits with "no armor or scaling yet", while Doom's own stock armor is used up on
-  pickup. Until section 7 lands, Daggerfall armor has no effect at all in bridged play. Expected, but worth keeping
+  pickup. Until section 8 lands, Daggerfall armor has no effect at all in bridged play. Expected, but worth keeping
   in mind when judging difficulty in play tests. Confidence high.
