@@ -216,6 +216,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             guards = gameObject.AddComponent<DoomerfallGuards>();
             guards.Init(this, sync);
             gameObject.AddComponent<DoomerfallCityLights>().Init(this);
+            gameObject.AddComponent<DoomerfallHiddenWorld>().Init(this, sync, Environment.GetCommandLineArgs());
+            DoomerfallWorldCost.Attach(this, sync, Environment.GetCommandLineArgs()); // measurement only: -dfworldcost
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfguardtest") >= 0)
                 gameObject.AddComponent<DoomerfallGuardsTest>().Init(this, sync);
         }
