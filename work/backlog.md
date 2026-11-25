@@ -98,6 +98,9 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 
 ## Before initial release
 
+- [Daggerfall skills in Doom](backlog/skills-in-doom.md): Owner decisions so far and the proposal; 35 skills for now.
+- [Mod compatibility research](backlog/mod-compatibility-research.md): Specialist reviews history; new mods' weapons work with Daggerfall systems.
+- [Player manual](backlog/player-manual.md): Specialist task; main-only features, referenced in the repo map.
 - [Final Doom class and difficulty for New Game](backlog/full-daggerfall-new-game-flow.md): Replace the temporary prompt and fixed class.
 - [Doom monsters block fast travel](backlog/doom-monsters-block-fast-travel.md): Decide whether and how nearby Doom monsters block travel.
 - [Improve the random enemy roster](backlog/improve-the-random-enemy-roster.md): Weight or tier the uniform random roster.
