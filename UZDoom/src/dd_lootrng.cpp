@@ -11,9 +11,14 @@
 //   PostBeginPlay are fixed too. ddLootId keeps that first value, and names a dropped item that has no other id.
 // - Encounter mooks, overworld seeds and map things on Daggerfall maps spawn under a state seeded from their id or
 //   map spot, so a mod's random spawner standing in for them picks the same variant every game.
-// Living monsters, players and missiles never carry a loot state, so combat and AI randomness stay as they were. A
-// revived monster drops its state (AActor::Revive). Stock games never set ddRecordId and have no bridge session, so
-// nothing here runs for them.
+// - Live play: a living monster with a Daggerfall id ticks under its own state (ddAiRng), seeded from that id the first
+//   time it ticks, and a missile or monster spawned while one runs gets a state drawn from it. So a Civil War plays out
+//   the same way in every game until the player takes part, whenever and however the player arrives: no draw depends
+//   on the player's own ticks or on anything else that happened in the game. The odds are untouched; only where the
+//   numbers come from changes. The live state is dropped when the monster starts dying, so its loot never depends on
+//   how it lived.
+// Living monsters never carry a loot state. A revived monster drops both states (AActor::Revive). Stock games never set
+// ddRecordId and have no bridge session, so nothing here runs for them.
 #include "dd_lootrng.h"
 #include <unordered_map>
 #include "actor.h"
@@ -26,7 +31,7 @@ bool DD_BridgeHasSession();
 namespace
 {
 	constexpr uint64_t DYNAMIC_BIT = 1ull << 63, ID_MASK = (1ull << 61) - 1;	// As dd_treadmill.cpp's session ids.
-	constexpr uint64_t SALT_DEATH = 0x6c6f6f7464656164ull, SALT_MAPTHING = 0x6c6f6f746d617074ull;
+	constexpr uint64_t SALT_DEATH = 0x6c6f6f7464656164ull, SALT_MAPTHING = 0x6c6f6f746d617074ull, SALT_LIVE = 0x6c6976657374617eull;
 
 	uint64_t Mix(uint64_t h, uint64_t v)
 	{
@@ -55,6 +60,7 @@ uint64_t DD_LootSeedOf(uint64_t id, uint64_t salt)
 
 void DD_LootDied(AActor *mo)
 {
+	mo->ddAiRng = 0;	// Dead: its corpse ticks as stock, and nothing it did alive reaches its loot.
 	if (!mo->ddRecordId || mo->player) return;
 	mo->ddLootRng = mo->ddLootId = DD_LootSeedOf(mo->ddRecordId, SALT_DEATH);
 	if (spawnCounts.size() > 100000) spawnCounts.clear();	// Only dead owners' finished counts are lost.
@@ -63,7 +69,16 @@ void DD_LootDied(AActor *mo)
 
 void DD_LootInherit(AActor *mo)
 {
-	if (!DD_RngOverride || mo->player || (mo->flags3 & MF3_ISMONSTER) || (mo->flags & MF_MISSILE)) return;
+	if (!DD_RngOverride || mo->player) return;
+	if ((mo->flags3 & MF3_ISMONSTER) || (mo->flags & MF_MISSILE))
+	{
+		// A shot or a summoned monster: its own live state, one step of the running one.
+		uint64_t &parent = *DD_RngOverride;
+		parent = parent * 6364136223846793005ull + 0xda3e39cb94b95bdbull;
+		const uint64_t s = Mix(parent, SALT_LIVE);
+		mo->ddAiRng = s ? s : 1;
+		return;
+	}
 	uint64_t s;
 	if (DD_LootOwner && DD_LootOwner->ddLootId)
 	{
@@ -105,4 +120,14 @@ uint64_t DD_LootItemId(AActor *item)
 	if (!item) return 0;
 	if (item->ddRecordId) return item->ddRecordId;
 	return item->ddLootId ? DYNAMIC_BIT | (item->ddLootId & ID_MASK) : 0;
+}
+
+uint64_t *DD_AiStateFor(DThinker *th)
+{
+	if (!DD_BridgeHasSession() || !th->IsKindOf(RUNTIME_CLASS(AActor))) return nullptr;
+	AActor *mo = static_cast<AActor *>(th);
+	if (mo->player) return nullptr;
+	if (!mo->ddAiRng && mo->ddRecordId && (mo->flags3 & MF3_ISMONSTER) && mo->health > 0)
+		mo->ddAiRng = DD_LootSeedOf(mo->ddRecordId, SALT_LIVE);
+	return mo->ddAiRng ? &mo->ddAiRng : nullptr;
 }

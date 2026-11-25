@@ -275,6 +275,7 @@ void AActor::Serialize(FSerializer &arc)
 		A("ddrecordid", ddRecordId) // [Doomerfall] written only when nonzero
 		A("ddlootrng", ddLootRng) // [Doomerfall] written only when nonzero
 		A("ddlootid", ddLootId) // [Doomerfall] written only when nonzero
+		A("ddairng", ddAiRng) // [Doomerfall] written only when nonzero
 		A("spawnpoint", SpawnPoint)
 		A("spawnangle", SpawnAngle)
 		A("starthealth", StartHealth)
@@ -8562,7 +8563,7 @@ void AActor::Revive()
 {
 	AActor *info = GetDefault();
 	FLinkContext ctx;
-	ddLootRng = 0; // [Doomerfall] alive again: its randomness is stock until it next dies
+	ddLootRng = ddAiRng = 0; // [Doomerfall] alive again: its live state is seeded again from its id, its loot when it next dies
 
 	bool flagchange = (flags & (MF_NOBLOCKMAP | MF_NOSECTOR)) != (info->flags & (MF_NOBLOCKMAP | MF_NOSECTOR));
 

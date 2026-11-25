@@ -1259,6 +1259,7 @@ public:
 	uint64_t		ddRecordId = 0;	// [Doomerfall] Overworld table id. Zero on all stock actors.
 	uint64_t		ddLootRng = 0;	// [Doomerfall] Fixed loot random state (dd_lootrng.cpp). Zero on all stock actors.
 	uint64_t		ddLootId = 0;	// [Doomerfall] The loot seed it was given; names a dropped item. Zero on all stock actors.
+	uint64_t		ddAiRng = 0;	// [Doomerfall] Fixed random state for its live ticks (dd_lootrng.cpp). Zero on all stock actors.
 	DVector3		SpawnPoint; 	// For nightmare respawn
 	int				StartHealth;
 	uint8_t			WeaveIndexXY;	// Separated from special2 because it's used by globally accessible functions.
