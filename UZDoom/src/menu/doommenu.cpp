@@ -173,6 +173,16 @@ void M_DDConfirmAbandon(bool plain)
 	M_ActivateMenu(newmenu);
 }
 
+// Doomerfall: New Game in a running game asks first, then drops the game and starts over.
+void DD_BridgeNewGameFromGame();
+void M_DDConfirmNewGame()
+{
+	if (CurrentMenu == nullptr) M_StartControlPanel(false);
+	DMenu *newmenu = CreateMessageBoxMenu(CurrentMenu, "Start a new game?\n\nAnything not saved in the current game is lost.", 0, false, NAME_None,
+		[]() { M_ClearMenus(); DD_BridgeNewGameFromGame(); });
+	M_ActivateMenu(newmenu);
+}
+
 bool M_SetSpecialMenu(FName& menu, int param)
 {
 	// Doomerfall: New Game goes to Daggerfall's character creation. No effect without -dfflow.

@@ -24,6 +24,7 @@
 #include "d_protocol.h"
 #include "doomstat.h"
 #include "g_game.h"
+#include "g_levellocals.h"
 #include "gamestate.h"
 #include "i_interface.h"
 #include "m_argv.h"
@@ -37,7 +38,7 @@ FARG_ADVANCED(dfnewgametest, "Doomerfall", "once|twice|escape", "Bridge test onl
 FARG_ADVANCED(dfplainloadtest, "Doomerfall", "once", "Bridge test only: runs dd_load_daggerfall at the title and chooses a difficulty.");
 FARG_ADVANCED(dfbridgetestpause, "Doomerfall", "ext|game|menu", "Bridge test only: enters a pause state for six seconds.");
 FARG_ADVANCED(dfsavetest, "Doomerfall", "file|autoN", "Save test only: makes one synchronized save to this file, or N real autosaves, then quits.");
-FARG_ADVANCED(dfloadtest, "Doomerfall", "mode:file", "Load test only: cycle, death, menu, bad, newgame, again, or resume, using this save file.");
+FARG_ADVANCED(dfloadtest, "Doomerfall", "mode:file", "Load test only: cycle, death, menu, bad, newgame, again, restart, or resume, using this save file.");
 FARG_ADVANCED(dfhptest, "Doomerfall", "basic|monsters", "HP sync test only: scripts hits, heals, and a lethal hit.");
 
 EXTERN_CVAR(Int, dd_ui_test_hold)
@@ -247,6 +248,26 @@ void LoadTestLog(const char *what)
 		v.hpCurrent, int(v.hpDead), int(world), x, y, int(gamestate), v.death, int(v.flowHold), int(menuactive));
 }
 
+// restart mode: changes the saved game, so the new one can be told apart from it.
+void RestartPlay()
+{
+	DD_BridgeTestHit(17, "load test change");
+	P_UnPredictClient();
+	if (AActor *mo = players[consoleplayer].mo) mo->SetOrigin(mo->Pos() + DVector3(96, 0, 0), false);
+}
+
+// restart mode: what the new character holds in Doom, for the driver to compare with a first New Game.
+void RestartLogFresh()
+{
+	DD_BridgeTestView(v);
+	const player_t &p = players[consoleplayer];
+	FString inv;
+	int count = 0;
+	if (p.mo) for (AActor *item = p.mo->Inventory; item; item = item->Inventory, count++) inv.AppendFormat(" %s", item->GetClass()->TypeName.GetChars());
+	LoadTestLog("second character arrived");
+	Log("load test: fresh doom hp %d, Daggerfall hp %d/%d, map %s, %d inventory items:%s", p.health, v.hpCurrent, v.hpMax, primaryLevel->MapName.GetChars(), count, inv.GetChars());
+}
+
 void RunLoadTest(int64_t now)
 {
 	if (!loadTestMode || loadTestStep < 0 || now < loadTestAtNs) return;
@@ -267,6 +288,7 @@ void RunLoadTest(int64_t now)
 		return;
 	}
 	const bool newgame = !strcmp(loadTestMode, "newgame");
+	const bool restart = !strcmp(loadTestMode, "restart");
 	const bool bad = !strcmp(loadTestMode, "bad"), death = !strcmp(loadTestMode, "death"), menu = !strcmp(loadTestMode, "menu") || !strcmp(loadTestMode, "again");
 	const player_t &player = players[consoleplayer];
 	double x = 0, y = 0, z = 0, yaw = 0;
@@ -330,6 +352,7 @@ void RunLoadTest(int64_t now)
 		if (!v.settled || !v.saveReady) return;
 		DDTreadmill_PlayerWorld(loadTestPos[0], loadTestPos[1], loadTestPos[2], yaw);
 		LoadTestLog("saved");
+		if (restart) { RestartPlay(); loadTestStep = 20; loadTestAtNs = now + 1500000000LL; return; }
 		if (death || menu) DD_BridgeTestHit(100000, "load test lethal");
 		else
 		{
@@ -399,6 +422,26 @@ void RunLoadTest(int64_t now)
 	case 10:
 		if (!v.settled) return;
 		finish();
+		return;
+	case 20: // restart: New Game in the running game, through the real menu entry. The driver answers Yes.
+		if (gamestate != GS_LEVEL || !v.settled) return;
+		LoadTestLog("played on, choosing New Game in the running game");
+		M_StartControlPanel(false);
+		M_SetMenu(FName("PlayerclassMenu"), -1);
+		Log("load test: asking to confirm New Game, menu %d", int(menuactive));
+		loadTestStep = 21;
+		return;
+	case 21:
+		if (!v.atTitle) return;
+		LoadTestLog("old game dropped, at the title");
+		loadTestStep = 22;
+		return;
+	case 22: // The second character has arrived and its start save is written; then the earlier save must still load.
+		if (v.atTitle || !v.ngIdle || gamestate != GS_LEVEL || !v.hpValid || !v.ngSaveDone || !v.settled) return;
+		RestartLogFresh();
+		G_LoadGame(loadTestFile.GetChars());
+		loadTestStep = 8;
+		loadTestAtNs = now + 500000000LL;
 		return;
 	}
 }

@@ -2209,19 +2209,37 @@ void PumpNewGameSave(int64_t now)
 }
 }
 
+void M_DDConfirmNewGame();
+
+static void NgBegin()
+{
+	ngState = NgWaitDf;
+	ngDeadline = dfb_now_ns() + 30000000000LL;
+	M_ClearMenus();
+	Log("new game: chosen in Doom's menu");
+}
+
 // Called for the first menu in Doom's new game chain. True means this flow took it.
 bool DD_BridgeNewGameMenu()
 {
 	if (!session || !flowMode || ngState == NgDifficulty) return false;
-	if (ngState == NgIdle && atTitle && loadState == LoadIdle)
-	{
-		ngState = NgWaitDf;
-		ngDeadline = dfb_now_ns() + 30000000000LL;
-		M_ClearMenus();
-		Log("new game: chosen in Doom's menu");
-	}
-	else if (!atTitle) Printf(PRINT_HIGH, "End the current game before starting a new one.\n");
+	if (ngState != NgIdle || loadState != LoadIdle) return true;
+	if (atTitle) NgBegin();
+	else if (saveState == SaveIdle && !saveStartPending) M_DDConfirmNewGame(); // As stock Doom: confirm, then start over.
 	return true;
+}
+
+// Yes to the New Game question in a running game: the game is dropped unsaved, both games go to the title as End
+// Game does (Daggerfall held), and New Game starts from there. Character creation resets Daggerfall's side and
+// entering DDOVER01 resets Doom's world table.
+void DD_BridgeNewGameFromGame()
+{
+	if (!session || !flowMode || atTitle || ngState != NgIdle || loadState != LoadIdle || saveState != SaveIdle || saveStartPending) return;
+	Log("new game: chosen in a running game, campaign %s dropped", campaignId.IsEmpty() ? "-" : campaignId.GetChars());
+	if (gamestate == GS_LEVEL) P_UnPredictClient();
+	ngSave = NgsNone;
+	ReturnToTitle();
+	NgBegin();
 }
 
 // Escape's main menu stays shut while New Game or a plain load is under way: Daggerfall's screens, the difficulty
