@@ -28,6 +28,8 @@ Every lane approved before 2026-11-24 evening has run and is merged. Owner decis
 - Running: `newgameesc`: Escape during Daggerfall's New Game screens opens Doom's menus and breaks the game (owner play test, 2026-11-24).
 - Running: `cleanlaunch`: the launcher's startup is a mess: Doom windowed, Daggerfall fullscreen, random timing (owner play test, 2026-11-24).
 
+- `flatcollision`: Daggerfall sprites such as braziers keep their original collision (owner, 2026-11-24). Waiting for a free lane.
+
 ### Proposed cards waiting on owner choices
 
 - Quest types: 11 cards in `work/queue/quests/proposed`.
