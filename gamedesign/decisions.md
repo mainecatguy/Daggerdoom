@@ -441,3 +441,10 @@ Verdicts:
 - **Answer:** Resting gets a card: Daggerfall's rest menu exactly as in Daggerfall, opened in Doom by a keybind like the
   other menus. Doom also shows "You have reached level N" on a level-up.
 - **Rests on:** Owner, 2026-11-26.
+
+## 2026-11-26: Older saves and the class Endurance bonus [owner]
+
+- **Verdict:** Owner decided.
+- **Answer:** Keep what is merged: saves from before the HP change get the class bonus added to Endurance once on load,
+  so old and new characters follow the same rule.
+- **Rests on:** Owner, 2026-11-26.
