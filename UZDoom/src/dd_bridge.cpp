@@ -776,7 +776,8 @@ static uint32_t RestState()
 	AActor *pmo = players[consoleplayer].mo;
 	if (!pmo) return DFB_REST_NOT_GROUNDED;
 	uint32_t state = 0;
-	if (pmo->Z() > pmo->floorz + 1 || pmo->waterlevel >= 2) state |= DFB_REST_NOT_GROUNDED;
+	const bool standing = pmo->Z() <= pmo->floorz + 1 || (pmo->flags2 & MF2_ONMOBJ); // on the floor, or on top of a solid actor
+	if (!standing || pmo->waterlevel >= 2) state |= DFB_REST_NOT_GROUNDED;
 	int near = 0, seeing = 0;
 	AActor *first = nullptr;
 	auto it = primaryLevel->GetThinkerIterator<AActor>();

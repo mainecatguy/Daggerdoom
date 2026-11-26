@@ -49,8 +49,9 @@ You are back in Doom with the new attributes in effect.
 
 ## Resting
 
-Press **B** (rebind it in Options, Customize Controls, Doomerfall Controls as **Rest**) to open Daggerfall's rest
-window. It works as in Daggerfall:
+Press **Z** (rebind it in Options, Customize Controls, Doomerfall Controls as **Rest**) to open Daggerfall's rest
+window. Z is set for you only on a fresh install; if you played before resting existed, bind **Rest** there once.
+It works as in Daggerfall:
 
 - **Rest for a while**: rest for the number of hours you type.
 - **Rest until healed**: rest until your health, fatigue and magicka are full.
