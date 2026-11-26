@@ -28,6 +28,7 @@ $GoalDir = (Resolve-Path $GoalDir).Path
 New-Item -ItemType Directory -Force $RunDir, (Join-Path $GoalDir 'done') | Out-Null
 $Log = Join-Path $RunDir "queue-$Lane.log"
 $Metrics = Join-Path $RunDir 'metrics.csv'
+. (Join-Path $PSScriptRoot 'lane_job.ps1')
 
 function Write-Queue([string]$Text) {
     $line = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [$Lane] $Text"
@@ -65,9 +66,20 @@ while ($true) {
         '-GoalFile', $file.FullName, '-RunDir', $RunDir, '-Target', $Target, '-Lane', $Lane, '-Model', $model,
         '-Hours', $hours.ToString('0.###', $Culture), '-MaxUsd', $budget.ToString('0.####', $Culture), '-MaxFailures', '28', '-ClaudeExe', $ClaudeExe)
     if ($ClaudePrefix) { $runArgs += @('-ClaudePrefix', $ClaudePrefix) }
-    & powershell.exe @runArgs *>> (Join-Path $RunDir "queue-$Lane-output.log")
-
-    $runCode = $LASTEXITCODE
+    # Output goes to files, not a pipe, and the lane waits for run.ps1 itself. A pipe stays open while any process
+    # that inherited it lives, such as a leftover test game, and that kept lanes from finishing (lane hang).
+    $argLine = ($runArgs | ForEach-Object { if ($_ -match '[\s"]') { '"' + (($_ -replace '"', '\"') -replace '(\\+)$', '$1$1') + '"' } else { $_ } }) -join ' '
+    $runOut = Join-Path $RunDir "queue-$Lane-run.log"
+    # run.ps1 inherits only these files, not this script's own output, so nothing below it can hold our caller's
+    # pipe open either. Its job is a backstop: run.ps1 closes each round's leftovers itself, unless it dies first.
+    $child = Start-LaneChild powershell.exe $argLine '' 'NUL' $runOut "$runOut.err"
+    $p = $child.Process; $job = $child.Job
+    $p.WaitForExit()
+    $runCode = $p.ExitCode
+    $ended = @(Stop-LaneJob $job)
+    if ($ended.Count) { Write-Queue "Closed what the run left running: $($ended -join ', ')." }
+    Get-Content -LiteralPath $runOut, "$runOut.err" -ErrorAction SilentlyContinue |
+        Add-Content -LiteralPath (Join-Path $RunDir "queue-$Lane-output.log") -Encoding utf8
     $rows = @(Get-ChildItem -LiteralPath $RunDir -Filter 'metrics*.csv' -File | ForEach-Object {
             try { Import-Csv -LiteralPath $_.FullName -ErrorAction Stop } catch { }
         } | Where-Object { $_.Run -ge $runStart } | Sort-Object Run)

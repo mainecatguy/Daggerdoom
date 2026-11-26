@@ -56,14 +56,28 @@ function Write-Text([string]$Path, [string]$Text) {
     [IO.File]::WriteAllText($Path, $Text, (New-Object Text.UTF8Encoding($false)))
 }
 
+# Each child runs in a Windows job and inherits only its log files. When it is done, what it left behind (such as a
+# test game) is closed, except build helpers meant to stay open. Leftover games otherwise kept lanes from finishing.
+. (Join-Path $PSScriptRoot 'lane_job.ps1')
+
 function Invoke-Logged([string]$Exe, [string]$ArgLine, [string]$InputText, [string]$Log) {
     $in = "$Log.in"; Write-Text $in $InputText
-    $p = Start-Process -FilePath $Exe -ArgumentList $ArgLine -WorkingDirectory $Worktree -NoNewWindow -PassThru `
-        -RedirectStandardInput $in -RedirectStandardOutput $Log -RedirectStandardError "$Log.err"
-    $null = $p.Handle
-    $ms = [Math]::Max(60000, [int][Math]::Min(2147483000, ($Deadline - (Get-Date)).TotalMilliseconds))
-    if (-not $p.WaitForExit($ms)) { & taskkill.exe /PID $p.Id /T /F 2>$null | Out-Null; return -1 }
-    $p.WaitForExit(); $p.ExitCode
+    $child = Start-LaneChild $Exe $ArgLine $Worktree $in $Log "$Log.err"
+    $p = $child.Process; $job = $child.Job
+    try {
+        $ms = [Math]::Max(60000, [int][Math]::Min(2147483000, ($Deadline - (Get-Date)).TotalMilliseconds))
+        if (-not $p.WaitForExit($ms)) {
+            # With a job, end only the child; Stop-LaneJob below closes the rest and keeps build helpers.
+            if ($job -eq [IntPtr]::Zero) { & taskkill.exe /PID $p.Id /T /F 2>$null | Out-Null }
+            else { try { $p.Kill() } catch { }; $null = $p.WaitForExit(10000) }
+            return -1
+        }
+        $p.WaitForExit(); $p.ExitCode
+    }
+    finally {
+        $ended = @(Stop-LaneJob $job)
+        if ($ended.Count) { Write-Host "Closed what $(Split-Path $Log -Leaf) left running: $($ended -join ', ')" }
+    }
 }
 
 function Read-Result([string]$Log) {
