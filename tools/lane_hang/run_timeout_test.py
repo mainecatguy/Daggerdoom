@@ -10,6 +10,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -39,6 +40,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--patch", default=os.path.join(HERE, "harness-fix.patch"))
     parser.add_argument("--workdir", default=os.path.join(os.environ["TEMP"], "doomerfall-timeout-test"))
+    parser.add_argument("--pipe", action="store_true", help="read the driver's output through a pipe")
     args = parser.parse_args()
     work = os.path.abspath(args.workdir)
     shutil.rmtree(work, ignore_errors=True)
@@ -55,16 +57,24 @@ def main():
     open(child, "w").write(CHILD)
     open(driver, "w").write(DRIVER)
 
-    # Driver output goes to a file, as patched queue.ps1 sends run.ps1's. (With a pipe here, the fake helper died when
-    # the driver exited, even though the cleanup had left it running.)
-    log = os.path.join(work, "driver.out")
-    with open(log, "w") as f:
-        subprocess.run(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", driver,
-                        "-RunPs1", os.path.join(repo, "scripts", "overnight", "run.ps1"), "-Child", child,
-                        "-Helper", helper, "-Log", os.path.join(work, "child.log")],
-                       stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, timeout=180)
-    out = subprocess.CompletedProcess([], 0, open(log).read(), "")
+    cmd = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", driver,
+           "-RunPs1", os.path.join(repo, "scripts", "overnight", "run.ps1"), "-Child", child,
+           "-Helper", helper, "-Log", os.path.join(work, "child.log")]
+    start = time.monotonic()
+    if args.pipe:
+        # Read the driver through a pipe, as a background task reads a lane. EOF must come when the driver exits,
+        # not when the kept helper (which would inherit the pipe) ends its sleep.
+        out = subprocess.run(cmd, capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=180)
+    else:
+        log = os.path.join(work, "driver.out")
+        with open(log, "w") as f:
+            subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, timeout=180)
+        out = subprocess.CompletedProcess([], 0, open(log).read(), "")
+    elapsed = round(time.monotonic() - start, 1)
     print(out.stdout + out.stderr)
+    # The driver itself takes the 60 s minimum wait plus a few seconds; the helper sleeps GAME_SECONDS.
+    on_time = elapsed < GAME_SECONDS - 10
+    print(f"--- driver output ended after {elapsed} s ({'on time' if on_time else 'held open by a leftover'})")
     games, helpers = fake_games(GAME_SECONDS), fake_helpers(helper)
     children = [l for l in subprocess.run(
         ["powershell.exe", "-NoProfile", "-Command",
@@ -73,7 +83,7 @@ def main():
     print(f"--- games left: {len(games)}; child left: {len(children)}; fake build helpers alive: {len(helpers)} of 1")
     for pid in games + helpers:
         subprocess.run(["taskkill", "/PID", str(pid), "/F"], capture_output=True)
-    ok = "code=-1" in out.stdout and not games and not children and len(helpers) == 1
+    ok = on_time and "code=-1" in out.stdout and not games and not children and len(helpers) == 1
     print("PASS" if ok else "FAIL")
     sys.exit(0 if ok else 1)
 

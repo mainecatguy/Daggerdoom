@@ -14,9 +14,16 @@ for that game to exit.
 
 ## Fix (`harness-fix.patch`, for `scripts/overnight/`, which agents may not edit)
 
-- New `lane_job.ps1`, dot-sourced by both scripts: `Start-LaneJob` puts a started process in a Windows job (job
-  membership passes to every descendant, even after its parent exits, and quiet_run's private desktop does not change
-  that). `Stop-LaneJob` ends every process still in the job **except build helpers meant to stay open**, then closes
+- New `lane_job.ps1`, dot-sourced by both scripts. `Start-LaneChild` replaces `Start-Process` for these children:
+  - The child inherits **only its three redirect files** (an explicit handle list). `Start-Process` in PowerShell 5.1
+    passes on every inheritable handle the caller has, including PowerShell's own output pipe. Clearing the inherit
+    flag on the standard handles was not enough: PowerShell holds another inheritable copy. A kept build helper below
+    the child would then hold the caller's pipe open for as long as it lives (measured: 91.6 s, the fake helper's
+    sleep, instead of 61 s).
+  - The child starts suspended, joins a new Windows job, then runs, so nothing it starts escapes. Job membership passes
+    to every descendant, even after its parent exits, and quiet_run's private desktop does not change that.
+  - `.cmd`/`.bat` programs run through `cmd.exe /d /s /c` (claude here is `claude.exe`, but an npm install is a `.cmd`).
+- `Stop-LaneJob` ends every process still in the job **except build helpers meant to stay open**, then closes
   the job without killing the rest. It returns the names it ended, and the scripts log them.
   - Kept (owner, 2026-11-26): `MSBuild.exe` (reuse nodes), `mspdbsrv.exe`, `VBCSCompiler.exe`, `vctip.exe`,
     `Unity.Licensing.Client.exe`, `Unity Hub.exe`, `conhost.exe` (ends by itself with its console program), and
@@ -29,9 +36,14 @@ for that game to exit.
   log gets a line such as
   `Closed what round-1.log left running: python.exe, uzdoom.exe`.
 - `queue.ps1`: `run.ps1`'s output goes to files (`queue-<lane>-run.log` and `.err`, appended to
-  `queue-<lane>-output.log` afterwards), and the lane waits for `run.ps1` itself, so nothing can stall a lane through
-  a pipe any more. `run.ps1` also runs in a job, as a backstop if it dies before cleaning up; the queue log names
-  anything this closes.
+  `queue-<lane>-output.log` afterwards), and the lane waits for `run.ps1` itself, not for a pipe. `run.ps1` also runs
+  in a job, as a backstop if it dies before cleaning up; the queue log names anything this closes.
+
+What was shown (tests below): the lane moves to its next card on time, no fake game survives, fake build helpers
+survive, and a caller that reads the lane (or `run.ps1`'s `Invoke-Logged`) through a pipe sees it end on time even
+while a kept helper runs. Not covered: a process that a child starts with "break away from job", or one started
+outside the tree (Task Scheduler, WMI). Those are not closed and, if they inherited the caller's pipe some other
+way, could still hold it open; neither happens in the tests.
 
 Apply from the repo root with `git apply tools/lane_hang/harness-fix.patch`.
 
@@ -48,7 +60,9 @@ python tools/lane_hang/run_fake_lane.py                                  # curre
 python tools/lane_hang/run_fake_lane.py --patch tools/lane_hang/harness-fix.patch --quiet-run   # PASS
 ```
 
-`--quiet-run` starts the fake game through `quiet_run.py` on a private desktop, as real tests do.
+`--quiet-run` starts the fake game through `quiet_run.py` on a private desktop, as real tests do. `--pipe` reads the
+lane's output through a pipe and waits for EOF, as a background task does (the earlier patch: FAIL, held open by the
+surviving fake helper; this patch: PASS).
 
 ## Timeout test
 
@@ -57,5 +71,6 @@ that never exits (about 65 s, its 60 s minimum wait). PASS needs a -1 return, th
 fake `MSBuild.exe` still running.
 
 ```
-python tools/lane_hang/run_timeout_test.py      # new patch: PASS; the earlier patch with taskkill /T: FAIL
+python tools/lane_hang/run_timeout_test.py          # PASS; the patch with taskkill /T: FAIL
+python tools/lane_hang/run_timeout_test.py --pipe   # PASS (61 s); the patch using Start-Process: FAIL (91.6 s)
 ```

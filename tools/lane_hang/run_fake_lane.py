@@ -55,6 +55,8 @@ def main():
     parser.add_argument("--patch", help="apply this patch (paths from the repo root) to the copied harness first")
     parser.add_argument("--quiet-run", action="store_true",
                         help="start the fake game through the harness's quiet_run.py on a private desktop")
+    parser.add_argument("--pipe", action="store_true",
+                        help="read the lane's output through a pipe and wait for EOF, as a background task does")
     args = parser.parse_args()
     work = os.path.abspath(args.workdir)
     if " " in work or " " in sys.executable:
@@ -94,13 +96,23 @@ def main():
         "-ClaudePrefix", f"{fake} {args.game_seconds}"]
     limit = max(60, args.game_seconds - 20)
     start = time.monotonic()
-    with open(os.path.join(work, "lane.out"), "w") as out:
-        lane = subprocess.Popen(queue, stdout=out, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, env=env)
+    if args.pipe:
+        # As a background task reads a lane: finished means the output pipe reached EOF, not only that queue.ps1 exited.
+        lane = subprocess.Popen(queue, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                                env=env)
         try:
-            lane.wait(limit)
+            lane.communicate(timeout=limit)
             finished = True
         except subprocess.TimeoutExpired:
             finished = False
+    else:
+        with open(os.path.join(work, "lane.out"), "w") as out:
+            lane = subprocess.Popen(queue, stdout=out, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, env=env)
+            try:
+                lane.wait(limit)
+                finished = True
+            except subprocess.TimeoutExpired:
+                finished = False
     elapsed = round(time.monotonic() - start, 1)
 
     games = fake_games(args.game_seconds)
