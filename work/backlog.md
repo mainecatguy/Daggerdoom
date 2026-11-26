@@ -23,7 +23,6 @@ This is a one-line-per-item index. Open an item's file only when you need its de
 - [Moonstone and Mithril ammo are quiet](backlog/elven-ammo-quiet.md): Silent on one-shot kills, and `reduced_noise` halves aggro and gun volume.
 - [Revisit languages](backlog/revisit-languages.md): Language skills other than Streetwise and Etiquette are on the way out for now. Revisit how they could work better.
 - [Silver ammo bonus against certain enemy types](backlog/silver-ammo-enemy-bonus.md): Also on Daedric. Needs the enemy types and bonus size.
-- [Player HP on Doom's scale](backlog/player-hp-scale.md): Daggerfall HP is about 1/3 of Doom's; normalize now, rethink the formula later.
 - [Megasphere gives max HP plus 100](backlog/megasphere-max-plus-100.md): Daggerfall max + 100 instead of 200. Future.
 - [Decide Doom item weights](backlog/doom-item-weights.md): Replace the default weight once Doom items live in Daggerfall's inventory.
 
@@ -117,7 +116,7 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [Brutal Doom and a melee mod](backlog/brutal-melee-mods.md): Later, after mod compatibility research.
 - [Marksmanship](backlog/marksmanship.md): New skill for single-shot rifles (about 12 in DRLA, none in stock Doom). Later.
 - [Mod compatibility research](backlog/mod-compatibility-research.md): Specialist reviews history; new mods' weapons work with Daggerfall systems.
-- [Player manual](backlog/player-manual.md): Specialist task; main-only features, referenced in the repo map.
+- [Player manual](backlog/player-manual.md): Started at `manual.md` with HP; a specialist task decides its full scope.
 - [Final Doom class and difficulty for New Game](backlog/full-daggerfall-new-game-flow.md): Replace the temporary prompt and fixed class.
 - [Doom monsters block fast travel](backlog/doom-monsters-block-fast-travel.md): Decide whether and how nearby Doom monsters block travel.
 - [Improve the random enemy roster](backlog/improve-the-random-enemy-roster.md): Weight or tier the uniform random roster.

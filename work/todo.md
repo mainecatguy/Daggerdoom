@@ -23,7 +23,7 @@ Owner decisions from earlier runs are recorded in `CHANGELOG.md`, `architecture.
 
 ### Running
 
-- Nothing.
+- `hpformula` card 01 (`work/queue/hpformula/01.opus.hp-from-endurance.md`): player HP from Endurance and level, class HP becomes an Endurance (and max END) bonus (owner, 2026-11-25; rules in `gamedesign/hp.md`).
 
 ### Waiting on an owner answer from finished work
 
