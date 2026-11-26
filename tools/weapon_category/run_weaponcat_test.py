@@ -34,13 +34,18 @@ DRLA_EXPECT = {'RLPistol': 'pistol', 'RLShotgun': 'shotgun', 'RLCombatShotgun': 
                'RLCombatPistol': 'pistol', 'RLMarksmanPistol': 'pistol', 'RLHandcannon': 'pistol',
                'RLHuntingRevolver': 'pistol', 'RLSilencedPistol': 'pistol', 'RLPP7': 'pistol'}
 # Rifles are never pistols ("no rifle is counted"). Their categories come from their DRLA tokens: rifle token ->
-# precision (the Rifles skill, slot 8), rapid-fire only -> automatic, the Sniper Rifle has neither -> other (until
-# Doomerfall's own rifle tag, todo rifletag 01).
+# precision, rapid-fire only -> automatic, the Sniper Rifle has neither -> other. No category has the Rifles slot (8)
+# until Doomerfall's own rifle tag (todo rifletag 01) defines which guns are rifles.
 RIFLES = {'RLMarksmanRifle': 'precision', 'RLBattleRifle': 'automatic', 'RLVanguardRifle': 'automatic',
           'RLSniperRifle': 'other', 'RLElephantGun': 'precision', 'RLGaussRifle': 'precision',
           'RLAntiMaterielRifle': 'precision'}
 DRLA_EXPECT.update(RIFLES)
-SLOT = {'shotgun': 4, 'automatic': 5, 'explosive': 6, 'pistol': 7, 'precision': 8}
+# Owner (backlog rifles-skill.md): these are Automatics, not rifles. They carry DRLA's single-shot rifle token, so they
+# read precision today; they must never get the Rifles slot.
+NOT_RIFLES = {'RLAssaultRifleChaingun': 'precision', 'RLAssaultRifleMinigun': 'precision', 'RLAutocannon': 'precision'}
+DRLA_EXPECT.update(NOT_RIFLES)
+SLOT = {'shotgun': 4, 'automatic': 5, 'explosive': 6, 'pistol': 7}
+RIFLES_SLOT = 8
 
 
 def run(exe, work, iwad, files, name, timeout):
@@ -103,6 +108,8 @@ def main():
     checks.append(('drla: no rifle is a pistol or has the Pistols slot',
                    all(c in got and got[c][0] != 'pistol' and got[c][1] != SLOT['pistol'] for c in RIFLES),
                    {c: got.get(c) for c in RIFLES}))
+    checks.append(('drla: Assault Rifle Chaingun/Minigun and Autocannon do not have the Rifles slot',
+                   all(c in got and got[c][1] != RIFLES_SLOT for c in NOT_RIFLES), {c: got.get(c) for c in NOT_RIFLES}))
 
     for label, ok, detail in checks:
         print(('PASS ' if ok else 'FAIL ') + label + ('' if ok or detail is None else f'  (got {detail})'))

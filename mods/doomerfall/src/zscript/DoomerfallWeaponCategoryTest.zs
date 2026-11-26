@@ -10,9 +10,10 @@ class DoomerfallWeaponCategoryTest : StaticEventHandler
 		"RLRailgun", "RLUzi", "RLChainsaw", "RLBFG9000",
 		"RLCombatPistol", "RLMarksmanPistol", "RLHandcannon", "RLHuntingRevolver", "RLSilencedPistol", "RLPP7",
 		"RLStormPistol", "RLMarksmanRifle", "RLBattleRifle", "RLVanguardRifle", "RLSniperRifle", "RLElephantGun",
-		"RLGaussRifle", "RLAntiMaterielRifle"
+		"RLGaussRifle", "RLAntiMaterielRifle",
+		"RLAssaultRifleChaingun", "RLAssaultRifleMinigun", "RLAutocannon"
 	};
-	const SampleCount = 40;
+	const SampleCount = 43;
 	const WaitTics = 70;
 
 	int next, wait;

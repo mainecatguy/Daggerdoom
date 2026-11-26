@@ -17,8 +17,9 @@
 // Pistols (owner, 2026-11-26): stock Pistol and DRLA's pistol-token guns; no rifle is a pistol. No DRLA rifle carries
 // the pistol token (checked in GameMods/ExtractedData).
 // Rifles (owner, 2026-11-26: "all ballistic semi-automatic weapons that are not explosives, energy weapons, shotguns
-// or pistols"): Precision maps to the Rifles skill (slot 8). Today Precision is only DRLA's single-shot rifle token,
-// so rifles without it (Sniper Rifle) read Other; Doomerfall's own rifle tag (todo: rifletag 01) widens it.
+// or pistols") is skill slot 8, but no category maps to it yet. Precision (DRLA's single-shot rifle token) is not a
+// clean rifle list: the Assault Rifle Chaingun, Assault Rifle Minigun and Autocannon carry it and are Automatics by
+// the owner's rule, and the Sniper Rifle lacks it. Doomerfall's own rifle tag (todo: rifletag 01) defines Rifles.
 // DRLA gives its tokens only while the gun is held (the gun's Select state gives them, lowering takes them), so a
 // DRLA gun that is not the held one is known by ammo only and may read as Other until it is selected.
 class DoomerfallWeaponCategory abstract
@@ -45,7 +46,6 @@ class DoomerfallWeaponCategory abstract
 			case Automatic: return 5;
 			case Explosive: return 6;
 			case Pistol: return 7;
-			case Precision: return 8;
 		}
 		return -1;
 	}
