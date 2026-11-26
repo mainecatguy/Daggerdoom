@@ -1720,7 +1720,7 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects
             }
         }
 
-        void UpdateEntityMods()
+        public void UpdateEntityMods() // Doomerfall: public, so a load can refresh live stats before HP is recomputed
         {
             // Clear all mods
             Array.Clear(combinedStatMods, 0, DaggerfallStats.Count);

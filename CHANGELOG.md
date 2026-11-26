@@ -13,6 +13,13 @@ What is done on the project, newest first. Agents do not need to read this unles
 
 ## 2026-11-26
 
+### Player HP from Endurance and level (on `integration`)
+
+- **Max HP = 50 + Endurance + (level - 1) x Endurance / 15**, from live Endurance (Fortify and Drain count while they last), recomputed on every change. A rise in max HP raises current HP by the same amount; a fall only clamps it. Rules: `gamedesign/hp.md`.
+- **Class HP per level becomes an Endurance (and max END) bonus** (class HP per level - 8): added to the rolled Endurance, and the Endurance cap becomes 100 + bonus. Older saves get it once. The custom class editor shows the bonus under the new label.
+- Daggerfall only, active only in a bridge session; no UZDoom or bridge schema change. Test: `-dfhpformulatest`, `tools/hpformula/run_hpformula.py` (97 passed, stock and DRLA).
+- Notes: `work/notes/20261125-231947.md`, `work/notes/20261125-235942.md`.
+
 ### Drop labels: guns on the floor show their material (on `integration`)
 
 - **A Doom gun on the floor now shows its Daggerfall material in the look label** ("Iron Battle Rifle"), the same name the inventory gives it after pickup. Daggerfall still rolls the material, from the gun's lasting floor id, by the same rule as the take; Doom asks once per gun in view, with no per-spawn round trip.

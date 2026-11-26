@@ -80,6 +80,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             GameManager.Instance.PauseGame(false);
 
             PlayerEntity player = GameManager.Instance.PlayerEntity;
+            player.Stats.SetPermanentStatValue(DFCareer.Stats.Endurance, 50); // Doomerfall's max HP for this is 100 at level 1
+            player.Stats.DoomerfallEnduranceBonus = true;
             player.MaxHealth = 100;
             player.SetHealth(100, true);
             player.GoldPieces = 5000; // Lets the travel menu test afford any trip.
