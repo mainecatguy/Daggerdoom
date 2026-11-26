@@ -336,6 +336,7 @@ namespace DaggerfallWorkshop.Game.Entity
             {
             // Generate loot table items
             DaggerfallLoot.GenerateItems(mobileEnemy.LootTableKey, items);
+            if (entityType == EntityTypes.EnemyClass) Doomerfall.DoomerfallLockpick.AddLoot(items); // [Doomerfall] lockpicks: human enemies only
 
             // Enemy classes and some monsters use equipment
             if (careerIndex == (int)MonsterCareers.Orc || careerIndex == (int)MonsterCareers.OrcShaman)

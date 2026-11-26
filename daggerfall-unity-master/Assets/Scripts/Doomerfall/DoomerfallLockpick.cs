@@ -3,12 +3,12 @@
 //
 // 25 gold, 0.1 kg, stackable. Daggerfall owns the item and the count. Sources (owner's rules, my counts and odds):
 // - General stores and pawn shops stock a stack at most restocks (StockShop, called from DaggerfallLoot.StockShopShelf).
-// - Treasure and human enemies: any Daggerfall loot roll whose table carries gold may hold a few (AddLoot, called last
-//   from LootTables.GenerateRandomLoot, so it never shifts a seeded roll's earlier items). Animal and monster tables
-//   without gold never do.
+// - Treasure piles and human class enemies may hold a few (AddLoot, called from LootTables.GenerateLoot and from
+//   EnemyEntity for EntityTypes.EnemyClass only). Monsters never do, whatever their loot table. The roll restores the
+//   random state, so it never shifts a seeded roll.
 // - Every new character starts with StartCount picks, and a class with Lockpicking among its primary or major skills
 //   (the burglar types) with BurglarCount.
-// The Thieves Guild has no shop in Daggerfall, so it does not sell them yet (see work/notes/20261125-073553.md).
+// No Thieves Guild sales (owner, 2026-11-25).
 //
 // The picture is the owner's 42x42 pixel art, mods/doomerfall/src/sprites/LPCKA0.png, copied byte for byte to
 // Resources/Doomerfall/LPCKA0.png.bytes and decoded with point filtering, so its pixels are never resampled.
@@ -195,13 +195,18 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 items.AddItem(new DoomerfallLockpickItem(UnityEngine.Random.Range(5, 16)));
         }
 
-        // The end of a Daggerfall loot roll (treasure, or an enemy's carried loot).
-        internal static void AddLoot(LootChanceMatrix matrix, System.Collections.Generic.List<DaggerfallUnityItem> items)
+        // A treasure pile (LootTables.GenerateLoot) or a human class enemy (EnemyEntity) just rolled its loot. Monsters
+        // never call this. The random state is restored afterwards, so seeded rolls that follow stay the same.
+        internal static void AddLoot(ItemCollection items)
         {
-            if (!registered || items == null || matrix.MaxGold <= 0)
+            if (!registered || items == null)
                 return;
-            if (Dice100.SuccessRoll(LootChance))
-                items.Add(new DoomerfallLockpickItem(UnityEngine.Random.Range(1, LootMax + 1)));
+            UnityEngine.Random.State state = UnityEngine.Random.state;
+            bool add = Dice100.SuccessRoll(LootChance);
+            int count = UnityEngine.Random.Range(1, LootMax + 1);
+            UnityEngine.Random.state = state;
+            if (add)
+                items.AddItem(new DoomerfallLockpickItem(count));
         }
     }
 }

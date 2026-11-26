@@ -153,6 +153,7 @@ namespace DaggerfallWorkshop.Game.Items
             if (locationIndex < lootTableKeys.Length)
             {
                 DaggerfallLoot.GenerateItems(lootTableKeys[locationIndex], loot.Items);
+                Doomerfall.DoomerfallLockpick.AddLoot(loot.Items); // [Doomerfall] lockpicks in treasure
 
                 // Randomly add map
                 char key = lootTableKeys[locationIndex][0];
@@ -265,7 +266,6 @@ namespace DaggerfallWorkshop.Game.Items
                 chance *= 0.5f;
             }
 
-            Doomerfall.DoomerfallLockpick.AddLoot(matrix, items); // [Doomerfall] lockpicks; last, so earlier seeded rolls stay the same
 
             return items.ToArray();
         }
