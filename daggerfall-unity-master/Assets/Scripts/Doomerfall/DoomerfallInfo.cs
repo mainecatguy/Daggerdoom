@@ -191,6 +191,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         // Long messages go out in parts. Doom joins them until an event without DFB_INFO_MORE.
         void Send(uint request, string text, bool mid, ushort kind = Dfb.KIND_INFO_TEXT)
         {
+            SendText(bridge, request, text, mid, kind);
+        }
+
+        internal static void SendText(DoomerfallBridge bridge, uint request, string text, bool mid, ushort kind)
+        {
             byte[] bytes = Encoding.UTF8.GetBytes(text);
             int at = 0;
             do

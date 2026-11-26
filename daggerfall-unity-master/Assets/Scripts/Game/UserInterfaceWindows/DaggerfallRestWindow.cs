@@ -447,6 +447,21 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             return (remainingHoursRented == 0);
         }
 
+        /// <summary>Doomerfall: Doom's rest key while this window is open. Mid-rest it ends the rest as this window's own rest key does;
+        /// on the end-of-rest message it closes that message as a click does, so the skill check still runs; over any other popup
+        /// it does nothing. False (close the menu outright) only on the selection screen before any rest.</summary>
+        public bool DoomerfallRestKey()
+        {
+            DaggerfallMessageBox box = uiManager.TopWindow as DaggerfallMessageBox;
+            if (endedRest && box != null && box.PreviousWindow == this)
+                box.CloseWindow();
+            else if (!endedRest && currentRestMode == RestModes.Selection)
+                return false;
+            else if (!endedRest && uiManager.TopWindow == this)
+                EndRest();
+            return true;
+        }
+
         void EndRest()
         {
             const int youWakeUpTextId = 353;

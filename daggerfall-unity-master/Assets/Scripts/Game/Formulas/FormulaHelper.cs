@@ -202,8 +202,11 @@ namespace DaggerfallWorkshop.Game.Formulas
 
             medical += addToMedical;
 
-            return Mathf.Max((int)Mathf.Floor(HealingRateModifier(endurance) + medical * maxHealth / 1000), 1);
+            return Mathf.Max((int)Mathf.Floor(HealingRateModifier(endurance) + medical * maxHealth / 1000), 1) * DoomerfallHealthRecoveryScale;
         }
+
+        // Doomerfall: HP restoration is 3x Daggerfall's in a bridge session (gamedesign/hp.md); 1 in normal Daggerfall Unity.
+        internal static int DoomerfallHealthRecoveryScale = 1;
 
         // Calculate how much fatigue the player should recover per hour of rest
         public static int CalculateFatigueRecoveryRate(int maxFatigue)

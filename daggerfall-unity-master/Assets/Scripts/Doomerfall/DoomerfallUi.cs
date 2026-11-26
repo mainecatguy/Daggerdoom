@@ -221,6 +221,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         RenderTexture scaled;
         uint openId;
         bool waitingForWindow, windowOpen, travelArriving, showingTravelMap;
+        DaggerfallRestWindow restWindow; // DFB_UI_REST: Daggerfall's rest window, kept while popups cover it
         float travelWaitUntil, nextAskAt;
         uint closeReason;
         int waitFrames, hudFrames, pending, surfaceWidth, surfaceHeight;
@@ -268,6 +269,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 {
                     waitingForWindow = false;
                     windowOpen = true;
+                    restWindow = openId == Dfb.UI_REST ? DaggerfallUI.UIManager.TopWindow as DaggerfallRestWindow : null;
                     ChooseSurfaceSize();
                     SendState(Dfb.UI_OPENED, 0);
                     bridge.LogLine(string.Format("ui: menu {0} opened, surface {1}x{2}", openId, surfaceWidth, surfaceHeight));
@@ -340,7 +342,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             showingTravelMap = id == Dfb.UI_TRAVEL_MAP;
             bool creating = id == Dfb.UI_NEW_GAME && DoomerfallNewGame.HoldsNewCharacter;
             bool loading = id == Dfb.UI_LOAD_GAME && DoomerfallNewGame.HoldsNewCharacter && PlainLoad;
-            if ((id != Dfb.UI_TRAVEL_MAP && id != Dfb.UI_INVENTORY && id != Dfb.UI_MAP && id != Dfb.UI_LOOT && id != Dfb.UI_TALK && id != Dfb.UI_DAGGERFALL && id != Dfb.UI_JOURNAL && !creating && !loading) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
+            if ((id != Dfb.UI_TRAVEL_MAP && id != Dfb.UI_INVENTORY && id != Dfb.UI_MAP && id != Dfb.UI_LOOT && id != Dfb.UI_TALK && id != Dfb.UI_DAGGERFALL && id != Dfb.UI_JOURNAL && id != Dfb.UI_REST && !creating && !loading) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
             {
                 Finish(Dfb.UI_REASON_REFUSED);
                 return;
@@ -354,6 +356,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 // Clicking a quest's place opens the travel map. Doom follows that travel only from outdoors, as with K.
                 message = DaggerfallUIMessages.dfuiOpenQuestJournalWindow;
                 showingTravelMap = doomContext == Dfb.WORLD_EXTERIOR;
+            }
+            if (id == Dfb.UI_REST)
+            {
+                // Daggerfall's own rest request, with its own refusals; Doom's context says what it sees around the player.
+                message = DaggerfallUIMessages.dfuiOpenRestWindow;
+                DoomerfallRest.Opening(doomContext);
             }
             if (id == Dfb.UI_MAP)
             {
@@ -470,6 +478,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             if (openId == 0 || id != openId)
                 return;
+            // The rest key once a rest has started goes to the rest window, so Daggerfall's end of rest and skill check always run.
+            if (id == Dfb.UI_REST && restWindow != null && restWindow.DoomerfallRestKey())
+            {
+                bridge.LogLine("rest: Doom's rest key handled by the rest window");
+                return;
+            }
             closeReason = Dfb.UI_REASON_DOOM;
             if (waitingForWindow)
                 Finish(Dfb.UI_REASON_DOOM);
@@ -482,6 +496,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             uint id = openId;
             openId = 0;
             waitingForWindow = windowOpen = false;
+            restWindow = null;
             if (id == Dfb.UI_NEW_GAME && NewGame)
                 NewGame.CreationClosed(reason == Dfb.UI_REASON_RESULT);
             if (id == Dfb.UI_LOAD_GAME && PlainLoad && GameManager.HasInstance && GameManager.Instance.SaveLoadManager.LoadInProgress && reason != Dfb.UI_REASON_RESULT)
@@ -491,6 +506,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
             if (id == Dfb.UI_LOOT && Items)
                 Items.WindowClosed();
+            if (id == Dfb.UI_REST)
+                DoomerfallRest.Closed();
             DoomerfallInput.End();
             if (DaggerfallUI.Instance)
                 DaggerfallUI.Instance.CustomRenderTarget = null;

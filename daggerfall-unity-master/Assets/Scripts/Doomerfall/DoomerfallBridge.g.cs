@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x923d08aa8365806fUL;
+        public const ulong SchemaHash = 0x65f312b6a3342ab7UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -73,6 +73,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_INFO_NAME = 92;  // UZ to DF; a monster's Doom name, sent just before its DFB_KIND_INFO; payload: dfb_info_text
         public const ushort KIND_LOOK = 93;  // UZ to DF; payload: dfb_info_request, target DFB_INFO_NPC, _TOWNSPERSON, _PILE, _BUILDING or _DOOM_GUN
         public const ushort KIND_LOOK_TEXT = 94;  // DF to UZ; the label for that request, empty for none; payload: dfb_info_text; DFB_INFO_MORE as on INFO_TEXT
+        public const ushort KIND_HUD_TEXT = 95;  // DF to UZ; payload: dfb_info_text, request 0; DFB_INFO_MORE as on INFO_TEXT
         public const ushort KIND_DOOM_ITEM_TAKE = 140;  // UZ to DF; the player pressed Use on a Doom item, which waits for the answer; payload: dfb_doom_item
         public const ushort KIND_DOOM_ITEM_RESULT = 141;  // DF to UZ; status DFB_ITEM_TAKEN, DFB_ITEM_TOO_HEAVY, or DFB_ITEM_REFUSED; payload: dfb_doom_item
         public const ushort KIND_DOOM_ITEM_USE = 142;  // DF to UZ; the player used this item in Daggerfall's inventory; payload: dfb_doom_item
@@ -232,6 +233,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint UI_DAGGERFALL = 7;  // the window Daggerfall opened by itself and asked for with DFB_KIND_UI_ASK
         public const uint UI_LOAD_GAME = 8;  // Daggerfall's own Load window, from Doom's title; a save loaded there has no Doom half (DFB_KIND_PLAIN_LOAD)
         public const uint UI_JOURNAL = 9;  // Daggerfall's quest journal; dfb_ui_command.context is Doom's DFB_WORLD_* (travel from it only outdoors)
+        public const uint UI_REST = 10;  // Daggerfall's rest window; dfb_ui_command.context is DFB_REST_* bits from Doom's state
+        public const uint REST_MONSTERS_NEAR = 1;  // a hostile Doom monster sees the player or is within Daggerfall's resting distance
+        public const uint REST_NOT_GROUNDED = 2;  // Doom's player is in the air or swimming
         public const uint UI_CLOSED = 0;
         public const uint UI_OPENED = 1;
         public const uint UI_REASON_NONE = 0;
@@ -382,7 +386,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public DfbItemResult itemResult;  // ITEM_RESULT
         [FieldOffset(16)] public DfbWorldContainer worldContainer;  // CONTAINER
         [FieldOffset(16)] public DfbInfoRequest infoRequest;  // INFO, LOOK
-        [FieldOffset(16)] public DfbInfoText infoText;  // INFO_TEXT, INFO_NAME, LOOK_TEXT
+        [FieldOffset(16)] public DfbInfoText infoText;  // INFO_TEXT, INFO_NAME, LOOK_TEXT, HUD_TEXT
         [FieldOffset(16)] public DfbDoomItem doomItem;  // DOOM_ITEM_TAKE, DOOM_ITEM_RESULT, DOOM_ITEM_USE, DOOM_ITEM_USED, DOOM_ITEM_ART_REQUEST, DOOM_ITEM_ART, STARTER
         [FieldOffset(16)] public DfbClimbUses climbUses;  // CLIMB_USES
         [FieldOffset(16)] public DfbPlainLoad plainLoad;  // PLAIN_LOAD

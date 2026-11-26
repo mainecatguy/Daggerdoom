@@ -378,6 +378,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                     bonusPool = FormulaHelper.BonusPool();
                     PlayerEntity.Level++;
                     PlayerEntity.MaxHealth = PlayerEntity.RawMaxHealth + FormulaHelper.CalculateHitPointsPerLevelUp(PlayerEntity);
+                    Doomerfall.DoomerfallRest.LevelReached(PlayerEntity.Level); // Doomerfall: the HUD line in Doom; nothing outside a bridge session
                 }
                 else
                     bonusPool = oghmaBonusPool;

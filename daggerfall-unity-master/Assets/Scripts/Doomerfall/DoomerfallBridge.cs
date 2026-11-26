@@ -168,6 +168,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 gameObject.AddComponent<DoomerfallShopTest>().Init(this);
             ui =gameObject.AddComponent<DoomerfallUi>();
             ui.Init(this);
+            DoomerfallRest.Begin(this);
             save = gameObject.AddComponent<DoomerfallSave>();
             save.Init(this, sync, hp, Environment.GetCommandLineArgs());
             items = gameObject.AddComponent<DoomerfallItems>();
@@ -567,6 +568,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             WorldLevel.CurrentPlaceProvider = null;
             WorldLevel.DungeonProvider = null;
             FormulaHelper.DoomerfallMaterialRoll = null;
+            DoomerfallRest.End();
             if (sheet != null) sheet.Dispose();
             if (session != IntPtr.Zero) DfbNative.dfb_close(session);
             session = IntPtr.Zero;

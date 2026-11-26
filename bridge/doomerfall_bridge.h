@@ -110,6 +110,9 @@ extern "C" {
    building door); Daggerfall answers with the name it knows, without running any interaction or changing any state. */
 #define DFB_KIND_LOOK          93  /* UZ to DF; payload: dfb_info_request, target DFB_INFO_NPC, _TOWNSPERSON, _PILE, _BUILDING or _DOOM_GUN */
 #define DFB_KIND_LOOK_TEXT     94  /* DF to UZ; the label for that request, empty for none; payload: dfb_info_text; DFB_INFO_MORE as on INFO_TEXT */
+/* A message Daggerfall shows on Doom's HUD by itself, not as an answer, such as a level-up. Doom shows it once no
+   Daggerfall menu is open. */
+#define DFB_KIND_HUD_TEXT      95  /* DF to UZ; payload: dfb_info_text, request 0; DFB_INFO_MORE as on INFO_TEXT */
 
 /* Doom items held by Daggerfall. A Doom item is named by the Doom world pickup class the player took. Daggerfall
    keeps the record in its inventory and save; Doom draws the sprite and applies the item when it is used. */
@@ -343,6 +346,10 @@ typedef struct dfb_face
 #define DFB_UI_DAGGERFALL  7u  /* the window Daggerfall opened by itself and asked for with DFB_KIND_UI_ASK */
 #define DFB_UI_LOAD_GAME   8u  /* Daggerfall's own Load window, from Doom's title; a save loaded there has no Doom half (DFB_KIND_PLAIN_LOAD) */
 #define DFB_UI_JOURNAL     9u  /* Daggerfall's quest journal; dfb_ui_command.context is Doom's DFB_WORLD_* (travel from it only outdoors) */
+#define DFB_UI_REST       10u  /* Daggerfall's rest window; dfb_ui_command.context is DFB_REST_* bits from Doom's state */
+
+#define DFB_REST_MONSTERS_NEAR 1u /* a hostile Doom monster sees the player or is within Daggerfall's resting distance */
+#define DFB_REST_NOT_GROUNDED  2u /* Doom's player is in the air or swimming */
 
 #define DFB_UI_CLOSED      0u
 #define DFB_UI_OPENED      1u
