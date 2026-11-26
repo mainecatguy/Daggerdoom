@@ -39,15 +39,18 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             string label = "";
             if (!sync.LoadRunning && GameManager.HasInstance && sync.InGame)
-                label = Label(target, id, worldX, worldZ) ?? "";
+                label = Label(request, target, id, worldX, worldZ) ?? "";
             Send(request, label, false, Dfb.KIND_LOOK_TEXT);
             bridge.LogLine(string.Format("look: request {0} target {1} id {2:x16}: [{3}]", request, target, id, label));
         }
 
-        string Label(uint target, ulong id, double worldX, double worldZ)
+        string Label(uint request, uint target, ulong id, double worldX, double worldZ)
         {
             switch (target)
             {
+                case Dfb.INFO_DOOM_GUN:
+                    // The pickup class came in the DFB_KIND_INFO_NAME just before; world_x is the material it carries + 1.
+                    return request == nameRequest ? DoomerfallDoomItems.FloorGunLabel(monsterName, id, (int)worldX) : "";
                 case Dfb.INFO_NPC:
                     StaticNPC npc = DoomerfallNpcs.FindNpc(id);
                     return npc ? npc.DisplayName : "";

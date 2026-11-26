@@ -50,7 +50,7 @@ namespace
 	// parks and restores a monster that had no Daggerfall id. Not a tag test alone: monster, NPC and townsperson tags
 	// (5-7) also have bit 63.
 	bool IsSessionId(uint64_t id) { return (id & (TAG_MASK | (1ull << 60))) == SESSION_ID; }
-	constexpr uint64_t SALT_DEATH = 0x6c6f6f7464656164ull, SALT_MAPTHING = 0x6c6f6f746d617074ull, SALT_LIVE = 0x6c6976657374617eull;
+	constexpr uint64_t SALT_DEATH = 0x6c6f6f7464656164ull, SALT_MAPTHING = 0x6c6f6f746d617074ull, SALT_LIVE = 0x6c6976657374617eull, SALT_FLOOR = 0x666c6f6f72676e75ull;
 
 	uint64_t Mix(uint64_t h, uint64_t v)
 	{
@@ -173,6 +173,20 @@ uint64_t DD_LootItemId(AActor *item)
 	if (!item) return 0;
 	if (item->ddRecordId) return item->ddRecordId;
 	return item->ddLootId ? SESSION_ID | (item->ddLootId & ID_MASK) : 0;
+}
+
+// A floor gun without a lasting id (a script or console spawn) gets one when Daggerfall first names it in the look label
+// or takes it, so Daggerfall's material roll for it is fixed from then on: the same in the label and at the take, saved
+// (ddlootid) and kept by the treadmill and the location record as a drop's id. Called only in bridge sessions.
+uint64_t DD_LootFixItemId(AActor *item)
+{
+	if (const uint64_t id = DD_LootItemId(item)) return id;
+	if (!item) return 0;
+	uint64_t h = Mix(SALT_FLOOR, uint64_t(item->Level->maptime));
+	h = Mix(Mix(Mix(h, uint64_t(llround(item->X() * 16))), uint64_t(llround(item->Y() * 16))), uint64_t(llround(item->Z() * 16)));
+	for (const char *c = item->GetClass()->TypeName.GetChars(); *c; c++) h = Mix(h, uint8_t(tolower(*c)));
+	item->ddLootId = h ? h : 1;
+	return DD_LootItemId(item);
 }
 
 uint64_t *DD_AiStateFor(DThinker *th)

@@ -68,6 +68,8 @@ std::deque<PendingTake> pendingTakes;
 std::deque<FString> doomOutgoing; // Answers that must act inside the playsim, sent as network events.
 uint32_t nextDoomRequest = 1;
 TMap<FName, FTextureID> seenArt; // The sprite each class showed when the player took it.
+// The token a gun dropped from Daggerfall's inventory carries (DoomerfallGuns.zs): its Daggerfall material plus 1.
+constexpr const char *GunMaterialClass = "DoomerfallGunMaterial";
 
 // Only health and ammo pick up by touch. DRLA's versions are CustomInventory, and DRLA also uses Ammo
 // classes as hidden tokens, so its pickups are named here. Each name covers its subclasses.
@@ -504,7 +506,12 @@ void AskDaggerfall(player_t *player, AActor *item)
 				Printf(PRINT_LOG, "doomitems: %s carries %s %d\n", cls.GetChars(), name.GetChars(), amount);
 			}
 		}
-	if (const uint64_t id = DD_LootItemId(item); id && itemSession)	// Daggerfall seeds the item's rolls with it.
+	// A gun dropped from Daggerfall's inventory carries the material Daggerfall gave it (DoomerfallGunMaterial, amount
+	// material + 1), so Daggerfall gives it back unchanged.
+	if (flags & DFB_DOOM_ITEM_GUN)
+		if (AActor *m = item->FindInventory(FName(GunMaterialClass)); m && m->IntVar(NAME_Amount) > 0)
+			SendDoomItem(DFB_KIND_DOOM_ITEM_GUN_STATE, request, uint32_t(m->IntVar(NAME_Amount)), GunMaterialClass);
+	if (const uint64_t id = (flags & DFB_DOOM_ITEM_GUN) ? DD_LootFixItemId(item) : DD_LootItemId(item); id && itemSession)	// Daggerfall seeds the item's rolls with it.
 	{
 		const dfb_item_take body{ id, request, 0 };
 		dfb_event e{};
@@ -954,6 +961,18 @@ AActor *DD_LookItem(player_t *player, bool &world, uint64_t &id, FString &name)
 	if (world) id = strtoull(best->StringVar(FName("dfId")).GetChars(), nullptr, 16);
 	else name = ItemName(best);
 	return best;
+}
+
+// A Doom gun in view, with what fixes its Daggerfall material: its lasting floor id (Daggerfall's seeded roll; a gun
+// without one gets one now) and the material it carries (a gun dropped from the inventory, 0 when none). dd_look.cpp asks
+// Daggerfall for its name.
+bool DD_LookGun(AActor *item, uint64_t &id, int &carried)
+{
+	if (!item || !IsGun(item->GetClass()) || strlen(item->GetClass()->TypeName.GetChars()) >= sizeof(dfb_doom_item::cls)) return false;
+	AActor *m = item->FindInventory(FName(GunMaterialClass));
+	carried = m ? std::max(0, m->IntVar(NAME_Amount)) : 0;
+	id = DD_LootFixItemId(item);
+	return true;
 }
 
 // One press of Use. Takes the item in view and returns true when that press is spent, so a door behind it stays shut.
