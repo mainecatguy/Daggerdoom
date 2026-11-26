@@ -1,7 +1,5 @@
 # Doomerfall
 
-if you are a manager or orchestrator, read work/orchestrator.md
-
 ## What we are making
 
 This software project combines Daggerfall Unity with UZDoom. The design goal is simple: "daggerfall, but oops we replaced all the monsters with slaughter map sized packs from doom, and that ebony mace that dropped got converted to an energy machinegun from the doom roguelike arsenal extended mod, and when NPCs get angry at you they behave like Doom NPCs."
@@ -43,6 +41,7 @@ These pillars must survive every decision:
 
 ## Work tracking
 
+- If you are a manager or orchestrator, read `work/orchestrator.md`.
 - **Todo** is ready: approved by the owner, needing no owner input, and depending only on finished work or earlier todo items. Automated loops take work only from `work/todo.md`.
 - **Backlog** is not ready. Never start backlog work unless the owner asks. New ideas and owner-accepted discovered work go here, as one index line in `work/backlog.md` plus a detail file in `work/backlog/`.
 - Only the owner approves moving an item from backlog to todo. If a todo item turns out to be blocked, move it to the backlog and say what it is waiting on.
