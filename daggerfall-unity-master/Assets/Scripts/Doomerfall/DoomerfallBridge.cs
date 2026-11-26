@@ -176,7 +176,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             hotkeys = gameObject.AddComponent<DoomerfallHotkeys>();
             hotkeys.Init(this, sync);
             DoomerfallAmmo.Register();
-            ammo = gameObject.AddComponent<DoomerfallAmmo>();
+            DoomerfallLockpick.Register();
+            ammo =gameObject.AddComponent<DoomerfallAmmo>();
             ammo.Init(this, sync);
             damageBonus.Ammo = ammo;
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfequiptest") >= 0)

@@ -12,6 +12,7 @@ static partial class Program
     sealed class ActionRecord
     {
         public int Id, Block, FilePosition, NextPosition = -1, Next = -1;
+        public long LoadId; // Daggerfall Unity's LoadID for this object (RDBLayout: block file position + record position)
         public string BlockName, Description = "FLT";
         public bool IsFlat, IsDoor, TrapdoorTile;
         public uint Model, Trigger;
@@ -352,7 +353,7 @@ static partial class Program
             int trigger = Enum.IsDefined(typeof(DFBlock.RdbTriggerFlags), (DFBlock.RdbTriggerFlags)r.Trigger) ? (int)r.Trigger : 0;
             double cx = (r.X0 + r.X1) / 2, cy = (r.Y0 + r.Y1) / 2;
             text.Append(FormattableString.Invariant(
-                $"A {r.Id} {r.Kind} {r.Flag} {trigger} {r.Next} {r.Door} {r.Visual} {r.Position.X:F3} {r.Position.Y:F3} {r.Position.Z:F3} {r.Yaw:F3} {move.X:F3} {move.Y:F3} {move.Z:F3} {spin.X:F3} {spin.Y:F3} {spin.Z:F3} {tics} {(forwardOnly ? 1 : 0)} {cx:F3} {cy:F3} 0 {r.X0:F3} {r.X1:F3} {r.Y0:F3} {r.Y1:F3} {r.Z0:F3} {r.Z1:F3} {r.Sound} {r.Axis} {r.Magnitude} {r.LockValue} {(r.TrapdoorTile ? 1 : 0)}\n"));
+                $"A {r.Id} {r.Kind} {r.Flag} {trigger} {r.Next} {r.Door} {r.Visual} {r.Position.X:F3} {r.Position.Y:F3} {r.Position.Z:F3} {r.Yaw:F3} {move.X:F3} {move.Y:F3} {move.Z:F3} {spin.X:F3} {spin.Y:F3} {spin.Z:F3} {tics} {(forwardOnly ? 1 : 0)} {cx:F3} {cy:F3} 0 {r.X0:F3} {r.X1:F3} {r.Y0:F3} {r.Y1:F3} {r.Z0:F3} {r.Z1:F3} {r.Sound} {r.Axis} {r.Magnitude} {r.LockValue} {(r.TrapdoorTile ? 1 : 0)} {r.LoadId}\n"));
             if (r.Kind == 1)
             {
                 bool special = package.SpecialCells.ContainsKey(r.Model) && (IsSpecialDoorFlag(r.Flag) || r.TrapdoorTile);
@@ -413,7 +414,7 @@ static partial class Program
                         };
                     }
                     if (r == null) continue;
-                    r.Id = records.Count; r.Block = blockIndex; r.BlockName = dungeonBlock.BlockName; r.FilePosition = obj.Position;
+                    r.Id = records.Count; r.Block = blockIndex; r.BlockName = dungeonBlock.BlockName; r.FilePosition = obj.Position; r.LoadId = (long)block.Position + obj.Position;
                     r.Position = ToDoom(new V3(obj.XPos, -obj.YPos, obj.ZPos) + offset);
                     records.Add(r);
                     inBlock[obj.Position] = r;

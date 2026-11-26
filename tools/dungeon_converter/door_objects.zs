@@ -44,6 +44,8 @@ class DFDoor : Actor
 	double pivotX, pivotY, pivotZ, closedAngle, swung, rowY, centerX, centerY, bottom, top, linkRadius;
 	double swingDir;				// 1 unless a city gate leaf opens the other way
 	int moving;
+	int startingLock, loadId;
+	int lockState;				// set only by Daggerfall (dfdoor_lock): 0 not locked or not told, 1 locked, 2 magically held	// Daggerfall's starting lock value and Daggerfall Unity LoadID (0 in older maps); Daggerfall owns the live lock
 	bool stalled, sightOpen;
 	bool solidWhenOpen;			// city gates: Daggerfall swaps the model, and the open model's leaves stay solid
 	bool passable;				// links are currently non-solid to movement
@@ -154,6 +156,12 @@ class DFDoor : Actor
 	{
 		if (user.pos.z >= top || user.pos.z + user.height <= bottom) return false;	// another floor
 		if (listener) listener.DoorUsed(self, user);
+		if (lockState != 0 && swung <= 0 && moving == 0)
+		{
+			// Daggerfall says this door is locked: it stays shut, and Daggerfall decides what follows (label, minigame).
+			EventHandler.SendNetworkEvent(String.Format("dfdoor_use:%d:%d", loadId, lockState));
+			return true;
+		}
 		if (moving != 0 && !stalled) return true;									// as ToggleDoor: ignored while moving
 		moving = stalled ? -moving : (swung > 0 ? -1 : 1);
 		stalled = false;
@@ -191,6 +199,26 @@ class DFDoor : Actor
 
 class DFDoorHandler : EventHandler
 {
+	Array<DFDoor> doors;
+
+	// Daggerfall's lock state for one door, by LoadID: "dfdoor_lock:<loadId>:<state>[:open]". Doom never decides a door
+	// is locked or unlocked by itself; without these events every door behaves as before.
+	override void NetworkProcess(ConsoleEvent e)
+	{
+		if (e.Name.Left(12) != "dfdoor_lock:") return;
+		Array<String> f;
+		e.Name.Split(f, ":");
+		if (f.Size() < 3) return;
+		int id = f[1].ToInt(), state = f[2].ToInt();
+		if (id == 0) return;
+		foreach (d : doors)
+		{
+			if (!d || d.loadId != id) continue;
+			d.lockState = state;
+			if (state == 0 && f.Size() > 3 && f[3] == "open" && d.swung <= 0 && d.moving == 0) d.ActionSet(true);
+		}
+	}
+
 	override void WorldLoaded(WorldEvent e)
 	{
 		if (e.IsSaveGame || e.IsReopen || !(level.MapName ~== "MAP01")) return;
@@ -209,7 +237,9 @@ class DFDoorHandler : EventHandler
 			door.Setup(f[0].ToInt(), f[1].ToDouble(), f[2].ToDouble(), f[3].ToDouble(), f[4].ToDouble(),
 				f[5].ToDouble(), f[6].ToDouble(), f[7].ToDouble(), f[8].ToDouble(), f[9].ToDouble(), f[10].ToDouble());
 			if (f.Size() > 11) door.swingDir = f[11].ToDouble();
+			if (f.Size() > 13) { door.startingLock = f[12].ToInt(); door.loadId = f[13].ToInt(); }
 			spawned.Push(door);
+			doors.Push(door);
 		}
 		// "DC <door> <control>" lines in DFPOINTS link each door to its sight-blocking control sectors.
 		Array<String> points;

@@ -72,6 +72,7 @@ class DFAction : DFDoorListener
 	enum ESource { FROM_ACTION, FROM_DIRECT, FROM_WALKON, FROM_WALKINTO, FROM_ATTACK, FROM_DOOR }
 
 	int id, kind, flag, trigger, nextId, doorId, index, axis, magnitude, lockValue;
+	int loadId;	// Daggerfall Unity's LoadID for this record (block file position + record position), 0 in older maps
 	DFAction nextAction;
 	DFDoor door;
 	Actor visual;
@@ -503,6 +504,7 @@ class DFActionHandler : EventHandler
 		a.boxMax = (f[24].ToDouble(), f[26].ToDouble(), f[28].ToDouble());
 		a.index = f[29].ToInt(); a.axis = f[30].ToInt(); a.magnitude = f[31].ToInt(); a.lockValue = f[32].ToInt();
 		a.freeSwing = f[33].ToInt() != 0;
+		if (f.Size() > 34) a.loadId = f[34].ToInt();
 		a.cellHalf = cellSize / 2;
 		if (visual >= 0)
 		{

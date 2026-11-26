@@ -265,6 +265,8 @@ namespace DaggerfallWorkshop.Game.Items
                 chance *= 0.5f;
             }
 
+            Doomerfall.DoomerfallLockpick.AddLoot(matrix, items); // [Doomerfall] lockpicks; last, so earlier seeded rolls stay the same
+
             return items.ToArray();
         }
 

@@ -129,7 +129,7 @@ static partial class Program
                         var pivot = ToDoom(position);
                         // Unity swings about the door's own Y axis, which points down on a flipped door, so the swing reverses.
                         double closed = -phi / toRad;
-                        doorPlacements.Add(FormattableString.Invariant($"{doorModel.Slot} {pivot.X:F3} {pivot.Y:F3} {pivot.Z:F3} {closed:F3} {doorModel.X0:F3} {doorModel.X1:F3} {doorModel.Y0:F3} {doorModel.Y1:F3} {doorModel.Z0:F3} {doorModel.Z1:F3} {(flipped ? -1 : 1)}"));
+                        doorPlacements.Add(FormattableString.Invariant($"{doorModel.Slot} {pivot.X:F3} {pivot.Y:F3} {pivot.Z:F3} {closed:F3} {doorModel.X0:F3} {doorModel.X1:F3} {doorModel.Y0:F3} {doorModel.Y1:F3} {doorModel.Z0:F3} {doorModel.Z1:F3} {(flipped ? -1 : 1)} {DoorLockValues[(obj.Resources.ModelResource.TriggerFlag_StartingLock >> 4) & 15]} {(long)block.Position + obj.Position}"));
                         continue;
                     }
                     foreach (var sub in mesh.SubMeshes)

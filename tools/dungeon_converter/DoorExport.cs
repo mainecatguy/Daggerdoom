@@ -1,7 +1,7 @@
 // Exports hinged Daggerfall doors as separate objects: <slug>_doors.pk3 holds one OBJ per door model, their textures,
 // a DFDOORS placement lump, and the runtime in door_objects.zs. It is derived from game data, so keep it outside the repo.
 //
-// DFDOORS, one door per line: slot pivotX pivotY pivotZ closedAngle x0 x1 y0 y1 z0 z1
+// DFDOORS, one door per line: slot pivotX pivotY pivotZ closedAngle x0 x1 y0 y1 z0 z1 swingDir startingLock loadId
 // The pivot is the model origin, which DaggerfallActionDoor rotates about. Bounds are model space at Doom scale.
 // OBJ vertices are centered on the door panel, so the drawn actor always stands inside the doorway or room.
 using System;
