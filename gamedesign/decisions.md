@@ -84,3 +84,4 @@ How this is read and written:
 - 2026-11-26 **Owner decided**: Tier ammo pickups are rarer, not smaller (same amount as Regular); Baron Blaster self-reload is right, autoreload untouched; taken seeded Doom pickups report their ID to Daggerfall and stay gone; hostile guard bots block rest. ([details](decisions/20261126-ammo-pickups-baron-taken-guards-owner.md))
 - 2026-11-26 **Owner decided**: Energy Weapons: owner's perks with Revision 2 numbers, equal for hitscan and projectile guns, BFG rays burn, strip boosts all damage, cells 10 gold. ([details](decisions/20261126-energy-weapons-owner.md))
 - 2026-11-26 **Owner decided**: Guns or no-guns mode is chosen per new game and cannot be switched on an active save. ([details](decisions/20261126-guns-mode-fixed-per-save.md))
+- 2026-11-26 **Owner decided**: A gun that fits two weapon skills uses whichever of them is higher, never both. ([details](decisions/20261126-two-skill-weapons.md))

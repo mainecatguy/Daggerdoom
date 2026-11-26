@@ -53,7 +53,7 @@ Doomerfall adds seven weapon skills to your character sheet: the gun skills **Sh
 **Explosives**, **Pistols** and **Rifles**, plus **Energy Weapons** and **Melee**. The monster languages (Orcish, Harpy, Giantish, Dragonish, Nymph, Daedric, Spriggan, Centaurian,
 Impish) are gone: you can no longer calm monsters by speaking to them.
 
-- Each weapon belongs to at most one of these skills. Shotguns covers shotguns, Automatics covers chainguns, miniguns and
+- Most weapons belong to one of these skills; a few belong to two (see "Weapons that belong to two skills"). Shotguns covers shotguns, Automatics covers chainguns, miniguns and
   other rapid-fire guns, Explosives covers rocket, missile and grenade launchers, and Pistols covers every pistol,
   revolver and Uzi, including plasma pistols and pistols that fire shotgun shells. Rifles covers ballistic
   semi-automatic and single-shot rifles that are not explosives, energy weapons, shotguns or pistols.
@@ -101,6 +101,11 @@ A skill earns a **perk** when it reaches 25, 50, 75 and 100.
 - Loading a save does not show perks you already have.
 - So far, Jumping and the gun skills (Shotguns, Automatics and Explosives) have perks. The window says when a perk
   does not work yet.
+
+## Weapons that belong to two skills
+
+Some guns fit two weapon skills, for example a laser shotgun is both a Shotgun and an Energy Weapon. Such a gun uses
+whichever of its skills is higher, never both at once.
 
 ## Resting
 
