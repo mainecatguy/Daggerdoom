@@ -48,6 +48,13 @@ static partial class Program
         static float target;
         static bool Walkable(int x, int y) => sites.Any(s => x >= s.FlatX0 - walkMargin && x < s.FlatX1 + walkMargin && y >= s.FlatY0 - walkMargin && y < s.FlatY1 + walkMargin);
 
+        // --winter: the location as Daggerfall draws it in winter (ClimateSwaps, TerrainMaterialProvider.GetClimateInfo).
+        static bool Winter;
+        static bool SnowyNature(int archive) => archive is (int)DFLocation.ClimateTextureSet.Nature_TemperateWoodland or (int)DFLocation.ClimateTextureSet.Nature_WoodlandHills
+            or (int)DFLocation.ClimateTextureSet.Nature_HauntedWoodlands or (int)DFLocation.ClimateTextureSet.Nature_Mountains;
+        static int NatureArchive(DFLocation l) => Winter && SnowyNature(l.Climate.NatureArchive) ? l.Climate.NatureArchive + 1 : l.Climate.NatureArchive;
+        static int GroundArchive(DFLocation l) => Winter && l.Climate.ClimateType != DFLocation.ClimateBaseType.Desert ? l.Climate.GroundArchive + 1 : l.Climate.GroundArchive;
+
         public static int Run(string[] args)
         {
             string Arg(string name, string fallback) { int at = Array.IndexOf(args, name); return at >= 0 ? args[at + 1] : fallback; }
@@ -59,6 +66,7 @@ static partial class Program
             PlayerScale.DoomUnitsPerDaggerfallUnit = double.Parse(Arg("--world-scale", "0.75"), CultureInfo.InvariantCulture);
             // --group <id> --ddt <file> converts one location group for the running game.
             int groupId = int.Parse(Arg("--group", "-1"));
+            Winter = args.Contains("--winter"); // Daggerfall's winter season: ClimateSwaps' winter texture sets
             string ddtPath = Arg("--ddt", null);
             if (args.Contains("--list-buildings")) return ListBuildings(groupId, arena2);
             if (groupId >= SpaceBase) return RunInterior(groupId, ddtPath, outDir, arena2);
@@ -485,17 +493,33 @@ class DFRuntimeHandler : EventHandler
             static readonly HashSet<int> ClimateSets = new HashSet<int> { 2, 7, 9, 10, 12, 13, 14, 15, 17, 18, 26, 27, 29, 30, 35, 36, 38, 39, 42, 43, 58, 59, 61, 62, 64, 65, 69, 70, 79, 80, 82, 83, 74,
                 11, 16, 19, 20, 22, 23, 24, 25, 28, 37, 40, 41, 44, 45, 47, 48, 60, 63, 66, 68 };
 
-            // ClimateSwaps.ApplyClimate for summer.
+            // ClimateSwaps.GetClimateTextureInfo's sets with supportsWinter: terrain and the exterior building sets.
+            static readonly HashSet<int> WinterSets = new HashSet<int> { 2, 7, 9, 12, 14, 17, 26, 29, 35, 38, 42, 58, 61, 64, 69, 79, 80, 82, 83 };
+
+            // ClimateSwaps.ApplyClimate for summer, or for winter with --winter.
             int Swap(int archive, int record)
             {
                 if (archive % 100 == 74 && record == 3) return archive;
-                if (archive >= 500 || archive is 75 or 76 or 77 or 79 or 80 or 82 or 83) return archive;
+                if (archive >= 500) return Winter && SnowyNature(archive) ? archive + 1 : archive;
                 int set = archive % 100;
                 // Same whitelist as ClimateSwaps.GetClimateTextureInfo; other sets (wagon 88, hedges, planks, furniture) never swap.
                 if (!ClimateSets.Contains(set)) return archive;
                 string setName = ((DFLocation.ClimateTextureSet)set).ToString();
                 if (location.Climate.ClimateType == DFLocation.ClimateBaseType.Swamp && setName == "Interior_MarbleFloors") return archive;
-                return (int)location.Climate.ClimateType + set;
+                bool winter = Winter && SupportsWinter(set, setName, archive, record);
+                if (archive is 75 or 76 or 77 or 79 or 80 or 82 or 83) return winter ? archive + 1 : archive;
+                return (int)location.Climate.ClimateType + set + (winter ? 1 : 0);
+            }
+
+            // ClimateSwaps' winter rules: terrain and exterior sets have a winter variant, never in desert climates,
+            // and a few archives lack one. The Castle test keeps ClimateSwaps' operator precedence (any climate).
+            bool SupportsWinter(int set, string setName, int archive, int record)
+            {
+                if (location.Climate.ClimateType == DFLocation.ClimateBaseType.Desert) return false;
+                if (!WinterSets.Contains(set)) return false;
+                if (location.Climate.ClimateType == DFLocation.ClimateBaseType.Swamp && setName == "Exterior_MagesGuild" || setName == "Exterior_Castle" && record > 3) return false;
+                if (archive == 82 && record > 1 || archive == 77) return false;
+                return true;
             }
 
             public void AddModel(Arch3dFile arch, uint id, V3 position, double rx, double ry, double rz, V3 scale, V3 parent, double parentYaw)
@@ -681,7 +705,7 @@ class DFRuntimeHandler : EventHandler
                         int archive = f.TextureArchive;
                         double fx = origin.X + sub.XPos + f.XPos, fy = origin.Y - f.YPos - 6, fz = origin.Z - sub.ZPos + f.ZPos + RmbDf;
                         if (archive >= (int)DFLocation.ClimateTextureSet.Nature_RainForest && archive <= (int)DFLocation.ClimateTextureSet.Nature_Mountains_Snow)
-                            archive = location.Climate.NatureArchive;
+                            archive = NatureArchive(location);
                         AddFlat(archive, f.TextureRecord, fx, fy, fz, false, f.FactionID != 0 ? NpcIdentity.Make(mapId, NpcIdentity.Exterior, layoutX, layoutY, 0, f.Position) : 0);
                     }
                 }
@@ -696,7 +720,7 @@ class DFRuntimeHandler : EventHandler
                 for (int y = 0; y < 16; y++)
                     for (int x = 0; x < 16; x++)
                         if (scenery[x, 15 - y].TextureRecord >= 1)
-                            AddFlat(location.Climate.NatureArchive, scenery[x, 15 - y].TextureRecord, origin.X + x * TileDf, origin.Y - 2, origin.Z + y * TileDf + TileDf);
+                            AddFlat(NatureArchive(location), scenery[x, 15 - y].TextureRecord, origin.X + x * TileDf, origin.Y - 2, origin.Z + y * TileDf + TileDf);
             }
 
             // DDDOORS, one per line: kind target index x y z nx ny, in town map units. Kind 0 targets an interior space
@@ -738,7 +762,7 @@ class DFRuntimeHandler : EventHandler
 
             public void AddTerrain(int fromX, int toX, int fromY, int toY)
             {
-                int archive = location.Climate.GroundArchive;
+                int archive = GroundArchive(location);
                 for (int ty = fromY; ty < toY; ty++)
                     for (int tx = fromX; tx < toX; tx++)
                     {
@@ -789,7 +813,7 @@ class DFRuntimeHandler : EventHandler
                         double steepness = Math.Atan(Math.Sqrt(dx * dx + dy * dy)) * 180 / Math.PI;
                         if (steepness > maxSteepness) continue;
                         double up = (Height(x, y) - target) * HeightToDf - steepness / sinkRatio * UnityToDf;
-                        AddFlat(location.Climate.NatureArchive, record, originX + (x - originTileX) * TileDf, up, originZ + (y - originTileY) * TileDf);
+                        AddFlat(NatureArchive(location), record, originX + (x - originTileX) * TileDf, up, originZ + (y - originTileY) * TileDf);
                     }
             }
 

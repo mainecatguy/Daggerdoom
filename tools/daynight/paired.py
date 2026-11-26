@@ -34,7 +34,7 @@ MODS = GAME.parent / "GameMods"
 DRLA = ["DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3"]
 FATAL = ("DIED WITH FATAL", "VM execution aborted", "Execution could not continue", "Unable to open map")
 STEPS = "6:0 8:0 12:0 17:4 19:5 23:0 12:6 12:3"
-# Other checks (windows.py) point these at their own build and data.
+# Other checks (windows.py) point these at their own build and data. --review, --uzdoom-build, --cache and --converter set them too.
 UZDOOM_BUILD = "uzdoom-daynight"
 RUNTIME = DEMO / "data" / "ddruntime.pk3"
 CACHE = DEMO / "data" / "cache"
@@ -132,6 +132,18 @@ if __name__ == "__main__":
     ap.add_argument("--hold", type=float, default=5)
     ap.add_argument("--weather", type=int, default=1)
     ap.add_argument("--draw", action="store_true")
+    ap.add_argument("--review", help="output folder (default the day/night one)")
+    ap.add_argument("--uzdoom-build", help="build folder name under DoomDaggerfall-build")
+    ap.add_argument("--cache", help="town cache folder (default the Doom items demo's)")
+    ap.add_argument("--converter", help="DungeonConverter.exe for uncached places")
     ap.add_argument("--doom-args", nargs=argparse.REMAINDER, default=[])
     a = ap.parse_args()
+    if a.review:
+        REVIEW = Path(a.review)
+    if a.cache:
+        CACHE = Path(a.cache)
+    if a.converter:
+        CONVERTER = Path(a.converter)
+    if a.uzdoom_build:
+        UZDOOM_BUILD = a.uzdoom_build
     stage() if a.command == "stage" else run(a.name, a.steps, a.hold, a.weather, a.draw, a.doom_args)

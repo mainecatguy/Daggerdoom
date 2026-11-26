@@ -1,6 +1,6 @@
 """Doom-only check that a building interior gets Daggerfall's interior look and no sky, rain or daylight.
 
-usage: interior.py UZDOOM OUT "<dd_sky line>"
+usage: interior.py UZDOOM OUT "<dd_sky line>" ["<another line, e.g. fog>"]
 Starts Gothway Garden (DDT07154), walks through the tavern door with the dd_tm_use test
 hook, screenshots inside and outside, and prints the DDWEATHER lines. Runs through quiet_run, about 25 s.
 """
@@ -49,7 +49,7 @@ def main():
                      "-ddtowncache", CACHE, "-ddconverter", CONVERTER,
                      "-ddarena2", r"D:\dev\DoomDaggerfall\GameResources\DAGGER\ARENA2", "+vid_fullscreen", "0", "+screenshot_type", "png",
                      "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+wipetype", "0",
-                     "+logfile", "dn", "+dd_sky", sky, "+map", "DDT07154", "+exec", "dn.cfg"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+                     "+logfile", "dn", "+dd_sky", sky] + [a for line in sys.argv[4:] for a in ("+dd_sky", line)] + ["+map", "DDT07154", "+exec", "dn.cfg"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
     text = open(log, errors="replace").read() if os.path.exists(log) else ""
     for line in text.splitlines():
         if line.startswith(("DDWEATHER", "DDLIGHTS interior", "DDTOWN active")) or "FATAL" in line:

@@ -48,7 +48,7 @@ namespace DDTownCache
 			bool retried = false;
 		};
 
-		bool enabled;
+		bool enabled, winter;
 		fs::path cacheDir, converter, arena2;
 		uint64_t capBytes = uint64_t(2048) << 20;
 		std::unordered_map<int, Slot> slots;
@@ -100,7 +100,7 @@ namespace DDTownCache
 		fs::path FileFor(int group)
 		{
 			char name[32];
-			snprintf(name, sizeof(name), "T%05d.ddt", group);
+			snprintf(name, sizeof(name), "T%05d%s.ddt", group, winter ? "W" : "");	// Daggerfall's winter textures: their own file
 			return cacheDir / name;
 		}
 
@@ -210,7 +210,7 @@ namespace DDTownCache
 			const fs::path work = cacheDir / "work" / ("T" + std::to_string(group));
 			fs::create_directories(work, ec);
 			std::wstring command = L"\"" + converter.wstring() + L"\" --group " + std::to_wstring(group) + L" --ddt \"" + FileFor(group).wstring()
-				+ L"\" --out \"" + work.wstring() + L"\" --arena2 \"" + arena2.wstring() + L"\"";
+				+ L"\" --out \"" + work.wstring() + L"\" --arena2 \"" + arena2.wstring() + L"\"" + (winter ? L" --winter" : L"");
 			SECURITY_ATTRIBUTES inherit{ sizeof(inherit), nullptr, TRUE };
 			const fs::path logPath = work / "convert.log";
 			HANDLE log = CreateFileW(logPath.c_str(), GENERIC_WRITE, FILE_SHARE_READ, &inherit, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -352,6 +352,17 @@ namespace DDTownCache
 	{
 		auto it = slots.find(group);
 		return it == slots.end() ? State::Missing : it->second.state;
+	}
+
+	// Daggerfall's season (dd_weather.cpp). Places loaded from now on use the other texture set; loaded data is dropped
+	// unless a map holds it, so the next area load picks the new season (the current one keeps its look).
+	void SetWinter(bool on)
+	{
+		if (on == winter) return;
+		winter = on;
+		for (auto it = slots.begin(); it != slots.end();)
+			it = it->second.state == State::Ready || it->second.state == State::Failed ? slots.erase(it) : std::next(it);
+		DD_DebugPrintf("DDTCACHE season %s: places load with %s textures from now on\n", on ? "winter" : "summer", on ? "winter" : "summer");
 	}
 
 	void Pin(int group) { pinned = group; }
