@@ -17,6 +17,7 @@ class DLHarness : EventHandler
 	static const double DOORDATA[] = { @DOOR@ };
 	const LOADID = @LOADID@;
 	const LOADRUN = @LOADRUN@;
+	const DEMO = @DEMO@; // the review demo: enter, stand at the door, then hand over to the player
 	const LIMIT = 35 * 25;
 
 	int phase, timer, passed, failed;
@@ -36,6 +37,7 @@ class DLHarness : EventHandler
 	void Report(bool ok, String what)
 	{
 		if (ok) passed++; else failed++;
+		if (DEMO) return; // the demo shows the player nothing of the test
 		Console.Printf("DLCASE %s %s", ok ? "pass" : "FAIL", what);
 	}
 
@@ -113,7 +115,7 @@ class DLHarness : EventHandler
 	{
 		if (done || !playeringame[0] || !players[0].mo) return;
 		let p = players[0].mo;
-		p.bNOTARGET = true;
+		p.bNOTARGET = !DEMO;
 		bool inside = level.MapName.Left(3) ~== "DDS" || level.MapName ~== "MAP01";
 		timer++;
 		if (LOADRUN && phase == 9) { phase = 20; timer = 0; } // the load restored this handler from the take run's save
@@ -144,8 +146,9 @@ class DLHarness : EventHandler
 			if (!door) door = FindDoor();
 			if (!door || door.lockState != 1) break;
 			Report(true, String.Format("door %d found, starting lock %d, Daggerfall lists it locked", LOADID, door.startingLock));
-			RemoveMonsters();
+			if (!DEMO) RemoveMonsters();
 			if (!PlaceAtDoor(p)) { Report(false, "no spot in front of the door"); Finish(); break; }
+			if (DEMO) { done = true; break; }
 			phase = 2;
 			timer = 0;
 			break;

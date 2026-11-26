@@ -41,12 +41,13 @@ def lumps(path):
         return {name: zlib.decompress(f.read(packed)) if raw else b"" for name, raw, packed in heads}
 
 
-def harness(runs, load):
+def harness(runs, load, demo=False):
     cache = ROOT / "data" / "cache" / f"T{GROUP:05d}.ddt"
     door = next(l.split() for l in lumps(cache)["DDDOORS"].decode().splitlines() if l.startswith("1 187853213"))
     text = (HERE / "harness.zs").read_text()
     text = text.replace("@DOOR@", ", ".join(door[3:8])).replace("@LOADRUN@", "1" if load else "0").replace("@LOADID@", str(LOADID))
-    path = runs / "harness.pk3"
+    text = text.replace("@DEMO@", "1" if demo else "0")
+    path = runs / ("demo_door.pk3" if demo else "harness.pk3")
     with zipfile.ZipFile(path, "w") as z:
         z.writestr("zscript.txt", text)
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "DLHarness" }\n')
@@ -130,9 +131,38 @@ def check():
               "| script errors", sum("Script error" in l for l in body.splitlines()), "| fatal", sum(any(k in l for k in FATAL) for l in body.splitlines()))
 
 
+def demo():
+    """play.bat: both games, Privateer's Hold, standing at the locked door. -dflocktest takes the picks for the
+    first 20 seconds inside (to show the refusal), then gives 3."""
+    harness(ROOT, False, demo=True)
+    if (ROOT / "play.bat").exists() and not (ROOT / "play-newgame.bat").exists():
+        (ROOT / "play.bat").rename(ROOT / "play-newgame.bat")  # install.py's normal game
+    mods = " ".join(f'--mod "{MODS / n}"' for n in DRLA) + " " + " ".join(f'--mod "%HERE%data\\{n}"' for n in DATA)
+    dagger = GAME / "DAGGER"
+    (ROOT / "play.bat").write_text(
+        "@echo off\r\n"
+        "rem Locked doors demo: you enter Privateer's Hold and stand at the locked door 29539363 (lock 2). Look at it: \"Locked.\"\r\n"
+        "rem For the first 20 seconds you hold no lockpicks, so Use (E) is refused. Then Daggerfall gives you 3.\r\n"
+        "rem Use again: Fire when the gold chevron is over the white arc. A miss breaks one pick (I shows the count); a hit opens it.\r\n"
+        "rem Getting hit, walking away, or pressing Use again cancels for free. Save, reload: the door stays unlocked.\r\n"
+        "rem play-newgame.bat in this folder is the normal game (New Game starts in Privateer's Hold with your starting picks).\r\n"
+        "set \"HERE=%~dp0\"\r\n"
+        "if not exist \"%HERE%play-door\\saves\" mkdir \"%HERE%play-door\\saves\"\r\n"
+        f"start \"\" \"%HERE%doomerfall-launcher.exe\" --nodraw --uzdoom \"%HERE%uzdoom\\uzdoom.exe\" --dfu \"%HERE%dfu\\DaggerfallUnity.exe\" --iwad \"{GAME / 'wads' / 'DOOM2.WAD'}\" {mods} "
+        "--mod \"%HERE%dfitems.pk3\" --mod \"%HERE%doomerfall.pk3\" --mod \"%HERE%demo_door.pk3\" --uzdoom-cwd \"%HERE%play-door\" --log \"%HERE%play-door\\launcher.log\" "
+        "--uzdoom-arg -config --uzdoom-arg \"%HERE%play-door\\uzdoom.ini\" --uzdoom-arg -savedir --uzdoom-arg \"%HERE%play-door\\saves\" --uzdoom-arg -dfbridgelog --uzdoom-arg \"%HERE%play-door\\uz.log\" "
+        "--uzdoom-arg -ddtowncache --uzdoom-arg \"%HERE%data\\cache\" --uzdoom-arg -ddconverter --uzdoom-arg \"%HERE%data\\converter\\DungeonConverter.exe\" "
+        f"--uzdoom-arg -ddarena2 --uzdoom-arg \"{dagger}\\ARENA2\" --uzdoom-arg -skill --uzdoom-arg 3 --uzdoom-arg +map --uzdoom-arg DDT{GROUP:05d} --uzdoom-arg +vid_fullscreen --uzdoom-arg 0 --uzdoom-arg +i_pauseinbackground --uzdoom-arg 0 "
+        f"--dfu-arg -dfbridgelog --dfu-arg \"%HERE%play-door\\df.log\" --dfu-arg -dfsynctest --dfu-arg \"{dagger}\" --dfu-arg -dflocktest --dfu-arg -screen-fullscreen --dfu-arg 0 --dfu-arg -screen-width --dfu-arg 1280 --dfu-arg -screen-height --dfu-arg 800\r\n",
+        newline="")
+    print("wrote", ROOT / "play.bat")
+
+
 if __name__ == "__main__":
     command = sys.argv[1] if len(sys.argv) > 1 else ""
-    if command in ("take", "load"):
+    if command == "demo":
+        demo()
+    elif command in ("take", "load"):
         run(command)
     elif command == "check":
         check()

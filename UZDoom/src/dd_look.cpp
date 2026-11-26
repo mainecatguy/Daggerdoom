@@ -124,7 +124,10 @@ std::string Label(dfb_session *session)
 // A door's lock changed (dd_doors.cpp): ask Daggerfall for its label again.
 void DD_LookForgetDoor(uint64_t id)
 {
-	labels.erase(Key(DFB_INFO_DOOR, id));
+	auto it = labels.find(Key(DFB_INFO_DOOR, id));
+	if (it == labels.end()) return;
+	it->second.known = false; // keeps the old text on screen until the answer arrives
+	it->second.askedTic = -1000000;
 }
 
 // Once per tic from the bridge frame. The mod hears the label only when it changes.
