@@ -253,6 +253,8 @@ namespace DaggerfallConnect.Arena2
             // Skill modifier effect
             if (int.TryParse(tokens[0], out parseResult))
             {
+                if (DFCareer.IsLegacyLanguageSlot(parseResult))
+                    return; // Doomerfall: a bonus to a removed monster language gives nothing
                 short modValue;
                 DFCareer.Skills skill = (DFCareer.Skills)parseResult;
                 if (short.TryParse(tokens[1], out modValue))
@@ -470,7 +472,8 @@ namespace DaggerfallConnect.Arena2
                 int parseResult;
 
                 // Skill modifier effect
-                if (int.TryParse(tokens[0], out parseResult) && parseResult >= 0 && parseResult < skillCount)
+                if (int.TryParse(tokens[0], out parseResult) && parseResult >= 0 && parseResult < skillCount &&
+                    !DFCareer.IsLegacyLanguageSlot(parseResult)) // Doomerfall: removed monster languages
                 {
                     short modValue;
                     if (short.TryParse(tokens[1], out modValue))

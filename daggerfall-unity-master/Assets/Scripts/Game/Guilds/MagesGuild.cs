@@ -45,16 +45,10 @@ namespace DaggerfallWorkshop.Game.Guilds
 
         static List<DFCareer.Skills> trainingSkills = new List<DFCareer.Skills>() {
                 DFCareer.Skills.Alteration,
-                DFCareer.Skills.Daedric,
                 DFCareer.Skills.Destruction,
-                DFCareer.Skills.Dragonish,
-                DFCareer.Skills.Harpy,
                 DFCareer.Skills.Illusion,
-                DFCareer.Skills.Impish,
                 DFCareer.Skills.Mysticism,
-                DFCareer.Skills.Orcish,
                 DFCareer.Skills.Restoration,
-                DFCareer.Skills.Spriggan,
                 DFCareer.Skills.Thaumaturgy
             };
 

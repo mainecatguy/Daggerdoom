@@ -731,10 +731,14 @@ static void RefreshSheet()
 	if (!logIt) return;
 	uint32_t sum = 2166136261u;
 	for (int value : sheet) sum = (sum ^ uint32_t(value)) * 16777619u;
-	Log("sheet: read v%u epoch %d valid %d level %d str %d/%d archery %d/%d armor0 %d/%d fire %d/%d sum %08x", version, sheet[DFB_SHEET_EPOCH],
+	Log("sheet: read v%u epoch %d valid %d level %d str %d/%d archery %d/%d armor0 %d/%d fire %d/%d sum %08x"
+		" shotguns %d/%d automatics %d/%d explosives %d/%d", version, sheet[DFB_SHEET_EPOCH],
 		sheet[DFB_SHEET_VALID], sheet[DFB_SHEET_LEVEL], sheet[DFB_SHEET_STATS_BASE], sheet[DFB_SHEET_STATS_LIVE],
 		sheet[DFB_SHEET_SKILLS_BASE + 33], sheet[DFB_SHEET_SKILLS_LIVE + 33], sheet[DFB_SHEET_ARMOR_BASE], sheet[DFB_SHEET_ARMOR_LIVE], // 33 is Archery
-		sheet[DFB_SHEET_RESIST_ACTIVE], sheet[DFB_SHEET_RESIST_CHANCE], (unsigned)sum);
+		sheet[DFB_SHEET_RESIST_ACTIVE], sheet[DFB_SHEET_RESIST_CHANCE], (unsigned)sum,
+		sheet[DFB_SHEET_SKILLS_BASE + DFB_SKILL_SHOTGUNS], sheet[DFB_SHEET_SKILLS_LIVE + DFB_SKILL_SHOTGUNS],
+		sheet[DFB_SHEET_SKILLS_BASE + DFB_SKILL_AUTOMATICS], sheet[DFB_SHEET_SKILLS_LIVE + DFB_SKILL_AUTOMATICS],
+		sheet[DFB_SHEET_SKILLS_BASE + DFB_SKILL_EXPLOSIVES], sheet[DFB_SHEET_SKILLS_LIVE + DFB_SKILL_EXPLOSIVES]);
 }
 
 // Daggerfall's current character sheet, indexed by DFB_SHEET_*, or null when there is no valid character.

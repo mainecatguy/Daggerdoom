@@ -190,7 +190,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             foreach (DFCareer.Skills skill in Enum.GetValues(typeof(DFCareer.Skills)))
             {
                 string name = DaggerfallUnity.Instance.TextProvider.GetSkillName(skill);
-                if(!string.IsNullOrEmpty(name))
+                if(!string.IsNullOrEmpty(name) && !skillsDict.ContainsKey(name)) // Doomerfall: slots 4-6 have two enum names
                     skillsDict.Add(name, skill);
             }
             skillsList = new List<string>(skillsDict.Keys);

@@ -20,6 +20,24 @@ Endurance can go, past 100 for tough classes. A Barbarian gets +17, a Warrior +1
 | 75 | 125 | 170 | 220 |
 | 100 | 150 | 210 | 277 |
 
+## Gun skills
+
+Doomerfall adds three gun skills to your character sheet: **Shotguns**, **Automatics** and **Explosives**. The
+monster languages (Orcish, Harpy, Giantish, Dragonish, Nymph, Daedric, Spriggan, Centaurian, Impish) are gone:
+you can no longer calm monsters by speaking to them.
+
+- Each gun belongs to at most one gun skill. Shotguns covers shotguns, Automatics covers chainguns, miniguns and
+  other rapid-fire guns, and Explosives covers rocket, missile and grenade launchers.
+- Guns that use cells (plasma, lasers, BFGs) count as energy weapons, not as shotguns or automatics, even when
+  they fire like one. Pistols, rifles, energy weapons and melee weapons have no gun skill yet.
+- The Fighters Guild trains all three gun skills.
+- Magic items that enhance a monster language, including the Enhances Daedric power that Fire and Frost Daedra
+  souls add when bound into an item, still exist but do nothing. Their description says "(no effect)". The item
+  maker cannot make Enhances Skill items for the gun skills.
+- A character imported from a classic Daggerfall save starts the gun skills untrained; their old language values
+  and practice are not carried over.
+- The gun skills do not change how guns behave yet.
+
 ## Perks
 
 A skill earns a **perk** when it reaches 25, 50, 75 and 100.

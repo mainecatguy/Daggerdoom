@@ -419,24 +419,13 @@ namespace DaggerfallWorkshop.Utility
                     return TextManager.Instance.GetLocalizedText("streetwise");
                 case DFCareer.Skills.Jumping:
                     return TextManager.Instance.GetLocalizedText("jumping");
-                case DFCareer.Skills.Orcish:
-                    return TextManager.Instance.GetLocalizedTextWithReversion("orcishSkill", reversion: TextManager.Instance.GetLocalizedText("orcish"));
-                case DFCareer.Skills.Harpy:
-                    return TextManager.Instance.GetLocalizedText("harpy");
-                case DFCareer.Skills.Giantish:
-                    return TextManager.Instance.GetLocalizedText("giantish");
-                case DFCareer.Skills.Dragonish:
-                    return TextManager.Instance.GetLocalizedText("dragonish");
-                case DFCareer.Skills.Nymph:
-                    return TextManager.Instance.GetLocalizedText("nymph");
-                case DFCareer.Skills.Daedric:
-                    return TextManager.Instance.GetLocalizedTextWithReversion("daedricSkill", reversion: TextManager.Instance.GetLocalizedText("daedric"));
-                case DFCareer.Skills.Spriggan:
-                    return TextManager.Instance.GetLocalizedText("spriggan");
-                case DFCareer.Skills.Centaurian:
-                    return TextManager.Instance.GetLocalizedText("centaurian");
-                case DFCareer.Skills.Impish:
-                    return TextManager.Instance.GetLocalizedText("impish");
+                // Doomerfall gun skills. Slots 7-12 (removed monster languages) have no name, so they stay hidden.
+                case DFCareer.Skills.Shotguns:
+                    return TextManager.Instance.GetLocalizedTextWithReversion("shotgunsSkill", reversion: "Shotguns");
+                case DFCareer.Skills.Automatics:
+                    return TextManager.Instance.GetLocalizedTextWithReversion("automaticsSkill", reversion: "Automatics");
+                case DFCareer.Skills.Explosives:
+                    return TextManager.Instance.GetLocalizedTextWithReversion("explosivesSkill", reversion: "Explosives");
                 case DFCareer.Skills.Lockpicking:
                     return TextManager.Instance.GetLocalizedText("lockpicking");
                 case DFCareer.Skills.Mercantile:

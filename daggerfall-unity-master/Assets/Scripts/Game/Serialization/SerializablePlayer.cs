@@ -113,6 +113,7 @@ namespace DaggerfallWorkshop.Game.Serialization
             data.playerEntity.name = entity.Name;
             data.playerEntity.level = entity.Level;
             data.playerEntity.stats = entity.Stats;
+            entity.Skills.IsGunSkillsFormat = true; // Doomerfall: marks saves written after the gun skills
             data.playerEntity.skills = entity.Skills;
             data.playerEntity.resistances = entity.Resistances;
             data.playerEntity.maxHealth = entity.RawMaxHealth;
@@ -278,6 +279,7 @@ namespace DaggerfallWorkshop.Game.Serialization
             entity.FaceIndex = data.playerEntity.faceIndex;
             entity.Reflexes = data.playerEntity.reflexes;
             entity.Career = data.playerEntity.careerTemplate;
+            entity.Career.RemapRemovedSkills(); // Doomerfall: a pre-Doomerfall save may list a removed language
             entity.Name = data.playerEntity.name;
             entity.Level = data.playerEntity.level;
             entity.Stats = data.playerEntity.stats;
@@ -290,6 +292,8 @@ namespace DaggerfallWorkshop.Game.Serialization
             entity.CurrentBreath = data.playerEntity.currentBreath;
             entity.SkillUses = data.playerEntity.skillUses;
             entity.SkillsRecentlyRaised = (data.playerEntity.skillsRecentlyRaised != null ? data.playerEntity.skillsRecentlyRaised : new uint[2]);
+            if (entity.Skills != null && !entity.Skills.IsGunSkillsFormat)
+                entity.ClearLegacyLanguageProgress(); // Doomerfall: a pre-gun-skills save
             entity.TimeOfLastSkillIncreaseCheck = data.playerEntity.timeOfLastSkillIncreaseCheck;
             entity.TimeOfLastSkillTraining = data.playerEntity.timeOfLastSkillTraining;
             entity.StartingLevelUpSkillSum = data.playerEntity.startingLevelUpSkillSum;

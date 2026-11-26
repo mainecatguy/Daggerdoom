@@ -16,7 +16,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
     internal sealed class DoomerfallSheetTest : MonoBehaviour
     {
         const float StepSeconds = 0.5f, WaitSeconds = 12f;
-        const string SaveName = "SheetTest";
+        const string SaveName = "SheetTest", OldSaveName = "PreSkills";
 
         DoomerfallBridge bridge;
         DoomerfallPositionSync sync;
@@ -44,6 +44,20 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 yield return null;
             yield return Step("baseline");
             PlayerEntity player = GameManager.Instance.PlayerEntity;
+            SaveLoadManager saves = GameManager.Instance.SaveLoadManager;
+            string character = player.Name;
+
+            // A save written before the gun skills (copied in as "PreSkills" by the demo) must still load.
+            saves.EnumerateSaves();
+            if (saves.FindSaveFolderByNames(character, OldSaveName) >= 0)
+            {
+                yield return LoadAndWait(saves, character, OldSaveName);
+                player = GameManager.Instance.PlayerEntity;
+                bridge.LogLine(string.Format("sheet test: old save career {0}", string.Join(",", player.GetMinorSkills())));
+                yield return Step(loaded ? "old save loaded" : "old save load timed out");
+            }
+
+            player.Skills.SetPermanentSkillValue(DFCareer.Skills.Shotguns, (short)(player.Skills.GetPermanentSkillValue(DFCareer.Skills.Shotguns) + 5));
 
             player.Skills.SetPermanentSkillValue(DFCareer.Skills.Archery, (short)(player.Skills.GetPermanentSkillValue(DFCareer.Skills.Archery) + 7));
             yield return Step("training");
@@ -76,24 +90,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             yield return new WaitForSecondsRealtime(1f); // Effect mods refresh on a short timer.
             yield return Step("effect");
 
-            SaveLoadManager saves = GameManager.Instance.SaveLoadManager;
-            string character = player.Name;
             saves.Save(character, SaveName);
             yield return new WaitForSecondsRealtime(1.5f);
             yield return Step("saved");
 
             player.Skills.SetPermanentSkillValue(DFCareer.Skills.Archery, (short)(player.Skills.GetPermanentSkillValue(DFCareer.Skills.Archery) + 20));
+            player.Skills.SetPermanentSkillValue(DFCareer.Skills.Explosives, (short)(player.Skills.GetPermanentSkillValue(DFCareer.Skills.Explosives) + 20));
             yield return Step("changed after save");
 
-            SaveLoadManager.OnLoad += OnLoaded;
-            saves.EnumerateSaves();
-            saves.Load(character, SaveName);
-            float deadline = Time.unscaledTime + WaitSeconds;
-            while (!loaded && Time.unscaledTime < deadline)
-                yield return null;
-            SaveLoadManager.OnLoad -= OnLoaded;
-            GameManager.Instance.PauseGame(false);
-            yield return new WaitForSecondsRealtime(1f);
+            yield return LoadAndWait(saves, character, SaveName);
             yield return Step(loaded ? "loaded" : "load timed out");
 
             var start = FindObjectOfType<StartGameBehaviour>();
@@ -102,6 +107,20 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             yield return new WaitForSecondsRealtime(1.5f);
             yield return Step("new character");
             bridge.LogLine("sheet test: done");
+        }
+
+        IEnumerator LoadAndWait(SaveLoadManager saves, string character, string saveName)
+        {
+            loaded = false;
+            SaveLoadManager.OnLoad += OnLoaded;
+            saves.EnumerateSaves();
+            saves.Load(character, saveName);
+            float deadline = Time.unscaledTime + WaitSeconds;
+            while (!loaded && Time.unscaledTime < deadline)
+                yield return null;
+            SaveLoadManager.OnLoad -= OnLoaded;
+            GameManager.Instance.PauseGame(false);
+            yield return new WaitForSecondsRealtime(1f);
         }
 
         void OnLoaded(SaveData_v1 data) { loaded = true; }

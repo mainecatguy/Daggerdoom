@@ -67,9 +67,7 @@ namespace DaggerfallWorkshop.Game.Guilds
         static List<DFCareer.Skills> guildSkills = new List<DFCareer.Skills>() {
                 DFCareer.Skills.Archery,
                 DFCareer.Skills.CriticalStrike,
-                DFCareer.Skills.Dragonish,
                 DFCareer.Skills.Etiquette,
-                DFCareer.Skills.Giantish,
                 DFCareer.Skills.LongBlade,
                 DFCareer.Skills.Medical,
             };

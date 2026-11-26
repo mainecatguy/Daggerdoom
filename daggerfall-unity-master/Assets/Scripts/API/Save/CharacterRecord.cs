@@ -82,6 +82,7 @@ namespace DaggerfallConnect.Save
             doc.skillUses = parsedData.skillUses;
             doc.skillsRaisedThisLevel1 = parsedData.skillsRaisedThisLevel1;
             doc.skillsRaisedThisLevel2 = parsedData.skillsRaisedThisLevel2;
+            ClearLegacyLanguageSkills(doc); // Doomerfall
             doc.startingLevelUpSkillSum = parsedData.startingLevelUpSkillSum;
             doc.minMetalToHit = parsedData.minMetalToHit;
             doc.armorValues = parsedData.armorValues;
@@ -355,6 +356,26 @@ namespace DaggerfallConnect.Save
             }
 
             return equippedItems;
+        }
+
+        /// <summary>
+        /// Doomerfall: classic saves hold monster language values and practice in slots 4-12. Slots 4-6 are the gun
+        /// skills now and start untrained; practice and "raised this level" marks for 4-12 are dropped, as for an
+        /// old Daggerfall Unity save (PlayerEntity.ClearLegacyLanguageProgress).
+        /// </summary>
+        static void ClearLegacyLanguageSkills(CharacterDocument doc)
+        {
+            if (doc.workingSkills != null)
+            {
+                doc.workingSkills.ResetGunSkillsToDefaults();
+                doc.workingSkills.IsGunSkillsFormat = true;
+            }
+            for (int i = (int)DFCareer.Skills.Shotguns; i <= (int)DFCareer.Skills.Impish; i++)
+            {
+                if (doc.skillUses != null && i < doc.skillUses.Length)
+                    doc.skillUses[i] = 0;
+                doc.skillsRaisedThisLevel1 &= ~(1u << i); // Slots 4-12 are all in the first word.
+            }
         }
 
         DFCareer ReadCareer(BinaryReader reader)

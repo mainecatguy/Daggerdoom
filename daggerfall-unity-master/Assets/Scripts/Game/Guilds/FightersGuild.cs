@@ -33,21 +33,20 @@ namespace DaggerfallWorkshop.Game.Guilds
                 DFCareer.Skills.Archery,
                 DFCareer.Skills.Axe,
                 DFCareer.Skills.BluntWeapon,
-                DFCareer.Skills.Giantish,
                 DFCareer.Skills.LongBlade,
-                DFCareer.Skills.Orcish,
                 DFCareer.Skills.ShortBlade,
-            };
+            }; // Doomerfall: Giantish and Orcish removed; which gun skills count toward promotion is the owner's call
 
         static List<DFCareer.Skills> trainingSkills = new List<DFCareer.Skills>() {
                 DFCareer.Skills.Archery,
+                DFCareer.Skills.Automatics, // Doomerfall gun skills replace Giantish and Orcish
                 DFCareer.Skills.Axe,
                 DFCareer.Skills.BluntWeapon,
                 DFCareer.Skills.CriticalStrike,
-                DFCareer.Skills.Giantish,
+                DFCareer.Skills.Explosives,
                 DFCareer.Skills.Jumping,
                 DFCareer.Skills.LongBlade,
-                DFCareer.Skills.Orcish,
+                DFCareer.Skills.Shotguns,
                 DFCareer.Skills.Running,
                 DFCareer.Skills.ShortBlade,
                 DFCareer.Skills.Swimming
