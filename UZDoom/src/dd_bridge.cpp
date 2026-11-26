@@ -1153,6 +1153,16 @@ constexpr int64_t AutosaveHoldNs = 60000000000LL;
 bool arrivalPending, arrivalQueued, saveIsArrival;
 int64_t arrivalAtNs;
 constexpr int64_t ArrivalWaitNs = 2000000000LL, ArrivalHoldNs = 12000000000LL;
+// While the change waits for its setup the playsim is frozen (DD_BridgeArrivalFreeze); a long hold says "Loading".
+int arrivalFrozenTics;
+int64_t arrivalFrozenNs;
+constexpr int64_t LoadingAfterNs = 1000000000LL; // a normal arrival with its autosave ends in about 0.5 s: no flash
+
+void ArrivalFreezeEnd(const char *why)
+{
+	if (arrivalFrozenTics) Log("arrival: playsim frozen %d tics, %.1f ms, until %s", arrivalFrozenTics, (dfb_now_ns() - arrivalFrozenNs) / 1e6, why);
+	arrivalFrozenTics = 0;
+}
 
 bool SaveOnDaggerfallMap()
 {
@@ -1299,6 +1309,7 @@ void PumpArrival(int64_t now)
 	if (handoff && now - arrivalAtNs <= ArrivalWaitNs) return; // The new map's first tic finishes the change.
 	if (!handoff && !DD_SetupReady(now)) return; // Bounded by the gate's own timeout.
 	arrivalPending = false;
+	ArrivalFreezeEnd(handoff ? "the handoff wait ran out" : "setup was done or timed out");
 	const bool alive = gamestate == GS_LEVEL && players[consoleplayer].playerstate == PST_LIVE && players[consoleplayer].health > 0;
 	if (!handoff && alive && SaveOnDaggerfallMap() && SaveReady() && gameaction == ga_nothing && !paused)
 	{
@@ -1383,10 +1394,34 @@ bool DD_BridgeAutosaveBegin(const char *filename, const char *description)
 void DD_BridgeArrivalAutosave()
 {
 	if (!session || netgame) return;
+	ArrivalFreezeEnd("another map change");
 	arrivalPending = true;
 	arrivalQueued = false;
 	arrivalAtNs = dfb_now_ns();
 }
+
+// P_Ticker, after DDTreadmill_Tick: true while a stitched map change waits for its setup (PumpArrival). The screen holds
+// the old frame then, so nothing in the map may act unseen: no actor, player, weapon or sector special runs. The setup
+// itself goes on: Daggerfall's answers arrive as network events (G_Ticker) and records (DDTreadmill_Tick, before this),
+// and level time counts on as in Doom's own freeze. The first tic of the new map runs (it finishes the handoff).
+bool DD_BridgeArrivalFreeze(FLevelLocals *Level)
+{
+	if (!session || Level != primaryLevel || !arrivalPending || Level->maptime < 1 || DDTreadmill_HandoffPending()) return false;
+	const int64_t now = dfb_now_ns();
+	if (now - arrivalAtNs > ArrivalHoldNs)
+	{
+		ArrivalFreezeEnd("the hold limit");
+		return false;
+	}
+	if (!arrivalFrozenTics++)
+	{
+		arrivalFrozenNs = now;
+		Log("arrival: playsim frozen at maptime %d, %.1f ms after the map loaded, until its setup is done", Level->maptime, (now - arrivalAtNs) / 1e6);
+	}
+	return true;
+}
+
+int DD_BridgeArrivalFrozenTics() { return arrivalFrozenTics; }
 
 // G_DoLoadLevel, after the map's WorldLoaded handlers: autosaves wait for this map's setup (dd_setup.cpp).
 void DD_BridgeLevelLoaded(bool fromSave)
@@ -1399,6 +1434,26 @@ bool DD_BridgeHoldFrame()
 {
 	if (!session || dfb_now_ns() - arrivalAtNs > ArrivalHoldNs) return false;
 	return arrivalPending || (saveStartPending && arrivalQueued) || (saveState != SaveIdle && saveIsArrival);
+}
+
+// D_DoomLoop, in place of D_Display while DD_BridgeHoldFrame: a short hold keeps the old frame; a long one (a slow setup
+// or the arrival autosave) shows a loading message, drawn each frame so the window stays live.
+void DD_BridgeDrawLoading()
+{
+	if (dfb_now_ns() - arrivalAtNs < LoadingAfterNs) return;
+	static int64_t shownFor = 0;
+	if (shownFor != arrivalAtNs) Log("arrival: showing the loading message, %.1f ms after the map loaded", (dfb_now_ns() - arrivalAtNs) / 1e6);
+	shownFor = arrivalAtNs;
+	static const char text[] = "Loading...";
+	screen->BeginFrame();
+	twod->ClearClipRect();
+	twod->Begin(screen->GetWidth(), screen->GetHeight());
+	ClearRect(twod, 0, 0, twod->GetWidth(), twod->GetHeight(), -1, 0); // opaque black
+	DrawText(twod, BigFont, CR_UNTRANSLATED, (twod->GetWidth() - BigFont->StringWidth(text) * CleanXfac) / 2,
+		(twod->GetHeight() - BigFont->GetHeight() * CleanYfac) / 2, text, DTA_CleanNoMove, true, TAG_DONE);
+	twod->End();
+	screen->Update();
+	twod->OnFrameDone();
 }
 
 // G_SaveGame, for a save from the menu or console. True means the bridge took it, or refused it with a message.

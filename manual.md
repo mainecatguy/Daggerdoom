@@ -96,3 +96,9 @@ A door you have picked open reads **Door**.
 - Without lockpicks, Use only tells you the door is locked. A **magically held** door cannot be picked.
 - A door you picked open **stays unlocked**: after saving and loading, and after you leave the dungeon and come back.
 - Levers and other switches in a dungeon can still lock, unlock, open and close doors, as in Daggerfall.
+
+## Entering a place
+
+- When you go through a door into or out of a dungeon or building, or walk out of a town, the game pauses until the
+  new place is ready and its autosave is made. A long wait shows **Loading...**. Nothing in the new place moves or
+  attacks you until play resumes.

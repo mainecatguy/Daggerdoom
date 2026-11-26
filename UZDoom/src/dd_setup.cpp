@@ -18,6 +18,7 @@
 #include "printf.h"
 
 void DD_BridgeLog(const char *text);
+void DD_ArrivalTestSetupStarted();
 
 namespace
 {
@@ -39,6 +40,7 @@ void DD_SetupLevelLoaded(bool fromSave)
 	active = !fromSave && primaryLevel && primaryLevel->localEventManager;
 	settled = !active; // A restored map was saved after its setup, or the save was taken without it.
 	if (active) primaryLevel->localEventManager->SendNetworkEvent(SettledEvent, 0, 0, 0, false);
+	if (active) DD_ArrivalTestSetupStarted(); // Test only, nothing without -dfsetuptest (dd_arrival_test.cpp).
 }
 
 void DD_SetupWait(const char *system)

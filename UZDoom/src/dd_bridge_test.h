@@ -34,3 +34,6 @@ void DD_BridgeTestFrame(int64_t now);	// Once per bridge frame, between tics.
 void DD_BridgeTestTic();	// Inside the bridged player's tic, from DD_BridgeHpThink.
 void DD_BridgeTestSaveDone();	// A bridged save finished: -dfsavetest quits unless autosaves remain.
 bool DD_BridgeTestSaveAnyMap();	// -dfsavetest also saves through the bridge on a regular map.
+
+// dd_arrival_test.cpp: the arrival freeze test (-dfsetuptest, -dffreezetest).
+void DD_ArrivalTestFrame(int64_t now);

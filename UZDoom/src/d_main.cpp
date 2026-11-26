@@ -382,6 +382,7 @@ void D_DoomLoop ();
 void DD_BridgeInit(); // Doomerfall
 void DD_BridgeFrame(); // Doomerfall
 bool DD_BridgeHoldFrame(); // Doomerfall
+void DD_BridgeDrawLoading(); // Doomerfall
 void DD_BridgeDrawUi(); // Doomerfall
 bool DD_BridgeUiActive(); // Doomerfall
 void DD_FacesDraw(); // Doomerfall
@@ -1609,6 +1610,7 @@ void D_DoomLoop ()
 			I_StartTic ();
 			D_ProcessEvents();
 			if (!DD_BridgeHoldFrame()) D_Display (); // Doomerfall: a map change's autosave keeps the frame from before it
+			else DD_BridgeDrawLoading(); // Doomerfall: or says "Loading..." when it lasts
 			S_UpdateMusic();
 
 			if (gameloop_abort)
