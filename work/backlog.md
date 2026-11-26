@@ -130,7 +130,7 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 
 ## After initial release
 
-- [Revisit damage and resistances](backlog/revisit-damage-and-resistances.md): Rework how DRLA and DF damage rules combine.
+- [Revisit damage and resistances](backlog/revisit-damage-and-resistances.md): Rework how DRLA, Schism and DF damage rules combine; map damage types (Schism freeze, lightning) to DF elements; generic freezing.
 - [Greater NPC bot variety](backlog/greater-npc-bot-variety.md): Add bot types for guards and classes.
 - [Status effects on mooks](backlog/status-effects-on-mooks.md): Extend DF status effects to Doom mooks.
 - [Should open doors block monster sight?](backlog/should-open-doors-block-monster-sight.md): Decide whether to match DF's door sight rule.
