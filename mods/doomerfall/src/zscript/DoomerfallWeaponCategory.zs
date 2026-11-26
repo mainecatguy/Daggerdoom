@@ -11,11 +11,13 @@
 // Signs used:
 //   - Unarmed: stock Fist and DRLA's RLFist (which replaces it). Hand-to-Hand governs the fist, not Melee
 //     (work/backlog/skills-in-doom.md), so Unarmed maps to Daggerfall's Hand-to-Hand skill (slot 30).
-//   - Melee: the MELEEWEAPON flag, stock Chainsaw, or DRLA's RLMeleeTypeWeapon token (chainsaws, Energysaw, Ripper).
+//   - Melee: the MELEEWEAPON flag, stock Chainsaw, DRLA's RLMeleeTypeWeapon token (chainsaws, Energysaw, Ripper),
+//     or DRLA's Dragonslayer sword (it has neither the flag nor the token).
 //   - Explosive / Energy: the gun's ammo (either ammo type, since DRLA guns load a magazine from reserve ammo)
 //     is or descends from RocketAmmo / Cell. DRLA has no explosive or energy token. Energy also takes the DRLA energy
-//     guns that recharge instead of using cells (IsEnergyGun's list: the Nuclear family, BFG Infinity, and the
-//     nano-manufacture Laser Rifle, Plasma Rifle and Tristar Blaster). Self-charging energy pistols stay Pistols.
+//     guns that recharge instead of using cells (IsEnergyGun's list: the Nuclear family, BFG Infinity, Lightweaver,
+//     the nano-shrapnel Plasma Shotgun (Plasma damage), and the nano-manufacture Laser Rifle, Plasma Rifle and
+//     Tristar Blaster). Self-charging energy pistols stay Pistols.
 //   - Shotgun, Precision, Automatic, Pistol: stock Shotgun and SuperShotgun, Chaingun, Pistol, or DRLA's
 //     RLShotgunTypeWeapon, RLSingleShotRifleTypeWeapon, RLRapidfireTypeWeapon, RLPistolTypeWeapon tokens.
 // Pistols (owner, 2026-11-26): stock Pistol and DRLA's pistol-token guns; no rifle is a pistol. No DRLA rifle carries
@@ -71,7 +73,7 @@ class DoomerfallWeaponCategory abstract
 		let owner = w.Owner;
 		bool held = owner && owner.player && owner.player.ReadyWeapon == w;
 		if (w is "Fist" || IsClass(w, "RLFist")) return Unarmed;
-		if (w.bMeleeWeapon || w is "Chainsaw" || (held && HasToken(owner, "RLMeleeTypeWeapon"))) return Melee;
+		if (w.bMeleeWeapon || w is "Chainsaw" || IsClass(w, "RLDragonslayer") || (held && HasToken(owner, "RLMeleeTypeWeapon"))) return Melee;
 		if (w is "Pistol" || (held && HasToken(owner, "RLPistolTypeWeapon"))) return Pistol;
 		if (AmmoIs(w, "RocketAmmo")) return Explosive;
 		if (AmmoIs(w, "Cell") || IsEnergyGun(w)) return Energy;
@@ -108,7 +110,7 @@ class DoomerfallWeaponCategory abstract
 			"RLNuclearVBFG9000", "RLNuclearBiggestFuckingGun", "RLNuclearOnslaught", "RLHighPowerNuclearBFG9000",
 			"RLHighPowerNuclearPlasmaRifle", "RLAssaultRifleNuclearPlasmaRifle", "RLBurstCannonNuclearPlasmaRifle",
 			"RLBFGInfinity", "RLNanoManufactureAmmoLaserRifle", "RLNanoManufactureAmmoPlasmaRifle",
-			"RLNanoManufactureAmmoTristarBlaster"
+			"RLNanoManufactureAmmoTristarBlaster", "RLLightweaver", "RLNanoShrapnelPlasmaShotgun"
 		};
 		for (int i = 0; i < energyGuns.Size(); i++)
 			if (IsClass(w, energyGuns[i])) return true;

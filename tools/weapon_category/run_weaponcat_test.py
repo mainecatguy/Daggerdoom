@@ -51,7 +51,8 @@ DRLA_EXPECT.update(NOT_RIFLES)
 MELEE_ENERGY = {'RLFist': 'unarmed', 'RLDoubleChainsaw': 'melee', 'RLPiercingChainsaw': 'melee',
                 'RLEnergysaw': 'melee', 'RLRipper': 'melee', 'RLNuclearPlasmaRifle': 'energy',
                 'RLNuclearBFG9000': 'energy', 'RLBFGInfinity': 'energy', 'RLNanoManufactureAmmoLaserRifle': 'energy',
-                'RLNuclearPlasmaPistol': 'pistol'}
+                'RLNuclearPlasmaPistol': 'pistol', 'RLLightweaver': 'energy', 'RLDragonslayer': 'melee',
+                'RLNanoShrapnelPlasmaShotgun': 'energy'}
 DRLA_EXPECT.update(MELEE_ENERGY)
 SLOT = {'shotgun': 4, 'automatic': 5, 'explosive': 6, 'pistol': 7, 'energy': 9, 'melee': 10, 'unarmed': 30}
 RIFLES_SLOT = 8

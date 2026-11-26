@@ -34,7 +34,7 @@ Impish) are gone: you can no longer calm monsters by speaking to them.
 - **Energy Weapons** covers guns that use cells (plasma rifles, lasers, railguns, BFGs) and energy guns that recharge
   instead of using cells (the nuclear plasma guns and BFGs), even when they fire like a shotgun or an automatic. Energy
   pistols still count as Pistols.
-- **Melee** covers the chainsaw and other melee weapons, such as powered saws and blades. Your bare fists are not
+- **Melee** covers the chainsaw and other melee weapons, such as powered saws, the Ripper and the Dragonslayer sword. Your bare fists are not
   Melee: they use Hand-to-Hand, as in Daggerfall.
 - Energy Weapons and Melee are placeholders for now: they show on the sheet, can be trained and are saved, but have
   no perks yet.
