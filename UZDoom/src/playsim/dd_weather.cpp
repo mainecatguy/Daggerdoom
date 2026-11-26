@@ -46,12 +46,15 @@ CVAR(Int, dd_rain_drops, 24, CVAR_ARCHIVE)			// Rain particles spawned per tic.
 CVAR(Int, dd_snow_flakes, 10, CVAR_ARCHIVE)		// Snow particles spawned per tic.
 CVAR(Float, dd_ambient_volume, 1.f, CVAR_ARCHIVE)	// Volume of Daggerfall's weather and ambient sounds.
 
+float dd_fog_unit = 1.f;	// hw_lighting.cpp: a sector fog density step; finer only while Daggerfall's fog is on this map
+
 namespace
 {
 enum Weather { Sunny, Cloudy, Overcast, Fog, Rain, Thunder, Snow };	// Daggerfall's WeatherType
 constexpr double DOOM_PER_METER = 100 * 0.75;		// Unity units are 100 Daggerfall units; Doom maps are at 0.75.
 constexpr int LOOP_CHANNEL = 77;					// player channel for the rain and cricket loops
 constexpr int SKY_W = 512, SKY_H = 220, NIGHT_H = 219;
+constexpr int FOG_UNITS = 16;						// sector fog density steps per Doom fog density 1
 
 struct World { int index = -1, frame = 0, stars = 0, night = 0, ambient = 0, weather = 0, loop = 0, sun = 0, elevation = 90; };	// elevation: sun height in degrees, 90 when not sent
 World world;
@@ -148,7 +151,10 @@ PalEntry Average(const uint32_t *p, int count)
 
 void UpdateSky()
 {
-	const int key = world.stars ? 1000 + world.index : world.index * 64 + world.frame;
+	// Heavy fog also fogs Daggerfall's sky (excludeSkybox off, 0.05/m): at sky distance that is the fog colour alone.
+	const bool fogSky = haveFog && fogLine.on && fogLine.sky && FogDensity() > 0;
+	const PalEntry fogSkyColor = fogSky ? FogTint() : PalEntry(0);
+	const int key = fogSky ? -2 - int(fogSkyColor.d & 0xffffff) : world.stars ? 1000 + world.index : world.index * 64 + world.frame;
 	FTextureID id = TexMan.CheckForTexture("DFSKY", ETextureType::Any);
 	if (!id.isValid()) return;
 	FGameTexture *current = TexMan.GetGameTexture(id);
@@ -156,7 +162,8 @@ void UpdateSky()
 	const auto started = std::chrono::steady_clock::now();
 	std::vector<uint32_t> image;
 	skyShown = key;
-	if (!BuildSky(image))
+	if (fogSky) image.assign(size_t(2 * SKY_W) * SKY_H, uint32_t(fogSkyColor.d) | 0xff000000u);
+	else if (!BuildSky(image))
 	{
 		DD_DebugPrintf("DDWEATHER sky %d frame %d stars %d could not be read (is -ddarena2 set?)\n", world.index, world.frame, world.stars);
 		return;
@@ -175,12 +182,25 @@ void UpdateSky()
 	caps.first = Average(skyPixels->pixels.data(), 2 * SKY_W * 30);
 	caps.second = Average(skyPixels->pixels.data() + 2 * SKY_W * (SKY_H - 30), 2 * SKY_W * 30);
 	const long long us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - started).count();
-	DD_DebugPrintf("DDWEATHER sky %d frame %d%s (%lld us)\n", world.index, world.frame, world.stars ? " night with stars" : "", us);
+	DD_DebugPrintf("DDWEATHER sky %d frame %d%s (%lld us)\n", world.index, world.frame, fogSky ? " fogged" : world.stars ? " night with stars" : "", us);
 }
 
-// WeatherManager's outdoor fog, as a Doom fog density (fog factor exp(-density * distance / 64000)).
+// Unity's fog as Daggerfall draws it now, from the bridge line "fog <on> <mode> <density> <start> <end> <r> <g> <b> <sky>".
+struct FogLine { int on = 0, mode = 0; float density = 0, start = 0, end = 0; int r = 0, g = 0, b = 0, sky = 0; };
+FogLine fogLine;
+bool haveFog;
+
+// Daggerfall's fog, as a Doom fog density (fog factor exp(-density * distance / 64000)).
 float FogDensity()
 {
+	if (haveFog)
+	{
+		if (!fogLine.on) return 0;
+		// Doom has only exponential fog. Unity's linear fog (clear weather, 0 to 2400 m) is matched at half its
+		// range, where both are half fogged; exponential squared is taken as exponential.
+		const float perMeter = fogLine.mode == 1 ? (fogLine.end > fogLine.start ? float(M_LN2 / ((fogLine.end - fogLine.start) / 2)) : 0.f) : fogLine.density;
+		return float(perMeter * 64000 / DOOM_PER_METER);
+	}
 	float perMeter = 0;
 	switch (world.weather)
 	{
@@ -193,7 +213,10 @@ float FogDensity()
 
 PalEntry FogTint()
 {
-	// SetSkyFogColor: grey for anything denser than rain fog, otherwise the sky's colour.
+	// Unity's own fog colour when Daggerfall sends it; black (interiors, dungeons) is sent as the darkest colour that
+	// Doom still treats as coloured fog, since Doom's black "fog" is its light-level distance shading instead.
+	if (haveFog) return fogLine.r | fogLine.g | fogLine.b ? PalEntry(fogLine.r, fogLine.g, fogLine.b) : PalEntry(1, 1, 1);
+	// Older Daggerfall builds: SetSkyFogColor: grey for anything denser than rain fog, otherwise the sky's colour.
 	return FogDensity() > 0.003f * 64000 / DOOM_PER_METER + 0.01f ? PalEntry(128, 128, 128) : PalEntry(fogColor.r, fogColor.g, fogColor.b);
 }
 
@@ -216,26 +239,37 @@ void ApplyLight(FLevelLocals *Level)
 	const int light = clamp(int(*dd_daylight_min + (*dd_daylight_max - *dd_daylight_min) * std::min(Daylight(), 1.f) + 0.5f), 0, 255);
 	const float density = FogDensity();
 	const PalEntry tint = density > 0 ? FogTint() : PalEntry(0);
-	const int key = place == 1 ? (light << 16) ^ int(density * 100) ^ (int(tint.d) << 3) : place == 2 ? 1 + world.night : 0;
+	// Interiors and dungeons take fog only when Daggerfall sends its own (older builds sent weather alone).
+	const bool fog = place == 1 || (haveFog && (place == 2 || place == 3));
+	const int fogUnits = fog ? int(density * FOG_UNITS + 0.5f) : 0;
+	const int key = ((place == 1 ? light : place == 2 ? 1 + world.night : 0) << 20) ^ (fogUnits << 4) ^ int(tint.d) ^ place;
 	if (key == applied) return;
 	applied = key;
-	if (place == 1)
+	if (fog)
 	{
+		// Sector fog densities are whole numbers and Daggerfall's clear fog is about 0.5, so this level's sectors
+		// hold them in 1/FOG_UNITS steps (dd_fog_unit, read by hw_lighting.cpp).
+		dd_fog_unit = 1.f / FOG_UNITS;
 		for (auto &sec : Level->sectors)
 		{
-			sec.SetLightLevel(light);
 			sec.SetFade(tint);
-			sec.SetFogDensity(int(density + 0.5f));
+			sec.SetFogDensity(fogUnits);
 		}
-		DD_DebugPrintf("DDWEATHER exterior light %d (ambient %d, sun %d at %d deg), weather %d, fog %.1f, %d sectors\n", light, world.ambient, world.sun, world.elevation, world.weather, density, int(Level->sectors.Size()));
+	}
+	if (place == 1)
+	{
+		for (auto &sec : Level->sectors) sec.SetLightLevel(light);
+		DD_DebugPrintf("DDWEATHER exterior light %d (ambient %d, sun %d at %d deg), weather %d, fog %.2f colour %06x, %d sectors\n", light, world.ambient, world.sun, world.elevation, world.weather, density, int(tint.d & 0xffffff), int(Level->sectors.Size()));
 	}
 	else if (place == 2)
 	{
 		// PlayerAmbientLight: interiors 0.18 grey by day, (0.20, 0.18, 0.20) at night.
 		const PalEntry color = world.night ? PalEntry(255, 230, 255) : PalEntry(255, 255, 255);
 		for (auto &sec : Level->sectors) sec.SetColor(color, 0);
-		DD_DebugPrintf("DDWEATHER interior %s\n", world.night ? "night tint" : "day");
+		DD_DebugPrintf("DDWEATHER interior %s, fog %.2f colour %06x\n", world.night ? "night tint" : "day", fog ? density : 0.f, int(tint.d & 0xffffff));
 	}
+	else if (fog)
+		DD_DebugPrintf("DDWEATHER dungeon fog %.2f colour %06x\n", density, int(tint.d & 0xffffff));
 }
 
 // Daggerfall's clips, from DAGGER.SND (a number-record BSA of 8-bit mono 11025 Hz sounds), wrapped as WAV lumps.
@@ -354,6 +388,15 @@ bool DD_WeatherText(const char *text)
 	World w;
 	int clip;
 	if (sscanf(text, "amb %d", &clip) == 1) { PlayOneShot(clip); return true; }
+	FogLine f;
+	if (sscanf(text, "fog %d %d %f %f %f %d %d %d %d", &f.on, &f.mode, &f.density, &f.start, &f.end, &f.r, &f.g, &f.b, &f.sky) == 9)
+	{
+		if (!haveFog || f.on != fogLine.on || f.mode != fogLine.mode || f.density != fogLine.density || f.end != fogLine.end || f.sky != fogLine.sky)
+			DD_DebugPrintf("DDWEATHER fog from Daggerfall: on %d mode %d density %g start %g end %g colour %d %d %d sky %d\n", f.on, f.mode, f.density, f.start, f.end, f.r, f.g, f.b, f.sky);
+		fogLine = f;
+		haveFog = true;
+		return true;
+	}
 	if (sscanf(text, "sky %d %d %d %d %d %d %d %d %d", &w.index, &w.frame, &w.stars, &w.night, &w.ambient, &w.weather, &w.loop, &w.sun, &w.elevation) < 8) return false;
 	if (!haveWorld || w.weather != world.weather || w.index != world.index || w.stars != world.stars)
 		DD_DebugPrintf("DDWEATHER from Daggerfall: sky %d frame %d stars %d night %d ambient %d weather %d loop %d\n", w.index, w.frame, w.stars, w.night, w.ambient, w.weather, w.loop);
@@ -373,7 +416,7 @@ bool DD_WeatherMeshLight(float &brightness)
 // Fog for the DFMesh layer, which draws outside Doom's sector lighting (hw_dfmesh.cpp).
 bool DD_WeatherFog(PalEntry &color, float &density)
 {
-	if (!*dd_weather || !haveWorld || place != 1) return false;
+	if (!*dd_weather || !haveWorld || place < 1 || (place != 1 && !haveFog)) return false;
 	density = FogDensity();
 	color = FogTint();
 	return density > 0;
@@ -382,7 +425,7 @@ bool DD_WeatherFog(PalEntry &color, float &density)
 void DD_WeatherTick(FLevelLocals *Level)
 {
 	static int lastTime;
-	if (Level->maptime < lastTime || Level->maptime <= 1) applied = -1;	// a new map or a load: sectors are as the map made them
+	if (Level->maptime < lastTime || Level->maptime <= 1) applied = -1, dd_fog_unit = 1.f;	// a new map or a load: sectors are as the map made them
 	lastTime = Level->maptime;
 	AActor *pmo = Level->Players[consoleplayer]->mo;
 	if (!pmo) return;

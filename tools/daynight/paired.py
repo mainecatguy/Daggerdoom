@@ -26,7 +26,8 @@ import install  # noqa: E402  (only for its registry isolation)
 sys.argv = argv
 
 BUILD = Path(r"D:\dev\DoomDaggerfall-build")
-REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\daynight")
+REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\daynight")  # --review changes it
+UZDOOM = "uzdoom-daynight"  # --uzdoom-build changes it
 DEMO = Path(r"D:\dev\DoomDaggerfall-loop\review\doom-items")  # Doom side data. Not modified.
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
@@ -83,7 +84,7 @@ def run(name, steps, hold, weather, draw, doom_args):
     if draw:
         df += ["-dfworldlookshots", str(df_shots)]
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(BUILD / "launcher-daynight" / "Release" / "doomerfall-launcher.exe"),
-               "--minimized"] + ([] if draw else ["--nodraw"]) + ["--uzdoom", str(BUILD / "uzdoom-daynight" / "Release" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"),
+               "--minimized"] + ([] if draw else ["--nodraw"]) + ["--uzdoom", str(BUILD / UZDOOM / "Release" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"),
                "--iwad", str(GAME / "wads" / "DOOM2.WAD"), "--uzdoom-cwd", str(runs), "--log", str(launcher)]
     for mod in [MODS / n for n in DRLA] + [DEMO / "data" / "ddruntime.pk3", DEMO / "data" / "overworld.pk3", DEMO / "dfitems.pk3", DEMO / "doomerfall.pk3"]:
         command += ["--mod", str(mod)]
@@ -127,6 +128,12 @@ if __name__ == "__main__":
     ap.add_argument("--hold", type=float, default=5)
     ap.add_argument("--weather", type=int, default=1)
     ap.add_argument("--draw", action="store_true")
+    ap.add_argument("--review", help="output folder (default the day/night one)")
+    ap.add_argument("--uzdoom-build", help="build folder name under DoomDaggerfall-build")
     ap.add_argument("--doom-args", nargs=argparse.REMAINDER, default=[])
     a = ap.parse_args()
+    if a.review:
+        REVIEW = Path(a.review)
+    if a.uzdoom_build:
+        UZDOOM = a.uzdoom_build
     stage() if a.command == "stage" else run(a.name, a.steps, a.hold, a.weather, a.draw, a.doom_args)
