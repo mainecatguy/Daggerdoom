@@ -1,6 +1,6 @@
 """Fixed drops with Daggerfall and Doom together, against an installed play folder (scripts/play/install.py).
 
-usage: paired.py <play folder> assemble|fresh|save|load|compare [--area N]
+usage: paired.py <play folder> assemble|fresh|save|load|compare [--area N] [--out <results folder name>]
   assemble  builds this lane's UZDoom, bridge and launcher and puts a play folder together (Unity must be built).
   fresh  a real New Game, arrive in Privateer's Hold, kill the monsters near the start, list the drops, take one gun.
   save   the same, but makes a bundled autosave just before the kill.
@@ -11,10 +11,12 @@ Wrap the whole script in quiet_run.py: it starts the launcher itself, so its win
 Config, saves and logs go to <play folder>/../fixed-drops-paired.
 """
 import re
+import struct
 import subprocess
 import sys
 import time
 import zipfile
+import zlib
 from collections import Counter
 from pathlib import Path
 
@@ -35,10 +37,25 @@ TRY = [
 FATAL = ("DIED WITH FATAL", "VM execution aborted", "Script error")
 
 
-def make_harness(out, name):
+def door_spot(play):
+    """Privateer's Hold's dungeon door on DDT07154 (x y z nx ny), from the town cache's DDDOORS lump, as tools/dungeon_reentry."""
+    path = play / "data" / "cache" / "T07154.ddt"
+    if not path.exists():
+        return "0, 0, 0, 1, 0"
+    with open(path, "rb") as f:
+        f.read(4)
+        count = struct.unpack("<i", f.read(4))[0]
+        heads = [(f.read(8).rstrip(b"\0").decode(), *struct.unpack("<II", f.read(8))) for _ in range(count)]
+        lumps = {n: zlib.decompress(f.read(packed)) if raw else b"" for n, raw, packed in heads}
+    door = next(l.split() for l in lumps["DDDOORS"].decode().splitlines() if l.split()[:1] == ["1"])
+    return ", ".join(door[3:8])
+
+
+def make_harness(out, name, play=None):
     harness = out / f"paired-{name}.pk3"
     with zipfile.ZipFile(harness, "w") as z:
-        z.writestr("zscript.txt", (HERE / "paired.zs").read_text().replace("@MODE@", str({"fresh": 0, "save": 1, "load": 2}[name.rstrip("0123456789")])))
+        text = (HERE / "paired.zs").read_text().replace("@MODE@", str({"fresh": 0, "save": 1, "load": 2, "travel": 3}[name.rstrip("0123456789")]))
+        z.writestr("zscript.txt", text.replace("@DOOR@", door_spot(play) if play else "0, 0, 0, 1, 0"))
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "PDHarness" }\n')
     return harness
 
@@ -64,7 +81,7 @@ def run(play, out, name, area):
     autosaves = sorted(saves.glob("*auto*.zds"), key=lambda p: p.stat().st_mtime)  # <character>-autoNN.zds
     if name == "load" and not autosaves:
         sys.exit("no autosave from the save run")
-    harness = make_harness(out, name)
+    harness = make_harness(out, name, play) if name.startswith("travel") else make_harness(out, name)  # civilwar.py swaps in its own two-argument one.
     uz_log, df_log, console, launcher = out / f"{name}-uz.log", out / f"{name}-df.log", out / f"log-{name}.txt", out / f"{name}-launcher.log"
     for path in (uz_log, df_log, console, launcher):
         path.unlink(missing_ok=True)
@@ -76,6 +93,9 @@ def run(play, out, name, area):
     df = ["-dfbridgelog", str(df_log), "-dfmute", "-dfarealevel", str(area), "-screen-fullscreen", "0", "-screen-width", "1280", "-screen-height", "800"]
     if name == "load":
         uz += ["-skill", "3", "+map", "DDT07154", "-dfloadtest", f"resume:{autosaves[-1]}"]
+        df += ["-dfsynctest", ng.DAGGER]
+    elif name.startswith("travel"):  # The test start: a character in Daggerfall city, who has never been to Privateer's Hold.
+        uz += ["-skill", "3", "+map", "DDOVER01"]
         df += ["-dfsynctest", ng.DAGGER]
     else:
         uz += ["-dfflow", "-dfnewgametest", "once", "-dfuitest", "0"]
@@ -188,6 +208,13 @@ def summary(out, name):
     # id) anywhere on the level, a corpse or floor item without one, a plain ammo drop without one.
     unseeded = re.findall(r"^(PDALIVE .*|PDNOID .*|PDUNSEEDED .*|PDAMMOUNSEEDED .*|PDCORPSE .* seed 00000000)$", text, re.M)
     plain = re.findall(r"^PDAMMOPLAIN (\d+)$", text, re.M)
+    # Phase 6: summoned monsters (no Daggerfall id) drop nothing, whoever kills them. Any loose item after their deaths
+    # fails, and so does a run where no Lost Soul or no drone died by the player's hand and by a placed monster's.
+    summoned = re.search(r"^PDSUMMONED died (\d+), souls by player (\d+) by monster (\d+), drones by player (\d+) by monster (\d+), drops (\d+)$", text, re.M)
+    covered = bool(summoned) and all(int(summoned.group(i)) > 0 for i in range(2, 6))
+    unseeded += re.findall(r"^(PDSUMMONDROP .*|PDSUMMONALIVE .*)$", text, re.M)
+    if not covered:
+        unseeded.append("PDSUMMONED missing or incomplete: " + (summoned.group(0) if summoned else "no line"))
     return {"result": text.splitlines()[0], "kills": kills, "drops": drops, "take": take, "material": material,
             "unseeded": unseeded, "plain": plain}
 
@@ -219,7 +246,12 @@ if __name__ == "__main__":
     if len(sys.argv) < 3:
         sys.exit(__doc__)
     play = Path(sys.argv[1]).resolve()
-    out = play.parent / "fixed-drops-paired"
+    if "--out" in sys.argv:  # Results folder beside the play folder; the value is not a run name.
+        i = sys.argv.index("--out")
+        out = play.parent / sys.argv[i + 1]
+        del sys.argv[i:i + 2]
+    else:
+        out = play.parent / "fixed-drops-paired"
     out.mkdir(exist_ok=True)
     area = int(sys.argv[sys.argv.index("--area") + 1]) if "--area" in sys.argv else 10
     if sys.argv[2] == "assemble":

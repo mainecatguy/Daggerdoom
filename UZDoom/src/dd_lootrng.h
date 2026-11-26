@@ -30,4 +30,5 @@ void DD_LootDied(AActor *mo);			// A monster with a Daggerfall id starts dying: 
 void DD_LootInherit(AActor *mo);		// Spawned during a loot roll: a drop, a drop helper or a spawner gets its own state.
 uint64_t *DD_LootMapThingSeed(FLevelLocals *Level, FMapThing *mt, int index);	// Null outside bridge sessions.
 uint64_t DD_LootItemId(AActor *item);	// The lasting id of a floor item, or 0 when it has none.
+bool DD_LootVanish(AActor *mo);			// A loose item a dying summoned monster made: destroyed, true. Never true outside bridge sessions.
 uint64_t *DD_AiStateFor(DThinker *th);	// The live random state a thinker ticks under, or null (always null outside bridge sessions).

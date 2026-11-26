@@ -1269,6 +1269,7 @@ public:
 	double SqueezeRadius() const { return (flags3 & MF3_ISMONSTER) && !player && !(flags & (MF_MISSILE | MF_SKULLFLY)) ? radius * DD_MonsterMoveScale : radius; }
 	// [Doomerfall] Width against level geometry in this check: radius, or SqueezeRadius while P_TryMove squeezes this actor.
 	double MoveRadius() const { return this == DD_SqueezeActor ? SqueezeRadius() : radius; }
+	uint8_t			ddNoDrops = 0;	// [Doomerfall] Spawned by a dying summoned monster: its loose items are removed (dd_lootrng.cpp). Zero on all stock actors.
 	DVector3		SpawnPoint; 	// For nightmare respawn
 	int				StartHealth;
 	uint8_t			WeaveIndexXY;	// Separated from special2 because it's used by globally accessible functions.

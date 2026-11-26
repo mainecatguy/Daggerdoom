@@ -2679,6 +2679,7 @@ void DDTreadmill_BeginMap(FLevelLocals *Level)
 bool DDTreadmill_RuntimeTowns() { return runtimeTowns; }
 // Where the player is, for Daggerfall's world look (dd_weather.cpp): 0 none, 1 exterior, 2 building interior, 3 dungeon.
 int DDTreadmill_Place() { return DDTreadmill_Active ? 1 : !townActive || currentTown < 0 ? 0 : !towns[currentTown].space ? 1 : towns[currentTown].spaceId < DUNGEON_SPACE ? 2 : 3; }
+bool DDTreadmill_OnDaggerfallMap() { return DDTreadmill_Active || townActive; }
 level_info_t *DDTreadmill_LevelInfoAt(unsigned index) { return index < runtimeInfos.size() ? &runtimeInfos[index] : nullptr; }
 bool DDTreadmill_HandoffPending() { return handoff.pending; }
 
