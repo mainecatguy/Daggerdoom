@@ -22,8 +22,14 @@ Endurance can go, past 100 for tough classes. A Barbarian gets +17, a Warrior +1
 
 ## Levelling up
 
-Your level comes from your skills, as in Daggerfall. Using skills in play counts toward raising them, but skills
-only go up, and a new level is only granted, when time passes on a trip: today that means **fast travel**.
+Your level comes from your skills, as in Daggerfall. Not every skill can be trained by use yet:
+
+- **Fighting in Doom does not train any skill yet.** Weapon skills, Hand-to-Hand, Critical Strike, Dodging and the
+  magic schools do not improve from combat or spells cast in Doom.
+- What does count today: **Climbing** (each climb), and what you do in Daggerfall's own windows, such as
+  **Etiquette** and **Streetwise** when talking to people, and **Mercantile** when buying and selling.
+
+Skills only go up, and a new level is only granted, when time passes on a trip: today that means **fast travel**.
 
 When you have earned a level, Daggerfall's character sheet opens by itself inside Doom when you arrive:
 
