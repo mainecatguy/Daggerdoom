@@ -79,6 +79,10 @@ void DD_ClimbFrame(dfb_session *session);
 void DD_FacesFrame(dfb_session *session);
 bool DD_ClimbNetEvent(dfb_session *session, const char *name);
 bool DD_GuardsEvent(const dfb_event &e);
+bool DD_DoorsEvent(const dfb_event &e);
+bool DD_DoorsNetEvent(dfb_session *session, const char *name);
+void DD_DoorsFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t target);
+void DD_DoorsResync();
 void DD_LightsSetCity(bool on);	// playsim/dd_lights.cpp
 void DD_GuardsFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t target);
 void DD_GuardDied(dfb_session *session, AActor *mo);
@@ -325,7 +329,7 @@ void HandleEvent(const dfb_event &e, int64_t now)
 		Log("hello from Daggerfall (seq %u)", e.seq);
 		break;
 	default:
-		if (!DD_ItemsEvent(e) && !DD_MonstersEvent(e) && !DD_NpcsEvent(e) && !DD_InfoEvent(e) && !DD_LookEvent(e) && !DD_TownsfolkEvent(e) && !DD_GuardsEvent(e)) unknownKinds++; // contract rule 7: skip, never fatal
+		if (!DD_ItemsEvent(e) && !DD_MonstersEvent(e) && !DD_NpcsEvent(e) && !DD_InfoEvent(e) && !DD_LookEvent(e) && !DD_TownsfolkEvent(e) && !DD_GuardsEvent(e) && !DD_DoorsEvent(e)) unknownKinds++; // contract rule 7: skip, never fatal
 		break;
 	}
 }
@@ -756,7 +760,7 @@ void DD_BridgeMonsterDied(AActor *mo)
 // A ZScript pickup request, seen as its network event runs. False for every other event and outside a session.
 bool DD_BridgeItemNetEvent(const char *name)
 {
-	return session && (DD_ItemsNetEvent(session, name) || DD_InfoNetEvent(session, name) || DD_ClimbNetEvent(session, name));
+	return session && (DD_ItemsNetEvent(session, name) || DD_InfoNetEvent(session, name) || DD_ClimbNetEvent(session, name) || DD_DoorsNetEvent(session, name));
 }
 
 bool DD_BridgeNetEvent(const char *name)
@@ -1731,6 +1735,7 @@ void HandleLoadResume(const dfb_event &e)
 	pauseext = false;
 	M_ClearMenus();
 	DD_ItemsResync();
+	DD_DoorsResync();
 	DD_MonstersResync();
 	DD_NpcsResync();
 	DD_TownsfolkResync();
@@ -2403,6 +2408,7 @@ void DD_BridgeFrame()
 	DD_ClimbFrame(session);
 	DD_FacesFrame(session);
 	DD_GuardsFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
+	DD_DoorsFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
 	DD_LookFrame(session);
 
 	ownState.uz_heartbeat++;

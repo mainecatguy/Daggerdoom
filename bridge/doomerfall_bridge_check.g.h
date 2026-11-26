@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x0b906f7e016a99fbULL
+#define DFB_SCHEMA_HASH 0x2d073bff00e11c7dULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -111,6 +111,22 @@ static_assert((DFB_KIND_AMMO_CHANGE) == (177), DFB_STALE);
 static_assert((DFB_KIND_AMMO_UNLOAD) == (178), DFB_STALE);
 static_assert((DFB_KIND_AMMO_UNLOADED) == (179), DFB_STALE);
 static_assert((DFB_KIND_AMMO_LOADED) == (180), DFB_STALE);
+static_assert((DFB_KIND_DOOR_USE) == (190), DFB_STALE);
+static_assert((DFB_KIND_DOOR_STATE) == (191), DFB_STALE);
+static_assert((DFB_KIND_LOCKPICK) == (192), DFB_STALE);
+static_assert((DFB_KIND_DOORS_REQUEST) == (193), DFB_STALE);
+static_assert((DFB_KIND_DOOR_TEXT) == (194), DFB_STALE);
+static_assert((DFB_DOOR_DUNGEON) == (1u), DFB_STALE);
+static_assert((DFB_DOOR_UNLOCKED) == (0u), DFB_STALE);
+static_assert((DFB_DOOR_LOCKED) == (1u), DFB_STALE);
+static_assert((DFB_DOOR_MAGIC) == (2u), DFB_STALE);
+static_assert((DFB_PICK_MISS) == (0u), DFB_STALE);
+static_assert((DFB_PICK_HIT) == (1u), DFB_STALE);
+static_assert((DFB_PICK_CANCEL) == (2u), DFB_STALE);
+static_assert((DFB_DOOR_OPEN) == (1u), DFB_STALE);
+static_assert((DFB_DOOR_PICK) == (2u), DFB_STALE);
+static_assert((DFB_DOOR_LIST_BEGIN) == (4u), DFB_STALE);
+static_assert((DFB_DOOR_LIST_END) == (8u), DFB_STALE);
 static_assert((DFB_KIND_PLAIN_LOAD) == (220), DFB_STALE);
 static_assert((DFB_KIND_STARTER) == (221), DFB_STALE);
 static_assert((DFB_KIND_NPC_USE) == (100), DFB_STALE);
@@ -159,6 +175,7 @@ static_assert((DFB_INFO_BUILDING) == (2u), DFB_STALE);
 static_assert((DFB_INFO_MONSTER) == (3u), DFB_STALE);
 static_assert((DFB_INFO_TOWNSPERSON) == (4u), DFB_STALE);
 static_assert((DFB_INFO_PILE) == (5u), DFB_STALE);
+static_assert((DFB_INFO_DOOR) == (6u), DFB_STALE);
 static_assert((DFB_INFO_HUD) == (0u), DFB_STALE);
 static_assert((DFB_INFO_MID) == (1u), DFB_STALE);
 static_assert((DFB_INFO_MORE) == (1u), DFB_STALE);
@@ -533,6 +550,22 @@ static_assert(offsetof(dfb_doom_item, status) == 4, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_doom_item::status), uint32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_doom_item, cls) == 8, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_doom_item::cls), char[40]>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_door) == 32, DFB_STALE);
+static_assert(offsetof(dfb_door, id) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_door::id), uint64_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_door, kind) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_door::kind), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_door, state) == 12, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_door::state), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_door, chance) == 16, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_door::chance), int32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_door, picks) == 20, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_door::picks), int32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_door, flags) == 24, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_door::flags), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_door, pad) == 28, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_door::pad), uint32_t>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_item_art) == 144, DFB_STALE);
 static_assert(offsetof(dfb_item_art, request) == 0, DFB_STALE);

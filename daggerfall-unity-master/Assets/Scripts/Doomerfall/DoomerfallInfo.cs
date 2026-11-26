@@ -56,6 +56,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     return person != null ? person.Name : "";
                 case Dfb.INFO_PILE:
                     return Items ? Items.Label(id) : "";
+                case Dfb.INFO_DOOR:
+                    return DoomerfallLocks.Label(DoomerfallLocks.Find(id));
                 case Dfb.INFO_BUILDING:
                     // As Daggerfall's Info names a building (PlayerActivate.ActivateBuilding), without discovering it.
                     StaticBuilding building;
@@ -186,7 +188,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         }
 
         // Long messages go out in parts. Doom joins them until an event without DFB_INFO_MORE.
-        void Send(uint request, string text, bool mid, ushort kind = Dfb.KIND_INFO_TEXT)
+        internal void Send(uint request, string text, bool mid, ushort kind = Dfb.KIND_INFO_TEXT)
         {
             byte[] bytes = Encoding.UTF8.GetBytes(text);
             int at = 0;

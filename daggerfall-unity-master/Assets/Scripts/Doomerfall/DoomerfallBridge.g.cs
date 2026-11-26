@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x0b906f7e016a99fbUL;
+        public const ulong SchemaHash = 0x2d073bff00e11c7dUL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -111,6 +111,22 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_AMMO_UNLOAD = 178;  // DF to UZ; request is a number; status 1 is automatic (refused while the magazine holds rounds); cls is the reserve class
         public const ushort KIND_AMMO_UNLOADED = 179;  // UZ to DF; request echoes AMMO_UNLOAD; status is the rounds taken out of the magazine, or 0xFFFFFFFF refused
         public const ushort KIND_AMMO_LOADED = 180;  // DF to UZ; request is the loaded tier (0xFFFFFFFF none), status the ammo type (0 Clip to 3 Cell); cls is the ammo's tags, comma separated
+        public const ushort KIND_DOOR_USE = 190;  // UZ to DF; Use on a door Doom holds as locked; payload: dfb_door
+        public const ushort KIND_DOOR_STATE = 191;  // DF to UZ; one door's lock state, an answer to DOOR_USE, or one entry of the locked list; payload: dfb_door
+        public const ushort KIND_LOCKPICK = 192;  // UZ to DF; the minigame result for a DFB_DOOR_PICK answer; state is DFB_PICK_*; payload: dfb_door
+        public const ushort KIND_DOORS_REQUEST = 193;  // UZ to DF; send the locked list again (a new map, or a load); payload: dfb_door
+        public const ushort KIND_DOOR_TEXT = 194;  // DF to UZ; a HUD message about a door (Daggerfall's words); payload: dfb_info_text; DFB_INFO_MORE as on INFO_TEXT
+        public const uint DOOR_DUNGEON = 1;
+        public const uint DOOR_UNLOCKED = 0;  // dfb_door.state
+        public const uint DOOR_LOCKED = 1;
+        public const uint DOOR_MAGIC = 2;  // magically held; cannot be picked
+        public const uint PICK_MISS = 0;  // dfb_door.state on DFB_KIND_LOCKPICK
+        public const uint PICK_HIT = 1;
+        public const uint PICK_CANCEL = 2;
+        public const uint DOOR_OPEN = 1;  // dfb_door.flags: Doom opens this door now (after a hit)
+        public const uint DOOR_PICK = 2;  // start the minigame with chance; picks is the count held
+        public const uint DOOR_LIST_BEGIN = 4;  // the first event of the full locked list; Doom forgets every earlier lock state
+        public const uint DOOR_LIST_END = 8;  // the last event of that list; an event with id 0 carries no door
         public const ushort KIND_PLAIN_LOAD = 220;  // DF to UZ; payload: dfb_plain_load
         public const ushort KIND_STARTER = 221;  // UZ to DF; the starter gun; payload: dfb_doom_item, cls the pistol's world pickup class (empty for none), request its weapon slot (low 8 bits, 255 for none) plus (reserve ammo type + 1) << 8 (0 Clip to 3 Cell), status the class's start amount of that ammo
         public const ushort KIND_NPC_USE = 100;  // UZ to DF; payload: dfb_npc_use
@@ -159,6 +175,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint INFO_MONSTER = 3;  // a Doom monster, named by the DFB_KIND_INFO_NAME just before
         public const uint INFO_TOWNSPERSON = 4;  // DFB_KIND_LOOK: dfb_info_request.id is a townsperson id
         public const uint INFO_PILE = 5;  // DFB_KIND_LOOK: dfb_info_request.id is a world item (pile or container) id
+        public const uint INFO_DOOR = 6;  // DFB_KIND_LOOK: dfb_info_request.id is a dungeon door's LoadID
         public const uint INFO_HUD = 0;  // dfb_info_text.style: Daggerfall's scrolling HUD message
         public const uint INFO_MID = 1;  // dfb_info_text.style: Daggerfall's mid-screen message
         public const uint INFO_MORE = 1;  // dfb_event.flags on DFB_KIND_INFO_TEXT
@@ -263,8 +280,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint TOWNSFOLK_INTERIOR = 1;
 
         // Native size of every generated struct, for the attach check.
-        public static readonly Type[] StructTypes = { typeof(DfbFaces), typeof(DfbFace), typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbPlainLoad), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbWorldContainer), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbInfoRequest), typeof(DfbInfoText), typeof(DfbDoomItem), typeof(DfbItemArt), typeof(DfbClimbUses), typeof(DfbNpcUse), typeof(DfbNpcUseResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbEncounterArea), typeof(DfbEncounterText), typeof(DfbNpc), typeof(DfbTownsfolk), typeof(DfbTownsperson), typeof(DfbTownspersonDeath), typeof(DfbGuardSpawn), typeof(DfbGuardDeath), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
-        public static readonly int[] StructSizes = { 8, 16, 64, 24, 24, 16, 24, 24, 48, 32, 48, 48, 32, 16, 48, 40, 16, 48, 32, 48, 48, 144, 8, 24, 16, 32, 32, 48, 48, 16, 32, 40, 24, 40, 8, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
+        public static readonly Type[] StructTypes = { typeof(DfbFaces), typeof(DfbFace), typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbPlainLoad), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbWorldContainer), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbInfoRequest), typeof(DfbInfoText), typeof(DfbDoomItem), typeof(DfbDoor), typeof(DfbItemArt), typeof(DfbClimbUses), typeof(DfbNpcUse), typeof(DfbNpcUseResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbEncounterArea), typeof(DfbEncounterText), typeof(DfbNpc), typeof(DfbTownsfolk), typeof(DfbTownsperson), typeof(DfbTownspersonDeath), typeof(DfbGuardSpawn), typeof(DfbGuardDeath), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
+        public static readonly int[] StructSizes = { 8, 16, 64, 24, 24, 16, 24, 24, 48, 32, 48, 48, 32, 16, 48, 40, 16, 48, 32, 48, 48, 32, 144, 8, 24, 16, 32, 32, 48, 48, 16, 32, 40, 24, 40, 8, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
     }
 
     static class DfbBytes
@@ -359,9 +376,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public DfbItemResult itemResult;  // ITEM_RESULT
         [FieldOffset(16)] public DfbWorldContainer worldContainer;  // CONTAINER
         [FieldOffset(16)] public DfbInfoRequest infoRequest;  // INFO, LOOK
-        [FieldOffset(16)] public DfbInfoText infoText;  // INFO_TEXT, INFO_NAME, LOOK_TEXT
+        [FieldOffset(16)] public DfbInfoText infoText;  // INFO_TEXT, INFO_NAME, LOOK_TEXT, DOOR_TEXT
         [FieldOffset(16)] public DfbDoomItem doomItem;  // DOOM_ITEM_TAKE, DOOM_ITEM_RESULT, DOOM_ITEM_USE, DOOM_ITEM_USED, DOOM_ITEM_ART_REQUEST, DOOM_ITEM_ART, STARTER
         [FieldOffset(16)] public DfbClimbUses climbUses;  // CLIMB_USES
+        [FieldOffset(16)] public DfbDoor door;  // DOOR_USE, DOOR_STATE, LOCKPICK, DOORS_REQUEST
         [FieldOffset(16)] public DfbPlainLoad plainLoad;  // PLAIN_LOAD
         [FieldOffset(16)] public DfbNpcUse npcUse;  // NPC_USE
         [FieldOffset(16)] public DfbNpcUseResult npcUseResult;  // NPC_USE_RESULT
@@ -670,6 +688,18 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DfbBytes.Write(destination, 24, 8, cls3);
             DfbBytes.Write(destination, 32, 8, cls4);
         }
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 32)]
+    struct DfbDoor
+    {
+        [FieldOffset(0)] public ulong id;
+        [FieldOffset(8)] public uint kind;  // DFB_DOOR_DUNGEON
+        [FieldOffset(12)] public uint state;  // DFB_DOOR_* or DFB_PICK_*
+        [FieldOffset(16)] public int chance;  // Daggerfall's lockpicking chance, 5 to 95
+        [FieldOffset(20)] public int picks;  // Lockpicks the player holds
+        [FieldOffset(24)] public uint flags;  // DFB_DOOR_OPEN, _PICK, _LIST_BEGIN, _LIST_END
+        [FieldOffset(28)] public uint pad;
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 144)]

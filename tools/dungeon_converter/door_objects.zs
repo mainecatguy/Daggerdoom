@@ -44,8 +44,8 @@ class DFDoor : Actor
 	double pivotX, pivotY, pivotZ, closedAngle, swung, rowY, centerX, centerY, bottom, top, linkRadius;
 	double swingDir;				// 1 unless a city gate leaf opens the other way
 	int moving;
-	int startingLock, loadId;
-	int lockState;				// set only by Daggerfall (dfdoor_lock): 0 not locked or not told, 1 locked, 2 magically held	// Daggerfall's starting lock value and Daggerfall Unity LoadID (0 in older maps); Daggerfall owns the live lock
+	int startingLock, loadId;	// Daggerfall's starting lock value and Daggerfall Unity LoadID (0 in older maps); Daggerfall owns the live lock
+	int lockState;				// set only by Daggerfall (dfdoor_lock): 0 not locked or not told, 1 locked, 2 magically held
 	bool stalled, sightOpen;
 	bool solidWhenOpen;			// city gates: Daggerfall swaps the model, and the open model's leaves stay solid
 	bool passable;				// links are currently non-solid to movement
@@ -202,9 +202,15 @@ class DFDoorHandler : EventHandler
 	Array<DFDoor> doors;
 
 	// Daggerfall's lock state for one door, by LoadID: "dfdoor_lock:<loadId>:<state>[:open]". Doom never decides a door
-	// is locked or unlocked by itself; without these events every door behaves as before.
+	// is locked or unlocked by itself; without these events every door behaves as before. "dfdoor_clear" starts
+	// Daggerfall's full locked list: every door not named in it is unlocked.
 	override void NetworkProcess(ConsoleEvent e)
 	{
+		if (e.Name == "dfdoor_clear")
+		{
+			foreach (d : doors) if (d) d.lockState = 0;
+			return;
+		}
 		if (e.Name.Left(12) != "dfdoor_lock:") return;
 		Array<String> f;
 		e.Name.Split(f, ":");

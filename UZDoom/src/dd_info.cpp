@@ -293,3 +293,6 @@ bool DD_InfoNetEvent(dfb_session *session, const char *name)
 	if (session && consoleplayer >= 0) Press(session, &players[consoleplayer]);
 	return true;
 }
+
+// Daggerfall's message about a door (dd_doors.cpp), shown like Info's.
+void DD_InfoShow(const std::string &text, bool mid) { Show(text, mid); }

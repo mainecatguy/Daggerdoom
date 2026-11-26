@@ -167,6 +167,25 @@ extern "C" {
 #define DFB_KIND_AMMO_UNLOADED 179  /* UZ to DF; request echoes AMMO_UNLOAD; status is the rounds taken out of the magazine, or 0xFFFFFFFF refused */
 #define DFB_KIND_AMMO_LOADED   180  /* DF to UZ; request is the loaded tier (0xFFFFFFFF none), status the ammo type (0 Clip to 3 Cell); cls is the ammo's tags, comma separated */
 
+/* Locked doors. Daggerfall owns every lock; Doom keeps a locked door shut, runs the lockpicking minigame with
+   Daggerfall's chance, and reports the result. id is Daggerfall Unity's LoadID for a dungeon door (DFB_DOOR_DUNGEON). */
+#define DFB_KIND_DOOR_USE      190  /* UZ to DF; Use on a door Doom holds as locked; payload: dfb_door */
+#define DFB_KIND_DOOR_STATE    191  /* DF to UZ; one door's lock state, an answer to DOOR_USE, or one entry of the locked list; payload: dfb_door */
+#define DFB_KIND_LOCKPICK      192  /* UZ to DF; the minigame result for a DFB_DOOR_PICK answer; state is DFB_PICK_*; payload: dfb_door */
+#define DFB_KIND_DOORS_REQUEST 193  /* UZ to DF; send the locked list again (a new map, or a load); payload: dfb_door */
+#define DFB_KIND_DOOR_TEXT     194  /* DF to UZ; a HUD message about a door (Daggerfall's words); payload: dfb_info_text; DFB_INFO_MORE as on INFO_TEXT */
+#define DFB_DOOR_DUNGEON   1u
+#define DFB_DOOR_UNLOCKED  0u  /* dfb_door.state */
+#define DFB_DOOR_LOCKED    1u
+#define DFB_DOOR_MAGIC     2u  /* magically held; cannot be picked */
+#define DFB_PICK_MISS      0u  /* dfb_door.state on DFB_KIND_LOCKPICK */
+#define DFB_PICK_HIT       1u
+#define DFB_PICK_CANCEL    2u
+#define DFB_DOOR_OPEN       1u  /* dfb_door.flags: Doom opens this door now (after a hit) */
+#define DFB_DOOR_PICK       2u  /* start the minigame with chance; picks is the count held */
+#define DFB_DOOR_LIST_BEGIN 4u  /* the first event of the full locked list; Doom forgets every earlier lock state */
+#define DFB_DOOR_LIST_END   8u  /* the last event of that list; an event with id 0 carries no door */
+
 /* A plain Daggerfall save (no Doom half) loaded from DFB_UI_LOAD_GAME. Daggerfall holds the game; Doom starts a game of
    its default class through the New Game chain, goes to the saved place, sends STARTER, then DFB_KIND_NEWGAME_ARRIVED.
    Daggerfall answers DFB_KIND_NEWGAME_GO and gives the starting weapon (the owner's rules, 2026-11-24). */
@@ -240,6 +259,7 @@ extern "C" {
 #define DFB_INFO_MONSTER   3u  /* a Doom monster, named by the DFB_KIND_INFO_NAME just before */
 #define DFB_INFO_TOWNSPERSON 4u /* DFB_KIND_LOOK: dfb_info_request.id is a townsperson id */
 #define DFB_INFO_PILE      5u  /* DFB_KIND_LOOK: dfb_info_request.id is a world item (pile or container) id */
+#define DFB_INFO_DOOR      6u  /* DFB_KIND_LOOK: dfb_info_request.id is a dungeon door's LoadID */
 #define DFB_INFO_HUD       0u  /* dfb_info_text.style: Daggerfall's scrolling HUD message */
 #define DFB_INFO_MID       1u  /* dfb_info_text.style: Daggerfall's mid-screen message */
 #define DFB_INFO_MORE      1u  /* dfb_event.flags on DFB_KIND_INFO_TEXT */
@@ -581,6 +601,18 @@ typedef struct dfb_doom_item
 	uint32_t status;      /* DFB_ITEM_*, on answers */
 	char cls[40];
 } dfb_doom_item;
+
+/* See DFB_KIND_DOOR_USE. */
+typedef struct dfb_door
+{
+	uint64_t id;
+	uint32_t kind;        /* DFB_DOOR_DUNGEON */
+	uint32_t state;       /* DFB_DOOR_* or DFB_PICK_* */
+	int32_t chance;       /* Daggerfall's lockpicking chance, 5 to 95 */
+	int32_t picks;        /* Lockpicks the player holds */
+	uint32_t flags;       /* DFB_DOOR_OPEN, _PICK, _LIST_BEGIN, _LIST_END */
+	uint32_t pad;
+} dfb_door;
 
 /* Header of DFB_ITEM_ART_SLOT. tag is the item's display name, UTF-8, terminated. */
 typedef struct dfb_item_art

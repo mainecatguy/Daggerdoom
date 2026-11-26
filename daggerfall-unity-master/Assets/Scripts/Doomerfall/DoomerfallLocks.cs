@@ -4,8 +4,7 @@
 // answers from the live door in Daggerfall's hidden world, whose unlocked state already persists through Daggerfall's
 // save (SerializableActionDoor).
 //
-// Not connected to the bridge yet: the door request and the minigame result still need bridge messages (see
-// work/notes/20261125-073553.md, "Contract"). Exterior building doors use PlayerActivate's building lock and are not
+// DoomerfallDoors connects it to the bridge. Exterior building doors use PlayerActivate's building lock and are not
 // handled here yet.
 
 using System.Collections.Generic;
@@ -29,7 +28,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (doors.TryGetValue(loadId, out door) && door)
                 return door;
             doors.Clear(); // the area changed, or the door is new: index the area again
-            foreach (DaggerfallActionDoor d in Object.FindObjectsOfType<DaggerfallActionDoor>())
+            PlayerEnterExit enterExit = GameManager.Instance.PlayerEnterExit;
+            Component area = enterExit.IsPlayerInsideDungeon ? (Component)enterExit.Dungeon : enterExit.Interior;
+            if (!area)
+                return null;
+            // Includes inactive objects: Doomerfall hides Daggerfall's 3D world.
+            foreach (DaggerfallActionDoor d in area.GetComponentsInChildren<DaggerfallActionDoor>(true))
                 if (d.LoadID != 0)
                     doors[d.LoadID] = d;
             return doors.TryGetValue(loadId, out door) ? door : null;

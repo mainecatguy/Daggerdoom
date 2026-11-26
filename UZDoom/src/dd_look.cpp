@@ -66,13 +66,17 @@ std::string Ask(dfb_session *session, uint32_t target, uint64_t id, double world
 }
 
 // A converted Daggerfall action door (door_objects.zs DFDoorBlocker) on Doom's use line, within the player's Use range.
-bool ActionDoorInReach(player_t *player)
+// loadId is its door's Daggerfall Unity LoadID, or 0 in an older map.
+bool ActionDoorInReach(player_t *player, uint64_t &loadId)
 {
 	static const FName blocker("DFDoorBlocker");
 	AActor *pmo = player->mo;
 	FLineTraceData trace;
+	loadId = 0;
 	if (!P_LineTrace(pmo, pmo->Angles.Yaw, pmo->FloatVar(NAME_UseRange), pmo->Angles.Pitch, 0, player->viewz - pmo->Z(), 0, 0, &trace)) return false;
-	return trace.HitType == TRACE_HitActor && trace.HitActor && trace.HitActor->GetClass()->TypeName == blocker;
+	if (trace.HitType != TRACE_HitActor || !trace.HitActor || trace.HitActor->GetClass()->TypeName != blocker) return false;
+	if (AActor *door = trace.HitActor->PointerVar<AActor>("door")) loadId = uint64_t(uint32_t(door->IntVar("loadId")));
+	return true;
 }
 
 std::string Label(dfb_session *session)
@@ -109,8 +113,18 @@ std::string Label(dfb_session *session)
 	double doorX, doorY;
 	if (DDTreadmill_DoorInReach(player->mo, doorKind, index, doorX, doorY))
 		return doorKind == 0 ? Ask(session, DFB_INFO_BUILDING, uint64_t(index), doorX, doorY) : "Door";
-	return ActionDoorInReach(player) ? "Door" : "";
+	uint64_t loadId;
+	if (!ActionDoorInReach(player, loadId)) return "";
+	if (loadId == 0) return "Door";
+	const std::string text = Ask(session, DFB_INFO_DOOR, loadId); // Daggerfall names its lock state ("Locked.")
+	return text.empty() ? "Door" : text;
 }
+}
+
+// A door's lock changed (dd_doors.cpp): ask Daggerfall for its label again.
+void DD_LookForgetDoor(uint64_t id)
+{
+	labels.erase(Key(DFB_INFO_DOOR, id));
 }
 
 // Once per tic from the bridge frame. The mod hears the label only when it changes.

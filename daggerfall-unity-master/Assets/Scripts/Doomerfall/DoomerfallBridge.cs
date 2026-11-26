@@ -70,6 +70,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DoomerfallMonsters monsters;
         DoomerfallNpcs npcs;
         DoomerfallInfo info;
+        DoomerfallDoors doors;
         DoomerfallSheet sheet;
         DoomerfallFaces faces;
         internal DoomerfallSheet Sheet { get { return sheet; } }
@@ -200,6 +201,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             npcs.Init(this, sync);
             info = gameObject.AddComponent<DoomerfallInfo>();
             info.Init(this, sync);
+            doors = gameObject.AddComponent<DoomerfallDoors>();
+            doors.Init(this, sync, info);
+            DoomerfallLockTest.Attach(this); // test only: -dflocktest
             DoomerfallTalk talk = gameObject.AddComponent<DoomerfallTalk>();
             talk.Init(this, sync, info);
             ui.Talk = talk;
@@ -458,6 +462,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         break;
                     case Dfb.KIND_AREA_LEVEL_REQUEST:
                         ammo.OnAreaLevelRequest(ev.doomItem.request);
+                        break;
+                    case Dfb.KIND_DOOR_USE:
+                        doors.OnUse(ev.door.id);
+                        break;
+                    case Dfb.KIND_LOCKPICK:
+                        doors.OnLockpick(ev.door.id, ev.door.state);
+                        break;
+                    case Dfb.KIND_DOORS_REQUEST:
+                        doors.OnRequest();
                         break;
                     case Dfb.KIND_CLIMB_USES:
                         DoomerfallClimb.OnUses(this, ev.climbUses.uses);
