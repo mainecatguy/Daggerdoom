@@ -8,7 +8,8 @@ for Daggerfall's "you are healed" message, clicks it away, and expects Daggerfal
 to open the level-up sheet. It spends the points (Strength up arrow) and exits, then checks: time passed, HP full in
 Daggerfall and in Doom, recovery per hour three times Daggerfall's, the new level, and Doom's HUD line.
 run stop: as run, but the harness presses the rest key (Z) after the first hour; Daggerfall must wake the
-player as its own rest key does, and still run the skill check.
+player as its own rest key does. It presses Z again on the wake-up message, which must close that message as a click
+does, so the skill check still opens the level-up sheet.
 run monsters: Doom summons monsters near the player (notarget, so they stay put) and the rest control must be refused
 with Daggerfall's "enemies nearby" message, with no time passing.
 check: DOOM.WAD E1M1 with no bridge, stock and with the DRLA set, and -norun.
@@ -216,7 +217,7 @@ class Run:
             # Doom's rest key mid-rest, after the first hour: Daggerfall's end of rest (wake-up message, then the skill check).
             self.wait(self.views, r"top DaggerfallRestWindow \| hp (?!%d/)\d+/" % start[1], 30)
             doom.press(0x5A)
-            woke = self.wait(self.views, r"top DaggerfallMessageBox", 5) and self.wait(self.df_log, r"rest: Doom's rest key ended the rest", 2)
+            woke = self.wait(self.views, r"top DaggerfallMessageBox", 5) and self.wait(self.df_log, r"rest: Doom's rest key handled by the rest window", 2)
             time.sleep(0.5)
             s = self.state()
             self.case(woke and s and start[1] < s[1] < s[2] and "ui: closed" not in read(self.uz_log).split("opened menu 10", 1)[-1],
@@ -234,7 +235,11 @@ class Run:
         steps = [b - a for a, b in zip(hps, hps[1:]) if b > a]
         self.case(scale == 3 and steps and max(steps) == per_hour,
                   f"HP per hour of rest is 3x Daggerfall's: {per_hour} = 3 x {per_hour // 3} (scale {scale}); steps seen {sorted(set(steps))}, {gained} HP in {hours:.0f} h")
-        doom.click(MESSAGE_CLICK)
+        if self.stop:
+            # The rest key again on the wake-up message: it must close the message as a click does, so the skill check runs.
+            doom.press(0x5A)
+        else:
+            doom.click(MESSAGE_CLICK)
         sheet = self.wait(self.views, r"top DaggerfallCharacterSheetWindow \| [^\n]* level %d ready False" % (start[3] + 1), 10)
         sent = self.wait(self.df_log, r"rest: level up, sent the HUD line for level %d" % (start[3] + 1), 3)
         self.case(sheet and sent, f"the rest's own skill check opened the level-up sheet (level {start[3]} -> {start[3] + 1}) and sent the HUD line")

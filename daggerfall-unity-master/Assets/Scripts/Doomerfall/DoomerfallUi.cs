@@ -221,6 +221,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         RenderTexture scaled;
         uint openId;
         bool waitingForWindow, windowOpen, travelArriving, showingTravelMap;
+        DaggerfallRestWindow restWindow; // DFB_UI_REST: Daggerfall's rest window, kept while popups cover it
         float travelWaitUntil, nextAskAt;
         uint closeReason;
         int waitFrames, hudFrames, pending, surfaceWidth, surfaceHeight;
@@ -268,6 +269,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 {
                     waitingForWindow = false;
                     windowOpen = true;
+                    restWindow = openId == Dfb.UI_REST ? DaggerfallUI.UIManager.TopWindow as DaggerfallRestWindow : null;
                     ChooseSurfaceSize();
                     SendState(Dfb.UI_OPENED, 0);
                     bridge.LogLine(string.Format("ui: menu {0} opened, surface {1}x{2}", openId, surfaceWidth, surfaceHeight));
@@ -476,11 +478,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             if (openId == 0 || id != openId)
                 return;
-            // The rest key during a rest wakes the player as Daggerfall's rest key does (wake-up message, then the skill check).
-            var rest = id == Dfb.UI_REST && !waitingForWindow ? DaggerfallUI.UIManager.TopWindow as DaggerfallRestWindow : null;
-            if (rest != null && rest.DoomerfallEndRest())
+            // The rest key once a rest has started goes to the rest window, so Daggerfall's end of rest and skill check always run.
+            if (id == Dfb.UI_REST && restWindow != null && restWindow.DoomerfallRestKey())
             {
-                bridge.LogLine("rest: Doom's rest key ended the rest");
+                bridge.LogLine("rest: Doom's rest key handled by the rest window");
                 return;
             }
             closeReason = Dfb.UI_REASON_DOOM;
@@ -495,6 +496,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             uint id = openId;
             openId = 0;
             waitingForWindow = windowOpen = false;
+            restWindow = null;
             if (id == Dfb.UI_NEW_GAME && NewGame)
                 NewGame.CreationClosed(reason == Dfb.UI_REASON_RESULT);
             if (id == Dfb.UI_LOAD_GAME && PlainLoad && GameManager.HasInstance && GameManager.Instance.SaveLoadManager.LoadInProgress && reason != Dfb.UI_REASON_RESULT)
