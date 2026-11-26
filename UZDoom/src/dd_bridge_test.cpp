@@ -35,6 +35,7 @@
 #include "zstring.h"
 
 FARG_ADVANCED(dfnewgametest, "Doomerfall", "once|twice|escape", "Bridge test only: chooses New Game and a difficulty through the real menu path (escape: New Game at every return to the title, no difficulty).");
+FARG_ADVANCED(dfnewgameskill, "Doomerfall", "index", "Bridge test only: the difficulty -dfnewgametest chooses in the skill menu (default 2).");
 FARG_ADVANCED(dfplainloadtest, "Doomerfall", "once", "Bridge test only: runs dd_load_daggerfall at the title and chooses a difficulty.");
 FARG_ADVANCED(dfbridgetestpause, "Doomerfall", "ext|game|menu", "Bridge test only: enters a pause state for six seconds.");
 FARG_ADVANCED(dfsavetest, "Doomerfall", "file|autoN", "Save test only: makes one synchronized save to this file, or N real autosaves, then quits.");
@@ -203,8 +204,10 @@ void RunNewGameTest(int64_t now)
 		if (!difficultyAt) difficultyAt = now + 1000000000LL;
 		if (now < difficultyAt) return;
 		difficultyAt = now + 5000000000LL;
-		Log("new game test: choosing difficulty 2");
-		M_SetMenu(FName("Startgame"), 2);
+		const char *skill = Args->CheckValue(FArg_dfnewgameskill);
+		const int index = skill ? atoi(skill) : 2;
+		Log("new game test: choosing difficulty %d", index);
+		M_SetMenu(FName("Startgame"), index);
 		return;
 	}
 	difficultyAt = 0;

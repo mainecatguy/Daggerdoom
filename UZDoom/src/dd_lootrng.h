@@ -10,17 +10,18 @@ struct FMapThing;
 
 // Draws every gameplay random number from one loot state while it lives. Null or zero state: no change.
 extern AActor *DD_LootOwner;	// The actor whose loot state is running, or null for a raw state.
+extern AActor *DD_ActingActor;	// The actor whose state action, PostBeginPlay or death is running (scoped by DDLootScope(AActor *)).
 struct DDLootScope
 {
 	uint64_t *prev;
-	AActor *prevOwner;
-	bool active;
+	AActor *prevOwner, *prevActing = nullptr;
+	bool active, acting = false;
 	explicit DDLootScope(uint64_t *state, AActor *owner = nullptr) : prev(DD_RngOverride), prevOwner(DD_LootOwner), active(state && *state)
 	{
 		if (active) { DD_RngOverride = state; DD_LootOwner = owner; }
 	}
 	explicit DDLootScope(AActor *mo);
-	~DDLootScope() { if (active) { DD_RngOverride = prev; DD_LootOwner = prevOwner; } }
+	~DDLootScope() { if (active) { DD_RngOverride = prev; DD_LootOwner = prevOwner; } if (acting) DD_ActingActor = prevActing; }
 	DDLootScope(const DDLootScope &) = delete;
 	DDLootScope &operator=(const DDLootScope &) = delete;
 };
@@ -32,3 +33,7 @@ uint64_t *DD_LootMapThingSeed(FLevelLocals *Level, FMapThing *mt, int index);	//
 uint64_t DD_LootItemId(AActor *item);	// The lasting id of a floor item, or 0 when it has none.
 bool DD_LootVanish(AActor *mo);			// A loose item a dying summoned monster made: destroyed, true. Never true outside bridge sessions.
 uint64_t *DD_AiStateFor(DThinker *th);	// The live random state a thinker ticks under, or null (always null outside bridge sessions).
+
+// DRLA's Monster-flagged spawners (dd_monsters.cpp). Both always false or no-op without a bridge session or without DRLA.
+bool DD_IsDrlaSpawner(AActor *mo);		// RLAdaptiveSpawner or RLTheHungrySpawner: never a mook, never a stored monster.
+void DD_SpawnerHandoff(AActor *mo);		// Just spawned: passes on a spawner's placed id (ddHandoffId) from DD_ActingActor.

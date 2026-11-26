@@ -277,6 +277,8 @@ void AActor::Serialize(FSerializer &arc)
 		A("ddlootid", ddLootId) // [Doomerfall] written only when nonzero
 		A("ddairng", ddAiRng) // [Doomerfall] written only when nonzero
 		A("ddnodrops", ddNoDrops) // [Doomerfall] written only when nonzero
+		A("dddied", ddDied) // [Doomerfall] written only when nonzero
+		A("ddhandoffid", ddHandoffId) // [Doomerfall] written only when nonzero
 		A("spawnpoint", SpawnPoint)
 		A("spawnangle", SpawnAngle)
 		A("starthealth", StartHealth)
@@ -5576,6 +5578,7 @@ void ConstructActor(AActor *actor, const DVector3 &pos, bool SpawningMapThing)
 	}
 	actor->UpdateWaterLevel (false);
 	DD_LootInherit(actor); // [Doomerfall] no-op unless a fixed loot roll is running
+	DD_SpawnerHandoff(actor); // [Doomerfall] no-op unless a DRLA spawner holding a placed monster's id made it
 	if (!SpawningMapThing)
 	{
 		actor->CallBeginPlay ();
@@ -8565,7 +8568,7 @@ void AActor::Revive()
 {
 	AActor *info = GetDefault();
 	FLinkContext ctx;
-	ddLootRng = ddAiRng = 0; ddNoDrops = 0; // [Doomerfall] alive again: its live state is seeded again from its id, its loot when it next dies
+	ddLootRng = ddAiRng = 0; ddNoDrops = 0; // [Doomerfall] alive again: its live state is seeded again from its id; ddDied stays, so it drops nothing again
 
 	bool flagchange = (flags & (MF_NOBLOCKMAP | MF_NOSECTOR)) != (info->flags & (MF_NOBLOCKMAP | MF_NOSECTOR));
 

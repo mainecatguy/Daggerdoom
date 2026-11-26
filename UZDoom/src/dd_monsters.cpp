@@ -122,6 +122,53 @@ void DD_BodiesBeginMap(FLevelLocals *Level)
 
 CVAR(Int, dd_mon_test_kill, 0, CVAR_NOSAVE | CVAR_MOD) // Test only, with -ddmontest: 1 kills a placed monster, 2 a quest foe.
 
+//--------------------------------------------------------------------
+// [Doomerfall] DRLA's Monster-flagged spawners. Two DRLA spawners are Monster-flagged themselves, so a placed monster's
+// id would go to the spawner and the monster it makes would have none (and, summoned, drop nothing):
+// - RLAdaptiveSpawner and its subclasses (Adaptive skill): unshootable, health 0x7FFFFFFF; an ACS picker sends it to a
+//   Spawn* state that spawns the real monster (or another spawner, or a RandomSpawner) with A_SpawnItemEx, then it stops.
+// - RLTheHungrySpawner (Armageddon skill's Lost Soul): spawns several RLTheHungrySingleSpawner helpers (not monsters),
+//   each of which spawns an RLArmageddonLostSoul.
+// Identified by class only, never by behaviour, so a Pain Elemental or any real summoner is never one. SpawnMook gives
+// such a spawner the id as ddHandoffId instead of ddRecordId, so it is never a mook. What it spawns while it acts (state
+// actions, PostBeginPlay: DD_ActingActor) carries the handoff on if it is not a monster, and the first monster spawned
+// along that line takes the id: one id, one drop set. Later monsters from the same spawner have no id: summoned. Without
+// a bridge session or without DRLA nothing here does anything.
+//--------------------------------------------------------------------
+
+bool DD_BridgeHasSession();
+
+bool DD_IsDrlaSpawner(AActor *mo)
+{
+	static const FName adaptive("RLAdaptiveSpawner"), hungry("RLTheHungrySpawner");
+	return mo && (mo->flags3 & MF3_ISMONSTER) && DD_BridgeHasSession() && (mo->IsKindOf(adaptive) || mo->IsKindOf(hungry));
+}
+
+void DD_SpawnerHandoff(AActor *mo)
+{
+	AActor *from = DD_ActingActor;
+	if (!from || !from->ddHandoffId || mo->player || (mo->flags & MF_MISSILE)) return;
+	const uint64_t id = from->ddHandoffId;
+	if (!(mo->flags3 & MF3_ISMONSTER)) { mo->ddHandoffId = id; return; }	// A helper (RLTheHungrySingleSpawner, a RandomSpawner): carries it on.
+	// A monster. If an earlier one took the id (and so survived its spawn checks), every carrier lets go and this one is
+	// summoned. A monster A_SpawnItemEx destroys at once because it was blocked does not count: the next one takes the id.
+	auto it = mo->Level->GetThinkerIterator<AActor>();
+	while (AActor *other = it.Next())
+		if (other != mo && other->ddRecordId == id)
+		{
+			auto all = mo->Level->GetThinkerIterator<AActor>();
+			while (AActor *carrier = all.Next()) if (carrier->ddHandoffId == id) carrier->ddHandoffId = 0;
+			return;
+		}
+	if (DD_IsDrlaSpawner(mo)) mo->ddHandoffId = id;	// Adaptive's Armageddon Lost Soul is an RLTheHungrySpawner.
+	else if (!mo->ddRecordId)
+	{
+		mo->ddRecordId = id;
+		mo->SpawnPoint = mo->Pos();	// So the world table can tell it has not moved.
+		DD_DebugPrintf("DDMON spawner %s gave %016" PRIx64 " to %s\n", from->GetClass()->TypeName.GetChars(), id, mo->GetClass()->TypeName.GetChars());
+	}
+}
+
 namespace
 {
 constexpr int ClaimTics = 35;
@@ -199,7 +246,7 @@ void RunClaims(FLevelLocals *Level)
 	std::vector<AActor *> free;
 	auto it = Level->GetThinkerIterator<AActor>();
 	while (AActor *mo = it.Next())
-		if (!mo->player && !mo->ddRecordId && (mo->flags3 & MF3_ISMONSTER) && mo->health > 0) free.push_back(mo);
+		if (!mo->player && !mo->ddRecordId && (mo->flags3 & MF3_ISMONSTER) && mo->health > 0 && !DD_IsDrlaSpawner(mo)) free.push_back(mo);
 	for (size_t n = 0; n < claims.size();)
 	{
 		Claim &c = claims[n];
@@ -247,7 +294,8 @@ AActor *SpawnMook(FLevelLocals *Level, PClassActor *cls, uint64_t id, const DVec
 		mo = Spawn(Level, cls, at, replace ? ALLOW_REPLACE : NO_REPLACE);
 	}
 	if (!mo) return nullptr;
-	if ((mo->flags3 & MF3_ISMONSTER) && !mo->ddRecordId) { mo->ddRecordId = id; mo->SpawnPoint = mo->Pos(); RigFaction(mo, side, stance); }
+	if (DD_IsDrlaSpawner(mo)) mo->ddHandoffId = id;	// Passed on to the monster it makes (DD_SpawnerHandoff).
+	else if ((mo->flags3 & MF3_ISMONSTER) && !mo->ddRecordId) { mo->ddRecordId = id; mo->SpawnPoint = mo->Pos(); RigFaction(mo, side, stance); }
 	else claims.push_back({ id, at, Level->maptime + ClaimTics, side, stance });
 	return mo;
 }
@@ -314,7 +362,11 @@ void SpawnEncounters(FLevelLocals *Level, bool mapLeaders)
 	std::sort(quests.begin(), quests.end(), [](const Placement &a, const Placement &b) { return a.placement < b.placement; });
 	{
 		auto it = Level->GetThinkerIterator<AActor>();
-		while (AActor *mo = it.Next()) if (IsMonsterId(mo->ddRecordId)) present.insert(mo->ddRecordId);
+		while (AActor *mo = it.Next())
+		{
+			if (IsMonsterId(mo->ddRecordId)) present.insert(mo->ddRecordId);
+			if (IsMonsterId(mo->ddHandoffId)) present.insert(mo->ddHandoffId);	// Still with a DRLA spawner.
+		}
 		for (const Claim &c : claims) present.insert(c.id);
 	}
 	auto known = plans.find(dungeonMapId);

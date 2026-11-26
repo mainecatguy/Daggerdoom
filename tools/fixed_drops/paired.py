@@ -35,6 +35,7 @@ TRY = [
     " 4. Drops still land where each monster dies; only what drops is fixed.",
 ]
 FATAL = ("DIED WITH FATAL", "VM execution aborted", "Script error")
+EXTRA_UZ = []  # More UZDoom arguments for every run (rules.py: the skill).
 
 
 def door_spot(play):
@@ -91,6 +92,7 @@ def run(play, out, name, area):
           "+logfile", name, "+vid_fullscreen", "0", "+wipetype", "0",
           "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"]
     df = ["-dfbridgelog", str(df_log), "-dfmute", "-dfarealevel", str(area), "-screen-fullscreen", "0", "-screen-width", "1280", "-screen-height", "800"]
+    uz += EXTRA_UZ
     if name == "load":
         uz += ["-skill", "3", "+map", "DDT07154", "-dfloadtest", f"resume:{autosaves[-1]}"]
         df += ["-dfsynctest", ng.DAGGER]

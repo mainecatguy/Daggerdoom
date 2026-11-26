@@ -24,6 +24,10 @@
 //   actions of what that spawns (drop helpers, random spawners) carries the mark, and any loose item with the mark is
 //   destroyed before its first PostBeginPlay (DD_LootVanish), so before anyone can see or touch it. Its corpse, gibs,
 //   other effects and anything given into an inventory stay as they are.
+// - Revived monsters drop nothing (owner rule, 2026-11-25). A monster whose seeded loot was rolled is marked ddDied; an
+//   Arch-vile's Revive keeps its id and the mark, so its later deaths go the summoned way. The mark is saved, and the
+//   treadmill keeps it for a parked monster (its row's death label, dd_treadmill.cpp). DRLA's "Reborn" forms are new
+//   actors without an id, so they are summoned already.
 // Living monsters never carry a loot state. A revived monster drops both states (AActor::Revive). Stock games never set
 // ddRecordId and have no bridge session, so nothing here runs for them.
 #include "dd_lootrng.h"
@@ -63,9 +67,14 @@ namespace
 	std::unordered_map<AActor *, std::unordered_map<uint64_t, uint32_t>> spawnCounts;
 }
 
-AActor *DD_LootOwner;
+AActor *DD_LootOwner, *DD_ActingActor;
 
-DDLootScope::DDLootScope(AActor *mo) : DDLootScope(mo && mo->ddLootRng ? &mo->ddLootRng : nullptr, mo) {}
+DDLootScope::DDLootScope(AActor *mo) : DDLootScope(mo && mo->ddLootRng ? &mo->ddLootRng : nullptr, mo)
+{
+	prevActing = DD_ActingActor;
+	DD_ActingActor = mo;
+	acting = true;
+}
 
 uint64_t DD_LootSeedOf(uint64_t id, uint64_t salt)
 {
@@ -79,19 +88,24 @@ void DD_LootDied(AActor *mo)
 	mo->ddAiRng = 0;	// Dead: its corpse ticks as stock, and nothing it did alive reaches its loot.
 	mo->ddNoDrops = 0;
 	if (mo->player) return;
-	if (!mo->ddRecordId || ((mo->flags3 & MF3_ISMONSTER) && IsSessionId(mo->ddRecordId)))	// A summoned monster parked and restored by the treadmill has a session id.
+	const bool monster = (mo->flags3 & MF3_ISMONSTER) != 0, onDaggerfallMap = DD_BridgeHasSession() && DDTreadmill_OnDaggerfallMap();
+	// Summoned: no Daggerfall id, or a session id (a summoned monster the treadmill parked and restored). Revived: its
+	// seeded loot already dropped once (an Arch-vile's Revive keeps the id).
+	const bool summoned = !mo->ddRecordId || (monster && IsSessionId(mo->ddRecordId)), revived = monster && mo->ddDied && onDaggerfallMap;
+	if (summoned || revived)
 	{
-		// Summoned (no Daggerfall id): drops nothing, only on Daggerfall maps. Its death needs a running state so that
-		// what it spawns inherits the mark; a summoned monster from a placed one's live state reuses that state.
-		if (!(mo->flags3 & MF3_ISMONSTER) || !DD_BridgeHasSession() || !DDTreadmill_OnDaggerfallMap()) return;
+		// Drops nothing, only on Daggerfall maps. Its death needs a running state so that what it spawns inherits the
+		// mark; a summoned monster from a placed one's live state reuses that state.
+		if (!monster || !onDaggerfallMap) return;
 		const uint64_t where = Mix(Mix(uint64_t(mo->Level->maptime), uint64_t(llround(mo->X()))), uint64_t(llround(mo->Y())));
 		mo->ddNoDrops = 1;
 		mo->ddLootRng = Mix(live ? live : where, SALT_DEATH) | 1;
 		mo->ddLootId = 0;	// Not a Daggerfall seed: DD_LootSeed stays 0 for it.
 		spawnCounts.erase(mo);
-		DD_DebugPrintf("DDLOOT summoned %s dies: no drops\n", mo->GetClass()->TypeName.GetChars());
+		DD_DebugPrintf("DDLOOT %s %s dies: no drops\n", revived ? "revived" : "summoned", mo->GetClass()->TypeName.GetChars());
 		return;
 	}
+	if (monster) mo->ddDied = 1;
 	mo->ddLootRng = mo->ddLootId = DD_LootSeedOf(mo->ddRecordId, SALT_DEATH);
 	if (spawnCounts.size() > 100000) spawnCounts.clear();	// Only dead owners' finished counts are lost.
 	spawnCounts.erase(mo);

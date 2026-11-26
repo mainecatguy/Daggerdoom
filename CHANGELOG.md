@@ -13,6 +13,13 @@ What is done on the project, newest first. Agents do not need to read this unles
 
 ## 2026-11-25
 
+### Fixed drops finished on `integration`
+
+- **Card 05 merged** (`agent/fixeddrops-20261125-202715`: summoned monsters drop nothing on Daggerfall maps; travel arrival). Merge fix: its session-id test also matched every placed monster's id (tags 5-7 have bit 63); it now tests for a session id only.
+- **Revived monsters drop nothing:** a monster whose seeded loot dropped is marked; an Arch-vile's revive keeps the mark through saves and the treadmill's park/restore.
+- **DRLA's Monster-flagged spawners** (Adaptive skill's `RLAdaptiveSpawner`, Armageddon's `RLTheHungrySpawner`): a placed monster's id passes to the first real monster the spawner makes; the spawner is never a mook or a stored monster. The encounter planner never places these classes (only the stock-roster fallback does).
+- Paired fixed drops series passes unchanged (112 kills, 183 drops); new `tools/fixed_drops/rules.py` tests revive, leave-and-return, Adaptive and Armageddon. Notes: `work/notes/20261125-220115-fixeddrops-finish.md`.
+
 ### Merged to `integration` (`8c78edf`)
 
 - **Stock Doom ammo amounts (`overnight/ammosize`):** pickups and drops give stock Doom's small, large and dropped amounts (from id's `p_inter.c`); other tiers take their share of Regular. The tier rounding is a proposal awaiting the owner (`work/questions.md`). Notes: `work/notes/20261124-233842.md`.

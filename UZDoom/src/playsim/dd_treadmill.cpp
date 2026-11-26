@@ -145,6 +145,7 @@ namespace
 		bool dropped = false;
 	};
 	constexpr int TABLE_FORMAT = 2;	// Rows carry a death label. Format 1 (a state index) is not read.
+	constexpr const char *REVIVED_LABEL = "Revived";	// A living monster's death label: it died once and was revived.
 
 	struct SeedSpawn { uint64_t id; FName cls; double x, y; };	// Global Doom XY.
 	struct PendingChunk
@@ -636,7 +637,7 @@ namespace
 
 	bool IsTouched(AActor *mo)
 	{
-		return mo->health < mo->SpawnHealth() || mo->target != nullptr
+		return mo->health < mo->SpawnHealth() || mo->target != nullptr || mo->ddDied	// Revived: kept, so it keeps the mark.
 			|| (mo->Pos().XY() - mo->SpawnPoint.XY()).LengthSquared() > 1;
 	}
 
@@ -795,6 +796,7 @@ namespace
 	{
 		const bool monster = (mo->flags3 & MF3_ISMONSTER) != 0, item = mo->IsKindOf(NAME_Inventory);
 		if (!monster && !item) return Parked::Skip;	// Projectiles and effects do not persist.
+		if (DD_IsDrlaSpawner(mo)) return Parked::Skip;	// A spawner is not a monster: restored, it would spawn another one.
 		if (IsUnchanged(mo, monster)) return Parked::Unchanged;	// Its seed, the map, or Daggerfall's placement rebuilds it.
 		r = Record();
 		r.id = mo->ddRecordId;
@@ -821,7 +823,11 @@ namespace
 			r.kind = KCorpse;
 			r.death = DeathLabel(mo, FinalFrame(mo, mo->state));
 		}
-		else r.kind = KMonster;
+		else
+		{
+			r.kind = KMonster;
+			if (mo->ddDied) r.death = REVIVED_LABEL;	// Its seeded loot already dropped (dd_lootrng.cpp).
+		}
 		return Parked::Stored;
 	}
 
@@ -879,6 +885,8 @@ namespace
 		mo->Angles.Yaw = DAngle::fromDeg(r.angle);
 		mo->health = r.health;
 		if (r.dropped) mo->flags |= MF_DROPPED;
+		// Its seeded loot already dropped (dd_lootrng.cpp): a corpse an Arch-vile raises, or a revived monster, drops nothing again.
+		if (r.kind == KCorpse || (r.kind == KMonster && r.death.Compare(REVIVED_LABEL) == 0)) mo->ddDied = 1;
 		if (r.kind == KItem)
 		{
 			mo->IntVar(NAME_Amount) = r.amount;

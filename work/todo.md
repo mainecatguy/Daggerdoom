@@ -16,7 +16,6 @@ Owner decisions from earlier runs are recorded in `CHANGELOG.md`, `architecture.
 
 ### Queued (owner, 2026-11-25)
 
-- `fixeddrops` card 05 (`work/queue/fixeddrops/05.opus.summoned-no-drops-and-town-arrival.md`): summoned monsters drop nothing on Daggerfall maps; check arrival by travel from a town. Continues `overnight/fixeddrops`.
 - `lockpick` card 02 (`work/queue/lockpick/02.opus.door-lock-bridge.md`): the door bridge step in one full run. Start the lane with `-From agent/lockpick-20261125-073553`. Thieves Guild sales are cancelled.
 - `daynight` card 01 (`work/queue/daynight/01.opus.fog-sky-windows-winter.md`): distance fog, foggy sky, lit windows at night, winter textures. Starts from integration (the day/night branch is merged).
 
