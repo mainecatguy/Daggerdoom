@@ -311,7 +311,8 @@ Verdicts:
 
 ## 2026-11-25: Should DRLA's Adaptive skill variant pick be seeded from the placement id?
 
-- **Verdict:** Deferred.
+- **Verdict:** Deferred. **Owner decision (2026-11-25): remove DRLA's Adaptive difficulty from Doomerfall completely.**
+  In the owner's words: "The world shouldn't adapt to the player, thats a game design pillar of ours."
 - **Answer:** None. It goes to the owner. If the owner keeps Adaptive as DRLA built it, seeding its `Random` draws from
   the placement id leans yes, but that alone cannot make a place the same across characters.
 - **Rests on:** `gamedesign.md`, Randomness: "events are fixed and not randomized per save", and the owner (2026-11-25):
