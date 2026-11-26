@@ -340,7 +340,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             showingTravelMap = id == Dfb.UI_TRAVEL_MAP;
             bool creating = id == Dfb.UI_NEW_GAME && DoomerfallNewGame.HoldsNewCharacter;
             bool loading = id == Dfb.UI_LOAD_GAME && DoomerfallNewGame.HoldsNewCharacter && PlainLoad;
-            if ((id != Dfb.UI_TRAVEL_MAP && id != Dfb.UI_INVENTORY && id != Dfb.UI_MAP && id != Dfb.UI_LOOT && id != Dfb.UI_TALK && id != Dfb.UI_DAGGERFALL && id != Dfb.UI_JOURNAL && !creating && !loading) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
+            if ((id != Dfb.UI_TRAVEL_MAP && id != Dfb.UI_INVENTORY && id != Dfb.UI_MAP && id != Dfb.UI_LOOT && id != Dfb.UI_TALK && id != Dfb.UI_DAGGERFALL && id != Dfb.UI_JOURNAL && id != Dfb.UI_REST && !creating && !loading) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
             {
                 Finish(Dfb.UI_REASON_REFUSED);
                 return;
@@ -354,6 +354,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 // Clicking a quest's place opens the travel map. Doom follows that travel only from outdoors, as with K.
                 message = DaggerfallUIMessages.dfuiOpenQuestJournalWindow;
                 showingTravelMap = doomContext == Dfb.WORLD_EXTERIOR;
+            }
+            if (id == Dfb.UI_REST)
+            {
+                // Daggerfall's own rest request, with its own refusals; Doom's context says what it sees around the player.
+                message = DaggerfallUIMessages.dfuiOpenRestWindow;
+                DoomerfallRest.Opening(doomContext);
             }
             if (id == Dfb.UI_MAP)
             {
@@ -491,6 +497,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
             if (id == Dfb.UI_LOOT && Items)
                 Items.WindowClosed();
+            if (id == Dfb.UI_REST)
+                DoomerfallRest.Closed();
             DoomerfallInput.End();
             if (DaggerfallUI.Instance)
                 DaggerfallUI.Instance.CustomRenderTarget = null;

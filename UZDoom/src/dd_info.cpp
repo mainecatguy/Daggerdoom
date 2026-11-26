@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstring>
 #include <string>
+#include <vector>
 
 #include "../../bridge/doomerfall_bridge.h"
 #include "actor.h"
@@ -26,6 +27,7 @@
 #include "v_font.h"
 
 bool DD_ItemsInfoPress(player_t *player);
+bool DD_BridgeUiActive();
 void DD_BridgeOpenTalk();
 bool P_UseTraverse(AActor *usething, const DVector2 &start, const DVector2 &end, bool &foundline);
 
@@ -36,7 +38,8 @@ constexpr double DoomPerDf = 0.75;
 constexpr double AimSlack = 4.0;     // Billboards are thin, so the crosshair may pass a little beside one.
 
 uint32_t nextRequest = 1, textRequest;
-std::string pending;
+std::string pending, hudPending;
+std::vector<std::string> hudHeld; // DFB_KIND_HUD_TEXT lines waiting for Daggerfall's menu to close
 
 bool IsNpc(const AActor *mo, bool &centered)
 {
@@ -275,6 +278,18 @@ bool DD_InfoEvent(const dfb_event &e)
 		if (r.status == DFB_NPC_USE_WINDOW && r.request == textRequest) DD_BridgeOpenTalk();
 		return true;
 	}
+	if (e.kind == DFB_KIND_HUD_TEXT)
+	{
+		dfb_info_text t;
+		memcpy(&t, e.payload, sizeof(t));
+		hudPending.append(t.text, strnlen(t.text, sizeof(t.text)));
+		if (e.flags & DFB_INFO_MORE) return true;
+		// Doom draws no HUD over a Daggerfall menu, so a line sent while one is open waits for it to close.
+		if (DD_BridgeUiActive()) hudHeld.push_back(hudPending);
+		else Show(hudPending, t.style == DFB_INFO_MID);
+		hudPending.clear();
+		return true;
+	}
 	if (e.kind != DFB_KIND_INFO_TEXT) return false;
 	dfb_info_text t;
 	memcpy(&t, e.payload, sizeof(t));
@@ -284,6 +299,13 @@ bool DD_InfoEvent(const dfb_event &e)
 	Show(pending, t.style == DFB_INFO_MID);
 	pending.clear();
 	return true;
+}
+
+// Daggerfall's menu closed: show the HUD lines that came while it was open.
+void DD_InfoUiClosed()
+{
+	for (const std::string &line : hudHeld) Show(line, false);
+	hudHeld.clear();
 }
 
 // The Info control. True when the network event was Info's.
