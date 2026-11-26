@@ -20,20 +20,20 @@ This file holds the owner's decisions so far and is the source of truth over the
 - Skill effects in Doom are milder than Daggerfall's die rolls.
 
 **Open owner answers the cards wait on:** perks follow live or base skill value
-(`skillcore` 01 uses base until answered); rifles in Rifles and Pistols or not (`skillperks` 05).
+(`skillcore` 01 uses base until answered).
 
 ## New skills
 
-Melee, Rifles and Pistols, Shotguns, Automatics, Explosives, Energy Weapons. Marksmanship is planned but in the backlog
+Melee, Pistols, Shotguns, Automatics, Explosives, Energy Weapons. Marksmanship, the rifle skill, is planned but in the backlog
 ([marksmanship](marksmanship.md)).
 
 ### Melee
 Raises close combat and greatly raises damage reduction while a melee weapon is held, to make melee viable. Numbers
 and perks open. Hand-to-Hand stays separate: it governs martial arts attacks such as vanilla Doom's fist.
 
-### Rifles and Pistols
-In todo: `work/queue/skillperks/05.opus.rifles-and-pistols.md` (gated on the rifles research,
-`skillresearch` 01).
+### Pistols
+Owner (2026-11-26): "pistols and rifles becomes just pistols", "no rifle is counted". In todo: `skillcore` 03
+(the skill) and `work/queue/skillperks/05.opus.rifles-and-pistols.md` (perks). Rifle tag: `rifletag` 01.
 
 ### Automatics
 In todo: `work/queue/skillperks/02.opus.automatics.md`.
