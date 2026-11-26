@@ -1,17 +1,10 @@
 # Doomerfall player manual
 
-What players need to know to play Doomerfall. Started 2026-11-25 with one fact; more will be added.
-
 ## Health
 
-Your maximum HP comes from your Endurance and your level:
-
-- You start with **50 + your Endurance** HP.
-- Each level after the first adds **your Endurance / 15** HP.
-- It always uses your current Endurance. Raising Endurance later counts for all your past levels too.
-
-Your class gives an **Endurance (and max Endurance) bonus**: it raises your starting Endurance and how high your
-Endurance can go, past 100 for tough classes. A Barbarian gets +17, a Warrior +12, a Mage -2.
+Max HP is 50 + Endurance, plus Endurance / 15 for each level after the first, always using your current Endurance.
+Your class adds a bonus to both your Endurance and its maximum (Barbarian +17, Warrior +12, Mage -2), which is the
+only way past 100.
 
 | Endurance | Level 1 | Level 10 | Level 20 |
 |---|---|---|---|
