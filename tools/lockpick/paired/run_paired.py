@@ -242,6 +242,7 @@ def demo():
         "rem For the first 20 seconds you hold no lockpicks, so Use (E) is refused. Then Daggerfall gives you 3.\r\n"
         "rem Use again: Fire when the gold chevron is over the white arc. A miss breaks one pick (I shows the count); a hit opens it.\r\n"
         "rem Getting hit, walking away, or pressing Use again cancels for free. Save, reload: the door stays unlocked.\r\n"
+        "rem Then leave by the dungeon entrance and come back in: the picked door is still unlocked (the location record keeps it).\r\n"
         "rem play-newgame.bat in this folder is the normal game (New Game starts in Privateer's Hold with your starting picks).\r\n"
         "set \"HERE=%~dp0\"\r\n"
         "if not exist \"%HERE%play-door\\saves\" mkdir \"%HERE%play-door\\saves\"\r\n"

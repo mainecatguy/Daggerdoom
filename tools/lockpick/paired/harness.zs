@@ -208,6 +208,7 @@ class DLHarness : EventHandler
 		if (done || !playeringame[0] || !players[0].mo) return;
 		let p = players[0].mo;
 		p.bNOTARGET = !DEMO;
+		if (!DEMO) p.bSOLID = false;	// the test player stands in the swing; a door waits for a body in its way (solid again in DLTrip)
 		bool inside = level.MapName.Left(3) ~== "DDS" || level.MapName ~== "MAP01";
 		if (ENTRYRUN) { if (inside) EntryCheck(); return; } // the run starts outside; the load test then loads the save
 		timer++;
@@ -405,6 +406,7 @@ class DLTrip : StaticEventHandler
 	void Begin(vector3 at, double angle, int p, int f, int locked, int end)
 	{
 		arrival = at; arrivalAngle = angle; passed = p; failed = f; phase = 1; timer = 0;
+		if (players[0].mo) players[0].mo.bSOLID = true;
 		lockedId = locked; endLock = end;
 	}
 
