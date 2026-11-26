@@ -1,7 +1,7 @@
 // [Doomerfall] Daggerfall's sky, time-of-day light, weather and ambient sounds, drawn and played by Doom.
 //
 // Daggerfall owns time and weather. DoomerfallWorldLook.cs sends what its own sky, light and weather objects show,
-// as the bridge text "sky <index> <frame> <stars> <night> <ambient> <weather> <loop> <sun> [<elevation>]", and every ambient one-shot
+// as the bridge text "sky <index> <frame> <stars> <night> <ambient> <weather> <loop> <sun> [<elevation> [<winter>]]", and every ambient one-shot
 // Daggerfall's AmbientEffectsPlayer plays as "amb <clip>". Doom only renders them:
 //   - Sky: the DFSKY texture is rewritten from SKYnn.DAT (frame, afternoon mirror) or NITEnnI0.IMG with stars, as
 //     DaggerfallSky does. Read from the arena2 folder given by -ddarena2; nothing is written to disk.
@@ -34,6 +34,7 @@
 #include "s_soundinternal.h"
 #include "texturemanager.h"
 #include "playsim/dd_log.h"
+#include "playsim/dd_towncache.h"
 
 std::pair<PalEntry, PalEntry> &R_GetSkyCapColor(FGameTexture *tex);	// hw_skydome.cpp
 int DDTreadmill_Place();	// dd_treadmill.cpp: 0 none, 1 exterior, 2 building interior, 3 dungeon
@@ -56,7 +57,7 @@ constexpr int LOOP_CHANNEL = 77;					// player channel for the rain and cricket 
 constexpr int SKY_W = 512, SKY_H = 220, NIGHT_H = 219;
 constexpr int FOG_UNITS = 16;						// sector fog density steps per Doom fog density 1
 
-struct World { int index = -1, frame = 0, stars = 0, night = 0, ambient = 0, weather = 0, loop = 0, sun = 0, elevation = 90; };	// elevation: sun height in degrees, 90 when not sent
+struct World { int index = -1, frame = 0, stars = 0, night = 0, ambient = 0, weather = 0, loop = 0, sun = 0, elevation = 90, winter = -1; };	// winter: -1 when not sent	// elevation: sun height in degrees, 90 when not sent
 World world;
 bool haveWorld;
 // Unity's fog as Daggerfall draws it now, from the bridge line "fog <on> <mode> <density> <start> <end> <r> <g> <b> <sky>".
@@ -398,7 +399,8 @@ bool DD_WeatherText(const char *text)
 		haveFog = true;
 		return true;
 	}
-	if (sscanf(text, "sky %d %d %d %d %d %d %d %d %d", &w.index, &w.frame, &w.stars, &w.night, &w.ambient, &w.weather, &w.loop, &w.sun, &w.elevation) < 8) return false;
+	if (sscanf(text, "sky %d %d %d %d %d %d %d %d %d %d", &w.index, &w.frame, &w.stars, &w.night, &w.ambient, &w.weather, &w.loop, &w.sun, &w.elevation, &w.winter) < 8) return false;
+	if (w.winter >= 0) DDTownCache::SetWinter(w.winter != 0);
 	if (!haveWorld || w.weather != world.weather || w.index != world.index || w.stars != world.stars)
 		DD_DebugPrintf("DDWEATHER from Daggerfall: sky %d frame %d stars %d night %d ambient %d weather %d loop %d\n", w.index, w.frame, w.stars, w.night, w.ambient, w.weather, w.loop);
 	world = w;

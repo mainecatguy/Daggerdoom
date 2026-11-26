@@ -10,6 +10,8 @@
 //     sun            SunlightManager's sun light intensity x 100 (0 at night); exterior daylight is ambient plus sun
 //     elevation      the sun light's height above the horizon in whole degrees (negative below); flat ground gets
 //                    the sun's light times the sine of it
+//     winter         1 in Daggerfall's winter season; Doom then converts places with the winter texture sets (the
+//                    converter applies ClimateSwaps' winter rules, so climates without snow stay as they are)
 //   "fog <on> <mode> <density> <start> <end> <r> <g> <b> <sky>"
 //     Unity's RenderSettings fog (mode 1 linear, 2 exponential, 3 exponential squared; distances in metres) and
 //     1 when the outdoor fog also covers the sky (WeatherManager's excludeSkybox off: heavy fog)
@@ -70,8 +72,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 else if (presets == AmbientEffectsPlayer.AmbientSoundPresets.ClearNight)
                     loop = (int)SoundClips.AmbientCrickets;
             }
-            string line = string.Format("sky {0} {1} {2} {3} {4} {5} {6} {7} {8}", sky.SkyIndex, sky.SkyFrame, stars ? 1 : 0, night ? 1 : 0,
-                ambient, (int)weather.PlayerWeather.WeatherType, loop, sunPercent, elevation);
+            bool winter = dfUnity.WorldTime.Now.SeasonValue == DaggerfallWorkshop.Utility.DaggerfallDateTime.Seasons.Winter;
+            string line = string.Format("sky {0} {1} {2} {3} {4} {5} {6} {7} {8} {9}", sky.SkyIndex, sky.SkyFrame, stars ? 1 : 0, night ? 1 : 0,
+                ambient, (int)weather.PlayerWeather.WeatherType, loop, sunPercent, elevation, winter ? 1 : 0);
             SendFog(weather);
             if (line == sent && Time.unscaledTime < nextSend) return;
             string key = sky.SkyIndex + " " + stars + " " + weather.PlayerWeather.WeatherType + " " + loop;

@@ -28,6 +28,7 @@ sys.argv = argv
 BUILD = Path(r"D:\dev\DoomDaggerfall-build")
 REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\daynight")  # --review changes it
 UZDOOM = "uzdoom-daynight"  # --uzdoom-build changes it
+CACHE, CONVERTER = DEMO / "data" / "cache", DEMO / "data" / "converter" / "DungeonConverter.exe"  # --cache, --converter
 DEMO = Path(r"D:\dev\DoomDaggerfall-loop\review\doom-items")  # Doom side data. Not modified.
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
@@ -70,7 +71,7 @@ def run(name, steps, hold, weather, draw, doom_args):
                                       + f'alias dnshot{count} ""\nwait 105; dnshot0\n')
     timeout = int(len(steps.split()) * hold + 40)
     uz = ["-noactivate", "-config", str(runs / f"{name}.ini"), "-dfbridgelog", str(uz_log), "-nosound", "-noautoload", "-skill", "3", "-nomonsters",
-          "-ddtowncache", str(DEMO / "data" / "cache"), "-ddconverter", str(DEMO / "data" / "converter" / "DungeonConverter.exe"),
+          "-ddtowncache", str(CACHE), "-ddconverter", str(CONVERTER),
           "-ddarena2", str(GAME / "DAGGER" / "ARENA2"), "+logfile", name, "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0",
           "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+screenshot_type", "png", "+screenshot_dir", str(shots),
           "+vid_maxfps", "0", "+vid_vsync", "0", "+dd_weather", str(weather), "+map", "DDT07154", "+exec", f"{name}.cfg"]
@@ -130,10 +131,16 @@ if __name__ == "__main__":
     ap.add_argument("--draw", action="store_true")
     ap.add_argument("--review", help="output folder (default the day/night one)")
     ap.add_argument("--uzdoom-build", help="build folder name under DoomDaggerfall-build")
+    ap.add_argument("--cache", help="town cache folder (default the Doom items demo's)")
+    ap.add_argument("--converter", help="DungeonConverter.exe for uncached places")
     ap.add_argument("--doom-args", nargs=argparse.REMAINDER, default=[])
     a = ap.parse_args()
     if a.review:
         REVIEW = Path(a.review)
+    if a.cache:
+        CACHE = Path(a.cache)
+    if a.converter:
+        CONVERTER = Path(a.converter)
     if a.uzdoom_build:
         UZDOOM = a.uzdoom_build
     stage() if a.command == "stage" else run(a.name, a.steps, a.hold, a.weather, a.draw, a.doom_args)
