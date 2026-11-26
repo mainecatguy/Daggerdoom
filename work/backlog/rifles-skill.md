@@ -14,8 +14,19 @@ the list and numbers (`work/notes/20261126-003658.md`). Stock Doom has no rifles
 **Baseline (owner, 2026-11-26):** rifle damage +0% to +60%, rising with the Rifles skill from 0 to 100. This replaces
 the Marksmanship draft's +0% to +100%.
 
-Earlier owner draft (made for Marksmanship, 2026-11-25), still open: at 25, a rifle hit that kills carries its
-remaining damage through to the next enemy with no limit until the damage runs out (skip if too hard to code).
+**Perks (owner, 2026-11-26).** Each unlocks when the Rifles skill reaches that level, and applies to all rifles.
+
+- **Skill 25:** reloads 20% faster. Rifles deal +30 flat bonus damage, added before other modifiers. Hits cripple
+  enemies based on their remaining life: the enemy's movement and attack speed drop by the hit's damage divided by its
+  remaining health (a hit for half its remaining life slows it 50%). The cripple lasts until the enemy dies. Open: the
+  cap, and whether later hits add to it.
+- **Skill 50:** +1 penetration. A bonus damage pool of 150 that refills over 1 second. Reloads another 20% faster.
+- **Skill 75:** steady shot. Damage rises with the time since your last shot, up to +100% after 1.5 s, so slow rifles
+  gain the most.
+- **Skill 100:** "overpenetration carry through". Open: whether this is the pistols' kill carry-through (only a kill's
+  leftover damage goes on) or a bullet that passes through every enemy.
+
+The Marksmanship draft's kill carry-through at 25 (2026-11-25) is replaced by these perks.
 
 Notes: the heavies (Anti-Materiel, Gauss Rifle, Sniper) hit far harder per shot than pistols, so the perks need their
 own balance. Within the 35-skill limit the skill also needs a free slot.
