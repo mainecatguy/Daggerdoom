@@ -46,6 +46,9 @@ namespace
 	// A floor item's id is shaped as dd_treadmill.cpp's session ids (tag 4 with bit 60), so the world table and the
 	// location record treat it as a Doom drop, never as a monster, NPC or townsperson id (tags 5-7).
 	constexpr uint64_t SESSION_ID = (1ull << 63) | (1ull << 60), ID_MASK = (1ull << 60) - 1, TAG_MASK = 7ull << 61;
+	// A lasting floor item id also has bit 58, which the treadmill's own session ids (a counter, or bit 59 and a counter)
+	// never have, so a gun's lasting id is told apart and kept through Daggerfall's location record (DD_LootGunKeepsId).
+	constexpr uint64_t LASTING_MARK = 1ull << 58;
 	// A session id (tag 4 with bit 60): Doom's own for this session. A living monster gets one only when the treadmill
 	// parks and restores a monster that had no Daggerfall id. Not a tag test alone: monster, NPC and townsperson tags
 	// (5-7) also have bit 63.
@@ -172,7 +175,19 @@ uint64_t DD_LootItemId(AActor *item)
 {
 	if (!item) return 0;
 	if (item->ddRecordId) return item->ddRecordId;
-	return item->ddLootId ? SESSION_ID | (item->ddLootId & ID_MASK) : 0;
+	return item->ddLootId ? SESSION_ID | LASTING_MARK | (item->ddLootId & (LASTING_MARK - 1)) : 0;
+}
+
+// Daggerfall's location record stores a loose Doom drop without its id, and a restored one gets a new session id, so a
+// gun's lasting id would be lost on leaving and coming back, and with it the material Daggerfall rolls from it. A gun
+// with a lasting id is recorded as a full fact with its id instead (not a session fact; dd_treadmill.cpp ToFact).
+bool DD_LootGunKeepsId(uint64_t id, FName cls)
+{
+	if (!IsSessionId(id) || !(id & LASTING_MARK)) return false;
+	static const FName weapon("Weapon"), drlaPickup("RLBaseWeaponPickup");
+	for (const PClass *c = PClass::FindActor(cls); c; c = c->ParentClass)
+		if (c->TypeName == weapon || c->TypeName == drlaPickup) return true;
+	return false;
 }
 
 // A floor gun without a lasting id (a script or console spawn) gets one when Daggerfall first names it in the look label

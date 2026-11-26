@@ -2225,7 +2225,7 @@ namespace
 		f.kind = r.kind;
 		f.amount = r.amount;
 		f.dropped = r.dropped;
-		f.session = IsSessionId(r.id);
+		f.session = IsSessionId(r.id) && !DD_LootGunKeepsId(r.id, r.cls);	// [Doomerfall] a floor gun keeps its lasting id
 		return f;
 	}
 
