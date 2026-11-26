@@ -447,6 +447,15 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             return (remainingHoursRented == 0);
         }
 
+        /// <summary>Doomerfall: Doom's rest key pressed mid-rest ends it as this window's own rest key does. False on the selection screen.</summary>
+        public bool DoomerfallEndRest()
+        {
+            if (currentRestMode == RestModes.Selection || endedRest)
+                return false;
+            EndRest();
+            return true;
+        }
+
         void EndRest()
         {
             const int youWakeUpTextId = 353;

@@ -7,6 +7,8 @@ df_rest, the same command the key runs). The harness clicks Rest Until Healed in
 for Daggerfall's "you are healed" message, clicks it away, and expects Daggerfall's own skill check at the end of the rest
 to open the level-up sheet. It spends the points (Strength up arrow) and exits, then checks: time passed, HP full in
 Daggerfall and in Doom, recovery per hour three times Daggerfall's, the new level, and Doom's HUD line.
+run stop: as run, but the harness presses the rest key (Z) after the first hour; Daggerfall must wake the
+player as its own rest key does, and still run the skill check.
 run monsters: Doom summons monsters near the player (notarget, so they stay put) and the rest control must be refused
 with Daggerfall's "enemies nearby" message, with no time passing.
 check: DOOM.WAD E1M1 with no bridge, stock and with the DRLA set, and -norun.
@@ -102,9 +104,9 @@ def write_demo():
 
 
 class Run:
-    def __init__(self, monsters=False):
-        self.monsters = monsters
-        self.dir = REVIEW / ("run-monsters" if monsters else "run")
+    def __init__(self, mode=None):
+        self.monsters, self.stop = mode == "monsters", mode == "stop"
+        self.dir = REVIEW / (f"run-{mode}" if mode else "run")
         self.dir.mkdir(parents=True, exist_ok=True)
         self.uz_log, self.df_log, self.console = self.dir / "uz.log", self.dir / "df.log", self.dir / "log-rest.txt"
         self.launcher, self.views = self.dir / "launcher.log", self.dir / "rest.log"
@@ -142,7 +144,7 @@ class Run:
         extra = ["+wait 35;summon ZombieMan;notarget"] if self.monsters else []
         uz = ["-noactivate", "-config", str(self.dir / "uz.ini"), "-savedir", str(self.dir / "saves"), "-dfbridgelog", str(self.uz_log), "-nosound", "-noautoload", "-skill", "3",
               "-ddtowncache", str(cache), "-ddconverter", str(REVIEW / "data" / "converter" / "DungeonConverter.exe"), "-ddarena2", str(GAME / "DAGGER" / "ARENA2"),
-              "-dfuitest", "1", "+dd_ui_test_menu", "10", "+logfile", "rest", "+screenshot_dir", str(self.dir / "shots"), "+vid_fullscreen", "0", "+wipetype", "0",
+              "-dfuitest", "1", "+dd_ui_test_menu", "10", "+bind", "z", "netevent df_rest", "+logfile", "rest", "+screenshot_dir", str(self.dir / "shots"), "+vid_fullscreen", "0", "+wipetype", "0",
               "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{GROUP:05d}", *extra]
         df = ["-dfbridgelog", str(self.df_log), "-dfsynctest", str(GAME / "DAGGER"), "-dfresttest", str(self.views), *([] if self.monsters else ["level"]),
               "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "400"]
@@ -210,12 +212,21 @@ class Run:
         prepared = re.search(r"prepared: hp (\d+)/(\d+), recovery per hour (\d+) \(scale (\d+)\)", read(self.views))
         doom = self.doom()
         doom.click(HEALED_BUTTON)
-        healed = self.wait(self.views, r"top DaggerfallMessageBox \| hp (\d+)/\1 ", 90)
+        if self.stop:
+            # Doom's rest key mid-rest, after the first hour: Daggerfall's end of rest (wake-up message, then the skill check).
+            self.wait(self.views, r"top DaggerfallRestWindow \| hp (?!%d/)\d+/" % start[1], 30)
+            doom.press(0x5A)
+            woke = self.wait(self.views, r"top DaggerfallMessageBox", 5) and self.wait(self.df_log, r"rest: Doom's rest key ended the rest", 2)
+            time.sleep(0.5)
+            s = self.state()
+            self.case(woke and s and start[1] < s[1] < s[2] and "ui: closed" not in read(self.uz_log).split("opened menu 10", 1)[-1],
+                      f"the rest key mid-rest woke the player with Daggerfall's message, menu still open ({start[1]} -> {s and s[1]}/{s and s[2]})")
+        healed = self.stop or self.wait(self.views, r"top DaggerfallMessageBox \| hp (\d+)/\1 ", 90)
         time.sleep(0.5)
         s = self.state()
         hours = (s[5] - start[5]) / 60 if s else 0
         gained = s[1] - start[1] if s else 0
-        self.case(healed and s and s[1] == s[2] and hours >= 1,
+        self.case(healed and s and (self.stop or s[1] == s[2]) and hours >= 1,
                   f"Rest Until Healed passed {hours:.0f} game hours and healed {start[1]} -> {s and s[1]}/{s and s[2]} in Daggerfall")
         scale = int(prepared.group(4)) if prepared else 0
         per_hour = int(prepared.group(3)) if prepared else 0
@@ -240,7 +251,7 @@ class Run:
         time.sleep(3.0)
         hp = re.findall(r"hp: shown=(\d+) confirmed=(\d+)/(\d+)", read(self.uz_log))
         s = self.state()
-        self.case(hp and s and int(hp[-1][0]) == s[1] == s[2] and int(hp[-1][2]) == s[2],
+        self.case(hp and s and int(hp[-1][0]) == s[1] and (self.stop or s[1] == s[2]) and int(hp[-1][2]) == s[2],
                   f"Doom's HP follows: last Doom hp line {hp[-1] if hp else None}, Daggerfall {s and s[1]}/{s and s[2]}")
 
     def summary(self):
@@ -256,7 +267,7 @@ class Run:
         kinds = sorted({l[:150] for l in read(REVIEW / "dfu" / "PortableAppdata" / "Player.log").splitlines() if "Exception" in l})
         print("Player.log exception kinds:", len(kinds), kinds[:6])
         bad = sum(not ok for ok, _ in self.results)
-        print(f"RESULT rest{' monsters' if self.monsters else ''}: {len(self.results) - bad} passed, {bad} failed")
+        print(f"RESULT rest{' monsters' if self.monsters else ' stop' if self.stop else ''}: {len(self.results) - bad} passed, {bad} failed")
 
 
 def check():
@@ -279,11 +290,11 @@ def check():
 
 ap = argparse.ArgumentParser()
 ap.add_argument("command", choices=("assemble", "run", "check"))
-ap.add_argument("mode", nargs="?", choices=("monsters",))
+ap.add_argument("mode", nargs="?", choices=("monsters", "stop"))
 args = ap.parse_args()
 if args.command == "assemble":
     assemble()
 elif args.command == "check":
     check()
 else:
-    Run(args.mode == "monsters").go()
+    Run(args.mode).go()

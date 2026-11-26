@@ -56,14 +56,14 @@ It works as in Daggerfall:
 - **Rest for a while**: rest for the number of hours you type.
 - **Rest until healed**: rest until your health, fatigue and magicka are full.
 - **Loiter**: pass the hours you type without recovering anything.
-- Click **Stop** to wake up early. Doom stays frozen while you rest; time passes in the world.
+- Click **Stop**, or press the rest key again, to wake up early. Doom stays frozen while you rest; time passes in the world.
 - **Resting restores HP three times as fast as in Daggerfall.** Fatigue and magicka come back at Daggerfall's rates.
   Resting also trains Medical.
 - When you wake up, Daggerfall checks your skills, and you may level up (see Levelling up).
 
 You cannot rest:
 
-- with **hostile monsters nearby**: any monster that can see you, or any monster within about 12 metres, even one
+- with **hostile monsters nearby**: any monster that is after you and can see you, or any monster within about 12 metres, even one
   that has not noticed you. Daggerfall tells you enemies are nearby. Kill them or get away first.
 - while **falling, climbing or swimming**.
 - **outdoors inside a town's walls** (camping in town is a crime, and the guards come), or **inside a building**

@@ -476,6 +476,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             if (openId == 0 || id != openId)
                 return;
+            // The rest key during a rest wakes the player as Daggerfall's rest key does (wake-up message, then the skill check).
+            var rest = id == Dfb.UI_REST && !waitingForWindow ? DaggerfallUI.UIManager.TopWindow as DaggerfallRestWindow : null;
+            if (rest != null && rest.DoomerfallEndRest())
+            {
+                bridge.LogLine("rest: Doom's rest key ended the rest");
+                return;
+            }
             closeReason = Dfb.UI_REASON_DOOM;
             if (waitingForWindow)
                 Finish(Dfb.UI_REASON_DOOM);
