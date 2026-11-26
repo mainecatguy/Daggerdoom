@@ -11,6 +11,17 @@ What is done on the project, newest first. Agents do not need to read this unles
 - **Branches:** `integration` is at `dc90a52`, with steal mode, real enemy drops, the fixed dungeon harness, the area level proposal, automatic hinged trapdoors, container windows, quiet agent launches, the reported location recheck, Use-button pickup, character sheet publishing, stationary NPCs, the DRLA launcher, monster deaths, the first town door fix, New Game, the transition speedup, Daggerfall item pickup, the dungeon re-entry fix, generated bridge definitions, main quest trapdoors, 10 Hz position sync, the wilderness height fix, the Daggerfall map command, door route fixes, both overnight lanes, the bridge and door fixes, dungeon flats, Daggerfall items, synchronized saving and loading, the death screen, fast travel arrival, connected door transitions, and the inventory menu.
 - **Roughest spots:** some walls still bend where they stayed tied to the grid, and false walls and openings remain.
 
+## 2026-11-26
+
+### Drop labels: guns on the floor show their material (on `integration`)
+
+- **A Doom gun on the floor now shows its Daggerfall material in the look label** ("Iron Battle Rifle"), the same name the inventory gives it after pickup. Daggerfall still rolls the material, from the gun's lasting floor id, by the same rule as the take; Doom asks once per gun in view, with no per-spawn round trip.
+- **Guns dropped from Daggerfall's inventory keep their material** on the floor and when taken back, and **fixed-drop guns keep theirs after leaving and returning** (the location record now keeps a floor gun's id). Script-spawned guns get a lasting id the first time they are named, taken or recorded.
+- Bridge schema changed: the bridge DLL, launcher, UZDoom and Daggerfall Unity must be rebuilt together. Fixed-drop gun floor ids changed shape (bit 58), so fixed-drop gun materials moved (owner accepts seed changes).
+- Verification fix: a slow Doom art answer is no longer lost for the rest of the session (asked again, late answers used).
+- Open for the owner: the roll uses the area level where the player stands, not where the gun lies.
+- Notes: `work/notes/20261125-221820.md`, `work/notes/20261126-003718-droplabel-verify.md`.
+
 ## 2026-11-25
 
 ### Adaptive removed; overworld seeds with DRLA (on `integration`)
