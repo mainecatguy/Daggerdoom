@@ -120,6 +120,112 @@ keeps vanilla pace only if the player uses or buys all three, as vanilla needed 
   Doom skill the class lacks from Pistols, Shotguns, Automatics, Rifles, Explosives, Energy Weapons, Melee.
 - A custom class with no weapon skills gets no firearm; buying one with Skill XP is always possible.
 
+## Procedural alternative
+
+Owner's idea (2026-11-26), for comparison with the hand-made cards: Dodging is also out. That leaves seven Daggerfall
+slots (Short Blade, Long Blade, Axe, Blunt Weapon, Archery, Critical Strike, Dodging) for seven Doom skills. Guns mode
+is one fixed one-to-one rule applied to each class's vanilla card. Hand-to-Hand and Destruction stay. Languages take
+their no-guns replacements in both modes.
+
+### The rule
+
+| Daggerfall slot | Doom skill | Why |
+|---|---|---|
+| Short Blade | Melee | A short blade is a knife; DRLA's combat knife is a Melee weapon. |
+| Long Blade | Automatics | The main fighter skill to the main Doom weapon family. |
+| Axe | Shotguns | Heavy close-range cleave. |
+| Blunt Weapon | Explosives | Smash and area damage. |
+| Archery | Rifles | Precise long-range shots. |
+| Critical Strike | Energy Weapons | Escalating damage, like a critical hit; lands on the precision and killer classes. |
+| Dodging | Pistols | The light, quick gun for evasive characters (Healer, Nightblade, Rogue, Acrobat primaries). |
+
+**How it was chosen:** I scored all 5,040 assignments by script. No assignment leaves a class without a firearm,
+because every class holds at least two of the seven slots. How often each Doom skill appears is fixed by its source:
+Short Blade is in 16 classes, Dodging 15, Blunt Weapon 13, Archery 11, Long Blade and Critical Strike 10 each, Axe 9.
+So the choice comes down to theme and one-firearm classes. Three assignments were compared:
+
+- **A:** Short Blade to Pistols, Dodging to Melee. No class has only one firearm, but Healer and Archer get a Melee
+  primary and the six Dodging-primary classes lose a firearm primary.
+- **B (chosen):** Short Blade to Melee, Dodging to Pistols. Firearm primaries go to the evasive classes, and Short
+  Blade becomes the knife. Cost: Bard has only one firearm.
+- **B with Blunt Weapon and Critical Strike swapped** (Blunt Weapon to Energy Weapons, Critical Strike to
+  Explosives): mages get Energy Weapons, but Monk gets an Explosives primary, Barbarian and Warrior an Energy Weapons
+  primary, and Energy Weapons lands in 13 classes, too common for the rich man's guns.
+
+### What each class gets in guns mode
+
+Doom skills in bold. The last column counts firearms (Melee excluded).
+
+| # | Class | Primary | Major | Minor | Firearms |
+|---|---|---|---|---|---|
+| 00 | Mage | Mysticism, Alteration, Thaumaturgy | Illusion, Destruction, Restoration | Medical, **Melee**, **Explosives**, Etiquette, Mercantile, **Pistols** | 2 |
+| 01 | Spellsword | **Shotguns**, **Automatics**, **Explosives** | Destruction, Illusion, Alteration | Restoration, Thaumaturgy, Mysticism, **Melee**, Hand-to-Hand, **Rifles** | 4 |
+| 02 | Battlemage | Destruction, **Automatics**, **Shotguns** | Thaumaturgy, Alteration, Hand-to-Hand | Illusion, Mysticism, Restoration, **Rifles**, **Melee**, **Explosives** | 4 |
+| 03 | Sorcerer | Mysticism, Alteration, Thaumaturgy | Destruction, Restoration, Illusion | Medical, **Melee**, **Explosives**, Etiquette, Mercantile, **Pistols** | 2 |
+| 04 | Healer | Restoration, Medical, **Pistols** | Thaumaturgy, Mysticism, Alteration | Illusion, Streetwise, Etiquette, **Melee**, Hand-to-Hand, **Explosives** | 2 |
+| 05 | Nightblade | Illusion, Stealth, **Pistols** | Thaumaturgy, **Melee**, Lockpicking | Alteration, **Energy Weapons**, Mercantile, Destruction, Restoration, Backstabbing | 2 |
+| 06 | Bard | Streetwise, Etiquette, Pickpocket | Stealth, **Melee**, Hand-to-Hand | Lockpicking, Alteration, Illusion, Destruction, **Rifles**, Restoration | **1** |
+| 07 | Burglar | Lockpicking, Stealth, Climbing | Mercantile, **Pistols**, **Melee** | Jumping, Running, **Energy Weapons**, Pickpocket, Streetwise, Backstabbing | 2 |
+| 08 | Rogue | **Automatics**, Stealth, **Pistols** | Pickpocket, Backstabbing, Streetwise | **Energy Weapons**, **Explosives**, Lockpicking, Hand-to-Hand, Running, Swimming | 4 |
+| 09 | Acrobat | Jumping, **Pistols**, Running | Climbing, Hand-to-Hand, Stealth | Pickpocket, **Energy Weapons**, Backstabbing, **Melee**, **Rifles**, Swimming | 3 |
+| 10 | Thief | Pickpocket, Stealth, **Melee** | Backstabbing, Climbing, Lockpicking | **Energy Weapons**, Jumping, Running, **Pistols**, Streetwise, Mercantile | 2 |
+| 11 | Assassin | **Energy Weapons**, Backstabbing, Stealth | **Melee**, **Automatics**, **Explosives** | **Shotguns**, **Rifles**, Lockpicking, Pickpocket, Climbing, **Pistols** | 6 |
+| 12 | Monk | Hand-to-Hand, **Energy Weapons**, **Pistols** | Swimming, Medical, **Explosives** | **Shotguns**, **Automatics**, **Rifles**, **Melee**, Jumping, Climbing | 6 |
+| 13 | Archer | **Rifles**, Hand-to-Hand, **Pistols** | **Shotguns**, **Explosives**, **Energy Weapons** | **Automatics**, **Melee**, Climbing, Jumping, Running, Swimming | 6 |
+| 14 | Ranger | **Automatics**, **Shotguns**, Climbing | Swimming, **Rifles**, **Energy Weapons** | **Explosives**, Hand-to-Hand, **Melee**, Running, **Pistols**, Medical | 6 |
+| 15 | Barbarian | **Explosives**, **Automatics**, **Shotguns** | Jumping, Running, Swimming | Medical, Climbing, **Pistols**, **Energy Weapons**, **Rifles**, Streetwise | 6 |
+| 16 | Warrior | **Shotguns**, **Automatics**, **Explosives** | Hand-to-Hand, **Rifles**, **Melee** | Climbing, Jumping, **Pistols**, Running, Swimming, Medical | 5 |
+| 17 | Knight | **Automatics**, Etiquette, **Explosives** | **Shotguns**, **Rifles**, **Melee** | Medical, **Pistols**, Hand-to-Hand, Jumping, Swimming, Climbing | 5 |
+
+Spread: Melee 16 classes (primary 1), Pistols 15 (6), Explosives 13 (4), Rifles 11 (1), Automatics 10 (7), Energy
+Weapons 10 (2), Shotguns 9 (5). No class has a skill twice, because the rule is one to one.
+
+**Flags:**
+
+- **One firearm:** Bard (Rifles only; Short Blade became Melee). No class has none.
+- **Odd results:**
+  - Melee is a primary only for Thief. Knight, Warrior, Barbarian and Spellsword lose their close-combat primary.
+  - Monk gets Pistols and Energy Weapons as primaries (from Dodging and Critical Strike), and an Explosives major.
+  - Assassin's primary is Energy Weapons, not a quiet gun.
+  - Mage and Sorcerer get no Energy Weapons. Thieves (Nightblade, Burglar, Rogue, Acrobat, Thief) do.
+  - Healer has an Explosives minor.
+  - Pistols and Melee are in 15-16 classes each: nearly everyone holds both.
+  - Five classes have six firearms (Assassin, Monk, Archer, Ranger, Barbarian), so firearm counts swing from 1 to 6.
+
+### What no-guns mode needs
+
+The step 1 table stays. Dodging's 15 slots also need a Daggerfall skill, chosen like step 1 (the evasion idea becomes
+movement where the slot is free; primaries go to skills that rise steadily). Checked against each class's no-guns
+card: no duplicates.
+
+| Class | Tier | Dodging becomes |
+|---|---|---|
+| Mage, Sorcerer | Minor | Running |
+| Healer | **Primary** | Running |
+| Nightblade | **Primary** | Running |
+| Burglar | Major | Swimming (canals and sewers) |
+| Rogue | **Primary** | Jumping |
+| Acrobat | **Primary** | Blunt Weapon (the acrobat's staff; Jumping, Running and Climbing are already taken) |
+| Thief | Minor | Swimming |
+| Assassin | Minor | Medical (poisons and anatomy) |
+| Monk | **Primary** | Stealth |
+| Archer | **Primary** | Stealth (the hidden marksman) |
+| Ranger | Minor | Backstabbing (ambush) |
+| Barbarian | Minor | Stealth |
+| Warrior | Minor | Streetwise (the mercenary's contacts) |
+| Knight | Minor | Running |
+
+### Compared with the hand-made cards
+
+The procedural rule is one table of seven rows. It is deterministic, easy to explain, and works the same for custom
+classes, so no class maker or conversion rule is needed. It also frees Dodging's slots for guns, giving the evasive
+classes firearm primaries. What it loses is control over each class. Firearm counts swing from one (Bard) to six.
+Melee leaves the fighters' primaries. A few classes get odd skills: Monk's pistols, Assassin's energy gun, Healer's
+explosives, and no Energy Weapons for mages. Pistols and Melee end up on nearly every card, so classes look more
+alike. It also removes Dodging, a planned skill, in both modes. The hand-made cards keep Dodging and keep every
+class to one to four firearms chosen for its theme, but they cost 18 tables to maintain and need a separate rule for
+custom classes.
+
 ## Implementation notes (for the later card)
 
 - Two fixed tables keyed by class index: the no-guns replacements, and the guns cards (the slot-by-slot table above).
@@ -141,3 +247,4 @@ keeps vanilla pace only if the player uses or buys all three, as vanilla needed 
 3. **Skill values across modes (can wait for the guns-off option):** are a Daggerfall weapon skill and the Doom skill
    that replaces it separate values (recommended: new skills are new skills), or does a character's value carry over
    when switching modes?
+4. **Hand-made cards or the procedural alternative?** The procedural rule also removes Dodging in both modes.
