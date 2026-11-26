@@ -8,7 +8,11 @@ version "4.14"
 // The New Game run (@NEWGAME@ = 1) starts inside from the real New Game flow and uses the starting picks (no refusal case).
 // The load run (@LOADRUN@ = 1) closes the door again after the load and checks it is still unlocked, then makes it
 // magically held (Doom owns the lock) and checks Use starts nothing. DLTrip then leaves the dungeon, comes back, and
-// checks that Daggerfall's fact keeps the picked door unlocked in the freshly built map.
+// checks that Daggerfall's location record keeps the picked door unlocked in the freshly built map.
+// @ENDCASE@ picks how the take run leaves the door before the autosave (Privateer's Hold has one locked door, so the
+// cases are separate runs): 0 picked open (the hit), 1 unlocked by action 17 instead of the hit, 2 picked and then
+// relocked by action 20. Each run also locks a door that starts unlocked with action 16 (phase 11). The load run checks
+// both after the load (Doom's snapshot) and after the trip (the rebuilt map, from Daggerfall's location record).
 // Prints DLCASE lines and "DLDONE". Daggerfall's side (picks, messages) is checked from its log by the runner.
 
 class DLPresser : Thinker
@@ -28,7 +32,10 @@ class DLHarness : EventHandler
 	// WorldTick's switch crashed UZDoom while loading scripts (C0000005, every time with the DRLA set).
 	bool DEMO;    // the review demo: enter, stand at the door, then hand over to the player
 	bool NEWGAME; // the real New Game flow: already inside, with the character's starting picks
-	override void OnRegister() { DEMO = @DEMO@; NEWGAME = @NEWGAME@; }
+	override void OnRegister() { DEMO = @DEMO@; NEWGAME = @NEWGAME@; ENDCASE = @ENDCASE@; }
+
+	// The test door's lock as the take run left it.
+	int EndLock() { return ENDCASE == 2 ? door.startingLock : 0; }
 	const LIMIT = 35 * 25;
 
 	int phase, timer, passed, failed;
@@ -37,6 +44,8 @@ class DLHarness : EventHandler
 	DLPresser presser;
 	DFDoorListener savedListener;
 	DFAction doorRecord;
+	int lockedId;	// the door that starts unlocked and is locked by action 16 (phase 11)
+	int ENDCASE;
 	vector3 spot, arrival;
 	double face, arrivalAngle;
 
@@ -141,6 +150,31 @@ class DLHarness : EventHandler
 		}
 		Report(lockable > 0 && kept == lockable, String.Format("%d of %d lockable doors are armed at their starting lock", kept, lockable));
 		Finish();
+	}
+
+	static DFDoor FindId(int id)
+	{
+		let it = ThinkerIterator.Create("DFDoor");
+		DFDoor d;
+		while (d = DFDoor(it.Next())) if (d.loadId == id && id != 0) return d;
+		return null;
+	}
+
+	static void RunActionOn(DFDoor d, int type)
+	{
+		let a = DFAction(Actor.Spawn("DFAction", d.pos, NO_REPLACE));
+		a.flag = type;
+		a.door = d;
+		a.Perform(players[0].mo);
+		a.Destroy();
+	}
+
+	// The door locked by action 16 keeps lock 16.
+	static bool LockedHolds(int lockedId, out String got)
+	{
+		DFDoor c = FindId(lockedId);
+		got = String.Format("door %d lock %d", lockedId, c ? c.lockValue : -1);
+		return c && c.startingLock == 0 && c.lockValue == 16;
 	}
 
 	// Runs a Daggerfall action record of this type on the door, through the converter's real DFAction.Perform.
@@ -259,9 +293,35 @@ class DLHarness : EventHandler
 		case 6: SwitchCase(17, 7, "action 17 unlocks it"); break;
 		case 7: SwitchCase(16, 8, "action 16 locks it at 16"); break;
 		case 8: SwitchCase(18, 10, "action 18 opens the door and clears the lock"); break;
-		case 10: SwitchCase(20, 5, "action 20 closes the door and locks it again at its starting lock"); break;
-		case 5: // A hit, then the autosave.
+		case 10: SwitchCase(20, NEWGAME ? 5 : 11, "action 20 closes the door and locks it again at its starting lock"); break;
+		case 11: // A door that starts unlocked, locked by action 16 (see the top).
+		{
 			Back(p);
+			if (timer < 35) break;
+			let it = ThinkerIterator.Create("DFDoor");
+			DFDoor d, locked;
+			while (d = DFDoor(it.Next())) if (d.armed && d.loadId != 0 && d.loadId != LOADID && d.startingLock == 0) { locked = d; break; }
+			if (!locked) { Report(false, "an armed door that starts unlocked"); phase = 5; timer = 0; break; }
+			lockedId = locked.loadId;
+			RunActionOn(locked, 16);
+			String got;
+			Report(LockedHolds(lockedId, got), "action 16 locks a door that starts unlocked (" .. got .. ")");
+			phase = 5; timer = 0;
+			break;
+		}
+		case 5: // A hit (or, case lever, action 17), then the autosave.
+			Back(p);
+			if (timer == 35 && ENDCASE == 1) RunAction(17);
+			if (timer == 35 * 2 && ENDCASE == 1)
+			{
+				Report(Shut() && door.lockValue == 0, "case lever: action 17 unlocks the shut door");
+				if (doorRecord) { door.listener = savedListener; doorRecord.Destroy(); }
+				Console.Printf("DLSAVE autosave");
+				phase = 9; timer = 0;
+				LevelLocals.MakeAutoSave();
+				break;
+			}
+			if (ENDCASE == 1) break;
 			if (timer == 35) PressUse(p);
 			if (g) { started = true; if (g.Off(g.pointer) <= g.arc / 2 - 0.01) presser.press = BT_ATTACK; }
 			if (timer == 35 * 6)
@@ -275,8 +335,20 @@ class DLHarness : EventHandler
 				}
 				timer = 0;
 				if (NEWGAME) { Finish(); break; }
+				if (ENDCASE == 2) { phase = 12; break; }
 				Console.Printf("DLSAVE autosave");
 				phase = 9;
+				LevelLocals.MakeAutoSave();
+			}
+			break;
+		case 12: // case relock: the picked door, once fully open, is closed and relocked by action 20.
+			Back(p);
+			if (timer == 35 * 2) RunAction(20);
+			if (timer == 35 * 4)
+			{
+				Report(Shut() && door.lockValue == door.startingLock, "case relock: action 20 closes the picked door and relocks it at its starting lock");
+				Console.Printf("DLSAVE autosave");
+				phase = 9; timer = 0;
 				LevelLocals.MakeAutoSave();
 			}
 			break;
@@ -287,10 +359,13 @@ class DLHarness : EventHandler
 			if (!door) door = FindDoor();
 			if (!door) { Report(false, "door missing after the load"); Finish(); break; }
 			if (timer == 70) door.ActionSet(false);
-			if (timer == 35 * 6) PressUse(p);
+			if (timer == 35 * 6 && EndLock() == 0) PressUse(p);
 			if (timer == 35 * 9)
 			{
-				Report(door.lockValue == 0 && door.swung > 0 && !g, "after the load the door is still unlocked and opens on Use");
+				if (EndLock() == 0) Report(door.lockValue == 0 && door.swung > 0 && !g, "after the load the door is still unlocked and opens on Use");
+				else Report(door.lockValue == door.startingLock && Shut(), String.Format("after the load the relocked door is still locked at %d", door.lockValue));
+				String got;
+				Report(LockedHolds(lockedId, got), "after the load the door locked by action 16 is still locked (" .. got .. ")");
 				phase = 21; timer = 0;
 			}
 			break;
@@ -308,9 +383,9 @@ class DLHarness : EventHandler
 			if (timer == 35 * 4)
 			{
 				Report(!started && Shut() && door.lockValue == 25, "a magically held door stays shut and Use starts no minigame");
-				door.lockValue = 0; // the picked door as the save holds it, for the trip
+				door.lockValue = EndLock(); // the door as the save holds it, for the trip
 				let trip = DLTrip(StaticEventHandler.Find("DLTrip"));
-				if (trip) trip.Begin(arrival, arrivalAngle, passed, failed);
+				if (trip) trip.Begin(arrival, arrivalAngle, passed, failed, lockedId, EndLock());
 				done = true;
 			}
 			break;
@@ -323,11 +398,15 @@ class DLHarness : EventHandler
 class DLTrip : StaticEventHandler
 {
 	static const double DOORDATA[] = { @DOOR@ };
-	int phase, timer, passed, failed;
+	int phase, timer, passed, failed, lockedId, endLock, armedFor;
 	vector3 arrival;
 	double arrivalAngle;
 
-	void Begin(vector3 at, double angle, int p, int f) { arrival = at; arrivalAngle = angle; passed = p; failed = f; phase = 1; timer = 0; }
+	void Begin(vector3 at, double angle, int p, int f, int locked, int end)
+	{
+		arrival = at; arrivalAngle = angle; passed = p; failed = f; phase = 1; timer = 0;
+		lockedId = locked; endLock = end;
+	}
 
 	void Report(bool ok, String what)
 	{
@@ -375,9 +454,12 @@ class DLTrip : StaticEventHandler
 			DFDoor d;
 			while (d = DFDoor(it.Next())) { if (d.loadId == @LOADID@) door = d; else if (d.startingLock > 0 && !locked) locked = d; }
 			if (!door || !door.armed) break;
+			if (++armedFor < 70) break; // the location record (with the lock changes) may land after the arm
 			Report(true, "back inside: Daggerfall armed the rebuilt map");
-			Report(door.lockValue == 0, String.Format("the picked door is still unlocked after leaving and coming back (lock %d)", door.lockValue));
+			Report(door.lockValue == endLock, String.Format("the test door keeps its lock after leaving and coming back (lock %d, want %d)", door.lockValue, endLock));
 			Report(!locked || locked.lockValue == locked.startingLock, "another door keeps its starting lock");
+			String got;
+			Report(DLHarness.LockedHolds(lockedId, got), "after leaving and coming back the door locked by action 16 is still locked (" .. got .. ")");
 			Finish();
 			break;
 		}

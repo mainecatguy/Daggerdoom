@@ -5,39 +5,26 @@
 // answers with Daggerfall's chance (the minigame starts) or a refusal message (no picks, magically held). The
 // minigame's result comes back for Daggerfall's bookkeeping (skill tally, broken pick, message).
 //
-// The doors the player picked open are a permanent fact per dungeon, kept here and saved with the game. When Doom
-// builds a dungeon's map fresh it asks for its facts: this class arms the locks and names the picked doors. A saved
-// game restores Doom's own live locks instead.
+// When Doom builds a dungeon's map fresh it asks here, and this class arms the locks (Daggerfall is present, so locks
+// apply). Every lock change since (picks, levers, relocks) is kept in the location record's door fact, which Doom
+// reports on leaving and saving (door_objects.zs DFDoorHandler.Distill) and DoomerfallLocations keeps and saves.
+// A saved game restores Doom's own live locks.
 
 using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Text;
 using DaggerfallWorkshop.Game.Serialization;
-using FullSerializer;
 using UnityEngine;
 
 namespace DaggerfallWorkshop.Game.Doomerfall
 {
     internal sealed class DoomerfallDoors : MonoBehaviour
     {
-        const string LedgerFile = "DoomerfallDoors.json";
-
         // Castle Daggerfall's magically held foyer doors (DaggerfallAction.CastleDaggerfallMagicDoorsSpecialOpenHack).
         const int CastleDaggerfallMapId = 1291010263;
         static readonly ulong[] CastleFoyerDoors = { 29331574, 29331622 };
 
-        [fsObject("v1")]
-        public sealed class LedgerData
-        {
-            // Dungeon MapId -> LoadIDs of the doors the player picked open there.
-            public Dictionary<string, List<ulong>> picked = new Dictionary<string, List<ulong>>();
-        }
-
         DoomerfallBridge bridge;
         DoomerfallPositionSync sync;
         DoomerfallInfo info;
-        LedgerData ledger = new LedgerData();
         bool factsWanted;
         ulong pickDoor; // the door the minigame runs on; only its result is accepted
 
@@ -59,7 +46,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             get { return !sync.LoadRunning && GameManager.HasInstance && sync.InGame; }
         }
 
-        // Daggerfall is in the dungeon Doom is in. The facts and picks belong to it.
+        // Daggerfall is in the dungeon Doom is in. The arm belongs to it.
         bool InDoomsDungeon(out string key)
         {
             key = null;
@@ -118,7 +105,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         }
 
         // The minigame's result for the door named in the last DFB_DOOR_PICK. A cancel costs nothing. Doom opens the door
-        // itself on a hit, so Daggerfall only does its bookkeeping and keeps the fact.
+        // itself on a hit, so Daggerfall only does its bookkeeping; the door's new lock reaches the location record.
         internal void OnLockpick(ulong id, uint result)
         {
             if (id != pickDoor || pickDoor == 0)
@@ -134,15 +121,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
             bool hit = result == Dfb.PICK_HIT;
             DoomerfallLocks.ApplyAttempt(hit);
-            string key;
-            if (hit && InDoomsDungeon(out key))
-            {
-                List<ulong> doors;
-                if (!ledger.picked.TryGetValue(key, out doors))
-                    ledger.picked[key] = doors = new List<ulong>();
-                if (!doors.Contains(id))
-                    doors.Add(id);
-            }
             bridge.LogLine(string.Format("doors: lockpick on {0} {1}, picks {2}", id, hit ? "hit" : "miss", DoomerfallLockpick.Count(GameManager.Instance.PlayerEntity.Items)));
             Text(TextManager.Instance.GetLocalizedText(hit ? "lockpickingSuccess" : "lockpickingFailure"));
         }
@@ -153,14 +131,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (!factsWanted || !InDoomsDungeon(out key))
                 return;
             factsWanted = false;
-            List<ulong> doors;
-            if (!ledger.picked.TryGetValue(key, out doors))
-                doors = new List<ulong>();
-            int count = doors.Count;
-            Send(0, Dfb.DOOR_ARM, (uint)count, 0, 0); // the count tells Doom when its door setup is complete
-            foreach (ulong id in doors)
-                Send(id, Dfb.DOOR_FACT, 0, 0, 0);
-            bridge.LogLine(string.Format("doors: armed dungeon {0}, {1} picked open", key, count));
+            Send(0, Dfb.DOOR_ARM, 0, 0, 0); // no facts follow: lock changes come with the location record
+            bridge.LogLine(string.Format("doors: armed dungeon {0}", key));
         }
 
         void Send(ulong id, uint flags, uint lockValue, int chance, int picks)
@@ -182,7 +154,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             info.Send(0, text, false, Dfb.KIND_DOOR_TEXT);
         }
 
-        // A new character starts with no picked doors. A loaded game replaces the ledger in ReadLedger.
+        // A new character, or a loaded game: no minigame result from before belongs to it.
         void OnStartGame(object sender, EventArgs e)
         {
             if (SaveLoadManager.Instance != null && SaveLoadManager.Instance.LoadInProgress)
@@ -192,26 +164,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         internal void ForgetWorld()
         {
-            ledger = new LedgerData();
             pickDoor = 0;
-        }
-
-        // Called with the staged save, before the bundle's file count is taken.
-        internal void WriteLedger(string folder)
-        {
-            File.WriteAllText(Path.Combine(folder, LedgerFile), SaveLoadManager.Serialize(typeof(LedgerData), ledger, false), new UTF8Encoding(false));
-        }
-
-        // A save without the file comes from before this feature: no door was picked open.
-        internal void ReadLedger(string folder)
-        {
-            string path = Path.Combine(folder, LedgerFile);
-            ledger = File.Exists(path) ? (LedgerData)SaveLoadManager.Deserialize(typeof(LedgerData), File.ReadAllText(path)) ?? new LedgerData() : new LedgerData();
-            if (ledger.picked == null)
-                ledger.picked = new Dictionary<string, List<ulong>>();
-            pickDoor = 0;
-            factsWanted = false; // the loaded game's map brings its own live locks
-            bridge.LogLine("doors: ledger restored with " + ledger.picked.Count + " dungeons");
         }
     }
 }

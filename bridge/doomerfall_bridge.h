@@ -173,12 +173,13 @@ extern "C" {
 
 /* Locked doors. Doom owns each live lock on the current map (its door's lock value, changed by action records) and
    runs Daggerfall's door order itself. Daggerfall owns the rules and the player: it is asked about an attempt (chance or
-   refusal), does the pick bookkeeping, and keeps the doors the player picked open as a permanent fact per dungeon.
+   refusal), does the pick bookkeeping, and arms the locks of a freshly built map. Lock changes since (picks, levers) are kept
+   in the location record's door fact (door_objects.zs DFDoorHandler.Distill), like the open doors.
    id is Daggerfall Unity's LoadID for a dungeon door (DFB_DOOR_DUNGEON). */
 #define DFB_KIND_DOOR_USE      190  /* UZ to DF; Use on a shut door Doom holds locked; state is its live lock value; payload: dfb_door */
-#define DFB_KIND_DOOR_STATE    191  /* DF to UZ; an answer to DOOR_USE (flags DFB_DOOR_PICK or _OPEN), or the door facts (DFB_DOOR_ARM, _FACT); payload: dfb_door */
+#define DFB_KIND_DOOR_STATE    191  /* DF to UZ; an answer to DOOR_USE (flags DFB_DOOR_PICK or _OPEN), or the arm (DFB_DOOR_ARM); payload: dfb_door */
 #define DFB_KIND_LOCKPICK      192  /* UZ to DF; the minigame result for a DFB_DOOR_PICK answer; state is DFB_PICK_*; Doom opens the door itself on a hit; payload: dfb_door */
-#define DFB_KIND_DOOR_FACTS    193  /* UZ to DF; Doom built this dungeon's map fresh (not from a save): send its door facts; payload: dfb_door */
+#define DFB_KIND_DOOR_FACTS    193  /* UZ to DF; Doom built this dungeon's map fresh (not from a save): arm its locks; payload: dfb_door */
 #define DFB_KIND_DOOR_TEXT     194  /* DF to UZ; a HUD message about a door (Daggerfall's words); payload: dfb_info_text; DFB_INFO_MORE as on INFO_TEXT */
 #define DFB_DOOR_DUNGEON   1u
 #define DFB_PICK_MISS      0u  /* dfb_door.state on DFB_KIND_LOCKPICK */
@@ -186,8 +187,7 @@ extern "C" {
 #define DFB_PICK_CANCEL    2u
 #define DFB_DOOR_OPEN      1u  /* dfb_door.flags: unlock this door and open it, not as the player's toggle (Castle Daggerfall's foyer doors) */
 #define DFB_DOOR_PICK      2u  /* start the minigame with chance; picks is the count held */
-#define DFB_DOOR_ARM       4u  /* id 0: lock every door at its starting lock value; state is how many DFB_DOOR_FACT follow. Doors stay unlocked without it */
-#define DFB_DOOR_FACT      8u  /* the player picked this door open earlier; state is its lock value (0) */
+#define DFB_DOOR_ARM       4u  /* id 0: lock every door not yet armed at its starting lock value. Doors stay unlocked without it */
 
 /* A plain Daggerfall save (no Doom half) loaded from DFB_UI_LOAD_GAME. Daggerfall holds the game; Doom starts a game of
    its default class through the New Game chain, goes to the saved place, sends STARTER, then DFB_KIND_NEWGAME_ARRIVED.

@@ -11,6 +11,9 @@ newgame: the real New Game flow into Privateer's Hold, then cancel, miss, hit an
 load: loads that autosave in fresh copies of both games, closes the door and checks it stays unlocked, makes it magically
       held (no minigame), then leaves the dungeon, comes back, and checks Daggerfall's fact keeps it unlocked.
 check: DOOM.WAD E1M1 with no bridge, stock and with the DRLA set.
+--case (take and load, same value for both): pick (default) ends with the hit; lever unlocks the door with action 17
+      instead; relock picks it and then relocks it with action 20. Every take run also locks a door that starts unlocked
+      with action 16. load checks both doors after the load and after leaving and coming back.
 --root is a folder made by scripts/play/install.py (default: the review demo folder). Logs go to <root>/test.
 """
 import re
@@ -32,6 +35,8 @@ DRLA = ["DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.
 DATA = ["ddruntime.pk3", "overworld.pk3", "privateershold.wad", "privateershold_mesh.pk3", "privateershold_doors.pk3"]
 GROUP = 7154
 LOADID = 29539363
+CASES = ["pick", "lever", "relock"]  # --case: how the take run leaves the door before the autosave (see harness.zs)
+CASE = sys.argv[sys.argv.index("--case") + 1] if "--case" in sys.argv else "pick"
 FATAL = ("DIED WITH FATAL", "VM execution aborted", "Execution could not continue", "Unable to open map")
 
 
@@ -49,8 +54,8 @@ def lumps(path):
 
 def entry_save(runs):
     """The take run's dungeon-entry autosave: its first map change autosave made inside the dungeon (MAP01)."""
-    found = re.findall(r"save (\d+): Doom frozen at tic \d+, map MAP01, .*file (auto\d+\.zds)", read(runs / "take-uz.log"))
-    committed = {n for n in re.findall(r"save (\d+): map change autosave committed", read(runs / "take-uz.log"))}
+    found = re.findall(r"save (\d+): Doom frozen at tic \d+, map MAP01, .*file (auto\d+\.zds)", read(runs / f"take-{CASE}-uz.log"))
+    committed = {n for n in re.findall(r"save (\d+): map change autosave committed", read(runs / f"take-{CASE}-uz.log"))}
     for number, name in found:
         if number in committed:
             return runs / "saves" / name
@@ -62,7 +67,7 @@ def harness(runs, load, demo=False, newgame=False, entry=False):
     door = next(l.split() for l in lumps(cache)["DDDOORS"].decode().splitlines() if l.startswith("1 187853213"))
     text = (HERE / "harness.zs").read_text()
     text = text.replace("@DOOR@", ", ".join(door[3:8])).replace("@LOADRUN@", "1" if load else "0").replace("@LOADID@", str(LOADID))
-    text = text.replace("@DEMO@", "1" if demo else "0").replace("@NEWGAME@", "1" if newgame else "0").replace("@ENTRYRUN@", "1" if entry else "0")
+    text = text.replace("@DEMO@", "1" if demo else "0").replace("@NEWGAME@", "1" if newgame else "0").replace("@ENTRYRUN@", "1" if entry else "0").replace("@ENDCASE@", str(CASES.index(CASE)))
     path = runs / ("demo_door.pk3" if demo else "harness-newgame.pk3" if newgame else "harness-entry.pk3" if entry else "harness.pk3")
     with zipfile.ZipFile(path, "w") as z:
         z.writestr("zscript.txt", text)
@@ -83,12 +88,13 @@ def run(name):
     if name == "entry":
         autosaves = [Path(sys.argv[sys.argv.index("--save") + 1]) if "--save" in sys.argv else entry_save(runs)]
         print("loading", autosaves[-1].name)
-    uz_log, df_log, console, launcher = runs / f"{name}-uz.log", runs / f"{name}-df.log", runs / f"log-{name}.txt", runs / f"{name}-launcher.log"
+    tag = f"{name}-{CASE}" if name in ("take", "load") else name  # per case, so each case's logs survive the next run
+    uz_log, df_log, console, launcher = runs / f"{tag}-uz.log", runs / f"{tag}-df.log", runs / f"log-{tag}.txt", runs / f"{tag}-launcher.log"
     for path in (uz_log, df_log, console, launcher):
         path.unlink(missing_ok=True)
     uz = ["-noactivate", "-config", str(runs / f"{name}.ini"), "-savedir", str(saves), "-dfbridgelog", str(uz_log), "-nosound", "-noautoload", "-skill", "3",
           "-ddtowncache", str(ROOT / "data" / "cache"), "-ddconverter", str(ROOT / "data" / "converter" / "DungeonConverter.exe"), "-ddarena2", str(GAME / "DAGGER" / "ARENA2"),
-          "+logfile", name, "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{GROUP:05d}"]
+          "+logfile", tag, "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{GROUP:05d}"]
     if name in ("load", "entry"):
         uz += ["-dfloadtest", f"resume:{autosaves[-1]}"]
     df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
@@ -121,7 +127,7 @@ def run(name):
         proc.wait()
     print("stopped:", reason)
     for line in read(console).splitlines():
-        if re.match(r"DL[A-Z]+ ", line) or line.startswith("look: ") or "lockpick" in line.lower() or "lock" in line and "door" in line.lower() or any(k in line for k in FATAL):
+        if re.match(r"DL[A-Z]+ ", line) or line.startswith("look: ") or "lockpick" in line.lower() or "lock" in line and "door" in line.lower() or "DDLOC" in line and "door" in line or any(k in line for k in FATAL):
             print("uz", line[:200])
     for line in read(uz_log).splitlines():
         if "doors:" in line or "setup:" in line or "save:" in line or "autosave committed" in line or re.search(r"load test", line, re.I):

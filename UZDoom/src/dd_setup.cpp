@@ -1,5 +1,5 @@
 // [Doomerfall] Level setup gate. Some systems finish setting up a freshly loaded map only after Daggerfall answers
-// (the door facts arm the locks). A save taken before that would keep the half-built map, and loading it would keep
+// (Daggerfall's arm sets the door locks; the place record brings the doors' open state and lock changes). A save taken before that would keep the half-built map, and loading it would keep
 // it that way. Such a system calls DD_SetupWait when it asks and DD_SetupDone once its answer is applied; the arrival
 // autosave and held autosaves wait for DD_SetupReady. A missing answer never blocks saving for longer than SetupTimeoutNs.
 //

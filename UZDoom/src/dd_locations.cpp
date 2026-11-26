@@ -27,6 +27,9 @@
 #include "g_levellocals.h"
 #include "printf.h"
 
+void DD_SetupWait(const char *system);	// dd_setup.cpp: the arrival autosave waits for the entered place's record
+void DD_SetupDone(const char *system);
+
 namespace
 {
 constexpr int WaitTics = 35 * 5;	// Without an answer, the entered place is built from Doom's cache.
@@ -260,6 +263,7 @@ void ApplySpace(FLevelLocals *Level)
 	if (!waiting || !in.complete) return;
 	in.complete = false;
 	waiting = false;
+	DD_SetupDone("place");	// the record (with the doors' open state and locks) is applied below, in this call
 	const DDPlaceKey got{ in.header.place_kind, in.header.map_id, in.header.key };
 	if (!(got == requestPlace)) return;
 	const auto t0 = std::chrono::steady_clock::now();
@@ -329,6 +333,7 @@ void DD_LocationsEntered(const DDPlaceKey &place)
 	waitUntil = gametic + WaitTics;
 	in = Incoming();
 	requestPending = true;
+	DD_SetupWait("place");
 	if (lastSession) SendRequest(lastSession);
 }
 
@@ -338,6 +343,7 @@ bool DD_LocationsWaiting()
 	{
 		Printf(TEXTCOLOR_ORANGE "DDLOC no record from Daggerfall for %s; building from Doom's cache\n", PlaceName(requestPlace).GetChars());
 		waiting = false;
+		DD_SetupDone("place");
 	}
 	return waiting;
 }

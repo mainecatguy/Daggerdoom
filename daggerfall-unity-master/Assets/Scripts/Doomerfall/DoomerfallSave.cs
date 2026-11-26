@@ -115,7 +115,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             Monsters.ReadLedger(folder);
             Locations.ReadLedger(folder);
             Townspeople.ReadLedger(folder);
-            Doors.ReadLedger(folder);
+            Doors.ForgetWorld(); // door locks come back in the location record and Doom's snapshot
             bool started = saves.LoadFromFolder(folder);
             while (started && !loadRestored && Time.unscaledTime < deadline)
                 yield return null;
@@ -245,7 +245,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 Monsters.WriteLedger(folder);
                 Locations.WriteLedger(folder);
                 Townspeople.WriteLedger(folder);
-                Doors.WriteLedger(folder);
                 if (testFail)
                     throw new IOException("test failure after writing the files");
                 foreach (string file in Directory.GetFiles(folder, "*", SearchOption.AllDirectories))
