@@ -75,6 +75,39 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             Send(id, Dfb.DOOR_LOCKED, Dfb.DOOR_PICK, DoomerfallLocks.Chance(door), picks);
         }
 
+        // A Daggerfall action record ran on this door in Doom. The lock changes as DaggerfallAction's LockDoor (16),
+        // UnlockDoor (17), OpenDoor (18) and CloseDoor (20) change it. Doom only sends 18 and 20 when its door really
+        // opened or closed, standing in for Daggerfall's IsOpen check (Daggerfall's own door model is hidden and never moves).
+        internal void OnAction(ulong id, uint type)
+        {
+            if (!Ready)
+                return;
+            DaggerfallActionDoor door = DoomerfallLocks.Find(id);
+            if (!door)
+            {
+                bridge.LogLine(string.Format("doors: action {0} on unknown door {1}", type, id));
+                return;
+            }
+            switch (type)
+            {
+                case 16:
+                    if (!door.IsLocked)
+                        door.CurrentLockValue = 16; // DaggerfallAction.LockDoor's value
+                    break;
+                case 17:
+                case 18:
+                    door.CurrentLockValue = 0;
+                    break;
+                case 20:
+                    door.CurrentLockValue = door.StartingLockValue;
+                    break;
+                default:
+                    return;
+            }
+            bridge.LogLine(string.Format("doors: action {0} on {1}, now {2}", type, id, DoomerfallLocks.StateOf(door)));
+            resend = true;
+        }
+
         // The minigame's result for the door named in the last DFB_DOOR_PICK. A cancel costs nothing.
         internal void OnLockpick(ulong id, uint result)
         {

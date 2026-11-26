@@ -1,8 +1,11 @@
 """Locked dungeon doors with both real games, minimized (goal 20261125-202715).
 
-usage: run_paired.py take | load | check   [--root DIR]
+usage: run_paired.py take | load | newgame | check | demo   [--root DIR]
 take: enters Privateer's Hold, and on door 29539363 (lock 2): label, refusal without picks, damage cancel, miss, hit,
-      then a synchronized autosave. Daggerfall runs with -dflocktest (takes the picks, gives 3 back after 20 s).
+      action records 20/17/16/18, then a synchronized autosave. Daggerfall runs with -dflocktest (holds the picks back,
+      returns them after 20 s).
+newgame: the real New Game flow into Privateer's Hold, then cancel, miss, hit and the actions with the starting picks.
+      Run it inside quiet_run.py (see newgame()).
 load: loads that autosave in fresh copies of both games, closes the door, and checks Daggerfall keeps it unlocked.
 check: DOOM.WAD E1M1 with no bridge, stock and with the DRLA set.
 --root is a folder made by scripts/play/install.py (default: the review demo folder). Logs go to <root>/test.
@@ -41,13 +44,13 @@ def lumps(path):
         return {name: zlib.decompress(f.read(packed)) if raw else b"" for name, raw, packed in heads}
 
 
-def harness(runs, load, demo=False):
+def harness(runs, load, demo=False, newgame=False):
     cache = ROOT / "data" / "cache" / f"T{GROUP:05d}.ddt"
     door = next(l.split() for l in lumps(cache)["DDDOORS"].decode().splitlines() if l.startswith("1 187853213"))
     text = (HERE / "harness.zs").read_text()
     text = text.replace("@DOOR@", ", ".join(door[3:8])).replace("@LOADRUN@", "1" if load else "0").replace("@LOADID@", str(LOADID))
-    text = text.replace("@DEMO@", "1" if demo else "0")
-    path = runs / ("demo_door.pk3" if demo else "harness.pk3")
+    text = text.replace("@DEMO@", "1" if demo else "0").replace("@NEWGAME@", "1" if newgame else "0")
+    path = runs / ("demo_door.pk3" if demo else "harness-newgame.pk3" if newgame else "harness.pk3")
     with zipfile.ZipFile(path, "w") as z:
         z.writestr("zscript.txt", text)
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "DLHarness" }\n')
@@ -116,6 +119,77 @@ def run(name):
         print("  ", line)
 
 
+def newgame():
+    """The real New Game flow (wizard driven by tools/new_game/run_new_game.py's clicks), then the door cases with the
+    new character's starting picks. Run the whole script inside quiet_run.py, so Doom's window can be found:
+    python quiet_run.py --timeout 200 -- python run_paired.py newgame"""
+    sys.path.insert(0, str(HERE.parent.parent / "new_game"))
+    import run_new_game as ng
+    runs = ROOT / "test"
+    saves = runs / "saves-newgame"
+    saves.mkdir(parents=True, exist_ok=True)
+    for old in saves.glob("*.zds"):
+        old.unlink()
+    uz_log, df_log, console, launcher = runs / "newgame-uz.log", runs / "newgame-df.log", runs / "log-newgame.txt", runs / "newgame-launcher.log"
+    player_log = ROOT / "dfu" / "PortableAppdata" / "Player.log"
+    for path in (uz_log, df_log, console, launcher):
+        path.unlink(missing_ok=True)
+    uz = ["-noactivate", "-config", str(runs / "newgame.ini"), "-savedir", str(saves), "-dfbridgelog", str(uz_log), "-dfflow", "-dfnewgametest", "once", "-dfuitest", "0",
+          "-nosound", "-noautoload", "-ddtowncache", str(ROOT / "data" / "cache"), "-ddconverter", str(ROOT / "data" / "converter" / "DungeonConverter.exe"),
+          "-ddarena2", str(GAME / "DAGGER" / "ARENA2"), "+logfile", "log-newgame.txt", "+vid_fullscreen", "0", "+wipetype", "0",
+          "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"]
+    df = ["-dfbridgelog", str(df_log), "-dfflow", str(GAME / "DAGGER"), "-screen-fullscreen", "0", "-screen-width", "1280", "-screen-height", "800"]
+    command = [str(ROOT / "doomerfall-launcher.exe"), "--minimized", "--nodraw", "--uzdoom", str(ROOT / "uzdoom" / "uzdoom.exe"), "--dfu", str(ROOT / "dfu" / "DaggerfallUnity.exe"),
+               "--iwad", str(GAME / "wads" / "DOOM2.WAD"), "--uzdoom-cwd", str(runs), "--log", str(launcher)]
+    for mod in [MODS / n for n in DRLA] + [ROOT / "data" / n for n in DATA] + [ROOT / "dfitems.pk3", ROOT / "doomerfall.pk3", harness(runs, False, newgame=True)]:
+        command += ["--mod", str(mod)]
+    for arg in uz:
+        command += ["--uzdoom-arg", arg]
+    for arg in df:
+        command += ["--dfu-arg", arg]
+    proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    reason, hwnd, tries, last, end = "timeout", None, 0, "", time.time() + 180
+    try:
+        while time.time() < end and proc.poll() is None:
+            body = read(console)
+            if "DLDONE" in body:
+                reason = "harness finished"
+                time.sleep(2)
+                break
+            if any(k in body for k in FATAL) or re.search(r"[1-9]\d* errors?, \d+ warnings? while compiling", body):
+                reason = "fatal"
+                break
+            uzb = read(uz_log)
+            size = re.search(r"opened menu 4 at (\d+)x(\d+)", uzb)
+            if "both games running" in uzb or not size or "ui: closed" in uzb[uzb.rfind("opened menu 4"):]:
+                time.sleep(0.1)
+                continue
+            ng.SURFACE[:] = [int(size.group(1)), int(size.group(2))]
+            hwnd = hwnd or ng.doom_window(launcher)
+            if not hwnd:
+                continue
+            top = ng.top_window(df_log)
+            tries = tries + 1 if top == last else 0
+            last = top
+            ng.act(hwnd, top, tries)
+            time.sleep(0.15)
+    finally:
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True)
+    print("stopped:", reason, "| last wizard window:", last)
+    for line in read(console).splitlines():
+        if re.match(r"DL[A-Z]+ ", line) or line.startswith("look: ") or any(k in line for k in FATAL):
+            print("uz", line[:200])
+    for line in read(uz_log).splitlines():
+        if "doors:" in line or "both games running" in line:
+            print("uz-bridge", line[:200])
+    for line in read(df_log).splitlines():
+        if "doors:" in line or "look: request" in line and "target 6" in line:
+            print("df", line[:240])
+    for line in read(player_log).splitlines():
+        if "lockpick: new character starts with" in line:
+            print("df-player", line.strip())
+
+
 def check():
     runs = ROOT / "test"
     runs.mkdir(parents=True, exist_ok=True)
@@ -164,6 +238,8 @@ if __name__ == "__main__":
         demo()
     elif command in ("take", "load"):
         run(command)
+    elif command == "newgame":
+        newgame()
     elif command == "check":
         check()
     else:

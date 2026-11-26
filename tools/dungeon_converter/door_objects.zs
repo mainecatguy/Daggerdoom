@@ -170,13 +170,21 @@ class DFDoor : Actor
 		return true;
 	}
 
-	// Action types 18 and 20: open or close, and do nothing if already there or moving.
-	void ActionSet(bool open)
+	// Action types 18 and 20: open or close, and do nothing if already there or moving. True when the door started moving.
+	bool ActionSet(bool open)
 	{
-		if (moving != 0 || (swung > 0) == open) return;
+		if (moving != 0 || (swung > 0) == open) return false;
 		moving = open ? 1 : -1;
 		UpdateBlocking();
 		A_StartSound(open ? "doors/dr1_open" : "doors/dr1_clos", CHAN_BODY);
+		return true;
+	}
+
+	// An action record changed this door's lock (16 lock, 17 unlock, 18 opened, 20 closed). Daggerfall owns the lock and
+	// changes it as DaggerfallAction does, then sends its locked list again. Doom changes nothing here.
+	void TellLockAction(int type)
+	{
+		if (loadId != 0) EventHandler.SendNetworkEvent(String.Format("dfdoor_action:%d:%d", loadId, type));
 	}
 
 	override void Tick()

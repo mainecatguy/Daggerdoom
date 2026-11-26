@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x2d073bff00e11c7dUL;
+        public const ulong SchemaHash = 0x6b21332de2785029UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -116,6 +116,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_LOCKPICK = 192;  // UZ to DF; the minigame result for a DFB_DOOR_PICK answer; state is DFB_PICK_*; payload: dfb_door
         public const ushort KIND_DOORS_REQUEST = 193;  // UZ to DF; send the locked list again (a new map, or a load); payload: dfb_door
         public const ushort KIND_DOOR_TEXT = 194;  // DF to UZ; a HUD message about a door (Daggerfall's words); payload: dfb_info_text; DFB_INFO_MORE as on INFO_TEXT
+        public const ushort KIND_DOOR_ACTION = 195;  // UZ to DF; a Daggerfall action record ran on its door; state is the action type (16 lock, 17 unlock, 18 opened, 20 closed); Daggerfall changes the lock as DaggerfallAction does; payload: dfb_door
         public const uint DOOR_DUNGEON = 1;
         public const uint DOOR_UNLOCKED = 0;  // dfb_door.state
         public const uint DOOR_LOCKED = 1;
@@ -379,7 +380,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public DfbInfoText infoText;  // INFO_TEXT, INFO_NAME, LOOK_TEXT, DOOR_TEXT
         [FieldOffset(16)] public DfbDoomItem doomItem;  // DOOM_ITEM_TAKE, DOOM_ITEM_RESULT, DOOM_ITEM_USE, DOOM_ITEM_USED, DOOM_ITEM_ART_REQUEST, DOOM_ITEM_ART, STARTER
         [FieldOffset(16)] public DfbClimbUses climbUses;  // CLIMB_USES
-        [FieldOffset(16)] public DfbDoor door;  // DOOR_USE, DOOR_STATE, LOCKPICK, DOORS_REQUEST
+        [FieldOffset(16)] public DfbDoor door;  // DOOR_USE, DOOR_STATE, LOCKPICK, DOORS_REQUEST, DOOR_ACTION
         [FieldOffset(16)] public DfbPlainLoad plainLoad;  // PLAIN_LOAD
         [FieldOffset(16)] public DfbNpcUse npcUse;  // NPC_USE
         [FieldOffset(16)] public DfbNpcUseResult npcUseResult;  // NPC_USE_RESULT
@@ -695,7 +696,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
     {
         [FieldOffset(0)] public ulong id;
         [FieldOffset(8)] public uint kind;  // DFB_DOOR_DUNGEON
-        [FieldOffset(12)] public uint state;  // DFB_DOOR_* or DFB_PICK_*
+        [FieldOffset(12)] public uint state;  // DFB_DOOR_*, DFB_PICK_*, or the action type on DOOR_ACTION
         [FieldOffset(16)] public int chance;  // Daggerfall's lockpicking chance, 5 to 95
         [FieldOffset(20)] public int picks;  // Lockpicks the player holds
         [FieldOffset(24)] public uint flags;  // DFB_DOOR_OPEN, _PICK, _LIST_BEGIN, _LIST_END

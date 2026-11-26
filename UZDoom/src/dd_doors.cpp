@@ -1,6 +1,7 @@
 // [Doomerfall] Locked doors. Daggerfall owns every lock (DFB_KIND_DOOR_*); this file relays between the bridge and the
 // Doomerfall mod's door actors (door_objects.zs) and lockpicking minigame (zscript/DoomerfallLockpick.zs):
 //   mod "dfdoor_use:<id>:<state>"        -> DFB_KIND_DOOR_USE
+//   mod "dfdoor_action:<id>:<type>"      -> DFB_KIND_DOOR_ACTION (action records 16, 17, 18, 20 on that door)
 //   mod "dflp_result:<id>:<hit|miss|cancel>" -> DFB_KIND_LOCKPICK
 //   DFB_KIND_DOOR_STATE                   -> "dfdoor_clear", "dfdoor_lock:<id>:<state>[:open]", "dflp_start:<chance>:<id>"
 //   DFB_KIND_DOOR_TEXT                    -> Daggerfall's HUD message
@@ -47,17 +48,18 @@ void Send(dfb_session *session, uint16_t kind, const dfb_door &body)
 bool DD_DoorsNetEvent(dfb_session *session, const char *name)
 {
 	const bool use = !strncmp(name, "dfdoor_use:", 11);
-	const bool pick = !use && !strncmp(name, "dflp_result:", 12);
-	if (!use && !pick) return false;
+	const bool action = !use && !strncmp(name, "dfdoor_action:", 14);
+	const bool pick = !use && !action && !strncmp(name, "dflp_result:", 12);
+	if (!use && !action && !pick) return false;
 	char *end = nullptr;
 	dfb_door d{};
 	d.kind = DFB_DOOR_DUNGEON;
-	d.id = strtoull(name + (use ? 11 : 12), &end, 10);
+	d.id = strtoull(name + (use ? 11 : action ? 14 : 12), &end, 10);
 	if (d.id == 0 || !end || *end != ':') return true; // an old map without LoadIDs, or the minigame's own test token
-	if (use) d.state = uint32_t(strtoul(end + 1, nullptr, 10));
+	if (!pick) d.state = uint32_t(strtoul(end + 1, nullptr, 10));
 	else d.state = !strcmp(end + 1, "hit") ? DFB_PICK_HIT : !strcmp(end + 1, "miss") ? DFB_PICK_MISS : DFB_PICK_CANCEL;
-	Send(session, use ? DFB_KIND_DOOR_USE : DFB_KIND_LOCKPICK, d);
-	DD_BridgeLog(FStringf("doors: %s %llu state %u", use ? "use" : "lockpick", (unsigned long long)d.id, d.state).GetChars());
+	Send(session, use ? DFB_KIND_DOOR_USE : action ? DFB_KIND_DOOR_ACTION : DFB_KIND_LOCKPICK, d);
+	DD_BridgeLog(FStringf("doors: %s %llu state %u", use ? "use" : action ? "action" : "lockpick", (unsigned long long)d.id, d.state).GetChars());
 	return true;
 }
 

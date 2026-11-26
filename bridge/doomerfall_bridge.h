@@ -174,6 +174,7 @@ extern "C" {
 #define DFB_KIND_LOCKPICK      192  /* UZ to DF; the minigame result for a DFB_DOOR_PICK answer; state is DFB_PICK_*; payload: dfb_door */
 #define DFB_KIND_DOORS_REQUEST 193  /* UZ to DF; send the locked list again (a new map, or a load); payload: dfb_door */
 #define DFB_KIND_DOOR_TEXT     194  /* DF to UZ; a HUD message about a door (Daggerfall's words); payload: dfb_info_text; DFB_INFO_MORE as on INFO_TEXT */
+#define DFB_KIND_DOOR_ACTION   195  /* UZ to DF; a Daggerfall action record ran on its door; state is the action type (16 lock, 17 unlock, 18 opened, 20 closed); Daggerfall changes the lock as DaggerfallAction does; payload: dfb_door */
 #define DFB_DOOR_DUNGEON   1u
 #define DFB_DOOR_UNLOCKED  0u  /* dfb_door.state */
 #define DFB_DOOR_LOCKED    1u
@@ -607,7 +608,7 @@ typedef struct dfb_door
 {
 	uint64_t id;
 	uint32_t kind;        /* DFB_DOOR_DUNGEON */
-	uint32_t state;       /* DFB_DOOR_* or DFB_PICK_* */
+	uint32_t state;       /* DFB_DOOR_*, DFB_PICK_*, or the action type on DOOR_ACTION */
 	int32_t chance;       /* Daggerfall's lockpicking chance, 5 to 95 */
 	int32_t picks;        /* Lockpicks the player holds */
 	uint32_t flags;       /* DFB_DOOR_OPEN, _PICK, _LIST_BEGIN, _LIST_END */

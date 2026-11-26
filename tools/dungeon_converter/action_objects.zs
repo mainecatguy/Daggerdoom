@@ -280,19 +280,19 @@ class DFAction : DFDoorListener
 			case 14: Teleport(user); break;
 			// A model that is not a real door swings as DaggerfallActionDoorSpecial, once its converter record makes it a mover.
 			case 18:
-				if (door) door.ActionSet(true);
+				if (door) { if (door.ActionSet(true)) door.TellLockAction(18); }
 				else if (kind == 1 && phase == AT_START) { phase = FORWARD; A_StartSound("doors/dr1_open", CHAN_BODY); }
 				break;
 			case 20:
-				if (door) door.ActionSet(false);
+				if (door) { if (door.ActionSet(false)) door.TellLockAction(20); }
 				else if (kind == 1 && phase == AT_END) { phase = REVERSE; A_StartSound("doors/dr1_clos", CHAN_BODY); }
 				break;
 			case 30: break;
 			case 9: DFActionRules.Request(self, "spell", user); break;
 			case 11: DFActionRules.Request(self, "text", user); break;
 			case 12: DFActionRules.Request(self, "riddle", user); break;
-			case 16: DFActionRules.Request(self, "lock", user); break;
-			case 17: DFActionRules.Request(self, "unlock", user); break;
+			case 16: if (door) door.TellLockAction(16); else DFActionRules.Request(self, "lock", user); break;
+			case 17: if (door) door.TellLockAction(17); else DFActionRules.Request(self, "unlock", user); break;
 			case 21: case 22: case 23: case 24: case 25: DFActionRules.Request(self, "damage", user); break;
 			case 26: DFActionRules.Request(self, "poison", user); break;
 			case 28: DFActionRules.Request(self, "magicka", user); break;

@@ -2,7 +2,9 @@ version "4.14"
 
 // Test only: locked dungeon doors with both real games (tools/lockpick/paired/run_paired.py). Enters Privateer's Hold
 // by the town door, walks to the locked door @LOADID@, and presses the real Use on it:
-//   no picks (Daggerfall's -dflocktest took them) -> refused; with picks: damage cancel, miss, hit -> opens; autosave.
+//   no picks (Daggerfall's -dflocktest held them back) -> refused; with picks: damage cancel, miss, hit -> opens;
+//   action records 20 (relock), 17, 16, 18 (open and unlock) through DFAction.Perform; autosave.
+// The New Game run (@NEWGAME@ = 1) starts inside from the real New Game flow and uses the starting picks (no refusal case).
 // The load run (@LOADRUN@ = 1) closes the door again after the load and checks that Daggerfall's list keeps it unlocked.
 // Prints DLCASE lines and "DLDONE". Daggerfall's side (picks, messages) is checked from its log by the runner.
 
@@ -18,6 +20,7 @@ class DLHarness : EventHandler
 	const LOADID = @LOADID@;
 	const LOADRUN = @LOADRUN@;
 	const DEMO = @DEMO@; // the review demo: enter, stand at the door, then hand over to the player
+	const NEWGAME = @NEWGAME@; // the real New Game flow: already inside, with the character's starting picks
 	const LIMIT = 35 * 25;
 
 	int phase, timer, passed, failed;
@@ -111,6 +114,31 @@ class DLHarness : EventHandler
 
 	bool Shut() { return door.swung <= 0 && door.moving == 0; }
 
+	// Runs a Daggerfall action record of this type on the door, through the converter's real DFAction.Perform.
+	void Switch(int type)
+	{
+		let a = DFAction(Actor.Spawn("DFAction", door.pos, NO_REPLACE));
+		a.flag = type;
+		a.door = door;
+		a.Perform(players[0].mo);
+		a.Destroy();
+	}
+
+	// One switch case: run the action at 1 s, check at 4 s, then go on to the next phase.
+	void SwitchCase(int type, int next, String what)
+	{
+		Back(players[0].mo);
+		if (timer == 35) Switch(type);
+		if (timer != 35 * 4) return;
+		bool ok = type == 20 ? Shut() && door.lockState == 1
+			: type == 17 ? Shut() && door.lockState == 0
+			: type == 16 ? Shut() && door.lockState == 1
+			: door.swung > 0 && door.lockState == 0;
+		Report(ok, what);
+		phase = next;
+		timer = 0;
+	}
+
 	override void WorldTick()
 	{
 		if (done || !playeringame[0] || !players[0].mo) return;
@@ -130,6 +158,7 @@ class DLHarness : EventHandler
 			vector3 tdoor = (DOORDATA[0], DOORDATA[1], DOORDATA[2]);
 			vector2 normal = (DOORDATA[3], DOORDATA[4]);
 			if (inside) { phase = 1; timer = 0; break; }
+			if (NEWGAME) break; // the New Game flow takes the player inside by itself
 			if (level.maptime < 8 || CVar.FindCVar("dd_sync_df_phase").GetInt() != 3) break;
 			p.SetOrigin((tdoor.xy + normal * 48, tdoor.z), false);
 			p.vel = (0, 0, 0);
@@ -149,8 +178,8 @@ class DLHarness : EventHandler
 			if (!DEMO) RemoveMonsters();
 			if (!PlaceAtDoor(p)) { Report(false, "no spot in front of the door"); Finish(); break; }
 			if (DEMO) { done = true; break; }
-			phase = 2;
-			timer = 0;
+			phase = NEWGAME ? 3 : 2; // a New Game character holds its starting picks, so the refusal case is the take run's
+			timer = NEWGAME ? 35 * 22 - 70 : 0; // the New Game run skips the take run's 22 s wait for picks
 			break;
 		case 2: // Look at it (label checked from the log), then Use without picks.
 			Back(p);
@@ -190,10 +219,19 @@ class DLHarness : EventHandler
 			if (timer == 35 * 6)
 			{
 				Report(started && !g && door.swung > 0 && door.lockState == 0, "a hit unlocks and opens the door");
-				Console.Printf("DLSAVE autosave");
-				phase = 9; timer = 0;
-				LevelLocals.MakeAutoSave();
+				phase = 6; timer = 0;
 			}
+			break;
+		case 6: SwitchCase(20, 7, "action 20 closes the door and Daggerfall locks it again (its starting lock)"); break;
+		case 7: SwitchCase(17, 8, "action 17 unlocks it in Daggerfall"); break;
+		case 8: SwitchCase(16, 10, "action 16 locks it in Daggerfall"); break;
+		case 10:
+			SwitchCase(18, 10, "action 18 opens the door and Daggerfall clears the lock");
+			if (timer != 0) break;
+			if (NEWGAME) { Finish(); break; }
+			Console.Printf("DLSAVE autosave");
+			phase = 9;
+			LevelLocals.MakeAutoSave();
 			break;
 		case 9:
 			if (timer > 35 * 8) Finish();
