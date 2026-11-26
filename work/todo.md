@@ -18,7 +18,6 @@ Owner decisions from earlier runs are recorded in `CHANGELOG.md`, `architecture.
 
 - `lockpick` card 02 (`work/queue/lockpick/02.opus.door-lock-bridge.md`): the door bridge step in one full run. Start the lane with `-From agent/lockpick-20261125-073553`. Thieves Guild sales are cancelled.
 - `daynight` card 01 (`work/queue/daynight/01.opus.fog-sky-windows-winter.md`): distance fog, foggy sky, lit windows at night, winter textures. Starts from integration (the day/night branch is merged).
-- `lanehang` card 01 (`work/queue/lanehang/01.opus.lane-hang-at-run-end.md`, approved by the owner 2026-11-26, "fix hang issue immediately"): lanes hang after a run ends until leftover test games are stopped. Starts from integration.
 
 
 ### Skills (owner, 2026-11-25; rules in `work/backlog/skills-in-doom.md`)
