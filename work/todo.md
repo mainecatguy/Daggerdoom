@@ -19,6 +19,8 @@ Owner decisions from earlier runs are recorded in `CHANGELOG.md`, `architecture.
 - `lockpick` card 02 (`work/queue/lockpick/02.opus.door-lock-bridge.md`): the door bridge step in one full run. Start the lane with `-From agent/lockpick-20261125-073553`. Thieves Guild sales are cancelled.
 - `daynight` card 01 (`work/queue/daynight/01.opus.fog-sky-windows-winter.md`): distance fog, foggy sky, lit windows at night, winter textures. Starts from integration (the day/night branch is merged).
 
+- `droplabel` card 01 (`work/queue/droplabel/01.opus.dropped-gun-material-label.md`): a Doom gun on the ground shows its material in the look label before pickup. Running (started after the fixed drops finish landed).
+
 ### Running
 
 - Nothing.
