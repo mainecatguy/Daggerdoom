@@ -580,17 +580,19 @@ namespace DaggerfallConnect
         /// <summary>
         /// Doomerfall: replaces each removed language in this class's skill lists with a gun skill the class
         /// does not already have, so every class keeps 12 listed skills. Language L becomes gun skill (L - 4) % 3
-        /// (Nymph to Automatics, Daedric to Explosives, ...), or the next free one. Slots 4-7 need nothing:
-        /// they already read as the gun skills (Dragonish, slot 7, reads as Pistols). Pistols is not used as a
-        /// filler, so the fillers stay what they were before Pistols was added. Safe to call more than once.
+        /// (Dragonish to Shotguns, Daedric to Explosives, ...), or the next free one. Slots 4-6 need nothing:
+        /// they already read as the gun skills. Safe to call more than once.
+        /// slot7IsDragonish: the data predates Pistols (classic CLASS*.CFG data, or a save written before Pistols),
+        /// so slot 7 means Dragonish and gets the same filler as before Pistols existed. Pistols is never a filler,
+        /// so adding Pistols changes no class's skill list (what classes list here waits on the owner).
         /// </summary>
-        public void RemapRemovedSkills()
+        public void RemapRemovedSkills(bool slot7IsDragonish = false)
         {
             Skills[] list = { PrimarySkill1, PrimarySkill2, PrimarySkill3, MajorSkill1, MajorSkill2, MajorSkill3,
                 MinorSkill1, MinorSkill2, MinorSkill3, MinorSkill4, MinorSkill5, MinorSkill6 };
             for (int i = 0; i < list.Length; i++)
             {
-                if (!IsRemovedSkill(list[i]))
+                if (!IsRemovedSkill(list[i]) && !(slot7IsDragonish && list[i] == Skills.Pistols))
                     continue;
                 int first = ((int)list[i] - (int)Skills.Shotguns) % 3;
                 for (int n = 0; n < 3; n++)
@@ -633,7 +635,7 @@ namespace DaggerfallConnect
             this.MinorSkill4 = (Skills)cfg.MinorSkill4;
             this.MinorSkill5 = (Skills)cfg.MinorSkill5;
             this.MinorSkill6 = (Skills)cfg.MinorSkill6;
-            RemapRemovedSkills();
+            RemapRemovedSkills(true); // Classic class data: slot 7 is Dragonish
 
             this.HitPointsPerLevel = cfg.HitPointsPerLevel;
 

@@ -27,12 +27,11 @@ Doomerfall adds four gun skills to your character sheet: **Shotguns**, **Automat
 Impish) are gone: you can no longer calm monsters by speaking to them.
 
 - Each gun belongs to at most one gun skill. Shotguns covers shotguns, Automatics covers chainguns, miniguns and
-  other rapid-fire guns, Explosives covers rocket, missile and grenade launchers, and Pistols covers pistols and
-  revolvers.
-- No rifle counts as a pistol. Rapid-fire guns such as Uzis count as Automatics, and pistols that fire shotgun
-  shells count as Shotguns.
-- Guns that use cells (plasma, lasers, BFGs, plasma pistols) count as energy weapons, not as shotguns, automatics
-  or pistols, even when they fire like one. Rifles, energy weapons and melee weapons have no gun skill yet.
+  other rapid-fire guns, Explosives covers rocket, missile and grenade launchers, and Pistols covers every pistol,
+  revolver and Uzi, including plasma pistols and pistols that fire shotgun shells.
+- No rifle counts as a pistol.
+- Other guns that use cells (plasma rifles, lasers, BFGs) count as energy weapons, not as shotguns or automatics,
+  even when they fire like one. Rifles, energy weapons and melee weapons have no gun skill yet.
 - The Fighters Guild trains all four gun skills.
 - Magic items that enhance a monster language, including the Enhances Daedric power that Fire and Frost Daedra
   souls add when bound into an item, still exist but do nothing. Their description says "(no effect)". The item

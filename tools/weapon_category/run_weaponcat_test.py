@@ -22,16 +22,17 @@ BAD = re.compile(r'Script error, "doomerfall\.pk3|doomerfall\.pk3:zscript/\S+, l
 STOCK = {'Fist': 'melee', 'Chainsaw': 'melee', 'Pistol': 'pistol', 'Shotgun': 'shotgun', 'SuperShotgun': 'shotgun',
          'Chaingun': 'automatic', 'RocketLauncher': 'explosive', 'PlasmaRifle': 'energy', 'BFG9000': 'energy'}
 # DRLA guns, from their tokens and ammo (GameMods/ExtractedData). Autoshotgun has both shotgun and rapid-fire
-# tokens; Plasma Pistol has pistol and cell ammo.
+# tokens.
 DRLA_EXPECT = {'RLPistol': 'pistol', 'RLShotgun': 'shotgun', 'RLCombatShotgun': 'shotgun', 'RLDoubleShotgun': 'shotgun',
                'RLAutoshotgun': 'shotgun', 'RLChaingun': 'automatic', 'RLMinigun': 'automatic',
                'RLRocketLauncher': 'explosive', 'RLMissileLauncher': 'explosive', 'RLGrenadeLauncher': 'explosive',
-               'RLPlasmaRifle': 'energy', 'RLPlasmaPistol': 'energy', 'RLLaserRifle': 'energy', 'RLRailgun': 'energy',
-               'RLUzi': 'automatic', 'RLChainsaw': 'melee', 'RLBFG9000': 'energy',
-               # Pistols (owner 2026-11-26): pistol-token guns with no other category sign are pistols (slot 7).
-               # Storm Pistol also carries the shotgun token, so it stays a shotgun.
+               'RLPlasmaRifle': 'energy', 'RLLaserRifle': 'energy', 'RLRailgun': 'energy',
+               'RLChainsaw': 'melee', 'RLBFG9000': 'energy',
+               # Pistols (owner 2026-11-26): every DRLA pistol-token gun is a pistol (slot 7), including the Uzi
+               # (also rapid-fire token), Storm Pistol (also shotgun token) and Plasma Pistol (cells).
+               'RLUzi': 'pistol', 'RLStormPistol': 'pistol', 'RLPlasmaPistol': 'pistol',
                'RLCombatPistol': 'pistol', 'RLMarksmanPistol': 'pistol', 'RLHandcannon': 'pistol',
-               'RLHuntingRevolver': 'pistol', 'RLSilencedPistol': 'pistol', 'RLPP7': 'pistol', 'RLStormPistol': 'shotgun'}
+               'RLHuntingRevolver': 'pistol', 'RLSilencedPistol': 'pistol', 'RLPP7': 'pistol'}
 # Rifles are never pistols ("no rifle is counted"). Their categories come from their DRLA tokens: rifle token ->
 # precision (no skill yet), rapid-fire only -> automatic, the Sniper Rifle has neither -> other.
 RIFLES = {'RLMarksmanRifle': 'precision', 'RLBattleRifle': 'automatic', 'RLVanguardRifle': 'automatic',

@@ -1,10 +1,12 @@
 // Weapon categories for Doomerfall's gun skills (work/backlog/skills-in-doom.md), so later perk cards know which
 // Daggerfall skill a gun belongs to. Works for stock Doom and for DRLA, and without DRLA.
 //
-// Precedence when signs overlap (the proposal's lean, not yet an owner decision):
-//   Melee > Explosive > Energy > Shotgun > Precision > Automatic > Pistol.
-// So DRLA's Autoshotgun (shotgun and rapid-fire tokens) is a Shotgun, and a cell-fed shotgun or Plasma Rifle is
-// Energy rather than Shotgun or Automatic.
+// Precedence when signs overlap:
+//   Melee > Pistol > Explosive > Energy > Shotgun > Precision > Automatic.
+// Pistol second follows the Pistols goal (owner, 2026-11-26: DRLA's pistol-type guns are pistols), so pistol-token
+// Uzis, Storm (shotgun-token) pistols and cell-fed pistols are Pistols. The order of the rest is the proposal's
+// lean, not yet an owner decision: DRLA's Autoshotgun (shotgun and rapid-fire tokens) is a Shotgun, and a cell-fed
+// shotgun or Plasma Rifle is Energy rather than Shotgun or Automatic.
 //
 // Signs used:
 //   - Melee: the MELEEWEAPON flag, stock Fist and Chainsaw, or DRLA's RLMeleeTypeWeapon token.
@@ -14,8 +16,7 @@
 //     RLShotgunTypeWeapon, RLSingleShotRifleTypeWeapon, RLRapidfireTypeWeapon, RLPistolTypeWeapon tokens.
 // Pistols (owner, 2026-11-26): stock Pistol and DRLA's pistol-token guns; no rifle is a pistol. No DRLA rifle carries
 // the pistol token (checked in GameMods/ExtractedData), and rifles with DRLA's rifle token are Precision, which has
-// no skill yet (backlog: Rifles). Pistol-token guns that also carry shotgun or rapid-fire tokens, or use cells, take
-// the category ahead of Pistol in the precedence above (Storm pistols, Uzis, plasma pistols).
+// no skill yet (backlog: Rifles).
 // DRLA gives its tokens only while the gun is held (the gun's Select state gives them, lowering takes them), so a
 // DRLA gun that is not the held one is known by ammo only and may read as Other until it is selected.
 class DoomerfallWeaponCategory abstract
@@ -58,12 +59,12 @@ class DoomerfallWeaponCategory abstract
 		let owner = w.Owner;
 		bool held = owner && owner.player && owner.player.ReadyWeapon == w;
 		if (w.bMeleeWeapon || w is "Fist" || w is "Chainsaw" || (held && HasToken(owner, "RLMeleeTypeWeapon"))) return Melee;
+		if (w is "Pistol" || (held && HasToken(owner, "RLPistolTypeWeapon"))) return Pistol;
 		if (AmmoIs(w, "RocketAmmo")) return Explosive;
 		if (AmmoIs(w, "Cell")) return Energy;
 		if (w is "Shotgun" || w is "SuperShotgun" || (held && HasToken(owner, "RLShotgunTypeWeapon"))) return Shotgun;
 		if (held && HasToken(owner, "RLSingleShotRifleTypeWeapon")) return Precision;
 		if (w is "Chaingun" || (held && HasToken(owner, "RLRapidfireTypeWeapon"))) return Automatic;
-		if (w is "Pistol" || (held && HasToken(owner, "RLPistolTypeWeapon"))) return Pistol;
 		return Other;
 	}
 

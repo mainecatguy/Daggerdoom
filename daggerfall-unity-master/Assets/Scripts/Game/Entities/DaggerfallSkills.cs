@@ -69,7 +69,9 @@ namespace DaggerfallWorkshop.Game.Entity
 
         // Doomerfall: 1 in every save written since the gun skills replaced the monster languages, 0 (missing) in older saves.
         [SerializeField] short GunSkillsFormat;
-        public bool IsGunSkillsFormat { get { return GunSkillsFormat >= 1; } set { GunSkillsFormat = (short)(value ? 1 : 0); } }
+        // 2: also written since slot 7 became Pistols (in older data slot 7 is Dragonish).
+        public bool IsGunSkillsFormat { get { return GunSkillsFormat >= 1; } set { GunSkillsFormat = (short)(value ? 2 : 0); } }
+        public bool HasPistolsSlot { get { return GunSkillsFormat >= 2; } }
 
         // Mods are temporary changes to skill values from effects
         // Default is 0 - effects can raise/lower mod values during their lifecycle
