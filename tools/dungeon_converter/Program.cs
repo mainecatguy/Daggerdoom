@@ -79,6 +79,7 @@ static partial class Program
         if (args.Contains("--list-tilted-doors")) return ListTiltedDoors(arena2);
         if (args.Contains("--list-main")) return ListMain(arena2, args.Contains("--list-all"));
         if (args.Contains("--list-flats")) return ListFlats(arena2);
+        if (Array.IndexOf(args, "--flat-census") is int fc && fc >= 0) return FlatCensus(arena2, args[fc + 1]); // FlatCensus.cs
         if (args.Contains("--list-door-actions")) return ListDoorActions(arena2);
         if (args.Contains("--list-trapdoors")) return ListTrapdoors(arena2);
         if (args.Contains("--list-markers")) return ListMarkers(arena2); // MarkerCensus.cs
