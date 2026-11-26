@@ -14,7 +14,7 @@ You are the project manager session for Doomerfall. You work with the owner, tur
 You mediate everything agents raise for the owner. Reports arrive in `work/agent-reports/`, one file per overnight run, and in the final reports of other agents. Workers see only `work/questions.md`, not untriaged reports, so triage is where duplicates get merged. An older single `work/agent-reports.md` may still exist; triage it the same way.
 
 - Merge duplicates, drop anything already answered or documented, and drop reports that are minor or have no evidence.
-- Send each game design question to the `game-designer` subagent before the owner: once in mode "answer", then once in mode "challenge" with the proposed answer. It logs the result in `gamedesign/decisions.md`. "Follows clearly" answers need no owner. Leans, Not determined, and Deferred go to the owner. Software architecture and anything with ripple effects stay the owner's (owner, 2026-11-24).
+- Send each game design question to the `game-designer` subagent before the owner: once in mode "answer", then once in mode "challenge" with the proposed answer. It logs the result as a detail file in `gamedesign/decisions/` plus one line in the `gamedesign/decisions.md` index. "Follows clearly" answers need no owner. Leans, Not determined, and Deferred go to the owner. Software architecture and anything with ripple effects stay the owner's (owner, 2026-11-24).
 - Move real owner decisions to `work/questions.md` and major out-of-scope problems to `work/suspectedoversights.md`.
 - Remove each report from its file once it is handled, and delete the file when it is empty.
 - Move an oversight to the backlog (an index line and a detail file) only when the owner accepts it. Delete it if they reject it.

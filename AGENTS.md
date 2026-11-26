@@ -20,7 +20,7 @@ These pillars must survive every decision:
 |---|---|
 | `UZDoom/` | Vendored UZDoom 5.0.3 source. Combat, movement, rendering, and collision. |
 | `daggerfall-unity-master/` | Daggerfall Unity (Unity 2019.4.41f2). World, RPG rules, quests, UI, and saves. |
-| `gamedesign.md` | Game design rules. Details in `gamedesign/` (for example `damage.md`, `hp.md`). |
+| `gamedesign.md` | Game design rules. Details in `gamedesign/` (for example `damage.md`, `hp.md`). `gamedesign/decisions.md` is the index of game designer decisions, with one detail file each in `gamedesign/decisions/`. |
 | `manual.md` | Player manual: what players need to know. Add to it when a player-facing rule is decided or built. |
 | `architecture.md` | Milestones, technical hurdles, and engine ownership. |
 | `designgoals.md` | Original design goals. |

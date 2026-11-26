@@ -28,3 +28,7 @@ Game design rules for the player's maximum HP. Owner decisions are dated.
 ## HP restoration (owner, 2026-11-26)
 
 - "All sources of HP restoration are 3x" Daggerfall's. Resting restores HP three times as fast as in Daggerfall.
+
+## Older saves (owner, 2026-11-26)
+
+- Saves made before the HP change get the class Endurance bonus added to Endurance once on load (capped), so old and new characters follow the same rule.
