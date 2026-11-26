@@ -1,6 +1,6 @@
 // Doomerfall test only (-dfhpformulatest <output folder>, with -dfsynctest): checks DoomerfallEndurance against
-// gamedesign/hp.md, then drives a live character through a new game, a level-up, Endurance changes, and an older
-// save, logging each Daggerfall max HP so the launch script can compare what Doom shows. Saves go to the portable
+// gamedesign/hp.md, then drives a live character through a new game, a level-up, Endurance changes, Fortify and
+// Drain Endurance effects, and an older save, logging each Daggerfall max HP so the launch script can compare what Doom shows. Saves go to the portable
 // install's private folder. Also screenshots the custom class editor.
 
 using System;
@@ -11,6 +11,7 @@ using System.Text.RegularExpressions;
 using DaggerfallConnect;
 using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop.Game.Formulas;
+using DaggerfallWorkshop.Game.MagicAndEffects;
 using DaggerfallWorkshop.Game.Player;
 using DaggerfallWorkshop.Game.Serialization;
 using DaggerfallWorkshop.Game.UserInterface;
@@ -66,8 +67,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         void Report(string step)
         {
             PlayerEntity p = Player;
-            bridge.LogLine(string.Format("hp formula test: state {0}: level {1}, endurance {2} (max {3}), hp {4}/{5}", step, p.Level,
-                p.Stats.PermanentEndurance, p.Stats.GetMaxPermanentValue(DFCareer.Stats.Endurance), p.CurrentHealth, p.MaxHealth));
+            bridge.LogLine(string.Format("hp formula test: state {0}: level {1}, endurance {2} live {3} (max {4}), hp {5}/{6}", step, p.Level,
+                p.Stats.PermanentEndurance, p.Stats.LiveEndurance, p.Stats.GetMaxPermanentValue(DFCareer.Stats.Endurance), p.CurrentHealth, p.MaxHealth));
         }
 
         IEnumerator Run()
@@ -95,6 +96,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             Check("Doom is playing", peer.uzPhase == Dfb.UZ_PHASE_PLAY, "phase " + peer.uzPhase);
             yield return NewCharacter();
             yield return LevelAndEndurance();
+            yield return EnduranceEffects();
             yield return OlderSave();
             yield return CustomClassShot();
             bridge.LogLine(string.Format("hp formula test: finished, {0} passed, {1} failed", passed, failed));
@@ -220,6 +222,115 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             p.Stats.SetPermanentStatValue(DFCareer.Stats.Endurance, end);
             yield return new WaitForSecondsRealtime(1f);
             Report("endurance down and back");
+        }
+
+        // A real spell through Daggerfall's effect manager, caster only, no saving throw.
+        static void Cast(string effectKey, int magnitude, int rounds)
+        {
+            EffectSettings settings = BaseEntityEffect.DefaultEffectSettings();
+            settings.DurationBase = rounds;
+            settings.DurationPlus = 0;
+            settings.ChanceBase = 100;
+            settings.MagnitudeBaseMin = settings.MagnitudeBaseMax = magnitude;
+            settings.MagnitudePlusMin = settings.MagnitudePlusMax = 0;
+            var spell = new EffectBundleSettings
+            {
+                Version = EntityEffectBroker.CurrentSpellVersion,
+                BundleType = BundleTypes.Spell,
+                TargetType = TargetTypes.CasterOnly,
+                ElementType = ElementTypes.Magic,
+                Name = "HP test " + effectKey,
+                Effects = new[] { new EffectEntry(effectKey, settings) },
+            };
+            GameManager.Instance.PlayerEffectManager.AssignBundle(new EntityEffectBundle(spell, GameManager.Instance.PlayerEntityBehaviour),
+                AssignBundleFlags.BypassSavingThrows | AssignBundleFlags.BypassChance);
+        }
+
+        // Effects and their timers run only in play: close any window left open (the level-up step leaves message
+        // boxes) and unpause, logging what was in the way.
+        IEnumerator InPlay(string step)
+        {
+            for (int i = 0; i < 5 && DaggerfallUI.UIManager.TopWindow != null && !(DaggerfallUI.UIManager.TopWindow is DaggerfallHUD); i++)
+            {
+                bridge.LogLine("hp formula test: " + step + ": closing " + DaggerfallUI.UIManager.TopWindow.GetType().Name);
+                DaggerfallUI.UIManager.PopWindow();
+                yield return Frames(2);
+            }
+            if (GameManager.IsGamePaused)
+                bridge.LogLine("hp formula test: " + step + ": game was paused");
+            GameManager.Instance.PauseGame(false);
+            yield return Frames(3);
+            Check("in play for " + step, GameManager.Instance.IsPlayingGame(), "top window " + DaggerfallUI.UIManager.TopWindow);
+        }
+
+        // Max HP follows live Endurance: Fortify raises it until the spell expires, Drain lowers it until healed.
+        IEnumerator EnduranceEffects()
+        {
+            yield return InPlay("effects");
+            PlayerEntity p = Player;
+            int end = p.Stats.PermanentEndurance, level = p.Level;
+            int baseMax = DoomerfallEndurance.MaxHealth(level, end);
+            yield return Frames(3);
+            Expect("before effects: max hp", p.MaxHealth, baseMax);
+            p.SetHealth(p.MaxHealth - 30);
+            yield return Frames(3);
+
+            int hp = p.CurrentHealth;
+            Cast("Fortify-Endurance", 15, 3);
+            yield return new WaitForSecondsRealtime(1f); // Effect mods refresh on a short timer.
+            int fortified = DoomerfallEndurance.MaxHealth(level, end + 15);
+            Expect("fortify endurance: live endurance", p.Stats.LiveEndurance, end + 15);
+            Expect("fortify endurance: permanent endurance unchanged", p.Stats.PermanentEndurance, end);
+            Expect("fortify endurance raises max hp", p.MaxHealth, fortified);
+            Expect("fortify endurance raises hp by the gain", p.CurrentHealth, hp + fortified - baseMax);
+            Report("fortify endurance");
+            yield return new WaitForSecondsRealtime(1f);
+
+            // Expiry: pass game time the way resting does, so the spell's magic rounds run out.
+            yield return InPlay("expiry");
+            DaggerfallUnity.Instance.WorldTime.Now.RaiseTime(10 * 60);
+            float deadline = Time.unscaledTime + 5f;
+            while (p.Stats.LiveEndurance != end && Time.unscaledTime < deadline)
+                yield return null;
+            yield return Frames(3);
+            Expect("fortify expired: live endurance", p.Stats.LiveEndurance, end);
+            Expect("fortify expired: max hp falls back", p.MaxHealth, baseMax);
+            Check("fortify expired: hp clamped", p.CurrentHealth == Mathf.Min(hp + fortified - baseMax, baseMax), p.CurrentHealth + "/" + p.MaxHealth);
+            Report("fortify expired");
+            yield return new WaitForSecondsRealtime(1f);
+
+            yield return InPlay("drain");
+            p.SetHealth(p.MaxHealth - 5);
+            yield return Frames(3);
+            Cast("Drain-Endurance", 20, 1);
+            yield return new WaitForSecondsRealtime(1f);
+            int drained = DoomerfallEndurance.MaxHealth(level, end - 20);
+            Expect("drain endurance: live endurance", p.Stats.LiveEndurance, end - 20);
+            Expect("drain endurance: permanent endurance unchanged", p.Stats.PermanentEndurance, end);
+            Expect("drain endurance lowers max hp", p.MaxHealth, drained);
+            Expect("drain endurance clamps hp", p.CurrentHealth, Mathf.Min(baseMax - 5, drained));
+            Report("drain endurance");
+            yield return new WaitForSecondsRealtime(1f);
+
+            // Through a save and load the drained max HP and current HP stay as saved (no drop and rise on the way).
+            hp = p.CurrentHealth;
+            GameManager.Instance.SaveLoadManager.Save(p.Name, SaveName);
+            yield return new WaitForSecondsRealtime(1.5f);
+            yield return Load(p.Name);
+            p = Player;
+            Expect("drained save loaded: max hp", p.MaxHealth, drained);
+            Expect("drained save loaded: hp as saved", p.CurrentHealth, hp);
+            Report("drained save loaded");
+
+            yield return InPlay("heal");
+            hp = p.CurrentHealth;
+            GameManager.Instance.PlayerEffectManager.HealAttribute(DFCareer.Stats.Endurance, 20);
+            yield return new WaitForSecondsRealtime(1f);
+            Expect("drain healed: live endurance", p.Stats.LiveEndurance, end);
+            Expect("drain healed: max hp back", p.MaxHealth, baseMax);
+            Expect("drain healed: hp rises by the gain", p.CurrentHealth, hp + baseMax - drained);
+            Report("drain healed");
+            yield return new WaitForSecondsRealtime(1f);
         }
 
         // A save made before this change has no bonus flag, the class's raw Endurance, and the old max HP.

@@ -17,7 +17,7 @@ DAGGER = r"D:\dev\DoomDaggerfall\GameResources\DAGGER"
 MODS = Path(r"D:\dev\DoomDaggerfall\GameMods")
 DRLA = [MODS / "DoomRL_Arsenal_1.1.5.pk3", MODS / "DoomRL_Monsters_Beta_7.3.pk3", MODS / "drlax_1.2b.pk3"]
 FATAL = ("Fatal error", "FATAL", "VM execution aborted", "Unhandled exception")
-TIMEOUT = 75  # A new game, two loads, and a screenshot: longer than the usual 30 seconds.
+TIMEOUT = 110  # A new game, spell effects, three loads, and a screenshot: longer than the usual 30 seconds.
 
 
 def read(path):
@@ -58,10 +58,9 @@ def main():
             time.sleep(2.0)  # Doom follows the last step
             break
         time.sleep(0.3)
-    try:
-        proc.wait(timeout=10)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+    # quiet_run ends the whole run (both games and the launcher) at its own timeout. Killing quiet_run instead would
+    # leave the games running on the private desktop, so wait for it.
+    proc.wait()
     report(uz_log, df_log)
 
 
@@ -80,11 +79,16 @@ def report(uz_log, df_log):
             doom_max.append(int(m.group(1) or m.group(2)))
     print("---- checks")
     steps = re.findall(r"hp formula test: state ([^:]+): .*hp -?\d+/(\d+)", df)
+    # In order: each step's max must reach Doom after the previous step's (a value seen earlier does not count).
+    at, followed = 0, []
     for step, value in steps:
-        print(f"{step}: Daggerfall max {value}, Doom took it: {int(value) in doom_max}")
+        hit = next((i for i in range(at, len(doom_max)) if doom_max[i] == int(value)), None)
+        followed.append(hit is not None)
+        at = hit + 1 if hit is not None else at
+        print(f"{step}: Daggerfall max {value}, Doom took it in order: {hit is not None}")
     fails = df.count("hp formula test: FAIL")
     print(f"Daggerfall checks: {df.count('hp formula test: PASS')} passed, {fails} failed, finished: {'hp formula test: finished' in df}")
-    print("ALL OK" if steps and fails == 0 and all(int(v) in doom_max for _, v in steps) else "NOT OK")
+    print("ALL OK" if steps and fails == 0 and all(followed) else "NOT OK")
 
 
 if __name__ == "__main__":

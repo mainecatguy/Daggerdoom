@@ -1,10 +1,12 @@
 // Doomerfall: the player's max HP from Endurance and level, and the class Endurance bonus (gamedesign/hp.md).
 // Daggerfall owns HP; Doom mirrors the max HP that DoomerfallHp publishes. Active in a bridge session only.
 //
-// Max HP = 50 + Endurance + (level - 1) x Endurance / 15, from the permanent Endurance, recomputed whenever level or
-// permanent Endurance changes. A rise in max HP raises current HP by the same amount; a fall clamps it.
+// Max HP = 50 + Endurance + (level - 1) x Endurance / 15, from the live Endurance (Fortify and Drain count while they
+// last), recomputed whenever level or live Endurance changes. A rise in max HP raises current HP by the same amount;
+// a fall clamps it.
 // Class bonus = class HP per level - 8. It is real Endurance: added once to the permanent value (at the character
 // creation roll, or on the first load of a character made without it) and to Endurance's maximum (100 + bonus).
+// The bonus is one input to the maximum, not the only one: effects that raise a stat's maximum also count.
 
 using System;
 using DaggerfallConnect;
@@ -35,7 +37,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return career == null ? 0 : career.HitPointsPerLevel - NeutralHpPerLevel;
         }
 
-        /// <summary>Max HP for a level and permanent Endurance, rounded to the nearest whole HP.</summary>
+        /// <summary>Max HP for a level and Endurance (the live value in play), rounded to the nearest whole HP.</summary>
         public static int MaxHealth(int level, int endurance)
         {
             return (int)Math.Round(50 + endurance + Math.Max(0, level - 1) * endurance / 15.0, MidpointRounding.AwayFromZero);
@@ -51,7 +53,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             // "max = old raw max + gain" lands on the new max in the same frame its HP label is drawn.
             var provider = new Mod { LoadPriority = int.MaxValue };
             FormulaHelper.RegisterOverride<Func<PlayerEntity, int>>(provider, "RollMaxHealth",
-                player => MaxHealth(player.Level, player.Stats.PermanentEndurance));
+                player => MaxHealth(player.Level, player.Stats.LiveEndurance));
             FormulaHelper.RegisterOverride<Func<PlayerEntity, int>>(provider, "CalculateHitPointsPerLevelUp", player =>
             {
                 int old = player.RawMaxHealth;
@@ -70,8 +72,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         void OnLoaded(SaveData_v1 data)
         {
-            if (GameManager.HasInstance && GameManager.Instance.PlayerEntity != null)
-                Apply(GameManager.Instance.PlayerEntity);
+            if (!GameManager.HasInstance || GameManager.Instance.PlayerEntity == null)
+                return;
+            // The restored effects' stat mods reach live Endurance only on the effect manager's next refresh. Refresh
+            // now, or a load would briefly use stale mods and the max HP drop and rise could change current HP.
+            if (GameManager.Instance.PlayerEffectManager != null)
+                GameManager.Instance.PlayerEffectManager.UpdateEntityMods();
+            Apply(GameManager.Instance.PlayerEntity);
         }
 
         void Update()
@@ -111,7 +118,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     bonus, player.Name, before, after, stats.GetMaxPermanentValue(DFCareer.Stats.Endurance)));
             }
 
-            int max = MaxHealth(player.Level, stats.PermanentEndurance);
+            int max = MaxHealth(player.Level, stats.LiveEndurance);
             int oldMax = player.RawMaxHealth;
             if (max == oldMax)
                 return;
@@ -121,7 +128,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 player.SetHealth(Mathf.Min(oldCurrent + Mathf.Max(0, max - oldMax), max));
             if (logged++ < 200)
                 bridge.LogLine(string.Format("endurance: max hp {0} -> {1} (level {2}, endurance {3}), hp {4} -> {5}",
-                    oldMax, max, player.Level, stats.PermanentEndurance, oldCurrent, player.CurrentHealth));
+                    oldMax, max, player.Level, stats.LiveEndurance, oldCurrent, player.CurrentHealth));
         }
 
         /// <summary>The custom class editor's HP per level value, shown as the Endurance bonus in a session.</summary>
