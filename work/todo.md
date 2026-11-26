@@ -14,6 +14,12 @@ Work that is ready to do automatically, in priority order. Every item here is ap
 
 Owner decisions from earlier runs are recorded in `CHANGELOG.md`, `architecture.md` and `gamedesign/decisions.md`.
 
+### Queued (owner, 2026-11-25)
+
+- `fixeddrops` card 05 (`work/queue/fixeddrops/05.opus.summoned-no-drops-and-town-arrival.md`): summoned monsters drop nothing on Daggerfall maps; check arrival by travel from a town. Continues `overnight/fixeddrops`.
+- `lockpick` card 02 (`work/queue/lockpick/02.opus.door-lock-bridge.md`): the door bridge step in one full run. Start the lane with `-From agent/lockpick-20261125-073553`. Thieves Guild sales are cancelled.
+- `daynight` card 01 (`work/queue/daynight/01.opus.fog-sky-windows-winter.md`): distance fog, foggy sky, lit windows at night, winter textures. Start the lane with `-From claude/hopeful-benz-984e6a` unless that branch is merged first.
+
 ### Running
 
 - Nothing.
@@ -30,7 +36,7 @@ Owner decisions from earlier runs are recorded in `CHANGELOG.md`, `architecture.
 
 - `liftcollision`: moving objects (lifts, raising platforms, the Privateer's Hold throne dais) have no collision to stand on; solve it as a general problem. Owner will say when.
 - `corpsekeep`: corpses vanish on leaving and re-entering Privateer's Hold. First see whether the location record rewrite fixes it. Card in `work/queue/corpsekeep/held`.
-- `flatcollision`: blocked. Daggerfall has no solid flag for sprites and Daggerfall Unity makes all of them walk-through, so which sprites block is the owner's call (`work/notes/20261124-201628.md` on `agent/flatcollision-20261124-201628`).
+- `flatcollision`: results merged; solid sprites moved to `work/future-ideas.md` as a distant-future idea (owner, 2026-11-25). Card held in `work/queue/flatcollision/held`.
 - `resets`: done, not merged (owner). Findings in `work/notes/20261124-190702.md`.
 
 ### Waiting on an owner answer before a card
