@@ -97,10 +97,13 @@ namespace DDTownCache
 			return nullptr;
 		}
 
+		// Only outdoor places have a winter look: interiors and dungeons (space ids) are the same in every season.
+		bool Winter(int group) { return winter && group < 1000000; }
+
 		fs::path FileFor(int group)
 		{
 			char name[32];
-			snprintf(name, sizeof(name), "T%05d%s.ddt", group, winter ? "W" : "");	// Daggerfall's winter textures: their own file
+			snprintf(name, sizeof(name), "T%05d%s.ddt", group, Winter(group) ? "W" : "");	// Daggerfall's winter textures: their own file
 			return cacheDir / name;
 		}
 
@@ -210,7 +213,7 @@ namespace DDTownCache
 			const fs::path work = cacheDir / "work" / ("T" + std::to_string(group));
 			fs::create_directories(work, ec);
 			std::wstring command = L"\"" + converter.wstring() + L"\" --group " + std::to_wstring(group) + L" --ddt \"" + FileFor(group).wstring()
-				+ L"\" --out \"" + work.wstring() + L"\" --arena2 \"" + arena2.wstring() + L"\"" + (winter ? L" --winter" : L"");
+				+ L"\" --out \"" + work.wstring() + L"\" --arena2 \"" + arena2.wstring() + L"\"" + (Winter(group) ? L" --winter" : L"");
 			SECURITY_ATTRIBUTES inherit{ sizeof(inherit), nullptr, TRUE };
 			const fs::path logPath = work / "convert.log";
 			HANDLE log = CreateFileW(logPath.c_str(), GENERIC_WRITE, FILE_SHARE_READ, &inherit, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);

@@ -66,7 +66,9 @@ static partial class Program
             PlayerScale.DoomUnitsPerDaggerfallUnit = double.Parse(Arg("--world-scale", "0.75"), CultureInfo.InvariantCulture);
             // --group <id> --ddt <file> converts one location group for the running game.
             int groupId = int.Parse(Arg("--group", "-1"));
-            Winter = args.Contains("--winter"); // Daggerfall's winter season: ClimateSwaps' winter texture sets
+            // Daggerfall's winter season: ClimateSwaps' winter texture sets. Outdoors only: Daggerfall draws interiors in
+            // summer all year (DaggerfallInterior's climateSeason) and dungeon blocks never swap for the season (RDBLayout).
+            Winter = args.Contains("--winter") && groupId < SpaceBase;
             string ddtPath = Arg("--ddt", null);
             if (args.Contains("--list-buildings")) return ListBuildings(groupId, arena2);
             if (groupId >= SpaceBase) return RunInterior(groupId, ddtPath, outDir, arena2);

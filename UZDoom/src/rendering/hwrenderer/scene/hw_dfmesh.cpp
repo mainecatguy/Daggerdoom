@@ -250,8 +250,8 @@ static int DrawWindows(FRenderState &state, float fogDensity)
 	int drawn = 0;
 	state.SetFog(PalEntry(1, 1, 1), fogDensity);	// near black: Doom treats pure black fade as light-level shading, not fog
 	state.SetColor(windowColor[0], windowColor[1], windowColor[2], 1.f);
-	state.SetRenderStyle(STYLE_Add);
-	state.AlphaFunc(Alpha_GEqual, 0.5f);
+	state.SetRenderStyle(STYLE_Add);	// adds colour x mask alpha: far away the mipmaps average the glow, as Unity's emission does
+	state.AlphaFunc(Alpha_GEqual, 0.f);	// an alpha test would drop most of a distant window's lattice
 	state.SetDepthMask(false);
 	state.SetDepthFunc(DF_LEqual);
 	for (const Batch &batch : batches)
