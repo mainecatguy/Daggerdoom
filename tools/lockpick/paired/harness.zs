@@ -19,8 +19,11 @@ class DLHarness : EventHandler
 	static const double DOORDATA[] = { @DOOR@ };
 	const LOADID = @LOADID@;
 	const LOADRUN = @LOADRUN@;
-	const DEMO = @DEMO@; // the review demo: enter, stand at the door, then hand over to the player
-	const NEWGAME = @NEWGAME@; // the real New Game flow: already inside, with the character's starting picks
+	// Members, not consts: with these as constants, the constant-false "if (...) { ...; break; }" blocks inside
+	// WorldTick's switch crashed UZDoom while loading scripts (C0000005, every time with the DRLA set).
+	bool DEMO;    // the review demo: enter, stand at the door, then hand over to the player
+	bool NEWGAME; // the real New Game flow: already inside, with the character's starting picks
+	override void OnRegister() { DEMO = @DEMO@; NEWGAME = @NEWGAME@; }
 	const LIMIT = 35 * 25;
 
 	int phase, timer, passed, failed;
@@ -115,7 +118,7 @@ class DLHarness : EventHandler
 	bool Shut() { return door.swung <= 0 && door.moving == 0; }
 
 	// Runs a Daggerfall action record of this type on the door, through the converter's real DFAction.Perform.
-	void Switch(int type)
+	void RunAction(int type)
 	{
 		let a = DFAction(Actor.Spawn("DFAction", door.pos, NO_REPLACE));
 		a.flag = type;
@@ -128,12 +131,12 @@ class DLHarness : EventHandler
 	void SwitchCase(int type, int next, String what)
 	{
 		Back(players[0].mo);
-		if (timer == 35) Switch(type);
+		if (timer == 35) RunAction(type);
 		if (timer != 35 * 4) return;
-		bool ok = type == 20 ? Shut() && door.lockState == 1
-			: type == 17 ? Shut() && door.lockState == 0
-			: type == 16 ? Shut() && door.lockState == 1
-			: door.swung > 0 && door.lockState == 0;
+		bool ok;
+		if (type == 18) ok = door.swung > 0 && door.lockState == 0;
+		else if (type == 17) ok = Shut() && door.lockState == 0;
+		else ok = Shut() && door.lockState == 1;
 		Report(ok, what);
 		phase = next;
 		timer = 0;

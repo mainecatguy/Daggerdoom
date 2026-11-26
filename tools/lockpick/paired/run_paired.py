@@ -97,7 +97,7 @@ def run(name):
             reason = "harness finished"
             time.sleep(2)
             break
-        if any(k in body for k in FATAL) or re.search(r"[1-9]\d* errors?, \d+ warnings? while compiling", body):
+        if any(k in body for k in FATAL) or re.search(r"[1-9]\d* errors?(, \d+ warnings?)? while (compiling|parsing)", body):
             reason = "fatal"
             break
     if proc.poll() is None:
@@ -156,7 +156,7 @@ def newgame():
                 reason = "harness finished"
                 time.sleep(2)
                 break
-            if any(k in body for k in FATAL) or re.search(r"[1-9]\d* errors?, \d+ warnings? while compiling", body):
+            if any(k in body for k in FATAL) or re.search(r"[1-9]\d* errors?(, \d+ warnings?)? while (compiling|parsing)", body):
                 reason = "fatal"
                 break
             uzb = read(uz_log)
