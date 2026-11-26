@@ -112,9 +112,10 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 
 ## Before initial release
 
-- [Daggerfall skills in Doom](backlog/skills-in-doom.md): Owner decisions so far and the proposal; 35 skills for now.
+- [Daggerfall skills in Doom](backlog/skills-in-doom.md): Owner decisions: new gun skills, perks at 25/50/75/100, Jumping. In discussion.
 - [Original weapon skills in Doom](backlog/original-weapon-skills.md): Short Blade, Long Blade, Axe, Blunt, Archery stay; make them work.
 - [Brutal Doom and a melee mod](backlog/brutal-melee-mods.md): Later, after mod compatibility research.
+- [Marksmanship](backlog/marksmanship.md): New skill for single-shot rifles (about 12 in DRLA, none in stock Doom). Later.
 - [Mod compatibility research](backlog/mod-compatibility-research.md): Specialist reviews history; new mods' weapons work with Daggerfall systems.
 - [Player manual](backlog/player-manual.md): Specialist task; main-only features, referenced in the repo map.
 - [Final Doom class and difficulty for New Game](backlog/full-daggerfall-new-game-flow.md): Replace the temporary prompt and fixed class.
