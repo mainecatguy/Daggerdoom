@@ -153,15 +153,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (!factsWanted || !InDoomsDungeon(out key))
                 return;
             factsWanted = false;
-            Send(0, Dfb.DOOR_ARM, 0, 0, 0);
             List<ulong> doors;
-            int count = 0;
-            if (ledger.picked.TryGetValue(key, out doors))
-                foreach (ulong id in doors)
-                {
-                    Send(id, Dfb.DOOR_FACT, 0, 0, 0);
-                    count++;
-                }
+            if (!ledger.picked.TryGetValue(key, out doors))
+                doors = new List<ulong>();
+            int count = doors.Count;
+            Send(0, Dfb.DOOR_ARM, (uint)count, 0, 0); // the count tells Doom when its door setup is complete
+            foreach (ulong id in doors)
+                Send(id, Dfb.DOOR_FACT, 0, 0, 0);
             bridge.LogLine(string.Format("doors: armed dungeon {0}, {1} picked open", key, count));
         }
 

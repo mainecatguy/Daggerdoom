@@ -1,6 +1,8 @@
 """Locked dungeon doors with both real games, minimized (goal 20261125-202715).
 
-usage: run_paired.py take | load | newgame | check | demo   [--root DIR]
+usage: run_paired.py take | load | entry | newgame | check | demo   [--root DIR]
+entry: loads the take run's dungeon-entry autosave (the map change autosave on arrival) and checks the locks are armed.
+      --save FILE loads that autosave instead (it must be a dungeon-entry one made before any pick).
 take: enters Privateer's Hold, and on door 29539363 (lock 2): Daggerfall arms it, label, refusal without picks, damage
       cancel, miss, action records 17/16/18/20, hit, then a synchronized autosave. Daggerfall runs with -dflocktest (holds the picks back,
       returns them after 20 s).
@@ -45,13 +47,23 @@ def lumps(path):
         return {name: zlib.decompress(f.read(packed)) if raw else b"" for name, raw, packed in heads}
 
 
-def harness(runs, load, demo=False, newgame=False):
+def entry_save(runs):
+    """The take run's dungeon-entry autosave: its first map change autosave made inside the dungeon (MAP01)."""
+    found = re.findall(r"save (\d+): Doom frozen at tic \d+, map MAP01, .*file (auto\d+\.zds)", read(runs / "take-uz.log"))
+    committed = {n for n in re.findall(r"save (\d+): map change autosave committed", read(runs / "take-uz.log"))}
+    for number, name in found:
+        if number in committed:
+            return runs / "saves" / name
+    sys.exit("the take run made no committed dungeon-entry autosave")
+
+
+def harness(runs, load, demo=False, newgame=False, entry=False):
     cache = ROOT / "data" / "cache" / f"T{GROUP:05d}.ddt"
     door = next(l.split() for l in lumps(cache)["DDDOORS"].decode().splitlines() if l.startswith("1 187853213"))
     text = (HERE / "harness.zs").read_text()
     text = text.replace("@DOOR@", ", ".join(door[3:8])).replace("@LOADRUN@", "1" if load else "0").replace("@LOADID@", str(LOADID))
-    text = text.replace("@DEMO@", "1" if demo else "0").replace("@NEWGAME@", "1" if newgame else "0")
-    path = runs / ("demo_door.pk3" if demo else "harness-newgame.pk3" if newgame else "harness.pk3")
+    text = text.replace("@DEMO@", "1" if demo else "0").replace("@NEWGAME@", "1" if newgame else "0").replace("@ENTRYRUN@", "1" if entry else "0")
+    path = runs / ("demo_door.pk3" if demo else "harness-newgame.pk3" if newgame else "harness-entry.pk3" if entry else "harness.pk3")
     with zipfile.ZipFile(path, "w") as z:
         z.writestr("zscript.txt", text)
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "DLHarness", "DLTrip" }\n')
@@ -68,22 +80,25 @@ def run(name):
     autosaves = sorted(saves.glob("auto*.zds"), key=lambda p: p.stat().st_mtime)
     if name == "load" and not autosaves:
         sys.exit("no autosave from the take run")
+    if name == "entry":
+        autosaves = [Path(sys.argv[sys.argv.index("--save") + 1]) if "--save" in sys.argv else entry_save(runs)]
+        print("loading", autosaves[-1].name)
     uz_log, df_log, console, launcher = runs / f"{name}-uz.log", runs / f"{name}-df.log", runs / f"log-{name}.txt", runs / f"{name}-launcher.log"
     for path in (uz_log, df_log, console, launcher):
         path.unlink(missing_ok=True)
     uz = ["-noactivate", "-config", str(runs / f"{name}.ini"), "-savedir", str(saves), "-dfbridgelog", str(uz_log), "-nosound", "-noautoload", "-skill", "3",
           "-ddtowncache", str(ROOT / "data" / "cache"), "-ddconverter", str(ROOT / "data" / "converter" / "DungeonConverter.exe"), "-ddarena2", str(GAME / "DAGGER" / "ARENA2"),
           "+logfile", name, "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{GROUP:05d}"]
-    if name == "load":
+    if name in ("load", "entry"):
         uz += ["-dfloadtest", f"resume:{autosaves[-1]}"]
     df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
     if name == "take":
         df.append("-dflocktest")
-    timeout = 130 if name == "take" else 150
+    timeout = 130 if name == "take" else 60 if name == "entry" else 150
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(ROOT / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                "--uzdoom", str(ROOT / "uzdoom" / "uzdoom.exe"), "--dfu", str(ROOT / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
                "--uzdoom-cwd", str(runs), "--log", str(launcher)]
-    for mod in [MODS / n for n in DRLA] + [ROOT / "data" / n for n in DATA] + [ROOT / "dfitems.pk3", ROOT / "doomerfall.pk3", harness(runs, name == "load")]:
+    for mod in [MODS / n for n in DRLA] + [ROOT / "data" / n for n in DATA] + [ROOT / "dfitems.pk3", ROOT / "doomerfall.pk3", harness(runs, name == "load", entry=name == "entry")]:
         command += ["--mod", str(mod)]
     for arg in uz:
         command += ["--uzdoom-arg", arg]
@@ -109,7 +124,7 @@ def run(name):
         if re.match(r"DL[A-Z]+ ", line) or line.startswith("look: ") or "lockpick" in line.lower() or "lock" in line and "door" in line.lower() or any(k in line for k in FATAL):
             print("uz", line[:200])
     for line in read(uz_log).splitlines():
-        if "doors:" in line or re.search(r"load test", line, re.I):
+        if "doors:" in line or "setup:" in line or "save:" in line or "autosave committed" in line or re.search(r"load test", line, re.I):
             print("uz-bridge", line[:200])
     for line in read(df_log).splitlines():
         if "doors:" in line or "locktest:" in line or "look: request" in line and "target 6" in line:
@@ -238,7 +253,7 @@ if __name__ == "__main__":
     command = sys.argv[1] if len(sys.argv) > 1 else ""
     if command == "demo":
         demo()
-    elif command in ("take", "load"):
+    elif command in ("take", "load", "entry"):
         run(command)
     elif command == "newgame":
         newgame()

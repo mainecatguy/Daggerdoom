@@ -82,6 +82,11 @@ bool DD_GuardsEvent(const dfb_event &e);
 bool DD_DoorsEvent(const dfb_event &e);
 bool DD_DoorsNetEvent(dfb_session *session, const char *name);
 void DD_DoorsFrame(uint32_t context, bool inSpace, int32_t target);
+void DD_SetupLevelLoaded(bool fromSave);
+bool DD_SetupNetEvent(const char *name);
+bool DD_SetupReady(int64_t now);
+double DD_SetupAgeMs(int64_t now);
+double DD_SetupReadyMs();
 void DD_LightsSetCity(bool on);	// playsim/dd_lights.cpp
 void DD_GuardsFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t target);
 void DD_GuardDied(dfb_session *session, AActor *mo);
@@ -759,7 +764,7 @@ void DD_BridgeMonsterDied(AActor *mo)
 // A ZScript pickup request, seen as its network event runs. False for every other event and outside a session.
 bool DD_BridgeItemNetEvent(const char *name)
 {
-	return session && (DD_ItemsNetEvent(session, name) || DD_InfoNetEvent(session, name) || DD_ClimbNetEvent(session, name) || DD_DoorsNetEvent(session, name));
+	return session && (DD_ItemsNetEvent(session, name) || DD_InfoNetEvent(session, name) || DD_ClimbNetEvent(session, name) || DD_DoorsNetEvent(session, name) || DD_SetupNetEvent(name));
 }
 
 bool DD_BridgeNetEvent(const char *name)
@@ -1242,19 +1247,21 @@ void HandleSaveReply(const dfb_event &e)
 
 bool SaveStart(const char *filename, const char *description, bool isAuto);
 
-// The autosave of a stitched map change, at the first frame after the change's first tic. If either game
-// cannot save then (a window open, a New Game still arriving), it is dropped rather than made later in play.
+// The autosave of a stitched map change, once the change's first tic has run and the map's setup is done (dd_setup.cpp:
+// Daggerfall's door facts arm the locks). If either game cannot save then (a window open, a New Game still arriving),
+// it is dropped rather than made later in play.
 void PumpArrival(int64_t now)
 {
 	if (!arrivalPending || saveState != SaveIdle || saveStartPending) return;
 	const bool handoff = DDTreadmill_HandoffPending();
 	if (handoff && now - arrivalAtNs <= ArrivalWaitNs) return; // The new map's first tic finishes the change.
+	if (!handoff && !DD_SetupReady(now)) return; // Bounded by the gate's own timeout.
 	arrivalPending = false;
 	const bool alive = gamestate == GS_LEVEL && players[consoleplayer].playerstate == PST_LIVE && players[consoleplayer].health > 0;
 	if (!handoff && alive && SaveOnDaggerfallMap() && SaveReady() && gameaction == ga_nothing && !paused)
 	{
 		arrivalQueued = true;
-		Log("save: autosave for a map change, %.1f ms after the new map loaded", (now - arrivalAtNs) / 1e6);
+		Log("save: autosave for a map change, %.1f ms after the new map loaded (setup done at %.1f ms)", DD_SetupAgeMs(now), DD_SetupReadyMs());
 		G_DoAutoSave(); // Queues it on the bridge; it starts below in this same frame.
 		if (!saveStartPending) arrivalQueued = false;
 		return;
@@ -1280,7 +1287,7 @@ void PumpSave(int64_t now)
 			autosaveHeld = false;
 			Log("save: dropped a held autosave");
 		}
-		else if (SaveReady() && gameaction == ga_nothing && !paused && !pauseext && players[consoleplayer].playerstate == PST_LIVE)
+		else if (SaveReady() && DD_SetupReady(now) && gameaction == ga_nothing && !paused && !pauseext && players[consoleplayer].playerstate == PST_LIVE)
 		{
 			autosaveHeld = false;
 			gameaction = ga_autosave;
@@ -1305,8 +1312,8 @@ bool DD_BridgeSaveActive() { return saveState != SaveIdle; }
 bool DD_BridgeAutosaveHold()
 {
 	if (!session || !SaveOnDaggerfallMap()) return false;
-	if (saveState == SaveIdle && !saveStartPending && SaveReady()) return false;
-	if (!autosaveHeld) Log("save: holding an autosave until Daggerfall is ready");
+	if (saveState == SaveIdle && !saveStartPending && SaveReady() && DD_SetupReady(dfb_now_ns())) return false;
+	if (!autosaveHeld) Log("save: holding an autosave until Daggerfall is ready and the map's setup is done");
 	autosaveHeld = true;
 	autosaveHeldUntil = dfb_now_ns() + AutosaveHoldNs;
 	return true;
@@ -1337,6 +1344,12 @@ void DD_BridgeArrivalAutosave()
 	arrivalPending = true;
 	arrivalQueued = false;
 	arrivalAtNs = dfb_now_ns();
+}
+
+// G_DoLoadLevel, after the map's WorldLoaded handlers: autosaves wait for this map's setup (dd_setup.cpp).
+void DD_BridgeLevelLoaded(bool fromSave)
+{
+	if (session && !netgame) DD_SetupLevelLoaded(fromSave);
 }
 
 // D_DoomLoop: true while a map change's autosave runs, so the screen keeps showing the frame from before the change.

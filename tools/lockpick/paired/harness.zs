@@ -22,6 +22,8 @@ class DLHarness : EventHandler
 	static const double DOORDATA[] = { @DOOR@ };
 	const LOADID = @LOADID@;
 	const LOADRUN = @LOADRUN@;
+	const ENTRYRUN = @ENTRYRUN@; // loads the take run's dungeon-entry autosave and checks every lock came back armed
+	int entryTimer;
 	// Members, not consts: with these as constants, the constant-false "if (...) { ...; break; }" blocks inside
 	// WorldTick's switch crashed UZDoom while loading scripts (C0000005, every time with the DRLA set).
 	bool DEMO;    // the review demo: enter, stand at the door, then hand over to the player
@@ -122,6 +124,25 @@ class DLHarness : EventHandler
 
 	bool Shut() { return door.swung <= 0 && door.moving == 0; }
 
+	// The entry run: the save was taken on arrival, before any pick, so every lockable door must be armed at its
+	// starting lock. A load does not ask Daggerfall for the facts again, so this is what the save holds.
+	void EntryCheck()
+	{
+		if (++entryTimer != 70) return;
+		let it = ThinkerIterator.Create("DFDoor");
+		DFDoor d;
+		int lockable, kept;
+		while (d = DFDoor(it.Next()))
+		{
+			if (d.startingLock <= 0) continue;
+			lockable++;
+			if (d.armed && d.lockValue == d.startingLock) kept++;
+			if (d.loadId == LOADID) Report(d.armed && d.lockValue == d.startingLock, String.Format("door %d is locked after the load (armed %d, lock %d of %d)", LOADID, d.armed, d.lockValue, d.startingLock));
+		}
+		Report(lockable > 0 && kept == lockable, String.Format("%d of %d lockable doors are armed at their starting lock", kept, lockable));
+		Finish();
+	}
+
 	// Runs a Daggerfall action record of this type on the door, through the converter's real DFAction.Perform.
 	void RunAction(int type)
 	{
@@ -154,6 +175,7 @@ class DLHarness : EventHandler
 		let p = players[0].mo;
 		p.bNOTARGET = !DEMO;
 		bool inside = level.MapName.Left(3) ~== "DDS" || level.MapName ~== "MAP01";
+		if (ENTRYRUN) { if (inside) EntryCheck(); return; } // the run starts outside; the load test then loads the save
 		timer++;
 		if (LOADRUN && phase == 9) { phase = 20; timer = 0; } // the load restored this handler from the take run's save
 		if (LOADRUN && phase < 9) return;

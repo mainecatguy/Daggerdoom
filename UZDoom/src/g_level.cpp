@@ -101,6 +101,7 @@ EXTERN_CVAR (Float, sv_aircontrol)
 EXTERN_CVAR (Int, disableautosave)
 EXTERN_CVAR (Int, autosavecount) // [Doomerfall]
 void DD_BridgeArrivalAutosave(); // [Doomerfall]
+void DD_BridgeLevelLoaded(bool fromSave); // [Doomerfall]
 EXTERN_CVAR (String, playerclass)
 
 extern uint8_t globalfreeze, globalchangefreeze;
@@ -1543,6 +1544,7 @@ void FLevelLocals::DoLoadLevel(const FString &nextmapname, int position, bool au
 	staticEventManager.WorldLoaded();
 	//      regular world load (savegames are handled internally)
 	localEventManager->WorldLoaded();
+	DD_BridgeLevelLoaded(savegamerestore); // [Doomerfall] autosaves wait until Daggerfall's answers finish this map's setup
 	DoDeferedScripts ();	// [RH] Do script actions that were triggered on another map.
 
 

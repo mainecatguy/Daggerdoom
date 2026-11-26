@@ -182,7 +182,7 @@ extern "C" {
 #define DFB_PICK_CANCEL    2u
 #define DFB_DOOR_OPEN      1u  /* dfb_door.flags: unlock this door and open it, not as the player's toggle (Castle Daggerfall's foyer doors) */
 #define DFB_DOOR_PICK      2u  /* start the minigame with chance; picks is the count held */
-#define DFB_DOOR_ARM       4u  /* id 0: the facts follow; lock every door at its starting lock value. Doors stay unlocked without it */
+#define DFB_DOOR_ARM       4u  /* id 0: lock every door at its starting lock value; state is how many DFB_DOOR_FACT follow. Doors stay unlocked without it */
 #define DFB_DOOR_FACT      8u  /* the player picked this door open earlier; state is its lock value (0) */
 
 /* A plain Daggerfall save (no Doom half) loaded from DFB_UI_LOAD_GAME. Daggerfall holds the game; Doom starts a game of

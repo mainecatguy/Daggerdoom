@@ -2,8 +2,9 @@
 // Daggerfall answers about the player's attempt and keeps the doors the player picked open. This file only relays:
 //   mod "dfdoor_ask:<id>:<lock>"             -> DFB_KIND_DOOR_USE
 //   mod "dflp_result:<id>:<hit|miss|cancel>" -> DFB_KIND_LOCKPICK, and still to the mod (it opens the door itself on a hit)
-//   mod "dfdoor_facts"                       -> DFB_KIND_DOOR_FACTS
+//   mod "dfdoor_facts"                       -> DFB_KIND_DOOR_FACTS, and the map's setup waits for doors (dd_setup.cpp)
 //   DFB_KIND_DOOR_STATE                      -> "dfdoor_arm", "dfdoor_fact:<id>:<lock>", "dflp_start:<chance>:<id>", "dfdoor_open:<id>"
+//   after the arm and its last fact          -> "dfdoor_ready", which runs once the mod applied them: the doors are set up
 //   DFB_KIND_DOOR_TEXT                       -> Daggerfall's HUD message
 // Nothing here runs without a bridge session, so without Daggerfall no door is ever armed.
 
@@ -21,6 +22,8 @@
 
 void DD_BridgeLog(const char *text);
 void DD_InfoShow(const std::string &text, bool mid);
+void DD_SetupWait(const char *system);
+void DD_SetupDone(const char *system);
 
 namespace
 {
@@ -31,11 +34,13 @@ std::string pendingText;
 uint32_t lastContext = ~0u;
 int32_t lastTarget = -2;
 bool lastInSpace;
+uint32_t factsLeft; // facts still to come after DFB_DOOR_ARM
 }
 
 // From DD_BridgeItemNetEvent. True for the door and minigame events.
 bool DD_DoorsNetEvent(dfb_session *session, const char *name)
 {
+	if (!strcmp(name, "dfdoor_ready")) { DD_SetupDone("doors"); return true; }
 	const bool facts = !strcmp(name, "dfdoor_facts");
 	const bool ask = !facts && !strncmp(name, "dfdoor_ask:", 11);
 	const bool pick = !facts && !ask && !strncmp(name, "dflp_result:", 12);
@@ -55,6 +60,7 @@ bool DD_DoorsNetEvent(dfb_session *session, const char *name)
 	e.tic = gametic;
 	memcpy(e.payload, &d, sizeof(d));
 	dfb_send(session, &e);
+	if (facts) DD_SetupWait("doors");
 	DD_BridgeLog(FStringf("doors: %s %llu state %u", facts ? "facts request" : ask ? "ask" : "lockpick", (unsigned long long)d.id, d.state).GetChars());
 	return !pick; // the mod's door handler also hears a pick result: it opens the door on a hit
 }
@@ -76,11 +82,20 @@ bool DD_DoorsEvent(const dfb_event &e)
 	dfb_door d;
 	memcpy(&d, e.payload, sizeof(d));
 	const unsigned long long id = d.id;
-	if (d.flags & DFB_DOOR_ARM) toMod.push_back("dfdoor_arm");
+	if (d.flags & DFB_DOOR_ARM)
+	{
+		toMod.push_back("dfdoor_arm");
+		factsLeft = d.state; // how many facts follow
+		if (factsLeft == 0) toMod.push_back("dfdoor_ready");
+	}
 	else if (id == 0) return true;
 	else if (d.flags & DFB_DOOR_PICK) toMod.push_back(FStringf("dflp_start:%d:%llu", d.chance, id));
 	else if (d.flags & DFB_DOOR_OPEN) toMod.push_back(FStringf("dfdoor_open:%llu", id));
-	else if (d.flags & DFB_DOOR_FACT) toMod.push_back(FStringf("dfdoor_fact:%llu:%u", id, d.state));
+	else if (d.flags & DFB_DOOR_FACT)
+	{
+		toMod.push_back(FStringf("dfdoor_fact:%llu:%u", id, d.state));
+		if (factsLeft > 0 && --factsLeft == 0) toMod.push_back("dfdoor_ready");
+	}
 	return true;
 }
 

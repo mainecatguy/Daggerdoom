@@ -122,7 +122,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint PICK_CANCEL = 2;
         public const uint DOOR_OPEN = 1;  // dfb_door.flags: unlock this door and open it, not as the player's toggle (Castle Daggerfall's foyer doors)
         public const uint DOOR_PICK = 2;  // start the minigame with chance; picks is the count held
-        public const uint DOOR_ARM = 4;  // id 0: the facts follow; lock every door at its starting lock value. Doors stay unlocked without it
+        public const uint DOOR_ARM = 4;  // id 0: lock every door at its starting lock value; state is how many DFB_DOOR_FACT follow. Doors stay unlocked without it
         public const uint DOOR_FACT = 8;  // the player picked this door open earlier; state is its lock value (0)
         public const ushort KIND_PLAIN_LOAD = 220;  // DF to UZ; payload: dfb_plain_load
         public const ushort KIND_STARTER = 221;  // UZ to DF; the starter gun; payload: dfb_doom_item, cls the pistol's world pickup class (empty for none), request its weapon slot (low 8 bits, 255 for none) plus (reserve ammo type + 1) << 8 (0 Clip to 3 Cell), status the class's start amount of that ammo
