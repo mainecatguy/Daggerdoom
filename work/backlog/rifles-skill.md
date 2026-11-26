@@ -17,15 +17,19 @@ the Marksmanship draft's +0% to +100%.
 **Perks (owner, 2026-11-26).** Each unlocks when the Rifles skill reaches that level, and applies to all rifles.
 
 - **Skill 25:** reloads 20% faster. Rifles deal +30 flat bonus damage, added before other modifiers. Hits cripple
-  enemies based on their remaining life: the enemy's movement and attack speed drop by the hit's damage divided by its
-  remaining health (a hit for half its remaining life slows it 50%), at most 75% slower. The cripple lasts until the enemy dies.
-  Open: what a later hit does to an existing cripple (suggested: it becomes the larger of the old and the new).
+  enemies: each hit adds cripple equal to its damage divided by the enemy's max HP when the hit lands (a hit for 10% of
+  its max HP adds 10%). Hits add up, to at most 75%. A crippled enemy's movement and attack speed drop by its cripple %.
+  The cripple lasts until the enemy dies. Cripple pool: +10% cripple that refills every 2 seconds and is added to the
+  next hit, even one that dealt little damage. Doom tracks cripple entirely; Daggerfall does not mediate it (owner:
+  too complicated, bad engineering).
 - **Skill 50:** +1 penetration. A bonus damage pool of 150 that refills over 1 second (kept, owner 2026-11-26).
   Reloads another 20% faster. Estimate (rifles research numbers, skill 100): the pool adds about 40-80% to light and
   medium rifles' damage per second and 15-25% to the heavies.
-- **Skill 75:** crippled enemies take bonus rifle damage in proportion to how crippled they are (owner, 2026-11-26;
-  replaces steady shot). Suggested numbers, waiting on the owner: +1% damage per 1% crippled, so +75% at the cap;
-  the bonus raises the shot's damage, not the pool.
+- **Skill 75:** crippled enemies take +2% damage for every 1% cripple, so +150% at the cap. It applies to damage from
+  any source, not only rifles (owner, 2026-11-26: "people don't switch weapons all that much but if they want to they
+  can, that's play"). Replaces steady shot. This makes rifles the guns for hunting large monsters (HP up to about
+  20,000). Estimate (rifles research numbers, skill 100, one target): against a 20,000 HP monster, rifle damage per
+  second roughly doubles (+100% to +123%), and against 500-1,000 HP monsters it adds 0-60%.
 - **Skill 100:** true overpenetration. The shot passes through every enemy in its path, killing or not, with no limit.
   The first penetration (from skill 50) loses no damage. Each penetration after that deals 3/4 of the one before.
   Example, 4 pinkies in a row: 1st takes 100%, 2nd 100%, 3rd 75%, 4th 75% of 75%.
