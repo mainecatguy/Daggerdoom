@@ -14,13 +14,22 @@ for that game to exit.
 
 ## Fix (`harness-fix.patch`, for `scripts/overnight/`, which agents may not edit)
 
-- `run.ps1`: `Invoke-Logged` puts each child (worker round, build check, verifier, reviewer) in a Windows job. Job
-  membership passes to every descendant, even after its parent exits, and `quiet_run.py`'s private desktop does not
-  change that. When the child exits or times out, the job is ended, so no test game outlives the round that started
-  it. The job also ends if `run.ps1` dies. Programs that ask to break away from a job may (none of ours do).
+- New `lane_job.ps1`, dot-sourced by both scripts: `Start-LaneJob` puts a started process in a Windows job (job
+  membership passes to every descendant, even after its parent exits, and quiet_run's private desktop does not change
+  that). `Stop-LaneJob` ends every process still in the job **except build helpers meant to stay open**, then closes
+  the job without killing the rest. It returns the names it ended, and the scripts log them.
+  - Kept (owner, 2026-11-26): `MSBuild.exe` (reuse nodes), `mspdbsrv.exe`, `VBCSCompiler.exe`, `vctip.exe`,
+    `Unity.Licensing.Client.exe`, `Unity Hub.exe`, `conhost.exe` (ends by itself with its console program), and
+    `dotnet.exe` only when its command line hosts `MSBuild.dll`, `VBCSCompiler.dll` or `rzc.dll`. The list is
+    `$LaneJobKeep` at the top of `lane_job.ps1`.
+  - A process is ended only if it is still in the job when it is opened, so a reused process id is never hit.
+- `run.ps1`: `Invoke-Logged` runs each child (worker round, build check, verifier, reviewer) in its own job and ends
+  its leftovers when it exits or times out. The run log gets a line such as
+  `Closed what round-1.log left running: python.exe, uzdoom.exe`.
 - `queue.ps1`: `run.ps1`'s output goes to files (`queue-<lane>-run.log` and `.err`, appended to
-  `queue-<lane>-output.log` afterwards), and the lane waits for `run.ps1` itself. Anything that escapes the job can no
-  longer stall a lane. As a side effect the output log is plain UTF-8 instead of UTF-16 interleaved with UTF-8.
+  `queue-<lane>-output.log` afterwards), and the lane waits for `run.ps1` itself, so nothing can stall a lane through
+  a pipe any more. `run.ps1` also runs in a job, as a backstop if it dies before cleaning up; the queue log names
+  anything this closes.
 
 Apply from the repo root with `git apply tools/lane_hang/harness-fix.patch`.
 
@@ -28,8 +37,9 @@ Apply from the repo root with `git apply tools/lane_hang/harness-fix.patch`.
 
 `run_fake_lane.py` builds a throwaway git repo in `%TEMP%\doomerfall-fake-lane`, copies a harness into it, and runs
 `queue.ps1` on two cards with `fake_claude.py` in place of Claude. Each fake round leaves a "game" (a sleeping python
-process that inherits handles) and reports BLOCKED. PASS needs both cards to finish before the game would have ended
-and no game left afterwards. It costs nothing and creates branches only in the throwaway repo.
+process that inherits handles) and a fake build helper (a small program named `MSBuild.exe`, built by the test), and
+reports BLOCKED. PASS needs both cards to finish before the game would have ended, no game left afterwards, and every
+fake build helper still running. It costs nothing and creates branches only in the throwaway repo.
 
 ```
 python tools/lane_hang/run_fake_lane.py                                  # current harness: FAIL (hangs)

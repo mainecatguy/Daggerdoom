@@ -28,6 +28,25 @@ def fake_games(seconds):
             if "\t" in line and f"time.sleep({float(seconds)})" in line]
 
 
+def fake_helpers(path):
+    """Process ids of fake build helpers started from this exact file."""
+    out = subprocess.run(["powershell.exe", "-NoProfile", "-Command",
+                          "Get-CimInstance Win32_Process -Filter \"Name='MSBuild.exe'\" | "
+                          "ForEach-Object { \"$($_.ProcessId)`t$($_.ExecutablePath)\" }"],
+                         capture_output=True, text=True).stdout
+    return [int(line.split("\t")[0]) for line in out.splitlines()
+            if "\t" in line and os.path.normcase(line.split("\t", 1)[1].strip()) == os.path.normcase(path)]
+
+
+def build_helper(path):
+    """A console program named MSBuild.exe that sleeps for its argument in seconds."""
+    source = ("public static class P { public static void Main(string[] a) "
+              "{ System.Threading.Thread.Sleep(int.Parse(a[0]) * 1000); } }")
+    subprocess.run(["powershell.exe", "-NoProfile", "-Command",
+                    f"Add-Type -TypeDefinition '{source}' -OutputAssembly '{path}' -OutputType ConsoleApplication"],
+                   check=True)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--harness", default=os.path.join(HERE, "..", "..", "scripts", "overnight"))
@@ -50,6 +69,10 @@ def main():
     goals = os.path.join(repo, "work", "queue", "fake")
     os.makedirs(goals)
     os.makedirs(run_dir)
+    helper = os.path.join(work, "helper", "MSBuild.exe")
+    os.makedirs(os.path.dirname(helper))
+    build_helper(helper)
+    env["FAKE_LANE_HELPER"] = helper
     shutil.copytree(os.path.abspath(args.harness), os.path.join(repo, "scripts", "overnight"))
     with open(os.path.join(repo, "README.md"), "w") as f:
         f.write("fake repo\n")
@@ -81,15 +104,19 @@ def main():
     elapsed = round(time.monotonic() - start, 1)
 
     games = fake_games(args.game_seconds)
+    helpers = fake_helpers(helper)
+    started_path = helper + ".started"
+    started = len(open(started_path).read().split()) if os.path.exists(started_path) else 0
     log_path = os.path.join(run_dir, "queue-fake.log")
     log = open(log_path, encoding="utf-8-sig").read() if os.path.exists(log_path) else ""
     print("--- queue log\n" + log)
-    print(f"--- lane exited: {finished} after {elapsed} s (limit {limit} s); fake games still running: {len(games)}")
-    for pid in games:
+    print(f"--- lane exited: {finished} after {elapsed} s (limit {limit} s); fake games still running: {len(games)}; "
+          f"fake build helpers still running: {len(helpers)} of {started} started (all must survive)")
+    for pid in games + helpers:
         subprocess.run(["taskkill", "/PID", str(pid), "/F"], capture_output=True)
     if not finished:
         subprocess.run(["taskkill", "/PID", str(lane.pid), "/T", "/F"], capture_output=True)
-    ok = finished and "Starting 02.fake.card02.md" in log and not games
+    ok = finished and "Starting 02.fake.card02.md" in log and not games and started > 0 and len(helpers) == started
     print("PASS" if ok else "FAIL")
     sys.exit(0 if ok else 1)
 

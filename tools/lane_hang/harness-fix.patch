@@ -1,7 +1,128 @@
+diff --git a/scripts/overnight/lane_job.ps1 b/scripts/overnight/lane_job.ps1
+new file mode 100644
+index 0000000..d49ddc6
+--- /dev/null
++++ b/scripts/overnight/lane_job.ps1
+@@ -0,0 +1,106 @@
++<#
++Windows jobs for overnight runs, dot-sourced by run.ps1 and queue.ps1 (lane hang fix, tools/lane_hang/README.md).
++A job holds every process a child starts, even after the child exits. When the child is done, Stop-LaneJob closes
++what it left behind, such as a test game, which otherwise kept running and held the lane open. Build helpers that are
++meant to stay open between builds are left running.
++#>
++
++# Left running when a job ends. Names are matched without case. dotnet.exe is kept only when it hosts a build server.
++$LaneJobKeep = @(
++    'MSBuild.exe', 'mspdbsrv.exe', 'VBCSCompiler.exe', 'vctip.exe',   # MSBuild reuse nodes, PDB server, C# compiler server
++    'Unity.Licensing.Client.exe', 'Unity Hub.exe',                    # Unity's license client and Hub
++    'conhost.exe'                                                     # closes by itself with its console program
++)
++$LaneJobKeepDotnet = 'MSBuild\.dll|VBCSCompiler\.dll|rzc\.dll'
++
++if (-not ('LaneJob' -as [type])) {
++    Add-Type -TypeDefinition @'
++using System;
++using System.Runtime.InteropServices;
++public static class LaneJob {
++    [StructLayout(LayoutKind.Sequential)]
++    struct Limits {
++        public long PerProcessUserTimeLimit, PerJobUserTimeLimit; public uint LimitFlags;
++        public UIntPtr MinimumWorkingSetSize, MaximumWorkingSetSize; public uint ActiveProcessLimit;
++        public UIntPtr Affinity; public uint PriorityClass, SchedulingClass;
++        public ulong ReadOps, WriteOps, OtherOps, ReadBytes, WriteBytes, OtherBytes;
++        public UIntPtr ProcessMemoryLimit, JobMemoryLimit, PeakProcessMemoryUsed, PeakJobMemoryUsed;
++    }
++    [DllImport("kernel32.dll", SetLastError = true)] static extern IntPtr CreateJobObject(IntPtr security, string name);
++    [DllImport("kernel32.dll", SetLastError = true)] static extern bool SetInformationJobObject(IntPtr job, int infoClass, ref Limits info, int size);
++    [DllImport("kernel32.dll", SetLastError = true)] static extern bool QueryInformationJobObject(IntPtr job, int infoClass, IntPtr info, int size, IntPtr returned);
++    [DllImport("kernel32.dll", SetLastError = true)] static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
++    [DllImport("kernel32.dll", SetLastError = true)] static extern bool IsProcessInJob(IntPtr process, IntPtr job, out bool result);
++    [DllImport("kernel32.dll", SetLastError = true)] static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
++    [DllImport("kernel32.dll", SetLastError = true)] static extern bool TerminateProcess(IntPtr process, uint exitCode);
++    [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr handle);
++
++    // No kill on close, so kept build helpers survive the handle. Breakaway stays allowed for programs that ask for it.
++    public static IntPtr Start(IntPtr process) {
++        IntPtr job = CreateJobObject(IntPtr.Zero, null);
++        if (job == IntPtr.Zero) return job;
++        Limits limits = new Limits(); limits.LimitFlags = 0x800;
++        if (!SetInformationJobObject(job, 9, ref limits, Marshal.SizeOf(typeof(Limits))) || !AssignProcessToJobObject(job, process)) {
++            CloseHandle(job); return IntPtr.Zero;
++        }
++        return job;
++    }
++
++    // Process ids in the job, including nested jobs.
++    public static int[] Pids(IntPtr job) {
++        int max = 4096, size = 8 + max * IntPtr.Size;
++        IntPtr buffer = Marshal.AllocHGlobal(size);
++        try {
++            if (!QueryInformationJobObject(job, 3, buffer, size, IntPtr.Zero)) return new int[0];
++            int count = Marshal.ReadInt32(buffer, 4);
++            int[] pids = new int[count];
++            for (int i = 0; i < count; i++) pids[i] = (int)Marshal.ReadIntPtr(buffer, 8 + i * IntPtr.Size).ToInt64();
++            return pids;
++        } finally { Marshal.FreeHGlobal(buffer); }
++    }
++
++    // Ends the process only if it is still in the job, so a reused process id is never hit.
++    public static bool Kill(IntPtr job, int pid) {
++        IntPtr process = OpenProcess(0x1001, false, pid);   // terminate, query limited information
++        if (process == IntPtr.Zero) return false;
++        try {
++            bool inJob;
++            return IsProcessInJob(process, job, out inJob) && inJob && TerminateProcess(process, 1);
++        } finally { CloseHandle(process); }
++    }
++}
++'@
++}
++
++# Puts a started process (and everything it will start) in a new job. Returns the job, or IntPtr.Zero on failure.
++function Start-LaneJob([Diagnostics.Process]$Process) {
++    $job = [LaneJob]::Start($Process.Handle)
++    if ($job -eq [IntPtr]::Zero) { Write-Host "Could not put $($Process.ProcessName) in a job. Its leftovers may outlive it." }
++    $job
++}
++
++# Ends every process left in the job except kept build helpers, then closes the job. Returns the names it ended.
++function Stop-LaneJob([IntPtr]$Job) {
++    if ($Job -eq [IntPtr]::Zero) { return }
++    $ended = @()
++    try {
++        # A few passes, in case a process starts another while the first is ending.
++        for ($pass = 0; $pass -lt 5; $pass++) {
++            $pids = [LaneJob]::Pids($Job)
++            if (-not $pids.Count) { break }
++            $info = @{}
++            Get-CimInstance Win32_Process -Filter (($pids | ForEach-Object { "ProcessId=$_" }) -join ' OR ') |
++                ForEach-Object { $info[[int]$_.ProcessId] = $_ }
++            $targets = @($pids | Where-Object {
++                    $p = $info[[int]$_]
++                    $p -and $LaneJobKeep -notcontains $p.Name -and
++                    -not ($p.Name -eq 'dotnet.exe' -and $p.CommandLine -match $LaneJobKeepDotnet)
++                })
++            if (-not $targets.Count) { break }
++            foreach ($id in $targets) { if ([LaneJob]::Kill($Job, $id)) { $ended += $info[[int]$id].Name } }
++            Start-Sleep -Milliseconds 200
++        }
++    }
++    finally { $null = [LaneJob]::CloseHandle($Job) }
++    $ended
++}
 diff --git a/scripts/overnight/queue.ps1 b/scripts/overnight/queue.ps1
+index f7ca0f6..898e72f 100644
 --- a/scripts/overnight/queue.ps1
 +++ b/scripts/overnight/queue.ps1
-@@ -65,9 +65,17 @@
+@@ -28,6 +28,7 @@ $GoalDir = (Resolve-Path $GoalDir).Path
+ New-Item -ItemType Directory -Force $RunDir, (Join-Path $GoalDir 'done') | Out-Null
+ $Log = Join-Path $RunDir "queue-$Lane.log"
+ $Metrics = Join-Path $RunDir 'metrics.csv'
++. (Join-Path $PSScriptRoot 'lane_job.ps1')
+ 
+ function Write-Queue([string]$Text) {
+     $line = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [$Lane] $Text"
+@@ -65,9 +66,20 @@ while ($true) {
          '-GoalFile', $file.FullName, '-RunDir', $RunDir, '-Target', $Target, '-Lane', $Lane, '-Model', $model,
          '-Hours', $hours.ToString('0.###', $Culture), '-MaxUsd', $budget.ToString('0.####', $Culture), '-MaxFailures', '28', '-ClaudeExe', $ClaudeExe)
      if ($ClaudePrefix) { $runArgs += @('-ClaudePrefix', $ClaudePrefix) }
@@ -14,56 +135,28 @@ diff --git a/scripts/overnight/queue.ps1 b/scripts/overnight/queue.ps1
 +    $runOut = Join-Path $RunDir "queue-$Lane-run.log"
 +    $p = Start-Process powershell.exe -ArgumentList $argLine -NoNewWindow -PassThru `
 +        -RedirectStandardOutput $runOut -RedirectStandardError "$runOut.err"
-+    $null = $p.Handle
++    # The job is a backstop: run.ps1 closes each round's leftovers itself, unless it dies first.
++    $job = Start-LaneJob $p
 +    $p.WaitForExit()
 +    $runCode = $p.ExitCode
++    $ended = @(Stop-LaneJob $job)
++    if ($ended.Count) { Write-Queue "Closed what the run left running: $($ended -join ', ')." }
 +    Get-Content -LiteralPath $runOut, "$runOut.err" -ErrorAction SilentlyContinue |
 +        Add-Content -LiteralPath (Join-Path $RunDir "queue-$Lane-output.log") -Encoding utf8
      $rows = @(Get-ChildItem -LiteralPath $RunDir -Filter 'metrics*.csv' -File | ForEach-Object {
              try { Import-Csv -LiteralPath $_.FullName -ErrorAction Stop } catch { }
          } | Where-Object { $_.Run -ge $runStart } | Sort-Object Run)
 diff --git a/scripts/overnight/run.ps1 b/scripts/overnight/run.ps1
+index 3cddbbc..6ecd265 100644
 --- a/scripts/overnight/run.ps1
 +++ b/scripts/overnight/run.ps1
-@@ -56,14 +56,54 @@
+@@ -56,14 +56,24 @@ function Write-Text([string]$Path, [string]$Text) {
      [IO.File]::WriteAllText($Path, $Text, (New-Object Text.UTF8Encoding($false)))
  }
  
-+# A job holds every process a child starts, even after the child exits. Ending it ends leftover test games, which
-+# otherwise keep running and hold this script's inherited output pipe open, so queue.ps1 waits on them (lane hang).
-+Add-Type -TypeDefinition @'
-+using System;
-+using System.Runtime.InteropServices;
-+public static class RunJob {
-+    [StructLayout(LayoutKind.Sequential)]
-+    struct Limits {
-+        public long PerProcessUserTimeLimit, PerJobUserTimeLimit; public uint LimitFlags;
-+        public UIntPtr MinimumWorkingSetSize, MaximumWorkingSetSize; public uint ActiveProcessLimit;
-+        public UIntPtr Affinity; public uint PriorityClass, SchedulingClass;
-+        public ulong ReadOps, WriteOps, OtherOps, ReadBytes, WriteBytes, OtherBytes;
-+        public UIntPtr ProcessMemoryLimit, JobMemoryLimit, PeakProcessMemoryUsed, PeakJobMemoryUsed;
-+    }
-+    [DllImport("kernel32.dll", SetLastError = true)] static extern IntPtr CreateJobObject(IntPtr security, string name);
-+    [DllImport("kernel32.dll", SetLastError = true)] static extern bool SetInformationJobObject(IntPtr job, int infoClass, ref Limits info, int size);
-+    [DllImport("kernel32.dll", SetLastError = true)] static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
-+    [DllImport("kernel32.dll", SetLastError = true)] static extern bool TerminateJobObject(IntPtr job, uint exitCode);
-+    [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
-+    // Kill on close also ends the tree if this script dies. Breakaway stays allowed for programs that ask for it.
-+    public static IntPtr Start(IntPtr process) {
-+        IntPtr job = CreateJobObject(IntPtr.Zero, null);
-+        if (job == IntPtr.Zero) return job;
-+        Limits limits = new Limits(); limits.LimitFlags = 0x2000 | 0x800;
-+        if (!SetInformationJobObject(job, 9, ref limits, Marshal.SizeOf(typeof(Limits))) || !AssignProcessToJobObject(job, process)) {
-+            CloseHandle(job); return IntPtr.Zero;
-+        }
-+        return job;
-+    }
-+    public static void End(IntPtr job) {
-+        if (job == IntPtr.Zero) return;
-+        TerminateJobObject(job, 1); CloseHandle(job);
-+    }
-+}
-+'@
++# Each child runs in a Windows job. When it is done, what it left behind (such as a test game) is closed, except
++# build helpers meant to stay open. Leftover games otherwise kept lanes from finishing (lane hang).
++. (Join-Path $PSScriptRoot 'lane_job.ps1')
 +
  function Invoke-Logged([string]$Exe, [string]$ArgLine, [string]$InputText, [string]$Log) {
      $in = "$Log.in"; Write-Text $in $InputText
@@ -73,14 +166,16 @@ diff --git a/scripts/overnight/run.ps1 b/scripts/overnight/run.ps1
 -    $ms = [Math]::Max(60000, [int][Math]::Min(2147483000, ($Deadline - (Get-Date)).TotalMilliseconds))
 -    if (-not $p.WaitForExit($ms)) { & taskkill.exe /PID $p.Id /T /F 2>$null | Out-Null; return -1 }
 -    $p.WaitForExit(); $p.ExitCode
-+    $job = [RunJob]::Start($p.Handle)
-+    if ($job -eq [IntPtr]::Zero) { Write-Warning "Could not put $Exe in a job. Its leftover processes may outlive it." }
++    $job = Start-LaneJob $p
 +    try {
 +        $ms = [Math]::Max(60000, [int][Math]::Min(2147483000, ($Deadline - (Get-Date)).TotalMilliseconds))
 +        if (-not $p.WaitForExit($ms)) { & taskkill.exe /PID $p.Id /T /F 2>$null | Out-Null; return -1 }
 +        $p.WaitForExit(); $p.ExitCode
 +    }
-+    finally { [RunJob]::End($job) }
++    finally {
++        $ended = @(Stop-LaneJob $job)
++        if ($ended.Count) { Write-Host "Closed what $(Split-Path $Log -Leaf) left running: $($ended -join ', ')" }
++    }
  }
  
  function Read-Result([string]$Log) {
