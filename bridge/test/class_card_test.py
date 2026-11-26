@@ -7,7 +7,7 @@ Expected cards are rebuilt here, independently of the game's C# tables: the clas
 (skill bytes 16-27), then the replacements written in work/notes/20261126-class-skill-remap-proposal.md
 (no-guns table, then the guns-mode table's "Daggerfall skill > Doom skill" cells).
 """
-import re, subprocess, sys
+import json, re, subprocess, sys
 from pathlib import Path
 
 DEMO = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(r"D:\dev\DoomDaggerfall-loop\review\classcards")
@@ -56,7 +56,8 @@ GUNS_CARDS = {
 
 
 def norm(name):
-    return re.sub(r"[^a-z]", "", name.lower())
+    n = re.sub(r"[^a-z]", "", name.lower())
+    return "pickpocket" if n == "pickpocketing" else n  # the sheet's name for the Pickpocket skill
 
 
 def expected_cards():
@@ -76,7 +77,8 @@ def expected_cards():
 def custom_rule(lists, first_language=11):
     """The proposal's custom-class rule, written separately from the C#."""
     out = list(lists)
-    removed = {norm(NAMES[i]) for i in range(first_language, 13)}  # monster-language numbers still read as languages
+    # monster-language numbers still read as languages; the sheet shows unused slots 11-12 with no name
+    removed = {norm(NAMES[i]) for i in range(first_language, 13)} | {""}
     usable = [norm(n) for n in NAMES if norm(n) not in ("criticalstrike", "centaurian", "impish") and norm(n) not in DF_WEAPONS]
     usable = [n if n not in ("orcish", "harpy", "giantish", "dragonish", "nymph", "daedric", "spriggan") else
               GUNS[["orcish", "harpy", "giantish", "dragonish", "nymph", "daedric", "spriggan"].index(n)] for n in usable]
@@ -107,9 +109,7 @@ def main():
     run = DEMO / "run"
     run.mkdir(exist_ok=True)
     uz_log, df_log = run / "classcard-uz.log", run / "classcard-df.log"
-    for path in (uz_log, df_log):
-        path.unlink(missing_ok=True)
-    uz = ["-noactivate", "-config", str(run / "classcard.ini"), "-dfbridgelog", str(uz_log), "-nosound", "-skill", "3", "+map", "E1M1",
+    uz =["-noactivate", "-config", str(run / "classcard.ini"), "-dfbridgelog", str(uz_log), "-nosound", "-skill", "3", "+map", "E1M1",
           "+vid_fullscreen", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"]
     df = ["-dfbridgelog", str(df_log), "-dfsynctest", DAGGER, "-dfclasscardtest", "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
     command = [sys.executable, QUIET, "--timeout", str(SECONDS), "--", str(DEMO / "doomerfall-launcher.exe"), "--minimized",
@@ -120,6 +120,8 @@ def main():
     for arg in df:
         command += ["--dfu-arg", arg]
     if "--check-only" not in sys.argv:
+        for path in (uz_log, df_log):
+            path.unlink(missing_ok=True)
         print("launcher exit", subprocess.run(command, capture_output=True, text=True).returncode)
 
     df_lines = df_log.read_text(encoding="utf-8", errors="replace").splitlines() if df_log.exists() else []
@@ -184,10 +186,19 @@ def main():
             check(all(e["guns"][g] >= 10 for g in on_card), f"{cls}: card gun skills rolled as class skills {[(g, e['guns'][g]) for g in on_card]}")
             check(reached_doom(label), f"{cls}: gun skills reached Doom")
 
+    # Old saves: the level and the progress through it (current - starting level-up sum) must be what the save stored.
+    # (The sheet test that made them raised the level by hand, so their calculated level can be below their level.)
+    stored = {}
+    for info in (DEMO / "dfu" / "PortableAppdata" / "Saves").glob("SAVE*/SaveInfo.txt"):
+        name = json.loads(info.read_text(encoding="utf-8-sig")).get("saveName")
+        pe = json.loads((info.parent / "SaveData.txt").read_text(encoding="utf-8-sig"))["playerData"]["playerEntity"]
+        stored[name] = (pe["level"], pe["currentLevelUpSkillSum"] - pe["startingLevelUpSkillSum"], pe["currentLevelUpSkillSum"])
     for label, e in entries.items():
         if label.startswith("old save"):
-            check(e["calc"] == e["level"] and e["lists"] == cards[CLASSES.index(e["cls"])] if e["cls"] in CLASSES else e["calc"] == e["level"],
-                  f"{label}: loads at level {e['level']} (calculated {e['calc']}), class card {e['cls']}")
+            level, progress, current = stored.get(label.split()[2], (None, None, None))
+            same = e["level"] == level and (current == 0 or e["current"] - e["start"] == progress)
+            check(same and e["cls"] in CLASSES and e["lists"] == cards[CLASSES.index(e["cls"])],
+                  f"{label}: level {e['level']} and progress {e['current'] - e['start']} as saved ({level}, {progress}); class card {e['cls']}")
 
     b, a = entries.get("pre-card warrior before save"), entries.get("pre-card warrior loaded")
     check(b is not None and b["level"] == 5 and b["calc"] == 5, "pre-card warrior: level 5 before save")
