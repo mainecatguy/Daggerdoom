@@ -13,6 +13,15 @@ What is done on the project, newest first. Agents do not need to read this unles
 
 ## 2026-11-26
 
+### Day/night: fog, fogged sky, lit windows and winter textures (on `integration`)
+
+- **Doom draws Daggerfall's live fog** (clear haze, weather, interiors, dungeons) from a new `fog ...` bridge text, and heavy fog also fogs the sky as Daggerfall's does.
+- **Town windows glow** with Daggerfall's window colour (`windows r g b`): blue glass by day, orange at night, fading with distance and fog. The converter writes window masks into `ddruntime.pk3` (regenerate it).
+- **Winter textures:** Daggerfall's `sky` line carries the season; outdoor places convert with ClimateSwaps' winter sets at the next area load.
+- Known gaps (owner accepted, on hold): the first town after launch in a winter save loads in summer textures; the overworld is not seasonal yet.
+- Plain bridge texts only, no schema change; UZDoom, converter and Daggerfall Unity must be rebuilt. Verified on `verify/daynight`: paired town, interior and dungeon runs, Doom-only winter shots, E1M1 stock and DRLA, rest and perk popup regressions.
+- Notes: `work/notes/20261125-202716.md`, `work/notes/20261126-114057.md`, `work/notes/20261126-145333.md`.
+
 ### Player HP from Endurance and level (on `integration`)
 
 - **Max HP = 50 + Endurance + (level - 1) x Endurance / 15**, from live Endurance (Fortify and Drain count while they last), recomputed on every change. A rise in max HP raises current HP by the same amount; a fall only clamps it. Rules: `gamedesign/hp.md`.
