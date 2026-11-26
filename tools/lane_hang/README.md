@@ -24,7 +24,9 @@ for that game to exit.
     `$LaneJobKeep` at the top of `lane_job.ps1`.
   - A process is ended only if it is still in the job when it is opened, so a reused process id is never hit.
 - `run.ps1`: `Invoke-Logged` runs each child (worker round, build check, verifier, reviewer) in its own job and ends
-  its leftovers when it exits or times out. The run log gets a line such as
+  its leftovers when it exits or times out. On a timeout it ends only the child itself and lets the job cleanup close
+  the rest, so build helpers survive timeouts too (`taskkill /T` remains only for when no job could be made). The run
+  log gets a line such as
   `Closed what round-1.log left running: python.exe, uzdoom.exe`.
 - `queue.ps1`: `run.ps1`'s output goes to files (`queue-<lane>-run.log` and `.err`, appended to
   `queue-<lane>-output.log` afterwards), and the lane waits for `run.ps1` itself, so nothing can stall a lane through
@@ -47,3 +49,13 @@ python tools/lane_hang/run_fake_lane.py --patch tools/lane_hang/harness-fix.patc
 ```
 
 `--quiet-run` starts the fake game through `quiet_run.py` on a private desktop, as real tests do.
+
+## Timeout test
+
+`run_timeout_test.py` applies the patch to a temp copy and calls the patched `Invoke-Logged` directly with a child
+that never exits (about 65 s, its 60 s minimum wait). PASS needs a -1 return, the child and its fake game gone, and the
+fake `MSBuild.exe` still running.
+
+```
+python tools/lane_hang/run_timeout_test.py      # new patch: PASS; the earlier patch with taskkill /T: FAIL
+```

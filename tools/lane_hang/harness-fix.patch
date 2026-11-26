@@ -147,10 +147,10 @@ index f7ca0f6..898e72f 100644
              try { Import-Csv -LiteralPath $_.FullName -ErrorAction Stop } catch { }
          } | Where-Object { $_.Run -ge $runStart } | Sort-Object Run)
 diff --git a/scripts/overnight/run.ps1 b/scripts/overnight/run.ps1
-index 3cddbbc..6ecd265 100644
+index 3cddbbc..26296de 100644
 --- a/scripts/overnight/run.ps1
 +++ b/scripts/overnight/run.ps1
-@@ -56,14 +56,24 @@ function Write-Text([string]$Path, [string]$Text) {
+@@ -56,14 +56,29 @@ function Write-Text([string]$Path, [string]$Text) {
      [IO.File]::WriteAllText($Path, $Text, (New-Object Text.UTF8Encoding($false)))
  }
  
@@ -169,7 +169,12 @@ index 3cddbbc..6ecd265 100644
 +    $job = Start-LaneJob $p
 +    try {
 +        $ms = [Math]::Max(60000, [int][Math]::Min(2147483000, ($Deadline - (Get-Date)).TotalMilliseconds))
-+        if (-not $p.WaitForExit($ms)) { & taskkill.exe /PID $p.Id /T /F 2>$null | Out-Null; return -1 }
++        if (-not $p.WaitForExit($ms)) {
++            # With a job, end only the child; Stop-LaneJob below closes the rest and keeps build helpers.
++            if ($job -eq [IntPtr]::Zero) { & taskkill.exe /PID $p.Id /T /F 2>$null | Out-Null }
++            else { try { $p.Kill() } catch { }; $null = $p.WaitForExit(10000) }
++            return -1
++        }
 +        $p.WaitForExit(); $p.ExitCode
 +    }
 +    finally {
