@@ -30,7 +30,9 @@ bool DD_BridgeHasSession();
 
 namespace
 {
-	constexpr uint64_t DYNAMIC_BIT = 1ull << 63, ID_MASK = (1ull << 61) - 1;	// As dd_treadmill.cpp's session ids.
+	// A floor item's id is shaped as dd_treadmill.cpp's session ids (tag 4 with bit 60), so the world table and the
+	// location record treat it as a Doom drop, never as a monster, NPC or townsperson id (tags 5-7).
+	constexpr uint64_t SESSION_ID = (1ull << 63) | (1ull << 60), ID_MASK = (1ull << 60) - 1;
 	constexpr uint64_t SALT_DEATH = 0x6c6f6f7464656164ull, SALT_MAPTHING = 0x6c6f6f746d617074ull, SALT_LIVE = 0x6c6976657374617eull;
 
 	uint64_t Mix(uint64_t h, uint64_t v)
@@ -119,7 +121,7 @@ uint64_t DD_LootItemId(AActor *item)
 {
 	if (!item) return 0;
 	if (item->ddRecordId) return item->ddRecordId;
-	return item->ddLootId ? DYNAMIC_BIT | (item->ddLootId & ID_MASK) : 0;
+	return item->ddLootId ? SESSION_ID | (item->ddLootId & ID_MASK) : 0;
 }
 
 uint64_t *DD_AiStateFor(DThinker *th)

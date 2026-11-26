@@ -329,7 +329,7 @@ public:
 
 	// ---- Spots ----
 
-	void Body(PClassActor *cls, double &r, double &h) const
+	static void Body(PClassActor *cls, double &r, double &h)
 	{
 		const AActor *def = cls ? GetDefaultByType(cls) : nullptr;
 		r = def ? std::max(1., def->radius) : 20;	// stock: monsters squeeze only in gaps (Check)
