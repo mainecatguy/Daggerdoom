@@ -136,7 +136,7 @@ def newgame():
         path.unlink(missing_ok=True)
     uz = ["-noactivate", "-config", str(runs / "newgame.ini"), "-savedir", str(saves), "-dfbridgelog", str(uz_log), "-dfflow", "-dfnewgametest", "once", "-dfuitest", "0",
           "-nosound", "-noautoload", "-ddtowncache", str(ROOT / "data" / "cache"), "-ddconverter", str(ROOT / "data" / "converter" / "DungeonConverter.exe"),
-          "-ddarena2", str(GAME / "DAGGER" / "ARENA2"), "+logfile", "log-newgame.txt", "+vid_fullscreen", "0", "+wipetype", "0",
+          "-ddarena2", str(GAME / "DAGGER" / "ARENA2"), "+logfile", "newgame", "+vid_fullscreen", "0", "+wipetype", "0",
           "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"]
     df = ["-dfbridgelog", str(df_log), "-dfflow", str(GAME / "DAGGER"), "-screen-fullscreen", "0", "-screen-width", "1280", "-screen-height", "800"]
     command = [str(ROOT / "doomerfall-launcher.exe"), "--minimized", "--nodraw", "--uzdoom", str(ROOT / "uzdoom" / "uzdoom.exe"), "--dfu", str(ROOT / "dfu" / "DaggerfallUnity.exe"),
@@ -160,11 +160,12 @@ def newgame():
                 reason = "fatal"
                 break
             uzb = read(uz_log)
-            size = re.search(r"opened menu 4 at (\d+)x(\d+)", uzb)
-            if "both games running" in uzb or not size or "ui: closed" in uzb[uzb.rfind("opened menu 4"):]:
+            opened = re.findall(r"opened menu \d+ at (\d+)x(\d+)", uzb)  # the wizard (4), then the arrival message (7)
+            size = opened[-1] if opened else None
+            if not size or "ui: closed" in uzb[uzb.rfind("opened menu "):]:
                 time.sleep(0.1)
                 continue
-            ng.SURFACE[:] = [int(size.group(1)), int(size.group(2))]
+            ng.SURFACE[:] = [int(size[0]), int(size[1])]
             hwnd = hwnd or ng.doom_window(launcher)
             if not hwnd:
                 continue
