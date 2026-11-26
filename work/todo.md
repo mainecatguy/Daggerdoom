@@ -19,9 +19,26 @@ Owner decisions from earlier runs are recorded in `CHANGELOG.md`, `architecture.
 - `lockpick` card 02 (`work/queue/lockpick/02.opus.door-lock-bridge.md`): the door bridge step in one full run. Start the lane with `-From agent/lockpick-20261125-073553`. Thieves Guild sales are cancelled.
 - `daynight` card 01 (`work/queue/daynight/01.opus.fog-sky-windows-winter.md`): distance fog, foggy sky, lit windows at night, winter textures. Starts from integration (the day/night branch is merged).
 
-### Running
 
-- `hpformula` card 01 (`work/queue/hpformula/01.opus.hp-from-endurance.md`): player HP from Endurance and level, class HP becomes an Endurance (and max END) bonus (owner, 2026-11-25; rules in `gamedesign/hp.md`). Card 02 follows on the same lane: max HP uses live Endurance (Fortify and Drain count).
+### Skills (owner, 2026-11-25; rules in `work/backlog/skills-in-doom.md`)
+
+In order. Lanes `skillresearch`, `skillcore`, `skillperks`, `skillmenu`, `levelup` in `work/queue`.
+
+- `skillresearch` 01: research which rifles are in DRLA and DRLAX (decides whether rifles join the pistol skill).
+- `skillresearch` 02: research Skill XP from monsters and skill purchase costs; proposes the menu card.
+- `skillcore` 01: the new skills (Shotguns, Automatics, Explosives) in the slots of the monster languages, which are removed for now (owner, 2026-11-26). Rifles and Pistols is split off into `skillcore` 03, held in `work/queue/skillcore/held` until the rifles research is answered.
+- `skillcore` 02: perk popup (pause and show what the perk is).
+- `skillperks` 01 to 05: Jumping (adds fall damage first), Automatics, Explosives, Shotguns, then Rifles and Pistols
+  (gated on the owner's answer from the rifles research).
+- `skillmenu` 01: skill purchase menu with visible perks, Skill XP from kills. Gated on the owner approving research 02.
+- `skillmenu` 02: Daggerfall sound and message when a skill point is gained.
+- `levelup` 01: Daggerfall's level-up flow (rest, message, attribute points) shown and usable in Doom. Independent.
+- `skillbasics` 01: Lockpicking, Pickpocket, Mercantile, Etiquette, Streetwise and Medical work and level as in
+  Daggerfall (checks the `lockpick` lane's work; perks TBD).
+- `skillbasics` 02: Running levels from time spent running in Doom, at 1.5x Daggerfall's rate (perks and speed TBD).
+- `skillbasics` 03: Backstabbing, up to 5x damage to unaware enemies, levels 10x faster from sneak shots (perks TBD).
+- Tutorial: when the Doomerfall tutorial is made (backlog, after the game is complete), it must explain buying skills
+  with Skill XP.
 
 ### Waiting on an owner answer from finished work
 

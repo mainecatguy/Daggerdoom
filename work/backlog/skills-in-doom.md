@@ -13,9 +13,14 @@ This file holds the owner's decisions so far and is the source of truth over the
 - New gun skills are **new skills**, added beside Daggerfall's. They do not replace or rename existing skills.
   Short Blade, Long Blade, Axe, Blunt Weapon, Archery and Destruction stay and will be supported later
   ([original weapon skills](original-weapon-skills.md)). Critical Strike is out (bad for balance).
-- **Skill count:** the new skills take the total past Daggerfall's 35 (the earlier "35 for now" no longer fits). Hard
-  cap 64 until the skill-raised bitfield is widened; each new skill needs skill tables, character sheet and class maker
-  entries, guild training, bridge sheet slots and save compatibility.
+- New skills and the perk framework: in todo, `work/queue/skillcore/01.opus.new-skills-and-perk-framework.md`.
+- Stay within Daggerfall's 35 skills. **Owner (2026-11-26): remove the nine monster languages for now; their slots make room for the new skills.** (Earlier: "Open: the new skills need more than 35.") (Facts: hard cap 64 until the
+  skill-raised bitfield is widened; each new skill needs skill tables, character sheet and class maker entries, guild
+  training, bridge sheet slots and save compatibility.)
+- Skill effects in Doom are milder than Daggerfall's die rolls.
+
+**Open owner answers the cards wait on:** perks follow live or base skill value
+(`skillcore` 01 uses base until answered); rifles in Rifles and Pistols or not (`skillperks` 05).
 
 ## New skills
 
@@ -27,49 +32,61 @@ Raises close combat and greatly raises damage reduction while a melee weapon is 
 and perks open. Hand-to-Hand stays separate: it governs martial arts attacks such as vanilla Doom's fist.
 
 ### Rifles and Pistols
-All semi-automatic ballistic rifles and pistols.
-- **25:** reversed, weaker Deadeye: fast-firing guns get the larger multiplier (about 2.5x), slow ones down to 1.5x.
-  Reload 20% faster.
-- **50:** a shot that kills carries its remaining (overkill) damage on through the corpse to the next enemy, with no
-  limit while damage remains. Reload another 20% faster. A recharging pool of 100 bonus damage is spent on shots
-  (reading: it refills over 0.5 s and is always recharging).
-- **75:** Deadeye, the complement of 25: 1.5x for fast-firing guns up to 3x for slow ones, multiplying with 25. Reload
-  another 20% faster.
-- **100:** open; something game-changing. Owner ideas: +25% maximum fire rate on all pistols.
-- Note: faster raise and lower may not look good.
+In todo: `work/queue/skillperks/05.opus.rifles-and-pistols.md` (gated on the rifles research,
+`skillresearch` 01).
 
 ### Automatics
-Damage +0% to +60% at 100.
-- **25:** Burst fire: +30% damage on the first 3 shots of a burst; the bonus resets 0.3 s after the burst ends.
-  Daggerfall sends Doom the modifier as "+x% on the first n shots of a burst".
-- **50:** Marine effect at about half strength, as a whole-shot rule (DRLA Marine: rapid-fire uses 1 ammo per 4
-  shots), for example every 2nd shot free.
-- **75:** open (stagger or suppression; Doom monsters already have pain chance).
-- **100:** Marine effect at full strength (1 ammo per 4 shots).
+In todo: `work/queue/skillperks/02.opus.automatics.md`.
 
 ### Shotguns
-Damage +0% to +75% at 100.
-- **25:** reload about 35% faster.
-- **50 and 100:** Renegade effect, milder (DRLA Renegade: +50% pellets). At 100, reload faster still.
-- **75:** heavy knockback scaled by enemy size, stagger, and bonus damage when the knockback slams the enemy into a
-  wall.
+In todo: `work/queue/skillperks/04.opus.shotguns.md`.
 
 ### Explosives
-Damage +0% to +60% at 100. The proposal's primary perks stand, except rocket jump (does not fit Doom):
-- **25:** own splash hurts 50% less. **50:** bonus damage to the primary (directly hit) target instead of rocket jump.
-  **75:** immune to own splash.
-- **100: Inpulsa's Broken Heart:** enemies killed by explosives explode for about 25% of their maximum health around
-  them, and those deaths chain, each generation at half effect (25%, 12.5%, 6.25% and so on).
+In todo: `work/queue/skillperks/03.opus.explosives.md`.
 
 ### Energy Weapons
 Theme: escalating damage for even more escalating cost and ammo use, the rich guy's guns. **25:** energy weapon ammo
 consumption increases (with more damage). Rest open; proposals wanted.
 
-## Jumping (owner, 2026-11-25)
+## Jumping
+In todo: `work/queue/skillperks/01.opus.jumping.md` (adds fall damage first).
 
-- Jump height linear to +100% at 100, plus a +25% spike from 25 on (+125% at 100). Double jump at 50, fall damage
-  immunity at 75, triple jump at 100. Jumping reduces fall damage below 75; curve open.
-- The fall damage curve must keep jumping in place (including double and triple jumps) from causing fall damage.
-- **Prerequisite:** fall damage must exist. Doom has none by default, and with Daggerfall's rendering off it is not
-  clear the hidden Daggerfall pawn takes any either. Make sure fall damage is in the game first.
-- Skill effects in Doom are milder than Daggerfall's die rolls (continuous scaling stays modest).
+## Other skills (placeholders, owner is detailing)
+
+Not designed yet unless noted. Brainstormed perks for many of these are in section 3 of the proposal note.
+
+- **Hand-to-Hand:** governs martial arts attacks, such as vanilla Doom's fist (owner).
+- **Short Blade, Long Blade, Axe, Blunt Weapon, Archery:** stay; supported later ([original weapon
+  skills](original-weapon-skills.md)).
+- **Destruction:** stays; supported later.
+- **Restoration, Illusion, Alteration, Thaumaturgy, Mysticism:** placeholders.
+- **Medical:** In todo (works and levels as in Daggerfall): `work/queue/skillbasics/01.opus.daggerfall-interaction-skills.md`. Perks TBD.
+- **Running:** In todo (levels from time spent running, 1.5x Daggerfall's rate; owner calls it Athletics): `work/queue/skillbasics/02.opus.running-levels.md`. Perks and the movement speed formula TBD, to be defined here.
+- **Dodging:** placeholder.
+- **Swimming:** placeholder.
+- **Climbing:** placeholder. (Already wired: Doom runs climbs with Daggerfall's Climbing chances and reports skill
+  uses.)
+- **Stealth:** placeholder. (Planned to slow the detection bar, `gamedesign.md`.)
+- **Backstabbing:** In todo (up to 5x damage to unaware enemies; levels 10x faster from shooting unaware enemies): `work/queue/skillbasics/03.opus.backstabbing.md`. Perks TBD as a separate task.
+- **Lockpicking:** In todo (as in Daggerfall): `skillbasics` 01. Perks TBD.
+- **Pickpocket:** In todo (as in Daggerfall): `skillbasics` 01. Perks TBD.
+- **Mercantile:** In todo (as in Daggerfall): `skillbasics` 01. Perks TBD.
+- **Etiquette:** In todo (as in Daggerfall): `skillbasics` 01. Perks TBD.
+- **Streetwise:** In todo (as in Daggerfall): `skillbasics` 01. Perks TBD.
+- **Languages (Orcish, Harpy, Giantish, Dragonish, Nymph, Daedric, Spriggan, Centaurian, Impish):** removed for now
+  (owner, 2026-11-26); their slots hold the new skills (`gamedesign.md`; [revisit languages](revisit-languages.md)).
+- **Critical Strike:** out (owner).
+- **Marksmanship (new):** backlog ([marksmanship](marksmanship.md)).
+
+## Perk popups
+In todo: `work/queue/skillcore/02.opus.perk-popup.md`.
+
+## Skill XP and buying skills
+In todo: research `work/queue/skillresearch/02.opus.skill-xp-system.md`, then the purchase menu with visible perks
+(`skillmenu` 01) and the skill point sound and message (`skillmenu` 02). Daggerfall's level-up flow in Doom:
+`levelup` 01.
+
+## Tutorial (owner, 2026-11-25: backlog item, after the game is complete)
+
+Update Daggerfall's tutorial into a Doomerfall tutorial that covers how all this works, including buying skills with
+Skill XP.
