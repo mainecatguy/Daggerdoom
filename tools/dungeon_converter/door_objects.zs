@@ -178,7 +178,7 @@ class DFDoor : Actor
 		if (!opening)
 		{
 			if (listener) listener.DoorTrigger(user);
-			Swing(-1);
+			StartSwing(-1);
 			return;
 		}
 		bool text = listener && listener.IsFirstDoorText();
@@ -189,11 +189,11 @@ class DFDoor : Actor
 			return;
 		}
 		if (!text && listener) listener.DoorTrigger(user);
-		Swing(1);
+		StartSwing(1);
 	}
 
 	// Starts the door moving: 1 opens, -1 closes. A stalled door turns back.
-	void Swing(int dir)
+	void StartSwing(int dir)
 	{
 		if (moving != 0 && !stalled) return;	// the door trigger already moved it
 		moving = dir;
@@ -207,7 +207,7 @@ class DFDoor : Actor
 	bool ActionSet(bool open)
 	{
 		if (moving != 0 || (swung > 0) == open) return false;
-		Swing(open ? 1 : -1);
+		StartSwing(open ? 1 : -1);
 		return true;
 	}
 

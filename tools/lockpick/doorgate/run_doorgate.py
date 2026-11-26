@@ -33,10 +33,10 @@ def main():
     log = out / f"log-{name}.txt"
     log.unlink(missing_ok=True)
     data = a.root / "data"
-    files = ([str(MODS / f) for f in DRLA] if a.drla else []) + [str(data / "privateershold.wad"), str(data / "privateershold_mesh.pk3"),
+    files = ([str(MODS / f) for f in DRLA] if a.drla else []) + [str(data / "ddruntime.pk3"), str(data / "privateershold.wad"), str(data / "privateershold_mesh.pk3"),
                                                                   str(data / "privateershold_doors.pk3"), str(REPO / "mods" / "doomerfall" / "src"), str(HERE)]
     cmd = [sys.executable, QUIET, "--timeout", "45", "--cwd", str(out), "--", str(a.root / "uzdoom" / "uzdoom.exe"), "-iwad", str(GAME / "wads" / "DOOM2.WAD"),
-           "-file", *files, "-config", str(out / f"{name}.ini"), "-noautoload", "-skill", "3", "+logfile", f"log-{name}.txt", "+dd_lockdoor", str(LOADID),
+           "-file", *files, "-config", str(out / f"{name}.ini"), "-noautoload", "-skill", "3", "+logfile", name, "+dd_lockdoor", str(LOADID),
            "+map", "MAP01", "+vid_fullscreen", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"]
     proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     import time

@@ -200,12 +200,12 @@ class DGTest : EventHandler
 		case 9:
 			if (!door.IsFullyOpen() && timer < 35 * 5) break;
 			rec.calls = "";
-			PressUse(p);
+			door.TryUse(p); // the swung-open leaf is off the closed-door spot's use line
 			Check(door.moving < 0 && rec.calls == "DX", String.Format("Use on the open door closes it: door trigger, then direct trigger (%s)", rec.calls));
 			Next();
 			break;
 		case 10:
-			if (timer == 5) { rec.calls = ""; PressUse(p); Check(door.moving < 0 && rec.calls == "X", "Use while it moves changes nothing but the direct trigger"); }
+			if (timer == 5) { rec.calls = ""; door.TryUse(p); Check(door.moving < 0 && rec.calls == "X", "Use while it moves changes nothing but the direct trigger"); }
 			if (timer < 70) break;
 			Check(door.IsShut() && door.lockValue == 0, "closing by Use leaves a picked door unlocked");
 			Lever(16);
