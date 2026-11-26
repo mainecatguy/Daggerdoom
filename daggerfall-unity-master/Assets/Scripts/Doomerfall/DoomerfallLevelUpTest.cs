@@ -79,7 +79,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             earned = true;
 
             // Raise primary skills one point at a time until Daggerfall's level formula gives exactly one more level.
+            // First line the formula up with the current level: the blank test character's starting sum (0) would
+            // otherwise put it several levels ahead, and the next skill check would grant another level.
             int level = player.Level, raised = 0;
+            player.SetCurrentLevelUpSkillSum();
+            player.StartingLevelUpSkillSum = player.CurrentLevelUpSkillSum + 28 - 15 * level;
+            Write(string.Format("baseline level {0} formula {1}", level, FormulaHelper.CalculatePlayerLevel(player.StartingLevelUpSkillSum, player.CurrentLevelUpSkillSum)));
             var primary = player.GetPrimarySkills();
             for (int i = 0; i < 600 && FormulaHelper.CalculatePlayerLevel(player.StartingLevelUpSkillSum, player.CurrentLevelUpSkillSum) <= level; i++)
             {

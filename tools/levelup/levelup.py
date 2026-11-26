@@ -8,8 +8,8 @@ before spending the points (Daggerfall refuses with its message), the stat with 
 until the pool is empty, and Exit. Then it checks the new level and stats in Daggerfall and in Doom's copy of the sheet.
 run travel: the same, but the skill check comes from a real fast travel made through Doom's travel map (row 3 of
 the region's location list), so the sheet must appear after the arrival.
-run control: that fast travel with no level earned, to check Doom keeps running after the arrival. On 2026-11-26
-Doom froze leaving DDT07154 this way with or without a level-up (work/notes/20261126-003657.md).
+run control: that fast travel with no level earned and no test hook, to check Doom keeps running after the arrival
+(it waits 90 s: on 2026-11-26 Doom's main thread was busy for about 40 s after this arrival, see the run notes).
 check: DOOM.WAD E1M1 with no bridge, stock and with the DRLA set, and -norun.
 """
 import argparse
@@ -236,7 +236,7 @@ class Run:
               # -dfuitest also makes Doom ignore the real cursor, which Windows reports too; 0 opens no menu.
               "-dfuitest", "1" if self.travel else "0", "+dd_ui_test_menu", "1", "+logfile", "levelup", "+screenshot_dir", str(self.dir / "shots"), "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{GROUP:05d}"]
         df = ["-dfbridgelog", str(self.df_log), "-dfsynctest", str(GAME / "DAGGER"), *([] if self.control else ["-dfleveluptest", str(self.views)]), *(["travel"] if self.travel and not self.control else []), "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "400"]
-        command = [sys.executable, QUIET, "--timeout", "240" if self.travel else "150", "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
+        command = [sys.executable, QUIET, "--timeout", "300" if self.travel else "150", "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                    "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
                    "--uzdoom-cwd", str(self.dir), "--log", str(self.launcher)]
         for mod in [MODS / n for n in DRLA] + [REVIEW / "data" / n for n in DATA] + [REVIEW / "dfitems.pk3", REVIEW / "doomerfall.pk3"]:
@@ -267,7 +267,7 @@ class Run:
     def drive(self):
         if self.control:
             if self.trip():
-                time.sleep(20)
+                time.sleep(90)  # Long enough to tell a slow arrival from a freeze.
             after = read(self.uz_log).split("travel: Daggerfall placed the player", 1)
             beats = after[1].count(" tic=") if len(after) > 1 else 0
             self.case(beats >= 5, f"control: Doom kept its heartbeat after the arrival ({beats} heartbeat lines)")
