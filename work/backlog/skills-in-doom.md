@@ -24,8 +24,8 @@ This file holds the owner's decisions so far and is the source of truth over the
 
 ## New skills
 
-Melee, Pistols, Shotguns, Automatics, Explosives, Energy Weapons. Marksmanship, the rifle skill, is planned but in the backlog
-([marksmanship](marksmanship.md)).
+Melee, Pistols, Shotguns, Automatics, Explosives, Energy Weapons. Rifles is planned but in the backlog
+([rifles skill](rifles-skill.md)).
 
 ### Melee
 Raises close combat and greatly raises damage reduction while a melee weapon is held, to make melee viable. Numbers
@@ -76,7 +76,7 @@ Not designed yet unless noted. Brainstormed perks for many of these are in secti
 - **Languages (Orcish, Harpy, Giantish, Dragonish, Nymph, Daedric, Spriggan, Centaurian, Impish):** removed for now
   (owner, 2026-11-26); their slots hold the new skills (`gamedesign.md`; [revisit languages](revisit-languages.md)).
 - **Critical Strike:** out (owner).
-- **Marksmanship (new):** backlog ([marksmanship](marksmanship.md)).
+- **Rifles (new):** backlog ([rifles skill](rifles-skill.md)).
 
 ## Perk popups
 In todo: `work/queue/skillcore/02.opus.perk-popup.md`.

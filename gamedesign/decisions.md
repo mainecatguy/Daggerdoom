@@ -413,7 +413,9 @@ Verdicts:
 - **Verdict:** Owner decided (2026-11-26).
 - **Answer:** "Pistols and rifles becomes just pistols", and "no rifle is counted". The skill is Pistols. Rifles need a
   tag so Doomerfall can tell them apart (DRLA's `SingleShotRifle` token does not match), and "for rifles we need a
-  skill" (backlog: Marksmanship).
+  skill". The skill is named Rifles, not Marksmanship. A rifle is "all ballistic semi-automatic weapons that are not
+  explosives, energy weapons, shotguns or pistols", worked out from the weapons if possible. Heavy single-shot rifles
+  are rifles. The Assault Chaingun, Assault Minigun and Autocannon are Automatics.
 - **Rests on:** Owner, 2026-11-26, after the rifles research (`work/notes/20261126-003658.md`).
 
 ## 2026-11-26: Floor gun look label: show the plain Doom name until Daggerfall answers, or no label? [skillresearch]
