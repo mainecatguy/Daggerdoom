@@ -30,6 +30,8 @@ class DLHarness : EventHandler
 	bool done, started;
 	DFDoor door;
 	DLPresser presser;
+	DFDoorListener savedListener;
+	DFAction doorRecord;
 	vector3 spot;
 	double face;
 
@@ -184,12 +186,25 @@ class DLHarness : EventHandler
 			phase = NEWGAME ? 3 : 2; // a New Game character holds its starting picks, so the refusal case is the take run's
 			timer = NEWGAME ? 35 * 22 - 70 : 0; // the New Game run skips the take run's 22 s wait for picks
 			break;
-		case 2: // Look at it (label checked from the log), then Use without picks.
+		case 2: // Look at it (label checked from the log), then Use without picks. The door carries a Door-triggered
+		        // type 17 (unlock) record for this case, which a refused Use must not run (as DaggerfallActionDoor.Open).
 			Back(p);
+			if (timer == 30)
+			{
+				savedListener = door.listener;
+				doorRecord = DFAction(Actor.Spawn("DFAction", door.pos, NO_REPLACE));
+				doorRecord.flag = 17;
+				doorRecord.trigger = 10; // TR_DOOR
+				doorRecord.door = door;
+				door.listener = doorRecord;
+			}
 			if (timer == 35) PressUse(p);
 			if (timer == 140)
 			{
 				Report(Shut() && !g, "no picks: the door stays shut and no minigame starts");
+				Report(door.lockState == 1 && doorRecord.activationCount == 0, "a Door-triggered unlock record does not run on the refused Use");
+				door.listener = savedListener;
+				doorRecord.Destroy();
 				phase = 3;
 				timer = 0;
 			}
@@ -212,29 +227,27 @@ class DLHarness : EventHandler
 			if (timer == 35 * 5)
 			{
 				Report(started && !g && Shut(), "a miss leaves the door shut");
-				phase = 5; timer = 0; started = false;
+				phase = 6; timer = 0; started = false;
 			}
 			break;
-		case 5: // A hit.
+		// The action records, then the hit last, so the autosave follows the hit directly.
+		case 6: SwitchCase(17, 7, "action 17 unlocks it in Daggerfall"); break;
+		case 7: SwitchCase(16, 8, "action 16 locks it in Daggerfall"); break;
+		case 8: SwitchCase(18, 10, "action 18 opens the door and Daggerfall clears the lock"); break;
+		case 10: SwitchCase(20, 5, "action 20 closes the door and Daggerfall locks it again (its starting lock)"); break;
+		case 5: // A hit, then the autosave.
 			Back(p);
 			if (timer == 35) PressUse(p);
 			if (g) { started = true; if (g.Off(g.pointer) <= g.arc / 2 - 0.01) presser.press = BT_ATTACK; }
 			if (timer == 35 * 6)
 			{
 				Report(started && !g && door.swung > 0 && door.lockState == 0, "a hit unlocks and opens the door");
-				phase = 6; timer = 0;
+				timer = 0;
+				if (NEWGAME) { Finish(); break; }
+				Console.Printf("DLSAVE autosave");
+				phase = 9;
+				LevelLocals.MakeAutoSave();
 			}
-			break;
-		case 6: SwitchCase(20, 7, "action 20 closes the door and Daggerfall locks it again (its starting lock)"); break;
-		case 7: SwitchCase(17, 8, "action 17 unlocks it in Daggerfall"); break;
-		case 8: SwitchCase(16, 10, "action 16 locks it in Daggerfall"); break;
-		case 10:
-			SwitchCase(18, 10, "action 18 opens the door and Daggerfall clears the lock");
-			if (timer != 0) break;
-			if (NEWGAME) { Finish(); break; }
-			Console.Printf("DLSAVE autosave");
-			phase = 9;
-			LevelLocals.MakeAutoSave();
 			break;
 		case 9:
 			if (timer > 35 * 8) Finish();
@@ -247,6 +260,23 @@ class DLHarness : EventHandler
 			if (timer == 35 * 9)
 			{
 				Report(door.lockState == 0 && door.swung > 0 && !g, "after the load the door is still unlocked and opens on Use");
+				phase = 21; timer = 0;
+			}
+			break;
+		case 21: // Daggerfall's -dflocktestmagic sets this door's lock to 25 (magically held). Use must start nothing.
+			Back(p);
+			if (timer == 35) door.ActionSet(false);
+			if (timer > 35 * 30) { Report(false, "Daggerfall never listed the door as magically held"); Finish(); break; }
+			if (door.lockState != 2 || !Shut()) break;
+			phase = 22; timer = 0; started = false;
+			break;
+		case 22:
+			Back(p);
+			if (timer == 35) PressUse(p);
+			if (g) started = true;
+			if (timer == 35 * 4)
+			{
+				Report(!started && Shut() && door.lockState == 2, "a magically held door stays shut and Use starts no minigame");
 				Finish();
 			}
 			break;

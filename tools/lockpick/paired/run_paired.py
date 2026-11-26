@@ -76,9 +76,8 @@ def run(name):
     if name == "load":
         uz += ["-dfloadtest", f"resume:{autosaves[-1]}"]
     df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
-    if name == "take":
-        df.append("-dflocktest")
-    timeout = 110 if name == "take" else 75
+    df.append("-dflocktest" if name == "take" else "-dflocktestmagic")
+    timeout = 130 if name == "take" else 95
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(ROOT / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                "--uzdoom", str(ROOT / "uzdoom" / "uzdoom.exe"), "--dfu", str(ROOT / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
                "--uzdoom-cwd", str(runs), "--log", str(launcher)]

@@ -28,7 +28,7 @@ class DFDoorBlocker : Actor
 // Lets a Daggerfall action record react when its door is used. See action_objects.zs.
 class DFDoorListener : Actor
 {
-	virtual void DoorUsed(DFDoor door, Actor user) {}
+	virtual void DoorUsed(DFDoor door, Actor user, bool locked) {}	// locked: Daggerfall holds the door locked and it stays shut
 }
 
 class DFDoor : Actor
@@ -155,8 +155,9 @@ class DFDoor : Actor
 	bool TryUse(Actor user)
 	{
 		if (user.pos.z >= top || user.pos.z + user.height <= bottom) return false;	// another floor
-		if (listener) listener.DoorUsed(self, user);
-		if (lockState != 0 && swung <= 0 && moving == 0)
+		bool locked = lockState != 0 && swung <= 0 && moving == 0;
+		if (listener) listener.DoorUsed(self, user, locked);
+		if (locked)
 		{
 			// Daggerfall says this door is locked: it stays shut, and Daggerfall decides what follows (label, minigame).
 			EventHandler.SendNetworkEvent(String.Format("dfdoor_use:%d:%d", loadId, lockState));

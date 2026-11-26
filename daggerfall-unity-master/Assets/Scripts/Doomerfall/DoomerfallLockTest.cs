@@ -19,12 +19,47 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         internal static void Attach(DoomerfallBridge owner)
         {
-            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dflocktest") >= 0)
-                owner.gameObject.AddComponent<DoomerfallLockTest>().bridge = owner;
+            string[] args = Environment.GetCommandLineArgs();
+            if (Array.IndexOf(args, "-dflocktest") >= 0 || Array.IndexOf(args, "-dflocktestmagic") >= 0)
+            {
+                var test = owner.gameObject.AddComponent<DoomerfallLockTest>();
+                test.bridge = owner;
+                test.magic = Array.IndexOf(args, "-dflocktestmagic") >= 0;
+            }
+        }
+
+        // -dflocktestmagic (the load run): 15 s inside the dungeon, door 29539363 becomes magically held (lock 25).
+        const ulong MagicDoor = 29539363;
+        bool magic;
+        float magicAt;
+
+        void UpdateMagic()
+        {
+            if (phase > 1 || !GameManager.HasInstance || !GameManager.Instance.PlayerEnterExit.IsPlayerInsideDungeon)
+                return;
+            if (phase == 0)
+            {
+                magicAt = Time.unscaledTime + 15f;
+                phase = 1;
+                return;
+            }
+            if (Time.unscaledTime < magicAt)
+                return;
+            DaggerfallActionDoor door = DoomerfallLocks.Find(MagicDoor);
+            if (!door)
+                return;
+            door.CurrentLockValue = 25;
+            phase = 2;
+            bridge.LogLine("locktest: door " + MagicDoor + " is now magically held, picks " + DoomerfallLockpick.Count(GameManager.Instance.PlayerEntity.Items));
         }
 
         void Update()
         {
+            if (magic)
+            {
+                UpdateMagic();
+                return;
+            }
             if (phase > 1 || !GameManager.HasInstance || !GameManager.Instance.PlayerEnterExit.IsPlayerInsideDungeon)
                 return;
             PlayerEntity player = GameManager.Instance.PlayerEntity;
