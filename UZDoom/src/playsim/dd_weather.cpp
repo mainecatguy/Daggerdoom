@@ -59,6 +59,12 @@ constexpr int FOG_UNITS = 16;						// sector fog density steps per Doom fog dens
 struct World { int index = -1, frame = 0, stars = 0, night = 0, ambient = 0, weather = 0, loop = 0, sun = 0, elevation = 90; };	// elevation: sun height in degrees, 90 when not sent
 World world;
 bool haveWorld;
+// Unity's fog as Daggerfall draws it now, from the bridge line "fog <on> <mode> <density> <start> <end> <r> <g> <b> <sky>".
+struct FogLine { int on = 0, mode = 0; float density = 0, start = 0, end = 0; int r = 0, g = 0, b = 0, sky = 0; };
+FogLine fogLine;
+bool haveFog;
+float FogDensity();
+PalEntry FogTint();
 FRandom pr_weather("DDWeather");
 
 // A plain BGRA image texture whose pixels this file rewrites.
@@ -185,11 +191,6 @@ void UpdateSky()
 	DD_DebugPrintf("DDWEATHER sky %d frame %d%s (%lld us)\n", world.index, world.frame, fogSky ? " fogged" : world.stars ? " night with stars" : "", us);
 }
 
-// Unity's fog as Daggerfall draws it now, from the bridge line "fog <on> <mode> <density> <start> <end> <r> <g> <b> <sky>".
-struct FogLine { int on = 0, mode = 0; float density = 0, start = 0, end = 0; int r = 0, g = 0, b = 0, sky = 0; };
-FogLine fogLine;
-bool haveFog;
-
 // Daggerfall's fog, as a Doom fog density (fog factor exp(-density * distance / 64000)).
 float FogDensity()
 {
@@ -198,7 +199,7 @@ float FogDensity()
 		if (!fogLine.on) return 0;
 		// Doom has only exponential fog. Unity's linear fog (clear weather, 0 to 2400 m) is matched at half its
 		// range, where both are half fogged; exponential squared is taken as exponential.
-		const float perMeter = fogLine.mode == 1 ? (fogLine.end > fogLine.start ? float(M_LN2 / ((fogLine.end - fogLine.start) / 2)) : 0.f) : fogLine.density;
+		const float perMeter = fogLine.mode == 1 ? (fogLine.end > fogLine.start ? float(0.69314718 /((fogLine.end - fogLine.start) / 2)) : 0.f) : fogLine.density;
 		return float(perMeter * 64000 / DOOM_PER_METER);
 	}
 	float perMeter = 0;
