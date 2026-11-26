@@ -65,16 +65,16 @@ Each cell reads `Daggerfall skill > Doom skill`. Slots not shown are unchanged f
 | 01 | Spellsword | Axe > Shotguns, Long Blade > Melee, Blunt Weapon > Automatics | | Short Blade > Energy Weapons, Archery > Rifles | The blade stays a blade (Melee); spell and steel become magic-tech guns at the side. |
 | 02 | Battlemage | Long Blade > Explosives, Axe > Energy Weapons | | Archery > Rifles, Short Blade > Melee, Blunt Weapon > Shotguns | The war wizard is artillery: Energy Weapons and Explosives beside a Destruction primary. |
 | 03 | Sorcerer | | | Short Blade > Explosives, Blunt Weapon > Energy Weapons | Cannot regain magicka, so carries stored power: cells and charges. |
-| 04 | Healer | | | Short Blade > Pistols, Blunt Weapon > Shotguns | The country doctor's sidearm and coach gun. |
+| 04 | Healer | | | Short Blade > Pistols, Blunt Weapon > Energy Weapons | A sidearm, and the priest-scholar's costly energy gun. |
 | 05 | Nightblade | | Short Blade > Pistols | Archery > Rifles | The silenced pistol and the sniper rifle. |
 | 06 | Bard | | Short Blade > Pistols | Archery > Automatics | The duelist's pistol, and the tommy gun in the instrument case. |
 | 07 | Burglar | | Short Blade > Pistols | | A non-fighter with one weapon slot: a light pistol. |
-| 08 | Rogue | Long Blade > Shotguns | | Short Blade > Pistols, Blunt Weapon > Melee | The close-range brawler with a backup pistol and a cosh. |
+| 08 | Rogue | Long Blade > Shotguns | | Short Blade > Pistols, Blunt Weapon > Energy Weapons | The close-range brawler with a backup pistol and a stolen rich man's gun. |
 | 09 | Acrobat | | | Long Blade > Automatics, Short Blade > Pistols, Archery > Melee | Run and gun while tumbling; a knife for the landing. |
 | 10 | Thief | Short Blade > Pistols | | Blunt Weapon > Explosives | The concealable pistol, and charges for safes. |
-| 11 | Assassin | | Short Blade > Pistols, Long Blade > Rifles, Blunt Weapon > Melee | Axe > Explosives, Archery > Automatics | The hitman's three tools: silenced pistol, sniper rifle, knife; a bomb as the backup plan. |
+| 11 | Assassin | | Short Blade > Pistols, Long Blade > Rifles, Blunt Weapon > Melee | Axe > Explosives, Archery > Energy Weapons | The hitman's three tools: silenced pistol, sniper rifle, knife; a bomb and a well-paid client's energy gun as backups. |
 | 12 | Monk | | Blunt Weapon > Melee | Axe > Shotguns, Long Blade > Energy Weapons, Archery > Rifles, Short Blade > Pistols | Martial weapons beside Hand-to-Hand; guns only as minors, with ki focused into energy and the patience of the rifle. |
-| 13 | Archer | Archery > Rifles | Axe > Explosives, Blunt Weapon > Melee | Long Blade > Automatics, Short Blade > Shotguns | The marksman; the grenade launcher keeps the bow's arcing shot. |
+| 13 | Archer | Archery > Rifles | Axe > Explosives, Blunt Weapon > Melee | Long Blade > Automatics, Short Blade > Energy Weapons | The marksman; the grenade launcher keeps the bow's arcing shot, and an energy gun is a costly precision tool. |
 | 14 | Ranger | Long Blade > Rifles, Axe > Shotguns | Archery > Melee | Blunt Weapon > Explosives, Short Blade > Automatics | The hunter's rifle and scattergun, a machete, and traps as mines. |
 | 15 | Barbarian | Blunt Weapon > Melee, Long Blade > Automatics, Axe > Shotguns | | Archery > Explosives | Chainsaw, minigun and shotgun up front; a thrown charge for range. |
 | 16 | Warrior | Axe > Shotguns, Long Blade > Automatics, Blunt Weapon > Melee | Archery > Rifles, Short Blade > Explosives | | The soldier: rifleman, grenadier and close-quarters fighter. |
@@ -83,7 +83,7 @@ Each cell reads `Daggerfall skill > Doom skill`. Slots not shown are unchanged f
 **Checks:**
 
 - Every class has at least one firearm. Burglar has one (its only weapon slot); Mage, Sorcerer, Healer, Nightblade,
-  Bard and Thief have two; Rogue and Acrobat two plus Melee; the rest three or more, because they hold four or five
+  Bard and Thief have two; Acrobat two plus Melee; Rogue three; the rest three or more, because they hold four or five
   weapon slots and each needs a different skill.
 - No class has a skill twice: within each class every Doom skill is different, and none of the seven Doom skills is in
   any no-guns card.
@@ -94,15 +94,16 @@ Each cell reads `Daggerfall skill > Doom skill`. Slots not shown are unchanged f
 | Doom skill | Classes | Of which primary |
 |---|---|---|
 | Pistols | 10: Mage, Healer, Nightblade, Bard, Burglar, Rogue, Acrobat, Thief, Assassin, Monk | Thief |
-| Shotguns | 10: Spellsword, Battlemage, Healer, Rogue, Monk, Archer, Ranger, Barbarian, Warrior, Knight | Spellsword, Rogue, Ranger, Barbarian, Warrior |
-| Automatics | 9: Spellsword, Bard, Acrobat, Assassin, Archer, Ranger, Barbarian, Warrior, Knight | Spellsword, Barbarian, Warrior |
+| Shotguns | 8: Spellsword, Battlemage, Rogue, Monk, Ranger, Barbarian, Warrior, Knight | Spellsword, Rogue, Ranger, Barbarian, Warrior |
+| Automatics | 8: Spellsword, Bard, Acrobat, Archer, Ranger, Barbarian, Warrior, Knight | Spellsword, Barbarian, Warrior |
 | Rifles | 9: Spellsword, Battlemage, Nightblade, Assassin, Monk, Archer, Ranger, Warrior, Knight | Archer, Ranger |
 | Explosives | 8: Battlemage, Sorcerer, Thief, Assassin, Archer, Ranger, Barbarian, Warrior | Battlemage |
-| Energy Weapons | 6: Mage, Spellsword, Battlemage, Sorcerer, Monk, Knight | Battlemage, Knight |
-| Melee | 11: Spellsword, Battlemage, Rogue, Acrobat, Assassin, Monk, Archer, Ranger, Barbarian, Warrior, Knight | Spellsword, Barbarian, Warrior, Knight |
+| Energy Weapons | 10: Mage, Spellsword, Battlemage, Sorcerer, Healer, Rogue, Assassin, Monk, Archer, Knight | Battlemage, Knight |
+| Melee | 10: Spellsword, Battlemage, Acrobat, Assassin, Monk, Archer, Ranger, Barbarian, Warrior, Knight | Spellsword, Barbarian, Warrior, Knight |
 
-Energy Weapons is the rarest on purpose (the rich man's guns). Melee is the most common because Short Blade and Blunt
-Weapon are so widespread and the fighter classes keep a close-combat skill.
+Energy Weapons is in 10 classes, mostly as a minor (owner, 2026-11-26: "ideally I'd like 9-10 classes with energy
+weapons"); it is a primary only for Battlemage and Knight. Added as minors: Healer (gave up Shotguns), Rogue (gave up
+Melee; Hand-to-Hand still covers its brawling), Assassin (gave up Automatics), Archer (gave up Shotguns).
 
 **Starting gun** (`20261126-light-carbine-starting-gun.md`, highest Doom weapon skill) follows the primaries: Warrior,
 Spellsword and Barbarian roll among shotgun, chaingun and chainsaw; Ranger rifle or shotgun; Archer the Light Carbine;
