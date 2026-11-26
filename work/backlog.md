@@ -24,6 +24,7 @@ This is a one-line-per-item index. Open an item's file only when you need its de
 - [Revisit languages](backlog/revisit-languages.md): The nine monster languages are removed for now (their slots hold the gun skills). Maybe re-add them later.
 - [Silver ammo bonus against certain enemy types](backlog/silver-ammo-enemy-bonus.md): Also on Daedric. Needs the enemy types and bonus size.
 - [Check the magic rework against potions (before release)](backlog/magic-rework-potions.md): Waits on the magic rework; potion and healing HP restoration must end up 3x.
+- [Perks screen with perk toggles](backlog/perks-screen.md): Players open a perks screen and can turn their perks off if they wish.
 - [Megasphere gives max HP plus 100](backlog/megasphere-max-plus-100.md): Daggerfall max + 100 instead of 200. Future.
 - [Decide Doom item weights](backlog/doom-item-weights.md): Replace the default weight once Doom items live in Daggerfall's inventory.
 
