@@ -280,6 +280,7 @@ namespace DaggerfallWorkshop.Game.Serialization
             entity.Reflexes = data.playerEntity.reflexes;
             entity.Career = data.playerEntity.careerTemplate;
             DaggerfallConnect.DFCareer.Skills firstLanguageSlot = DaggerfallSkills.FirstLanguageSlotOf(data.playerEntity.skills); // Doomerfall: class card below
+            bool placeholderFiller = data.playerEntity.skills != null && data.playerEntity.skills.IsGunSkillsFormat && !data.playerEntity.skills.HasClassCards;
             entity.Name = data.playerEntity.name;
             entity.Level = data.playerEntity.level;
             entity.Stats = data.playerEntity.stats;
@@ -301,7 +302,7 @@ namespace DaggerfallWorkshop.Game.Serialization
                 entity.SetCurrentLevelUpSkillSum();
             // Doomerfall: the class card may change the class lists; rebase the level-up sum so the level holds.
             int savedLevelUpSkillSum = entity.CurrentLevelUpSkillSum;
-            entity.Career.ApplyClassCard(firstLanguageSlot);
+            entity.Career.ApplyClassCard(firstLanguageSlot, placeholderFiller);
             entity.SetCurrentLevelUpSkillSum();
             entity.StartingLevelUpSkillSum += entity.CurrentLevelUpSkillSum - savedLevelUpSkillSum;
             entity.Items.DeserializeItems(data.playerEntity.items);

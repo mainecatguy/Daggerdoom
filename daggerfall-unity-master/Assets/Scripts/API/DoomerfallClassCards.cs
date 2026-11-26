@@ -108,7 +108,7 @@ namespace DaggerfallConnect
             return S.None;
         }
 
-        public static int PresetIndexOf(S[] list)
+        public static int PresetIndexOf(S[] list, S firstLanguageSlot, bool placeholderFiller)
         {
             for (int c = 0; c < NoGunsCards.Length; c++)
             {
@@ -122,8 +122,9 @@ namespace DaggerfallConnect
                     S classic = ClassicReplaced(c, p);
                     if (classic == S.CriticalStrike)
                         match = list[p] == S.CriticalStrike;
-                    else if (classic != S.None)
-                        match = list[p] >= S.Shotguns && list[p] <= S.Impish;
+                    else if (classic != S.None) // a language only where this data still reads one; filler only in placeholder saves
+                        match = DFCareer.IsRemovedSkill(list[p]) || (list[p] >= firstLanguageSlot && list[p] <= S.Impish)
+                            || (placeholderFiller && list[p] >= S.Shotguns && list[p] <= S.Explosives);
                     else
                         match = false;
                 }
@@ -138,9 +139,9 @@ namespace DaggerfallConnect
         /// choices: each removed language (slots from firstLanguageSlot up, and 11-12) and Critical Strike take a
         /// Daggerfall skill, then in guns mode each Daggerfall weapon skill takes a Doom skill. Safe to repeat.
         /// </summary>
-        public static S[] Apply(S[] list, S firstLanguageSlot)
+        public static S[] Apply(S[] list, S firstLanguageSlot, bool placeholderFiller = false)
         {
-            int preset = PresetIndexOf(list);
+            int preset = PresetIndexOf(list, firstLanguageSlot, placeholderFiller);
             if (preset >= 0)
                 return CardOf(preset);
 

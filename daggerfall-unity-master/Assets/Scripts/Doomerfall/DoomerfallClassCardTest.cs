@@ -124,6 +124,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             yield return SaveLoadCustom(saves, "Test Old Lookalike", new[] { S.Mysticism, S.Alteration, S.Thaumaturgy, S.Illusion, S.Destruction,
                 S.Restoration, S.Medical, S.LongBlade, S.Axe, S.Etiquette, S.Mercantile, S.Dodging }, "old lookalike custom", "OldLookalike");
 
+            // Doom skills in a preset's former language slots (Mage 9-10, Barbarian 11) are the player's picks too.
+            yield return SaveLoadCustom(saves, "Test Language Lookalike", new[] { S.Mysticism, S.Alteration, S.Thaumaturgy, S.Illusion, S.Destruction,
+                S.Restoration, S.Medical, S.Pistols, S.EnergyWeapons, S.Rifles, S.Melee, S.Dodging }, "language lookalike custom", "LanguageLookalike");
+            yield return SaveLoadCustom(saves, "Test Barbarian Lookalike", new[] { S.Melee, S.Automatics, S.Shotguns, S.Jumping, S.Running,
+                S.Swimming, S.Medical, S.Climbing, S.Dodging, S.HandToHand, S.Explosives, S.Rifles }, "barbarian lookalike custom", "BarbarianLookalike");
+
             // Classic save import, as StartGameBehaviour.LoadClassicSave does it (no classic save on this machine): a level-5
             // Warrior whose starting sum was computed from its classic lists and trained weapon skills; the language/gun
             // slots are then reset to untrained, the card lists apply, and the sum is rebased.

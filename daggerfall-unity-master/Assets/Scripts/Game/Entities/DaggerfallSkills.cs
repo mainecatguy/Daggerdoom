@@ -72,7 +72,9 @@ namespace DaggerfallWorkshop.Game.Entity
         // 2: also written since slot 7 became Pistols (in older data slot 7 is Dragonish).
         // 3: also written since slot 8 became Rifles (in older data slot 8 is Nymph).
         // 4: also written since slots 9 and 10 became Energy Weapons and Melee (in older data Daedric and Spriggan).
-        public bool IsGunSkillsFormat { get { return GunSkillsFormat >= 1; } set { GunSkillsFormat = (short)(value ? 4 : 0); } }
+        // 5: also written since the class cards (older class lists may hold the placeholder's gun filler, slots 4-6).
+        public bool IsGunSkillsFormat { get { return GunSkillsFormat >= 1; } set { GunSkillsFormat = (short)(value ? 5 : 0); } }
+        public bool HasClassCards { get { return GunSkillsFormat >= 5; } }
         public bool HasPistolsSlot { get { return GunSkillsFormat >= 2; } }
         public bool HasRiflesSlot { get { return GunSkillsFormat >= 3; } }
         public bool HasEnergyAndMeleeSlots { get { return GunSkillsFormat >= 4; } }

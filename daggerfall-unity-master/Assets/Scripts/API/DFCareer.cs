@@ -587,9 +587,11 @@ namespace DaggerfallConnect
         /// CLASS*.CFG data and saves from before the gun skills; see DaggerfallSkills.FirstLanguageSlotOf). Only custom
         /// classes need it: a gun skill below it is the player's own pick.
         /// </summary>
-        public void ApplyClassCard(Skills firstLanguageSlot = Skills.Centaurian)
+        /// placeholderFiller: true for a save written with the placeholder filler (gun-skills format 1-4), whose
+        /// former language slots may hold Shotguns, Automatics or Explosives.
+        public void ApplyClassCard(Skills firstLanguageSlot = Skills.Centaurian, bool placeholderFiller = false)
         {
-            SetSkillLists(DoomerfallClassCards.Apply(SkillLists(), firstLanguageSlot));
+            SetSkillLists(DoomerfallClassCards.Apply(SkillLists(), firstLanguageSlot, placeholderFiller));
         }
 
         /// <summary>Doomerfall: sets the 12 listed skills in order (3 primary, 3 major, 6 minor).</summary>

@@ -217,6 +217,10 @@ def main():
     b, a = entries.get("lookalike custom before save"), entries.get("lookalike custom loaded")
     check(a is not None and b is not None and a["lists"] == b["lists"],
           "custom class with Mage's other skills but its own gun picks keeps them (not the Mage card)")
+    for name, preset in (("language lookalike custom", 0), ("barbarian lookalike custom", 15)):
+        b, a = entries.get(name + " before save"), entries.get(name + " loaded")
+        check(a is not None and b is not None and a["lists"] == b["lists"] and a["lists"] != cards[preset],
+              f"{name}: Doom skills in {CLASSES[preset]}'s former language slots are kept (not the {CLASSES[preset]} card)")
     b, a = entries.get("old lookalike custom before save"), entries.get("old lookalike custom loaded")
     want = custom_rule(b["lists"]) if b else None
     check(a is not None and a["lists"] == want and a["lists"] != cards[0],
