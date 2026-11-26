@@ -662,7 +662,8 @@ namespace DaggerfallWorkshop.Game
                         const int enemiesNearby = 354;
                         MessageBox(enemiesNearby);
                     }
-                    else if (GameManager.Instance.PlayerEnterExit.IsPlayerSwimming ||
+                    else if (Doomerfall.DoomerfallRest.FromDoom(out bool doomCannotRest) ? doomCannotRest : // Doomerfall: Doom owns movement
+                             GameManager.Instance.PlayerEnterExit.IsPlayerSwimming ||
                              !GameManager.Instance.PlayerMotor.StartRestGroundedCheck())
                     {
                         const int cannotRestNow = 355;

@@ -31,6 +31,7 @@
 #include "c_dispatch.h"
 #include "v_text.h"
 #include "g_levellocals.h"
+#include "dd_lootrng.h" // [Doomerfall]
 #include "a_dynlight.h"
 #include "v_video.h"
 #include "g_cvars.h"
@@ -1264,6 +1265,7 @@ DEFINE_ACTION_FUNCTION_NATIVE(DThinker, Tick, NativeTick)
 
 void DThinker::CallTick()
 {
+	DDLootScope aiScope(DD_AiStateFor(this), nullptr); // [Doomerfall] fixed live randomness; no-op outside bridge sessions
 	IFVIRTUAL(DThinker, Tick)
 		VMCallVoid<DThinker*>(func, this);
 	else

@@ -10,7 +10,7 @@ class DFDoorVisual : Actor
 }
 
 // One link of the door's collision row. Always stops hitscans and projectiles, as Daggerfall's rays and missiles
-// still hit an open door's trigger collider. Solid to movement only while its door is fully closed (see UpdateBlocking).
+// still hit an open door's trigger collider. Solid to movement in every pose, unless a body is inside it (see UpdateBlocking).
 class DFDoorBlocker : Actor
 {
 	DFDoor door;
@@ -50,8 +50,9 @@ class DFDoor : Actor
 	int lockValue;				// the live lock, as DaggerfallActionDoor.CurrentLockValue: 0 unlocked, 20 or more magically held
 	bool armed;					// locks are live: Daggerfall sent this map's door facts (a bridge session). Never set without Daggerfall
 	bool stalled, sightOpen;
-	bool solidWhenOpen;			// city gates: Daggerfall swaps the model, and the open model's leaves stay solid
-	bool passable;				// links are currently non-solid to movement
+	bool solidWhenOpen;			// city gates: also held by any solid actor in the swing, not only by bodies
+	bool passable;				// links are currently non-solid to movement, because a body is inside them
+	int checkPhase;				// spreads the idle overlap check over the tics of a second
 	Array<int> sightSectors;	// control sectors of the see-blocking 3D floors in this doorway
 	Array<double> sightTops;
 
@@ -82,6 +83,7 @@ class DFDoor : Actor
 		}
 		class<Actor> kind = String.Format("DFDoorVisual%d", slot); // generated per model by DoorExport.cs
 		visual = DFDoorVisual(Spawn(kind, (px, py, pz), NO_REPLACE));
+		checkPhase = abs(int(px) + int(py)) % 35;
 		Place(false);
 	}
 
@@ -123,13 +125,14 @@ class DFDoor : Actor
 		}
 	}
 
-	// DaggerfallActionDoor.MakeTrigger: non-solid from the moment opening starts until closing finishes.
-	// Daggerfall then pushes an overlapping body out. Doom cannot, so the door turns solid once no body overlaps it.
+	// Open doors are solid (owner decision 2026-11-24, unlike DaggerfallActionDoor.MakeTrigger, which lets bodies walk
+	// through an open or moving door). A swinging door never enters a body (see Tick), so a body is inside the links only
+	// if it was put there, for example spawned or teleported. Doom cannot push it out, and a solid link would hold it
+	// fast, so the links stay non-solid until no body overlaps them.
 	void UpdateBlocking()
 	{
-		bool want = !solidWhenOpen && (moving != 0 || swung > 0);
+		bool want = !Clear(swung, true);
 		if (want == passable) return;
-		if (!want && !Clear(0, true)) return;
 		passable = want;
 		foreach (link : links) link.bSOLID = !want;
 	}
@@ -147,7 +150,8 @@ class DFDoor : Actor
 				Actor t = it.thing;
 				if (!t.bSOLID || t is "DFDoorBlocker") continue;
 				if (bodiesOnly && !t.player && !t.bISMONSTER) continue;
-				if (abs(t.pos.x - at.x) >= t.radius + linkRadius || abs(t.pos.y - at.y) >= t.radius + linkRadius) continue;
+				double tr = t.DD_MoveRadius();	// door leaves are level geometry: monsters squeeze past them (narrower on Daggerfall maps)
+				if (abs(t.pos.x - at.x) >= tr + linkRadius || abs(t.pos.y - at.y) >= tr + linkRadius) continue;
 				if (t.pos.z >= top || t.pos.z + t.height <= bottom) continue;
 				return false;
 			}
@@ -230,15 +234,18 @@ class DFDoor : Actor
 		if (moving != 0)
 		{
 			double next = clamp(swung + moving * RATE, 0.0, SWING);
-			// Only a door that stays solid can be held by a body. A non-solid door swings through it, as in Daggerfall.
-			if (solidWhenOpen && !Clear(next)) { stalled = true; return; }
-			stalled = false;
-			swung = next;
-			Place(true);
-			SetSightOpen(swung > 0);
-			if (swung <= 0 || swung >= SWING) moving = 0;
+			// A door that would swing into a body waits, without pushing, and goes on once the way is clear.
+			// Using it while it waits sends it back. Ordinary doors ignore solid props; city gates are held by them too.
+			stalled = !Clear(next, !solidWhenOpen);
+			if (!stalled)
+			{
+				swung = next;
+				Place(true);
+				SetSightOpen(swung > 0);
+				if (swung <= 0 || swung >= SWING) moving = 0;
+			}
 		}
-		UpdateBlocking();
+		if (passable || level.maptime % 35 == checkPhase) UpdateBlocking();
 	}
 }
 
@@ -280,6 +287,54 @@ class DFDoorHandler : EventHandler
 			door.lockValue = 0;
 			door.ActionSet(true);
 		}
+	}
+
+	// [Doomerfall] The location record keeps each door open or closed (dd_treadmill.cpp): "<stamp> <hex>", one bit per
+	// door in DFDOORS order, a moving door at the end it is heading to. The stamp hashes DFDOORS, so a record made from
+	// another conversion is dropped and the doors reset.
+	static int Stamp()
+	{
+		int lump = Wads.CheckNumForFullName("DFDOORS");
+		if (lump < 0) return 0;
+		String text = Wads.ReadLump(lump);
+		int h = -2128831035;	// FNV-1a
+		for (int i = 0; i < text.Length(); i++) h = (h ^ text.ByteAt(i)) * 16777619;
+		return h | 1;
+	}
+
+	static String Distill()
+	{
+		int stamp = Stamp(), n = 0, nibble = 0;
+		String bits = "";
+		let it = ThinkerIterator.Create("DFDoor");
+		DFDoor d;
+		while (stamp && (d = DFDoor(it.Next())))
+		{
+			if (d.moving != 0 ? d.moving > 0 : d.swung > 0) nibble |= 1 << (n & 3);
+			if ((++n & 3) == 0) { bits.AppendFormat("%x", nibble); nibble = 0; }
+		}
+		if (n & 3) bits.AppendFormat("%x", nibble);
+		return n ? String.Format("%08x %s", stamp, bits) : "";
+	}
+
+	// The doors opened, or -1 when the stamp differs (nothing changes). An action keeps its own reset state.
+	static int Restore(String record)
+	{
+		Array<String> f;
+		record.Split(f, " ");
+		if (f.Size() != 2 || f[0] != String.Format("%08x", Stamp())) return -1;
+		int n = 0, open = 0;
+		let it = ThinkerIterator.Create("DFDoor");
+		DFDoor d;
+		while (d = DFDoor(it.Next()))
+		{
+			bool want = (n >> 2) < f[1].Length() && (f[1].Mid(n >> 2, 1).ToInt(16) >> (n & 3)) & 1;
+			n++;
+			d.moving = 0; d.stalled = false; d.swung = want ? d.SWING : 0;
+			d.Place(false); d.SetSightOpen(want); d.UpdateBlocking();
+			if (want) open++;
+		}
+		return open;
 	}
 
 	override void WorldLoaded(WorldEvent e)

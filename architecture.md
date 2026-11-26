@@ -47,9 +47,27 @@ The Daggerfall world is at **75% scale** in Doom (owner decision, 2026-11-22): 1
 
 - The player stays stock Doom on Daggerfall maps: height 56, eye height 41, step height 24, with stock crouch, speed, weapons, and monsters.
 - The one exception is collision width, which matches Daggerfall's character at world scale: radius 10.5 (21 wide). Regular Doom maps keep radius 16.
+- Monsters squeeze only through gaps (owner decisions, 2026-11-24): on Daggerfall maps a monster keeps its stock radius against the player, other monsters and actors, and open walls. Only when a move fails at stock width against level geometry or a Daggerfall door leaf (`DFDoorBlocker`, which counts as level geometry), and the spot is a gap narrower than the monster, does it retry at its class radius × 10.5/16, the same proportion as the player's narrowing. Its radius, and so its hitbox for hitscan, projectiles, splash and melee, stays stock, as does its height. Regular Doom maps are unchanged. The engine owns the rule and the one "is this a Daggerfall map" test that monster rules use (`P_TryMove`, `DD_InGap`, `AActor::SqueezeRadius`, `dd_monsters.cpp`); the encounter placer stands bodies by the same rule, and door scripts measure bodies against leaves with `DD_MoveRadius()` (the squeeze width).
 - The dungeon converter defaults to 0.75. `--world-scale` overrides it.
 - So far this scale has been applied to dungeons. The terrain treadmill test predates it.
 
+
+## Graphics
+
+Doomerfall is played and tested with these UZDoom renderer settings (owner, 2026-11-25):
+
+```
+gl_bloom 1; gl_light_shadowmap 1; gl_ssao 2; gl_lens 1
+```
+
+- Every launcher sets them:
+  - The Doomerfall launcher (`launcher/main.cpp`) adds them to every UZDoom it starts. Every play script that goes through it gets them, including `scripts/play/install.py`'s.
+  - Play scripts that start UZDoom directly pass them themselves: `play_demo.bat`, `play_drlax.bat`, and the play scripts written by `tools/groundloot/groundloot.py` and `tools/dungeon_converter/make_action_demo.py`.
+  - `scripts/overnight/quiet_run.py` adds them to every UZDoom a test starts.
+  - The launcher and quiet_run put them before the caller's arguments, so a test can override one.
+- A new launcher or play script must set them too.
+- Graphics work is judged with them on. That covers screenshots, brightness fits such as the day/night light (`tools/daynight/brightness.py`), and frame-time measurements.
+- They are not engine defaults, so stock UZDoom and plain WAD play keep stock settings.
 
 ## Standing Requirements
 
@@ -81,30 +99,44 @@ reason and are written down here.
 | The equipped weapon and its magazine, and the live count of the loaded ammo tier | The inventory: unequipped items, other ammo tiers, gold, Doom weapons and mods held |
 | Monster AI, movement, collision, combat | Deaths, quests, crime, loot rolls, container and loot pile contents, time |
 
-**Places (planned, `work/backlog/location-record.md`).**
+**Places (built 2026-11-24, `work/backlog/location-record.md`, notes `work/notes/20261124-190017.md`).**
 
-- Every Daggerfall place is rebuilt from its map and fixed seeds. DFU's location record holds only what differs from
-  the seed: dead, wounded and awake mooks (one 64-bit entry each, low-resolution position), map things used up
-  (bitset), and door, switch, lift and action states. Untracked mooks are alive, unhurt and asleep on their spawn spot.
-  Class, drops, death frames and spawn spots are never stored. Quest foes are added on top of the seeded army and never
-  change it.
-- When the player leaves a map, UZDoom distills it into record entries and sends them to DFU. UZDoom keeps no place
-  history of its own.
+- Every Daggerfall place is rebuilt from its map and fixed seeds: the army is planned from the map's markers alone
+  (plan version 1), quest foes are a separate request on top. DFU's location record (`DoomerfallLocations.json`, one
+  `DoomerfallPlaceCodec` blob per place) holds only what differs: corpses (13 bytes each, class and death label from
+  small per-place tables), loose Doom items (8 bytes plus carried state such as DRLA gun mods), map items used up
+  (bitset), and full facts for the rest (wounded or awake mooks, quest foes). Map items keep ids made of the map and
+  their index, so a tier-swapped pickup keeps its marker's id.
+- A corpse's look comes from its class and death label, not from the live actor (DRLA corpses never rest on a frame).
+- Dropped Daggerfall piles are kept in each place's record, in their own section, and put back on entry (outdoors,
+  within one chunk of the player). A Doom item dropped from DFU's inventory becomes its own Doom pickup instead.
+- When the player leaves a map, UZDoom distills it into record entries and sends them to DFU. UZDoom's world table is
+  a cache only; it is not saved.
 - Monsters spawned during play (summons, lost souls) are not kept once the player leaves.
-- Target size: a cleared high-level dungeon about 16-20 KB, an untouched one a few bytes.
+- Measured: a cleared level-30 dungeon (about 1,170 corpses, 780 loose items) is a 24 KB blob; the whole
+  `DoomerfallLocations.json` 33 KB raw, 20 KB packed. Hinged dungeon doors keep their position (card 5, one door fact per dungeon record); lifts, platforms and action chains reset on each visit.
 
 **Saves.**
 
 - A bundled save holds DFU's save and ledgers, plus UZDoom's snapshot of the current map. Loading restores the snapshot
-  exactly, and DFU's record is not applied over it.
-- At every save UZDoom also sends the current place's record entries. If the snapshot cannot be restored (a mod or map
+  exactly, and DFU's record is not applied over it. The snapshot keeps no world table (12-20 bytes of treadmill state);
+  after a load UZDoom asks DFU for each place's record as it needs it.
+- At every save UZDoom also sends the current place's record entries. If the snapshot cannot be restored (a map
   changed), the place is rebuilt from the record and only live combat details are lost (`work/backlog/rebuild-load.md`).
 - The snapshot leaves out what UZDoom generates from DFU's data, such as the overworld treadmill's terrain sectors
-  (88% of an overworld save today). Those are rebuilt on load.
+  (88% of an overworld save before). Those are rebuilt on load.
+- **A save is tied to its Doom mod set (owner, 2026-11-24).** Any WAD or mod set can be loaded, but switching mods means
+  a new save. So saved records may name Doom classes directly, or through a per-save class table, without handling
+  classes that vanish or change between mod sets. Whether a mod-set check on load exists is not yet verified.
 
 **DFU objects on the current map.** Loot piles, containers, NPCs and townspeople belong to DFU even on the current map.
 UZDoom draws them and forwards Use; DFU holds their contents and decides whether they exist. The snapshot's copy is
 presentation only and follows DFU's list.
+
+**Doom items on the ground stay Doom items (owner, 2026-11-24).** Avoid making Daggerfall loot piles whenever possible.
+Doom items on the ground, such as player drops and monster drops, stay visible as the Doom item, because a pile hides
+what is there. DFU only records them (class, spot, amount, carried state) and has them spawned back as the same Doom
+pickup; it does not wrap them in a pile.
 
 **DFU's scene cache stays short-lived (owner, 2026-11-24).** Daggerfall Unity's own scene cache keeps wiping on every
 map pixel change, as in vanilla. Doomerfall's stores are the only permanent copy: `DoomerfallItems` for opened

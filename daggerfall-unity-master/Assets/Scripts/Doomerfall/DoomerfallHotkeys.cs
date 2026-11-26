@@ -102,6 +102,16 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         // The gun Doom holds, or null. Its loaded ammo tier is DoomerfallAmmo's business.
         internal DoomerfallDoomItem ActiveGun { get { return activeItem as DoomerfallDoomItem; } }
 
+        // The gun Doom held was dropped to the ground as its Doom pickup (DoomerfallDoomItems.DropToDoom): Doom's hands are empty.
+        internal void ForgetActive(DaggerfallUnityItem item)
+        {
+            if (item == null || item != activeItem)
+                return;
+            activeItem = null;
+            activeKey = activeSquare = -1;
+            Log(string.Format("the active gun \"{0}\" was dropped; no gun is active", item.ItemName));
+        }
+
         void OnNewGame() { ResetState(); DoomerfallAmmo.LoadTiers(null); Log("new game: table cleared, the starting gun will be adopted"); }
         void OnStartLoad(SaveData_v1 data) { request = 0; stashLines.Clear(); }
 
@@ -390,7 +400,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
             if (plainDraw == null && !string.IsNullOrEmpty(pistolClass))
             {
-                plainDraw = DoomerfallDoomItem.Create(pistolClass, Dfb.DOOM_ITEM_GUN);
+                plainDraw = DoomerfallDoomItem.Create(pistolClass, Dfb.DOOM_ITEM_GUN, LootSeed.Of(LootSeed.DoomStarterGun, pistolClass));
                 items.AddItem(plainDraw);
                 if (ammoType >= 0 && ammoType < DoomerfallAmmo.Types.Length && ammo > 0)
                     items.AddItem(new DoomerfallAmmoItem(ammoType, DoomerfallAmmoTiers.Regular, ammo));
@@ -556,7 +566,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         DoomerfallDoomItem Adopt(string cls)
         {
-            DoomerfallDoomItem item = DoomerfallDoomItem.Create(cls, Dfb.DOOM_ITEM_GUN);
+            DoomerfallDoomItem item = DoomerfallDoomItem.Create(cls, Dfb.DOOM_ITEM_GUN, LootSeed.Of(LootSeed.DoomStarterGun, cls)); // the same for every new character
             GameManager.Instance.PlayerEntity.Items.AddItem(item);
             Log(string.Format("adopted Doom's \"{0}\" into Daggerfall's inventory, material {1}", cls, item.Material));
             return item;

@@ -56,14 +56,28 @@ function Write-Text([string]$Path, [string]$Text) {
     [IO.File]::WriteAllText($Path, $Text, (New-Object Text.UTF8Encoding($false)))
 }
 
+# Each child runs in a Windows job and inherits only its log files. When it is done, what it left behind (such as a
+# test game) is closed, except build helpers meant to stay open. Leftover games otherwise kept lanes from finishing.
+. (Join-Path $PSScriptRoot 'lane_job.ps1')
+
 function Invoke-Logged([string]$Exe, [string]$ArgLine, [string]$InputText, [string]$Log) {
     $in = "$Log.in"; Write-Text $in $InputText
-    $p = Start-Process -FilePath $Exe -ArgumentList $ArgLine -WorkingDirectory $Worktree -NoNewWindow -PassThru `
-        -RedirectStandardInput $in -RedirectStandardOutput $Log -RedirectStandardError "$Log.err"
-    $null = $p.Handle
-    $ms = [Math]::Max(60000, [int][Math]::Min(2147483000, ($Deadline - (Get-Date)).TotalMilliseconds))
-    if (-not $p.WaitForExit($ms)) { & taskkill.exe /PID $p.Id /T /F 2>$null | Out-Null; return -1 }
-    $p.WaitForExit(); $p.ExitCode
+    $child = Start-LaneChild $Exe $ArgLine $Worktree $in $Log "$Log.err"
+    $p = $child.Process; $job = $child.Job
+    try {
+        $ms = [Math]::Max(60000, [int][Math]::Min(2147483000, ($Deadline - (Get-Date)).TotalMilliseconds))
+        if (-not $p.WaitForExit($ms)) {
+            # With a job, end only the child; Stop-LaneJob below closes the rest and keeps build helpers.
+            if ($job -eq [IntPtr]::Zero) { & taskkill.exe /PID $p.Id /T /F 2>$null | Out-Null }
+            else { try { $p.Kill() } catch { }; $null = $p.WaitForExit(10000) }
+            return -1
+        }
+        $p.WaitForExit(); $p.ExitCode
+    }
+    finally {
+        $ended = @(Stop-LaneJob $job)
+        if ($ended.Count) { Write-Host "Closed what $(Split-Path $Log -Leaf) left running: $($ended -join ', ')" }
+    }
 }
 
 function Read-Result([string]$Log) {
@@ -94,7 +108,7 @@ function Save-Work {
 function Add-AgentReports($Items, $Kind) {
     $new = @($Items | ForEach-Object { ([string]$_ -replace '\s+', ' ').Trim() } | Where-Object { $_ })
     if (-not $new.Count) { return }
-    $lines = if (Test-Path $ReportsFile) { @([IO.File]::ReadAllLines($ReportsFile)) } else { @('# Agent reports awaiting orchestrator triage', '') }
+    $lines = if (Test-Path $ReportsFile) { @([IO.File]::ReadAllLines($ReportsFile)) } else { @("# Agent reports from run $Stamp ($(Split-Path $GoalFile -Leaf))", '') }
     foreach ($q in $new) {
         if (-not @($lines | Where-Object { $_.EndsWith("] [$Kind] $q") }).Count) { $lines += "- [$Stamp] [$Kind] $q" }
     }
@@ -234,8 +248,11 @@ RepoGit $Worktree switch -q -c $Branch $Base | Out-Null
 
 $Goal = [IO.File]::ReadAllText($GoalFile)
 $QuestionsFile = Join-Path $Repo 'work\questions.md'
-$ReportsFile = Join-Path $Repo 'work\agent-reports.md'
-$OpenQuestions = (@($QuestionsFile, $ReportsFile) | Where-Object { Test-Path $_ } | ForEach-Object { [IO.File]::ReadAllText($_) }) -join "`n"
+# One file per run, so parallel lanes never rewrite each other's reports. The orchestrator deletes each once triaged.
+$ReportsDir = Join-Path $Repo 'work\agent-reports'
+$ReportsFile = Join-Path $ReportsDir ("$Stamp" + $(if ($Lane) { "-$Lane" }) + '.md')
+# Only triaged questions. Untriaged reports stay out of the prompt to keep it small; triage removes duplicates.
+$OpenQuestions = if (Test-Path $QuestionsFile) { [IO.File]::ReadAllText($QuestionsFile) } else { '' }
 if (-not $OpenQuestions) { $OpenQuestions = 'None.' }
 $VerifierPrompt = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'verifier.md'))
 $ReviewerPrompt = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'reviewer.md'))
@@ -343,8 +360,8 @@ if (-not $metricSaved) {
 }
 
 $report = Join-Path $RunDir 'report.md'
-$openCount = if (Test-Path $ReportsFile) { @(Get-Content $ReportsFile | Where-Object { $_ -like '- *' }).Count } else { 0 }
-$entry = @("## Run $Stamp", "- Result: $outcome", "- Branch: $Branch ($($commits.Count) commits)", "- Rounds: $round, turns: $Turns, estimated cost: `$$cost, minutes: $minutes", "- Agent reports awaiting triage: $openCount (work/agent-reports.md)", "- Notes: work/notes/$Stamp.md", "- Logs: $Logs")
+$openCount = @(Get-ChildItem -LiteralPath $ReportsDir -Filter '*.md' -File -ErrorAction SilentlyContinue | Get-Content | Where-Object { $_ -like '- *' }).Count
+$entry = @("## Run $Stamp", "- Result: $outcome", "- Branch: $Branch ($($commits.Count) commits)", "- Rounds: $round, turns: $Turns, estimated cost: `$$cost, minutes: $minutes", "- Agent reports awaiting triage: $openCount (work/agent-reports/)", "- Notes: work/notes/$Stamp.md", "- Logs: $Logs")
 if ($ReviewFlags.Count) { $entry += "- Review flags for the owner ($($ReviewFlags.Count)):"; $entry += @($ReviewFlags | ForEach-Object { "  - $(([string]$_ -replace '\s+', ' ').Trim())" }) }
 $entry += ''
 Add-Content -LiteralPath $report -Value $entry -Encoding utf8

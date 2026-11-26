@@ -694,6 +694,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                 droppedItems.TransferAll(lootTarget.Items);
             }
 
+            DaggerfallWorkshop.Game.Doomerfall.DoomerfallDoomItems.DropToDoom(droppedItems); // Doomerfall: Doom items drop as Doom pickups
             // Generate serializable loot pile in world for dropped items
             if (droppedItems.Count > 0)
             {

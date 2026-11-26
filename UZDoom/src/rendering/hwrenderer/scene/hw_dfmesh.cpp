@@ -190,11 +190,16 @@ bool DFMesh_HideCollider(FLevelLocals *level)
 
 CVAR(Bool, dfmesh_lights, true, CVAR_ARCHIVE)	// dynamic lights and sector-light ambient on the mesh
 
+bool DD_WeatherFog(PalEntry &color, float &density);	// playsim/dd_weather.cpp
+bool DD_WeatherMeshLight(float &brightness);
+
 // The mesh's brightness follows the light level of the viewer's sector: the converter's 176 (and above) is full
-// brightness, as before lights. Doomerfall darkens sectors in lit dungeons and interiors (dd_lights.cpp).
+// brightness, as before lights. Doomerfall darkens sectors in lit dungeons and interiors (dd_lights.cpp), and outdoors
+// the mesh takes Daggerfall's daylight (dd_weather.cpp).
 static float Ambient()
 {
 	if (!dfmesh_lights || !primaryLevel) return 1.f;
+	if (float daylight; DD_WeatherMeshLight(daylight)) return daylight;	// [Doomerfall] Daggerfall's daylight outdoors
 	auto *player = primaryLevel->Players[consoleplayer];
 	AActor *camera = player ? player->camera.Get() : nullptr;
 	if (!camera || !camera->Sector) return 1.f;
@@ -235,8 +240,11 @@ static void DrawWith(FRenderState &state, const float offset[3])
 {
 	state.SetVertexBuffer(buffer->vertexBuffer(), 0, 0);
 	state.SetCulling(portalState.isMirrored() ? Cull_CCW : Cull_CW);
-	state.EnableFog(false);
-	state.SetFog(0, 0);
+	PalEntry fogColor;
+	float fogDensity;
+	const bool fog = DD_WeatherFog(fogColor, fogDensity);	// [Doomerfall] Daggerfall's weather fog outdoors
+	state.EnableFog(fog);
+	state.SetFog(fog ? fogColor : PalEntry(0), fog ? fogDensity : 0);
 	state.SetSoftLightLevel(255);
 	const float ambient = Ambient();
 	state.SetColor(ambient, ambient, ambient, 1.f);

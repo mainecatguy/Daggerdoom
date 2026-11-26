@@ -348,6 +348,13 @@ void P_GetFloorCeilingZ(FCheckPosition &tmf, int flags)
 //
 //==========================================================================
 
+// [Doomerfall] Bodies block each other at their stock radii. Only a monster squeezing through a gap (DD_SqueezeActor,
+// see P_TryMove) meets a Daggerfall door leaf at its narrow width, because door leaves count as level geometry.
+static inline double DD_MoveBlockDist(const AActor *mover, const AActor *other)
+{
+	return mover == DD_SqueezeActor && DD_IsDoorLeaf(other) ? mover->MoveRadius() + other->radius : mover->radius + other->radius;
+}
+
 void P_FindFloorCeiling(AActor *actor, int flags)
 {
 	FCheckPosition tmf;
@@ -1135,7 +1142,7 @@ static bool PIT_CheckPortal(FMultiBlockLinesIterator &mit, FMultiBlockLinesItera
 	if (lp->backsector == NULL) lp->backsector = lp->frontsector;
 	tm.thing->AddZ(zofs);
 
-	FBoundingBox pbox(cres.Position.X, cres.Position.Y, tm.thing->radius);
+	FBoundingBox pbox(cres.Position.X, cres.Position.Y, tm.thing->MoveRadius());
 	FBlockLinesIterator it(tm.thing->Level, pbox);
 	bool ret = false;
 	line_t *ld;
@@ -1376,7 +1383,7 @@ bool PIT_CheckThing(FMultiBlockThingsIterator &it, FMultiBlockThingsIterator::Ch
 	if (!((thing->flags & (MF_SOLID | MF_SPECIAL | MF_SHOOTABLE)) || thing->flags6 & MF6_TOUCHY))
 		return true;	// can't hit thing
 
-	double blockdist = thing->radius + tm.thing->radius;
+	double blockdist = DD_MoveBlockDist(tm.thing, thing);
 	if (fabs(thing->X() - cres.Position.X) >= blockdist || fabs(thing->Y() - cres.Position.Y) >= blockdist)
 		return true;
 
@@ -1425,8 +1432,8 @@ bool PIT_CheckThing(FMultiBlockThingsIterator &it, FMultiBlockThingsIterator::Ch
 			{
 				unblocking = true;
 			}
-			else if (fabs(thing->X() - oldpos.X) < (thing->radius + tm.thing->radius) &&
-				fabs(thing->Y() - oldpos.Y) < (thing->radius + tm.thing->radius))
+			else if (fabs(thing->X() - oldpos.X) < blockdist &&
+				fabs(thing->Y() - oldpos.Y) < blockdist)
 
 			{
 				double newdist = thing->Distance2D(cres.Position.X, cres.Position.Y);
@@ -1860,7 +1867,7 @@ bool P_CheckPosition(AActor *thing, const DVector2 &pos, FCheckPosition &tm, boo
 	}
 
 	tm.stepthing = NULL;
-	FBoundingBox box(pos.X, pos.Y, thing->radius);
+	FBoundingBox box(pos.X, pos.Y, thing->MoveRadius());
 
 	FPortalGroupArray pcheck;
 
@@ -1938,7 +1945,7 @@ bool P_CheckPosition(AActor *thing, const DVector2 &pos, FCheckPosition &tm, boo
 	if (actorsonly || (thing->flags & MF_NOCLIP))
 		return (thing->BlockingMobj = thingblocker) == NULL;
 
-	FMultiBlockLinesIterator it(pcheck, thing->Level, pos.X, pos.Y, thing->Z(), thing->Height, thing->radius, newsec);
+	FMultiBlockLinesIterator it(pcheck, thing->Level, pos.X, pos.Y, thing->Z(), thing->Height, thing->MoveRadius(), newsec);
 	FMultiBlockLinesIterator::CheckResult lcres;
 
 	double thingdropoffz = tm.floorz;
@@ -2095,7 +2102,7 @@ int P_TestMobjZ(AActor *actor, bool quick, AActor **pOnmobj)
 		{ // [RH] Specials and noclippers don't block moves
 			continue;
 		}
-		const double blockdist = thing->radius + actor->radius;
+		const double blockdist = DD_MoveBlockDist(actor, thing);
 		if (fabs(thing->X() - cres.Position.X) >= blockdist || fabs(thing->Y() - cres.Position.Y) >= blockdist)
 		{
 			continue;
@@ -2314,7 +2321,7 @@ static void CheckForPushSpecial(line_t *line, int side, AActor *mobj, DVector2 *
 //
 //==========================================================================
 
-bool P_TryMove(AActor *thing, const DVector2 &pos,
+static bool P_TryMoveOnce(AActor *thing, const DVector2 &pos, // [Doomerfall] was P_TryMove; see the wrapper below
 	int dropoff, // killough 3/15/98: allow dropoff as option
 	const secplane_t *onfloor, // [RH] Let P_TryMove keep the thing on the floor
 	FCheckPosition &tm,
@@ -2828,6 +2835,22 @@ pushline:
 		}
 	}
 	return false;
+}
+
+// [Doomerfall] Squeeze only when stuck. On Daggerfall maps a monster moves at its stock radius. Only when that move fails
+// against level geometry or a door leaf, and the spot is a gap narrower than the monster (DD_InGap), does it retry at its
+// narrow width (AActor::SqueezeRadius). Elsewhere SqueezeRadius equals radius, so this is one stock attempt.
+bool P_TryMove(AActor *thing, const DVector2 &pos, int dropoff, const secplane_t *onfloor, FCheckPosition &tm, bool missileCheck)
+{
+	if (thing->SqueezeRadius() >= thing->radius || thing == DD_SqueezeActor) return P_TryMoveOnce(thing, pos, dropoff, onfloor, tm, missileCheck);
+	if (P_TryMoveOnce(thing, pos, dropoff, onfloor, tm, missileCheck)) return true;
+	AActor *blocker = thing->BlockingMobj.ForceGet();
+	if ((blocker && !DD_IsDoorLeaf(blocker)) || !DD_InGap(thing, pos)) return false;
+	AActor *outer = DD_SqueezeActor;
+	DD_SqueezeActor = thing;
+	const bool moved = P_TryMoveOnce(thing, pos, dropoff, onfloor, tm, missileCheck);
+	DD_SqueezeActor = outer;
+	return moved;
 }
 
 bool P_TryMove(AActor *thing, const DVector2 &pos,

@@ -24,6 +24,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         internal DoomerfallItems Items { get; set; }
         internal DoomerfallMonsters Monsters { get; set; }
+        internal DoomerfallLocations Locations { get; set; }
         internal DoomerfallTownspeople Townspeople { get; set; }
         internal DoomerfallDoors Doors { get; set; }
 
@@ -112,6 +113,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             GameManager.Instance.DisableAI = true;
             Items.ReadLedger(folder);
             Monsters.ReadLedger(folder);
+            Locations.ReadLedger(folder);
             Townspeople.ReadLedger(folder);
             Doors.ReadLedger(folder);
             bool started = saves.LoadFromFolder(folder);
@@ -241,6 +243,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 GameManager.Instance.SaveLoadManager.SaveToFolder(folder, "Doomerfall");
                 Items.WriteLedger(folder);
                 Monsters.WriteLedger(folder);
+                Locations.WriteLedger(folder);
                 Townspeople.WriteLedger(folder);
                 Doors.WriteLedger(folder);
                 if (testFail)

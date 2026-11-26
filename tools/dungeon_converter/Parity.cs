@@ -329,6 +329,21 @@ static partial class Program
         return list;
     }
 
+    // Open doors are solid (owner decision 2026-11-24), so the open stages keep each leaf, swung 90 degrees about its hinge
+    // the way door_objects.zs places it: counterclockwise from above, reversed on a flipped door.
+    static List<Tri> WithOpenLeaves()
+    {
+        var list = new List<Tri>(tris);
+        foreach (var d in doors)
+        {
+            V3 Swing(V3 p) => new V3(d.PivotX - (p.Y - d.PivotY) * d.SwingDir, d.PivotY + (p.X - d.PivotX) * d.SwingDir, p.Z);
+            foreach (var t in doorMeshTris)
+                if (t.Instance == d.Instance)
+                    list.Add(new Tri { A = Swing(t.A), B = Swing(t.B), C = Swing(t.C), N = new V3(-t.N.Y * d.SwingDir, t.N.X * d.SwingDir, t.N.Z), Model = t.Model, Instance = -1 });
+        }
+        return list;
+    }
+
     static int RunParity(string dir, V3 entrance)
     {
         Directory.CreateDirectory(dir);
@@ -349,10 +364,11 @@ static partial class Program
         }
         var modes = new[] { ("stand_closed", PlayerScale.Height, true), ("crouch_closed", PlayerScale.CrouchHeight, true), ("stand_open", PlayerScale.Height, false), ("crouch_open", PlayerScale.CrouchHeight, false) };
         var closedTris = WithDoorBoxes();
+        var openTris = WithOpenLeaves();
         var df = new Dictionary<string, Dictionary<(int, int, int), (V3 at, int seed)>>();
         foreach (var (name, h, closed) in modes)
         {
-            IndexTris(closed ? closedTris : tris);
+            IndexTris(closed ? closedTris : openTris);
             df[name] = FloodDf(seeds, h);
             Console.WriteLine($"Daggerfall flood {name}: {df[name].Count} positions");
         }
@@ -399,7 +415,7 @@ static partial class Program
             Console.WriteLine($"Wrote test lump: {seeds.Count} seeds, {shots.Count} shots");
             return 0;
         }
-        return CompareParity(dir, modes.Select(m => m.Item1).ToArray(), df, shots, closedTris);
+        return CompareParity(dir, modes.Select(m => m.Item1).ToArray(), df, shots, closedTris, openTris);
     }
 
     static string Classify(V3 p, double bodyHeight, bool doomSide)
@@ -421,7 +437,7 @@ static partial class Program
         return near.C - near.F < bodyHeight ? "ceiling" : "narrow gap";
     }
 
-    static int CompareParity(string dir, string[] modes, Dictionary<string, Dictionary<(int, int, int), (V3 at, int seed)>> df, List<(V3 at, double angle, double pitch)> shots, List<Tri> closedTris)
+    static int CompareParity(string dir, string[] modes, Dictionary<string, Dictionary<(int, int, int), (V3 at, int seed)>> df, List<(V3 at, double angle, double pitch)> shots, List<Tri> closedTris, List<Tri> openTris)
     {
         var doom = modes.ToDictionary(m => m, m => new Dictionary<(int, int), List<(double z, int seed)>>());
         var hits = new Dictionary<int, (bool hit, double x, double y, double z)>();
@@ -452,7 +468,7 @@ static partial class Program
         {
             bool closed = mode.EndsWith("closed");
             double body = mode.StartsWith("stand") ? PlayerScale.Height : PlayerScale.CrouchHeight;
-            IndexTris(closed ? closedTris : tris);
+            IndexTris(closed ? closedTris : openTris);
             foreach (bool entranceOnly in new[] { true, false })
             {
                 var dfPoints = df[mode].Values.Where(v => !entranceOnly || v.seed == 0).Select(v => v.at).ToList();

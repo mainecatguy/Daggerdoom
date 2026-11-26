@@ -11,7 +11,38 @@ What is done on the project, newest first. Agents do not need to read this unles
 - **Branches:** `integration` is at `dc90a52`, with steal mode, real enemy drops, the fixed dungeon harness, the area level proposal, automatic hinged trapdoors, container windows, quiet agent launches, the reported location recheck, Use-button pickup, character sheet publishing, stationary NPCs, the DRLA launcher, monster deaths, the first town door fix, New Game, the transition speedup, Daggerfall item pickup, the dungeon re-entry fix, generated bridge definitions, main quest trapdoors, 10 Hz position sync, the wilderness height fix, the Daggerfall map command, door route fixes, both overnight lanes, the bridge and door fixes, dungeon flats, Daggerfall items, synchronized saving and loading, the death screen, fast travel arrival, connected door transitions, and the inventory menu.
 - **Roughest spots:** some walls still bend where they stayed tied to the grid, and false walls and openings remain.
 
+## 2026-11-26
+
+### Player HP from Endurance and level (on `integration`)
+
+- **Max HP = 50 + Endurance + (level - 1) x Endurance / 15**, from live Endurance (Fortify and Drain count while they last), recomputed on every change. A rise in max HP raises current HP by the same amount; a fall only clamps it. Rules: `gamedesign/hp.md`.
+- **Class HP per level becomes an Endurance (and max END) bonus** (class HP per level - 8): added to the rolled Endurance, and the Endurance cap becomes 100 + bonus. Older saves get it once. The custom class editor shows the bonus under the new label.
+- Daggerfall only, active only in a bridge session; no UZDoom or bridge schema change. Test: `-dfhpformulatest`, `tools/hpformula/run_hpformula.py` (97 passed, stock and DRLA).
+- Notes: `work/notes/20261125-231947.md`, `work/notes/20261125-235942.md`.
+
+### Drop labels: guns on the floor show their material (on `integration`)
+
+- **A Doom gun on the floor now shows its Daggerfall material in the look label** ("Iron Battle Rifle"), the same name the inventory gives it after pickup. Daggerfall still rolls the material, from the gun's lasting floor id, by the same rule as the take; Doom asks once per gun in view, with no per-spawn round trip.
+- **Guns dropped from Daggerfall's inventory keep their material** on the floor and when taken back, and **fixed-drop guns keep theirs after leaving and returning** (the location record now keeps a floor gun's id). Script-spawned guns get a lasting id the first time they are named, taken or recorded.
+- Bridge schema changed: the bridge DLL, launcher, UZDoom and Daggerfall Unity must be rebuilt together. Fixed-drop gun floor ids changed shape (bit 58), so fixed-drop gun materials moved (owner accepts seed changes).
+- Verification fix: a slow Doom art answer is no longer lost for the rest of the session (asked again, late answers used).
+- Open for the owner: the roll uses the area level where the player stands, not where the gun lies.
+- Notes: `work/notes/20261125-221820.md`, `work/notes/20261126-003718-droplabel-verify.md`.
+
 ## 2026-11-25
+
+### Adaptive removed; overworld seeds with DRLA (on `integration`)
+
+- **DRLA's Adaptive skill is gone whenever the Doomerfall mod is loaded** (owner: the world does not adapt to the player): the mod's MAPINFO says `removeskill adaptive`, a small new UZDoom MAPINFO keyword. Other skills keep their indices; a `-skill`, skill CVAR or savegame asking for it gets the default skill. Plain DRLA and stock WADs are unchanged. The spawner handoff no longer looks for Adaptive spawners.
+- **Overworld packs under DRLA now drop seeded loot:** the seed's id went to DRLA's RandomSpawner, so the real monster had none (dropped nothing) and leaving the area tombstoned the seed. The id now passes to the monster through the existing spawner handoff; leave-and-return keeps the dead dead and the living in place, with no duplicates.
+- Paired fixed drops series still passes unchanged. Notes: `work/notes/20261125-230756-adaptive-overworld.md`.
+
+### Fixed drops finished on `integration`
+
+- **Card 05 merged** (`agent/fixeddrops-20261125-202715`: summoned monsters drop nothing on Daggerfall maps; travel arrival). Merge fix: its session-id test also matched every placed monster's id (tags 5-7 have bit 63); it now tests for a session id only.
+- **Revived monsters drop nothing:** a monster whose seeded loot dropped is marked; an Arch-vile's revive keeps the mark through saves and the treadmill's park/restore.
+- **DRLA's Monster-flagged spawners** (Adaptive skill's `RLAdaptiveSpawner`, Armageddon's `RLTheHungrySpawner`): a placed monster's id passes to the first real monster the spawner makes; the spawner is never a mook or a stored monster. The encounter planner never places these classes (only the stock-roster fallback does).
+- Paired fixed drops series passes unchanged (112 kills, 183 drops); new `tools/fixed_drops/rules.py` tests revive, leave-and-return, Adaptive and Armageddon. Notes: `work/notes/20261125-220115-fixeddrops-finish.md`.
 
 ### Merged to `integration` (`8c78edf`)
 

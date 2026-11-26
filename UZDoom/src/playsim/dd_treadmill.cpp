@@ -18,6 +18,7 @@
 // flattening (DDLOCS), so the ground matches across the handoff.
 
 #include <cinttypes>
+#include "dd_lootrng.h" // [Doomerfall] fixed loot
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -26,6 +27,7 @@
 #include <cstring>
 #include <deque>
 #include <limits>
+#include <map>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -34,6 +36,7 @@
 #include "../../../bridge/doomerfall_bridge.h"
 #include "dd_treadmill.h"
 #include "dd_towncache.h"
+#include "../dd_locations.h"
 #include "fs_files.h"
 #include "gi.h"
 #include "vm.h"
@@ -86,6 +89,7 @@ void DD_LightsFlat(AActor *mo, bool interior);	// dd_lights.cpp
 void DD_LightsInterior(FLevelLocals *Level);
 void DD_LightsTick(FLevelLocals *Level);
 void DD_LightsReset();
+void DD_WeatherTick(FLevelLocals *Level);	// dd_weather.cpp
 void DD_LightsTextureName(const char *name, FTextureID tex);
 
 bool DDTreadmill_Active = false;
@@ -110,9 +114,15 @@ namespace
 	constexpr double UNITS_PER_SAMPLE = 1.5 * 40.0;	// Daggerfall Unity's vertical terrain scale, in Daggerfall units.
 
 	constexpr uint64_t SEED_BIT = 1ull << 62, DYNAMIC_BIT = 1ull << 63;
+	// Doom's own ids for this session (drops, replacement items) are tag 4 with bit 60 set. Daggerfall's guard ids are
+	// tag 4 too (a spawn serial, far below bit 60), so the mark keeps the two apart.
+	constexpr uint64_t SESSION_MARK = 1ull << 60, SESSION_ID = DYNAMIC_BIT | SESSION_MARK;
 	// Items the map itself places get tag 1 (bit 61 alone, which no other id uses): a hash of the class and the spot in
 	// world units, so the id is the same on every visit and a take leaves a tombstone.
 	constexpr uint64_t MAP_ITEM_TAG = 1ull << 61, TAG_MASK = 7ull << 61;
+	// A map item id: the tag, 41 bits naming the map, and the item's index in map order (Daggerfall packs taken ones as bits).
+	constexpr int MAP_ITEM_INDEX_BITS = 20;
+	constexpr uint64_t MAP_ITEM_PLACE_MASK = (1ull << (61 - MAP_ITEM_INDEX_BITS)) - 1;
 	bool IsMapItemId(uint64_t id) { return (id & TAG_MASK) == MAP_ITEM_TAG; }
 	// Rebuilt on every visit by the encounter plan (5) or by Daggerfall's lists (6 stationary NPCs, 7 townspeople).
 	bool IsRebuiltId(uint64_t id) { const uint64_t tag = id >> 61; return tag == DFB_MONSTER_TAG || tag == DFB_NPC_TAG || tag == DFB_TOWNSPERSON_TAG; }
@@ -128,12 +138,14 @@ namespace
 	{
 		uint64_t id = 0;
 		FName cls = NAME_None;
-		FString death;	// A corpse's death state label, such as "Death" or "XDeath.Fire". Never a state index.
+		FString death;	// A corpse's death state label, such as "Death" or "XDeath.Fire". Never a state index. For an item:
+						// what it carries (CarriedText), such as a DRLA modded gun's mods.
 		double x = 0, y = 0, z = 0, angle = 0, height = 0;
 		int health = 0, kind = KGone, amount = 0;
 		bool dropped = false;
 	};
 	constexpr int TABLE_FORMAT = 2;	// Rows carry a death label. Format 1 (a state index) is not read.
+	constexpr const char *REVIVED_LABEL = "Revived";	// A living monster's death label: it died once and was revived.
 
 	struct SeedSpawn { uint64_t id; FName cls; double x, y; };	// Global Doom XY.
 	struct PendingChunk
@@ -172,6 +184,7 @@ namespace
 		// sits in the world table.
 		bool space = false;
 		int spaceId = -1, dungeonMapId = 0;
+		int buildingMapId = 0, buildingKey = -1;	// A building interior's Daggerfall place key.
 		FString place;
 		std::vector<SpaceLanding> landings;
 		std::vector<SpaceExit> exits;
@@ -240,6 +253,7 @@ namespace
 	std::unordered_map<uint64_t, Record> table;
 	std::unordered_map<int64_t, std::vector<uint64_t>> buckets;
 	std::unordered_set<uint64_t> expected;	// Records and seeds that currently have a live actor.
+	std::unordered_map<uint64_t, DVector3> itemSpots;	// Where each map item stood (world units), so a take's tombstone belongs to its place.
 	std::deque<PendingChunk> pending;
 	uint64_t nextDynamic;
 	bool resumePending;
@@ -504,6 +518,14 @@ namespace
 		return ChunkKey(int(floor(r.x / DF_PER_CHUNK)), int(floor(r.y / DF_PER_CHUNK)));
 	}
 
+	// Exterior rows (towns and the overworld) are in real world units; interiors and dungeons sit far beyond the world.
+	bool IsExterior(const Record &r) { return r.x < 2097152.0 * 256; }
+
+	// Exterior chunks whose rows changed since Daggerfall's location ledger last got them (dd_locations.cpp).
+	std::unordered_set<int64_t> dirtyChunks;
+	bool quietStore;	// rows that came from Daggerfall's ledger do not need to go back to it
+	void MarkDirty(const Record &r) { if (!quietStore && IsExterior(r)) dirtyChunks.insert(RecordChunk(r)); }
+
 	void Unbucket(const Record &r)
 	{
 		auto b = buckets.find(RecordChunk(r));
@@ -517,6 +539,8 @@ namespace
 	{
 		auto it = table.find(r.id);
 		if (it != table.end() && it->second.kind != KGone) Unbucket(it->second);
+		if (it != table.end()) MarkDirty(it->second);
+		MarkDirty(r);
 		table[r.id] = r;
 		if (r.kind != KGone) buckets[RecordChunk(r)].push_back(r.id);
 		dd_tm_records = int(table.size());
@@ -530,12 +554,15 @@ namespace
 			if (it != table.end())
 			{
 				if (it->second.kind != KGone) Unbucket(it->second);
+				MarkDirty(it->second);
 				table.erase(it);
 			}
 			dd_tm_records = int(table.size());
 			return;
 		}
 		Record gone = it != table.end() ? it->second : Record();
+		if (it == table.end())
+			if (auto spot = itemSpots.find(id); spot != itemSpots.end()) { gone.x = spot->second.X; gone.y = spot->second.Y; gone.z = spot->second.Z; }
 		gone.id = id;
 		gone.kind = KGone;
 		Store(gone);
@@ -547,20 +574,46 @@ namespace
 	}
 
 	// Records anything that vanished since the last check, such as a picked-up item.
+	DVector3 ToLocal(double x, double y, double z);
+
 	void Reconcile(FLevelLocals *Level)
 	{
 		std::unordered_set<uint64_t> live;
+		std::vector<AActor *> loose;	// unowned items without an id: drops, or a map item's replacement
 		live.reserve(expected.size() * 2);
 		auto it = Level->GetThinkerIterator<AActor>();
 		while (AActor *mo = it.Next())
 		{
-			if (!mo->ddRecordId) continue;
+			if (!mo->ddRecordId)
+			{
+				if (mo->ddHandoffId) live.insert(mo->ddHandoffId);	// [Doomerfall] A spawner that has not made its monster yet.
+				else if (mo->IsKindOf(NAME_Inventory) && !IsOwned(mo)) loose.push_back(mo);
+				continue;
+			}
 			if (IsOwned(mo)) mo->ddRecordId = 0;
 			else live.insert(mo->ddRecordId);
 		}
 		for (auto e = expected.begin(); e != expected.end();)
 		{
 			if (live.count(*e)) { ++e; continue; }
+			// DoomerfallAmmo replaces a placed ammo pickup with a tiered one on the same spot a few tics after the map
+			// loads. The replacement is still the map's item: it takes the id, so it is neither a take nor a drop. Only an
+			// item that never moved counts (a tossed jackpot pickup stays a loose item).
+			if (IsMapItemId(*e))
+				if (auto spot = itemSpots.find(*e); spot != itemSpots.end())
+				{
+					const DVector3 at = ToLocal(spot->second.X, spot->second.Y, spot->second.Z);
+					auto heir = std::find_if(loose.begin(), loose.end(), [&](AActor *mo) {
+						return (mo->Pos().XY() - at.XY()).LengthSquared() <= 1 && fabs(mo->Z() - at.Z) <= 8; });
+					if (heir != loose.end())
+					{
+						(*heir)->ddRecordId = *e;
+						(*heir)->SpawnPoint = (*heir)->Pos();
+						loose.erase(heir);
+						++e;
+						continue;
+					}
+				}
 			MarkGone(*e);
 			e = expected.erase(e);
 		}
@@ -589,7 +642,7 @@ namespace
 
 	bool IsTouched(AActor *mo)
 	{
-		return mo->health < mo->SpawnHealth() || mo->target != nullptr
+		return mo->health < mo->SpawnHealth() || mo->target != nullptr || mo->ddDied	// Revived: kept, so it keeps the mark.
 			|| (mo->Pos().XY() - mo->SpawnPoint.XY()).LengthSquared() > 1;
 	}
 
@@ -608,47 +661,152 @@ namespace
 		return ((id & SEED_BIT) && !(id & DYNAMIC_BIT)) || tag == DFB_MONSTER_TAG ? !IsTouched(mo) : false;
 	}
 
-	// The frame a death sequence rests on (infinite tics), or null when it ends in Stop or never settles.
-	FState *FinalFrame(FState *st)
+	// Where a death sequence settles, following each state's own next link: a frame with infinite tics, or the loop a
+	// corpse ticks in (DRLA Monsters' corpses loop a 1-tic CanRaise frame and never rest). A loop is named by its first
+	// state in memory, so any point in it gives the same answer. Those frames keep ("####" "#") the sprite and frame
+	// shown before them, so the look is the last sprite and frame the sequence set. rest is null when it ends in Stop.
+	// DRLA's base class jumps by name ("A_JumpIf(1, "DeathMain")", then Goto DeathMain for the parser), which the game
+	// resolves in the dying actor's own class, where its death frames are; the Goto's link is the base class's state.
+	// So a state an ancestor owns under a label the class redefines is followed into the class's own state instead.
+	struct Settled { FState *rest = nullptr; int sprite = -1, frame = -1; };
+	FState *ClassVersion(PClassActor *cls, FState *st)
 	{
-		for (int n = 0; st && st->Tics != -1 && n < 256; n++) st = st->GetNextState();
-		return st && st->Tics == -1 ? st : nullptr;
+		PClassActor *owner = FState::StaticFindStateOwner(st, cls);
+		if (!owner || owner == cls) return st;
+		const FStateLabels *labels = owner->GetStateLabels();
+		for (int i = 0; labels && i < labels->NumLabels; i++)
+		{
+			const FStateLabel &l = labels->Labels[i];
+			if (l.State == st)
+				if (FState *own = cls->FindState(1, const_cast<FName *>(&l.Label), true); own && own != st) return own;
+			for (int j = 0; l.Children && j < l.Children->NumLabels; j++)
+				if (l.Children->Labels[j].State == st)
+				{
+					FName names[2] = { l.Label, l.Children->Labels[j].Label };
+					if (FState *own = cls->FindState(2, names, true); own && own != st) return own;
+				}
+		}
+		return st;
+	}
+	Settled SettleWalk(PClassActor *cls, FState *st)
+	{
+		Settled out;
+		std::vector<FState *> seen;
+		for (int n = 0; st && n < 1024; n++)
+		{
+			st = ClassVersion(cls, st);
+			if (st->sprite != SPR_FIXED)
+			{
+				if (!st->GetSameFrame()) out.frame = st->GetFrame();
+				if (st->sprite != SPR_NOCHANGE) out.sprite = st->sprite;
+			}
+			if (st->Tics == -1)
+			{
+				out.rest = st;
+				return out;
+			}
+			auto again = std::find(seen.begin(), seen.end(), st);
+			if (again != seen.end())
+			{
+				out.rest = *std::min_element(again, seen.end(), std::less<FState *>());
+				return out;
+			}
+			seen.push_back(st);
+			st = st->GetNextState();
+		}
+		return out;
+	}
+	std::map<std::pair<PClassActor *, FState *>, Settled> settledCache;	// States live as long as the process.
+	Settled Settle(PClassActor *cls, FState *st)
+	{
+		if (!st) return Settled();
+		auto key = std::make_pair(cls, st);
+		auto found = settledCache.find(key);
+		if (found == settledCache.end()) found = settledCache.emplace(key, SettleWalk(cls, st)).first;
+		return found->second;
+	}
+	FState *FinalFrame(AActor *mo, FState *st) { return Settle(mo->GetClass(), st).rest; }
+
+	// The state a stored death label names: "Death", "XDeath", "Death.Fire" or "XDeath.Fire". The engine keeps XDeath as
+	// Death.Extreme (p_interaction.cpp), so "XDeath" alone found nothing and every gibbed corpse came back as a Death.
+	FState *LabelState(AActor *mo, const FString &label)
+	{
+		FName names[3];
+		int n = 0;
+		for (auto &part : label.Split("."))
+		{
+			if (n == 0 && part.CompareNoCase("XDeath") == 0) { names[n++] = NAME_Death; names[n++] = NAME_Extreme; }
+			else if (n < 3) names[n++] = FName(part);
+		}
+		if (n == 0) return nullptr;
+		return mo->GetClass()->FindState(n, names, n > 1);
 	}
 
-	// The death label whose sequence rests on this frame. A label is a name, so it survives a mod reordering its states.
+	// The death label whose sequence settles where this corpse does. A label is a name, so it survives a mod
+	// reordering its states.
 	FString DeathLabel(AActor *mo, FState *final)
 	{
+		if (!final) return "Death";
 		const FName type = mo->DamageTypeReceived;
-		const bool typed = type != NAME_None && type != NAME_Normal;
+		const bool typed = type != NAME_None && type != NAME_Normal && type != NAME_Extreme;
 		if (typed)
-			for (FName label : { FName(NAME_XDeath), FName(NAME_Death) })
-				if (FinalFrame(mo->FindState(label, type, true)) == final) return FStringf("%s.%s", label.GetChars(), type.GetChars());
-		if (FinalFrame(mo->FindState(NAME_XDeath)) == final) return "XDeath";
+			for (const char *label : { "XDeath", "Death" })
+			{
+				const FString name = FStringf("%s.%s", label, type.GetChars());
+				if (FinalFrame(mo, LabelState(mo, name)) == final) return name;
+			}
+		if (FinalFrame(mo, LabelState(mo, "XDeath")) == final) return "XDeath";
 		return "Death";	// Death, or a sequence reached some other way (a crush or a script), shown as an ordinary death.
 	}
 
 	int unchangedCount, missingClassCount;	// For the table summary in the log.
 
-	void Park(AActor *mo, int fromX, int fromY)
+	// What an item lying on the ground carries as its own inventory, as "Class=amount;Class=amount", the text a gun's
+	// state uses in Daggerfall (dd_items.cpp). A DRLA modded pickup carries its gun's mods this way (+INVENTORY.TRANSFER).
+	FString CarriedText(AActor *mo)
+	{
+		FString out;
+		for (AActor *inv = mo->Inventory; inv; inv = inv->Inventory)
+		{
+			const int amount = inv->IntVar(NAME_Amount);
+			if (amount <= 0) continue;
+			if (!out.IsEmpty()) out += ";";
+			out.AppendFormat("%s=%d", inv->GetClass()->TypeName.GetChars(), amount);
+		}
+		return out;
+	}
+
+	// Gives a restored item what it carried. DRLA's modded pickup also asks for its mods when it spawns
+	// (GetWeaponMods), but only from the player who dropped it (its master); a restored pickup has none, so the script
+	// stops and these stay.
+	void GiveCarried(AActor *mo, const FString &text)
+	{
+		if (text.IsEmpty()) return;
+		for (auto &part : text.Split(";"))
+		{
+			const long eq = part.IndexOf('=');
+			if (eq <= 0) continue;
+			PClassActor *cls = PClass::FindActor(FName(part.Left(eq)));
+			const int amount = atoi(part.Mid(eq + 1).GetChars());
+			if (!cls || !cls->IsDescendantOf(NAME_Inventory) || amount <= 0) continue;
+			if (AActor *inv = mo->GiveInventoryType(cls)) inv->IntVar(NAME_Amount) = amount;
+		}
+	}
+
+	enum class Parked { Skip, Unchanged, Stored, Gone };
+
+	// What a row for this actor would be. Shared by Park and the location ledger's snapshot (DDTreadmill_SnapshotPlace).
+	// r.id stays 0 for an actor without an id.
+	Parked MakeRecord(AActor *mo, int fromX, int fromY, Record &r)
 	{
 		const bool monster = (mo->flags3 & MF3_ISMONSTER) != 0, item = mo->IsKindOf(NAME_Inventory);
-		if (!monster && !item)
-		{
-			mo->Destroy();	// Projectiles and effects do not persist.
-			return;
-		}
-		uint64_t id = mo->ddRecordId;
-		if (id) expected.erase(id);
-		if (IsUnchanged(mo, monster))
-		{
-			unchangedCount++;
-			mo->Destroy();	// Its seed, the map, or Daggerfall's placement rebuilds it.
-			return;
-		}
-		if (!id) id = DYNAMIC_BIT | ++nextDynamic;
-
-		Record r;
-		r.id = id;
+		if (!monster && !item) return Parked::Skip;	// Projectiles and effects do not persist.
+		if (DD_IsDrlaSpawner(mo)) return Parked::Skip;	// A spawner is not a monster: restored, it would spawn another one.
+		if (IsUnchanged(mo, monster)) return Parked::Unchanged;	// Its seed, the map, or Daggerfall's placement rebuilds it.
+		r = Record();
+		r.id = mo->ddRecordId;
+		if (!r.id) r.id = DD_LootItemId(mo);	// A drop from a fixed loot roll keeps the same id in every game.
+		if (!r.id && item) r.id = DD_LootIsGunClass(mo->GetClass()->TypeName) ? DD_LootFixItemId(mo) : 0;	// [Doomerfall] a gun gets a lasting id
 		r.cls = mo->GetClass()->TypeName;
 		const DVector3 world = ToWorld(mo->Pos(), fromX, fromY);
 		r.x = world.X;
@@ -662,24 +820,59 @@ namespace
 		{
 			r.kind = KItem;
 			r.amount = mo->IntVar(NAME_Amount);
+			r.death = CarriedText(mo);
 		}
 		else if (mo->health <= 0)
 		{
-			// A corpse is stored as dead, with the label of its death. A death that ends in Stop leaves nothing behind.
-			FState *st = FinalFrame(mo->state);
-			if (!st)
-			{
-				mo->Destroy();
-				MarkGone(id);
-				return;
-			}
+			// A corpse is stored as dead, with the label of its death. Its look comes from that label in the class when
+			// it is restored, so a corpse that is still settling (or burning, or looping) is kept all the same.
 			r.kind = KCorpse;
-			r.death = DeathLabel(mo, st);
+			r.death = DeathLabel(mo, FinalFrame(mo, mo->state));
 		}
-		else r.kind = KMonster;
-		Store(r);
-		parkCount++;
+		else
+		{
+			r.kind = KMonster;
+			if (mo->ddDied) r.death = REVIVED_LABEL;	// Its seeded loot already dropped (dd_lootrng.cpp).
+		}
+		return Parked::Stored;
+	}
+
+	void ParkAs(AActor *mo, Parked decided, Record &r)
+	{
+		if (mo->ddRecordId) expected.erase(mo->ddRecordId);
+		switch (decided)
+		{
+		case Parked::Unchanged:
+			unchangedCount++;
+			break;
+		case Parked::Gone:
+			if (r.id) MarkGone(r.id);
+			break;
+		case Parked::Stored:
+			if (!r.id) r.id = SESSION_ID | ++nextDynamic;
+			Store(r);
+			parkCount++;
+			break;
+		default:
+			break;
+		}
 		mo->Destroy();
+	}
+
+	void Park(AActor *mo, int fromX, int fromY)
+	{
+		Record r;
+		const Parked decided = MakeRecord(mo, fromX, fromY, r);
+		ParkAs(mo, decided, r);
+	}
+
+	// Decides every row before destroying anything: destroying a monster clears other monsters' target pointers, which
+	// would turn alerted monsters "unchanged" partway through, unlike the location ledger's snapshot of the same moment.
+	void ParkAll(const std::vector<AActor *> &actors, int fromX, int fromY)
+	{
+		std::vector<std::pair<Parked, Record>> decided(actors.size());
+		for (size_t n = 0; n < actors.size(); n++) decided[n].first = MakeRecord(actors[n], fromX, fromY, decided[n].second);
+		for (size_t n = 0; n < actors.size(); n++) ParkAs(actors[n], decided[n].first, decided[n].second);
 	}
 
 	void Restore(FLevelLocals *Level, const Record &r)
@@ -698,26 +891,41 @@ namespace
 		mo->Angles.Yaw = DAngle::fromDeg(r.angle);
 		mo->health = r.health;
 		if (r.dropped) mo->flags |= MF_DROPPED;
-		if (r.kind == KItem) mo->IntVar(NAME_Amount) = r.amount;
+		// Its seeded loot already dropped (dd_lootrng.cpp): a corpse an Arch-vile raises, or a revived monster, drops nothing again.
+		if (r.kind == KCorpse || (r.kind == KMonster && r.death.Compare(REVIVED_LABEL) == 0)) mo->ddDied = 1;
+		if (r.kind == KItem)
+		{
+			mo->IntVar(NAME_Amount) = r.amount;
+			GiveCarried(mo, r.death);
+		}
 		if (r.kind == KCorpse)
 		{
 			// The class's own death sequence, by label, to its resting frame.
-			FState *st = nullptr;
-			if (const long dot = r.death.IndexOf('.'); dot > 0) st = mo->FindState(FName(r.death.Left(dot)), FName(r.death.Mid(dot + 1)), true);
-			else if (r.death.IsNotEmpty()) st = mo->FindState(FName(r.death));
-			if (!st) st = mo->FindState(NAME_Death);
-			FState *final = FinalFrame(st);
-			if (!final)
+			FState *st = LabelState(mo, r.death);
+			Settled look = Settle(mo->GetClass(), st);
+			if (!look.rest) look = Settle(mo->GetClass(), mo->FindState(NAME_Death));
+			if (!look.rest)
 			{
 				DD_DebugPrintf(TEXTCOLOR_ORANGE "DDTM corpse %016" PRIx64 " %s has no resting %s frame, not restored\n", r.id, r.cls.GetChars(), r.death.GetChars());
 				mo->Destroy();
 				return;
 			}
-			mo->SetState(final, true);
+			mo->SetState(look.rest, true);
+			if (look.sprite >= 0 && (look.rest->sprite == SPR_FIXED || look.rest->sprite == SPR_NOCHANGE)) mo->sprite = look.sprite;
+			if (look.frame >= 0 && (look.rest->sprite == SPR_FIXED || look.rest->GetSameFrame())) mo->frame = look.frame;
 			mo->ClearCounters();
 			mo->flags &= ~(MF_SOLID | MF_SHOOTABLE | MF_FLOAT | MF_SKULLFLY);
 			mo->flags |= MF_CORPSE | MF_DROPOFF;
-			mo->Height = r.height;
+			if (r.height > 0) mo->Height = r.height;
+			else	// Daggerfall's saved record keeps no height: the class's own death height
+			{
+				IFVIRTUALPTR(mo, AActor, GetDeathHeight)
+				{
+					VMValue params[] = { mo };
+					VMReturn ret(&mo->Height);
+					VMCall(func, params, 1, &ret, 1);
+				}
+			}
 		}
 		expected.insert(r.id);
 		restoreCount++;
@@ -817,6 +1025,7 @@ namespace
 
 	void ProcessPending(FLevelLocals *Level, int budget)
 	{
+		if (DD_LocationsWorldWaiting()) return;	// After a load, Daggerfall's exterior chunks come first.
 		while (!pending.empty() && budget > 0)
 		{
 			PendingChunk &p = pending.front();
@@ -836,9 +1045,13 @@ namespace
 				PClassActor *cls = PClass::FindActor(s.cls);
 				if (!cls) continue;
 				const DVector3 pos(s.x - originX * double(SPACING) - HALF, s.y - originY * double(SPACING) - HALF, ONFLOORZ);
+				uint64_t variant = DD_LootSeedOf(s.id, 0x7370776eull);	// A mod's spawner picks the same variant every time.
+				DDLootScope scope(&variant);
 				if (AActor *mo = Spawn(Level, cls, pos, ALLOW_REPLACE))
 				{
-					mo->ddRecordId = s.id;
+					// [Doomerfall] A mod's spawner (DRLA's RandomSpawners) hands the id to the monster it makes (DD_SpawnerHandoff).
+					if (DD_IsDrlaSpawner(mo) || !(mo->flags3 & MF3_ISMONSTER)) mo->ddHandoffId = s.id;
+					else mo->ddRecordId = s.id;
 					mo->SpawnPoint = mo->Pos();	// Spawn() leaves it at zero, which made every seeded monster look moved.
 					expected.insert(s.id);
 				}
@@ -1111,6 +1324,8 @@ namespace
 			return -1;
 		}
 		PlaceSpace(t, id, InteriorSlot(mapId, buildingKey), FStringf("B%d:%d", mapId, buildingKey));
+		t.buildingMapId = mapId;
+		t.buildingKey = buildingKey;
 		t.map = SpaceMapName(id);
 		towns.push_back(std::move(t));
 		return int(towns.size()) - 1;
@@ -1421,6 +1636,7 @@ namespace
 	void BeginHandoff(FLevelLocals *Level, AActor *pmo, const char *map, const int *warpTile = nullptr, const DoorTarget *door = nullptr)
 	{
 		Reconcile(Level);
+		if (DDPlaceKey place; DD_BridgeHasSession() && DDTreadmill_CurrentSpace(place)) DD_LocationsLeaving(Level);	// Daggerfall's record of the place.
 		std::vector<AActor *> keep;
 		auto it = Level->GetThinkerIterator<AActor>();
 		while (AActor *mo = it.Next())
@@ -1428,8 +1644,9 @@ namespace
 				keep.push_back(mo);
 		unchangedCount = 0;
 		const int parkedBefore = parkCount;
-		for (AActor *mo : keep) Park(mo, originX, originY);
+		ParkAll(keep, originX, originY);
 		DD_DebugPrintf("DDTM left %s: %d stored as changed, %d unchanged not stored, table rows %d\n", Level->MapName.GetChars(), parkCount - parkedBefore, unchangedCount, int(table.size()));
+		if (DD_BridgeHasSession()) DD_LocationsLeftExterior(Level);	// Every exterior chunk this visit changed.
 
 		// This tic's move still happens on the old map, so the arrival point is one tic ahead.
 		const DVector3 world = ToWorld(pmo->Pos() + pmo->Vel, originX, originY);
@@ -1747,11 +1964,14 @@ namespace
 		return h ^ (h >> 31);
 	}
 
-	// Gives each item the map placed a stable id: its class and its spot in world units (which include the place), so
-	// the same item gets the same id on every visit and a take or move can be recorded against it.
+	// Gives each item the map placed a stable id: the map and the item's index in map order (thinkers are created in
+	// the map's thing order, and a marker spawns its item as it is created), so the same item gets the same id on every
+	// visit and Daggerfall's record keeps a taken map item as one bit (MAP_ITEM_INDEX_BITS).
 	int AssignMapItemIds(FLevelLocals *Level)
 	{
-		std::unordered_set<uint64_t> used;
+		uint64_t place = 0xCBF29CE484222325ull;
+		for (const char *c = Level->MapName.GetChars(); *c; c++) place = (place ^ uint8_t(toupper(*c))) * 0x100000001B3ull;
+		place = MixId(place, 0x4D41504954454D53ull) & MAP_ITEM_PLACE_MASK;
 		int count = 0;
 		auto it = Level->GetThinkerIterator<AActor>();
 		while (AActor *mo = it.Next())
@@ -1759,14 +1979,12 @@ namespace
 			// Everything loose at map start is the map's, before the rows are restored. MF_DROPPED cannot tell: items a
 			// map marker spawns keep it (Inventory.BeginPlay sets it, and only map things clear it in LevelSpawned).
 			if (mo->ddRecordId || mo->player || !mo->IsKindOf(NAME_Inventory) || IsOwned(mo)) continue;
-			uint64_t h = 0xCBF29CE484222325ull;
-			for (const char *c = mo->GetClass()->TypeName.GetChars(); *c; c++) h = (h ^ uint8_t(tolower(*c))) * 0x100000001B3ull;
+			if (count >= (1 << MAP_ITEM_INDEX_BITS)) break;
 			const DVector3 w = ToWorld(mo->Pos(), originX, originY);
-			h = MixId(MixId(MixId(h, uint64_t(llround(w.X))), uint64_t(llround(w.Y))), uint64_t(llround(w.Z)));
-			uint64_t id;
-			do { id = MAP_ITEM_TAG | (h & (MAP_ITEM_TAG - 1)); h = MixId(h, 1); } while (!used.insert(id).second);	// Two alike on one spot.
+			const uint64_t id = MAP_ITEM_TAG | (place << MAP_ITEM_INDEX_BITS) | uint64_t(count);
 			mo->ddRecordId = id;
 			mo->SpawnPoint = mo->Pos();
+			itemSpots[id] = w;
 			expected.insert(id);	// So a take becomes a tombstone (Reconcile).
 			count++;
 		}
@@ -1813,7 +2031,9 @@ namespace
 			Restore(Level, r);
 			restored++;
 		}
-		// After the rows, so a monster the table brought back counts as present and is not placed twice.
+		// After the rows, so a monster the table brought back counts as present and is not placed twice. With a bridge,
+		// Daggerfall's record of the place is applied before any mook is planned (DD_LocationsTick, then ApplyRows).
+		if (DDPlaceKey place; t.space && DD_BridgeHasSession() && DDTreadmill_CurrentSpace(place)) DD_LocationsEntered(place);
 		if (t.space && t.spaceId >= DUNGEON_SPACE) DD_MonstersEnterDungeon(Level, t.dungeonMapId, firstVisit, DD_BridgeHasSession());
 		if (t.space) DD_DebugPrintf("DDTM place %s map %s %s: map items %d, replaced by rows %d, restored %d, missing classes %d\n", t.place.GetChars(), t.map.GetChars(),
 			firstVisit ? "first visit" : "revisit", mapItems, replaced, restored, missingClassCount);
@@ -1928,12 +2148,12 @@ namespace
 		DD_DebugPrintf("DDTM resumed origin=%d,%d records=%d pending=%d floors drawn=%d of %d\n", originX, originY, int(table.size()), int(pending.size()), drawn, int(tris.size()));
 	}
 
-	FString EncodeState()
+	FString EncodeState(bool rows = true)
 	{
 		FString out;
 		out.AppendFormat("%d %d %d %llu %d\n", originX, originY, shifts, (unsigned long long)nextDynamic, int(pending.size()));
 		for (auto &p : pending) out.AppendFormat("%d %d\n", p.cx, p.cy);
-		for (auto &kv : table)
+		if (rows) for (auto &kv : table)
 		{
 			const Record &r = kv.second;
 			out.AppendFormat("%llu %s %s %.17g %.17g %.17g %.17g %.17g %d %d %d %d\n", (unsigned long long)r.id, r.cls.GetChars(),
@@ -1983,8 +2203,410 @@ namespace
 			r.dropped = dropped != 0;
 			Store(r);
 		}
+		dirtyChunks.clear();	// The table came from a save, and Daggerfall's ledger from the same one.
 		resumePending = true;
 	}
+}
+
+//--------------------------------------------------------------------
+// Location ledger (dd_locations.cpp): Daggerfall holds each dungeon's record, and this table is its cache.
+//--------------------------------------------------------------------
+
+namespace
+{
+	// A Doom drop or a replacement item: an id this session made up, which means nothing to Daggerfall.
+	bool IsSessionId(uint64_t id) { return (id & (TAG_MASK | SESSION_MARK)) == SESSION_ID; }
+	bool InPlace(const Record &r, const Town &t) { return t.Near(r.x / 256, r.y / 256, t.margin - 1); }
+
+	DDPlaceFact ToFact(const Record &r, const Town &t)
+	{
+		DDPlaceFact f;
+		f.id = r.id;
+		f.cls = r.cls;
+		f.death = r.death;
+		f.x = r.x - t.originX;
+		f.y = r.y - t.originY;
+		f.z = r.z - t.ground;
+		f.angle = r.angle;
+		f.height = r.height;
+		f.health = r.health;
+		f.kind = r.kind;
+		f.amount = r.amount;
+		f.dropped = r.dropped;
+		f.session = IsSessionId(r.id) && !DD_LootGunKeepsId(r.id, r.cls);	// [Doomerfall] a floor gun keeps its lasting id
+		return f;
+	}
+
+	Record FromFact(const DDPlaceFact &f, const Town &t)
+	{
+		Record r;
+		r.id = f.id;
+		r.cls = f.cls;
+		r.death = f.death;
+		r.x = f.x + t.originX;
+		r.y = f.y + t.originY;
+		r.z = f.z + t.ground;
+		r.angle = f.angle;
+		r.height = f.height;
+		r.health = f.health;
+		r.kind = f.kind;
+		r.amount = f.amount;
+		r.dropped = f.dropped;
+		return r;
+	}
+
+	// A fact as the bridge carries it (floats, 65536 angle steps), so Doom's cache and Daggerfall's copy compare equal.
+	std::string Canon(const DDPlaceFact &f)
+	{
+		double turns = f.angle / 360.0;
+		turns -= floor(turns);
+		FString id = f.session ? FString("S") : FStringf("%016" PRIx64, f.id);
+		FString s = FStringf("%d %s %s %s %.2f %.2f %.2f %d %.1f %d %d %d", f.kind, id.GetChars(), f.cls.GetChars(), f.death.GetChars(),
+			double(float(f.x)), double(float(f.y)), double(float(f.z)), int(llround(turns * 65536) & 0xFFFF), double(float(f.height)), f.health, f.amount, int(f.dropped));
+		return s.GetChars();
+	}
+
+	void DDTreadmill_TestDropTable()
+	{
+		Printf("DDLOC test: loading without Doom's world table (%d rows, %d visited places dropped)\n", int(table.size()), int(visitedSpaces.size()));
+		table.clear();
+		buckets.clear();
+		visitedSpaces.clear();
+		DD_MonstersLoadPlans("");
+		dd_tm_records = 0;
+		dirtyChunks.clear();
+	}
+}
+
+bool DDTreadmill_CurrentSpace(DDPlaceKey &place)
+{
+	if (!townActive || currentTown < 0 || currentTown >= int(towns.size())) return false;
+	const Town &t = towns[currentTown];
+	if (!t.space) return false;
+	if (t.spaceId >= DUNGEON_SPACE) place = DDPlaceKey{ DFB_PLACE_DUNGEON, t.dungeonMapId, 0 };
+	else if (t.buildingKey >= 0) place = DDPlaceKey{ DFB_PLACE_INTERIOR, t.buildingMapId, t.buildingKey };
+	else return false;
+	return true;
+}
+
+bool DDTreadmill_CurrentDungeon(int &mapId)
+{
+	if (!townActive || currentTown < 0 || currentTown >= int(towns.size())) return false;
+	const Town &t = towns[currentTown];
+	if (!t.space || t.spaceId < DUNGEON_SPACE) return false;
+	mapId = t.dungeonMapId;
+	return true;
+}
+
+// [Doomerfall] Hinged doors keep their position: one fact whose name text is door_objects.zs's "<stamp> <bits>".
+static FString DoorRecord()
+{
+	VMFunction *func = nullptr;
+	FString text;
+	PClass::FindFunction(&func, "DFDoorHandler", "Distill");
+	if (func) { VMReturn ret(&text); VMCall(func, nullptr, 0, &ret, 1); }
+	return text;
+}
+
+static void RestoreDoors(const char *place, FString text)
+{
+	VMFunction *func = nullptr;
+	int open = -2;
+	PClass::FindFunction(&func, "DFDoorHandler", "Restore");
+	if (func) { VMValue params[] = { &text }; VMReturn ret(&open); VMCall(func, params, 1, &ret, 1); }
+	if (open >= 0) Printf("DDLOC %s: doors restored, %d open\n", place, open);
+	else Printf("DDLOC %s: the doors were recorded from another conversion; they reset\n", place);
+}
+
+// The current dungeon's record as it stands: its cached rows, overridden by what every live actor would park as.
+void DDTreadmill_SnapshotPlace(FLevelLocals *Level, std::vector<DDPlaceFact> &out)
+{
+	out.clear();
+	DDPlaceKey place;
+	if (!DDTreadmill_CurrentSpace(place)) return;
+	const Town &t = towns[currentTown];
+	Reconcile(Level);
+	std::unordered_map<uint64_t, Record> rows;
+	for (auto &kv : table)
+		if (InPlace(kv.second, t)) rows[kv.first] = kv.second;
+	uint64_t temp = 0;
+	auto it = Level->GetThinkerIterator<AActor>();
+	while (AActor *mo = it.Next())
+	{
+		if (mo->player || IsOwned(mo)) continue;
+		Record r;
+		switch (MakeRecord(mo, originX, originY, r))
+		{
+		case Parked::Stored:
+			if (!r.id) r.id = SESSION_ID | (1ull << 59) | ++temp;	// Park would give it a session id too.
+			rows[r.id] = r;
+			break;
+		case Parked::Gone:	// As MarkGone: a tombstone, except for ids that are not kept.
+			if (!r.id) break;
+			if (r.id & DYNAMIC_BIT) rows.erase(r.id);
+			else
+			{
+				auto old = rows.find(r.id);
+				Record gone = old != rows.end() ? old->second : r;
+				gone.kind = KGone;
+				rows[r.id] = gone;
+			}
+			break;
+		default:
+			break;
+		}
+	}
+	out.reserve(rows.size() + 1);
+	for (auto &kv : rows) out.push_back(ToFact(kv.second, t));
+	DDPlaceFact doors;
+	doors.death = DoorRecord();
+	doors.kind = DFB_FACT_DOORS;
+	doors.cls = "DFDOORS";
+	if (doors.death.IsNotEmpty()) out.push_back(doors);
+}
+
+// Daggerfall's record of the dungeon just entered. When Doom's cache already holds the same facts, nothing changes.
+// Otherwise (the cache is gone or older, as after a load without the world table) the place is rebuilt from the
+// record: what the cache restored is removed, and every fact is applied. Mooks the record does not list are spawned
+// afterwards by the encounter plan, as on any visit.
+void DDTreadmill_ApplyPlace(FLevelLocals *Level, const DDPlaceKey &place, const std::vector<DDPlaceFact> &record)
+{
+	DDPlaceKey current;
+	if (!DDTreadmill_CurrentSpace(current) || !(current == place))
+	{
+		Printf(TEXTCOLOR_ORANGE "DDLOC record of place kind %u %d:%d arrived outside that place; ignored\n", place.kind, place.mapId, place.key);
+		return;
+	}
+	const Town &t = towns[currentTown];
+	const char *name = t.place.GetChars();
+	visitedSpaces.insert(t.place.GetChars());
+	std::vector<DDPlaceFact> facts;
+	for (const DDPlaceFact &f : record)
+		if (f.kind != DFB_FACT_DOORS) facts.push_back(f);
+		else RestoreDoors(name, f.death);
+	std::vector<uint64_t> oldIds;
+	std::vector<std::string> mine, theirs;
+	for (auto &kv : table)
+		if (InPlace(kv.second, t)) { oldIds.push_back(kv.first); mine.push_back(Canon(ToFact(kv.second, t))); }
+	for (const DDPlaceFact &f : facts) theirs.push_back(Canon(f));
+	std::sort(mine.begin(), mine.end());
+	std::sort(theirs.begin(), theirs.end());
+	if (mine == theirs)
+	{
+		Printf("DDLOC %s: Doom's cache matches Daggerfall's record (%d facts)\n", name, int(facts.size()));
+		return;
+	}
+	// A save made in this place: its snapshot came back with the live actors (and their record ids), but the save keeps
+	// no world table. The snapshot stands (architecture.md, Saves); Daggerfall's record only refills the cache behind it.
+	if (mine.empty())
+	{
+		std::unordered_set<uint64_t> recorded;
+		for (const DDPlaceFact &f : facts)
+			if (!f.session && (f.kind == KMonster || f.kind == KCorpse)) recorded.insert(f.id);
+		int live = 0;
+		auto it = Level->GetThinkerIterator<AActor>();
+		while (AActor *mo = it.Next())
+			if (!mo->player && mo->ddRecordId && !IsOwned(mo) && recorded.count(mo->ddRecordId)) live++;
+		if (live > 0)
+		{
+			int stored = 0;
+			for (const DDPlaceFact &f : facts)
+			{
+				if (f.session) continue;	// a drop in the snapshot keeps its own session id; leaving records it again
+				Store(FromFact(f, t));
+				stored++;
+			}
+			Printf("DDLOC %s: the save's snapshot stands (%d of the record's monsters and corpses are live); %d facts refill the cache, nothing rebuilt\n",
+				name, live, stored);
+			return;
+		}
+	}
+	std::unordered_set<uint64_t> replace(oldIds.begin(), oldIds.end());
+	for (const DDPlaceFact &f : facts) if (!f.session) replace.insert(f.id);
+	std::vector<AActor *> stale;
+	auto it = Level->GetThinkerIterator<AActor>();
+	while (AActor *mo = it.Next())
+		if (!mo->player && mo->ddRecordId && !IsOwned(mo) && replace.count(mo->ddRecordId)) stale.push_back(mo);
+	for (AActor *mo : stale) { expected.erase(mo->ddRecordId); mo->Destroy(); }
+	for (uint64_t id : oldIds)
+	{
+		auto row = table.find(id);
+		if (row == table.end()) continue;
+		if (row->second.kind != KGone) Unbucket(row->second);
+		table.erase(row);
+	}
+	int restored = 0, gone = 0;
+	missingClassCount = 0;
+	for (const DDPlaceFact &f : facts)
+	{
+		Record r = FromFact(f, t);
+		if (f.session) { int k = 0; while ((r.id = DD_LootRestoredGunId(r.cls, r.x, r.y, r.z, k++)) && table.count(r.id)) {} if (!r.id) r.id = SESSION_ID | ++nextDynamic; }	// [Doomerfall] a gun gets a lasting id
+		Store(r);
+		if (r.kind == KGone) { gone++; continue; }
+		Restore(Level, r);
+		restored++;
+	}
+	Printf("DDLOC %s: rebuilt from Daggerfall's record (Doom's cache had %d rows, the record %d): removed %d, restored %d, gone %d, missing classes %d\n",
+		name, int(mine.size()), int(facts.size()), int(stale.size()), restored, gone, missingClassCount);
+}
+
+
+namespace
+{
+	constexpr double CHUNK_DF = DFB_CHUNK_UNITS;
+	static_assert(DFB_CHUNK_UNITS == int(DF_PER_CHUNK), "the bridge's exterior chunk is the world table's chunk");
+
+	DDPlaceFact ToChunkFact(const Record &r, int cx, int cy)
+	{
+		Town frame;
+		frame.originX = cx * CHUNK_DF;
+		frame.originY = cy * CHUNK_DF;
+		frame.ground = 0;
+		return ToFact(r, frame);
+	}
+
+	Record FromChunkFact(const DDPlaceFact &f, int cx, int cy)
+	{
+		Town frame;
+		frame.originX = cx * CHUNK_DF;
+		frame.originY = cy * CHUNK_DF;
+		frame.ground = 0;
+		return FromFact(f, frame);
+	}
+
+	bool ExteriorMapRunning()
+	{
+		return DDTreadmill_Active || (townActive && currentTown >= 0 && currentTown < int(towns.size()) && !towns[currentTown].space);
+	}
+
+	// True when a row at this spot has (or had) a live actor on the running map: a town map restores rows inside its
+	// place, the overworld every chunk of its window that is not still waiting to be built.
+	bool LiveAt(const Record &r)
+	{
+		if (!IsExterior(r)) return false;
+		if (townActive) return currentTown >= 0 && currentTown < int(towns.size()) && !towns[currentTown].space && InPlace(r, towns[currentTown]);
+		if (!DDTreadmill_Active) return false;
+		const int cx = int(floor(r.x / DF_PER_CHUNK)), cy = int(floor(r.y / DF_PER_CHUNK));
+		if (!ChunkInWindow(cx, cy)) return false;
+		for (const PendingChunk &p : pending)
+			if (p.cx == cx && p.cy == cy && !p.prepared) return false;
+		return true;
+	}
+}
+
+void DDTreadmill_ForgetDirtyChunks() { dirtyChunks.clear(); }
+
+// Every exterior chunk whose facts changed since the last report: the chunks the table changed in, and on a running
+// exterior map the chunks of every actor that would park as a row. Each chunk's facts are complete: its cached rows,
+// overridden by what every live actor would park as.
+void DDTreadmill_SnapshotChunks(FLevelLocals *Level, std::vector<DDChunkFacts> &out)
+{
+	out.clear();
+	std::unordered_set<int64_t> chunks = dirtyChunks;
+	std::vector<Record> live, gone;
+	if (ExteriorMapRunning() && Level)
+	{
+		Reconcile(Level);
+		uint64_t temp = 0;
+		auto it = Level->GetThinkerIterator<AActor>();
+		while (AActor *mo = it.Next())
+		{
+			if (mo->player || IsOwned(mo)) continue;
+			Record r;
+			const Parked decided = MakeRecord(mo, originX, originY, r);
+			if (decided != Parked::Stored && (decided != Parked::Gone || !r.id)) continue;
+			if (!IsExterior(r)) continue;
+			if (!r.id) r.id = SESSION_ID | (1ull << 59) | ++temp;
+			chunks.insert(RecordChunk(r));
+			if (auto old = table.find(r.id); old != table.end() && IsExterior(old->second)) chunks.insert(RecordChunk(old->second));	// it may have walked out of its chunk
+			(decided == Parked::Stored ? live : gone).push_back(r);
+		}
+	}
+	dirtyChunks.clear();
+	if (chunks.empty()) return;
+	std::unordered_map<uint64_t, Record> rows;
+	for (auto &kv : table)
+		if (IsExterior(kv.second) && chunks.count(RecordChunk(kv.second))) rows[kv.first] = kv.second;
+	for (const Record &r : live) rows[r.id] = r;
+	for (const Record &r : gone)	// As MarkGone: a tombstone, except for ids that are not kept.
+	{
+		if (r.id & DYNAMIC_BIT) { rows.erase(r.id); continue; }
+		auto old = rows.find(r.id);
+		Record g = old != rows.end() ? old->second : r;
+		g.kind = KGone;
+		rows[r.id] = g;
+	}
+	std::vector<int64_t> order(chunks.begin(), chunks.end());
+	std::sort(order.begin(), order.end());
+	std::unordered_map<int64_t, size_t> slot;
+	for (int64_t key : order)
+	{
+		slot[key] = out.size();
+		out.push_back({ int(uint32_t(key)), int(key >> 32), {} });
+	}
+	for (auto &kv : rows)
+	{
+		auto s = slot.find(RecordChunk(kv.second));
+		if (s == slot.end()) continue;
+		DDChunkFacts &c = out[s->second];
+		c.facts.push_back(ToChunkFact(kv.second, c.cx, c.cy));
+	}
+}
+
+// One exterior chunk's record from Daggerfall's ledger, after a load. When Doom's cache holds the same facts, nothing
+// changes. Otherwise the cache's rows of the chunk are replaced by the record's. A row whose actor is live on the
+// running map stays as Doom restored it from the save (which Daggerfall's ledger came from too); only tombstones are
+// added there. Nothing is spawned here: the town map or the overworld window builds the chunk from the table.
+void DDTreadmill_ApplyChunk(FLevelLocals *Level, int cx, int cy, const std::vector<DDPlaceFact> &facts, DDChunkApplyStats &stats)
+{
+	const int64_t key = ChunkKey(cx, cy);
+	std::vector<uint64_t> oldIds;
+	std::vector<std::string> mine, theirs;
+	for (auto &kv : table)
+		if (IsExterior(kv.second) && RecordChunk(kv.second) == key) { oldIds.push_back(kv.first); mine.push_back(Canon(ToChunkFact(kv.second, cx, cy))); }
+	for (const DDPlaceFact &f : facts) theirs.push_back(Canon(f));
+	std::sort(mine.begin(), mine.end());
+	std::sort(theirs.begin(), theirs.end());
+	if (mine == theirs) { stats.matched++; return; }
+	stats.rebuilt++;
+	quietStore = true;
+	for (uint64_t id : oldIds)
+	{
+		if (expected.count(id)) continue;	// its actor is live; Park will store it
+		auto row = table.find(id);
+		if (row == table.end()) continue;
+		if (row->second.kind != KGone) Unbucket(row->second);
+		table.erase(row);
+		stats.removed++;
+	}
+	for (const DDPlaceFact &f : facts)
+	{
+		Record r = FromChunkFact(f, cx, cy);
+		if (!f.session && expected.count(r.id)) { stats.keptLive++; continue; }
+		if (LiveAt(r) && (r.kind != KGone || f.session)) { stats.keptLive++; continue; }
+		if (f.session) { int k = 0; while ((r.id = DD_LootRestoredGunId(r.cls, r.x, r.y, r.z, k++)) && table.count(r.id)) {} if (!r.id) r.id = SESSION_ID | ++nextDynamic; }	// [Doomerfall] a gun gets a lasting id
+		Store(r);
+		stats.stored++;
+	}
+	quietStore = false;
+	dd_tm_records = int(table.size());
+	Printf("DDLOC O%d,%d: rebuilt from Daggerfall's record (Doom's cache had %d rows, the record %d)\n", cx, cy, int(mine.size()), int(facts.size()));
+}
+
+// The overworld's terrain sectors are rewritten from Daggerfall's height map on every load (Resume -> PrepareLevel), so
+// a save need not carry them. UZDoom saves sectors as differences from loadsectors; copying the treadmill-owned fields
+// there makes the writer skip them. On DDOVER01 they are 88% of a save (5.45 MB of json, 1.33 MB packed).
+void DDTreadmill_PrepareSectorSave(FLevelLocals *Level)
+{
+	if (!DDTreadmill_Active || townActive || Level != primaryLevel || Level->loadsectors.Size() != Level->sectors.Size()) return;
+	for (auto &t : tris)
+	{
+		sector_t &base = Level->loadsectors[t.sec->Index()];
+		base.floorplane = t.sec->floorplane;
+		base.ceilingplane = t.sec->ceilingplane;
+		for (int k = 0; k < 2; k++) base.planes[k] = t.sec->planes[k];
+	}
+	Printf("DDTM save skips the terrain of %d sectors (rebuilt on load)\n", int(tris.size()));
 }
 
 void DDTreadmill_Serialize(FLevelLocals *Level, FSerializer &arc)
@@ -1994,20 +2616,18 @@ void DDTreadmill_Serialize(FLevelLocals *Level, FSerializer &arc)
 	{
 		if ((!DDTreadmill_Active && !townActive) || Level != primaryLevel) return;
 		Reconcile(Level);
-		FString state = EncodeState();
+		// Daggerfall's location record is the only saved copy of every place (it got the current place's record just
+		// before this save, dd_locations.cpp DD_LocationsSave). The save keeps the window's origin and the way back
+		// out of a building; the table, the visited places and the plans are rebuilt from Daggerfall after a load.
+		FString state = EncodeState(false);
 		int format = TABLE_FORMAT;
 		arc("ddtableformat", format);
 		arc("ddoverworld", state);
 		FString spaces;
 		if (returnPoint.valid) spaces.AppendFormat("R %s %.17g %.17g %.17g %.17g\n", returnPoint.map.GetChars(), returnPoint.x, returnPoint.y, returnPoint.z, returnPoint.yaw);
-		for (const std::string &name : visitedSpaces) spaces.AppendFormat("V %s\n", name.c_str());
 		arc("ddspaces", spaces);
-		FString plans = DD_MonstersSavePlans();
-		arc("ddplans", plans);
-		int kinds[4] = {};
-		for (auto &kv : table) kinds[std::clamp(kv.second.kind, 0, 3)]++;
-		DD_DebugPrintf("DDTM saved table: %d rows (%d monsters, %d corpses, %d items, %d gone), %d bytes; places %d bytes; plans %d bytes\n", int(table.size()),
-			kinds[KMonster], kinds[KCorpse], kinds[KItem], kinds[KGone], int(state.Len()), int(spaces.Len()), int(plans.Len()));
+		DD_DebugPrintf("DDTM saved without the world table (%d rows stay with Daggerfall's record): state %d bytes, places %d bytes\n",
+			int(table.size()), int(state.Len()), int(spaces.Len()));
 		if (townActive)
 		{
 			int inTown = 1;
@@ -2056,11 +2676,15 @@ void DDTreadmill_Serialize(FLevelLocals *Level, FSerializer &arc)
 				else if (sscanf(line.GetChars(), "V %39s", name) == 1) visitedSpaces.insert(name);
 			}
 		}
+		if (FindArg("-ddlocnotable")) DDTreadmill_TestDropTable();	// Test hook: load as if the save had no world table.
 	}
 }
 
+void DD_BodiesBeginMap(FLevelLocals *Level);
+
 void DDTreadmill_BeginMap(FLevelLocals *Level)
 {
+	DD_BodiesBeginMap(Level);	// monster movement width (dd_monsters.cpp)
 	DDTreadmill_WideNodes = false;
 	static const bool hasTowns = fileSystem.CheckNumForName("DDTOWN") >= 0 || fileSystem.CheckNumForName("DDGROUPS") >= 0;
 	if (!hasTowns || !Level->isPrimaryLevel()) return;
@@ -2069,6 +2693,9 @@ void DDTreadmill_BeginMap(FLevelLocals *Level)
 }
 
 bool DDTreadmill_RuntimeTowns() { return runtimeTowns; }
+// Where the player is, for Daggerfall's world look (dd_weather.cpp): 0 none, 1 exterior, 2 building interior, 3 dungeon.
+int DDTreadmill_Place() { return DDTreadmill_Active ? 1 : !townActive || currentTown < 0 ? 0 : !towns[currentTown].space ? 1 : towns[currentTown].spaceId < DUNGEON_SPACE ? 2 : 3; }
+bool DDTreadmill_OnDaggerfallMap() { return DDTreadmill_Active || townActive; }
 level_info_t *DDTreadmill_LevelInfoAt(unsigned index) { return index < runtimeInfos.size() ? &runtimeInfos[index] : nullptr; }
 bool DDTreadmill_HandoffPending() { return handoff.pending; }
 
@@ -2147,11 +2774,13 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 	if (resumePending) Resume(Level);
 	else if (Level->maptime == 0) Start(Level);
 	if (!DDTreadmill_Active && !townActive) return;
+	if (DD_BridgeHasSession()) DD_LocationsTick(Level);	// Daggerfall's records, applied in the playsim.
 
 	AActor *pmo = Level->Players[consoleplayer]->mo;
 	if (!pmo) return;
 	if (DD_BridgeHasSession()) DD_TownsfolkTick(Level);	// [Doomerfall] Idle until Daggerfall lists townspeople.
 	DD_LightsTick(Level);
+	DD_WeatherTick(Level);
 	if (runtimeTowns) DDTownCache::Poll();
 	if (travel.pending && !handoff.pending)
 	{

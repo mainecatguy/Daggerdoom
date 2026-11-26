@@ -30,5 +30,5 @@ for dll in ("sndfile.dll", "soft_oal.dll"):
 files = " ".join(f'"%~dp0scourgbarrow{suffix}"' for suffix in (".wad", "_mesh.pk3", "_doors.pk3", "_player.pk3"))
 with open(os.path.join(out, "play.bat"), "w", newline="\r\n") as f:
     f.write("@echo off\nrem Scourg Barrow with Daggerfall action objects. Use a coffin lid, then jump in.\n")
-    f.write(f'start "" /D "%~dp0." "{os.path.join(EXE_DIR, "uzdoom.exe")}" -iwad "{IWAD}" -file {files} -config "%~dp0demo.ini" -skill 3 +vid_fullscreen 0 +map MAP01\n')
+    f.write(f'start "" /D "%~dp0." "{os.path.join(EXE_DIR, "uzdoom.exe")}" -iwad "{IWAD}" -file {files} -config "%~dp0demo.ini" -skill 3 +vid_fullscreen 0 +gl_bloom 1 +gl_light_shadowmap 1 +gl_ssao 2 +gl_lens 1 +map MAP01\n')
 print("demo written to", os.path.join(out, "play.bat"))

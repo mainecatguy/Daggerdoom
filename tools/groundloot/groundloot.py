@@ -60,7 +60,7 @@ def main():
             "rem Daggerfall Unity. Stand near a pile to see which item it holds.\r\n"
             "set \"HERE=%~dp0\"\r\n"
             "set \"IWAD=D:\\dev\\DoomDaggerfall\\GameResources\\wads\\DOOM.WAD\"\r\n"
-            "start \"\" /D \"%HERE%\" \"%HERE%uzdoom.exe\" -iwad \"%IWAD%\" -file \"%HERE%daggerfall_items.pk3\" -config \"%HERE%play.ini\" -noautoload -skill 3 +vid_fullscreen 0 +map DFGALLRY\r\n",
+            "start \"\" /D \"%HERE%\" \"%HERE%uzdoom.exe\" -iwad \"%IWAD%\" -file \"%HERE%daggerfall_items.pk3\" -config \"%HERE%play.ini\" -noautoload -skill 3 +vid_fullscreen 0 +gl_bloom 1 +gl_light_shadowmap 1 +gl_ssao 2 +gl_lens 1 +map DFGALLRY\r\n",
             encoding="ascii")
     else:
         sys.exit(__doc__)

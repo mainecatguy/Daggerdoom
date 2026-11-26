@@ -32,6 +32,10 @@
 
 class FSerializer;
 
+// [Doomerfall] While set, every gameplay stream draws from this state instead of its own (dd_lootrng.cpp: fixed loot).
+// Null everywhere outside Doomerfall sessions, so stock games draw exactly as before.
+extern uint64_t *DD_RngOverride;
+
 class FRandom
 {
 public:
@@ -63,8 +67,9 @@ public:
 
 	uint32_t GenRand32() {
 		// this is the PCG-XSH-RR RNG algorithm
-		uint64_t oldstate = s;
-		s = oldstate * 6364136223846793005ULL + 0xda3e39cb94b95bdbULL;
+		uint64_t &st = (DD_RngOverride && !bClient) ? *DD_RngOverride : s; // [Doomerfall]
+		uint64_t oldstate = st;
+		st = oldstate * 6364136223846793005ULL + 0xda3e39cb94b95bdbULL;
 		uint32_t xorshifted = static_cast<uint32_t>(((oldstate >> 18u) ^ oldstate) >> 27u);
 		uint32_t rot = oldstate >> 59u;
 #ifdef _MSC_VER

@@ -29,6 +29,7 @@ namespace DaggerfallWorkshop.Game
         public int CemeteryMaxWaitTime = 80;   // Max wait time in seconds before next sound
         public AmbientSoundPresets Presets;     // Ambient sound preset
         public bool IsMuted = false;
+        public static System.Action<SoundClips> OnDoomerfallSound; // Doomerfall: one-shots, which Doom plays (DoomerfallWorldLook)
         public bool doNotPlayInCastle = true;   // Do not play ambient effects in castle blocks
         public bool PlayLightningEffect;        // Play a lightning effect where appropriate
         //public DaggerfallSky SkyForEffects;     // Sky to receive effects
@@ -218,6 +219,7 @@ namespace DaggerfallWorkshop.Game
         {
             if (!ambientAudioSource.isPlaying)
             {
+                if (OnDoomerfallSound != null) OnDoomerfallSound(clip); // Doomerfall
                 AudioClip audioClip = dfAudioSource.GetAudioClip((int)clip);
                 ambientAudioSource.spatialBlend = 0;
                 ambientAudioSource.PlayOneShotWhenReady(audioClip, volumeScale);
@@ -229,6 +231,7 @@ namespace DaggerfallWorkshop.Game
         {
             if (!ambientAudioSource.isPlaying)
             {
+                if (OnDoomerfallSound != null) OnDoomerfallSound(clip); // Doomerfall
                 AudioClip audioClip = dfAudioSource.GetAudioClip((int)clip);
                 ambientAudioSource.transform.position = position;
                 ambientAudioSource.spatialBlend = 1f;

@@ -12,6 +12,7 @@ class FSerializer;
 namespace FileSys { class FileReader; }
 
 extern bool DDTreadmill_Active;
+bool DDTreadmill_OnDaggerfallMap();	// A generated Daggerfall map (overworld, town, building or dungeon) is running.
 
 void DDTreadmill_BeginMap(FLevelLocals *Level);
 void DDTreadmill_Tick(FLevelLocals *Level);
@@ -38,6 +39,7 @@ level_info_t *DDTreadmill_LevelInfoAt(unsigned index);	// Null past the end. Emp
 bool DDTreadmill_HandoffPending();	// True during a stitched map change. Its autosave runs before the first frame, not a tic later.
 
 void DDTreadmill_Serialize(FLevelLocals *Level, FSerializer &arc);
+void DDTreadmill_PrepareSectorSave(FLevelLocals *Level);	// before sectors are written: skip the terrain the treadmill rebuilds
 void DDTreadmill_FrameEnd();
 void DDTreadmill_UploadBegin();
 void DDTreadmill_UploadEnd();

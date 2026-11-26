@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x2205405e17cc755aUL;
+        public const ulong SchemaHash = 0x557c917903786555UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -71,8 +71,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_INFO = 90;  // UZ to DF; payload: dfb_info_request
         public const ushort KIND_INFO_TEXT = 91;  // DF to UZ; one message for that request; payload: dfb_info_text; DFB_INFO_MORE in flags when the text goes on in the next event
         public const ushort KIND_INFO_NAME = 92;  // UZ to DF; a monster's Doom name, sent just before its DFB_KIND_INFO; payload: dfb_info_text
-        public const ushort KIND_LOOK = 93;  // UZ to DF; payload: dfb_info_request, target DFB_INFO_NPC, _TOWNSPERSON, _PILE or _BUILDING
+        public const ushort KIND_LOOK = 93;  // UZ to DF; payload: dfb_info_request, target DFB_INFO_NPC, _TOWNSPERSON, _PILE, _BUILDING or _DOOM_GUN
         public const ushort KIND_LOOK_TEXT = 94;  // DF to UZ; the label for that request, empty for none; payload: dfb_info_text; DFB_INFO_MORE as on INFO_TEXT
+        public const ushort KIND_HUD_TEXT = 95;  // DF to UZ; payload: dfb_info_text, request 0; DFB_INFO_MORE as on INFO_TEXT
         public const ushort KIND_DOOM_ITEM_TAKE = 140;  // UZ to DF; the player pressed Use on a Doom item, which waits for the answer; payload: dfb_doom_item
         public const ushort KIND_DOOM_ITEM_RESULT = 141;  // DF to UZ; status DFB_ITEM_TAKEN, DFB_ITEM_TOO_HEAVY, or DFB_ITEM_REFUSED; payload: dfb_doom_item
         public const ushort KIND_DOOM_ITEM_USE = 142;  // DF to UZ; the player used this item in Daggerfall's inventory; payload: dfb_doom_item
@@ -82,6 +83,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint ITEM_ART_SLOT = 5;  // bulk slot written by UZ: one dfb_item_art header, then width * height BGRA pixels, top row first
         public const uint ITEM_ART_HEADER = 144;
         public const ushort KIND_DOOM_ITEM_GUN_STATE = 146;  // UZ to DF; one state line (status amount, cls class) the gun in the next DOOM_ITEM_TAKE with this request carried, such as a DRLA modded pickup's mods
+        public const ushort KIND_DOOM_ITEM_ID = 147;  // UZ to DF; the floor item's lasting id (map item, or a drop from a fixed loot roll), sent just before the DOOM_ITEM_TAKE with this request when it has one; Daggerfall seeds the item's rolls (gun material) with it; payload: dfb_item_take, mode 0
         public const uint DOOM_ITEM_GUN = 1;
         public const uint DOOM_ITEM_ARMOR = 2;
         public const uint DOOM_ITEM_WEARABLE = 4;
@@ -172,7 +174,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint INFO_MONSTER = 3;  // a Doom monster, named by the DFB_KIND_INFO_NAME just before
         public const uint INFO_TOWNSPERSON = 4;  // DFB_KIND_LOOK: dfb_info_request.id is a townsperson id
         public const uint INFO_PILE = 5;  // DFB_KIND_LOOK: dfb_info_request.id is a world item (pile or container) id
-        public const uint INFO_DOOR = 6;  // DFB_KIND_LOOK: dfb_info_request.id is a locked door's live lock value (Doom's)
+        public const uint INFO_DOOM_GUN = 6;  // DFB_KIND_LOOK: a Doom gun on the floor, its pickup class in the DFB_KIND_INFO_NAME just before (same request); id is its lasting floor id (DFB_KIND_DOOM_ITEM_ID) or 0, world_x the Daggerfall material it carries plus 1 (its DoomerfallGunMaterial token, a gun dropped from the inventory) or 0
+        public const uint INFO_DOOR = 7;  // DFB_KIND_LOOK: dfb_info_request.id is a locked door's live lock value (Doom's)
         public const uint INFO_HUD = 0;  // dfb_info_text.style: Daggerfall's scrolling HUD message
         public const uint INFO_MID = 1;  // dfb_info_text.style: Daggerfall's mid-screen message
         public const uint INFO_MORE = 1;  // dfb_event.flags on DFB_KIND_INFO_TEXT
@@ -244,6 +247,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint UI_DAGGERFALL = 7;  // the window Daggerfall opened by itself and asked for with DFB_KIND_UI_ASK
         public const uint UI_LOAD_GAME = 8;  // Daggerfall's own Load window, from Doom's title; a save loaded there has no Doom half (DFB_KIND_PLAIN_LOAD)
         public const uint UI_JOURNAL = 9;  // Daggerfall's quest journal; dfb_ui_command.context is Doom's DFB_WORLD_* (travel from it only outdoors)
+        public const uint UI_REST = 10;  // Daggerfall's rest window; dfb_ui_command.context is DFB_REST_* bits from Doom's state
+        public const uint REST_MONSTERS_NEAR = 1;  // a hostile Doom monster sees the player or is within Daggerfall's resting distance
+        public const uint REST_NOT_GROUNDED = 2;  // Doom's player is in the air or swimming
         public const uint UI_CLOSED = 0;
         public const uint UI_OPENED = 1;
         public const uint UI_REASON_NONE = 0;
@@ -273,12 +279,33 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const int UZ_PHASE_PLAY = 2;
         public const int UZ_PHASE_PAUSED = 3;
         public const int UZ_PHASE_SAVING = 4;
+        public const ushort KIND_PLACE_BEGIN = 200;  // both ways; starts one place's record; payload: dfb_place
+        public const ushort KIND_PLACE_NAME = 201;  // both ways; one class or death label of that record; a repeated index appends text; payload: dfb_place_name
+        public const ushort KIND_PLACE_FACT = 202;  // both ways; one fact; payload: dfb_place_fact
+        public const ushort KIND_PLACE_PLAN = 203;  // both ways; one line of the dungeon's first encounter request; payload: dfb_place_plan
+        public const ushort KIND_PLACE_END = 204;  // both ways; the record is complete; payload: dfb_place
+        public const ushort KIND_PLACE_REQUEST = 205;  // UZ to DF; the player entered this place; payload: dfb_place
+        public const uint PLACE_DUNGEON = 1;  // dfb_place.place_kind; map_id is Daggerfall's dungeon map id
+        public const uint PLACE_INTERIOR = 2;  // map_id is the location's map id, key the building key
+        public const uint PLACE_CHUNK = 3;  // exterior world chunk: map_id is the chunk's x, key its y
+        public const uint PLACE_WORLD = 4;  // a request for every exterior chunk; also the empty record that ends the answer
+        public const int CHUNK_UNITS = 8192;  // Daggerfall units on a side of an exterior chunk (32 tiles)
+        public const uint PLACE_KNOWN = 1;  // dfb_place.flags: Daggerfall has a record of this place (it was visited)
+        public const uint PLACE_ON_SAVE = 2;  // dfb_place.flags: sent for a save while the player is inside
+        public const uint FACT_MONSTER = 0;  // dfb_place_fact.kind: alive, but moved or hurt
+        public const uint FACT_CORPSE = 1;  // dead, lying here
+        public const uint FACT_ITEM = 2;  // an item lying here: moved, changed, or dropped
+        public const uint FACT_GONE = 3;  // taken or destroyed
+        public const uint FACT_DOORS = 4;  // a dungeon's hinged doors: death is the name "<stamp> <hex bits>" (door_objects.zs), id 0
+        public const uint FACT_DROPPED = 1;  // dfb_place_fact.flags: Doom's MF_DROPPED
+        public const uint FACT_SESSION = 2;  // dfb_place_fact.flags: the id is Doom's own for this session (a drop), not a Daggerfall id
+        public const uint PLACE_NO_NAME = 65535;
         public const uint TOWNSFOLK_STREETS = 0;
         public const uint TOWNSFOLK_INTERIOR = 1;
 
         // Native size of every generated struct, for the attach check.
-        public static readonly Type[] StructTypes = { typeof(DfbFaces), typeof(DfbFace), typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbPlainLoad), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbWorldContainer), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbInfoRequest), typeof(DfbInfoText), typeof(DfbDoomItem), typeof(DfbDoor), typeof(DfbItemArt), typeof(DfbClimbUses), typeof(DfbNpcUse), typeof(DfbNpcUseResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbEncounterArea), typeof(DfbEncounterText), typeof(DfbNpc), typeof(DfbTownsfolk), typeof(DfbTownsperson), typeof(DfbTownspersonDeath), typeof(DfbGuardSpawn), typeof(DfbGuardDeath), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
-        public static readonly int[] StructSizes = { 8, 16, 64, 24, 24, 16, 24, 24, 48, 32, 48, 48, 32, 16, 48, 40, 16, 48, 32, 48, 48, 32, 144, 8, 24, 16, 32, 32, 48, 48, 16, 32, 40, 24, 40, 8, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
+        public static readonly Type[] StructTypes = { typeof(DfbFaces), typeof(DfbFace), typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbPlainLoad), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbWorldContainer), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbInfoRequest), typeof(DfbInfoText), typeof(DfbDoomItem), typeof(DfbDoor), typeof(DfbItemArt), typeof(DfbClimbUses), typeof(DfbNpcUse), typeof(DfbNpcUseResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbEncounterArea), typeof(DfbEncounterText), typeof(DfbPlace), typeof(DfbPlaceName), typeof(DfbPlaceFact), typeof(DfbPlacePlan), typeof(DfbNpc), typeof(DfbTownsfolk), typeof(DfbTownsperson), typeof(DfbTownspersonDeath), typeof(DfbGuardSpawn), typeof(DfbGuardDeath), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
+        public static readonly int[] StructSizes = { 8, 16, 64, 24, 24, 16, 24, 24, 48, 32, 48, 48, 32, 16, 48, 40, 16, 48, 32, 48, 48, 32, 144, 8, 24, 16, 32, 32, 48, 48, 32, 48, 48, 32, 16, 32, 40, 24, 40, 8, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
     }
 
     static class DfbBytes
@@ -369,11 +396,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public DfbNewGame newGame;  // NEWGAME
         [FieldOffset(16)] public DfbWorldItems worldItems;  // ITEMS_BEGIN, ITEMS_END, ITEMS_REQUEST, MONSTERS_BEGIN, MONSTERS_END, MONSTERS_REQUEST, NPCS_BEGIN, NPCS_END, NPCS_REQUEST
         [FieldOffset(16)] public DfbWorldItem worldItem;  // ITEM
-        [FieldOffset(16)] public DfbItemTake itemTake;  // ITEM_TAKE
+        [FieldOffset(16)] public DfbItemTake itemTake;  // ITEM_TAKE, DOOM_ITEM_ID
         [FieldOffset(16)] public DfbItemResult itemResult;  // ITEM_RESULT
         [FieldOffset(16)] public DfbWorldContainer worldContainer;  // CONTAINER
         [FieldOffset(16)] public DfbInfoRequest infoRequest;  // INFO, LOOK
-        [FieldOffset(16)] public DfbInfoText infoText;  // INFO_TEXT, INFO_NAME, LOOK_TEXT, DOOR_TEXT
+        [FieldOffset(16)] public DfbInfoText infoText;  // INFO_TEXT, INFO_NAME, LOOK_TEXT, HUD_TEXT, DOOR_TEXT
         [FieldOffset(16)] public DfbDoomItem doomItem;  // DOOM_ITEM_TAKE, DOOM_ITEM_RESULT, DOOM_ITEM_USE, DOOM_ITEM_USED, DOOM_ITEM_ART_REQUEST, DOOM_ITEM_ART, STARTER
         [FieldOffset(16)] public DfbClimbUses climbUses;  // CLIMB_USES
         [FieldOffset(16)] public DfbDoor door;  // DOOR_USE, DOOR_STATE, LOCKPICK, DOOR_FACTS
@@ -390,6 +417,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public DfbTownspersonDeath townspersonDeath;  // TOWNSPERSON_DEATH
         [FieldOffset(16)] public DfbGuardSpawn guardSpawn;  // GUARD_SPAWN
         [FieldOffset(16)] public DfbGuardDeath guardDeath;  // GUARD_DEATH
+        [FieldOffset(16)] public DfbPlace place;  // PLACE_BEGIN, PLACE_END, PLACE_REQUEST
+        [FieldOffset(16)] public DfbPlaceName placeName;  // PLACE_NAME
+        [FieldOffset(16)] public DfbPlaceFact placeFact;  // PLACE_FACT
+        [FieldOffset(16)] public DfbPlacePlan placePlan;  // PLACE_PLAN
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 24)]
@@ -871,6 +902,83 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DfbBytes.Write(destination, 24, 8, text3);
             DfbBytes.Write(destination, 32, 8, text4);
         }
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 32)]
+    struct DfbPlace
+    {
+        [FieldOffset(0)] public uint generation;
+        [FieldOffset(4)] public uint placeKind;  // DFB_PLACE_*
+        [FieldOffset(8)] public int mapId;
+        [FieldOffset(12)] public uint flags;  // DFB_PLACE_KNOWN, DFB_PLACE_ON_SAVE
+        [FieldOffset(16)] public uint facts;
+        [FieldOffset(20)] public uint names;
+        [FieldOffset(24)] public uint planLines;
+        [FieldOffset(28)] public int key;  // DFB_PLACE_INTERIOR: building key; DFB_PLACE_CHUNK: chunk y; otherwise 0
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 48)]
+    struct DfbPlaceName
+    {
+        [FieldOffset(0)] public uint generation;
+        [FieldOffset(4)] public ushort index;
+        [FieldOffset(6)] public ushort pad;
+        [FieldOffset(8)] public ulong text0;  // UTF-8, terminated unless full
+        [FieldOffset(16)] public ulong text1;
+        [FieldOffset(24)] public ulong text2;
+        [FieldOffset(32)] public ulong text3;
+        [FieldOffset(40)] public ulong text4;
+
+        // Copies up to 40 bytes in. The rest of the field becomes zero.
+        public void SetText(byte[] source, int count)
+        {
+            text0 = (ulong)DfbBytes.Read(source, count, 0, 8);
+            text1 = (ulong)DfbBytes.Read(source, count, 8, 8);
+            text2 = (ulong)DfbBytes.Read(source, count, 16, 8);
+            text3 = (ulong)DfbBytes.Read(source, count, 24, 8);
+            text4 = (ulong)DfbBytes.Read(source, count, 32, 8);
+        }
+
+        // Copies all 40 bytes out.
+        public void CopyText(byte[] destination)
+        {
+            DfbBytes.Write(destination, 0, 8, text0);
+            DfbBytes.Write(destination, 8, 8, text1);
+            DfbBytes.Write(destination, 16, 8, text2);
+            DfbBytes.Write(destination, 24, 8, text3);
+            DfbBytes.Write(destination, 32, 8, text4);
+        }
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 48)]
+    struct DfbPlaceFact
+    {
+        [FieldOffset(0)] public ulong id;  // a Daggerfall-derived id (mook, map pickup), or a session id with DFB_FACT_SESSION
+        [FieldOffset(8)] public uint generation;
+        [FieldOffset(12)] public float x;  // Daggerfall units in the place's frame
+        [FieldOffset(16)] public float y;
+        [FieldOffset(20)] public float z;
+        [FieldOffset(24)] public float height;  // a corpse's height in Doom units
+        [FieldOffset(28)] public int health;
+        [FieldOffset(32)] public int amount;  // an item's amount
+        [FieldOffset(36)] public ushort cls;  // name index of the Doom class
+        [FieldOffset(38)] public ushort death;  // name index of a corpse's death label, or DFB_PLACE_NO_NAME
+        [FieldOffset(40)] public ushort angle;  // 65536 per turn
+        [FieldOffset(42)] public byte kind;  // DFB_FACT_*
+        [FieldOffset(43)] public byte flags;  // DFB_FACT_DROPPED, DFB_FACT_SESSION
+        [FieldOffset(44)] public uint pad;
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 32)]
+    struct DfbPlacePlan
+    {
+        [FieldOffset(0)] public ulong placement;
+        [FieldOffset(8)] public uint generation;
+        [FieldOffset(12)] public uint header;
+        [FieldOffset(16)] public float x;
+        [FieldOffset(20)] public float y;
+        [FieldOffset(24)] public float z;
+        [FieldOffset(28)] public int value;  // header 1: mook count; header 0: the quest foe's enemy type
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 16)]

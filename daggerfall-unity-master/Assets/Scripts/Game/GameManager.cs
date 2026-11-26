@@ -685,6 +685,8 @@ namespace DaggerfallWorkshop.Game
         {
             const float spawnDistance = 1024 * MeshReader.GlobalScale;
             const float restingDistance = 12f;
+            if (resting && Doomerfall.DoomerfallRest.DoomMonstersNear) // Doomerfall: Doom's monsters, for a rest asked for from Doom
+                return true;
 
             bool areEnemiesNearby = false;
             foreach (DaggerfallEntityBehaviour entityBehaviour in ActiveGameObjectDatabase.GetActiveEnemyBehaviours())

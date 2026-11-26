@@ -1,4 +1,4 @@
-# Backlog
+﻿# Backlog
 
 Work that needs owner input or depends on unfinished work. **Automated loops never take work from this index or `work/backlog/`.**
 
@@ -21,9 +21,10 @@ This is a one-line-per-item index. Open an item's file only when you need its de
 - [Persistent Info toggle (on hold)](backlog/persistent-info-toggle.md): On hold until play-tested.
 - [Guard behavior and pathfinding (delayed indefinitely)](backlog/guard-behavior-and-pathfinding.md): Do not raise. Owner, 2026-11-24.
 - [Moonstone and Mithril ammo are quiet](backlog/elven-ammo-quiet.md): Silent on one-shot kills, and `reduced_noise` halves aggro and gun volume.
-- [Revisit languages](backlog/revisit-languages.md): Language skills other than Streetwise and Etiquette are on the way out for now. Revisit how they could work better.
+- [Revisit languages](backlog/revisit-languages.md): The nine monster languages are removed for now (their slots hold the gun skills). Maybe re-add them later.
 - [Silver ammo bonus against certain enemy types](backlog/silver-ammo-enemy-bonus.md): Also on Daedric. Needs the enemy types and bonus size.
-- [Player HP on Doom's scale](backlog/player-hp-scale.md): Daggerfall HP is about 1/3 of Doom's; normalize now, rethink the formula later.
+- [Check the magic rework against potions (before release)](backlog/magic-rework-potions.md): Waits on the magic rework; potion and healing HP restoration must end up 3x.
+- [Perks screen with perk toggles](backlog/perks-screen.md): Players open a perks screen and can turn their perks off if they wish.
 - [Megasphere gives max HP plus 100](backlog/megasphere-max-plus-100.md): Daggerfall max + 100 instead of 200. Future.
 - [Decide Doom item weights](backlog/doom-item-weights.md): Replace the default weight once Doom items live in Daggerfall's inventory.
 
@@ -96,11 +97,29 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [Locked doors with Daggerfall's requirements](backlog/locked-doors-with-daggerfalls-requirements.md): Use DF's real lock data and rules in Doom.
 - [Doors that swing in both directions](backlog/doors-that-swing-in-both-directions.md): Experiment with two-way swinging doors.
 
+## Magic
+
+- [Casting and self spells](backlog/magic-casting-and-self-spells.md): Cast key, Daggerfall-run self effects, Doom mirrors flight, invisibility, light, and so on. First slice.
+- [Effects on enemies](backlog/magic-effects-on-enemies.md): Generic Pacify and Charm, Paralyze, Soul Trap, Ranged Attack Suppression, Detect.
+- [Open and Lock](backlog/magic-open-and-lock.md): After the lockpicking work is finished; check first.
+- [Mark and Recall](backlog/magic-mark-and-recall.md): Recall plus a new Mark with up to 12 places.
+- [Fractional magicka](backlog/fractional-magicka.md): Costs under one point for big packs; fraction carry for now.
+- [Damage magic rework](backlog/damage-magic-rework.md): Stock damage spells cannot compete with DRLA guns; needs owner design.
+- [Enemy-class enchantments](backlog/magic-enemy-class-enchantments.md): Potent Vs, Low Damage Vs, Health Leech, Vampiric, Ring of Namira; waits on enemy tagging.
+- [Strike artifacts](backlog/magic-strike-artifacts.md): Mace of Molag Bal, Mehrunes' Razor, Wabbajack; waits on Cast When Strikes.
+- [Lycanthropy and vampirism](backlog/lycanthropy-and-vampirism.md): Whole conditions and beast forms; needs owner design.
+- [Enchantment drawbacks](backlog/magic-enchantment-drawbacks.md): Item Deteriorates, User Takes Damage, Extra Weight, Weakens Armor; later.
+- [Soul Bound](backlog/magic-soul-bound.md): Bind trapped souls into items; a broken item releases its creature in Doom.
+
 ## Before initial release
 
-- [Daggerfall skills in Doom](backlog/skills-in-doom.md): Owner decisions so far and the proposal; 35 skills for now.
+- [Daggerfall skills in Doom](backlog/skills-in-doom.md): Owner decisions: new gun skills, perks at 25/50/75/100, Jumping. In discussion.
+- [Original weapon skills in Doom](backlog/original-weapon-skills.md): Short Blade, Long Blade, Axe, Blunt, Archery stay; make them work.
+- [Brutal Doom and a melee mod](backlog/brutal-melee-mods.md): Later, after mod compatibility research.
+- [Rifles skill](backlog/rifles-skill.md): New skill for rifles (was Marksmanship); no rifle counts as a pistol (owner, 2026-11-26). Later.
+- [Guns off option](backlog/guns-off-option.md): An option to turn guns off, medieval-themed only (owner, 2026-11-26). Later.
 - [Mod compatibility research](backlog/mod-compatibility-research.md): Specialist reviews history; new mods' weapons work with Daggerfall systems.
-- [Player manual](backlog/player-manual.md): Specialist task; main-only features, referenced in the repo map.
+- [Player manual](backlog/player-manual.md): Started at `manual.md` with HP; a specialist task decides its full scope.
 - [Final Doom class and difficulty for New Game](backlog/full-daggerfall-new-game-flow.md): Replace the temporary prompt and fixed class.
 - [Doom monsters block fast travel](backlog/doom-monsters-block-fast-travel.md): Decide whether and how nearby Doom monsters block travel.
 - [Improve the random enemy roster](backlog/improve-the-random-enemy-roster.md): Weight or tier the uniform random roster.
@@ -114,7 +133,7 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 
 ## After initial release
 
-- [Revisit damage and resistances](backlog/revisit-damage-and-resistances.md): Rework how DRLA and DF damage rules combine.
+- [Revisit damage and resistances](backlog/revisit-damage-and-resistances.md): Rework how DRLA, Schism and DF damage rules combine; map damage types (Schism freeze, lightning) to DF elements; generic freezing.
 - [Greater NPC bot variety](backlog/greater-npc-bot-variety.md): Add bot types for guards and classes.
 - [Status effects on mooks](backlog/status-effects-on-mooks.md): Extend DF status effects to Doom mooks.
 - [Should open doors block monster sight?](backlog/should-open-doors-block-monster-sight.md): Decide whether to match DF's door sight rule.

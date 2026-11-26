@@ -1,4 +1,4 @@
-# Doomerfall
+﻿# Doomerfall
 
 ## What we are making
 
@@ -20,7 +20,8 @@ These pillars must survive every decision:
 |---|---|
 | `UZDoom/` | Vendored UZDoom 5.0.3 source. Combat, movement, rendering, and collision. |
 | `daggerfall-unity-master/` | Daggerfall Unity (Unity 2019.4.41f2). World, RPG rules, quests, UI, and saves. |
-| `gamedesign.md` | Game design rules. |
+| `gamedesign.md` | Game design rules. Details in `gamedesign/` (for example `damage.md`, `hp.md`). `gamedesign/decisions.md` is the index of game designer decisions, with one detail file each in `gamedesign/decisions/`. |
+| `manual.md` | Player manual: what players need to know. Add to it when a player-facing rule is decided or built. |
 | `architecture.md` | Milestones, technical hurdles, and engine ownership. |
 | `designgoals.md` | Original design goals. |
 | `work/goal.md` | The current goal. Written with the owner and not committed. |
@@ -29,15 +30,19 @@ These pillars must survive every decision:
 | `work/backlog/` | One detail file per backlog item. Open only the items you need. |
 | `work/future-ideas.md` | Unplanned ideas for after the initial release. Never start these unless the owner asks. |
 | `work/notes/` | Plans, findings, and play-test lists, one file per run. |
-| `work/agent-reports.md` | Raw questions and oversights from overnight agents, awaiting orchestrator triage. Not committed. |
+| `work/agent-reports/` | Raw questions and oversights from overnight agents, one file per run, awaiting orchestrator triage. Not committed. |
 | `work/questions.md` | Triaged open questions for the owner. Managed by the orchestrator and not committed. |
 | `work/suspectedoversights.md` | Triaged major oversights outside any agent's task. Managed by the orchestrator and not committed. |
+| `art/` | Original custom art made for Doomerfall, listed in `art/README.md`. Our own work, so it may be committed. |
+| `mods/doomerfall/src/sprites/` | Game-ready copies of the custom art, loaded by the Doomerfall mod. |
 | `GameResources/` | Local copyrighted game data. Never commit it. |
 | `GameMods/` | Local Doom mods. Never commit it. |
 | `GameMods/ExtractedData/` | Extracted DRLA Arsenal, DRLA Monsters, and DRLAX PK3s. Look here to see what is in the mods. Read-only. |
 
 ## Work tracking
 
+- If you are a manager or orchestrator, read `work/orchestrator.md`.
+- If you are the product owner, read `work/product-owner.md`.
 - **Todo** is ready: approved by the owner, needing no owner input, and depending only on finished work or earlier todo items. Automated loops take work only from `work/todo.md`.
 - **Backlog** is not ready. Never start backlog work unless the owner asks. New ideas and owner-accepted discovered work go here, as one index line in `work/backlog.md` plus a detail file in `work/backlog/`.
 - Only the owner approves moving an item from backlog to todo. If a todo item turns out to be blocked, move it to the backlog and say what it is waiting on.

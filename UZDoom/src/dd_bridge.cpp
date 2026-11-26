@@ -63,11 +63,13 @@ bool DD_ItemsNetEvent(dfb_session *session, const char *name);
 bool DD_MonstersEvent(const dfb_event &e);
 void DD_MonstersFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t target);
 void DD_MonstersResync();
+#include "dd_locations.h"
 void DD_MonsterDied(dfb_session *session, AActor *mo);
 bool DD_NpcsEvent(const dfb_event &e);
 void DD_NpcsFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t target);
 void DD_NpcsResync();
 bool DD_InfoEvent(const dfb_event &e);
+void DD_InfoUiClosed();
 bool DD_InfoNetEvent(dfb_session *session, const char *name);
 bool DD_LookEvent(const dfb_event &e);
 void DD_LookFrame(dfb_session *session);
@@ -88,6 +90,7 @@ bool DD_SetupReady(int64_t now);
 double DD_SetupAgeMs(int64_t now);
 double DD_SetupReadyMs();
 void DD_LightsSetCity(bool on);	// playsim/dd_lights.cpp
+bool DD_WeatherText(const char *text);	// playsim/dd_weather.cpp
 void DD_GuardsFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t target);
 void DD_GuardDied(dfb_session *session, AActor *mo);
 
@@ -326,6 +329,7 @@ void HandleEvent(const dfb_event &e, int64_t now)
 		memcpy(text, e.payload, sizeof(e.payload));
 		int lampsOn;
 		if (sscanf(text, "citylights %d", &lampsOn) == 1) { DD_LightsSetCity(lampsOn != 0); break; }	// Daggerfall's clock, for town lamps
+		if (DD_WeatherText(text)) break;	// Daggerfall's sky, light, weather and ambient sounds (dd_weather.cpp)
 		Log("message from Daggerfall: \"%s\" (seq %u)", text, e.seq);
 		break;
 	}
@@ -333,7 +337,7 @@ void HandleEvent(const dfb_event &e, int64_t now)
 		Log("hello from Daggerfall (seq %u)", e.seq);
 		break;
 	default:
-		if (!DD_ItemsEvent(e) && !DD_MonstersEvent(e) && !DD_NpcsEvent(e) && !DD_InfoEvent(e) && !DD_LookEvent(e) && !DD_TownsfolkEvent(e) && !DD_GuardsEvent(e) && !DD_DoorsEvent(e)) unknownKinds++; // contract rule 7: skip, never fatal
+		if (!DD_ItemsEvent(e) && !DD_MonstersEvent(e) && !DD_LocationsEvent(e) && !DD_NpcsEvent(e) && !DD_InfoEvent(e) && !DD_LookEvent(e) && !DD_TownsfolkEvent(e) && !DD_GuardsEvent(e) && !DD_DoorsEvent(e)) unknownKinds++; // contract rule 7: skip, never fatal
 		break;
 	}
 }
@@ -450,6 +454,7 @@ void FinishUi(const char *why)
 	uiInputLatency.count = uiInputLatency.next = uiFrameAge.count = uiFrameAge.next = uiUpload.count = uiUpload.next = 0;
 	uiTestShotNs = 0;
 	uiTestAtNs = dfb_now_ns() + 2000000000LL;
+	DD_InfoUiClosed();
 }
 
 void HandleUiState(const dfb_event &e)
@@ -564,6 +569,7 @@ const char *UiCommandName(uint32_t id)
 {
 	if (id == DFB_UI_TALK) return "+use";
 	if (id == DFB_UI_JOURNAL) return "netevent df_journal";
+	if (id == DFB_UI_REST) return "netevent df_rest";
 	return id == DFB_UI_INVENTORY || id == DFB_UI_LOOT ? "netevent df_inventory" : id == DFB_UI_MAP ? "togglemap" : "netevent df_fast_travel";
 }
 
@@ -767,6 +773,37 @@ bool DD_BridgeItemNetEvent(const char *name)
 	return session && (DD_ItemsNetEvent(session, name) || DD_InfoNetEvent(session, name) || DD_ClimbNetEvent(session, name) || DD_DoorsNetEvent(session, name) || DD_SetupNetEvent(name));
 }
 
+bool DD_IsDrlaSpawner(AActor *mo);
+
+// What Daggerfall's rest checks would see if its world were the one shown (DaggerfallUI's rest message,
+// GameManager.AreEnemiesNearby while resting): a live hostile monster that targets the player and sees them, or
+// any within Daggerfall's 12 m resting distance; and whether the player stands on the ground, out of deep water.
+static uint32_t RestState()
+{
+	constexpr double RestingDistance = 12 * 75.0; // Daggerfall's metres, at the Doom maps' 75 units per metre
+	AActor *pmo = players[consoleplayer].mo;
+	if (!pmo) return DFB_REST_NOT_GROUNDED;
+	uint32_t state = 0;
+	const bool standing = pmo->Z() <= pmo->floorz + 1 || (pmo->flags2 & MF2_ONMOBJ); // on the floor, or on top of a solid actor
+	if (!standing || pmo->waterlevel >= 2) state |= DFB_REST_NOT_GROUNDED;
+	int near = 0, seeing = 0;
+	AActor *first = nullptr;
+	auto it = primaryLevel->GetThinkerIterator<AActor>();
+	while (AActor *mo = it.Next())
+	{
+		if (!(mo->flags3 & MF3_ISMONSTER) || mo->health <= 0 || (mo->flags & (MF_FRIENDLY | MF_CORPSE)) || DD_IsDrlaSpawner(mo)) continue;
+		const bool sees = mo->target == pmo && P_CheckSight(mo, pmo, SF_IGNOREVISIBILITY);
+		if (!sees && (mo->Pos() - pmo->Pos()).Length() > RestingDistance) continue;
+		near++;
+		seeing += sees;
+		if (!first) first = mo;
+	}
+	if (near) state |= DFB_REST_MONSTERS_NEAR;
+	Log("rest: %d hostile monsters near (%d see the player)%s%s, on the ground %d", near, seeing, first ? ", first " : "",
+		first ? first->GetClass()->TypeName.GetChars() : "", !(state & DFB_REST_NOT_GROUNDED));
+	return state;
+}
+
 bool DD_BridgeNetEvent(const char *name)
 {
 	if (session && !strcmp(name, "df_hp_damage")) // Demo only: stands in for a Daggerfall-side attacker
@@ -775,8 +812,8 @@ bool DD_BridgeNetEvent(const char *name)
 		return true;
 	}
 	if (!session) return false;
-	const bool inventory = !strcmp(name, "df_inventory"), journal = !strcmp(name, "df_journal");
-	if (!inventory && !journal && strcmp(name, "df_fast_travel")) return false;
+	const bool inventory = !strcmp(name, "df_inventory"), journal = !strcmp(name, "df_journal"), rest = !strcmp(name, "df_rest");
+	if (!inventory && !journal && !rest && strcmp(name, "df_fast_travel")) return false;
 	if (uiState != UiClosed)
 	{
 		SendUiCommand(DFB_KIND_UI_CLOSE, uiId);
@@ -791,6 +828,11 @@ bool DD_BridgeNetEvent(const char *name)
 	if (journal) // Daggerfall refuses travel from the journal's map unless Doom is outdoors, as below.
 	{
 		OpenUi(DFB_UI_JOURNAL, ownState.world_context);
+		return true;
+	}
+	if (rest) // Daggerfall decides, with its own messages, from what Doom sees around the player.
+	{
+		OpenUi(DFB_UI_REST, RestState());
 		return true;
 	}
 	// Daggerfall's own indoor check cannot see this: its hidden player waits outside the door Doom used.
@@ -1408,8 +1450,7 @@ bool SaveStart(const char *filename, const char *description, bool isAuto)
 	e.tic = gametic;
 	const dfb_save_request body{ saveTxn, hpNextEvent - 1, saveStartNs };
 	memcpy(e.payload, &body, sizeof(body));
-	dfb_send(session, &e);
-	dfb_flush(session);
+	DD_LocationsSave(session, e); // Behind the dungeon's record (dd_locations.cpp), paced so a big record cannot overflow.
 	Log("save %u: Doom frozen at tic %d, %s, file %s, requested Daggerfall's save", saveTxn, gametic, WhereForLog().GetChars(), ExtractFileBase(filename, true).GetChars());
 	return true;
 }
@@ -1488,7 +1529,7 @@ void D_StartTitle();
 
 namespace
 {
-constexpr int64_t LoadTimeoutNs = 30000000000LL, LoadPeerWaitNs = 15000000000LL, DeathViewNs = 2500000000LL;
+constexpr int64_t LoadTimeoutNs = 30000000000LL, LoadPeerWaitNs = 15000000000LL, DeathViewNs = 2500000000LL, LoadStallNs = 10000000000LL;
 enum LoadState { LoadIdle, LoadPending, LoadWaitDf, LoadWaitResume };
 enum DeathState { DeathNone, DeathView, DeathMenu };
 LoadState loadState = LoadIdle;
@@ -1748,6 +1789,7 @@ void HandleLoadResume(const dfb_event &e)
 	M_ClearMenus();
 	DD_ItemsResync();
 	DD_MonstersResync();
+	DD_LocationsResync();
 	DD_NpcsResync();
 	DD_TownsfolkResync();
 	Log("load %u: both games resumed, %.1f ms frozen, %s", loadTxn, (dfb_now_ns() - loadStartNs) / 1e6, WhereForLog().GetChars());
@@ -1811,7 +1853,8 @@ void PumpLoad(int64_t now)
 	if (loadState == LoadWaitDf || loadState == LoadWaitResume)
 	{
 		pauseext = true;
-		if (now - loadStartNs > LoadTimeoutNs || peerStale)
+		// Daggerfall's load blocks its main thread for seconds (its scene build), as a new character's does (NgStallNs).
+		if (now - loadStartNs > LoadTimeoutNs || (peerStale && now - peerStaleAt > LoadStallNs))
 		{
 			SendLoadDone(false);
 			LoadBreak("Daggerfall stopped responding");
@@ -2414,6 +2457,7 @@ void DD_BridgeFrame()
 	PublishPosition();
 	DD_ItemsFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
 	DD_MonstersFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
+	DD_LocationsFrame(session);
 	DD_NpcsFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
 	DD_TownsfolkFrame(session, ownState.world_context);
 	DD_ClimbFrame(session);

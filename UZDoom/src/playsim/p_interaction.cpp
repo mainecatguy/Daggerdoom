@@ -315,6 +315,7 @@ void ClientObituary (AActor *self, AActor *inflictor, AActor *attacker, int dmgf
 EXTERN_CVAR (Int, fraglimit)
 
 void DD_BridgeMonsterDied(AActor *mo); // [Doomerfall]
+#include "dd_lootrng.h" // [Doomerfall]
 
 void AActor::Die (AActor *source, AActor *inflictor, int dmgflags, FName MeansOfDeath)
 {
@@ -797,6 +798,8 @@ DEFINE_ACTION_FUNCTION(AActor, Die)
 
 void AActor::CallDie(AActor *source, AActor *inflictor, int dmgflags, FName MeansOfDeath)
 {
+	DD_LootDied(this); // [Doomerfall] fixed loot: zero unless it has a Daggerfall id
+	DDLootScope lootScope(this);
 	IFVIRTUAL(AActor, Die)
 	{
 		VMValue params[] = { (DObject*)this, source, inflictor, dmgflags, MeansOfDeath.GetIndex() };

@@ -25,6 +25,17 @@ class Doomerfall_Events : StaticEventHandler
 		if (at < 0) at = d.mItems.Size();
 		let item = new("OptionMenuItemSubmenu").Init("Doomerfall Controls", 'DoomerfallControlsMenu');
 		d.mItems.Insert(at, item);
+		// Items leave only by Daggerfall's inventory window (d_net.cpp, DoomerfallGuns), so the drop keys are hidden.
+		// The commands and bindings stay for other wads.
+		HideControls('InventoryControlsMenu', 'weapdrop', 'invdrop');
+		HideControls('DRLAControlsMenu', '+zoom', 'rl_specialitemdropper'); // DRLA's "Drop Item", "Remove Special Item"
+	}
+
+	static ui void HideControls(Name menu, Name a, Name b)
+	{
+		let d = OptionMenuDescriptor(MenuDescriptor.GetDescriptor(menu));
+		for (int i = d ? d.mItems.Size() - 1 : -1; i >= 0; i--)
+			if (d.mItems[i] is "OptionMenuItemControlBase" && (d.mItems[i].GetAction() == a || d.mItems[i].GetAction() == b)) d.mItems.Delete(i);
 	}
 
 	// True on a generated Daggerfall map in a bridge session. The engine sends it when the map context changes (dd_items.cpp).
@@ -136,7 +147,7 @@ class Doomerfall_Events : StaticEventHandler
 		{
 			DDLog.Debug("Doomerfall: action fired: Open Inventory");
 		}
-		else if (e.Name != "df_interact" && e.Name != "df_info" && e.Name != "df_change_ammo" && e.Name != "df_journal") // The engine handles these in a bridge session (dd_items.cpp, dd_info.cpp, dd_bridge.cpp).
+		else if (e.Name != "df_interact" && e.Name != "df_info" && e.Name != "df_change_ammo" && e.Name != "df_journal" && e.Name != "df_rest") // The engine handles these in a bridge session (dd_items.cpp, dd_info.cpp, dd_bridge.cpp).
 		{
 			DDLog.Debug(String.Format("Doomerfall: unknown action %s", e.Name));
 		}

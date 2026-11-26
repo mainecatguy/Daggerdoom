@@ -32,6 +32,15 @@ DRLA = ["DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.
 CH = "ColourfulHell_1_04.pk3"
 CHCOMPAT = Path(r"D:\dev\DoomDaggerfall-build\ch-compat.pk3")
 WAD = "privateershold.wad"
+RUNS = REVIEW / "run"
+for flag in ("--exe", "--runs"):  # another build and log folder: --exe <uzdoom.exe> --runs <dir>
+    if flag in sys.argv:
+        at = sys.argv.index(flag)
+        if flag == "--exe":
+            UZ = Path(sys.argv[at + 1])
+        else:
+            RUNS = Path(sys.argv[at + 1])
+        del sys.argv[at:at + 2]
 FATAL = ("Script error", "VM execution aborted", "Unhandled exception", "Execution could not continue", "FATAL")
 
 
@@ -53,7 +62,7 @@ def make_wad():
 
 
 def run(level, name, drla, spacing, dungeon=None, ch=False, perf=None):
-    runs = REVIEW / "run"
+    runs = RUNS
     runs.mkdir(parents=True, exist_ok=True)
     log = runs / f"log-{name}.txt"   # UZDoom names a relative +logfile log-<name>.txt
     log.unlink(missing_ok=True)
@@ -85,14 +94,14 @@ def markers():
 
 
 def mooks(name):
-    body = (REVIEW / "run" / f"log-{name}.txt").read_text(errors="replace")
+    body = (RUNS / f"log-{name}.txt").read_text(errors="replace")
     rows = re.findall(r"DDENC mook ([0-9a-f]+) (\S+) p (\d+) m (\d+) at (-?[\d.]+),(-?[\d.]+),(-?[\d.]+)", body)
     return body, [(int(i, 16), c, int(p), int(m), float(x), float(y), float(z)) for i, c, p, m, x, y, z in rows]
 
 
 def contract(name):
     """Card 7: every placement has a mook, every leader is on its origin, and the points add up."""
-    body = (REVIEW / "run" / f"log-{name}.txt").read_text(errors="replace")
+    body = (RUNS / f"log-{name}.txt").read_text(errors="replace")
     plan = re.search(r"DDENC plan .*? pool (\d+) spent (\d+) mooks (\d+) moved-dropped (\d+) bosses (\S+) titan (-?\d+) leftover (-?\d+) titanclass (\S+)", body)
     placer = re.search(r"DDENC placer placements (\d+) mooks (\d+) unplaced (\d+) .*?cheapest-leaders (\d+) \(\+(\d+) pts\).*?dropped-points \(map full\) (\d+)", body)
     con = re.search(r"DDENC contract placed-cost (\d+) empty-placements (\d+)", body)

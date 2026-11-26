@@ -87,19 +87,36 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         }
 
         // Every Doom item Daggerfall creates comes from here. A gun gets a material rolled with the approved odds
-        // (DoomerfallDrops.RollMaterial) at the area level where it is created, like any other loot.
-        internal static DoomerfallDoomItem Create(string doomClass, uint flags)
+        // (DoomerfallDrops.RollMaterial) at the area level where it is created, like any other loot. A nonzero lootSeed
+        // (LootSeed.Of, from the floor item's lasting id) makes the roll the same in every game. A gun that already has
+        // a material (carried, from a drop out of the inventory; -1 for none) keeps it and rolls nothing.
+        internal static DoomerfallDoomItem Create(string doomClass, uint flags, int lootSeed = 0, int carried = -1)
         {
             DoomerfallDoomItem item = new DoomerfallDoomItem(doomClass, flags);
             if (item.IsGun)
-                item.Material = DoomerfallDrops.RollMaterial(WorldLevel.Current);
+                item.Material = carried >= 0 ? (WeaponMaterialTypes)carried : RollMaterial(lootSeed);
             return item;
+        }
+
+        // The material roll of a new gun. Seeded (lootSeed nonzero), it leaves Unity's shared generator as it was.
+        internal static WeaponMaterialTypes RollMaterial(int lootSeed)
+        {
+            if (lootSeed == 0)
+                return DoomerfallDrops.RollMaterial(WorldLevel.Current);
+            using (new LootSeed.Scope(lootSeed))
+                return DoomerfallDrops.RollMaterial(WorldLevel.Current);
+        }
+
+        // A gun's inventory name: "<material> <Doom name>".
+        internal static string GunName(WeaponMaterialTypes material, string doomClass)
+        {
+            return DaggerfallUnity.Instance.TextProvider.GetWeaponMaterialName(material) + " " + DoomerfallDoomItems.NameFor(doomClass);
         }
 
         string MaterialName { get { return DaggerfallUnity.Instance.TextProvider.GetWeaponMaterialName(Material); } }
         public override string ItemName
         {
-            get { return IsGun ? MaterialName + " " + DoomerfallDoomItems.NameFor(DoomClass) : DoomerfallDoomItems.NameFor(DoomClass); }
+            get { return IsGun ? GunName(Material, DoomClass) : DoomerfallDoomItems.NameFor(DoomClass); }
         }
 
         // Daggerfall's misc item text for most Doom items. A gun's info names its material.
@@ -162,10 +179,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         uint nextRequest = 1, artRequest;
         readonly List<string> takeState = new List<string>();
         uint takeStateRequest;
+        uint takeIdRequest;
+        ulong takeId;
         string testFolder; // -dfdoomitemstest FOLDER: writes each inventory picture there and uses a taken RLBlurSphere at once.
         DoomerfallDoomItem testUse;
         string artClass;
         float artDeadline;
+        readonly HashSet<uint> lateArt = new HashSet<uint>(); // Art requests that timed out; a late answer is still used.
 
         // Before any save can load, so Daggerfall can rebuild Doom items from it.
         internal static void Register()
@@ -241,20 +261,73 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return Math.Min(available, (Mathf.RoundToInt(capacityKg * 400f) - Mathf.RoundToInt(loadKg * 400f)) / unit);
         }
 
-        // One state line of the gun in the next take request (DFB_KIND_DOOM_ITEM_GUN_STATE).
+        // One state line of the gun in the next take request (DFB_KIND_DOOM_ITEM_GUN_STATE). The material line of a gun
+        // dropped from the inventory is not gun state: it gives the taken gun its material back.
         internal void OnTakeState(uint request, uint amount, string cls)
         {
             if (request != takeStateRequest)
             {
                 takeState.Clear();
                 takeStateRequest = request;
+                takeMaterial = -1;
             }
-            takeState.Add(cls + "=" + amount);
+            if (cls == GunMaterialClass)
+                takeMaterial = CarriedMaterial((int)amount);
+            else
+                takeState.Add(cls + "=" + amount);
+        }
+
+        // The token that carries a dropped gun's material on Doom's floor (DoomerfallGuns.zs), as material + 1.
+        internal const string GunMaterialClass = "DoomerfallGunMaterial";
+        int takeMaterial = -1;
+
+        static int CarriedMaterial(int amount)
+        {
+            return amount >= 1 && amount <= (int)WeaponMaterialTypes.Daedric + 1 ? amount - 1 : -1;
+        }
+
+        // The seed of a floor gun's material roll: the same floor item rolls the same material in every game. 0 (no
+        // lasting id) rolls freely.
+        static int FloorSeed(string cls, ulong floorId)
+        {
+            return floorId != 0 ? LootSeed.Of(LootSeed.DoomFloorItem, cls, (long)floorId) : 0;
+        }
+
+        // The look label of a Doom gun on Doom's floor (UZDoom/src/dd_look.cpp): the name OnTake would give it now, by
+        // the same material rule. "" when its material is not fixed yet (no lasting id and none carried) or Doom has not
+        // sent its name yet (asked for here, so the next look has it). Changes nothing.
+        internal static string FloorGunLabel(string cls, ulong floorId, int carriedAmount)
+        {
+            int carried = CarriedMaterial(carriedAmount);
+            if (instance == null || string.IsNullOrEmpty(cls) || (floorId == 0 && carried < 0))
+                return "";
+            Art known;
+            if (!instance.art.TryGetValue(cls, out known) || string.IsNullOrEmpty(known.tag))
+            {
+                instance.RequestArt(cls);
+                return "";
+            }
+            WeaponMaterialTypes material = carried >= 0 ? (WeaponMaterialTypes)carried : DoomerfallDoomItem.RollMaterial(FloorSeed(cls, floorId));
+            return DoomerfallDoomItem.GunName(material, cls);
+        }
+
+        // The floor item's lasting id, sent just before its take request (DFB_KIND_DOOM_ITEM_ID).
+        internal void OnTakeId(uint request, ulong id)
+        {
+            takeIdRequest = request;
+            takeId = id;
         }
 
         // The player pressed Use on a Doom item. Daggerfall's weight rule decides.
         internal void OnTake(uint request, uint flags, string cls)
         {
+            // The same floor item rolls the same material in every game; an item without a lasting id rolls freely.
+            ulong floorId = takeIdRequest == request ? takeId : 0;
+            int lootSeed = FloorSeed(cls, floorId);
+            int carried = takeStateRequest == request ? takeMaterial : -1;
+            takeMaterial = -1;
+            takeIdRequest = 0;
+            takeId = 0;
             uint status = Dfb.ITEM_TAKEN;
             PlayerEntity player = GameManager.HasInstance ? GameManager.Instance.PlayerEntity : null;
             if (player == null || sync.LoadRunning || GameManager.IsGamePaused || cls.Length == 0)
@@ -264,7 +337,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DoomerfallDoomItem taken = null;
             if (status == Dfb.ITEM_TAKEN)
             {
-                taken = DoomerfallDoomItem.Create(cls, flags);
+                taken = DoomerfallDoomItem.Create(cls, flags, lootSeed, carried);
                 if (taken.IsGun && takeStateRequest == request)
                     taken.GunState = string.Join(";", takeState.ToArray()); // A DRLA modded pickup's mods.
                 player.Items.AddItem(taken);
@@ -279,7 +352,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 DoomerfallHotkeys.Instance.OnGunTaken(taken, (int)((flags & Dfb.DOOM_ITEM_SLOT_MASK) >> (int)Dfb.DOOM_ITEM_SLOT_SHIFT) - 1);
             bridge.LogLine(string.Format("doomitems: take {0} \"{1}\" flags 0x{6:x}: status {2}, carried {3:F2}/{4} kg, doom items {5}{7}",
                 request, cls, status, player != null ? player.CarriedWeight : 0, player != null ? player.MaxEncumbrance : 0, player != null ? Count(player.Items) : 0,
-                flags, taken != null ? ", stored as \"" + taken.shortName + "\"" + (taken.IsGun ? " material " + taken.Material + " at area level " + WorldLevel.Current : "") : ""));
+                flags, taken != null ? ", stored as \"" + taken.shortName + "\" named \"" + taken.ItemName + "\"" + (taken.IsGun ? " material " + taken.Material + " at area level " + WorldLevel.Current : "") : "")
+                + string.Format(", floor id {0:x16}{1}", floorId, carried >= 0 ? ", material carried from a drop" : ""));
         }
 
         static int Count(ItemCollection items)
@@ -317,10 +391,63 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             PlayerEntity player = GameManager.Instance.PlayerEntity;
             DaggerfallUnityItem item = player.Items.GetItem(uid);
             bool removed = status == Dfb.ITEM_TAKEN && item != null;
+            bool drop = (request & DropRequest) != 0;
             if (removed)
+            {
+                if (drop && DoomerfallHotkeys.Instance != null)
+                    DoomerfallHotkeys.Instance.ForgetActive(item);   // the gun Doom held went down with its pickup
                 player.Items.RemoveItem(item);
-            bridge.LogLine(string.Format("doomitems: used {0} \"{1}\": status {2}, record {3}", request, cls, status, removed ? "removed" : "kept"));
+            }
+            bridge.LogLine(string.Format("doomitems: {0} {1} \"{2}\": status {3}, record {4}", drop ? "dropped" : "used", request, cls, status, removed ? "removed" : "kept"));
             RefreshInventory();
+        }
+
+        // Owner rule (2026-11-24): a Doom item dropped from Daggerfall's inventory window becomes its own Doom pickup, not a
+        // Daggerfall pile. The window calls this with the items it is about to pile (DaggerfallInventoryWindow, on close).
+        // Each Doom item goes back to the player's inventory and Doom is asked to spawn it, a gun carrying its stored state
+        // (its magazine and DRLA mods); the item leaves Daggerfall's inventory only when Doom confirms (OnUsed), so a
+        // failed spawn loses nothing. The pickup is then a Doom ground item in the location record like any other.
+        const uint DropRequest = 0x40000000;   // keeps these requests apart from hotkey swaps in DoomerfallGuns.zs
+        const uint DropOnGround = 0x100, DropHeld = 0x200;   // DOOM_ITEM_USE status bits (dd_items.cpp)
+
+        internal static void DropToDoom(ItemCollection dropped)
+        {
+            if (instance == null || dropped == null)
+                return;
+            PlayerEntity player = GameManager.Instance.PlayerEntity;
+            List<DoomerfallDoomItem> doom = new List<DoomerfallDoomItem>();
+            for (int i = 0; i < dropped.Count; i++)
+            {
+                DoomerfallDoomItem item = dropped.GetItem(i) as DoomerfallDoomItem;
+                if (item != null)
+                    doom.Add(item);
+            }
+            foreach (DoomerfallDoomItem item in doom)
+            {
+                player.Items.Transfer(item, dropped);
+                uint request = (instance.nextRequest++) | DropRequest;
+                instance.pendingUses[request] = item.UID;
+                int lines = 0;
+                if (item.IsGun)
+                {
+                    // Its material goes with it, so the floor shows it and taking it back gives the same gun.
+                    instance.Send(Dfb.KIND_GUN_STATE, request, (uint)item.Material + 1, GunMaterialClass);
+                    lines++;
+                }
+                if (item.IsGun)
+                    foreach (string line in item.GunState.Split(';'))
+                    {
+                        int eq = line.IndexOf('=');
+                        int amount;
+                        if (eq <= 0 || !int.TryParse(line.Substring(eq + 1), out amount))
+                            continue;
+                        instance.Send(Dfb.KIND_GUN_STATE, request, (uint)amount, line.Substring(0, eq));
+                        lines++;
+                    }
+                bool held = DoomerfallHotkeys.Instance != null && DoomerfallHotkeys.Instance.ActiveGun == item;
+                instance.Send(Dfb.KIND_DOOM_ITEM_USE, request, DropOnGround | (held ? DropHeld : 0), item.DoomClass);
+                instance.bridge.LogLine(string.Format("doomitems: drop {0} \"{1}\" sent to Doom with {2} state lines{3}", request, item.shortName, lines, held ? ", the gun Doom holds" : ""));
+            }
         }
 
         internal static string NameFor(string cls)
@@ -372,6 +499,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (artClass != null && Time.unscaledTime > artDeadline)
             {
                 bridge.LogLine("doomitems: no art for \"" + artClass + "\" in time");
+                Art late;
+                if (art.TryGetValue(artClass, out late))
+                    late.requested = false; // Asked again the next time it is drawn or looked at.
+                lateArt.Add(artRequest);
                 artClass = null;
             }
             if (artClass != null || artQueue.Count == 0)
@@ -384,9 +515,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         internal void OnArt(uint request, uint status, string cls)
         {
-            if (request != artRequest || artClass == null)
+            if (request == artRequest && artClass != null)
+                artClass = null;
+            else if (!lateArt.Remove(request)) // A late answer to a timed-out request (Doom slow to answer) still counts.
                 return;
-            artClass = null;
             Art known;
             if (!art.TryGetValue(cls, out known))
                 return;

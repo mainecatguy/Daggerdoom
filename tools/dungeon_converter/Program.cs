@@ -23,6 +23,7 @@ class DoorInfo
     public int Id, Block; public double MinX, MaxX, MinY, MaxY, MinZ, MaxZ; public int Control, Height;
     // Real placement. The pivot is the model origin, which is the hinge DaggerfallActionDoor rotates about.
     public uint Model; public double PivotX, PivotY, PivotZ, RxDeg, RyDeg, RzDeg;
+    public int Instance; public double SwingDir = 1; // the door's mesh triangles, and -1 on a flipped door (as DFDOORS)
     public double LocalMinX = 1e9, LocalMaxX = -1e9, LocalMinY = 1e9, LocalMaxY = -1e9, LocalMinZ = 1e9, LocalMaxZ = -1e9;
 }
 class Node { public int Id, I, J, F, C, Block; public bool Door; }
@@ -79,6 +80,7 @@ static partial class Program
         if (args.Contains("--list-tilted-doors")) return ListTiltedDoors(arena2);
         if (args.Contains("--list-main")) return ListMain(arena2, args.Contains("--list-all"));
         if (args.Contains("--list-flats")) return ListFlats(arena2);
+        if (Array.IndexOf(args, "--flat-census") is int fc && fc >= 0) return FlatCensus(arena2, args[fc + 1]); // FlatCensus.cs
         if (args.Contains("--list-door-actions")) return ListDoorActions(arena2);
         if (args.Contains("--list-trapdoors")) return ListTrapdoors(arena2);
         if (args.Contains("--list-markers")) return ListMarkers(arena2); // MarkerCensus.cs
@@ -332,6 +334,7 @@ static partial class Program
             {
                 Id = doors.Count, Block = block, MinX = 1e9, MinY = 1e9, MinZ = 1e9, MaxX = -1e9, MaxY = -1e9, MaxZ = -1e9,
                 Model = id, PivotX = pivot.X, PivotY = pivot.Y, PivotZ = pivot.Z, RxDeg = rx / toRad, RyDeg = ry / toRad, RzDeg = rz / toRad,
+                Instance = instance, SwingDir = Rotate(new V3(0, 1, 0), rx, ry, rz).Y < 0 ? -1 : 1,
             };
         }
         foreach (var sub in mesh.SubMeshes)

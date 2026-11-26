@@ -1,0 +1,335 @@
+version "4.14"
+
+// Fixed drops, paired: after a real New Game (or a bundled load of the save run's autosave), kill every monster near
+// the Privateer's Hold start, list what they dropped, and take one dropped gun with a real Use press, so Daggerfall
+// rolls its material through the bridge. Every step prints a PD line. Test only, loaded by tools/fixed_drops/paired.py.
+class PDHarness : EventHandler // Not static: a bundled load restores phase from the save, which is how the load run resumes.
+{
+	const RADIUS = 1200;
+	// The Privateer's Hold dungeon door on its entrance map DDT07154 (x, y, z, nx, ny), from the town cache. Travel only.
+	static const double DOORSPOT[] = { @DOOR@ };
+	// 0 fresh, 1 save before the kill, 2 load the save run's autosave, 3 travel: a character in Daggerfall city (the test
+	// start), who has never been to Privateer's Hold, goes overland to it and enters through its door as a player would.
+	// Daggerfall's Find Location only lists discovered places, so the overland trip uses the dd_tm_warp test hook (the
+	// overworld handoff fast travel uses) to the dungeon's map pixel, 109,158, instead of a long walk. A function, not a const and not a field: constant
+	// conditions upset UZDoom's script VM, and a field would be replaced from the save on load.
+	static int Mode() { return @MODE@; }
+	int phase, timer, ammoSeen;
+	bool done, resumed;
+	vector3 start;
+	Array<Actor> before, victims;
+	Actor gun;
+	// Phase 6, summoned monsters (owner rule 2026-11-25: they drop nothing): monsters there before the summons, a placed
+	// monster used as the "other monster" killer, the summoners, loose items before, and who killed what.
+	Array<Actor> present, looseBefore;
+	Actor placedKiller, pe, ow;
+	int soulsByPlayer, soulsByMonster, dronesByPlayer, dronesByMonster, summonedDied;
+
+	void Finish(String how) { Console.Printf("PDDONE %s", how); done = true; }
+
+	void PressUse(PlayerPawn p)
+	{
+		uint saved = players[0].cmd.buttons;
+		players[0].cmd.buttons |= BT_USE;
+		players[0].usedown = false;
+		p.CheckUse();
+		players[0].cmd.buttons = saved;
+	}
+
+	static bool IsGunPickup(Actor a)
+	{
+		String n = a.GetClassName();
+		return a.DD_LootSeed() != 0 && n.Left(2) == "RL" && n.Mid(n.Length() - 6) == "Pickup";
+	}
+
+	// Anywhere on the level, at any time: a monster that dies without a loot seed (it had no Daggerfall id, so its drops
+	// would be random) is reported. The engine seeds a dying monster before its Die runs, so the seed is set here.
+	// From phase 6 on, monsters are summoned on purpose, and a death without a seed is expected (PDSUMMONDIED).
+	override void WorldThingDied(WorldEvent e)
+	{
+		let a = e.Thing;
+		if (done || !a || !a.bISMONSTER || a.player || a.DD_LootSeed()) return;
+		if (phase < 6)
+		{
+			Console.Printf("PDNOID %s spawned at %.0f %.0f %.0f", a.GetClassName(), a.SpawnPoint.x, a.SpawnPoint.y, a.SpawnPoint.z);
+			return;
+		}
+		bool byPlayer = e.Inflictor && e.Inflictor.player;
+		String by = "nobody";
+		if (byPlayer) by = "player"; else if (e.Inflictor) by = e.Inflictor.GetClassName();
+		summonedDied++;
+		String cn = a.GetClassName();
+		if (cn.IndexOf("LostSoul") >= 0) { if (byPlayer) soulsByPlayer++; else if (e.Inflictor) soulsByMonster++; }
+		if (cn.IndexOf("Drone") >= 0) { if (byPlayer) dronesByPlayer++; else if (e.Inflictor) dronesByMonster++; }
+		Console.Printf("PDSUMMONDIED %s by %s", cn, by);
+	}
+
+	// Phase 6: kills every monster that was not there before the summons, the even ones by the player, the odd ones by
+	// a placed (Daggerfall id) monster. Unshootable ones are woken first, as in phase 3.
+	void KillSummoned(PlayerPawn p, Actor skip1, Actor skip2)
+	{
+		let it = ThinkerIterator.Create("Actor");
+		Actor a;
+		int n[3];	// Per kind (Lost Soul, drone, other), so each kind alternates between the two killers.
+		n[0] = n[1] = n[2] = 0;
+		while (a = Actor(it.Next()))
+		{
+			if (!a.bISMONSTER || a.player || a.health <= 0 || a == skip1 || a == skip2 || present.Find(a) != present.Size()) continue;
+			if (!a.bSHOOTABLE && a.SeeState) { a.target = p; a.SetState(a.SeeState); }
+			String cn = a.GetClassName();
+			int kind = cn.IndexOf("LostSoul") >= 0 ? 0 : cn.IndexOf("Drone") >= 0 ? 1 : 2;
+			Actor killer = placedKiller;
+			if (n[kind]++ % 2 == 0 || !placedKiller) killer = p;
+			String kn = "player";
+			if (killer != p) kn = killer.GetClassName();
+			Console.Printf("PDSUMMONKILL %s by %s", a.GetClassName(), kn);
+			a.DamageMobj(killer, killer, 100000, 'None', DMG_FORCED);
+			if (a.health > 0) Console.Printf("PDSUMMONALIVE %s after the blow", a.GetClassName());
+		}
+	}
+
+	// A plain ammo pickup dropped during the kill becomes a tiered DFAmmo_ pickup (DoomerfallAmmo.zs), which rolls its
+	// tier from this pickup's seed and is itself spawned outside the roll. So the plain pickup's seed is what to check.
+	// As DoomerfallAmmoTiers.PlainType: DRLA's ammo pickups are CustomInventory, not Ammo, so classes are matched by name.
+	static bool IsPlainAmmo(Actor a)
+	{
+		static const name Plain[] = { 'Clip', 'ClipBox', 'RLClip', 'RLClipBox', 'Shell', 'ShellBox', 'RLShell', 'RLShellBox',
+			'RocketAmmo', 'RocketBox', 'RLRocketAmmo', 'RLRocketBox', 'Cell', 'CellPack', 'RLCell', 'RLCellPack' };
+		for (class<Object> c = a.GetClass(); c != null; c = c.GetParentClass())
+		{
+			name n = c.GetClassName();
+			if (n == 'DoomerfallAmmoPickup' || n == 'Inventory') return false;
+			for (int i = 0; i < Plain.Size(); i++) if (n == Plain[i]) return true;
+		}
+		return false;
+	}
+
+	override void WorldThingSpawned(WorldEvent e)
+	{
+		let a = Inventory(e.Thing);
+		if (done || phase < 3 || phase > 4 || !a || a.Owner || !IsPlainAmmo(a)) return;
+		ammoSeen++;
+		if (!a.DD_LootSeed()) Console.Printf("PDAMMOUNSEEDED %s at %.0f %.0f %.0f", a.GetClassName(), a.pos.x, a.pos.y, a.pos.z);
+	}
+
+	override void WorldTick()
+	{
+		if (done || !playeringame[0] || !players[0].mo) return;
+		let p = players[0].mo;
+		timer++;
+		// From the first tic: the start room's neighbours otherwise wake and can kill the new character before the
+		// test begins, which also wakes the pack and changes who is alive at the kill.
+		players[0].cheats |= CF_GODMODE;
+		p.bNOTARGET = true;
+		// Privateer's Hold rolls Civil War, so its two armies start fighting each other at once, and which monsters
+		// that kills before the test's blow differs between games. The test is about drops, not that fight, so
+		// everything but the player stays frozen until the kill.
+		if (phase < 3 || (phase == 3 && timer < 35)) level.SetFrozen(true);
+		// The load run waits for the bridge to load the save run's autosave, which was made in phase 2.
+		if (Mode() == 2 && phase < 2) return;
+		if (Mode() == 2 && !resumed) { resumed = true; Console.Printf("PDRESUMED %s phase %d", level.MapName, phase); }
+		switch (phase)
+		{
+		case 0: // The New Game arrival in the dungeon, with Daggerfall in play.
+			if (Mode() == 3 && level.MapName ~== "DDOVER01" && CVar.FindCVar("dd_sync_df_phase").GetInt() == 3 && timer == 175)
+			{
+				// The door's tile is Daggerfall world 3592755,11190793 (DDTRANSITION in a New Game log) over 256 units a
+				// tile. A location is entered only by walking into it, so land 100 tiles south and walk north from there.
+				CVar.FindCVar("dd_tm_warp").SetString("14034 43610");
+				Console.Printf("PDWARP from %s to 100 tiles south of Privateer's Hold", level.MapName);
+			}
+			if (Mode() == 3 && level.MapName ~== "DDOVER01" && timer > 175 + 105)	// Walk north, 40 units a tic.
+			{
+				vector2 to = p.pos.xy + (0, 40);
+				p.SetOrigin((to, p.CurSector.NextLowestFloorAt(to.x, to.y, p.pos.z + 64)), false);
+				p.vel = (0, 0, 0);
+			}
+			if (Mode() == 3 && level.MapName ~== "DDT07154" && timer >= 35 * 2 && timer % 70 == 0)	// Arrived outside: use the door.
+			{
+				vector2 normal = (DOORSPOT[3], DOORSPOT[4]);
+				p.SetOrigin((DOORSPOT[0] + normal.x * 48, DOORSPOT[1] + normal.y * 48, DOORSPOT[2]), false);
+				p.angle = atan2(-normal.y, -normal.x);
+				p.vel = (0, 0, 0);
+				CVar.FindCVar("dd_tm_use").SetInt(1);
+				Console.Printf("PDDOOR use at %.0f %.0f", p.pos.x, p.pos.y);
+			}
+			if (!(level.MapName ~== "MAP01") || CVar.FindCVar("dd_sync_df_phase").GetInt() != 3) { if (Mode() != 3) timer = 0; break; }
+			if (timer < 35 * 3) break;
+			players[0].cheats |= CF_GODMODE;
+			p.bNOTARGET = true;
+			start = p.pos;
+			Console.Printf("PDARRIVED %s at %.0f %.0f %.0f", level.MapName, p.pos.x, p.pos.y, p.pos.z);
+			phase = 1; timer = 0;
+			break;
+		case 1: // The save run saves before the fight. Every run waits the same time here.
+			if (timer == 35 && Mode() == 1)
+			{
+				phase = 2; // The autosave is written after this tic, in phase 2: the load run resumes there.
+				timer = 0;
+				Console.Printf("PDSAVE autosave");
+				LevelLocals.MakeAutoSave();
+				break;
+			}
+			if (timer >= 35 * 10) { phase = 3; timer = 0; }
+			break;
+		case 2: // The save run, after asking for the save.
+			if (timer >= 35 * 9) { phase = 3; timer = 0; }
+			break;
+		case 3: // Kill the entrance's monsters, all with the same blow, credited to the player.
+		{
+			if (timer < 35) break;
+			level.SetFrozen(false);
+			before.Clear();
+			victims.Clear();
+			int dead = 0;
+			let it = ThinkerIterator.Create("Actor");
+			Actor a;
+			while (a = Actor(it.Next()))
+			{
+				if (a is "Inventory" && !Inventory(a).Owner) before.Push(a);
+				// Chosen by where each was placed, near Privateer's Hold's start, not by where it stands now or where
+				// the player arrived, which both drift by a few units between games.
+				if (!a.bISMONSTER || a.player || (a.SpawnPoint - (380, 1270, 0)).Length() >= RADIUS) continue;
+				if (a.health > 0) victims.Push(a); else dead++;
+			}
+			// A placed monster far from the start, for phase 6's kills by another monster. Every monster alive now was
+			// placed by Daggerfall (no PDNOID so far), so any survivor will do.
+			it = ThinkerIterator.Create("Actor");
+			while (a = Actor(it.Next()))
+			{
+				if (a.bISMONSTER && !a.player && a.health > 0 && victims.Find(a) == victims.Size()) { placedKiller = a; break; }
+			}
+			// The rest of the dungeon stays out of it: once unfrozen, the two Civil War armies would kill each other
+			// during the wait below, and those deaths' drops vary with the fight. Deactivate makes a monster dormant.
+			it = ThinkerIterator.Create("Actor");
+			while (a = Actor(it.Next()))
+				if (a.bISMONSTER && !a.player && a.health > 0 && victims.Find(a) == victims.Size()) a.Deactivate(null);
+			for (int i = 0; i < victims.Size(); i++)
+			{
+				a = victims[i];
+				Console.Printf("PDKILL %s spawned at %.0f %.0f %.0f", a.GetClassName(), a.SpawnPoint.x, a.SpawnPoint.y, a.SpawnPoint.z);
+				// Some DRLA monsters (RLFormerShocktrooper) wait unshootable and invisible until they see a target and
+				// "teleport in". Doom refuses all damage, even DMG_FORCED, to an unshootable actor (p_interaction.cpp
+				// DamageMobj), so the blow alone left them alive. A player meets them only once awake, so wake them.
+				if (!a.bSHOOTABLE && a.SeeState)
+				{
+					a.target = p;
+					a.SetState(a.SeeState);
+					Console.Printf("PDWOKE %s shootable %d", a.GetClassName(), a.bSHOOTABLE);
+				}
+				a.DamageMobj(p, p, 100000, 'None', DMG_FORCED);
+				if (a.health > 0) Console.Printf("PDALIVE %s after the blow", a.GetClassName());
+			}
+			Console.Printf("PDKILLED %d, %d near the start already dead", victims.Size(), dead);
+			phase = 4; timer = 0;
+			break;
+		}
+		case 4: // Let the death sequences and the drops play out, then list the new loose items.
+		{
+			if (timer < 35 * 8) break;
+			// A corpse's loot seed comes from its Daggerfall id; 0 means it died without one, so its drops are random.
+			for (int i = 0; i < victims.Size(); i++)
+				if (victims[i] && victims[i].health > 0)
+					Console.Printf("PDALIVE %s spawned at %.0f %.0f %.0f", victims[i].GetClassName(), victims[i].SpawnPoint.x, victims[i].SpawnPoint.y, victims[i].SpawnPoint.z);
+				else if (victims[i])
+					Console.Printf("PDCORPSE %s spawned at %.0f %.0f %.0f seed %08x", victims[i].GetClassName(), victims[i].SpawnPoint.x, victims[i].SpawnPoint.y, victims[i].SpawnPoint.z, victims[i].DD_LootSeed());
+			let it = ThinkerIterator.Create("Inventory");
+			Inventory a;
+			int n = 0;
+			int best = 0;
+			gun = null;
+			while (a = Inventory(it.Next()))
+			{
+				if (a.Owner || before.Find(a) != before.Size()) continue;
+				n++;
+				Console.Printf("PDDROP %s seed %08x @ %.0f %.0f %.0f", a.GetClassName(), a.DD_LootSeed(), a.pos.x, a.pos.y, a.pos.z);
+				String cn = a.GetClassName();
+				if (!a.DD_LootSeed() && cn.Left(7) != "DFAmmo_")
+				{
+					String t = "none", m = "none";
+					if (a.target) t = a.target.GetClassName();
+					if (a.master) m = a.master.GetClassName();
+					Console.Printf("PDUNSEEDED %s target %s master %s spawned at %.0f %.0f %.0f", cn, t, m, a.SpawnPoint.x, a.SpawnPoint.y, a.SpawnPoint.z);
+				}
+				if (IsGunPickup(a) && a.bSPECIAL && (!gun || a.DD_LootSeed() < best)) { gun = a; best = a.DD_LootSeed(); }
+			}
+			Console.Printf("PDDROPS %d", n);
+			Console.Printf("PDAMMOPLAIN %d", ammoSeen);
+			if (!gun) { Finish("nogun"); break; }
+			Console.Printf("PDTAKE %s seed %08x", gun.GetClassName(), best);
+			phase = 5; timer = 0;
+			break;
+		}
+		case 5: // One real Use press in front of the gun. Daggerfall answers, then it leaves the floor.
+			if (timer == 1)
+			{
+				// The gun lies among the corpses, whose Daggerfall loot piles would take the Use press. Its lasting
+				// id does not depend on where it lies, so it is carried to a clear spot by the start, as in
+				// tools/doomitems.
+				p.SetOrigin(start, false);
+				p.vel = (0, 0, 0);
+				p.pitch = 0;
+				for (int a = 0; a < 360; a += 45)
+				{
+					FLineTraceData t;
+					if (!p.LineTrace(a, 96, 0, TRF_THRUACTORS, 16, 0, 0, t) || t.HitType == TRACE_HitNone) { p.angle = a; break; }
+				}
+				gun.SetOrigin((start.xy + (cos(p.angle), sin(p.angle)) * 48, start.z), false);
+				gun.vel = (0, 0, 0);
+			}
+			if (timer == 4) PressUse(p);
+			if (timer < 6) break;
+			if (!gun || !gun.bSPECIAL) { Console.Printf("PDTAKEN after %d tics", timer - 4); phase = 6; timer = 0; }
+			else if (timer > 35 * 5) Finish("gun still on the floor");
+			break;
+		case 6: // Summoned monsters drop nothing: real summon actions next to the start, then kills by the player and by
+			// a placed monster. The summoners themselves are script spawns (no Daggerfall id), so they are summoned too.
+		{
+			if (timer == 35)
+			{
+				present.Clear();
+				looseBefore.Clear();
+				let it = ThinkerIterator.Create("Actor");
+				Actor a;
+				while (a = Actor(it.Next()))
+				{
+					if (a.bISMONSTER) present.Push(a);
+					if (a is "Inventory" && !Inventory(a).Owner) looseBefore.Push(a);
+				}
+				vector2 d = (0, 1); vector3 at = (383, 1254, 0);	// The New Game start, the same room whatever the arrival.
+				pe = Actor.Spawn("RLPainElemental", (at.xy - d * 96, at.z + 32));
+				ow = Actor.Spawn("RLFormerOverwatch", (at.xy + (d.y, -d.x) * 96, at.z));
+				Actor zm = Actor.Spawn("ZombieMan", (at.xy + (-d.y, d.x) * 96, at.z), ALLOW_REPLACE);	// DRLA's replacement.
+				pe.target = p;
+				for (int i = -1; i <= 1; i++) pe.A_PainAttack("RLLostSoulPE", i * 60, PAF_NOSKULLATTACK);	// The Pain Elemental's own summon.
+				for (int i = -1; i <= 1; i += 2) ow.A_SpawnItemEx("RLUACDefenceDrone", -48, i * 32, 24, 0, 0, 0, 0, SXF_SETMASTER | SXF_NOCHECKPOSITION);	// The Overwatch's drones.
+				String kn = "none", zn = "none";
+				if (placedKiller) kn = placedKiller.GetClassName();
+				if (zm) zn = zm.GetClassName();
+				Console.Printf("PDSUMMON killer %s pe %d ow %d zombie %s", kn, pe != null, ow != null, zn);
+			}
+			if (timer == 35 * 3) KillSummoned(p, pe, ow);	// The minions and the zombie.
+			if (timer == 35 * 5)	// The summoners: the Pain Elemental's death sends out its own Lost Souls.
+			{
+				if (pe && pe.health > 0) pe.DamageMobj(p, p, 100000, 'None', DMG_FORCED);
+				if (ow && ow.health > 0) ow.DamageMobj(placedKiller ? placedKiller : Actor(p), placedKiller ? placedKiller : Actor(p), 100000, 'None', DMG_FORCED);
+			}
+			if (timer == 35 * 7) KillSummoned(p, null, null);	// The souls from the Pain Elemental's death, and any stragglers.
+			if (timer < 35 * 13) break;
+			let it = ThinkerIterator.Create("Inventory");
+			Inventory a;
+			int n = 0;
+			while (a = Inventory(it.Next()))
+			{
+				if (a.Owner || looseBefore.Find(a) != looseBefore.Size()) continue;
+				n++;
+				Console.Printf("PDSUMMONDROP %s seed %08x @ %.0f %.0f %.0f", a.GetClassName(), a.DD_LootSeed(), a.pos.x, a.pos.y, a.pos.z);
+			}
+			Console.Printf("PDSUMMONED died %d, souls by player %d by monster %d, drones by player %d by monster %d, drops %d",
+				summonedDied, soulsByPlayer, soulsByMonster, dronesByPlayer, dronesByMonster, n);
+			Finish("passed");
+			break;
+		}
+		}
+	}
+}

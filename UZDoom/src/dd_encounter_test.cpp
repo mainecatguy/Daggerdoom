@@ -21,6 +21,7 @@
 #include "g_levellocals.h"
 #include "m_argv.h"
 #include "p_local.h"
+#include "p_checkposition.h"
 #include "printf.h"
 #include "stats.h"
 #include "d_player.h"
@@ -60,6 +61,56 @@ static bool perfStarted = false;
 static std::chrono::steady_clock::time_point lastTic;
 static std::vector<double> thinkMs, wallMs;
 
+void DD_MonstersRunClaimsForTest(FLevelLocals *Level);
+uint64_t DD_LootItemId(AActor *item);
+
+// Fixed drops (tools/fixed_drops/fixed_drops.py): -ddloottest keeps going after placement instead of quitting. It claims
+// DRLA's spawned monsters each tic as a bridge session would, spawns a few unplaced control monsters (no id, so their
+// drops stay unseeded) at map time 90, kills every monster at 120, and at 300 lists every monster and every loose item.
+// A game loaded with -loadgame skips placement, which the save already holds.
+static bool LootTestTick(FLevelLocals *Level, int &state)
+{
+	static int on = -1;
+	static bool killed = false;
+	if (on < 0) on = FindArg("-ddloottest") != 0;
+	if (!on || state < 0 || state == 3) return false;
+	DD_MonstersRunClaimsForTest(Level);
+	if (state == 0 && FindArg("-loadgame")) state = 1;
+	if (state == 1 && Level->maptime >= 80) state = 5;
+	if (state != 5) return false;
+	player_t *pl = Level->PlayerInGame(consoleplayer) ? Level->Players[consoleplayer] : nullptr;
+	if (pl && pl->mo) pl->cheats |= CF_GODMODE | CF_NOTARGET;
+	if (Level->maptime == 90 && pl && pl->mo)
+		for (int i = 0; i < 8; i++)
+			Spawn(Level, PClass::FindActor(i & 1 ? "ShotgunGuy" : "ChaingunGuy"), pl->mo->Vec3Offset(128.0 + 48 * (i / 4), -72.0 + 48 * (i % 4), 0), ALLOW_REPLACE);
+	if (Level->maptime >= 120 && !killed)
+	{
+		killed = true;
+		std::vector<AActor *> victims;
+		auto it = Level->GetThinkerIterator<AActor>();
+		while (AActor *mo = it.Next()) if ((mo->flags3 & MF3_ISMONSTER) && !mo->player && mo->health > 0) victims.push_back(mo);
+		for (AActor *mo : victims) P_DamageMobj(mo, nullptr, nullptr, mo->health, NAME_None, DMG_FORCED);
+		Printf("DDLOOTTEST killed %d monsters\n", int(victims.size()));
+	}
+	if (Level->maptime < 300) return true;
+	std::vector<FString> rows;
+	auto it = Level->GetThinkerIterator<AActor>();
+	while (AActor *mo = it.Next())
+	{
+		if (mo->player) continue;
+		if (mo->flags3 & MF3_ISMONSTER)
+			rows.push_back(FStringf("DDLOOT %s %016" PRIx64 " %s dead %d at %.0f,%.0f", mo->ddRecordId ? "mook" : "control", mo->ddRecordId, mo->GetClass()->TypeName.GetChars(), mo->health <= 0, mo->X(), mo->Y()));
+		else if (mo->IsKindOf(NAME_Inventory) && !mo->PointerVar<AActor>(NAME_Owner))
+			rows.push_back(FStringf("DDLOOT item %s id %016" PRIx64 " at %.1f,%.1f,%.1f", mo->GetClass()->TypeName.GetChars(), DD_LootItemId(mo), mo->X(), mo->Y(), mo->Z()));
+	}
+	std::sort(rows.begin(), rows.end(), [](const FString &a, const FString &b) { return strcmp(a.GetChars(), b.GetChars()) < 0; });
+	for (const FString &r : rows) Printf("%s\n", r.GetChars());
+	Printf("DDLOOTTEST done %d rows\n", int(rows.size()));
+	state = 3;
+	AddCommandString("quit");
+	return true;
+}
+
 void DD_EncounterTestTick(FLevelLocals *Level)
 {
 	SaveQuitTick(Level);
@@ -69,6 +120,7 @@ void DD_EncounterTestTick(FLevelLocals *Level)
 		const int at = FindArg("-ddenctest");
 		state = at && at + 1 < Args->NumArgs() ? 0 : 3;
 	}
+	if (LootTestTick(Level, state)) return;
 	if (state >= 3) return;
 	if (state == 0 && Level->maptime >= 45)
 	{
@@ -95,20 +147,32 @@ void DD_EncounterTestTick(FLevelLocals *Level)
 	}
 	else if (state == 1 && Level->maptime >= 80)
 	{
-		int monsters = 0, stuck = 0;
+		int monsters = 0, stuck = 0, squeezed = 0;
 		auto it = Level->GetThinkerIterator<AActor>();
 		while (AActor *mo = it.Next())
 		{
 			if (!mo->ddRecordId || mo->health <= 0) continue;
 			monsters++;
 			if (P_TestMobjLocation(mo)) continue;
+			// Squeezed in a gap: not stuck if a short step in some direction passes P_TryMove's rule (stock, or squeezing).
+			bool free = false;
+			for (int i = 0; i < 8 && !free; i++)
+			{
+				const DVector2 to = mo->Pos().XY() + DVector2(cos(i * M_PI / 4), sin(i * M_PI / 4)) * 4;
+				FCheckPosition tm;
+				free = P_CheckPosition(mo, to, tm);
+				AActor *b = mo->BlockingMobj;
+				if (!free && (!b || DD_IsDoorLeaf(b)) && DD_InGap(mo, to)) { DD_SqueezeActor = mo; free = P_CheckPosition(mo, to, tm); DD_SqueezeActor = nullptr; }
+				free = free && tm.ceilingz - tm.floorz >= mo->Height && tm.floorz - mo->Z() <= mo->MaxStepHeight;
+			}
+			if (free) { squeezed++; continue; }
 			stuck++;
 			AActor *by = mo->BlockingMobj;
 			Printf("DDENCTEST stuck %016" PRIx64 " %s at %.1f,%.1f,%.1f floor %.1f ceiling %.1f radius %.0f height %.0f blocked by %s%s\n", mo->ddRecordId,
 				mo->GetClass()->TypeName.GetChars(), mo->X(), mo->Y(), mo->Z(), mo->floorz, mo->ceilingz, mo->radius, mo->Height,
 				by ? by->GetClass()->TypeName.GetChars() : (mo->BlockingLine ? "a line" : "floor or ceiling"), by && by->ddRecordId ? " (a mook)" : "");
 		}
-		Printf("DDENCTEST after 1 s: %d placed monsters, %d stuck\n", monsters, stuck);
+		Printf("DDENCTEST after 1 s: %d placed monsters, %d stuck, %d overlapping but free to move\n", monsters, stuck, squeezed);
 		const int perf = FindArg("-ddenctestperf");
 		perfTics = perf && perf + 1 < Args->NumArgs() ? atoi(Args->GetArg(perf + 1)) : 0;
 		if (perfTics > 0 && Level->PlayerInGame(consoleplayer) && Level->Players[consoleplayer]->mo)

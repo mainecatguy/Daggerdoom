@@ -68,6 +68,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DoomerfallNewGame newGame;
         DoomerfallPlainLoad plainLoad;
         DoomerfallMonsters monsters;
+        DoomerfallLocations locations;
         DoomerfallNpcs npcs;
         DoomerfallInfo info;
         DoomerfallDoors doors;
@@ -148,6 +149,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             sync = gameObject.AddComponent<DoomerfallPositionSync>();
             sync.Init(this, Environment.GetCommandLineArgs());
             hp = new DoomerfallHp(this, sync, Environment.GetCommandLineArgs());
+            gameObject.AddComponent<DoomerfallEndurance>().Init(this, sync);  // max HP from Endurance and level
+            DoomerfallHpFormulaTest.Attach(this, sync); // test only: -dfhpformulatest
             sheet = new DoomerfallSheet(this, sync, Environment.GetCommandLineArgs());
             faces = new DoomerfallFaces(this);
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dffacetest") >= 0)
@@ -157,6 +160,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfsheettest") >= 0)
                 gameObject.AddComponent<DoomerfallSheetTest>().Init(this, sync);
             DoomerfallLookTest.Apply(this, sync); // Test only, does nothing without -dflooktest
+            DoomerfallWorldLookTest.Apply(this, sync); // Test only, does nothing without -dfworldlooktest
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfloottest") >= 0)
                 gameObject.AddComponent<DoomerfallLootTest>().Init(this);
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dftalktest") >= 0 || Array.IndexOf(Environment.GetCommandLineArgs(), "-dftalkrefuse") >= 0)
@@ -165,6 +169,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 gameObject.AddComponent<DoomerfallShopTest>().Init(this);
             ui =gameObject.AddComponent<DoomerfallUi>();
             ui.Init(this);
+            DoomerfallRest.Begin(this);
             save = gameObject.AddComponent<DoomerfallSave>();
             save.Init(this, sync, hp, Environment.GetCommandLineArgs());
             items = gameObject.AddComponent<DoomerfallItems>();
@@ -197,6 +202,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             monsters.Init(this, sync);
             save.Monsters = monsters;
             newGame.Monsters = monsters;
+            locations = gameObject.AddComponent<DoomerfallLocations>();
+            locations.Init(this, monsters);
+            gameObject.AddComponent<DoomerfallPiles>().Init(this, sync, locations);
+            DoomerfallPilesTest.Attach(this, sync, locations); // test only: -dfpilestest
+            DoomerfallGunDropTest.Attach(this, sync); // test only: -dfgundroptest
+            save.Locations = locations;
+            newGame.Locations = locations;
             npcs = gameObject.AddComponent<DoomerfallNpcs>();
             npcs.Init(this, sync);
             info = gameObject.AddComponent<DoomerfallInfo>();
@@ -227,6 +239,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             guards = gameObject.AddComponent<DoomerfallGuards>();
             guards.Init(this, sync);
             gameObject.AddComponent<DoomerfallCityLights>().Init(this);
+            gameObject.AddComponent<DoomerfallWorldLook>().Init(this);
+            gameObject.AddComponent<DoomerfallPerks>().Init(this, sync);
+            DoomerfallPerksTest.Attach(this, sync); // test only: -dfperktest <skill>
             gameObject.AddComponent<DoomerfallHiddenWorld>().Init(this, sync, Environment.GetCommandLineArgs());
             DoomerfallWorldCost.Attach(this, sync, Environment.GetCommandLineArgs()); // measurement only: -dfworldcost
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfguardtest") >= 0)
@@ -405,6 +420,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     case Dfb.KIND_MONSTERS_REQUEST:
                         monsters.OnRequest();
                         break;
+                    case Dfb.KIND_PLACE_BEGIN:
+                    case Dfb.KIND_PLACE_NAME:
+                    case Dfb.KIND_PLACE_PLAN:
+                    case Dfb.KIND_PLACE_FACT:
+                    case Dfb.KIND_PLACE_END:
+                    case Dfb.KIND_PLACE_REQUEST:
+                        locations.OnEvent(ref ev);
+                        break;
                     case Dfb.KIND_NPCS_REQUEST:
                         npcs.OnRequest();
                         break;
@@ -431,6 +454,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         break;
                     case Dfb.KIND_DOOM_ITEM_GUN_STATE:
                         doomItems.OnTakeState(ev.doomItem.request, ev.doomItem.status, DoomerfallDoomItems.ClassOf(ev.doomItem));
+                        break;
+                    case Dfb.KIND_DOOM_ITEM_ID:
+                        doomItems.OnTakeId(ev.itemTake.request, ev.itemTake.id);
                         break;
                     case Dfb.KIND_DOOM_ITEM_TAKE:
                         doomItems.OnTake(ev.doomItem.request, ev.doomItem.status, DoomerfallDoomItems.ClassOf(ev.doomItem));
@@ -559,6 +585,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             WorldLevel.CurrentPlaceProvider = null;
             WorldLevel.DungeonProvider = null;
             FormulaHelper.DoomerfallMaterialRoll = null;
+            DoomerfallRest.End();
             if (sheet != null) sheet.Dispose();
             if (session != IntPtr.Zero) DfbNative.dfb_close(session);
             session = IntPtr.Zero;

@@ -1,7 +1,7 @@
 # Player HP on Doom's scale
 
-**Waiting on:** the owner rethinking the HP formula. A stopgap normalization toward 100 is being chosen first
-(owner, 2026-11-24).
+**Moved to todo** (owner, 2026-11-25): the decided formula is in `gamedesign/hp.md`, card `work/queue/hpformula`. The
+notes below are the history of the discussion.
 
 Problem: Doom's damage and health values assume a player with about 100 HP. Daggerfall's starting max HP is
 25 + the class's HP per level, about 31 to 40 at level 1 (`FormulaHelper.RollMaxHealth`), so Doom hits are about 3x

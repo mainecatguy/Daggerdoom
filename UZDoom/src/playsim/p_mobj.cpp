@@ -30,6 +30,7 @@
 #include <float.h>
 
 #include "a_dynlight.h"
+#include "dd_lootrng.h" // [Doomerfall]
 #include "a_keys.h"
 #include "a_morph.h"
 #include "a_sharedglobal.h"
@@ -272,6 +273,12 @@ void AActor::Serialize(FSerializer &arc)
 		A("threshold", threshold)
 		A("player", player)
 		A("ddrecordid", ddRecordId) // [Doomerfall] written only when nonzero
+		A("ddlootrng", ddLootRng) // [Doomerfall] written only when nonzero
+		A("ddlootid", ddLootId) // [Doomerfall] written only when nonzero
+		A("ddairng", ddAiRng) // [Doomerfall] written only when nonzero
+		A("ddnodrops", ddNoDrops) // [Doomerfall] written only when nonzero
+		A("dddied", ddDied) // [Doomerfall] written only when nonzero
+		A("ddhandoffid", ddHandoffId) // [Doomerfall] written only when nonzero
 		A("spawnpoint", SpawnPoint)
 		A("spawnangle", SpawnAngle)
 		A("starthealth", StartHealth)
@@ -5570,6 +5577,8 @@ void ConstructActor(AActor *actor, const DVector3 &pos, bool SpawningMapThing)
 		actor->Floorclip = 0;
 	}
 	actor->UpdateWaterLevel (false);
+	DD_LootInherit(actor); // [Doomerfall] no-op unless a fixed loot roll is running
+	DD_SpawnerHandoff(actor); // [Doomerfall] no-op unless a DRLA spawner holding a placed monster's id made it
 	if (!SpawningMapThing)
 	{
 		actor->CallBeginPlay ();
@@ -5812,6 +5821,8 @@ void AActor::PostBeginPlay ()
 
 void AActor::CallPostBeginPlay()
 {
+	if (DD_LootVanish(this)) return; // [Doomerfall] a summoned monster's drop is removed before anyone sees it
+	DDLootScope lootScope(this); // [Doomerfall] fixed loot
 	Super::CallPostBeginPlay();
 	Level->localEventManager->WorldThingSpawned(this);
 }
@@ -6961,6 +6972,7 @@ CVAR(Bool, dumpspawnedthings, false, 0)
 
 AActor *FLevelLocals::SpawnMapThing(int index, FMapThing *mt, int position)
 {
+	DDLootScope lootScope(DD_LootMapThingSeed(this, mt, index)); // [Doomerfall] fixed loot; inactive outside bridge sessions
 	AActor *spawned = SpawnMapThing(mt, position);
 	if (dumpspawnedthings)
 	{
@@ -8556,6 +8568,7 @@ void AActor::Revive()
 {
 	AActor *info = GetDefault();
 	FLinkContext ctx;
+	ddLootRng = ddAiRng = 0; ddNoDrops = 0; // [Doomerfall] alive again: its live state is seeded again from its id; ddDied stays, so it drops nothing again
 
 	bool flagchange = (flags & (MF_NOBLOCKMAP | MF_NOSECTOR)) != (info->flags & (MF_NOBLOCKMAP | MF_NOSECTOR));
 

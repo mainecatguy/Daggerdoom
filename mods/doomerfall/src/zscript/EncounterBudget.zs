@@ -69,6 +69,7 @@ extend class DoomerfallEncounterPlanner
 	// Fits at a placement's origin by the placer's measurement (0 means not measured: everything fits).
 	static bool Fits(DoomerfallMonster m, DoomerfallEncounterPlacement p)
 	{
+		// The pool holds class defaults. fitRadius is the widest stock body that stands there, squeezing if it is a gap.
 		return (p.fitRadius <= 0 || m.radius <= p.fitRadius) && (p.fitHeight <= 0 || m.height <= p.fitHeight);
 	}
 

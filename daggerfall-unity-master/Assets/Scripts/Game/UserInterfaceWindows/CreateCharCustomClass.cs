@@ -166,7 +166,8 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             // Initiate UI components
             font = DaggerfallUI.DefaultFont;
             SetupButtons();
-            hpLabel = DaggerfallUI.AddTextLabel(font, new Vector2(285, 55), createdClass.HitPointsPerLevel.ToString(), NativePanel);
+            hpLabel = DaggerfallUI.AddTextLabel(font, new Vector2(285, 55), Doomerfall.DoomerfallEndurance.HpControlText(createdClass.HitPointsPerLevel), NativePanel);
+            Doomerfall.DoomerfallEndurance.RelabelHpControl(NativePanel, nativeTexture); // Doomerfall: the Endurance bonus label
             daggerPanel.Size = new Vector2(24, 9);
             daggerPanel.BackgroundTexture = nativeDaggerTexture;
             NativePanel.Components.Add(daggerPanel);
@@ -348,7 +349,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             if (createdClass.HitPointsPerLevel != maxHpPerLevel)
             {
                 createdClass.HitPointsPerLevel++;
-                hpLabel.Text = createdClass.HitPointsPerLevel.ToString();
+                hpLabel.Text = Doomerfall.DoomerfallEndurance.HpControlText(createdClass.HitPointsPerLevel);
                 UpdateDifficulty();
             }
         }
@@ -358,7 +359,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             if (createdClass.HitPointsPerLevel != minHpPerLevel)
             {
                 createdClass.HitPointsPerLevel--;
-                hpLabel.Text = createdClass.HitPointsPerLevel.ToString();
+                hpLabel.Text = Doomerfall.DoomerfallEndurance.HpControlText(createdClass.HitPointsPerLevel);
                 UpdateDifficulty();
             }
         }

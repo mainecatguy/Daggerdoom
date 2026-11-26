@@ -3,6 +3,7 @@
 // Nothing here runs without a bridge session.
 
 #include <algorithm>
+#include "dd_lootrng.h"
 #include <cinttypes>
 #include <cstdlib>
 #include <cstring>
@@ -67,6 +68,8 @@ std::deque<PendingTake> pendingTakes;
 std::deque<FString> doomOutgoing; // Answers that must act inside the playsim, sent as network events.
 uint32_t nextDoomRequest = 1;
 TMap<FName, FTextureID> seenArt; // The sprite each class showed when the player took it.
+// The token a gun dropped from Daggerfall's inventory carries (DoomerfallGuns.zs): its Daggerfall material plus 1.
+constexpr const char *GunMaterialClass = "DoomerfallGunMaterial";
 
 // Only health and ammo pick up by touch. DRLA's versions are CustomInventory, and DRLA also uses Ammo
 // classes as hidden tokens, so its pickups are named here. Each name covers its subclasses.
@@ -436,8 +439,7 @@ void FinishTake(uint32_t request, uint32_t status)
 	FString tag = item ? ItemName(item) : CleanTag(take.cls.GetChars());
 	if (item && IsGun(item->GetClass()))
 	{
-		// Daggerfall holds the gun and a hotkey draws it. Doom gives only the ammo the gun comes with (DoomerfallGuns.zs).
-		doomOutgoing.push_back(FStringf("dfg_ammo:%s", take.cls.GetChars()));
+		// Daggerfall holds the gun and a hotkey draws it. Guns never give ammo (owner, 2026-11-24, gamedesign.md).
 		S_Sound(pmo, CHAN_ITEM, 0, "misc/w_pkup", 1, ATTN_NORM);
 		item->Destroy();
 	}
@@ -504,6 +506,20 @@ void AskDaggerfall(player_t *player, AActor *item)
 				Printf(PRINT_LOG, "doomitems: %s carries %s %d\n", cls.GetChars(), name.GetChars(), amount);
 			}
 		}
+	// A gun dropped from Daggerfall's inventory carries the material Daggerfall gave it (DoomerfallGunMaterial, amount
+	// material + 1), so Daggerfall gives it back unchanged.
+	if (flags & DFB_DOOM_ITEM_GUN)
+		if (AActor *m = item->FindInventory(FName(GunMaterialClass)); m && m->IntVar(NAME_Amount) > 0)
+			SendDoomItem(DFB_KIND_DOOM_ITEM_GUN_STATE, request, uint32_t(m->IntVar(NAME_Amount)), GunMaterialClass);
+	if (const uint64_t id = (flags & DFB_DOOM_ITEM_GUN) ? DD_LootFixItemId(item) : DD_LootItemId(item); id && itemSession)	// Daggerfall seeds the item's rolls with it.
+	{
+		const dfb_item_take body{ id, request, 0 };
+		dfb_event e{};
+		e.kind = DFB_KIND_DOOM_ITEM_ID;
+		e.tic = gametic;
+		memcpy(e.payload, &body, sizeof(body));
+		dfb_send(itemSession, &e);
+	}
 	SendDoomItem(DFB_KIND_DOOM_ITEM_TAKE, request, flags, cls.GetChars());
 }
 
@@ -775,6 +791,10 @@ bool DD_ItemsEvent(const dfb_event &e)
 		dfb_doom_item d;
 		memcpy(&d, e.payload, sizeof(d));
 		if (e.kind == DFB_KIND_DOOM_ITEM_RESULT) doomOutgoing.push_back(FStringf("dfd_result:%u:%u", d.request, d.status));
+		// [Doomerfall] Daggerfall's inventory window dropped this Doom item: status bit 0x100 (plus 0x200 when it is
+		// the gun Doom holds). DoomerfallGuns.zs spawns its pickup, carrying the gun's GUN_STATE lines sent just before, and
+		// answers with DOOM_ITEM_USED, so Daggerfall lets go of the item only once the pickup exists.
+		else if (d.status & 0x100) doomOutgoing.push_back(FStringf("dfg_drop:%u:%u:%s", d.request, d.status, ClassOf(d).GetChars()));
 		else doomOutgoing.push_back(FStringf("dfd_use:%u:%s", d.request, ClassOf(d).GetChars()));
 		return true;
 	}
@@ -864,6 +884,12 @@ void DD_ItemsFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t
 // After a load, Doom's restored actors may not match Daggerfall until a fresh list arrives.
 void DD_ItemsResync()
 {
+	// The snapshot's markers carry the saving session's list numbers, which can equal a new list's after a load in a
+	// new launch, so a pile Daggerfall no longer has could survive as a ghost. Remove them all until the list arrives.
+	acceptedGeneration = 0;
+	outgoing.clear();
+	outgoing.push_back("dfi_clear");
+	outgoing.push_back(useRules ? "dfi_rules:1" : "dfi_rules:0");
 	wantList = spaceValid;
 	for (int &count : sentAmmo) count = -1; // Daggerfall forgot its reports when it loaded.
 	sentReadyAmmo = -2;
@@ -937,6 +963,18 @@ AActor *DD_LookItem(player_t *player, bool &world, uint64_t &id, FString &name)
 	return best;
 }
 
+// A Doom gun in view, with what fixes its Daggerfall material: its lasting floor id (Daggerfall's seeded roll; a gun
+// without one gets one now) and the material it carries (a gun dropped from the inventory, 0 when none). dd_look.cpp asks
+// Daggerfall for its name.
+bool DD_LookGun(AActor *item, uint64_t &id, int &carried)
+{
+	if (!item || !IsGun(item->GetClass()) || strlen(item->GetClass()->TypeName.GetChars()) >= sizeof(dfb_doom_item::cls)) return false;
+	AActor *m = item->FindInventory(FName(GunMaterialClass));
+	carried = m ? std::max(0, m->IntVar(NAME_Amount)) : 0;
+	id = DD_LootFixItemId(item);
+	return true;
+}
+
 // One press of Use. Takes the item in view and returns true when that press is spent, so a door behind it stays shut.
 // The town door check and Doom's own use check both ask during one tic, and only the first acts.
 bool DD_UsePress(player_t *player)
@@ -965,6 +1003,12 @@ bool DD_UsePress(player_t *player)
 		AskDaggerfall(player, best);
 		lastResult = true;
 		return true;
+	}
+	// Guns never give ammo, and Doom's own pickup of a gun would (DRLA's Pickup states, a Weapon's AmmoGive).
+	if (IsGun(best->GetClass()))
+	{
+		Printf(PRINT_HIGH, "You cannot take that.\n");
+		return lastResult = true;
 	}
 	best->CallTouch(pmo);
 	// A refused pickup, such as a weapon the player already holds, stays in the world and leaves the press for a door.
@@ -1065,7 +1109,8 @@ bool DD_ItemsNetEvent(dfb_session *session, const char *name)
 	if (!strncmp(name, "dfg_out:", 8))
 	{
 		static const struct { const char *word; uint16_t kind; } kinds[] = {
-			{ "state:", DFB_KIND_GUN_STATE }, { "stashed:", DFB_KIND_GUN_STASHED }, { "kept:", DFB_KIND_GUN_KEPT }, { "done:", DFB_KIND_GUN_EQUIPPED } };
+			{ "state:", DFB_KIND_GUN_STATE }, { "stashed:", DFB_KIND_GUN_STASHED }, { "kept:", DFB_KIND_GUN_KEPT }, { "done:", DFB_KIND_GUN_EQUIPPED },
+			{ "dropped:", DFB_KIND_DOOM_ITEM_USED } };	// [Doomerfall] a dropped Doom item's pickup was spawned, or not
 		for (auto &k : kinds)
 		{
 			const size_t n = strlen(k.word);

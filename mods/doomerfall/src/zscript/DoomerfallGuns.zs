@@ -4,7 +4,9 @@
 //
 //   dfg_state:<request>:<amount>:<class>  one state line of the gun the next dfg_equip gives
 //   dfg_equip:<request>:<flags>:<pickup>  take every gun and give this one; flags 1 keep the ready gun, 2 give nothing
-//   dfg_ammo:<pickup>                     a gun went to Daggerfall's inventory; give only the ammo it comes with
+//   dfg_drop:<request>:<flags>:<pickup>   Daggerfall's inventory window dropped this Doom item: spawn its pickup in front
+//                                         of the player, carrying the gun's dfg_state lines (flags 0x200: the gun Doom
+//                                         holds, whose live state goes instead); answers dfg_out:dropped
 //
 // A gun's state is its per-class inventory, every item named <Weapon>... (DRLA's RL<Weapon>Clip magazine,
 // <Weapon>ModLimit, and its mods). It leaves Doom with the gun and comes back with it, so swapping never reloads.
@@ -20,6 +22,16 @@ class DoomerfallGuns : EventHandler
 	Array<int> stateAmounts;
 	int stateRequest;
 
+	// Items leave the player only by Daggerfall's inventory window. Doom's drops are blocked in d_net.cpp, and DRLA's
+	// "Drop Item" key (Zoom: guns, the Technician's scrap, mod packs, armor) in g_game.cpp. M's backpack toss ("use
+	// RLSpecialItemDropper") fails here: the dropper is kept at 0.
+	override void WorldTick()
+	{
+		static const String dropper[] = { "RLSpecialItemDropper" };
+		class<Inventory> c = dropper[0];
+		if (c && consoleplayer >= 0 && players[consoleplayer].mo) players[consoleplayer].mo.TakeInventory(c, 999);
+	}
+
 	override void NetworkProcess(ConsoleEvent e)
 	{
 		if (e.Name.Left(4) != "dfg_" || e.Name.Left(8) == "dfg_out:") return;
@@ -34,7 +46,98 @@ class DoomerfallGuns : EventHandler
 			stateAmounts.Push(f[2].ToInt());
 		}
 		else if (f[0] == "dfg_equip" && f.Size() >= 4) Equip(mo, f[1].ToInt(), f[2].ToInt(), f[3]);
-		else if (f[0] == "dfg_ammo" && f.Size() >= 2 && mo) GiveAmmoOnly(mo, f[1]);
+		else if (f[0] == "dfg_drop" && f.Size() >= 4) Drop(mo, f[1].ToInt(), f[2].ToInt(), f[3]);
+	}
+
+	// A DRLA gun with any mod on it drops as its ...PickupModded class, which shows the mods and hands them over.
+	static bool Modded(Array<String> names, Array<int> amounts)
+	{
+		static const String mods[] = { "ModLimit", "PowerMod", "BulkMod", "AgilityMod", "TechnicalMod", "SniperMod", "FirestormMod", "NanoMod", "DemonArtifacts" };
+		for (int j = 0; j < names.Size(); j++)
+			for (int m = 0; m < mods.Size(); m++)
+				if (amounts[j] > 0 && EndsWith(names[j], mods[m])) return true;
+		return false;
+	}
+
+	void Drop(PlayerPawn mo, int request, int flags, String cls)
+	{
+		Array<String> names;
+		Array<int> amounts;
+		if (request == stateRequest)
+		{
+			names.Copy(stateNames);
+			amounts.Copy(stateAmounts);
+		}
+		stateNames.Clear();
+		stateAmounts.Clear();
+		stateRequest = 0;
+		if (!mo || mo.health <= 0)
+		{
+			Tell("dropped", request, Refused, cls);
+			return;
+		}
+		// The gun in Doom's hands: its live magazine and mods, and it leaves the hands.
+		class<Weapon> wcls = WeaponFor(cls);
+		let held = (flags & 0x200) && wcls ? Weapon(mo.FindInventory(wcls)) : null;
+		if (held)
+		{
+			// Daggerfall's material line stays (DoomerfallGunMaterial); the gun's live state replaces the rest.
+			int material = names.Find("DoomerfallGunMaterial");
+			int materialAmount = material < names.Size() ? amounts[material] : 0;
+			names.Clear();
+			amounts.Clear();
+			if (materialAmount > 0) { names.Push("DoomerfallGunMaterial"); amounts.Push(materialAmount); }
+			String n = held.GetClassName();
+			Array<Inventory> extras;
+			for (Inventory i = mo.Inv; i; i = i.Inv)
+			{
+				if (i is "Weapon") continue;
+				String name = i.GetClassName();
+				if (name.Length() <= n.Length() || name.Left(n.Length()) != n || EndsWith(name, "TypeWeapon")) continue;
+				extras.Push(i);
+			}
+			for (int j = 0; j < extras.Size(); j++)
+			{
+				let x = extras[j];
+				if (!x) continue;
+				String name = x.GetClassName();
+				if (x.Amount > 0 && !EndsWith(name, "Selected")) { names.Push(name); amounts.Push(x.Amount); }
+				mo.TakeInventory((class<Inventory>)(x.GetClass()), 0x7fffffff);
+			}
+			if (mo.player && mo.player.ReadyWeapon == held)
+			{
+				String deselectName = "RLDeselectionFunction";
+				class<Inventory> deselect = deselectName;
+				if (deselect) mo.GiveInventory(deselect, 1);
+			}
+			mo.TakeInventory((class<Inventory>)(held.GetClass()), 0x7fffffff);
+		}
+		String spawnName = cls;
+		if (EndsWith(spawnName, "Modded")) spawnName = spawnName.Left(spawnName.Length() - 6);
+		if (Modded(names, amounts))
+		{
+			class<Actor> modded = spawnName .. "Modded";
+			if (modded) spawnName = spawnName .. "Modded";
+		}
+		class<Actor> spawnCls = spawnName;
+		Actor pickup = spawnCls ? Actor.Spawn(spawnCls, mo.Vec3Angle(24, mo.angle, 32)) : null;
+		if (!pickup)
+		{
+			Tell("dropped", request, Refused, cls);
+			return;
+		}
+		pickup.bDropped = true;
+		pickup.angle = mo.angle;
+		pickup.vel = (Actor.AngleToVector(mo.angle, 4), 2) + mo.vel;
+		for (int j = 0; j < names.Size(); j++)
+		{
+			class<Inventory> c = names[j];
+			if (!c || amounts[j] <= 0) continue;
+			let inv = pickup.GiveInventoryType(c);
+			if (inv) inv.Amount = amounts[j];
+		}
+		Console.Printf("dfg drop: %s as %s carrying %d state lines%s", cls, spawnName, names.Size(), held ? " (from Doom's hands)" : "");
+		Tell("dropped", request, Taken, spawnName);
 	}
 
 	static void Tell(String word, int request, int status, String cls)
@@ -200,14 +303,16 @@ class DoomerfallGuns : EventHandler
 		stateRequest = 0;
 		Tell("done", request, ok ? Taken : Refused, pickup);
 	}
+}
 
-	// A gun taken into Daggerfall's inventory gives the ammo its pickup would, but not the gun.
-	static void GiveAmmoOnly(Actor mo, String pickup)
+// The Daggerfall material of a gun dropped from Daggerfall's inventory, carried by its pickup as material + 1, so taking
+// it back gives the same material and the look label can show it (dd_items.cpp, dd_look.cpp). Only Daggerfall sets it.
+class DoomerfallGunMaterial : Inventory
+{
+	Default
 	{
-		class<Weapon> w = WeaponFor(pickup);
-		if (!w) return;
-		let def = GetDefaultByType(w);
-		if (def.AmmoType1 && def.AmmoGive1 > 0) mo.GiveAmmo(def.AmmoType1, def.AmmoGive1);
-		if (def.AmmoType2 && def.AmmoGive2 > 0) mo.GiveAmmo(def.AmmoType2, def.AmmoGive2);
+		Inventory.MaxAmount 16;
+		+INVENTORY.UNDROPPABLE
+		+INVENTORY.UNTOSSABLE
 	}
 }
