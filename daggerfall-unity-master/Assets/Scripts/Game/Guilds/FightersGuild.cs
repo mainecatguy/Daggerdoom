@@ -46,6 +46,7 @@ namespace DaggerfallWorkshop.Game.Guilds
                 DFCareer.Skills.Explosives,
                 DFCareer.Skills.Jumping,
                 DFCareer.Skills.LongBlade,
+                DFCareer.Skills.Pistols,
                 DFCareer.Skills.Shotguns,
                 DFCareer.Skills.Running,
                 DFCareer.Skills.ShortBlade,

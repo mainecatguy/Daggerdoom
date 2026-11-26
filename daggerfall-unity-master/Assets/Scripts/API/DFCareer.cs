@@ -452,13 +452,13 @@ namespace DaggerfallConnect
             Etiquette = 1,
             Streetwise = 2,
             Jumping = 3,
-            // Doomerfall: the nine monster languages are removed. Slots 4-6 hold the new gun skills;
-            // slots 7-12 are unused (hidden everywhere) and kept so old saves and data still read.
+            // Doomerfall: the nine monster languages are removed. Slots 4-7 hold the new gun skills;
+            // slots 8-12 are unused (hidden everywhere) and kept so old saves and data still read.
             // See DaggerfallSkills.IsRemovedSkill and DFCareer.RemapRemovedSkills.
             Shotguns = 4,
             Automatics = 5,
             Explosives = 6,
-            Dragonish = 7,
+            Pistols = 7,
             Nymph = 8,
             Daedric = 9,
             Spriggan = 10,
@@ -488,10 +488,11 @@ namespace DaggerfallConnect
             CriticalStrike = 34,
             Count = 35, // Not a valid skill
 
-            // Old names of slots 4-6, only so saves and quest scripts written before Doomerfall still parse.
+            // Old names of slots 4-7, only so saves and quest scripts written before Doomerfall still parse.
             [Obsolete("Doomerfall: slot 4 is Shotguns")] Orcish = 4,
             [Obsolete("Doomerfall: slot 5 is Automatics")] Harpy = 5,
             [Obsolete("Doomerfall: slot 6 is Explosives")] Giantish = 6,
+            [Obsolete("Doomerfall: slot 7 is Pistols")] Dragonish = 7,
         }
 
         /// <summary>
@@ -560,12 +561,12 @@ namespace DaggerfallConnect
         #region Public Methods
 
         /// <summary>
-        /// Doomerfall: true for the unused slots 7-12 left by the removed monster languages.
+        /// Doomerfall: true for the unused slots 8-12 left by the removed monster languages.
         /// They keep their values in saves but are never shown, trained, raised or given to a class.
         /// </summary>
         public static bool IsRemovedSkill(Skills skill)
         {
-            return skill >= Skills.Dragonish && skill <= Skills.Impish;
+            return skill >= Skills.Nymph && skill <= Skills.Impish;
         }
 
         /// <summary>
@@ -579,8 +580,9 @@ namespace DaggerfallConnect
         /// <summary>
         /// Doomerfall: replaces each removed language in this class's skill lists with a gun skill the class
         /// does not already have, so every class keeps 12 listed skills. Language L becomes gun skill (L - 4) % 3
-        /// (Dragonish to Shotguns, Daedric to Explosives, ...), or the next free one. Slots 4-6 need nothing:
-        /// they already read as the gun skills. Safe to call more than once.
+        /// (Nymph to Automatics, Daedric to Explosives, ...), or the next free one. Slots 4-7 need nothing:
+        /// they already read as the gun skills (Dragonish, slot 7, reads as Pistols). Pistols is not used as a
+        /// filler, so the fillers stay what they were before Pistols was added. Safe to call more than once.
         /// </summary>
         public void RemapRemovedSkills()
         {

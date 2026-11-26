@@ -419,13 +419,15 @@ namespace DaggerfallWorkshop.Utility
                     return TextManager.Instance.GetLocalizedText("streetwise");
                 case DFCareer.Skills.Jumping:
                     return TextManager.Instance.GetLocalizedText("jumping");
-                // Doomerfall gun skills. Slots 7-12 (removed monster languages) have no name, so they stay hidden.
+                // Doomerfall gun skills. Slots 8-12 (removed monster languages) have no name, so they stay hidden.
                 case DFCareer.Skills.Shotguns:
                     return TextManager.Instance.GetLocalizedTextWithReversion("shotgunsSkill", reversion: "Shotguns");
                 case DFCareer.Skills.Automatics:
                     return TextManager.Instance.GetLocalizedTextWithReversion("automaticsSkill", reversion: "Automatics");
                 case DFCareer.Skills.Explosives:
                     return TextManager.Instance.GetLocalizedTextWithReversion("explosivesSkill", reversion: "Explosives");
+                case DFCareer.Skills.Pistols:
+                    return TextManager.Instance.GetLocalizedTextWithReversion("pistolsSkill", reversion: "Pistols");
                 case DFCareer.Skills.Lockpicking:
                     return TextManager.Instance.GetLocalizedText("lockpicking");
                 case DFCareer.Skills.Mercantile:

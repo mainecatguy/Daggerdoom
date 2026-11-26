@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x31414bfbc0a9c4e1UL;
+        public const ulong SchemaHash = 0x77ee1a20e73b5170UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -185,7 +185,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint FACES_MAX = 3;  // Daggerfall's HUD shows at most three faces
         public const uint FACE_MAX_SIDE = 64;
         public const uint SHEET_SLOT = 0;
-        public const int SHEET_FORMAT_VERSION = 3;  // 3: skill slots 4-6 are the gun skills, 7-12 unused
+        public const int SHEET_FORMAT_VERSION = 4;  // 3: skill slots 4-6 are the gun skills, 7-12 unused; 4: slot 7 is Pistols
         public const int SHEET_INTS = 155;
         public const int SHEET_FORMAT = 0;  // DFB_SHEET_FORMAT_VERSION
         public const int SHEET_EPOCH = 1;
@@ -205,6 +205,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const int SKILL_SHOTGUNS = 4;
         public const int SKILL_AUTOMATICS = 5;
         public const int SKILL_EXPLOSIVES = 6;
+        public const int SKILL_PISTOLS = 7;
         public const int SHEET_ARMOR_BASE = 102;  // 7: BodyParts; 100 is unarmored
         public const int SHEET_ARMOR_LIVE = 109;  // 7: the value Daggerfall's hit formula uses
         public const int SHEET_RESIST_BASE = 116;  // 5: DFCareer.Elements

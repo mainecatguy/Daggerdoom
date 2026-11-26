@@ -12,6 +12,10 @@
 //     is or descends from RocketAmmo / Cell. DRLA has no explosive token.
 //   - Shotgun, Precision, Automatic, Pistol: stock Shotgun and SuperShotgun, Chaingun, Pistol, or DRLA's
 //     RLShotgunTypeWeapon, RLSingleShotRifleTypeWeapon, RLRapidfireTypeWeapon, RLPistolTypeWeapon tokens.
+// Pistols (owner, 2026-11-26): stock Pistol and DRLA's pistol-token guns; no rifle is a pistol. No DRLA rifle carries
+// the pistol token (checked in GameMods/ExtractedData), and rifles with DRLA's rifle token are Precision, which has
+// no skill yet (backlog: Rifles). Pistol-token guns that also carry shotgun or rapid-fire tokens, or use cells, take
+// the category ahead of Pistol in the precedence above (Storm pistols, Uzis, plasma pistols).
 // DRLA gives its tokens only while the gun is held (the gun's Select state gives them, lowering takes them), so a
 // DRLA gun that is not the held one is known by ammo only and may read as Other until it is selected.
 class DoomerfallWeaponCategory abstract
@@ -37,6 +41,7 @@ class DoomerfallWeaponCategory abstract
 			case Shotgun: return 4;
 			case Automatic: return 5;
 			case Explosive: return 6;
+			case Pistol: return 7;
 		}
 		return -1;
 	}

@@ -58,6 +58,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
 
             player.Skills.SetPermanentSkillValue(DFCareer.Skills.Shotguns, (short)(player.Skills.GetPermanentSkillValue(DFCareer.Skills.Shotguns) + 5));
+            player.Skills.SetPermanentSkillValue(DFCareer.Skills.Pistols, (short)(player.Skills.GetPermanentSkillValue(DFCareer.Skills.Pistols) + 9));
 
             player.Skills.SetPermanentSkillValue(DFCareer.Skills.Archery, (short)(player.Skills.GetPermanentSkillValue(DFCareer.Skills.Archery) + 7));
             yield return Step("training");
@@ -106,7 +107,19 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             start.StartMethod = StartGameBehaviour.StartMethods.NewCharacter;
             yield return new WaitForSecondsRealtime(1.5f);
             yield return Step("new character");
+            LogSheetSkills(GameManager.Instance.PlayerEntity);
             bridge.LogLine("sheet test: done");
+        }
+
+        // The skill names the character sheet's four skill buttons list (DaggerfallCharacterSheetWindow).
+        void LogSheetSkills(PlayerEntity player)
+        {
+            var groups = new[] { player.GetPrimarySkills(), player.GetMajorSkills(), player.GetMinorSkills(), player.GetMiscSkills() };
+            var parts = new System.Collections.Generic.List<string>();
+            foreach (var group in groups)
+                parts.Add(string.Join(",", group.ConvertAll(s => DaggerfallUnity.Instance.TextProvider.GetSkillName(s)).ToArray()));
+            bridge.LogLine(string.Format("sheet test: sheet skills primary [{0}] major [{1}] minor [{2}] misc [{3}]",
+                parts[0], parts[1], parts[2], parts[3]));
         }
 
         IEnumerator LoadAndWait(SaveLoadManager saves, string character, string saveName)

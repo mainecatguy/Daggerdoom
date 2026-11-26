@@ -27,8 +27,18 @@ DRLA_EXPECT = {'RLPistol': 'pistol', 'RLShotgun': 'shotgun', 'RLCombatShotgun': 
                'RLAutoshotgun': 'shotgun', 'RLChaingun': 'automatic', 'RLMinigun': 'automatic',
                'RLRocketLauncher': 'explosive', 'RLMissileLauncher': 'explosive', 'RLGrenadeLauncher': 'explosive',
                'RLPlasmaRifle': 'energy', 'RLPlasmaPistol': 'energy', 'RLLaserRifle': 'energy', 'RLRailgun': 'energy',
-               'RLUzi': 'automatic', 'RLChainsaw': 'melee', 'RLBFG9000': 'energy'}
-SLOT = {'shotgun': 4, 'automatic': 5, 'explosive': 6}
+               'RLUzi': 'automatic', 'RLChainsaw': 'melee', 'RLBFG9000': 'energy',
+               # Pistols (owner 2026-11-26): pistol-token guns with no other category sign are pistols (slot 7).
+               # Storm Pistol also carries the shotgun token, so it stays a shotgun.
+               'RLCombatPistol': 'pistol', 'RLMarksmanPistol': 'pistol', 'RLHandcannon': 'pistol',
+               'RLHuntingRevolver': 'pistol', 'RLSilencedPistol': 'pistol', 'RLPP7': 'pistol', 'RLStormPistol': 'shotgun'}
+# Rifles are never pistols ("no rifle is counted"). Their categories come from their DRLA tokens: rifle token ->
+# precision (no skill yet), rapid-fire only -> automatic, the Sniper Rifle has neither -> other.
+RIFLES = {'RLMarksmanRifle': 'precision', 'RLBattleRifle': 'automatic', 'RLVanguardRifle': 'automatic',
+          'RLSniperRifle': 'other', 'RLElephantGun': 'precision', 'RLGaussRifle': 'precision',
+          'RLAntiMaterielRifle': 'precision'}
+DRLA_EXPECT.update(RIFLES)
+SLOT = {'shotgun': 4, 'automatic': 5, 'explosive': 6, 'pistol': 7}
 
 
 def run(exe, work, iwad, files, name, timeout):
@@ -83,11 +93,14 @@ def main():
     check('stock', got, STOCK, checks)
     checks.append(('stock: DRLA samples absent', all(got.get(c, ('?',))[0] == 'absent' for c in DRLA_EXPECT), None))
 
-    drla = run(a.exe, a.work, a.iwad, [os.path.join(a.mods, f) for f in DRLA] + [mod], 'drla', 100)
+    drla = run(a.exe, a.work, a.iwad, [os.path.join(a.mods, f) for f in DRLA] + [mod], 'drla', 150)
     got = parse(drla)
     checks.append(('drla: no script errors', not any(BAD.search(l) for l in drla), None))
     checks.append(('drla: finished', any('WEAPCAT done' in l for l in drla), None))
     check('drla', got, DRLA_EXPECT, checks)
+    checks.append(('drla: no rifle is a pistol or has the Pistols slot',
+                   all(c in got and got[c][0] != 'pistol' and got[c][1] != SLOT['pistol'] for c in RIFLES),
+                   {c: got.get(c) for c in RIFLES}))
 
     for label, ok, detail in checks:
         print(('PASS ' if ok else 'FAIL ') + label + ('' if ok or detail is None else f'  (got {detail})'))

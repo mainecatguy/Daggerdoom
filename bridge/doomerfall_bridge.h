@@ -294,7 +294,7 @@ typedef struct dfb_face
 } dfb_face;
 
 #define DFB_SHEET_SLOT   0u
-#define DFB_SHEET_FORMAT_VERSION 3  /* 3: skill slots 4-6 are the gun skills, 7-12 unused */
+#define DFB_SHEET_FORMAT_VERSION 4  /* 3: skill slots 4-6 are the gun skills, 7-12 unused; 4: slot 7 is Pistols */
 #define DFB_SHEET_INTS   155
 #define DFB_SHEET_FORMAT 0    /* DFB_SHEET_FORMAT_VERSION */
 #define DFB_SHEET_EPOCH  1
@@ -311,12 +311,13 @@ typedef struct dfb_face
 #define DFB_SHEET_STATS_LIVE   24   /* 8 */
 #define DFB_SHEET_SKILLS_BASE  32   /* 35: DFCareer.Skills */
 #define DFB_SHEET_SKILLS_LIVE  67   /* 35 */
-/* Skill indices into SKILLS_BASE and SKILLS_LIVE. Doomerfall removed the monster languages: their slots 4-6 hold the
-   gun skills and slots 7-12 are unused (always some small value, never shown or raised). Other slots keep
+/* Skill indices into SKILLS_BASE and SKILLS_LIVE. Doomerfall removed the monster languages: their slots 4-7 hold the
+   gun skills and slots 8-12 are unused (always some small value, never shown or raised). Other slots keep
    Daggerfall's meaning, for example 30 Hand-to-Hand, 33 Archery, 34 Critical Strike (kept but unused). */
 #define DFB_SKILL_SHOTGUNS     4
 #define DFB_SKILL_AUTOMATICS   5
 #define DFB_SKILL_EXPLOSIVES   6
+#define DFB_SKILL_PISTOLS      7
 #define DFB_SHEET_ARMOR_BASE   102  /* 7: BodyParts; 100 is unarmored */
 #define DFB_SHEET_ARMOR_LIVE   109  /* 7: the value Daggerfall's hit formula uses */
 #define DFB_SHEET_RESIST_BASE  116  /* 5: DFCareer.Elements */

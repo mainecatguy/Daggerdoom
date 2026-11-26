@@ -38,7 +38,7 @@ namespace DaggerfallWorkshop.Game.Entity
         [SerializeField] short Shotguns;
         [SerializeField] short Automatics;
         [SerializeField] short Explosives;
-        [SerializeField] short Dragonish;
+        [SerializeField] short Pistols; // Doomerfall: was Dragonish; a save without this field starts it untrained
         [SerializeField] short Nymph;
         [SerializeField] short Daedric;
         [SerializeField] short Spriggan;
@@ -102,12 +102,12 @@ namespace DaggerfallWorkshop.Game.Entity
         }
 
         /// <summary>
-        /// Doomerfall: gives slots 4-6 (classic Orcish, Harpy, Giantish) untrained values, so a character imported from
+        /// Doomerfall: gives slots 4-7 (classic Orcish, Harpy, Giantish, Dragonish) untrained values, so a character imported from
         /// a classic save starts the gun skills like any other untrained skill instead of inheriting a language value.
         /// </summary>
         public void ResetGunSkillsToDefaults()
         {
-            for (int i = (int)DFCareer.Skills.Shotguns; i <= (int)DFCareer.Skills.Explosives; i++)
+            for (int i = (int)DFCareer.Skills.Shotguns; i <= (int)DFCareer.Skills.Pistols; i++)
                 SetPermanentSkillValue(i, (short)UnityEngine.Random.Range(minDefaultValue, maxDefaultValue + 1));
         }
 
@@ -206,8 +206,8 @@ namespace DaggerfallWorkshop.Game.Entity
                     return Automatics;
                 case DFCareer.Skills.Explosives:
                     return Explosives;
-                case DFCareer.Skills.Dragonish:
-                    return Dragonish;
+                case DFCareer.Skills.Pistols:
+                    return Pistols;
                 case DFCareer.Skills.Nymph:
                     return Nymph;
                 case DFCareer.Skills.Daedric:
@@ -301,8 +301,8 @@ namespace DaggerfallWorkshop.Game.Entity
                 case DFCareer.Skills.Explosives:
                     Explosives = value;
                     break;
-                case DFCareer.Skills.Dragonish:
-                    Dragonish = value;
+                case DFCareer.Skills.Pistols:
+                    Pistols = value;
                     break;
                 case DFCareer.Skills.Nymph:
                     Nymph = value;
@@ -432,8 +432,8 @@ namespace DaggerfallWorkshop.Game.Entity
                     return DFCareer.Stats.Agility;
                 case DFCareer.Skills.Explosives:
                     return DFCareer.Stats.Intelligence;
-                case DFCareer.Skills.Dragonish:
-                    return DFCareer.Stats.Intelligence;
+                case DFCareer.Skills.Pistols:
+                    return DFCareer.Stats.Agility;
                 case DFCareer.Skills.Nymph:
                     return DFCareer.Stats.Intelligence;
                 case DFCareer.Skills.Daedric:
@@ -512,8 +512,8 @@ namespace DaggerfallWorkshop.Game.Entity
                 case DFCareer.Skills.Shotguns: // Doomerfall gun skills advance like Daggerfall's weapon skills
                 case DFCareer.Skills.Automatics:
                 case DFCareer.Skills.Explosives:
+                case DFCareer.Skills.Pistols:
                     return 2;
-                case DFCareer.Skills.Dragonish:
                 case DFCareer.Skills.Nymph:
                 case DFCareer.Skills.Daedric:
                 case DFCareer.Skills.Spriggan:
