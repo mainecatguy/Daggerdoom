@@ -1,5 +1,7 @@
 # Doomerfall
 
+if you are a manager or orchestrator, read work/orchestrator.md
+
 ## What we are making
 
 This software project combines Daggerfall Unity with UZDoom. The design goal is simple: "daggerfall, but oops we replaced all the monsters with slaughter map sized packs from doom, and that ebony mace that dropped got converted to an energy machinegun from the doom roguelike arsenal extended mod, and when NPCs get angry at you they behave like Doom NPCs."
