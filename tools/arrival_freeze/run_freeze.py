@@ -1,9 +1,11 @@
 """The arrival freeze (goal 20261126-154857) with both real games, minimized.
 
-usage: run_freeze.py normal | slow | lost | nosave | demo   [--root DIR]
+usage: run_freeze.py normal | slow | lost | nosave | use | demo   [--root DIR]
 normal: enters Privateer's Hold from its town; the map change waits for Daggerfall's door facts as usual.
 slow:   the same, with -dfsetuptest 2500: setup also waits 2.5 s for a fake answer (a slow Daggerfall).
 lost:   -dfsetuptest lost: the fake answer never comes, so the setup gate's 5 s timeout ends the wait.
+use:    -dfsetuptest 2500 -dffreezeuse: Use is pressed on every frozen frame (dd_tm_use). It must be dropped: the
+        player stays inside (one arrival only, no exit or other map change).
 nosave: autosaves off (+disableautosave 1) with -dfsetuptest 2500: the arrival still waits frozen, and makes no autosave.
 Every run uses -dffreezetest: the bridge log says whether any monster, missile or the player changed while frozen,
 and how often frames ran meanwhile (the window stays live). PASS needs: a freeze, changed=0, the player's health
@@ -24,16 +26,16 @@ sys.path.insert(0, str(HERE.parent / "lockpick" / "paired"))
 import run_paired as rp  # noqa: E402  (shares the paired setup: data, mods, door lookup)
 
 ROOT = Path(sys.argv[sys.argv.index("--root") + 1]) if "--root" in sys.argv else Path(r"D:\dev\DoomDaggerfall-loop\review\arrival-pause")
-SETUP = {"normal": None, "slow": "2500", "lost": "lost", "nosave": "2500"}
+SETUP = {"normal": None, "slow": "2500", "lost": "lost", "nosave": "2500", "use": "2500"}
 # One tic of the setup spawns the dungeon's monsters and blocks the loop for ~150-250 ms here (it did before this goal);
 # "responsive" here means no stall near Windows' 5 s "not responding" mark.
 MAX_GAP_MS = 1000
 
 
-def harness(path, demo):
+def harness(path, demo, use=False):
     cache = ROOT / "data" / "cache" / f"T{rp.GROUP:05d}.ddt"
     door = next(l.split() for l in rp.lumps(cache)["DDDOORS"].decode().splitlines() if l.startswith("1 187853213"))
-    text = (HERE / "freeze.zs").read_text().replace("@DOOR@", ", ".join(door[3:8])).replace("@DEMO@", "1" if demo else "0")
+    text = (HERE / "freeze.zs").read_text().replace("@DOOR@", ", ".join(door[3:8])).replace("@DEMO@", "1" if demo else "0").replace("@USE@", "1" if use else "0")
     with zipfile.ZipFile(path, "w") as z:
         z.writestr("zscript.txt", text)
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "AFHarness" }\n')
@@ -55,6 +57,8 @@ def run(mode):
           "+vid_lowerinbackground", "0", "+map", f"DDT{rp.GROUP:05d}"]
     if mode == "nosave":
         uz += ["+disableautosave", "1"]
+    if mode == "use":
+        uz += ["-dffreezeuse"]
     if SETUP[mode]:
         uz += ["-dfsetuptest", SETUP[mode]]
     df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(rp.GAME / "DAGGER"), "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
@@ -62,7 +66,7 @@ def run(mode):
     command = [sys.executable, rp.QUIET, "--timeout", str(timeout), "--", str(ROOT / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                "--uzdoom", str(ROOT / "uzdoom" / "uzdoom.exe"), "--dfu", str(ROOT / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(rp.GAME / "wads" / "DOOM2.WAD"),
                "--uzdoom-cwd", str(runs), "--log", str(launcher)]
-    for mod in [rp.MODS / n for n in rp.DRLA] + [ROOT / "data" / n for n in rp.DATA] + [ROOT / "dfitems.pk3", ROOT / "doomerfall.pk3", harness(runs / "freeze.pk3", False)]:
+    for mod in [rp.MODS / n for n in rp.DRLA] + [ROOT / "data" / n for n in rp.DATA] + [ROOT / "dfitems.pk3", ROOT / "doomerfall.pk3", harness(runs / "freeze.pk3", False, mode == "use")]:
         command += ["--mod", str(mod)]
     for arg in uz:
         command += ["--uzdoom-arg", arg]
@@ -96,7 +100,11 @@ def run(mode):
         ok = ok and changed == "0" and before == after and float(gap) <= MAX_GAP_MS
     if mode == "nosave":
         ok = ok and "autosave committed" not in bridge and "save: autosave for a map change" not in bridge
-    if mode in ("slow", "lost", "nosave"):
+    if mode == "use":
+        presses = re.findall(r"arrivaltest: use presses=(\d+)", bridge)
+        print("use presses during the freeze:", presses)
+        ok = ok and len(results) == 1 and bool(presses) and int(presses[0]) > 0
+    if mode in ("slow", "lost", "nosave", "use"):
         ok = ok and any(float(r[8]) >= (4500 if mode == "lost" else 2000) for r in results)
     print(f"{mode} {'PASS' if ok else 'FAIL'} | stopped: {reason} | freezes {len(results)}")
     return ok

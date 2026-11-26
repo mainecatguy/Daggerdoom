@@ -1405,17 +1405,24 @@ void DD_BridgeArrivalAutosave(bool save)
 
 // P_Ticker, after DDTreadmill_Tick: true while a stitched map change waits for its setup (PumpArrival). The screen holds
 // the old frame then, so nothing in the map may act unseen: no actor, player, weapon or sector special runs. The setup
-// itself goes on: Daggerfall's answers arrive as network events (G_Ticker) and records (DDTreadmill_Tick, before this),
-// and level time counts on as in Doom's own freeze. The first tic of the new map runs (it finishes the handoff).
+// itself goes on: Daggerfall's answers arrive as network events (G_Ticker) and records (DDTreadmill_Tick, before this).
+// Level time stands still, so scripts see every tic value after the wait. The first tic of the new map runs (it
+// finishes the handoff).
+bool DD_BridgeArrivalFrozen()
+{
+	return session && arrivalPending && primaryLevel && primaryLevel->maptime >= 1 && !DDTreadmill_HandoffPending()
+		&& dfb_now_ns() - arrivalAtNs <= ArrivalHoldNs;
+}
+
 bool DD_BridgeArrivalFreeze(FLevelLocals *Level)
 {
-	if (!session || Level != primaryLevel || !arrivalPending || Level->maptime < 1 || DDTreadmill_HandoffPending()) return false;
-	const int64_t now = dfb_now_ns();
-	if (now - arrivalAtNs > ArrivalHoldNs)
+	if (Level != primaryLevel) return false;
+	if (!DD_BridgeArrivalFrozen())
 	{
-		ArrivalFreezeEnd("the hold limit");
+		if (arrivalPending && dfb_now_ns() - arrivalAtNs > ArrivalHoldNs) ArrivalFreezeEnd("the hold limit");
 		return false;
 	}
+	const int64_t now = dfb_now_ns();
 	if (!arrivalFrozenTics++)
 	{
 		arrivalFrozenNs = now;

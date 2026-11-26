@@ -3,6 +3,7 @@
 //                           so the arrival waits as for a slow or lost Daggerfall answer (the gate's 5 s timeout).
 //   -dffreezetest           logs, to the bridge log, whether any monster, missile or player changed while the playsim
 //                           was frozen, the player's health before and after, and how often frames ran meanwhile.
+//   -dffreezeuse            presses Use (dd_tm_use) on every frozen frame: it must do nothing (no take, talk or exit).
 // Lines start with "arrivaltest:". tools/arrival_freeze/run_freeze.py reads them.
 
 #include <cstdlib>
@@ -17,9 +18,12 @@
 #include "gamestate.h"
 #include "m_argv.h"
 #include "printf.h"
+#include "c_cvars.h"
 
 FARG_ADVANCED(dfsetuptest, "Doomerfall", "ms|lost", "Arrival test only: each map's setup also waits this long for a fake answer, or forever (lost).");
 FARG_ADVANCED(dffreezetest, "Doomerfall", "", "Arrival test only: logs whether anything moved while a map change's playsim was frozen.");
+FARG_ADVANCED(dffreezeuse, "Doomerfall", "", "Arrival test only: presses Use (dd_tm_use) on every frame of the freeze.");
+EXTERN_CVAR(Int, dd_tm_use)
 
 void DD_BridgeLog(const char *text);
 void DD_SetupWait(const char *system);
@@ -37,7 +41,8 @@ struct Snap
 	int tics;
 };
 
-bool parsed, freezeTest;
+bool parsed, freezeTest, freezeUse;
+int usePresses;
 const char *setupTest;
 int64_t setupDoneAtNs = -1;	// -1: no fake wait open
 std::unordered_map<AActor *, Snap> snaps;
@@ -50,6 +55,7 @@ void Parse()
 	parsed = true;
 	setupTest = Args->CheckValue(FArg_dfsetuptest);
 	freezeTest = Args->CheckParm(FArg_dffreezetest) > 0;
+	freezeUse = Args->CheckParm(FArg_dffreezeuse) > 0;
 }
 
 void Log(const FString &text) { DD_BridgeLog(("arrivaltest: " + text).GetChars()); }
@@ -101,6 +107,10 @@ void Compare(int64_t now)
 		}
 	}
 	AActor *pmo = players[consoleplayer].mo;
+	// The last press may come after the last frozen tic; it is taken back so the test never presses into play.
+	Log(FStringf("use presses=%d unconsumed=%d", usePresses, *dd_tm_use));
+	dd_tm_use = 0;
+	usePresses = 0;
 	Log(FStringf("result changed=%d monsters=%d newcomers=%d spawned=%d player_health=%d->%d frames=%d max_frame_gap_ms=%.1f frozen_ms=%.1f",
 		changed, monsters, newcomers, spawned, playerHealthBefore, pmo ? pmo->health : -1, frames, maxGapNs / 1e6, (now - freezeStartNs) / 1e6));
 	snaps.clear();
@@ -132,6 +142,7 @@ void DD_ArrivalTestFrame(int64_t now)
 		if (!snapped) { TakeSnapshot(now); return; }
 		AddNewcomers();
 		frames++;
+		if (freezeUse) { dd_tm_use = 1; usePresses++; }
 		if (now - lastFrameNs > maxGapNs) maxGapNs = now - lastFrameNs;
 		lastFrameNs = now;
 	}

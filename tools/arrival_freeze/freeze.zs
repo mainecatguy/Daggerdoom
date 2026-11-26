@@ -8,9 +8,9 @@ version "4.14"
 class AFHarness : EventHandler
 {
 	static const double DOORDATA[] = { @DOOR@ };
-	bool DEMO;
+	bool DEMO, USE;
 	int phase, timer, inside, firstTime, lastTime, gaps;
-	override void OnRegister() { DEMO = @DEMO@; }
+	override void OnRegister() { DEMO = @DEMO@; USE = @USE@; }
 
 	override void WorldTick()
 	{
@@ -21,7 +21,9 @@ class AFHarness : EventHandler
 		if (isInside && !DEMO)
 		{
 			// Scripts must see every level.time value across the arrival (a handler is made anew for each map).
-			if (inside == 0) firstTime = level.time;
+			// USE: on the new map's first tic (before the freeze) face back out of the entrance, as tools/lockpick's trip
+			// does to leave, so the presses during the freeze are on the exit.
+			if (inside == 0) { firstTime = level.time; if (USE) p.angle += 180; }
 			else if (level.time != lastTime + 1) gaps++;
 			lastTime = level.time;
 			if (++inside == 35 * 6) Console.Printf("AFDONE health %d first_time %d time_gaps %d", p.health, firstTime, gaps);
