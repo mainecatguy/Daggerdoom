@@ -42,6 +42,7 @@ These pillars must survive every decision:
 ## Work tracking
 
 - If you are a manager or orchestrator, read `work/orchestrator.md`.
+- If you are the product manager, read `work/product-manager.md`.
 - **Todo** is ready: approved by the owner, needing no owner input, and depending only on finished work or earlier todo items. Automated loops take work only from `work/todo.md`.
 - **Backlog** is not ready. Never start backlog work unless the owner asks. New ideas and owner-accepted discovered work go here, as one index line in `work/backlog.md` plus a detail file in `work/backlog/`.
 - Only the owner approves moving an item from backlog to todo. If a todo item turns out to be blocked, move it to the backlog and say what it is waiting on.
