@@ -40,8 +40,8 @@ namespace DaggerfallWorkshop.Game.Entity
         [SerializeField] short Explosives;
         [SerializeField] short Pistols; // Doomerfall: was Dragonish; a save without this field starts it untrained
         [SerializeField] short Rifles; // Doomerfall: was Nymph; a save without this field starts it untrained
-        [SerializeField] short Daedric;
-        [SerializeField] short Spriggan;
+        [SerializeField] short EnergyWeapons; // Doomerfall: was Daedric; a save without this field starts it untrained
+        [SerializeField] short Melee; // Doomerfall: was Spriggan; a save without this field starts it untrained
         [SerializeField] short Centaurian;
         [SerializeField] short Impish;
         [SerializeField] short Lockpicking;
@@ -71,9 +71,11 @@ namespace DaggerfallWorkshop.Game.Entity
         [SerializeField] short GunSkillsFormat;
         // 2: also written since slot 7 became Pistols (in older data slot 7 is Dragonish).
         // 3: also written since slot 8 became Rifles (in older data slot 8 is Nymph).
-        public bool IsGunSkillsFormat { get { return GunSkillsFormat >= 1; } set { GunSkillsFormat = (short)(value ? 3 : 0); } }
+        // 4: also written since slots 9 and 10 became Energy Weapons and Melee (in older data Daedric and Spriggan).
+        public bool IsGunSkillsFormat { get { return GunSkillsFormat >= 1; } set { GunSkillsFormat = (short)(value ? 4 : 0); } }
         public bool HasPistolsSlot { get { return GunSkillsFormat >= 2; } }
         public bool HasRiflesSlot { get { return GunSkillsFormat >= 3; } }
+        public bool HasEnergyAndMeleeSlots { get { return GunSkillsFormat >= 4; } }
 
         /// <summary>Doomerfall: the first skill slot a save's class lists still read as a monster language
         /// (DFCareer.RemapRemovedSkills).</summary>
@@ -81,7 +83,9 @@ namespace DaggerfallWorkshop.Game.Entity
         {
             if (saved == null || !saved.HasPistolsSlot)
                 return DFCareer.Skills.Pistols;
-            return saved.HasRiflesSlot ? DFCareer.Skills.Daedric : DFCareer.Skills.Rifles;
+            if (!saved.HasRiflesSlot)
+                return DFCareer.Skills.Rifles;
+            return saved.HasEnergyAndMeleeSlots ? DFCareer.Skills.Centaurian : DFCareer.Skills.EnergyWeapons;
         }
 
         // Mods are temporary changes to skill values from effects
@@ -115,12 +119,12 @@ namespace DaggerfallWorkshop.Game.Entity
         }
 
         /// <summary>
-        /// Doomerfall: gives slots 4-8 (classic Orcish, Harpy, Giantish, Dragonish, Nymph) untrained values, so a character imported from
-        /// a classic save starts the gun skills like any other untrained skill instead of inheriting a language value.
+        /// Doomerfall: gives slots 4-10 (classic Orcish, Harpy, Giantish, Dragonish, Nymph, Daedric, Spriggan) untrained values, so a character imported from
+        /// a classic save starts the weapon skills like any other untrained skill instead of inheriting a language value.
         /// </summary>
         public void ResetGunSkillsToDefaults()
         {
-            for (int i = (int)DFCareer.Skills.Shotguns; i <= (int)DFCareer.Skills.Rifles; i++)
+            for (int i = (int)DFCareer.Skills.Shotguns; i <= (int)DFCareer.Skills.Melee; i++)
                 SetPermanentSkillValue(i, (short)UnityEngine.Random.Range(minDefaultValue, maxDefaultValue + 1));
         }
 
@@ -223,10 +227,10 @@ namespace DaggerfallWorkshop.Game.Entity
                     return Pistols;
                 case DFCareer.Skills.Rifles:
                     return Rifles;
-                case DFCareer.Skills.Daedric:
-                    return Daedric;
-                case DFCareer.Skills.Spriggan:
-                    return Spriggan;
+                case DFCareer.Skills.EnergyWeapons:
+                    return EnergyWeapons;
+                case DFCareer.Skills.Melee:
+                    return Melee;
                 case DFCareer.Skills.Centaurian:
                     return Centaurian;
                 case DFCareer.Skills.Impish:
@@ -320,11 +324,11 @@ namespace DaggerfallWorkshop.Game.Entity
                 case DFCareer.Skills.Rifles:
                     Rifles = value;
                     break;
-                case DFCareer.Skills.Daedric:
-                    Daedric = value;
+                case DFCareer.Skills.EnergyWeapons:
+                    EnergyWeapons = value;
                     break;
-                case DFCareer.Skills.Spriggan:
-                    Spriggan = value;
+                case DFCareer.Skills.Melee:
+                    Melee = value;
                     break;
                 case DFCareer.Skills.Centaurian:
                     Centaurian = value;
@@ -449,10 +453,10 @@ namespace DaggerfallWorkshop.Game.Entity
                     return DFCareer.Stats.Agility;
                 case DFCareer.Skills.Rifles:
                     return DFCareer.Stats.Agility;
-                case DFCareer.Skills.Daedric:
+                case DFCareer.Skills.EnergyWeapons: // Doomerfall placeholder, like Explosives
                     return DFCareer.Stats.Intelligence;
-                case DFCareer.Skills.Spriggan:
-                    return DFCareer.Stats.Intelligence;
+                case DFCareer.Skills.Melee: // Doomerfall placeholder, like Daggerfall's Axe and Blunt Weapon
+                    return DFCareer.Stats.Strength;
                 case DFCareer.Skills.Centaurian:
                     return DFCareer.Stats.Intelligence;
                 case DFCareer.Skills.Impish:
@@ -527,9 +531,9 @@ namespace DaggerfallWorkshop.Game.Entity
                 case DFCareer.Skills.Explosives:
                 case DFCareer.Skills.Pistols:
                 case DFCareer.Skills.Rifles:
+                case DFCareer.Skills.EnergyWeapons:
+                case DFCareer.Skills.Melee:
                     return 2;
-                case DFCareer.Skills.Daedric:
-                case DFCareer.Skills.Spriggan:
                 case DFCareer.Skills.Centaurian:
                 case DFCareer.Skills.Impish:
                     return 15;

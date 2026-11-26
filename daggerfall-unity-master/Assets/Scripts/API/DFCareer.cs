@@ -452,16 +452,16 @@ namespace DaggerfallConnect
             Etiquette = 1,
             Streetwise = 2,
             Jumping = 3,
-            // Doomerfall: the nine monster languages are removed. Slots 4-8 hold the new gun skills;
-            // slots 9-12 are unused (hidden everywhere) and kept so old saves and data still read.
+            // Doomerfall: the nine monster languages are removed. Slots 4-10 hold the new weapon skills
+            // (gun skills, Energy Weapons, Melee); slots 11-12 are unused (hidden everywhere) and kept so old saves and data still read.
             // See DaggerfallSkills.IsRemovedSkill and DFCareer.RemapRemovedSkills.
             Shotguns = 4,
             Automatics = 5,
             Explosives = 6,
             Pistols = 7,
             Rifles = 8,
-            Daedric = 9,
-            Spriggan = 10,
+            EnergyWeapons = 9,
+            Melee = 10,
             Centaurian = 11,
             Impish = 12,
             Lockpicking = 13,
@@ -488,12 +488,14 @@ namespace DaggerfallConnect
             CriticalStrike = 34,
             Count = 35, // Not a valid skill
 
-            // Old names of slots 4-8, only so saves and quest scripts written before Doomerfall still parse.
+            // Old names of slots 4-10, only so saves and quest scripts written before Doomerfall still parse.
             [Obsolete("Doomerfall: slot 4 is Shotguns")] Orcish = 4,
             [Obsolete("Doomerfall: slot 5 is Automatics")] Harpy = 5,
             [Obsolete("Doomerfall: slot 6 is Explosives")] Giantish = 6,
             [Obsolete("Doomerfall: slot 7 is Pistols")] Dragonish = 7,
             [Obsolete("Doomerfall: slot 8 is Rifles")] Nymph = 8,
+            [Obsolete("Doomerfall: slot 9 is Energy Weapons")] Daedric = 9,
+            [Obsolete("Doomerfall: slot 10 is Melee")] Spriggan = 10,
         }
 
         /// <summary>
@@ -562,12 +564,12 @@ namespace DaggerfallConnect
         #region Public Methods
 
         /// <summary>
-        /// Doomerfall: true for the unused slots 9-12 left by the removed monster languages.
+        /// Doomerfall: true for the unused slots 11-12 left by the removed monster languages.
         /// They keep their values in saves but are never shown, trained, raised or given to a class.
         /// </summary>
         public static bool IsRemovedSkill(Skills skill)
         {
-            return skill >= Skills.Daedric && skill <= Skills.Impish;
+            return skill >= Skills.Centaurian && skill <= Skills.Impish;
         }
 
         /// <summary>
@@ -585,11 +587,12 @@ namespace DaggerfallConnect
         /// they already read as the gun skills. Safe to call more than once.
         /// firstLanguageSlot: the first slot this data still reads as a monster language. Data written before Pistols
         /// (classic CLASS*.CFG data, or a save written before Pistols) passes Pistols: slot 7 means Dragonish and slot
-        /// 8 Nymph. A save written after Pistols but before Rifles passes Rifles: slot 8 means Nymph. Those slots get
-        /// the same filler as before Pistols and Rifles existed. Pistols and Rifles are never fillers, so adding them
-        /// changes no class's skill list (what classes list here waits on the owner).
+        /// 8-10 Nymph, Daedric and Spriggan. A save written after Pistols but before Rifles passes Rifles; one written after
+        /// Rifles but before Energy Weapons and Melee passes EnergyWeapons (slots 9-10 mean Daedric and Spriggan). Those
+        /// slots get the same filler as before the later skills existed. Pistols, Rifles, Energy Weapons and Melee are
+        /// never fillers, so adding them changes no class's skill list (what classes list here waits on the owner).
         /// </summary>
-        public void RemapRemovedSkills(Skills firstLanguageSlot = Skills.Daedric)
+        public void RemapRemovedSkills(Skills firstLanguageSlot = Skills.Centaurian)
         {
             Skills[] list = { PrimarySkill1, PrimarySkill2, PrimarySkill3, MajorSkill1, MajorSkill2, MajorSkill3,
                 MinorSkill1, MinorSkill2, MinorSkill3, MinorSkill4, MinorSkill5, MinorSkill6 };
@@ -638,7 +641,7 @@ namespace DaggerfallConnect
             this.MinorSkill4 = (Skills)cfg.MinorSkill4;
             this.MinorSkill5 = (Skills)cfg.MinorSkill5;
             this.MinorSkill6 = (Skills)cfg.MinorSkill6;
-            RemapRemovedSkills(Skills.Pistols); // Classic class data: slots 7 and 8 are Dragonish and Nymph
+            RemapRemovedSkills(Skills.Pistols); // Classic class data: slots 7-10 are Dragonish, Nymph, Daedric and Spriggan
 
             this.HitPointsPerLevel = cfg.HitPointsPerLevel;
 

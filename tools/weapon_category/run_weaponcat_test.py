@@ -19,7 +19,8 @@ QUIET = r'D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py'
 DRLA = ['DoomRL_Arsenal_1.1.5.pk3', 'DoomRL_Monsters_Beta_7.3.pk3', 'drlax_1.2b.pk3']
 BAD = re.compile(r'Script error, "doomerfall\.pk3|doomerfall\.pk3:zscript/\S+, line \d+|\bFatal error|VM execution aborted', re.I)
 
-STOCK = {'Fist': 'melee', 'Chainsaw': 'melee', 'Pistol': 'pistol', 'Shotgun': 'shotgun', 'SuperShotgun': 'shotgun',
+# Fist is unarmed (Hand-to-Hand, slot 30), not Melee (backlog skills-in-doom.md: Hand-to-Hand governs the fist).
+STOCK = {'Fist': 'unarmed', 'Chainsaw': 'melee', 'Pistol': 'pistol', 'Shotgun': 'shotgun', 'SuperShotgun': 'shotgun',
          'Chaingun': 'automatic', 'RocketLauncher': 'explosive', 'PlasmaRifle': 'energy', 'BFG9000': 'energy'}
 # DRLA guns, from their tokens and ammo (GameMods/ExtractedData). Autoshotgun has both shotgun and rapid-fire
 # tokens.
@@ -44,7 +45,15 @@ DRLA_EXPECT.update(RIFLES)
 # read precision today; they must never get the Rifles slot.
 NOT_RIFLES = {'RLAssaultRifleChaingun': 'precision', 'RLAssaultRifleMinigun': 'precision', 'RLAutocannon': 'precision'}
 DRLA_EXPECT.update(NOT_RIFLES)
-SLOT = {'shotgun': 4, 'automatic': 5, 'explosive': 6, 'pistol': 7}
+# Energy Weapons and Melee (skillcore placeholders, 2026-11-26). DRLA's fist is unarmed like the stock one; its melee
+# weapons have the melee token (the Energysaw also uses cells, and Melee comes first). Energy guns that recharge
+# instead of using cells are on Doomerfall's list; a self-charging energy pistol stays a pistol.
+MELEE_ENERGY = {'RLFist': 'unarmed', 'RLDoubleChainsaw': 'melee', 'RLPiercingChainsaw': 'melee',
+                'RLEnergysaw': 'melee', 'RLRipper': 'melee', 'RLNuclearPlasmaRifle': 'energy',
+                'RLNuclearBFG9000': 'energy', 'RLBFGInfinity': 'energy', 'RLNanoManufactureAmmoLaserRifle': 'energy',
+                'RLNuclearPlasmaPistol': 'pistol'}
+DRLA_EXPECT.update(MELEE_ENERGY)
+SLOT = {'shotgun': 4, 'automatic': 5, 'explosive': 6, 'pistol': 7, 'energy': 9, 'melee': 10, 'unarmed': 30}
 RIFLES_SLOT = 8
 
 
@@ -108,6 +117,9 @@ def main():
     checks.append(('drla: no rifle is a pistol or has the Pistols slot',
                    all(c in got and got[c][0] != 'pistol' and got[c][1] != SLOT['pistol'] for c in RIFLES),
                    {c: got.get(c) for c in RIFLES}))
+    checks.append(('drla: no fist has the Melee slot',
+                   all(c in got and got[c][1] != SLOT['melee'] for c in ('Fist', 'RLFist')),
+                   {c: got.get(c) for c in ('Fist', 'RLFist')}))
     checks.append(('drla: Assault Rifle Chaingun/Minigun and Autocannon do not have the Rifles slot',
                    all(c in got and got[c][1] != RIFLES_SLOT for c in NOT_RIFLES), {c: got.get(c) for c in NOT_RIFLES}))
 

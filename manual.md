@@ -20,24 +20,29 @@ Endurance can go, past 100 for tough classes. A Barbarian gets +17, a Warrior +1
 | 75 | 125 | 170 | 220 |
 | 100 | 150 | 210 | 277 |
 
-## Gun skills
+## Weapon skills
 
-Doomerfall adds five gun skills to your character sheet: **Shotguns**, **Automatics**, **Explosives**,
-**Pistols** and **Rifles**. The monster languages (Orcish, Harpy, Giantish, Dragonish, Nymph, Daedric, Spriggan, Centaurian,
+Doomerfall adds seven weapon skills to your character sheet: the gun skills **Shotguns**, **Automatics**,
+**Explosives**, **Pistols** and **Rifles**, plus **Energy Weapons** and **Melee**. The monster languages (Orcish, Harpy, Giantish, Dragonish, Nymph, Daedric, Spriggan, Centaurian,
 Impish) are gone: you can no longer calm monsters by speaking to them.
 
-- Each gun belongs to at most one gun skill. Shotguns covers shotguns, Automatics covers chainguns, miniguns and
+- Each weapon belongs to at most one of these skills. Shotguns covers shotguns, Automatics covers chainguns, miniguns and
   other rapid-fire guns, Explosives covers rocket, missile and grenade launchers, and Pistols covers every pistol,
   revolver and Uzi, including plasma pistols and pistols that fire shotgun shells. Rifles covers ballistic
   semi-automatic and single-shot rifles that are not explosives, energy weapons, shotguns or pistols.
 - No rifle counts as a pistol.
-- Other guns that use cells (plasma rifles, lasers, BFGs) count as energy weapons, not as shotguns or automatics,
-  even when they fire like one. Energy weapons and melee weapons have no gun skill yet.
-- The Fighters Guild trains all five gun skills.
+- **Energy Weapons** covers guns that use cells (plasma rifles, lasers, railguns, BFGs) and energy guns that recharge
+  instead of using cells (the nuclear plasma guns and BFGs), even when they fire like a shotgun or an automatic. Energy
+  pistols still count as Pistols.
+- **Melee** covers the chainsaw and other melee weapons, such as powered saws and blades. Your bare fists are not
+  Melee: they use Hand-to-Hand, as in Daggerfall.
+- Energy Weapons and Melee are placeholders for now: they show on the sheet, can be trained and are saved, but have
+  no perks yet.
+- The Fighters Guild trains all seven weapon skills.
 - Magic items that enhance a monster language, including the Enhances Daedric power that Fire and Frost Daedra
   souls add when bound into an item, still exist but do nothing. Their description says "(no effect)". The item
-  maker cannot make Enhances Skill items for the gun skills.
-- A character imported from a classic Daggerfall save starts the gun skills untrained; their old language values
+  maker cannot make Enhances Skill items for the weapon skills.
+- A character imported from a classic Daggerfall save starts the weapon skills untrained; their old language values
   and practice are not carried over.
 - The gun skills do not change how guns behave yet.
 

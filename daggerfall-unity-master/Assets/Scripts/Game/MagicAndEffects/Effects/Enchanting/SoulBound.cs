@@ -275,7 +275,7 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
                 soulType = MobileTypes.FireDaedra,
                 forcedEffects = new ForcedEnchantment[]
                 {
-                    new ForcedEnchantment(EnhancesSkill.EffectKey, (short)DFCareer.Skills.Daedric), // Doomerfall: kept, but has no effect (EnhancesSkill)
+                    new ForcedEnchantment(EnhancesSkill.EffectKey, 9), // Doomerfall: classic Daedric slot (now Energy Weapons); kept, but has no effect (EnhancesSkill)
                     new ForcedEnchantment(CastWhenUsed.EffectKey, 12), // 12=Resist Fire
                     new ForcedEnchantment(BadReactionsFrom.EffectKey, (short)BadReactionsFrom.Params.Animals),
                 }
@@ -287,7 +287,7 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
                 soulType = MobileTypes.FrostDaedra,
                 forcedEffects = new ForcedEnchantment[]
                 {
-                    new ForcedEnchantment(EnhancesSkill.EffectKey, (short)DFCareer.Skills.Daedric), // Doomerfall: kept, but has no effect (EnhancesSkill)
+                    new ForcedEnchantment(EnhancesSkill.EffectKey, 9), // Doomerfall: classic Daedric slot (now Energy Weapons); kept, but has no effect (EnhancesSkill)
                     new ForcedEnchantment(CastWhenUsed.EffectKey, 11), // 11=Resist Cold
                     new ForcedEnchantment(ItemDeteriorates.EffectKey, (short)ItemDeteriorates.Params.InHolyPlaces),
                 }
