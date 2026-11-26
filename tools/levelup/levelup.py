@@ -1,13 +1,15 @@
 """Tests Daggerfall's level-up window in a paired run, with both real games on quiet_run's private desktop.
 
-usage: levelup.py assemble | run [travel] | check
+usage: levelup.py assemble | run [travel | control] | check
 run: starts outside Privateer's Hold with DRLA. Daggerfall's -dfleveluptest earns the character one level and runs
 Daggerfall's own skill check (as resting and fast travel do), so Daggerfall opens its character sheet with the bonus
 points by itself. The harness checks that Doom shows it, then posts clicks to Doom's window as a player would: Exit
 before spending the points (Daggerfall refuses with its message), the stat with the most room, the spinner's up arrow
 until the pool is empty, and Exit. Then it checks the new level and stats in Daggerfall and in Doom's copy of the sheet.
-run travel: the same, but the skill check comes from a real fast travel made through Doom's travel map (first row of
+run travel: the same, but the skill check comes from a real fast travel made through Doom's travel map (row 3 of
 the region's location list), so the sheet must appear after the arrival.
+run control: that fast travel with no level earned, to check Doom keeps running after the arrival. On 2026-11-26
+Doom froze leaving DDT07154 this way with or without a level-up (work/notes/20261126-003657.md).
 check: DOOM.WAD E1M1 with no bridge, stock and with the DRLA set, and -norun.
 """
 import argparse
@@ -196,9 +198,10 @@ class Doom:
 
 
 class Run:
-    def __init__(self, travel=False):
-        self.travel = travel
-        self.dir = REVIEW / ("run-travel" if travel else "run")
+    def __init__(self, mode=None):
+        self.control = mode == "control"  # The same fast travel with no level earned: does Doom keep running after arrival?
+        self.travel = mode in ("travel", "control")
+        self.dir = REVIEW / (f"run-{mode}" if mode else "run")
         self.dir.mkdir(parents=True, exist_ok=True)
         self.uz_log, self.df_log, self.console = self.dir / "uz.log", self.dir / "df.log", self.dir / "log-levelup.txt"
         self.launcher, self.views = self.dir / "launcher.log", self.dir / "levelup.log"
@@ -232,7 +235,7 @@ class Run:
               "-ddtowncache", str(cache), "-ddconverter", str(REVIEW / "data" / "converter" / "DungeonConverter.exe"), "-ddarena2", str(GAME / "DAGGER" / "ARENA2"),
               # -dfuitest also makes Doom ignore the real cursor, which Windows reports too; 0 opens no menu.
               "-dfuitest", "1" if self.travel else "0", "+dd_ui_test_menu", "1", "+logfile", "levelup", "+screenshot_dir", str(self.dir / "shots"), "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{GROUP:05d}"]
-        df = ["-dfbridgelog", str(self.df_log), "-dfsynctest", str(GAME / "DAGGER"), "-dfleveluptest", str(self.views), *(["travel"] if self.travel else []), "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "400"]
+        df = ["-dfbridgelog", str(self.df_log), "-dfsynctest", str(GAME / "DAGGER"), *([] if self.control else ["-dfleveluptest", str(self.views)]), *(["travel"] if self.travel and not self.control else []), "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "400"]
         command = [sys.executable, QUIET, "--timeout", "240" if self.travel else "150", "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                    "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
                    "--uzdoom-cwd", str(self.dir), "--log", str(self.launcher)]
@@ -262,6 +265,13 @@ class Run:
         return m.group(1) == "True", int(m.group(2)), ints(m.group(3)), int(m.group(4)), ints(m.group(5)), int(m.group(6))
 
     def drive(self):
+        if self.control:
+            if self.trip():
+                time.sleep(20)
+            after = read(self.uz_log).split("travel: Daggerfall placed the player", 1)
+            beats = after[1].count(" tic=") if len(after) > 1 else 0
+            self.case(beats >= 5, f"control: Doom kept its heartbeat after the arrival ({beats} heartbeat lines)")
+            return
         if not self.wait(self.views, r"earned level", 90):
             self.case(False, "the test never earned a level (game not ready)")
             return
@@ -322,7 +332,7 @@ class Run:
 
     def trip(self):
         """Fast travel to the first row of the region's location list, through the travel map Doom's -dfuitest opened."""
-        if not self.wait(self.uz_log, r"Daggerfall opened menu 1 at", 90) or not self.wait(self.views, r"waiting for a fast travel", 5):
+        if not self.wait(self.uz_log, r"Daggerfall opened menu 1 at", 90) or not (self.control or self.wait(self.views, r"waiting for a fast travel", 5)):
             self.case(False, "the travel map never opened in Doom")
             return False
         time.sleep(1.5)
@@ -332,14 +342,15 @@ class Run:
         doom.click((20, 190))  # I'm At.
         doom.press(0x0D)  # Open the region.
         doom.press(0x4C)  # The location list.
-        doom.double_click((100, 64))
+        time.sleep(1.0)
+        doom.double_click((100, 64 + 3 * 6))  # Row 3, as tools/hidden_world uses.
         if self.wait(self.df_log, r"top window is DaggerfallMessageBox", 5):
             time.sleep(0.3)
             doom.press(0x59)  # Yes.
         if self.wait(self.df_log, r"top window is DaggerfallTravelPopUp", 5):
             time.sleep(0.4)
             doom.press(0x42)  # Begin.
-        arrived = self.wait(self.df_log, r"travel: Doom reached", 90)
+        arrived = self.wait(self.df_log, r"travel: arrived at world", 90)
         self.case(arrived, "a real fast travel through Doom's travel map arrived")
         return arrived
 
@@ -362,7 +373,7 @@ def check():
     for label, mods in (("stock", []), ("drla", [str(MODS / n) for n in DRLA])):
         log = runs / f"log-check-{label}.txt"
         log.unlink(missing_ok=True)
-        command = [sys.executable, QUIET, "--timeout", "30", "--cwd", str(runs), "--", str(REVIEW / "uzdoom" / "uzdoom.exe"), "-noactivate", "-iwad", str(GAME / "wads" / "DOOM.WAD"), "-config", str(runs / f"check-{label}.ini"),
+        command = [sys.executable, QUIET, "--timeout", "60" if mods else "30", "--cwd", str(runs), "--", str(REVIEW / "uzdoom" / "uzdoom.exe"), "-noactivate", "-iwad", str(GAME / "wads" / "DOOM.WAD"), "-config", str(runs / f"check-{label}.ini"),
                    "-nosound", "-noautoload", "-skill", "3", *(["-file", *mods] if mods else []), "+logfile", f"check-{label}", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+vid_fullscreen", "0",
                    "+map", "E1M1", "+wait 105;quit"]
         code = subprocess.call(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -376,11 +387,11 @@ def check():
 
 ap = argparse.ArgumentParser()
 ap.add_argument("command", choices=("assemble", "run", "check"))
-ap.add_argument("mode", nargs="?", choices=("travel",))
+ap.add_argument("mode", nargs="?", choices=("travel", "control"))
 args = ap.parse_args()
 if args.command == "assemble":
     assemble()
 elif args.command == "check":
     check()
 else:
-    Run(args.mode == "travel").go()
+    Run(args.mode).go()
