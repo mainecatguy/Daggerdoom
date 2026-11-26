@@ -8,3 +8,4 @@ bool DFMesh_HideCollider(FLevelLocals *level);	// true only on a Daggerfall-laye
 void DFMesh_Draw(FRenderState &state);
 void DFMesh_DrawLod(FLevelLocals *level, FRenderState &state);	// the town mesh, seen from the overworld
 void DFMesh_FrameTick(FLevelLocals *level);
+bool DFMesh_WindowText(const char *text);	// [Doomerfall] "windows <r> <g> <b>": Daggerfall's window emission colour

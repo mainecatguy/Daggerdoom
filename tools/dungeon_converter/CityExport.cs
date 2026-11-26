@@ -225,7 +225,7 @@ static partial class Program
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outFile)));
             string temp = outFile + ".tmp";
             if (File.Exists(temp)) File.Delete(temp);
-            int meshImages = 0, flatImages = 0;
+            int meshImages = 0, flatImages = 0, windowMasks = 0;
             var npcAnimation = new StringBuilder();
             using (var zip = ZipFile.Open(temp, ZipArchiveMode.Create))
             {
@@ -241,6 +241,7 @@ static partial class Program
                         if (image?.Data == null || image.Width == 0) continue;
                         using (var s = zip.CreateEntry($"dfmesh/a{archive:D3}r{record:D2}.png", CompressionLevel.Fastest).Open()) WriteTexturePng(s, image, file.Palette);
                         meshImages++;
+                        if (WriteWindowMask(zip, archive, record, image, file.Palette)) windowMasks++;
                         if (!flatArchives.Contains(archive)) continue;
                         using (var s = zip.CreateEntry($"dfflat/F{archive:D3}R{record:D2}.png", CompressionLevel.Fastest).Open()) WriteFlatPng(s, image, file.Palette);
                         flatImages++;
@@ -277,7 +278,7 @@ static partial class Program
             File.Move(temp, outFile, true);
             // A readable list for choosing test locations. It names game content, so it stays beside the package, outside the repository.
             File.WriteAllLines(Path.ChangeExtension(outFile, ".groups.tsv"), groups.Select((g, id) => $"{id}\t{g.Count}\t{g.Max(p => p.BlocksWide * p.BlocksHigh)}\t{string.Join("; ", g.Select(p => $"{p.Region}/{p.Name} {p.Type} {p.BlocksWide}x{p.BlocksHigh}"))}"));
-            Console.WriteLine($"runtime assets: {groups.Count} groups ({tooLarge} over the map limit), {meshImages} mesh textures, {flatImages} billboards, {new FileInfo(outFile).Length / 1048576} MiB, {clock.ElapsedMilliseconds} ms");
+            Console.WriteLine($"runtime assets: {groups.Count} groups ({tooLarge} over the map limit), {meshImages} mesh textures, {windowMasks} window masks, {flatImages} billboards, {new FileInfo(outFile).Length / 1048576} MiB, {clock.ElapsedMilliseconds} ms");
             return 0;
         }
 
@@ -811,8 +812,9 @@ class DFRuntimeHandler : EventHandler
                     var file = Archive(k.archive);
                     var image = file != null && k.record < file.RecordCount ? file.GetDFBitmap(k.record, 0) : null;
                     if (image?.Data == null || image.Width == 0) { BadTextures++; Console.WriteLine($"missing texture {k.archive}:{k.record}"); continue; }
-                    using var s = zip.CreateEntry($"dfmesh/a{k.archive:D3}r{k.record:D2}.png", CompressionLevel.Fastest).Open();
-                    WriteTexturePng(s, image, file.Palette);
+                    using (var s = zip.CreateEntry($"dfmesh/a{k.archive:D3}r{k.record:D2}.png", CompressionLevel.Fastest).Open())
+                        WriteTexturePng(s, image, file.Palette);
+                    WriteWindowMask(zip, k.archive, k.record, image, file.Palette);
                 }
                 var flatList = new StringBuilder();
                 foreach (var pair in Flats.Select(f => (f.archive, f.record)).Distinct())
@@ -950,7 +952,37 @@ class DFRuntimeHandler : EventHandler
         }
 
         // RGBA PNG with palette index 0 transparent and a grAb offset at the bottom center, as Daggerfall billboards stand on their base.
-        static void WriteFlatPng(Stream output, DFBitmap image, DFPalette palette)
+        // A window mask (dfwin/aNNNrNN.png) for each of Daggerfall's exterior window textures that has emissive pixels.
+        static bool WriteWindowMask(ZipArchive zip, int archive, int record, DFBitmap image, DFPalette palette)
+        {
+            if (!IsExteriorWindow(archive, record) || Array.IndexOf(image.Data, (byte)255) < 0) return false;
+            using var s = zip.CreateEntry($"dfwin/a{archive:D3}r{record:D2}.png", CompressionLevel.Fastest).Open();
+            WriteFlatPng(s, image, palette, true);
+            return true;
+        }
+
+        // Daggerfall Unity's ClimateSwaps.IsExteriorWindow, unchanged (that file needs Unity, so it is not compiled here).
+        static bool IsExteriorWindow(int archive, int record)
+        {
+            if (archive >= 375 && archive <= 379 || archive == 210 || archive == 280) return false;
+            if (archive == 36 && record == 2 || archive == 151 && record == 3 || archive == 154 && record == 3 || archive == 351 && record == 3 ||
+                archive == 171 && record == 2 || archive == 172 && record == 3 || archive == 173 && record == 3)
+                return true;
+            switch (archive % 100)
+            {
+                case 9: case 10: case 12: case 13: case 14: case 15: case 26: case 27: case 35: case 36:
+                case 38: case 39: case 42: case 43: case 58: case 59: case 61: case 62: case 64: case 65:
+                    return record == 3;
+                case 75: case 76: case 77: return true;
+                case 79: case 80: return record == 0 || record == 2;
+                case 82: case 83: return record == 0;
+            }
+            return false;
+        }
+
+        // windowMask: instead, white where the palette index is 255 and clear elsewhere, with no grAb. That is Daggerfall's
+        // window emission map (BaseImageFile.GetWindowColors32); Doom tints it with Daggerfall's window colour (hw_dfmesh.cpp).
+        static void WriteFlatPng(Stream output, DFBitmap image, DFPalette palette, bool windowMask = false)
         {
             byte[] buffer = palette.PaletteBuffer;
             int head = palette.HeaderLength, w = image.Width, h = image.Height;
@@ -961,6 +993,7 @@ class DFRuntimeHandler : EventHandler
                 for (int x = 0; x < w; x++)
                 {
                     int index = image.Data[y * w + x], c = index * 3 + head;
+                    if (windowMask) { raw[at++] = 255; raw[at++] = 255; raw[at++] = 255; raw[at++] = (byte)(index == 255 ? 255 : 0); continue; }
                     raw[at++] = buffer[c]; raw[at++] = buffer[c + 1]; raw[at++] = buffer[c + 2]; raw[at++] = (byte)(index == 0 ? 0 : 255);
                 }
             }
@@ -976,7 +1009,7 @@ class DFRuntimeHandler : EventHandler
             byte[] Big(params int[] values) => values.SelectMany(v => new[] { (byte)(v >> 24), (byte)(v >> 16), (byte)(v >> 8), (byte)v }).ToArray();
             output.Write(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A });
             Chunk("IHDR", Big(w, h).Concat(new byte[] { 8, 6, 0, 0, 0 }).ToArray());
-            Chunk("grAb", Big(w / 2, h));
+            if (!windowMask) Chunk("grAb", Big(w / 2, h));
             Chunk("IDAT", packed.ToArray());
             Chunk("IEND", new byte[0]);
         }
