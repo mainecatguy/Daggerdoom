@@ -410,11 +410,11 @@ Verdicts:
 
 ## 2026-11-26: Which rifles join Rifles and Pistols, and where do the single-shot heavies go? [skillresearch 01]
 
-- **Verdict:** Deferred.
-- **Answer:** None. The owner reserved this until after the rifles research (2026-11-26).
-- **Rests on:** `skills-in-doom.md` open answers; `skillperks` 05 gate. Energy Weapons is not approved, so "Railgun maybe
-  Energy" has no home for now.
-- **Challenge:** None. Kept.
+- **Verdict:** Owner decided (2026-11-26).
+- **Answer:** "Pistols and rifles becomes just pistols", and "no rifle is counted". The skill is Pistols. Rifles need a
+  tag so Doomerfall can tell them apart (DRLA's `SingleShotRifle` token does not match), and "for rifles we need a
+  skill" (backlog: Marksmanship).
+- **Rests on:** Owner, 2026-11-26, after the rifles research (`work/notes/20261126-003658.md`).
 
 ## 2026-11-26: Floor gun look label: show the plain Doom name until Daggerfall answers, or no label? [skillresearch]
 
@@ -440,4 +440,11 @@ Verdicts:
 - **Verdict:** Owner decided.
 - **Answer:** Resting gets a card: Daggerfall's rest menu exactly as in Daggerfall, opened in Doom by a keybind like the
   other menus. Doom also shows "You have reached level N" on a level-up.
+- **Rests on:** Owner, 2026-11-26.
+
+## 2026-11-26: Older saves and the class Endurance bonus [owner]
+
+- **Verdict:** Owner decided.
+- **Answer:** Keep what is merged: saves from before the HP change get the class bonus added to Endurance once on load,
+  so old and new characters follow the same rule.
 - **Rests on:** Owner, 2026-11-26.
