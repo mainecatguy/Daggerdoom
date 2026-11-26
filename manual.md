@@ -44,3 +44,15 @@ When you have earned a level, Daggerfall's character sheet opens by itself insid
 - Click **Exit** when all the points are spent. If you try to leave earlier, Daggerfall reminds you to spend them.
 
 You are back in Doom with the new attributes in effect.
+
+## Perks
+
+A skill earns a **perk** when it reaches 25, 50, 75 and 100.
+
+- When you earn a perk, the game pauses and a window tells you what the perk does. Click to close it, and play
+  carries on.
+- If the skill rises while a menu is open, for example while training or travelling, the window appears once
+  you are back in the game. Several perks at once share one window.
+- Loading a save does not show perks you already have.
+- So far, Jumping and the gun skills (Shotguns, Automatics and Explosives) have perks. The window says when a perk
+  does not work yet.
