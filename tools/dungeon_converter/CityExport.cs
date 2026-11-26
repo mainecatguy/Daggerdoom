@@ -48,6 +48,13 @@ static partial class Program
         static float target;
         static bool Walkable(int x, int y) => sites.Any(s => x >= s.FlatX0 - walkMargin && x < s.FlatX1 + walkMargin && y >= s.FlatY0 - walkMargin && y < s.FlatY1 + walkMargin);
 
+        // --winter: the location as Daggerfall draws it in winter (ClimateSwaps, TerrainMaterialProvider.GetClimateInfo).
+        static bool Winter;
+        static bool SnowyNature(int archive) => archive is (int)DFLocation.ClimateTextureSet.Nature_TemperateWoodland or (int)DFLocation.ClimateTextureSet.Nature_WoodlandHills
+            or (int)DFLocation.ClimateTextureSet.Nature_HauntedWoodlands or (int)DFLocation.ClimateTextureSet.Nature_Mountains;
+        static int NatureArchive(DFLocation l) => Winter && SnowyNature(l.Climate.NatureArchive) ? l.Climate.NatureArchive + 1 : l.Climate.NatureArchive;
+        static int GroundArchive(DFLocation l) => Winter && l.Climate.ClimateType != DFLocation.ClimateBaseType.Desert ? l.Climate.GroundArchive + 1 : l.Climate.GroundArchive;
+
         public static int Run(string[] args)
         {
             string Arg(string name, string fallback) { int at = Array.IndexOf(args, name); return at >= 0 ? args[at + 1] : fallback; }
@@ -59,6 +66,9 @@ static partial class Program
             PlayerScale.DoomUnitsPerDaggerfallUnit = double.Parse(Arg("--world-scale", "0.75"), CultureInfo.InvariantCulture);
             // --group <id> --ddt <file> converts one location group for the running game.
             int groupId = int.Parse(Arg("--group", "-1"));
+            // Daggerfall's winter season: ClimateSwaps' winter texture sets. Outdoors only: Daggerfall draws interiors in
+            // summer all year (DaggerfallInterior's climateSeason) and dungeon blocks never swap for the season (RDBLayout).
+            Winter = args.Contains("--winter") && groupId < SpaceBase;
             string ddtPath = Arg("--ddt", null);
             if (args.Contains("--list-buildings")) return ListBuildings(groupId, arena2);
             if (groupId >= SpaceBase) return RunInterior(groupId, ddtPath, outDir, arena2);
@@ -225,7 +235,7 @@ static partial class Program
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outFile)));
             string temp = outFile + ".tmp";
             if (File.Exists(temp)) File.Delete(temp);
-            int meshImages = 0, flatImages = 0;
+            int meshImages = 0, flatImages = 0, windowMasks = 0;
             var npcAnimation = new StringBuilder();
             using (var zip = ZipFile.Open(temp, ZipArchiveMode.Create))
             {
@@ -241,6 +251,7 @@ static partial class Program
                         if (image?.Data == null || image.Width == 0) continue;
                         using (var s = zip.CreateEntry($"dfmesh/a{archive:D3}r{record:D2}.png", CompressionLevel.Fastest).Open()) WriteTexturePng(s, image, file.Palette);
                         meshImages++;
+                        if (WriteWindowMask(zip, archive, record, image, file.Palette)) windowMasks++;
                         if (!flatArchives.Contains(archive)) continue;
                         using (var s = zip.CreateEntry($"dfflat/F{archive:D3}R{record:D2}.png", CompressionLevel.Fastest).Open()) WriteFlatPng(s, image, file.Palette);
                         flatImages++;
@@ -277,7 +288,7 @@ static partial class Program
             File.Move(temp, outFile, true);
             // A readable list for choosing test locations. It names game content, so it stays beside the package, outside the repository.
             File.WriteAllLines(Path.ChangeExtension(outFile, ".groups.tsv"), groups.Select((g, id) => $"{id}\t{g.Count}\t{g.Max(p => p.BlocksWide * p.BlocksHigh)}\t{string.Join("; ", g.Select(p => $"{p.Region}/{p.Name} {p.Type} {p.BlocksWide}x{p.BlocksHigh}"))}"));
-            Console.WriteLine($"runtime assets: {groups.Count} groups ({tooLarge} over the map limit), {meshImages} mesh textures, {flatImages} billboards, {new FileInfo(outFile).Length / 1048576} MiB, {clock.ElapsedMilliseconds} ms");
+            Console.WriteLine($"runtime assets: {groups.Count} groups ({tooLarge} over the map limit), {meshImages} mesh textures, {windowMasks} window masks, {flatImages} billboards, {new FileInfo(outFile).Length / 1048576} MiB, {clock.ElapsedMilliseconds} ms");
             return 0;
         }
 
@@ -484,17 +495,33 @@ class DFRuntimeHandler : EventHandler
             static readonly HashSet<int> ClimateSets = new HashSet<int> { 2, 7, 9, 10, 12, 13, 14, 15, 17, 18, 26, 27, 29, 30, 35, 36, 38, 39, 42, 43, 58, 59, 61, 62, 64, 65, 69, 70, 79, 80, 82, 83, 74,
                 11, 16, 19, 20, 22, 23, 24, 25, 28, 37, 40, 41, 44, 45, 47, 48, 60, 63, 66, 68 };
 
-            // ClimateSwaps.ApplyClimate for summer.
+            // ClimateSwaps.GetClimateTextureInfo's sets with supportsWinter: terrain and the exterior building sets.
+            static readonly HashSet<int> WinterSets = new HashSet<int> { 2, 7, 9, 12, 14, 17, 26, 29, 35, 38, 42, 58, 61, 64, 69, 79, 80, 82, 83 };
+
+            // ClimateSwaps.ApplyClimate for summer, or for winter with --winter.
             int Swap(int archive, int record)
             {
                 if (archive % 100 == 74 && record == 3) return archive;
-                if (archive >= 500 || archive is 75 or 76 or 77 or 79 or 80 or 82 or 83) return archive;
+                if (archive >= 500) return Winter && SnowyNature(archive) ? archive + 1 : archive;
                 int set = archive % 100;
                 // Same whitelist as ClimateSwaps.GetClimateTextureInfo; other sets (wagon 88, hedges, planks, furniture) never swap.
                 if (!ClimateSets.Contains(set)) return archive;
                 string setName = ((DFLocation.ClimateTextureSet)set).ToString();
                 if (location.Climate.ClimateType == DFLocation.ClimateBaseType.Swamp && setName == "Interior_MarbleFloors") return archive;
-                return (int)location.Climate.ClimateType + set;
+                bool winter = Winter && SupportsWinter(set, setName, archive, record);
+                if (archive is 75 or 76 or 77 or 79 or 80 or 82 or 83) return winter ? archive + 1 : archive;
+                return (int)location.Climate.ClimateType + set + (winter ? 1 : 0);
+            }
+
+            // ClimateSwaps' winter rules: terrain and exterior sets have a winter variant, never in desert climates,
+            // and a few archives lack one. The Castle test keeps ClimateSwaps' operator precedence (any climate).
+            bool SupportsWinter(int set, string setName, int archive, int record)
+            {
+                if (location.Climate.ClimateType == DFLocation.ClimateBaseType.Desert) return false;
+                if (!WinterSets.Contains(set)) return false;
+                if (location.Climate.ClimateType == DFLocation.ClimateBaseType.Swamp && setName == "Exterior_MagesGuild" || setName == "Exterior_Castle" && record > 3) return false;
+                if (archive == 82 && record > 1 || archive == 77) return false;
+                return true;
             }
 
             public void AddModel(Arch3dFile arch, uint id, V3 position, double rx, double ry, double rz, V3 scale, V3 parent, double parentYaw)
@@ -680,7 +707,7 @@ class DFRuntimeHandler : EventHandler
                         int archive = f.TextureArchive;
                         double fx = origin.X + sub.XPos + f.XPos, fy = origin.Y - f.YPos - 6, fz = origin.Z - sub.ZPos + f.ZPos + RmbDf;
                         if (archive >= (int)DFLocation.ClimateTextureSet.Nature_RainForest && archive <= (int)DFLocation.ClimateTextureSet.Nature_Mountains_Snow)
-                            archive = location.Climate.NatureArchive;
+                            archive = NatureArchive(location);
                         AddFlat(archive, f.TextureRecord, fx, fy, fz, false, f.FactionID != 0 ? NpcIdentity.Make(mapId, NpcIdentity.Exterior, layoutX, layoutY, 0, f.Position) : 0);
                     }
                 }
@@ -695,7 +722,7 @@ class DFRuntimeHandler : EventHandler
                 for (int y = 0; y < 16; y++)
                     for (int x = 0; x < 16; x++)
                         if (scenery[x, 15 - y].TextureRecord >= 1)
-                            AddFlat(location.Climate.NatureArchive, scenery[x, 15 - y].TextureRecord, origin.X + x * TileDf, origin.Y - 2, origin.Z + y * TileDf + TileDf);
+                            AddFlat(NatureArchive(location), scenery[x, 15 - y].TextureRecord, origin.X + x * TileDf, origin.Y - 2, origin.Z + y * TileDf + TileDf);
             }
 
             // DDDOORS, one per line: kind target index x y z nx ny, in town map units. Kind 0 targets an interior space
@@ -737,7 +764,7 @@ class DFRuntimeHandler : EventHandler
 
             public void AddTerrain(int fromX, int toX, int fromY, int toY)
             {
-                int archive = location.Climate.GroundArchive;
+                int archive = GroundArchive(location);
                 for (int ty = fromY; ty < toY; ty++)
                     for (int tx = fromX; tx < toX; tx++)
                     {
@@ -788,7 +815,7 @@ class DFRuntimeHandler : EventHandler
                         double steepness = Math.Atan(Math.Sqrt(dx * dx + dy * dy)) * 180 / Math.PI;
                         if (steepness > maxSteepness) continue;
                         double up = (Height(x, y) - target) * HeightToDf - steepness / sinkRatio * UnityToDf;
-                        AddFlat(location.Climate.NatureArchive, record, originX + (x - originTileX) * TileDf, up, originZ + (y - originTileY) * TileDf);
+                        AddFlat(NatureArchive(location), record, originX + (x - originTileX) * TileDf, up, originZ + (y - originTileY) * TileDf);
                     }
             }
 
@@ -811,8 +838,9 @@ class DFRuntimeHandler : EventHandler
                     var file = Archive(k.archive);
                     var image = file != null && k.record < file.RecordCount ? file.GetDFBitmap(k.record, 0) : null;
                     if (image?.Data == null || image.Width == 0) { BadTextures++; Console.WriteLine($"missing texture {k.archive}:{k.record}"); continue; }
-                    using var s = zip.CreateEntry($"dfmesh/a{k.archive:D3}r{k.record:D2}.png", CompressionLevel.Fastest).Open();
-                    WriteTexturePng(s, image, file.Palette);
+                    using (var s = zip.CreateEntry($"dfmesh/a{k.archive:D3}r{k.record:D2}.png", CompressionLevel.Fastest).Open())
+                        WriteTexturePng(s, image, file.Palette);
+                    WriteWindowMask(zip, k.archive, k.record, image, file.Palette);
                 }
                 var flatList = new StringBuilder();
                 foreach (var pair in Flats.Select(f => (f.archive, f.record)).Distinct())
@@ -950,7 +978,37 @@ class DFRuntimeHandler : EventHandler
         }
 
         // RGBA PNG with palette index 0 transparent and a grAb offset at the bottom center, as Daggerfall billboards stand on their base.
-        static void WriteFlatPng(Stream output, DFBitmap image, DFPalette palette)
+        // A window mask (dfwin/aNNNrNN.png) for each of Daggerfall's exterior window textures that has emissive pixels.
+        static bool WriteWindowMask(ZipArchive zip, int archive, int record, DFBitmap image, DFPalette palette)
+        {
+            if (!IsExteriorWindow(archive, record) || Array.IndexOf(image.Data, (byte)255) < 0) return false;
+            using var s = zip.CreateEntry($"dfwin/a{archive:D3}r{record:D2}.png", CompressionLevel.Fastest).Open();
+            WriteFlatPng(s, image, palette, true);
+            return true;
+        }
+
+        // Daggerfall Unity's ClimateSwaps.IsExteriorWindow, unchanged (that file needs Unity, so it is not compiled here).
+        static bool IsExteriorWindow(int archive, int record)
+        {
+            if (archive >= 375 && archive <= 379 || archive == 210 || archive == 280) return false;
+            if (archive == 36 && record == 2 || archive == 151 && record == 3 || archive == 154 && record == 3 || archive == 351 && record == 3 ||
+                archive == 171 && record == 2 || archive == 172 && record == 3 || archive == 173 && record == 3)
+                return true;
+            switch (archive % 100)
+            {
+                case 9: case 10: case 12: case 13: case 14: case 15: case 26: case 27: case 35: case 36:
+                case 38: case 39: case 42: case 43: case 58: case 59: case 61: case 62: case 64: case 65:
+                    return record == 3;
+                case 75: case 76: case 77: return true;
+                case 79: case 80: return record == 0 || record == 2;
+                case 82: case 83: return record == 0;
+            }
+            return false;
+        }
+
+        // windowMask: instead, white where the palette index is 255 and clear elsewhere, with no grAb. That is Daggerfall's
+        // window emission map (BaseImageFile.GetWindowColors32); Doom tints it with Daggerfall's window colour (hw_dfmesh.cpp).
+        static void WriteFlatPng(Stream output, DFBitmap image, DFPalette palette, bool windowMask = false)
         {
             byte[] buffer = palette.PaletteBuffer;
             int head = palette.HeaderLength, w = image.Width, h = image.Height;
@@ -961,6 +1019,7 @@ class DFRuntimeHandler : EventHandler
                 for (int x = 0; x < w; x++)
                 {
                     int index = image.Data[y * w + x], c = index * 3 + head;
+                    if (windowMask) { raw[at++] = 255; raw[at++] = 255; raw[at++] = 255; raw[at++] = (byte)(index == 255 ? 255 : 0); continue; }
                     raw[at++] = buffer[c]; raw[at++] = buffer[c + 1]; raw[at++] = buffer[c + 2]; raw[at++] = (byte)(index == 0 ? 0 : 255);
                 }
             }
@@ -976,7 +1035,7 @@ class DFRuntimeHandler : EventHandler
             byte[] Big(params int[] values) => values.SelectMany(v => new[] { (byte)(v >> 24), (byte)(v >> 16), (byte)(v >> 8), (byte)v }).ToArray();
             output.Write(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A });
             Chunk("IHDR", Big(w, h).Concat(new byte[] { 8, 6, 0, 0, 0 }).ToArray());
-            Chunk("grAb", Big(w / 2, h));
+            if (!windowMask) Chunk("grAb", Big(w / 2, h));
             Chunk("IDAT", packed.ToArray());
             Chunk("IEND", new byte[0]);
         }

@@ -171,7 +171,8 @@ float GetFogDensity(FLevelLocals* Level, ELightMode lightmode, int lightlevel, P
 	else if (sectorfogdensity != 0)
 	{
 		// case 1: Sector has an explicit fog density set.
-		density = (float)sectorfogdensity;
+		extern float dd_fog_unit;	// [Doomerfall] 1 except while Daggerfall's fog is on the map (playsim/dd_weather.cpp)
+		density = (float)sectorfogdensity * dd_fog_unit;
 	}
 	else if ((fogcolor.d & 0xffffff) == 0)
 	{
