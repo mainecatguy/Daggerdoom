@@ -27,6 +27,11 @@ the Marksmanship draft's +0% to +100%.
   The first penetration (from skill 50) loses no damage. Each penetration after that deals 3/4 of the one before.
   Example, 4 pinkies in a row: 1st takes 100%, 2nd 100%, 3rd 75%, 4th 75% of 75%.
 
+**Under review (owner, 2026-11-26):** the 50 pool and 75 steady shot both reward not firing. The tree "doesn't feel
+good to players even if it is good"; it feels engineered. One or both may be replaced. Ideas offered: 50 Exploit
+(crippled enemies take extra rifle damage), Follow-up, Knockback; 75 Quick cycle (a kill instantly chambers the next
+round), Stagger, Headshots.
+
 The Marksmanship draft's kill carry-through at 25 (2026-11-25) is replaced by these perks.
 
 Notes: the heavies (Anti-Materiel, Gauss Rifle, Sniper) hit far harder per shot than pistols, so the perks need their
