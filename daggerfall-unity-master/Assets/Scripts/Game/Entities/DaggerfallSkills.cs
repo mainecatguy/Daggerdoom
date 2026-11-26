@@ -39,7 +39,7 @@ namespace DaggerfallWorkshop.Game.Entity
         [SerializeField] short Automatics;
         [SerializeField] short Explosives;
         [SerializeField] short Pistols; // Doomerfall: was Dragonish; a save without this field starts it untrained
-        [SerializeField] short Nymph;
+        [SerializeField] short Rifles; // Doomerfall: was Nymph; a save without this field starts it untrained
         [SerializeField] short Daedric;
         [SerializeField] short Spriggan;
         [SerializeField] short Centaurian;
@@ -70,8 +70,19 @@ namespace DaggerfallWorkshop.Game.Entity
         // Doomerfall: 1 in every save written since the gun skills replaced the monster languages, 0 (missing) in older saves.
         [SerializeField] short GunSkillsFormat;
         // 2: also written since slot 7 became Pistols (in older data slot 7 is Dragonish).
-        public bool IsGunSkillsFormat { get { return GunSkillsFormat >= 1; } set { GunSkillsFormat = (short)(value ? 2 : 0); } }
+        // 3: also written since slot 8 became Rifles (in older data slot 8 is Nymph).
+        public bool IsGunSkillsFormat { get { return GunSkillsFormat >= 1; } set { GunSkillsFormat = (short)(value ? 3 : 0); } }
         public bool HasPistolsSlot { get { return GunSkillsFormat >= 2; } }
+        public bool HasRiflesSlot { get { return GunSkillsFormat >= 3; } }
+
+        /// <summary>Doomerfall: the first skill slot a save's class lists still read as a monster language
+        /// (DFCareer.RemapRemovedSkills).</summary>
+        public static DFCareer.Skills FirstLanguageSlotOf(DaggerfallSkills saved)
+        {
+            if (saved == null || !saved.HasPistolsSlot)
+                return DFCareer.Skills.Pistols;
+            return saved.HasRiflesSlot ? DFCareer.Skills.Daedric : DFCareer.Skills.Rifles;
+        }
 
         // Mods are temporary changes to skill values from effects
         // Default is 0 - effects can raise/lower mod values during their lifecycle
@@ -104,12 +115,12 @@ namespace DaggerfallWorkshop.Game.Entity
         }
 
         /// <summary>
-        /// Doomerfall: gives slots 4-7 (classic Orcish, Harpy, Giantish, Dragonish) untrained values, so a character imported from
+        /// Doomerfall: gives slots 4-8 (classic Orcish, Harpy, Giantish, Dragonish, Nymph) untrained values, so a character imported from
         /// a classic save starts the gun skills like any other untrained skill instead of inheriting a language value.
         /// </summary>
         public void ResetGunSkillsToDefaults()
         {
-            for (int i = (int)DFCareer.Skills.Shotguns; i <= (int)DFCareer.Skills.Pistols; i++)
+            for (int i = (int)DFCareer.Skills.Shotguns; i <= (int)DFCareer.Skills.Rifles; i++)
                 SetPermanentSkillValue(i, (short)UnityEngine.Random.Range(minDefaultValue, maxDefaultValue + 1));
         }
 
@@ -210,8 +221,8 @@ namespace DaggerfallWorkshop.Game.Entity
                     return Explosives;
                 case DFCareer.Skills.Pistols:
                     return Pistols;
-                case DFCareer.Skills.Nymph:
-                    return Nymph;
+                case DFCareer.Skills.Rifles:
+                    return Rifles;
                 case DFCareer.Skills.Daedric:
                     return Daedric;
                 case DFCareer.Skills.Spriggan:
@@ -306,8 +317,8 @@ namespace DaggerfallWorkshop.Game.Entity
                 case DFCareer.Skills.Pistols:
                     Pistols = value;
                     break;
-                case DFCareer.Skills.Nymph:
-                    Nymph = value;
+                case DFCareer.Skills.Rifles:
+                    Rifles = value;
                     break;
                 case DFCareer.Skills.Daedric:
                     Daedric = value;
@@ -436,8 +447,8 @@ namespace DaggerfallWorkshop.Game.Entity
                     return DFCareer.Stats.Intelligence;
                 case DFCareer.Skills.Pistols:
                     return DFCareer.Stats.Agility;
-                case DFCareer.Skills.Nymph:
-                    return DFCareer.Stats.Intelligence;
+                case DFCareer.Skills.Rifles:
+                    return DFCareer.Stats.Agility;
                 case DFCareer.Skills.Daedric:
                     return DFCareer.Stats.Intelligence;
                 case DFCareer.Skills.Spriggan:
@@ -515,8 +526,8 @@ namespace DaggerfallWorkshop.Game.Entity
                 case DFCareer.Skills.Automatics:
                 case DFCareer.Skills.Explosives:
                 case DFCareer.Skills.Pistols:
+                case DFCareer.Skills.Rifles:
                     return 2;
-                case DFCareer.Skills.Nymph:
                 case DFCareer.Skills.Daedric:
                 case DFCareer.Skills.Spriggan:
                 case DFCareer.Skills.Centaurian:

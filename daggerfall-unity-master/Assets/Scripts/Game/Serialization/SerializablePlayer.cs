@@ -279,7 +279,7 @@ namespace DaggerfallWorkshop.Game.Serialization
             entity.FaceIndex = data.playerEntity.faceIndex;
             entity.Reflexes = data.playerEntity.reflexes;
             entity.Career = data.playerEntity.careerTemplate;
-            entity.Career.RemapRemovedSkills(data.playerEntity.skills == null || !data.playerEntity.skills.HasPistolsSlot); // Doomerfall: a pre-Doomerfall save may list a removed language
+            entity.Career.RemapRemovedSkills(DaggerfallSkills.FirstLanguageSlotOf(data.playerEntity.skills)); // Doomerfall: an older save may list a removed language
             entity.Name = data.playerEntity.name;
             entity.Level = data.playerEntity.level;
             entity.Stats = data.playerEntity.stats;

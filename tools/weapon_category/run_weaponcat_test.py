@@ -34,12 +34,13 @@ DRLA_EXPECT = {'RLPistol': 'pistol', 'RLShotgun': 'shotgun', 'RLCombatShotgun': 
                'RLCombatPistol': 'pistol', 'RLMarksmanPistol': 'pistol', 'RLHandcannon': 'pistol',
                'RLHuntingRevolver': 'pistol', 'RLSilencedPistol': 'pistol', 'RLPP7': 'pistol'}
 # Rifles are never pistols ("no rifle is counted"). Their categories come from their DRLA tokens: rifle token ->
-# precision (no skill yet), rapid-fire only -> automatic, the Sniper Rifle has neither -> other.
+# precision (the Rifles skill, slot 8), rapid-fire only -> automatic, the Sniper Rifle has neither -> other (until
+# Doomerfall's own rifle tag, todo rifletag 01).
 RIFLES = {'RLMarksmanRifle': 'precision', 'RLBattleRifle': 'automatic', 'RLVanguardRifle': 'automatic',
           'RLSniperRifle': 'other', 'RLElephantGun': 'precision', 'RLGaussRifle': 'precision',
           'RLAntiMaterielRifle': 'precision'}
 DRLA_EXPECT.update(RIFLES)
-SLOT = {'shotgun': 4, 'automatic': 5, 'explosive': 6, 'pistol': 7}
+SLOT = {'shotgun': 4, 'automatic': 5, 'explosive': 6, 'pistol': 7, 'precision': 8}
 
 
 def run(exe, work, iwad, files, name, timeout):

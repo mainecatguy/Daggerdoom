@@ -16,7 +16,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
     internal sealed class DoomerfallSheetTest : MonoBehaviour
     {
         const float StepSeconds = 0.5f, WaitSeconds = 12f;
-        const string SaveName = "SheetTest", OldSaveName = "PreSkills";
+        const string SaveName = "SheetTest";
+        // Saves the demo copies in: written before the gun skills, and written before Rifles (Pistols era).
+        static readonly string[] OldSaveNames = { "PreSkills", "PreRifles" };
 
         DoomerfallBridge bridge;
         DoomerfallPositionSync sync;
@@ -47,18 +49,23 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             SaveLoadManager saves = GameManager.Instance.SaveLoadManager;
             string character = player.Name;
 
-            // A save written before the gun skills (copied in as "PreSkills" by the demo) must still load.
-            saves.EnumerateSaves();
-            if (saves.FindSaveFolderByNames(character, OldSaveName) >= 0)
+            // Older saves copied in by the demo must still load.
+            foreach (string oldSave in OldSaveNames)
             {
-                yield return LoadAndWait(saves, character, OldSaveName);
+                saves.EnumerateSaves();
+                if (saves.FindSaveFolderByNames(character, oldSave) < 0)
+                    continue;
+                yield return LoadAndWait(saves, character, oldSave);
                 player = GameManager.Instance.PlayerEntity;
-                bridge.LogLine(string.Format("sheet test: old save career {0}", string.Join(",", player.GetMinorSkills())));
+                bridge.LogLine(string.Format("sheet test: old save {0} career {1} rifles {2}", oldSave,
+                    string.Join(",", player.GetMinorSkills()), player.Skills.GetPermanentSkillValue(DFCareer.Skills.Rifles)));
+                LogSheetSkills(player);
                 yield return Step(loaded ? "old save loaded" : "old save load timed out");
             }
 
             player.Skills.SetPermanentSkillValue(DFCareer.Skills.Shotguns, (short)(player.Skills.GetPermanentSkillValue(DFCareer.Skills.Shotguns) + 5));
             player.Skills.SetPermanentSkillValue(DFCareer.Skills.Pistols, (short)(player.Skills.GetPermanentSkillValue(DFCareer.Skills.Pistols) + 9));
+            player.Skills.SetPermanentSkillValue(DFCareer.Skills.Rifles, (short)(player.Skills.GetPermanentSkillValue(DFCareer.Skills.Rifles) + 11));
 
             player.Skills.SetPermanentSkillValue(DFCareer.Skills.Archery, (short)(player.Skills.GetPermanentSkillValue(DFCareer.Skills.Archery) + 7));
             yield return Step("training");
