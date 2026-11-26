@@ -1,114 +1,124 @@
 // Doomerfall: Daggerfall's side of locked dungeon doors (bridge kinds DFB_KIND_DOOR_*). Runs only in a bridge session.
 //
-// Daggerfall owns every lock: the live DaggerfallActionDoor in its hidden dungeon, whose CurrentLockValue already
-// persists through Daggerfall's save. Doom keeps a door shut while this class lists it as locked, asks here when the
-// player uses it, and runs the lockpicking minigame with Daggerfall's chance. The result comes back here, where
-// DoomerfallLocks does Daggerfall's bookkeeping (skill tally, broken pick, unlock).
+// Doom owns each live lock on the current map and runs Daggerfall's door order (door_objects.zs). Daggerfall owns the
+// rules and the player: Doom asks here when the player uses a locked door, with the door's lock value, and this class
+// answers with Daggerfall's chance (the minigame starts) or a refusal message (no picks, magically held). The
+// minigame's result comes back for Daggerfall's bookkeeping (skill tally, broken pick, message).
 //
-// The full locked list goes to Doom whenever the dungeon, a load, or any lock changes it, and whenever Doom asks
-// (a new map or a load on Doom's side), so a reload restores exactly the locks Daggerfall's save holds.
+// The doors the player picked open are a permanent fact per dungeon, kept here and saved with the game. When Doom
+// builds a dungeon's map fresh it asks for its facts: this class arms the locks and names the picked doors. A saved
+// game restores Doom's own live locks instead.
 
+using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Text;
+using DaggerfallWorkshop.Game.Serialization;
+using FullSerializer;
 using UnityEngine;
 
 namespace DaggerfallWorkshop.Game.Doomerfall
 {
     internal sealed class DoomerfallDoors : MonoBehaviour
     {
-        const float PollSeconds = 0.5f;
+        const string LedgerFile = "DoomerfallDoors.json";
+
+        // Castle Daggerfall's magically held foyer doors (DaggerfallAction.CastleDaggerfallMagicDoorsSpecialOpenHack).
+        const int CastleDaggerfallMapId = 1291010263;
+        static readonly ulong[] CastleFoyerDoors = { 29331574, 29331622 };
+
+        [fsObject("v1")]
+        public sealed class LedgerData
+        {
+            // Dungeon MapId -> LoadIDs of the doors the player picked open there.
+            public Dictionary<string, List<ulong>> picked = new Dictionary<string, List<ulong>>();
+        }
 
         DoomerfallBridge bridge;
         DoomerfallPositionSync sync;
         DoomerfallInfo info;
-        float nextPoll;
-        bool resend = true;
-        ulong lastHash;
-        int lastSpace;
-        DaggerfallActionDoor[] spaceDoors = new DaggerfallActionDoor[0];
+        LedgerData ledger = new LedgerData();
+        bool factsWanted;
         ulong pickDoor; // the door the minigame runs on; only its result is accepted
-        readonly List<KeyValuePair<ulong, uint>> locked = new List<KeyValuePair<ulong, uint>>();
 
         internal void Init(DoomerfallBridge owner, DoomerfallPositionSync positionSync, DoomerfallInfo infoSender)
         {
             bridge = owner;
             sync = positionSync;
             info = infoSender;
+            DaggerfallWorkshop.Game.Utility.StartGameBehaviour.OnStartGame += OnStartGame;
         }
 
-        internal void OnRequest()
+        void OnDestroy()
         {
-            resend = true;
+            DaggerfallWorkshop.Game.Utility.StartGameBehaviour.OnStartGame -= OnStartGame;
         }
 
-        bool Ready
+        bool InGame
         {
-            get { return !sync.LoadRunning && GameManager.HasInstance && sync.InGame && GameManager.Instance.PlayerEnterExit.IsPlayerInsideDungeon; }
+            get { return !sync.LoadRunning && GameManager.HasInstance && sync.InGame; }
         }
 
-        // Use on a door Doom holds as locked.
-        internal void OnUse(ulong id)
+        // Daggerfall is in the dungeon Doom is in. The facts and picks belong to it.
+        bool InDoomsDungeon(out string key)
         {
-            if (!Ready)
+            key = null;
+            if (!InGame || !GameManager.Instance.PlayerEnterExit.IsPlayerInsideDungeon)
+                return false;
+            DfbUzState peer;
+            bridge.ReadPeerState(out peer);
+            int mapId = GameManager.Instance.PlayerGPS.CurrentLocation.MapTableData.MapId;
+            if (peer.worldContext != Dfb.WORLD_DUNGEON || mapId != peer.spaceTarget)
+                return false;
+            key = mapId.ToString();
+            return true;
+        }
+
+        // Doom built a dungeon map fresh. Answered once Daggerfall is in the same dungeon (see Update).
+        internal void OnFactsRequest()
+        {
+            factsWanted = true;
+            pickDoor = 0;
+        }
+
+        // Use on a shut door whose live lock (in Doom) is lockValue.
+        internal void OnUse(ulong id, uint lockValue)
+        {
+            if (!InGame)
                 return;
-            DaggerfallActionDoor door = DoomerfallLocks.Find(id);
-            DoomerfallLocks.State state = DoomerfallLocks.StateOf(door);
+            int lockAt = (int)lockValue;
             int picks = DoomerfallLockpick.Count(GameManager.Instance.PlayerEntity.Items);
-            bridge.LogLine(string.Format("doors: use {0} state {1} picks {2}", id, state, picks));
-            switch (state)
+            bridge.LogLine(string.Format("doors: use {0} lock {1} picks {2}", id, lockAt, picks));
+            if (lockAt <= 0)
+                return;
+            if (lockAt >= 20) // magically held: cannot be picked
             {
-                case DoomerfallLocks.State.Unknown:
-                    return;
-                case DoomerfallLocks.State.Unlocked:
-                    Send(id, Dfb.DOOR_UNLOCKED, Dfb.DOOR_OPEN, 0, picks); // Doom's list was stale; open it
-                    resend = true;
-                    return;
-                case DoomerfallLocks.State.Magic:
-                    Text(DoomerfallLocks.Label(door));
-                    return;
+                Text(DoomerfallLocks.Label(lockAt));
+                if (CastleFoyerOpens(id))
+                    Send(id, Dfb.DOOR_OPEN, 0, 0, picks);
+                return;
             }
             if (picks <= 0)
             {
-                Text(DoomerfallLocks.Label(door)); // card 01: the locked message only
+                Text(DoomerfallLocks.Label(lockAt)); // card 01: the locked message only
                 return;
             }
             pickDoor = id;
-            Send(id, Dfb.DOOR_LOCKED, Dfb.DOOR_PICK, DoomerfallLocks.Chance(door), picks);
+            Send(id, Dfb.DOOR_PICK, 0, DoomerfallLocks.Chance(lockAt), picks);
         }
 
-        // A Daggerfall action record ran on this door in Doom. The lock changes as DaggerfallAction's LockDoor (16),
-        // UnlockDoor (17), OpenDoor (18) and CloseDoor (20) change it. Doom only sends 18 and 20 when its door really
-        // opened or closed, standing in for Daggerfall's IsOpen check (Daggerfall's own door model is hidden and never moves).
-        internal void OnAction(ulong id, uint type)
+        // Daggerfall Unity lets a player who teleported into Castle Daggerfall open its magically held foyer doors, so
+        // they cannot be shut in the throne room. The player still sees the magically held message, then the door opens.
+        static bool CastleFoyerOpens(ulong id)
         {
-            if (!Ready)
-                return;
-            DaggerfallActionDoor door = DoomerfallLocks.Find(id);
-            if (!door)
-            {
-                bridge.LogLine(string.Format("doors: action {0} on unknown door {1}", type, id));
-                return;
-            }
-            switch (type)
-            {
-                case 16:
-                    if (!door.IsLocked)
-                        door.CurrentLockValue = 16; // DaggerfallAction.LockDoor's value
-                    break;
-                case 17:
-                case 18:
-                    door.CurrentLockValue = 0;
-                    break;
-                case 20:
-                    door.CurrentLockValue = door.StartingLockValue;
-                    break;
-                default:
-                    return;
-            }
-            bridge.LogLine(string.Format("doors: action {0} on {1}, now {2}", type, id, DoomerfallLocks.StateOf(door)));
-            resend = true;
+            PlayerEnterExit enterExit = GameManager.Instance.PlayerEnterExit;
+            return enterExit.PlayerTeleportedIntoDungeon && enterExit.IsPlayerInsideDungeon &&
+                GameManager.Instance.PlayerGPS.CurrentLocation.MapTableData.MapId == CastleDaggerfallMapId &&
+                Array.IndexOf(CastleFoyerDoors, id) >= 0;
         }
 
-        // The minigame's result for the door named in the last DFB_DOOR_PICK. A cancel costs nothing.
+        // The minigame's result for the door named in the last DFB_DOOR_PICK. A cancel costs nothing. Doom opens the door
+        // itself on a hit, so Daggerfall only does its bookkeeping and keeps the fact.
         internal void OnLockpick(ulong id, uint result)
         {
             if (id != pickDoor || pickDoor == 0)
@@ -117,81 +127,52 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return;
             }
             pickDoor = 0;
-            if (result == Dfb.PICK_CANCEL || !Ready)
+            if (result == Dfb.PICK_CANCEL || !InGame)
             {
                 bridge.LogLine(string.Format("doors: lockpick on {0} cancelled", id));
                 return;
             }
-            DaggerfallActionDoor door = DoomerfallLocks.Find(id);
             bool hit = result == Dfb.PICK_HIT;
-            DoomerfallLocks.State after = DoomerfallLocks.ApplyAttempt(door, hit);
-            int picks = DoomerfallLockpick.Count(GameManager.Instance.PlayerEntity.Items);
-            bridge.LogLine(string.Format("doors: lockpick on {0} {1}, now {2}, picks {3}", id, hit ? "hit" : "miss", after, picks));
+            DoomerfallLocks.ApplyAttempt(hit);
+            string key;
+            if (hit && InDoomsDungeon(out key))
+            {
+                List<ulong> doors;
+                if (!ledger.picked.TryGetValue(key, out doors))
+                    ledger.picked[key] = doors = new List<ulong>();
+                if (!doors.Contains(id))
+                    doors.Add(id);
+            }
+            bridge.LogLine(string.Format("doors: lockpick on {0} {1}, picks {2}", id, hit ? "hit" : "miss", DoomerfallLockpick.Count(GameManager.Instance.PlayerEntity.Items)));
             Text(TextManager.Instance.GetLocalizedText(hit ? "lockpickingSuccess" : "lockpickingFailure"));
-            if (after == DoomerfallLocks.State.Unlocked)
-                Send(id, Dfb.DOOR_UNLOCKED, Dfb.DOOR_OPEN, 0, picks);
-            resend = true;
         }
 
         void Update()
         {
-            if (Time.unscaledTime < nextPoll && !resend)
+            string key;
+            if (!factsWanted || !InDoomsDungeon(out key))
                 return;
-            nextPoll = Time.unscaledTime + PollSeconds;
-            if (sync.LoadRunning)
-            {
-                lastHash = 0; // a load restores Daggerfall's locks: send them again afterwards
-                return;
-            }
-            if (!Ready)
-                return;
-            DfbUzState peer;
-            bridge.ReadPeerState(out peer);
-            if (peer.worldContext != Dfb.WORLD_DUNGEON || GameManager.Instance.PlayerGPS.CurrentLocation.MapTableData.MapId != peer.spaceTarget)
-                return;
-            DaggerfallDungeon dungeon = GameManager.Instance.PlayerEnterExit.Dungeon;
-            if (!dungeon)
-                return;
-            if (dungeon.GetInstanceID() != lastSpace)
-            {
-                lastSpace = dungeon.GetInstanceID();
-                spaceDoors = dungeon.GetComponentsInChildren<DaggerfallActionDoor>(true);
-                lastHash = 0;
-                pickDoor = 0;
-            }
-            locked.Clear();
-            ulong hash = 14695981039346656037UL;
-            foreach (DaggerfallActionDoor door in spaceDoors)
-            {
-                if (!door || door.LoadID == 0)
-                    continue;
-                DoomerfallLocks.State state = DoomerfallLocks.StateOf(door);
-                if (state != DoomerfallLocks.State.Locked && state != DoomerfallLocks.State.Magic)
-                    continue;
-                uint wire = state == DoomerfallLocks.State.Magic ? Dfb.DOOR_MAGIC : Dfb.DOOR_LOCKED;
-                locked.Add(new KeyValuePair<ulong, uint>(door.LoadID, wire));
-                hash = (hash ^ door.LoadID ^ ((ulong)wire << 60)) * 1099511628211UL;
-            }
-            hash |= 1; // never 0, so a cleared hash always sends
-            if (hash == lastHash && !resend)
-                return;
-            lastHash = hash;
-            resend = false;
-            for (int i = 0; i < locked.Count; i++)
-                Send(locked[i].Key, locked[i].Value, (i == 0 ? Dfb.DOOR_LIST_BEGIN : 0) | (i == locked.Count - 1 ? Dfb.DOOR_LIST_END : 0), 0, 0);
-            if (locked.Count == 0)
-                Send(0, 0, Dfb.DOOR_LIST_BEGIN | Dfb.DOOR_LIST_END, 0, 0);
-            bridge.LogLine(string.Format("doors: sent the locked list, {0} of {1} doors", locked.Count, spaceDoors.Length));
+            factsWanted = false;
+            Send(0, Dfb.DOOR_ARM, 0, 0, 0);
+            List<ulong> doors;
+            int count = 0;
+            if (ledger.picked.TryGetValue(key, out doors))
+                foreach (ulong id in doors)
+                {
+                    Send(id, Dfb.DOOR_FACT, 0, 0, 0);
+                    count++;
+                }
+            bridge.LogLine(string.Format("doors: armed dungeon {0}, {1} picked open", key, count));
         }
 
-        void Send(ulong id, uint state, uint flags, int chance, int picks)
+        void Send(ulong id, uint flags, uint lockValue, int chance, int picks)
         {
             DfbEvent e = default(DfbEvent);
             e.kind = Dfb.KIND_DOOR_STATE;
             e.tic = (uint)Time.frameCount;
             e.door.id = id;
             e.door.kind = Dfb.DOOR_DUNGEON;
-            e.door.state = state;
+            e.door.state = lockValue;
             e.door.flags = flags;
             e.door.chance = chance;
             e.door.picks = picks;
@@ -201,6 +182,38 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         void Text(string text)
         {
             info.Send(0, text, false, Dfb.KIND_DOOR_TEXT);
+        }
+
+        // A new character starts with no picked doors. A loaded game replaces the ledger in ReadLedger.
+        void OnStartGame(object sender, EventArgs e)
+        {
+            if (SaveLoadManager.Instance != null && SaveLoadManager.Instance.LoadInProgress)
+                return;
+            ForgetWorld();
+        }
+
+        internal void ForgetWorld()
+        {
+            ledger = new LedgerData();
+            pickDoor = 0;
+        }
+
+        // Called with the staged save, before the bundle's file count is taken.
+        internal void WriteLedger(string folder)
+        {
+            File.WriteAllText(Path.Combine(folder, LedgerFile), SaveLoadManager.Serialize(typeof(LedgerData), ledger, false), new UTF8Encoding(false));
+        }
+
+        // A save without the file comes from before this feature: no door was picked open.
+        internal void ReadLedger(string folder)
+        {
+            string path = Path.Combine(folder, LedgerFile);
+            ledger = File.Exists(path) ? (LedgerData)SaveLoadManager.Deserialize(typeof(LedgerData), File.ReadAllText(path)) ?? new LedgerData() : new LedgerData();
+            if (ledger.picked == null)
+                ledger.picked = new Dictionary<string, List<ulong>>();
+            pickDoor = 0;
+            factsWanted = false; // the loaded game's map brings its own live locks
+            bridge.LogLine("doors: ledger restored with " + ledger.picked.Count + " dungeons");
         }
     }
 }

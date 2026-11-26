@@ -30,6 +30,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         internal DoomerfallItems Items { get; set; }
         internal DoomerfallMonsters Monsters { get; set; }
         internal DoomerfallTownspeople Townspeople { get; set; }
+        internal DoomerfallDoors Doors { get; set; }
         internal DoomerfallHotkeys Hotkeys { get; set; }
         internal DoomerfallAmmo Ammo { get; set; }
 
@@ -73,6 +74,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             Monsters.ForgetWorld();
             if (Townspeople != null)
                 Townspeople.ForgetWorld();
+            if (Doors != null)
+                Doors.ForgetWorld();
             bridge.LogLine("plain load: loading a Daggerfall save with no Doom data");
         }
 

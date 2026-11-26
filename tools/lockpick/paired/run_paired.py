@@ -1,12 +1,13 @@
 """Locked dungeon doors with both real games, minimized (goal 20261125-202715).
 
 usage: run_paired.py take | load | newgame | check | demo   [--root DIR]
-take: enters Privateer's Hold, and on door 29539363 (lock 2): label, refusal without picks, damage cancel, miss, hit,
-      action records 20/17/16/18, then a synchronized autosave. Daggerfall runs with -dflocktest (holds the picks back,
+take: enters Privateer's Hold, and on door 29539363 (lock 2): Daggerfall arms it, label, refusal without picks, damage
+      cancel, miss, action records 17/16/18/20, hit, then a synchronized autosave. Daggerfall runs with -dflocktest (holds the picks back,
       returns them after 20 s).
 newgame: the real New Game flow into Privateer's Hold, then cancel, miss, hit and the actions with the starting picks.
       Run it inside quiet_run.py (see newgame()).
-load: loads that autosave in fresh copies of both games, closes the door, and checks Daggerfall keeps it unlocked.
+load: loads that autosave in fresh copies of both games, closes the door and checks it stays unlocked, makes it magically
+      held (no minigame), then leaves the dungeon, comes back, and checks Daggerfall's fact keeps it unlocked.
 check: DOOM.WAD E1M1 with no bridge, stock and with the DRLA set.
 --root is a folder made by scripts/play/install.py (default: the review demo folder). Logs go to <root>/test.
 """
@@ -53,7 +54,7 @@ def harness(runs, load, demo=False, newgame=False):
     path = runs / ("demo_door.pk3" if demo else "harness-newgame.pk3" if newgame else "harness.pk3")
     with zipfile.ZipFile(path, "w") as z:
         z.writestr("zscript.txt", text)
-        z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "DLHarness" }\n')
+        z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "DLHarness", "DLTrip" }\n')
     return path
 
 
@@ -76,8 +77,9 @@ def run(name):
     if name == "load":
         uz += ["-dfloadtest", f"resume:{autosaves[-1]}"]
     df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
-    df.append("-dflocktest" if name == "take" else "-dflocktestmagic")
-    timeout = 130 if name == "take" else 95
+    if name == "take":
+        df.append("-dflocktest")
+    timeout = 130 if name == "take" else 150
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(ROOT / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                "--uzdoom", str(ROOT / "uzdoom" / "uzdoom.exe"), "--dfu", str(ROOT / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
                "--uzdoom-cwd", str(runs), "--log", str(launcher)]

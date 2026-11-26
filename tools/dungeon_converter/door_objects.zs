@@ -25,11 +25,12 @@ class DFDoorBlocker : Actor
 	override bool Used(Actor user) { return door && door.TryUse(user); }
 }
 
-// Lets a Daggerfall action record react when its door is used. See action_objects.zs.
+// The Daggerfall action record on a door. DFDoor.Toggle and TryUse call it in DaggerfallActionDoor's order. See action_objects.zs.
 class DFDoorListener : Actor
 {
-	virtual void DoorUsed(DFDoor door, Actor user, bool locked) {}	// locked: Daggerfall holds the door locked and it stays shut
-	virtual void DoorOpenedUnlocked(DFDoor door, Actor user) {}	// Daggerfall unlocked and opened it (a lockpick hit): its toggle
+	virtual bool IsFirstDoorText() { return false; }	// a DoorText record (99) not yet activated: it runs before the lock check
+	virtual void DoorTrigger(Actor user) {}			// ExecuteActionOnToggle: the player toggled the door
+	virtual void DirectTrigger(Actor user) {}		// PlayerActivate's direct trigger, after the door's own handling
 }
 
 class DFDoor : Actor
@@ -45,8 +46,9 @@ class DFDoor : Actor
 	double pivotX, pivotY, pivotZ, closedAngle, swung, rowY, centerX, centerY, bottom, top, linkRadius;
 	double swingDir;				// 1 unless a city gate leaf opens the other way
 	int moving;
-	int startingLock, loadId;	// Daggerfall's starting lock value and Daggerfall Unity LoadID (0 in older maps); Daggerfall owns the live lock
-	int lockState;				// set only by Daggerfall (dfdoor_lock): 0 not locked or not told, 1 locked, 2 magically held
+	int startingLock, loadId;	// Daggerfall's starting lock value and Daggerfall Unity LoadID (0 in older maps)
+	int lockValue;				// the live lock, as DaggerfallActionDoor.CurrentLockValue: 0 unlocked, 20 or more magically held
+	bool armed;					// locks are live: Daggerfall sent this map's door facts (a bridge session). Never set without Daggerfall
 	bool stalled, sightOpen;
 	bool solidWhenOpen;			// city gates: Daggerfall swaps the model, and the open model's leaves stay solid
 	bool passable;				// links are currently non-solid to movement
@@ -153,40 +155,73 @@ class DFDoor : Actor
 		return true;
 	}
 
+	bool IsShut() { return swung <= 0 && moving == 0; }
+	bool IsFullyOpen() { return swung >= SWING && moving == 0; }	// DaggerfallActionDoor.IsOpen
+
+	// The player pressed Use on the door: DaggerfallActionDoor.ToggleDoor(true), then PlayerActivate's direct trigger.
 	bool TryUse(Actor user)
 	{
 		if (user.pos.z >= top || user.pos.z + user.height <= bottom) return false;	// another floor
-		bool locked = lockState != 0 && swung <= 0 && moving == 0;
-		if (listener) listener.DoorUsed(self, user, locked);
-		if (locked)
-		{
-			// Daggerfall says this door is locked: it stays shut, and Daggerfall decides what follows (label, minigame).
-			EventHandler.SendNetworkEvent(String.Format("dfdoor_use:%d:%d", loadId, lockState));
-			return true;
-		}
-		if (moving != 0 && !stalled) return true;									// as ToggleDoor: ignored while moving
-		moving = stalled ? -moving : (swung > 0 ? -1 : 1);
-		stalled = false;
-		UpdateBlocking();
-		A_StartSound(moving > 0 ? "doors/dr1_open" : "doors/dr1_clos", CHAN_BODY);
+		Toggle(user);
+		if (listener) listener.DirectTrigger(user);
 		return true;
 	}
 
-	// Action types 18 and 20: open or close, and do nothing if already there or moving. True when the door started moving.
+	// DaggerfallActionDoor.ToggleDoor(activatedByPlayer: true), in Daggerfall's order. Nothing while moving. Closing runs
+	// the door trigger. Opening: a first-activation DoorText record runs first, then the lock check, then the door
+	// trigger, then the swing. A shut locked door stays shut and Daggerfall is asked about the player's attempt
+	// (its label or the lockpicking minigame). A lockpick hit comes back here with the lock cleared.
+	void Toggle(Actor user)
+	{
+		if (moving != 0 && !stalled) return;
+		bool opening = stalled ? moving < 0 : swung <= 0;
+		if (!opening)
+		{
+			if (listener) listener.DoorTrigger(user);
+			Swing(-1);
+			return;
+		}
+		bool text = listener && listener.IsFirstDoorText();
+		if (text) listener.DoorTrigger(user);
+		if (lockValue > 0 && IsShut())
+		{
+			EventHandler.SendNetworkEvent(String.Format("dfdoor_ask:%d:%d", loadId, lockValue));
+			return;
+		}
+		if (!text && listener) listener.DoorTrigger(user);
+		Swing(1);
+	}
+
+	// Starts the door moving: 1 opens, -1 closes. A stalled door turns back.
+	void Swing(int dir)
+	{
+		if (moving != 0 && !stalled) return;	// the door trigger already moved it
+		moving = dir;
+		stalled = false;
+		UpdateBlocking();
+		A_StartSound(dir > 0 ? "doors/dr1_open" : "doors/dr1_clos", CHAN_BODY);
+	}
+
+	// Open or close not by the player (no door trigger, no lock check); nothing if already there or moving.
+	// True when the door started moving.
 	bool ActionSet(bool open)
 	{
 		if (moving != 0 || (swung > 0) == open) return false;
-		moving = open ? 1 : -1;
-		UpdateBlocking();
-		A_StartSound(open ? "doors/dr1_open" : "doors/dr1_clos", CHAN_BODY);
+		Swing(open ? 1 : -1);
 		return true;
 	}
 
-	// An action record changed this door's lock (16 lock, 17 unlock, 18 opened, 20 closed). Daggerfall owns the lock and
-	// changes it as DaggerfallAction does, then sends its locked list again. Doom changes nothing here.
-	void TellLockAction(int type)
+	// An action record of this type ran on this door: DaggerfallAction's LockDoor (16), UnlockDoor (17), OpenDoor (18)
+	// and CloseDoor (20). Locks change only once armed, so a map without Daggerfall never gets a door nobody can open.
+	void RunAction(int type)
 	{
-		if (loadId != 0) EventHandler.SendNetworkEvent(String.Format("dfdoor_action:%d:%d", loadId, type));
+		switch (type)
+		{
+			case 16: if (armed && lockValue <= 0) lockValue = 16; break;	// Daggerfall's value
+			case 17: if (armed) lockValue = 0; break;
+			case 18: if (!IsFullyOpen()) { if (armed) lockValue = 0; ActionSet(true); } break;
+			case 20: if (IsFullyOpen()) { ActionSet(false); if (armed) lockValue = startingLock; } break;
+		}
 	}
 
 	override void Tick()
@@ -211,29 +246,39 @@ class DFDoorHandler : EventHandler
 {
 	Array<DFDoor> doors;
 
-	// Daggerfall's lock state for one door, by LoadID: "dfdoor_lock:<loadId>:<state>[:open]". Doom never decides a door
-	// is locked or unlocked by itself; without these events every door behaves as before. "dfdoor_clear" starts
-	// Daggerfall's full locked list: every door not named in it is unlocked.
+	DFDoor Find(int id)
+	{
+		if (id != 0) foreach (d : doors) if (d && d.loadId == id) return d;
+		return null;
+	}
+
+	// Daggerfall's door facts and answers (dd_doors.cpp), and the lockpicking minigame's result:
+	//   "dfdoor_arm"               lock every door at its starting lock value (only Daggerfall sends it)
+	//   "dfdoor_fact:<id>:<lock>"  a fact Daggerfall keeps for this dungeon: the player picked this door open earlier
+	//   "dflp_result:<id>:hit"     the minigame hit with Daggerfall's chance: unlock the door and toggle it as the player
+	//   "dfdoor_open:<id>"         unlock and open it, not as the player's toggle (Castle Daggerfall's foyer doors)
 	override void NetworkProcess(ConsoleEvent e)
 	{
-		if (e.Name == "dfdoor_clear")
+		if (e.Name == "dfdoor_arm")
 		{
-			foreach (d : doors) if (d) d.lockState = 0;
+			foreach (d : doors) if (d && d.loadId != 0 && !d.armed) { d.armed = true; d.lockValue = d.startingLock; }
 			return;
 		}
-		if (e.Name.Left(12) != "dfdoor_lock:") return;
 		Array<String> f;
 		e.Name.Split(f, ":");
-		if (f.Size() < 3) return;
-		int id = f[1].ToInt(), state = f[2].ToInt();
-		if (id == 0) return;
-		foreach (d : doors)
+		if (f.Size() < 2) return;
+		DFDoor door = Find(f[1].ToInt());
+		if (!door) return;
+		if (f[0] == "dfdoor_fact" && f.Size() > 2 && door.armed) door.lockValue = f[2].ToInt();
+		else if (f[0] == "dflp_result" && f.Size() > 2 && f[2] == "hit" && door.lockValue > 0 && door.IsShut() && e.Player >= 0 && playeringame[e.Player])
 		{
-			if (!d || d.loadId != id) continue;
-			d.lockState = state;
-			// As DaggerfallActionDoor.ToggleDoor after a pick: the open runs the door's Door-triggered record (not type 18's opens).
-			if (state == 0 && f.Size() > 3 && f[3] == "open" && d.swung <= 0 && d.moving == 0 && d.ActionSet(true) && d.listener)
-				d.listener.DoorOpenedUnlocked(d, players[consoleplayer].mo);
+			door.lockValue = 0;
+			door.Toggle(players[e.Player].mo); // DaggerfallActionDoor.AttemptLockpicking: CurrentLockValue = 0, then ToggleDoor(true)
+		}
+		else if (f[0] == "dfdoor_open" && door.lockValue > 0 && door.IsShut())
+		{
+			door.lockValue = 0;
+			door.ActionSet(true);
 		}
 	}
 
@@ -259,6 +304,8 @@ class DFDoorHandler : EventHandler
 			spawned.Push(door);
 			doors.Push(door);
 		}
+		// Daggerfall arms the locks with its facts for this dungeon (dd_doors.cpp). Without a bridge session nobody answers.
+		if (spawned.Size() > 0 && spawned[0].loadId != 0) EventHandler.SendNetworkEvent("dfdoor_facts");
 		// "DC <door> <control>" lines in DFPOINTS link each door to its sight-blocking control sectors.
 		Array<String> points;
 		Wads.ReadLump(Wads.CheckNumForName("DFPOINTS", Wads.ns_global)).Split(points, "\n", TOK_SKIPEMPTY);

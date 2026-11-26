@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x6b21332de2785029UL;
+        public const ulong SchemaHash = 0x2205405e17cc755aUL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -111,23 +111,19 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_AMMO_UNLOAD = 178;  // DF to UZ; request is a number; status 1 is automatic (refused while the magazine holds rounds); cls is the reserve class
         public const ushort KIND_AMMO_UNLOADED = 179;  // UZ to DF; request echoes AMMO_UNLOAD; status is the rounds taken out of the magazine, or 0xFFFFFFFF refused
         public const ushort KIND_AMMO_LOADED = 180;  // DF to UZ; request is the loaded tier (0xFFFFFFFF none), status the ammo type (0 Clip to 3 Cell); cls is the ammo's tags, comma separated
-        public const ushort KIND_DOOR_USE = 190;  // UZ to DF; Use on a door Doom holds as locked; payload: dfb_door
-        public const ushort KIND_DOOR_STATE = 191;  // DF to UZ; one door's lock state, an answer to DOOR_USE, or one entry of the locked list; payload: dfb_door
-        public const ushort KIND_LOCKPICK = 192;  // UZ to DF; the minigame result for a DFB_DOOR_PICK answer; state is DFB_PICK_*; payload: dfb_door
-        public const ushort KIND_DOORS_REQUEST = 193;  // UZ to DF; send the locked list again (a new map, or a load); payload: dfb_door
+        public const ushort KIND_DOOR_USE = 190;  // UZ to DF; Use on a shut door Doom holds locked; state is its live lock value; payload: dfb_door
+        public const ushort KIND_DOOR_STATE = 191;  // DF to UZ; an answer to DOOR_USE (flags DFB_DOOR_PICK or _OPEN), or the door facts (DFB_DOOR_ARM, _FACT); payload: dfb_door
+        public const ushort KIND_LOCKPICK = 192;  // UZ to DF; the minigame result for a DFB_DOOR_PICK answer; state is DFB_PICK_*; Doom opens the door itself on a hit; payload: dfb_door
+        public const ushort KIND_DOOR_FACTS = 193;  // UZ to DF; Doom built this dungeon's map fresh (not from a save): send its door facts; payload: dfb_door
         public const ushort KIND_DOOR_TEXT = 194;  // DF to UZ; a HUD message about a door (Daggerfall's words); payload: dfb_info_text; DFB_INFO_MORE as on INFO_TEXT
-        public const ushort KIND_DOOR_ACTION = 195;  // UZ to DF; a Daggerfall action record ran on its door; state is the action type (16 lock, 17 unlock, 18 opened, 20 closed); Daggerfall changes the lock as DaggerfallAction does; payload: dfb_door
         public const uint DOOR_DUNGEON = 1;
-        public const uint DOOR_UNLOCKED = 0;  // dfb_door.state
-        public const uint DOOR_LOCKED = 1;
-        public const uint DOOR_MAGIC = 2;  // magically held; cannot be picked
         public const uint PICK_MISS = 0;  // dfb_door.state on DFB_KIND_LOCKPICK
         public const uint PICK_HIT = 1;
         public const uint PICK_CANCEL = 2;
-        public const uint DOOR_OPEN = 1;  // dfb_door.flags: Doom opens this door now (after a hit)
+        public const uint DOOR_OPEN = 1;  // dfb_door.flags: unlock this door and open it, not as the player's toggle (Castle Daggerfall's foyer doors)
         public const uint DOOR_PICK = 2;  // start the minigame with chance; picks is the count held
-        public const uint DOOR_LIST_BEGIN = 4;  // the first event of the full locked list; Doom forgets every earlier lock state
-        public const uint DOOR_LIST_END = 8;  // the last event of that list; an event with id 0 carries no door
+        public const uint DOOR_ARM = 4;  // id 0: the facts follow; lock every door at its starting lock value. Doors stay unlocked without it
+        public const uint DOOR_FACT = 8;  // the player picked this door open earlier; state is its lock value (0)
         public const ushort KIND_PLAIN_LOAD = 220;  // DF to UZ; payload: dfb_plain_load
         public const ushort KIND_STARTER = 221;  // UZ to DF; the starter gun; payload: dfb_doom_item, cls the pistol's world pickup class (empty for none), request its weapon slot (low 8 bits, 255 for none) plus (reserve ammo type + 1) << 8 (0 Clip to 3 Cell), status the class's start amount of that ammo
         public const ushort KIND_NPC_USE = 100;  // UZ to DF; payload: dfb_npc_use
@@ -176,7 +172,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint INFO_MONSTER = 3;  // a Doom monster, named by the DFB_KIND_INFO_NAME just before
         public const uint INFO_TOWNSPERSON = 4;  // DFB_KIND_LOOK: dfb_info_request.id is a townsperson id
         public const uint INFO_PILE = 5;  // DFB_KIND_LOOK: dfb_info_request.id is a world item (pile or container) id
-        public const uint INFO_DOOR = 6;  // DFB_KIND_LOOK: dfb_info_request.id is a dungeon door's LoadID
+        public const uint INFO_DOOR = 6;  // DFB_KIND_LOOK: dfb_info_request.id is a locked door's live lock value (Doom's)
         public const uint INFO_HUD = 0;  // dfb_info_text.style: Daggerfall's scrolling HUD message
         public const uint INFO_MID = 1;  // dfb_info_text.style: Daggerfall's mid-screen message
         public const uint INFO_MORE = 1;  // dfb_event.flags on DFB_KIND_INFO_TEXT
@@ -380,7 +376,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public DfbInfoText infoText;  // INFO_TEXT, INFO_NAME, LOOK_TEXT, DOOR_TEXT
         [FieldOffset(16)] public DfbDoomItem doomItem;  // DOOM_ITEM_TAKE, DOOM_ITEM_RESULT, DOOM_ITEM_USE, DOOM_ITEM_USED, DOOM_ITEM_ART_REQUEST, DOOM_ITEM_ART, STARTER
         [FieldOffset(16)] public DfbClimbUses climbUses;  // CLIMB_USES
-        [FieldOffset(16)] public DfbDoor door;  // DOOR_USE, DOOR_STATE, LOCKPICK, DOORS_REQUEST, DOOR_ACTION
+        [FieldOffset(16)] public DfbDoor door;  // DOOR_USE, DOOR_STATE, LOCKPICK, DOOR_FACTS
         [FieldOffset(16)] public DfbPlainLoad plainLoad;  // PLAIN_LOAD
         [FieldOffset(16)] public DfbNpcUse npcUse;  // NPC_USE
         [FieldOffset(16)] public DfbNpcUseResult npcUseResult;  // NPC_USE_RESULT
@@ -696,10 +692,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
     {
         [FieldOffset(0)] public ulong id;
         [FieldOffset(8)] public uint kind;  // DFB_DOOR_DUNGEON
-        [FieldOffset(12)] public uint state;  // DFB_DOOR_*, DFB_PICK_*, or the action type on DOOR_ACTION
+        [FieldOffset(12)] public uint state;  // the lock value, or DFB_PICK_* on LOCKPICK
         [FieldOffset(16)] public int chance;  // Daggerfall's lockpicking chance, 5 to 95
         [FieldOffset(20)] public int picks;  // Lockpicks the player holds
-        [FieldOffset(24)] public uint flags;  // DFB_DOOR_OPEN, _PICK, _LIST_BEGIN, _LIST_END
+        [FieldOffset(24)] public uint flags;  // DFB_DOOR_OPEN, _PICK, _ARM, _FACT
         [FieldOffset(28)] public uint pad;
     }
 

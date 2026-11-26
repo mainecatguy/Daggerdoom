@@ -27,6 +27,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         internal DoomerfallItems Items { get; set; }
         internal DoomerfallMonsters Monsters { get; set; }
         internal DoomerfallTownspeople Townspeople { get; set; }
+        internal DoomerfallDoors Doors { get; set; }
         bool holding;
 
         /// <summary>True in a flow session. StartGameBehaviour then waits for Doom before starting the game.</summary>
@@ -90,6 +91,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             Monsters.ForgetWorld();
             if (Townspeople != null)
                 Townspeople.ForgetWorld();
+            if (Doors != null)
+                Doors.ForgetWorld();
             AudioListener.volume = DoomerfallQuiet.Volume(1);
             start.EnableVideos = true;
             DaggerfallUI.Instance.enableVideos = true;

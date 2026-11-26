@@ -25,6 +25,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         internal DoomerfallItems Items { get; set; }
         internal DoomerfallMonsters Monsters { get; set; }
         internal DoomerfallTownspeople Townspeople { get; set; }
+        internal DoomerfallDoors Doors { get; set; }
 
         internal void Init(DoomerfallBridge owner, DoomerfallPositionSync positionSync, DoomerfallHp playerHp, string[] args)
         {
@@ -112,6 +113,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             Items.ReadLedger(folder);
             Monsters.ReadLedger(folder);
             Townspeople.ReadLedger(folder);
+            Doors.ReadLedger(folder);
             bool started = saves.LoadFromFolder(folder);
             while (started && !loadRestored && Time.unscaledTime < deadline)
                 yield return null;
@@ -240,6 +242,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 Items.WriteLedger(folder);
                 Monsters.WriteLedger(folder);
                 Townspeople.WriteLedger(folder);
+                Doors.WriteLedger(folder);
                 if (testFail)
                     throw new IOException("test failure after writing the files");
                 foreach (string file in Directory.GetFiles(folder, "*", SearchOption.AllDirectories))

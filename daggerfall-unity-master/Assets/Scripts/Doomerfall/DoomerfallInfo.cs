@@ -57,7 +57,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 case Dfb.INFO_PILE:
                     return Items ? Items.Label(id) : "";
                 case Dfb.INFO_DOOR:
-                    return DoomerfallLocks.Label(DoomerfallLocks.Find(id));
+                    return DoomerfallLocks.Label((int)id); // the door's live lock value, from Doom
                 case Dfb.INFO_BUILDING:
                     // As Daggerfall's Info names a building (PlayerActivate.ActivateBuilding), without discovering it.
                     StaticBuilding building;

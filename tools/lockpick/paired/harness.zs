@@ -1,11 +1,14 @@
 version "4.14"
 
 // Test only: locked dungeon doors with both real games (tools/lockpick/paired/run_paired.py). Enters Privateer's Hold
-// by the town door, walks to the locked door @LOADID@, and presses the real Use on it:
-//   no picks (Daggerfall's -dflocktest held them back) -> refused; with picks: damage cancel, miss, hit -> opens;
-//   action records 20 (relock), 17, 16, 18 (open and unlock) through DFAction.Perform; autosave.
+// by the town door, waits for Daggerfall's door facts to arm the locks, walks to the locked door @LOADID@, and presses
+// the real Use on it:
+//   no picks (Daggerfall's -dflocktest held them back) -> refused; with picks: damage cancel, miss; action records
+//   17, 16, 18, 20 through DFAction.Perform (Doom's own lock); then a hit opens it; autosave.
 // The New Game run (@NEWGAME@ = 1) starts inside from the real New Game flow and uses the starting picks (no refusal case).
-// The load run (@LOADRUN@ = 1) closes the door again after the load and checks that Daggerfall's list keeps it unlocked.
+// The load run (@LOADRUN@ = 1) closes the door again after the load and checks it is still unlocked, then makes it
+// magically held (Doom owns the lock) and checks Use starts nothing. DLTrip then leaves the dungeon, comes back, and
+// checks that Daggerfall's fact keeps the picked door unlocked in the freshly built map.
 // Prints DLCASE lines and "DLDONE". Daggerfall's side (picks, messages) is checked from its log by the runner.
 
 class DLPresser : Thinker
@@ -32,8 +35,8 @@ class DLHarness : EventHandler
 	DLPresser presser;
 	DFDoorListener savedListener;
 	DFAction doorRecord;
-	vector3 spot;
-	double face;
+	vector3 spot, arrival;
+	double face, arrivalAngle;
 
 	void Finish()
 	{
@@ -136,9 +139,10 @@ class DLHarness : EventHandler
 		if (timer == 35) RunAction(type);
 		if (timer != 35 * 4) return;
 		bool ok;
-		if (type == 18) ok = door.swung > 0 && door.lockState == 0;
-		else if (type == 17) ok = Shut() && door.lockState == 0;
-		else ok = Shut() && door.lockState == 1;
+		if (type == 18) ok = door.swung > 0 && door.lockValue == 0;
+		else if (type == 17) ok = Shut() && door.lockValue == 0;
+		else if (type == 16) ok = Shut() && door.lockValue == 16;
+		else ok = Shut() && door.lockValue == door.startingLock;
 		Report(ok, what);
 		phase = next;
 		timer = 0;
@@ -174,12 +178,13 @@ class DLHarness : EventHandler
 			timer = 0;
 			break;
 		}
-		case 1: // Daggerfall's locked list marks the door.
-			if (timer > LIMIT) { Report(false, "Daggerfall never listed the door as locked"); Finish(); break; }
+		case 1: // Daggerfall's door facts arm the locks.
+			if (timer > LIMIT) { Report(false, "Daggerfall never armed the door's lock"); Finish(); break; }
 			if (!inside) break;
+			if (arrival == (0, 0, 0)) { arrival = p.pos; arrivalAngle = p.angle; } // DLTrip leaves from here
 			if (!door) door = FindDoor();
-			if (!door || door.lockState != 1) break;
-			Report(true, String.Format("door %d found, starting lock %d, Daggerfall lists it locked", LOADID, door.startingLock));
+			if (!door || !door.armed) break;
+			Report(door.lockValue == door.startingLock && door.startingLock > 0, String.Format("door %d found, Daggerfall armed it at its starting lock %d", LOADID, door.lockValue));
 			if (!DEMO) RemoveMonsters();
 			if (!PlaceAtDoor(p)) { Report(false, "no spot in front of the door"); Finish(); break; }
 			if (DEMO) { done = true; break; }
@@ -202,7 +207,7 @@ class DLHarness : EventHandler
 			if (timer == 140)
 			{
 				Report(Shut() && !g, "no picks: the door stays shut and no minigame starts");
-				Report(door.lockState == 1 && doorRecord.activationCount == 0, "a Door-triggered record does not run on the refused Use");
+				Report(door.lockValue > 0 && doorRecord.activationCount == 0, "a Door-triggered record does not run on the refused Use");
 				phase = 3;
 				timer = 0;
 			}
@@ -229,17 +234,17 @@ class DLHarness : EventHandler
 			}
 			break;
 		// The action records, then the hit last, so the autosave follows the hit directly.
-		case 6: SwitchCase(17, 7, "action 17 unlocks it in Daggerfall"); break;
-		case 7: SwitchCase(16, 8, "action 16 locks it in Daggerfall"); break;
-		case 8: SwitchCase(18, 10, "action 18 opens the door and Daggerfall clears the lock"); break;
-		case 10: SwitchCase(20, 5, "action 20 closes the door and Daggerfall locks it again (its starting lock)"); break;
+		case 6: SwitchCase(17, 7, "action 17 unlocks it"); break;
+		case 7: SwitchCase(16, 8, "action 16 locks it at 16"); break;
+		case 8: SwitchCase(18, 10, "action 18 opens the door and clears the lock"); break;
+		case 10: SwitchCase(20, 5, "action 20 closes the door and locks it again at its starting lock"); break;
 		case 5: // A hit, then the autosave.
 			Back(p);
 			if (timer == 35) PressUse(p);
 			if (g) { started = true; if (g.Off(g.pointer) <= g.arc / 2 - 0.01) presser.press = BT_ATTACK; }
 			if (timer == 35 * 6)
 			{
-				Report(started && !g && door.swung > 0 && door.lockState == 0, "a hit unlocks and opens the door");
+				Report(started && !g && door.swung > 0 && door.lockValue == 0, "a hit unlocks and opens the door");
 				if (doorRecord)
 				{
 					Report(doorRecord.activationCount == 1, String.Format("the Door-triggered record ran once, on the hit's open (count %d)", doorRecord.activationCount));
@@ -256,22 +261,22 @@ class DLHarness : EventHandler
 		case 9:
 			if (timer > 35 * 8) Finish();
 			break;
-		case 20: // After the load: close the door, wait for Daggerfall's list, and Use it.
+		case 20: // After the load: close the door and Use it.
 			if (!door) door = FindDoor();
 			if (!door) { Report(false, "door missing after the load"); Finish(); break; }
 			if (timer == 70) door.ActionSet(false);
 			if (timer == 35 * 6) PressUse(p);
 			if (timer == 35 * 9)
 			{
-				Report(door.lockState == 0 && door.swung > 0 && !g, "after the load the door is still unlocked and opens on Use");
+				Report(door.lockValue == 0 && door.swung > 0 && !g, "after the load the door is still unlocked and opens on Use");
 				phase = 21; timer = 0;
 			}
 			break;
-		case 21: // Daggerfall's -dflocktestmagic sets this door's lock to 25 (magically held). Use must start nothing.
+		case 21: // Doom owns the lock: make it magically held (as a Lock spell would, later). Use must start nothing.
 			Back(p);
 			if (timer == 35) door.ActionSet(false);
-			if (timer > 35 * 30) { Report(false, "Daggerfall never listed the door as magically held"); Finish(); break; }
-			if (door.lockState != 2 || !Shut()) break;
+			if (timer < 35 * 3) break;
+			door.lockValue = 25;
 			phase = 22; timer = 0; started = false;
 			break;
 		case 22:
@@ -280,10 +285,80 @@ class DLHarness : EventHandler
 			if (g) started = true;
 			if (timer == 35 * 4)
 			{
-				Report(!started && Shut() && door.lockState == 2, "a magically held door stays shut and Use starts no minigame");
-				Finish();
+				Report(!started && Shut() && door.lockValue == 25, "a magically held door stays shut and Use starts no minigame");
+				door.lockValue = 0; // the picked door as the save holds it, for the trip
+				let trip = DLTrip(StaticEventHandler.Find("DLTrip"));
+				if (trip) trip.Begin(arrival, arrivalAngle, passed, failed);
+				done = true;
 			}
 			break;
+		}
+	}
+}
+
+// The load run's trip: out of the dungeon by the way the player came in, back in by the town door, and a check that the
+// freshly built map got Daggerfall's facts (the picked door unlocked, other locks armed). Static, so it lives across maps.
+class DLTrip : StaticEventHandler
+{
+	static const double DOORDATA[] = { @DOOR@ };
+	int phase, timer, passed, failed;
+	vector3 arrival;
+	double arrivalAngle;
+
+	void Begin(vector3 at, double angle, int p, int f) { arrival = at; arrivalAngle = angle; passed = p; failed = f; phase = 1; timer = 0; }
+
+	void Report(bool ok, String what)
+	{
+		if (ok) passed++; else failed++;
+		Console.Printf("DLCASE %s %s", ok ? "pass" : "FAIL", what);
+	}
+
+	void Finish()
+	{
+		Console.Printf("DLRESULT passed=%d failed=%d", passed, failed);
+		Console.Printf("DLDONE %s", failed == 0 ? "passed" : "failed");
+		phase = 9;
+	}
+
+	override void WorldTick()
+	{
+		if (phase == 0 || phase == 9 || !playeringame[0] || !players[0].mo) return;
+		let p = players[0].mo;
+		bool inside = level.MapName.Left(3) ~== "DDS" || level.MapName ~== "MAP01";
+		timer++;
+		if (timer > 35 * 40) { Report(false, String.Format("the trip got stuck in step %d", phase)); Finish(); return; }
+		switch (phase)
+		{
+		case 1: // Inside: back to where the player came in, facing out, and use the way out.
+			if (!inside) { phase = 2; timer = 0; break; }
+			if (timer == 10) { p.SetOrigin(arrival, false); p.vel = (0, 0, 0); p.angle = arrivalAngle + 180; }
+			if (timer == 14) CVar.FindCVar("dd_tm_use").SetInt(1);
+			break;
+		case 2: // Outside: the town door again.
+		{
+			if (inside) { phase = 3; timer = 0; break; }
+			vector3 tdoor = (DOORDATA[0], DOORDATA[1], DOORDATA[2]);
+			vector2 normal = (DOORDATA[3], DOORDATA[4]);
+			if (timer < 70) break;
+			p.SetOrigin((tdoor.xy + normal * 48, tdoor.z), false);
+			p.vel = (0, 0, 0);
+			p.angle = atan2(-normal.y, -normal.x);
+			if (timer == 82) CVar.FindCVar("dd_tm_use").SetInt(1);
+			break;
+		}
+		case 3: // Inside again: wait for Daggerfall's facts.
+		{
+			DFDoor door, locked;
+			let it = ThinkerIterator.Create("DFDoor");
+			DFDoor d;
+			while (d = DFDoor(it.Next())) { if (d.loadId == @LOADID@) door = d; else if (d.startingLock > 0 && !locked) locked = d; }
+			if (!door || !door.armed) break;
+			Report(true, "back inside: Daggerfall armed the rebuilt map");
+			Report(door.lockValue == 0, String.Format("the picked door is still unlocked after leaving and coming back (lock %d)", door.lockValue));
+			Report(!locked || locked.lockValue == locked.startingLock, "another door keeps its starting lock");
+			Finish();
+			break;
+		}
 		}
 	}
 }

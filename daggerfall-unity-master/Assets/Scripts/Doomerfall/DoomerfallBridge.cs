@@ -203,6 +203,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             info.Init(this, sync);
             doors = gameObject.AddComponent<DoomerfallDoors>();
             doors.Init(this, sync, info);
+            save.Doors = doors;
+            newGame.Doors = doors;
             DoomerfallLockTest.Attach(this); // test only: -dflocktest
             DoomerfallTalk talk = gameObject.AddComponent<DoomerfallTalk>();
             talk.Init(this, sync, info);
@@ -218,6 +220,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             plainLoad.Items = items;
             plainLoad.Monsters = monsters;
             plainLoad.Townspeople = townspeople;
+            plainLoad.Doors = doors;
             plainLoad.Hotkeys = hotkeys;
             plainLoad.Ammo = ammo;
             ui.PlainLoad = plainLoad;
@@ -464,16 +467,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         ammo.OnAreaLevelRequest(ev.doomItem.request);
                         break;
                     case Dfb.KIND_DOOR_USE:
-                        doors.OnUse(ev.door.id);
+                        doors.OnUse(ev.door.id, ev.door.state);
                         break;
                     case Dfb.KIND_LOCKPICK:
                         doors.OnLockpick(ev.door.id, ev.door.state);
                         break;
-                    case Dfb.KIND_DOOR_ACTION:
-                        doors.OnAction(ev.door.id, ev.door.state);
-                        break;
-                    case Dfb.KIND_DOORS_REQUEST:
-                        doors.OnRequest();
+                    case Dfb.KIND_DOOR_FACTS:
+                        doors.OnFactsRequest();
                         break;
                     case Dfb.KIND_CLIMB_USES:
                         DoomerfallClimb.OnUses(this, ev.climbUses.uses);
