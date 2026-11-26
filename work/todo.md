@@ -18,15 +18,11 @@ Owner decisions from earlier runs are recorded in `CHANGELOG.md`, `architecture.
 
 - `fixeddrops` card 05 (`work/queue/fixeddrops/05.opus.summoned-no-drops-and-town-arrival.md`): summoned monsters drop nothing on Daggerfall maps; check arrival by travel from a town. Continues `overnight/fixeddrops`.
 - `lockpick` card 02 (`work/queue/lockpick/02.opus.door-lock-bridge.md`): the door bridge step in one full run. Start the lane with `-From agent/lockpick-20261125-073553`. Thieves Guild sales are cancelled.
-- `daynight` card 01 (`work/queue/daynight/01.opus.fog-sky-windows-winter.md`): distance fog, foggy sky, lit windows at night, winter textures. Start the lane with `-From claude/hopeful-benz-984e6a` unless that branch is merged first.
+- `daynight` card 01 (`work/queue/daynight/01.opus.fog-sky-windows-winter.md`): distance fog, foggy sky, lit windows at night, winter textures. Starts from integration (the day/night branch is merged).
 
 ### Running
 
 - Nothing.
-
-### Passed, waiting for the owner's merge
-
-- `overnight/fixeddrops` and `overnight/doorsolid` card 04: from the owner's own sessions.
 
 ### Waiting on an owner answer from finished work
 
@@ -37,7 +33,6 @@ Owner decisions from earlier runs are recorded in `CHANGELOG.md`, `architecture.
 - `liftcollision`: moving objects (lifts, raising platforms, the Privateer's Hold throne dais) have no collision to stand on; solve it as a general problem. Owner will say when.
 - `corpsekeep`: corpses vanish on leaving and re-entering Privateer's Hold. First see whether the location record rewrite fixes it. Card in `work/queue/corpsekeep/held`.
 - `flatcollision`: results merged; solid sprites moved to `work/future-ideas.md` as a distant-future idea (owner, 2026-11-25). Card held in `work/queue/flatcollision/held`.
-- `resets`: done, not merged (owner). Findings in `work/notes/20261124-190702.md`.
 
 ### Waiting on an owner answer before a card
 
@@ -53,7 +48,7 @@ Owner decisions from earlier runs are recorded in `CHANGELOG.md`, `architecture.
 
 - **Rework the Doom HUD: chat with the owner first** (owner, 2026-11-23): remove Doom's weapon slot display, because guns come from Daggerfall hotkeys, and rework the HUD in general.
 - **QA bot runs** are long and run only overnight, 2AM to 7AM.
-- **Lightweight location record** is being built in its own session (`claude/location-record-d20944`).
+- **Lightweight location record:** merged into integration (`claude/location-record-d20944`, 2026-11-25).
 
 ### Loading screen for long operations (owner, 2026-11-24)
 
