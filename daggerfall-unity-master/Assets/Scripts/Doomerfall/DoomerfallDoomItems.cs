@@ -87,12 +87,19 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         }
 
         // Every Doom item Daggerfall creates comes from here. A gun gets a material rolled with the approved odds
-        // (DoomerfallDrops.RollMaterial) at the area level where it is created, like any other loot.
-        internal static DoomerfallDoomItem Create(string doomClass, uint flags)
+        // (DoomerfallDrops.RollMaterial) at the area level where it is created, like any other loot. A nonzero lootSeed
+        // (LootSeed.Of, from the floor item's lasting id) makes the roll the same in every game.
+        internal static DoomerfallDoomItem Create(string doomClass, uint flags, int lootSeed = 0)
         {
             DoomerfallDoomItem item = new DoomerfallDoomItem(doomClass, flags);
             if (item.IsGun)
-                item.Material = DoomerfallDrops.RollMaterial(WorldLevel.Current);
+            {
+                if (lootSeed != 0)
+                    using (new LootSeed.Scope(lootSeed))
+                        item.Material = DoomerfallDrops.RollMaterial(WorldLevel.Current);
+                else
+                    item.Material = DoomerfallDrops.RollMaterial(WorldLevel.Current);
+            }
             return item;
         }
 
@@ -162,6 +169,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         uint nextRequest = 1, artRequest;
         readonly List<string> takeState = new List<string>();
         uint takeStateRequest;
+        uint takeIdRequest;
+        ulong takeId;
         string testFolder; // -dfdoomitemstest FOLDER: writes each inventory picture there and uses a taken RLBlurSphere at once.
         DoomerfallDoomItem testUse;
         string artClass;
@@ -252,9 +261,21 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             takeState.Add(cls + "=" + amount);
         }
 
+        // The floor item's lasting id, sent just before its take request (DFB_KIND_DOOM_ITEM_ID).
+        internal void OnTakeId(uint request, ulong id)
+        {
+            takeIdRequest = request;
+            takeId = id;
+        }
+
         // The player pressed Use on a Doom item. Daggerfall's weight rule decides.
         internal void OnTake(uint request, uint flags, string cls)
         {
+            // The same floor item rolls the same material in every game; an item without a lasting id rolls freely.
+            ulong floorId = takeIdRequest == request ? takeId : 0;
+            int lootSeed = floorId != 0 ? LootSeed.Of(LootSeed.DoomFloorItem, cls, (long)floorId) : 0;
+            takeIdRequest = 0;
+            takeId = 0;
             uint status = Dfb.ITEM_TAKEN;
             PlayerEntity player = GameManager.HasInstance ? GameManager.Instance.PlayerEntity : null;
             if (player == null || sync.LoadRunning || GameManager.IsGamePaused || cls.Length == 0)
@@ -264,7 +285,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DoomerfallDoomItem taken = null;
             if (status == Dfb.ITEM_TAKEN)
             {
-                taken = DoomerfallDoomItem.Create(cls, flags);
+                taken = DoomerfallDoomItem.Create(cls, flags, lootSeed);
                 if (taken.IsGun && takeStateRequest == request)
                     taken.GunState = string.Join(";", takeState.ToArray()); // A DRLA modded pickup's mods.
                 player.Items.AddItem(taken);
@@ -279,7 +300,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 DoomerfallHotkeys.Instance.OnGunTaken(taken, (int)((flags & Dfb.DOOM_ITEM_SLOT_MASK) >> (int)Dfb.DOOM_ITEM_SLOT_SHIFT) - 1);
             bridge.LogLine(string.Format("doomitems: take {0} \"{1}\" flags 0x{6:x}: status {2}, carried {3:F2}/{4} kg, doom items {5}{7}",
                 request, cls, status, player != null ? player.CarriedWeight : 0, player != null ? player.MaxEncumbrance : 0, player != null ? Count(player.Items) : 0,
-                flags, taken != null ? ", stored as \"" + taken.shortName + "\"" + (taken.IsGun ? " material " + taken.Material + " at area level " + WorldLevel.Current : "") : ""));
+                flags, taken != null ? ", stored as \"" + taken.shortName + "\"" + (taken.IsGun ? " material " + taken.Material + " at area level " + WorldLevel.Current : "") : "")
+                + string.Format(", floor id {0:x16}", floorId));
         }
 
         static int Count(ItemCollection items)

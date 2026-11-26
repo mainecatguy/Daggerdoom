@@ -852,6 +852,7 @@ class Actor : Thinker native
 	native void RestoreDamage();
 	native clearscope int SpawnHealth() const;
 	native int DD_HealthCheckLimit(int health); // [Doomerfall] see A_JumpIfHealthLower
+	native clearscope int DD_LootSeed(); // [Doomerfall] fixed loot seed of a drop (dd_lootrng.cpp), folded to 32 bits; 0 on stock actors
 	virtual clearscope int GetMaxHealth(bool withupgrades = false) const	// this only exists to make checks for player health easier so they can avoid the type check and just call this method.
 	{
 		return SpawnHealth();

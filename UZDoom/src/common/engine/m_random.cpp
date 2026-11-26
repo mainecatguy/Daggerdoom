@@ -74,6 +74,7 @@ FRandom pr_exrandom("EX_Random");
 // PUBLIC DATA DEFINITIONS -------------------------------------------------
 
 FCRandom M_Random;
+uint64_t *DD_RngOverride; // [Doomerfall] see m_random.h
 
 // Global seed. This is modified predictably to initialize every RNG.
 uint32_t rngseed;

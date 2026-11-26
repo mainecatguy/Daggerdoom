@@ -20,6 +20,7 @@ class DoomerfallAmmoTiers : StaticEventHandler
 	Array<int> pendingTic;
 	Array<double> pendingX, pendingY, pendingZ; // Where each spawned: the roll uses this, not where it fell.
 	Array<bool> pendingDropped; // Dropped by a monster (WasDropped), judged when it spawned, before it lands.
+	Array<int> pendingSeed; // The engine's fixed loot seed (DD_LootSeed), 0 when it has none.
 
 
 	override void OnRegister()
@@ -159,6 +160,7 @@ class DoomerfallAmmoTiers : StaticEventHandler
 		pendingY.Clear();
 		pendingZ.Clear();
 		pendingDropped.Clear();
+		pendingSeed.Clear();
 	}
 
 	// 0 bullets, 1 shells, 2 rockets, 3 cells, or -1 for anything that is not a loose ammo pickup.
@@ -210,6 +212,7 @@ class DoomerfallAmmoTiers : StaticEventHandler
 		pendingY.Push(inv.pos.y);
 		pendingZ.Push(inv.pos.z);
 		pendingDropped.Push(WasDropped(inv));
+		pendingSeed.Push(inv.DD_LootSeed());
 	}
 
 	override void WorldTick()
@@ -231,7 +234,7 @@ class DoomerfallAmmoTiers : StaticEventHandler
 			if (areaLevel < 0) continue;
 			bool box;
 			int type = PlainKind(inv, box);
-			Convert(inv, type, box, pendingDropped[i], (pendingX[i], pendingY[i], pendingZ[i]));
+			Convert(inv, type, box, pendingDropped[i], (pendingX[i], pendingY[i], pendingZ[i]), pendingSeed[i]);
 			Forget(i);
 		}
 	}
@@ -244,6 +247,7 @@ class DoomerfallAmmoTiers : StaticEventHandler
 		pendingY.Delete(i);
 		pendingZ.Delete(i);
 		pendingDropped.Delete(i);
+		pendingSeed.Delete(i);
 	}
 
 	// ---- The roll ----------------------------------------------------------------------------------------------
@@ -313,11 +317,13 @@ class DoomerfallAmmoTiers : StaticEventHandler
 	}
 
 	// Each tiered pickup keeps the size of the pickup it replaces (small, large, or dropped), in Doom's amounts.
-	void Convert(Inventory plain, int type, bool box, bool dropped, vector3 spawned)
+	void Convert(Inventory plain, int type, bool box, bool dropped, vector3 spawned, int lootSeed)
 	{
 		static const int TownTiers[] = { 1, 3, 4, 6, 7 }; // Steel, Moonstone, Dwemer, Orichalcum, Mithril
 		static const String TypeNames[] = { "Clip", "Shell", "Rocket", "Cell" };
-		int seed = Seed(spawned, type);
+		// A drop from a fixed loot roll (or a map thing) rolls from its engine seed, which does not depend on where the
+		// monster happened to die; anything else from its map and spot.
+		int seed = lootSeed != 0 ? Mix(Mix(0x011c9dc5, lootSeed), type + 1) : Seed(spawned, type);
 		if (Unit(seed, 1) < JackpotChance)
 		{
 			int tier = TownTiers[min(4, int(Unit(seed, 2) * 5))];
