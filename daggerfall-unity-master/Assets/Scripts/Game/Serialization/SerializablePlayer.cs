@@ -113,6 +113,7 @@ namespace DaggerfallWorkshop.Game.Serialization
             data.playerEntity.name = entity.Name;
             data.playerEntity.level = entity.Level;
             data.playerEntity.stats = entity.Stats;
+            entity.Skills.IsGunSkillsFormat = true; // Doomerfall: marks saves written after the gun skills
             data.playerEntity.skills = entity.Skills;
             data.playerEntity.resistances = entity.Resistances;
             data.playerEntity.maxHealth = entity.RawMaxHealth;
@@ -278,6 +279,8 @@ namespace DaggerfallWorkshop.Game.Serialization
             entity.FaceIndex = data.playerEntity.faceIndex;
             entity.Reflexes = data.playerEntity.reflexes;
             entity.Career = data.playerEntity.careerTemplate;
+            DaggerfallConnect.DFCareer.Skills firstLanguageSlot = DaggerfallSkills.FirstLanguageSlotOf(data.playerEntity.skills); // Doomerfall: class card below
+            bool placeholderFiller = data.playerEntity.skills != null && data.playerEntity.skills.IsGunSkillsFormat && !data.playerEntity.skills.HasClassCards;
             entity.Name = data.playerEntity.name;
             entity.Level = data.playerEntity.level;
             entity.Stats = data.playerEntity.stats;
@@ -290,11 +293,18 @@ namespace DaggerfallWorkshop.Game.Serialization
             entity.CurrentBreath = data.playerEntity.currentBreath;
             entity.SkillUses = data.playerEntity.skillUses;
             entity.SkillsRecentlyRaised = (data.playerEntity.skillsRecentlyRaised != null ? data.playerEntity.skillsRecentlyRaised : new uint[2]);
+            if (entity.Skills != null && !entity.Skills.IsGunSkillsFormat)
+                entity.ClearLegacyLanguageProgress(); // Doomerfall: a pre-gun-skills save
             entity.TimeOfLastSkillIncreaseCheck = data.playerEntity.timeOfLastSkillIncreaseCheck;
             entity.TimeOfLastSkillTraining = data.playerEntity.timeOfLastSkillTraining;
             entity.StartingLevelUpSkillSum = data.playerEntity.startingLevelUpSkillSum;
             if ((entity.CurrentLevelUpSkillSum = data.playerEntity.currentLevelUpSkillSum) == 0)
                 entity.SetCurrentLevelUpSkillSum();
+            // Doomerfall: the class card may change the class lists; rebase the level-up sum so the level holds.
+            int savedLevelUpSkillSum = entity.CurrentLevelUpSkillSum;
+            entity.Career.ApplyClassCard(firstLanguageSlot, placeholderFiller);
+            entity.SetCurrentLevelUpSkillSum();
+            entity.StartingLevelUpSkillSum += entity.CurrentLevelUpSkillSum - savedLevelUpSkillSum;
             entity.Items.DeserializeItems(data.playerEntity.items);
             entity.WagonItems.DeserializeItems(data.playerEntity.wagonItems);
             entity.OtherItems.DeserializeItems(data.playerEntity.otherItems);

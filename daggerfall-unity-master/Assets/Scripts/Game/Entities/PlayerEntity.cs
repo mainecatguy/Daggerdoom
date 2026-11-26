@@ -160,6 +160,22 @@ namespace DaggerfallWorkshop.Game.Entity
         public PersistentGlobalVars GlobalVars { get { return globalVars; } }
         public PlayerNotebook Notebook { get { return notebook; } }
         public short[] SkillUses { get { return skillUses; } set { skillUses = value; } }
+
+        /// <summary>
+        /// Doomerfall: drops practice and "recently raised" marks a pre-gun-skills save holds for slots 4-12
+        /// (the monster languages), so they neither raise a gun skill nor a hidden slot.
+        /// </summary>
+        public void ClearLegacyLanguageProgress()
+        {
+            for (int i = (int)DFCareer.Skills.Shotguns; i <= (int)DFCareer.Skills.Impish; i++)
+            {
+                if (skillUses != null && i < skillUses.Length)
+                    skillUses[i] = 0;
+                if (skillsRecentlyRaised != null && i / 32 < skillsRecentlyRaised.Length)
+                    skillsRecentlyRaised[i / 32] &= ~(1u << (i % 32));
+            }
+            skills.IsGunSkillsFormat = true;
+        }
         public uint[] SkillsRecentlyRaised { get { return skillsRecentlyRaised; } set { skillsRecentlyRaised = value; } }
         public uint TimeOfLastSkillIncreaseCheck { get { return timeOfLastSkillIncreaseCheck; } set { timeOfLastSkillIncreaseCheck = value; } }
         public uint TimeOfLastSkillTraining { get { return timeOfLastSkillTraining; } set { timeOfLastSkillTraining = value; } }
@@ -1372,6 +1388,8 @@ namespace DaggerfallWorkshop.Game.Entity
 
             for (short i = 0; i < skillUses.Length; i++)
             {
+                if (DaggerfallSkills.IsRemovedSkill((DFCareer.Skills)i))
+                    continue; // Doomerfall: unused monster language slots never rise
                 int skillAdvancementMultiplier = DaggerfallSkills.GetAdvancementMultiplier((DFCareer.Skills)i);
                 float careerAdvancementMultiplier = Career.AdvancementMultiplier;
                 int usesNeededForAdvancement = FormulaHelper.CalculateSkillUsesForAdvancement(skills.GetPermanentSkillValue(i), skillAdvancementMultiplier, careerAdvancementMultiplier, level);
@@ -1473,6 +1491,25 @@ namespace DaggerfallWorkshop.Game.Entity
 
             sum += highestMinorSkillValue;
             currentLevelUpSkillSum = sum;
+        }
+
+        /// <summary>
+        /// Doomerfall: after the class card replaced the class lists, shifts the starting sum by the change in the
+        /// level-up sum, so the level and the progress through it stay as they were. previousLists and previousSkills
+        /// are the class lists and skill values the starting sum was computed with.
+        /// </summary>
+        public void RebaseLevelUpSkillSum(DFCareer.Skills[] previousLists, DaggerfallSkills previousSkills)
+        {
+            DFCareer.Skills[] cardLists = career.SkillLists();
+            DaggerfallSkills currentSkills = skills;
+            career.SetSkillLists(previousLists);
+            skills = previousSkills;
+            SetCurrentLevelUpSkillSum();
+            int before = currentLevelUpSkillSum;
+            career.SetSkillLists(cardLists);
+            skills = currentSkills;
+            SetCurrentLevelUpSkillSum();
+            startingLevelUpSkillSum += currentLevelUpSkillSum - before;
         }
 
         /// <summary>

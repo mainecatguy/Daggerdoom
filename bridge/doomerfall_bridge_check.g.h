@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x65f312b6a3342ab7ULL
+#define DFB_SCHEMA_HASH 0xea7fe89707611856ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -186,7 +186,7 @@ static_assert((DFB_FACES_FORMAT_VERSION) == (1u), DFB_STALE);
 static_assert((DFB_FACES_MAX) == (3u), DFB_STALE);
 static_assert((DFB_FACE_MAX_SIDE) == (64u), DFB_STALE);
 static_assert((DFB_SHEET_SLOT) == (0u), DFB_STALE);
-static_assert((DFB_SHEET_FORMAT_VERSION) == (2), DFB_STALE);
+static_assert((DFB_SHEET_FORMAT_VERSION) == (6), DFB_STALE);
 static_assert((DFB_SHEET_INTS) == (155), DFB_STALE);
 static_assert((DFB_SHEET_FORMAT) == (0), DFB_STALE);
 static_assert((DFB_SHEET_EPOCH) == (1), DFB_STALE);
@@ -203,6 +203,13 @@ static_assert((DFB_SHEET_STATS_BASE) == (16), DFB_STALE);
 static_assert((DFB_SHEET_STATS_LIVE) == (24), DFB_STALE);
 static_assert((DFB_SHEET_SKILLS_BASE) == (32), DFB_STALE);
 static_assert((DFB_SHEET_SKILLS_LIVE) == (67), DFB_STALE);
+static_assert((DFB_SKILL_SHOTGUNS) == (4), DFB_STALE);
+static_assert((DFB_SKILL_AUTOMATICS) == (5), DFB_STALE);
+static_assert((DFB_SKILL_EXPLOSIVES) == (6), DFB_STALE);
+static_assert((DFB_SKILL_PISTOLS) == (7), DFB_STALE);
+static_assert((DFB_SKILL_RIFLES) == (8), DFB_STALE);
+static_assert((DFB_SKILL_ENERGY) == (9), DFB_STALE);
+static_assert((DFB_SKILL_MELEE) == (10), DFB_STALE);
 static_assert((DFB_SHEET_ARMOR_BASE) == (102), DFB_STALE);
 static_assert((DFB_SHEET_ARMOR_LIVE) == (109), DFB_STALE);
 static_assert((DFB_SHEET_RESIST_BASE) == (116), DFB_STALE);
