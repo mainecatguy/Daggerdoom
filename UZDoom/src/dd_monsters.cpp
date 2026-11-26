@@ -28,8 +28,96 @@
 #include "p_local.h"
 #include "printf.h"
 #include "playsim/dd_log.h" // [Doomerfall]
+#include "filesystem.h"
+#include "actorinlines.h"
+#include "m_bbox.h"
+#include "p_maputl.h"
 
 bool DDTreadmill_PlayerSpace(double &x, double &y, double &z, double &yawDegrees, int &target);
+
+// Monster squeeze width on Daggerfall maps (architecture.md, World Scale and Player Size). Doomguy is 10.5 wide there
+// instead of 16. Monsters keep their stock radius against the player, other actors and open walls, and squeeze to the
+// same proportion of it (AActor::SqueezeRadius) only to get through a gap in the level, or past a door leaf, that is
+// narrower than they are (P_TryMove, DD_InGap). Their radius, and so every hit test, stays stock. This is the one test
+// for "a Daggerfall map" that monster rules use: generated locations (DDTnnnnn, DDSnnnnn), the overworld (DDOVER*),
+// and converted dungeons (MAP01 with DDDUNGN or DFPOINTS).
+double DD_MonsterMoveScale = 1;
+AActor *DD_SqueezeActor = nullptr;
+static PClassActor *doorLeafClass;	// DFDoorBlocker, the links of a Daggerfall door (tools/dungeon_converter/door_objects.zs)
+
+bool DD_IsDoorLeaf(const AActor *a)
+{
+	return doorLeafClass && a->IsKindOf(doorLeafClass);
+}
+
+// Would a body of radius r at pos touch level geometry or a door leaf? Other actors are ignored.
+static bool GeometryBlocks(AActor *thing, const DVector2 &pos, double r)
+{
+	FBoundingBox box(pos.X, pos.Y, r);
+	FBlockLinesIterator lines(thing->Level, box);
+	while (line_t *ld = lines.Next())
+	{
+		if (!inRange(box, ld) || BoxOnLineSide(box, ld) != -1) continue;
+		if (!ld->backsector || P_IsBlockedByLine(thing, ld)) return true;
+		const DVector2 a = ld->v1->fPos(), delta = ld->Delta();
+		const DVector2 c = a + delta * std::clamp(((pos - a) | delta) / delta.LengthSquared(), 0., 1.);
+		FLineOpening open;
+		P_LineOpening(open, thing, ld, c);
+		if (open.range < thing->Height || open.bottom - thing->Z() > thing->MaxStepHeight || open.top < thing->Top()) return true;
+	}
+	FBlockThingsIterator things(thing->Level, box);
+	while (AActor *t = things.Next())
+	{
+		if (!(t->flags & MF_SOLID) || !DD_IsDoorLeaf(t) || t->Z() >= thing->Top() || t->Top() <= thing->Z()) continue;
+		if (fabs(t->X() - pos.X) < r + t->radius && fabs(t->Y() - pos.Y) < r + t->radius) return true;
+	}
+	return false;
+}
+
+// Is pos, where the monster's stock body is stuck on level geometry or a door leaf, a gap narrower than the monster?
+// Not if its stock body would fit after a small step to the side (it is hugging a wall), and, when it is moving, not if
+// its narrow body could not carry on forward (it is walking into a wall or a corner). So in an open room a monster
+// keeps its stock distance from the walls, and only doorways and passages narrower than it make it squeeze. A monster
+// already squeezed where it stands may carry on forward until it is clear, for example past an open door leaf.
+bool DD_InGap(AActor *thing, const DVector2 &pos)
+{
+	const double r = thing->radius, narrow = thing->SqueezeRadius(), d = r - narrow;
+	if (d <= 0) return false;
+	DVector2 u = pos - thing->Pos().XY();
+	const bool moving = u.LengthSquared() > 1e-6;
+	if (moving)
+	{
+		u = u.Unit();
+		if (GeometryBlocks(thing, pos + u * d, narrow)) return false;
+		if (GeometryBlocks(thing, thing->Pos().XY(), r)) return true;
+		const DVector2 v(-u.Y, u.X);
+		for (double s : { d / 2, d, -d / 2, -d }) if (!GeometryBlocks(thing, pos + v * s, r)) return false;
+		return true;
+	}
+	for (int i = 0; i < 8; i++)	// standing still (the encounter placer): the stock body fits nowhere close by
+	{
+		const DVector2 dir(cos(i * M_PI / 4), sin(i * M_PI / 4));
+		if (!GeometryBlocks(thing, pos + dir * (d / 2), r) || !GeometryBlocks(thing, pos + dir * d, r)) return false;
+	}
+	return true;
+}
+
+bool DD_OnDaggerfallMap(FLevelLocals *Level)
+{
+	const char *map = Level->MapName.GetChars();
+	if ((strnicmp(map, "DDT", 3) == 0 || strnicmp(map, "DDS", 3) == 0) && strlen(map) == 8) return true;
+	if (strnicmp(map, "DDOVER", 6) == 0) return true;
+	return stricmp(map, "MAP01") == 0 && (fileSystem.CheckNumForName("DDDUNGN") >= 0 || fileSystem.CheckNumForName("DFPOINTS") >= 0);
+}
+
+// Called as each map starts, before its things spawn (P_SetupLevel through DDTreadmill_BeginMap).
+void DD_BodiesBeginMap(FLevelLocals *Level)
+{
+	if (!Level->isPrimaryLevel()) return;
+	DD_MonsterMoveScale = DD_OnDaggerfallMap(Level) ? 10.5 / 16 : 1;
+	doorLeafClass = PClass::FindActor("DFDoorBlocker");
+	DD_SqueezeActor = nullptr;
+}
 
 CVAR(Int, dd_mon_test_kill, 0, CVAR_NOSAVE | CVAR_MOD) // Test only, with -ddmontest: 1 kills a placed monster, 2 a quest foe.
 

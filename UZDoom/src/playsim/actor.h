@@ -802,6 +802,11 @@ public:
 const double MinVel = EQUAL_EPSILON;
 
 // Map Object definition.
+extern double DD_MonsterMoveScale;	// [Doomerfall] 1, or 10.5 / 16 on Daggerfall maps (dd_monsters.cpp)
+extern class AActor *DD_SqueezeActor;	// [Doomerfall] the monster P_TryMove is squeezing through a gap, if any
+bool DD_IsDoorLeaf(const AActor *a);	// [Doomerfall] a Daggerfall door leaf link (dd_monsters.cpp)
+bool DD_InGap(AActor *thing, const DVector2 &pos);	// [Doomerfall] a gap narrower than the monster (dd_monsters.cpp)
+
 class AActor final : public DThinker
 {
 	DECLARE_CLASS_WITH_META (AActor, DThinker, PClassActor)
@@ -1260,6 +1265,10 @@ public:
 	uint64_t		ddLootRng = 0;	// [Doomerfall] Fixed loot random state (dd_lootrng.cpp). Zero on all stock actors.
 	uint64_t		ddLootId = 0;	// [Doomerfall] The loot seed it was given; names a dropped item. Zero on all stock actors.
 	uint64_t		ddAiRng = 0;	// [Doomerfall] Fixed random state for its live ticks (dd_lootrng.cpp). Zero on all stock actors.
+	// [Doomerfall] The narrow width a monster squeezes to through gaps in the level on Daggerfall maps; otherwise radius.
+	double SqueezeRadius() const { return (flags3 & MF3_ISMONSTER) && !player && !(flags & (MF_MISSILE | MF_SKULLFLY)) ? radius * DD_MonsterMoveScale : radius; }
+	// [Doomerfall] Width against level geometry in this check: radius, or SqueezeRadius while P_TryMove squeezes this actor.
+	double MoveRadius() const { return this == DD_SqueezeActor ? SqueezeRadius() : radius; }
 	DVector3		SpawnPoint; 	// For nightmare respawn
 	int				StartHealth;
 	uint8_t			WeaveIndexXY;	// Separated from special2 because it's used by globally accessible functions.

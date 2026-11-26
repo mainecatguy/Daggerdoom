@@ -21,6 +21,7 @@
 #include "g_levellocals.h"
 #include "m_argv.h"
 #include "p_local.h"
+#include "p_checkposition.h"
 #include "printf.h"
 #include "stats.h"
 #include "d_player.h"
@@ -146,20 +147,32 @@ void DD_EncounterTestTick(FLevelLocals *Level)
 	}
 	else if (state == 1 && Level->maptime >= 80)
 	{
-		int monsters = 0, stuck = 0;
+		int monsters = 0, stuck = 0, squeezed = 0;
 		auto it = Level->GetThinkerIterator<AActor>();
 		while (AActor *mo = it.Next())
 		{
 			if (!mo->ddRecordId || mo->health <= 0) continue;
 			monsters++;
 			if (P_TestMobjLocation(mo)) continue;
+			// Squeezed in a gap: not stuck if a short step in some direction passes P_TryMove's rule (stock, or squeezing).
+			bool free = false;
+			for (int i = 0; i < 8 && !free; i++)
+			{
+				const DVector2 to = mo->Pos().XY() + DVector2(cos(i * M_PI / 4), sin(i * M_PI / 4)) * 4;
+				FCheckPosition tm;
+				free = P_CheckPosition(mo, to, tm);
+				AActor *b = mo->BlockingMobj;
+				if (!free && (!b || DD_IsDoorLeaf(b)) && DD_InGap(mo, to)) { DD_SqueezeActor = mo; free = P_CheckPosition(mo, to, tm); DD_SqueezeActor = nullptr; }
+				free = free && tm.ceilingz - tm.floorz >= mo->Height && tm.floorz - mo->Z() <= mo->MaxStepHeight;
+			}
+			if (free) { squeezed++; continue; }
 			stuck++;
 			AActor *by = mo->BlockingMobj;
 			Printf("DDENCTEST stuck %016" PRIx64 " %s at %.1f,%.1f,%.1f floor %.1f ceiling %.1f radius %.0f height %.0f blocked by %s%s\n", mo->ddRecordId,
 				mo->GetClass()->TypeName.GetChars(), mo->X(), mo->Y(), mo->Z(), mo->floorz, mo->ceilingz, mo->radius, mo->Height,
 				by ? by->GetClass()->TypeName.GetChars() : (mo->BlockingLine ? "a line" : "floor or ceiling"), by && by->ddRecordId ? " (a mook)" : "");
 		}
-		Printf("DDENCTEST after 1 s: %d placed monsters, %d stuck\n", monsters, stuck);
+		Printf("DDENCTEST after 1 s: %d placed monsters, %d stuck, %d overlapping but free to move\n", monsters, stuck, squeezed);
 		const int perf = FindArg("-ddenctestperf");
 		perfTics = perf && perf + 1 < Args->NumArgs() ? atoi(Args->GetArg(perf + 1)) : 0;
 		if (perfTics > 0 && Level->PlayerInGame(consoleplayer) && Level->Players[consoleplayer]->mo)
