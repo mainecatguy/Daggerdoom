@@ -100,5 +100,5 @@ A door you have picked open reads **Door**.
 ## Entering a place
 
 - When you go through a door into or out of a dungeon or building, or walk out of a town, the game pauses until the
-  new place is ready and its autosave is made. A long wait shows **Loading...**. Nothing in the new place moves or
+  new place is ready (and autosaved, if autosaves are on). A long wait shows **Loading...**. Nothing in the new place moves or
   attacks you until play resumes.

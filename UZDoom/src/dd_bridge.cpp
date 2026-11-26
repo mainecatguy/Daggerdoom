@@ -1150,7 +1150,7 @@ int64_t autosaveHeldUntil, saveReplyNs;
 constexpr int64_t AutosaveHoldNs = 60000000000LL;
 // A stitched map change autosaves before its first frame is shown, so the save adds to the load's hitch
 // instead of making a second one in play. The screen keeps the last frame from before the change until it ends.
-bool arrivalPending, arrivalQueued, saveIsArrival;
+bool arrivalPending, arrivalQueued, saveIsArrival, arrivalSave;
 int64_t arrivalAtNs;
 constexpr int64_t ArrivalWaitNs = 2000000000LL, ArrivalHoldNs = 12000000000LL;
 // While the change waits for its setup the playsim is frozen (DD_BridgeArrivalFreeze); a long hold says "Loading".
@@ -1310,6 +1310,7 @@ void PumpArrival(int64_t now)
 	if (!handoff && !DD_SetupReady(now)) return; // Bounded by the gate's own timeout.
 	arrivalPending = false;
 	ArrivalFreezeEnd(handoff ? "the handoff wait ran out" : "setup was done or timed out");
+	if (!arrivalSave) return; // Autosaves are off: the wait only kept the map still until its setup was done.
 	const bool alive = gamestate == GS_LEVEL && players[consoleplayer].playerstate == PST_LIVE && players[consoleplayer].health > 0;
 	if (!handoff && alive && SaveOnDaggerfallMap() && SaveReady() && gameaction == ga_nothing && !paused)
 	{
@@ -1390,11 +1391,13 @@ bool DD_BridgeAutosaveBegin(const char *filename, const char *description)
 	return SaveQueue(filename, description, true);
 }
 
-// G_DoLoadLevel: a stitched map change has loaded. Its autosave runs at the next frame (PumpArrival).
-void DD_BridgeArrivalAutosave()
+// G_DoLoadLevel: a stitched map change has loaded. It waits for its setup (frozen), then autosaves if save is set
+// (autosaves on), at the next frame once the setup is done (PumpArrival).
+void DD_BridgeArrivalAutosave(bool save)
 {
 	if (!session || netgame) return;
 	ArrivalFreezeEnd("another map change");
+	arrivalSave = save;
 	arrivalPending = true;
 	arrivalQueued = false;
 	arrivalAtNs = dfb_now_ns();

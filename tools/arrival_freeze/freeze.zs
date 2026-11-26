@@ -9,7 +9,7 @@ class AFHarness : EventHandler
 {
 	static const double DOORDATA[] = { @DOOR@ };
 	bool DEMO;
-	int phase, timer, inside;
+	int phase, timer, inside, firstTime, lastTime, gaps;
 	override void OnRegister() { DEMO = @DEMO@; }
 
 	override void WorldTick()
@@ -18,6 +18,15 @@ class AFHarness : EventHandler
 		let p = players[0].mo;
 		bool isInside = level.MapName.Left(3) ~== "DDS" || level.MapName ~== "MAP01";
 		timer++;
+		if (isInside && !DEMO)
+		{
+			// Scripts must see every level.time value across the arrival (a handler is made anew for each map).
+			if (inside == 0) firstTime = level.time;
+			else if (level.time != lastTime + 1) gaps++;
+			lastTime = level.time;
+			if (++inside == 35 * 6) Console.Printf("AFDONE health %d first_time %d time_gaps %d", p.health, firstTime, gaps);
+			return;
+		}
 		if (phase == 0)
 		{
 			if (isInside) { phase = 1; return; }
@@ -32,7 +41,5 @@ class AFHarness : EventHandler
 			phase = 1;
 			return;
 		}
-		if (DEMO || !isInside) return;
-		if (++inside == 35 * 6) Console.Printf("AFDONE health %d", p.health);
 	}
 }

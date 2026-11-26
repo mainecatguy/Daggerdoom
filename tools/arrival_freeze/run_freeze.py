@@ -1,12 +1,14 @@
 """The arrival freeze (goal 20261126-154857) with both real games, minimized.
 
-usage: run_freeze.py normal | slow | lost | demo   [--root DIR]
+usage: run_freeze.py normal | slow | lost | nosave | demo   [--root DIR]
 normal: enters Privateer's Hold from its town; the map change waits for Daggerfall's door facts as usual.
 slow:   the same, with -dfsetuptest 2500: setup also waits 2.5 s for a fake answer (a slow Daggerfall).
 lost:   -dfsetuptest lost: the fake answer never comes, so the setup gate's 5 s timeout ends the wait.
+nosave: autosaves off (+disableautosave 1) with -dfsetuptest 2500: the arrival still waits frozen, and makes no autosave.
 Every run uses -dffreezetest: the bridge log says whether any monster, missile or the player changed while frozen,
 and how often frames ran meanwhile (the window stays live). PASS needs: a freeze, changed=0, the player's health
-unchanged, no frame gap over MAX_GAP_MS after the first frozen frame, and play resuming (AFDONE after 6 s inside).
+unchanged, no frame gap over MAX_GAP_MS after the first frozen frame, play resuming (AFDONE after 6 s inside),
+and the harness's WorldTick seeing level.time 0, 1, 2, ... inside with no gap (the freeze holds the clock).
 demo: writes play.bat into --root (enters the dungeon with a slow 2.5 s setup, then hands over to the player).
 --root is a folder made by scripts/play/install.py. Logs go to <root>/test.
 """
@@ -22,7 +24,7 @@ sys.path.insert(0, str(HERE.parent / "lockpick" / "paired"))
 import run_paired as rp  # noqa: E402  (shares the paired setup: data, mods, door lookup)
 
 ROOT = Path(sys.argv[sys.argv.index("--root") + 1]) if "--root" in sys.argv else Path(r"D:\dev\DoomDaggerfall-loop\review\arrival-pause")
-SETUP = {"normal": None, "slow": "2500", "lost": "lost"}
+SETUP = {"normal": None, "slow": "2500", "lost": "lost", "nosave": "2500"}
 # One tic of the setup spawns the dungeon's monsters and blocks the loop for ~150-250 ms here (it did before this goal);
 # "responsive" here means no stall near Windows' 5 s "not responding" mark.
 MAX_GAP_MS = 1000
@@ -51,6 +53,8 @@ def run(mode):
           "-ddtowncache", str(ROOT / "data" / "cache"), "-ddconverter", str(ROOT / "data" / "converter" / "DungeonConverter.exe"), "-ddarena2", str(rp.GAME / "DAGGER" / "ARENA2"),
           "-dffreezetest", "+logfile", f"freeze-{mode}", "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1",
           "+vid_lowerinbackground", "0", "+map", f"DDT{rp.GROUP:05d}"]
+    if mode == "nosave":
+        uz += ["+disableautosave", "1"]
     if SETUP[mode]:
         uz += ["-dfsetuptest", SETUP[mode]]
     df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(rp.GAME / "DAGGER"), "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
@@ -83,15 +87,17 @@ def run(mode):
     for line in bridge.splitlines():
         if any(k in line for k in ("arrival", "setup:", "save:", "autosave committed")):
             print("uz-bridge", line[:220])
-    done = re.search(r"AFDONE health (\d+)", rp.read(console))
+    done = re.search(r"AFDONE health (\d+) first_time (-?\d+) time_gaps (\d+)", rp.read(console))
     print("uz", done.group(0) if done else "no AFDONE")
     # The dungeon's arrival: the last freeze result of the run (the town start has no stitched arrival).
     results = re.findall(r"arrivaltest: result changed=(\d+) monsters=(\d+) newcomers=(\d+) spawned=(\d+) player_health=(-?\d+)->(-?\d+) frames=(\d+) max_frame_gap_ms=([\d.]+) frozen_ms=([\d.]+)", bridge)
-    ok = bool(results) and done is not None and reason == "harness finished"
+    ok = bool(results) and done is not None and reason == "harness finished" and done.group(2) == "0" and done.group(3) == "0"
     for changed, monsters, newcomers, spawned, before, after, frames, gap, frozen in results:
         ok = ok and changed == "0" and before == after and float(gap) <= MAX_GAP_MS
-    if mode in ("slow", "lost"):
-        ok = ok and any(float(r[8]) >= (2000 if mode == "slow" else 4500) for r in results)
+    if mode == "nosave":
+        ok = ok and "autosave committed" not in bridge and "save: autosave for a map change" not in bridge
+    if mode in ("slow", "lost", "nosave"):
+        ok = ok and any(float(r[8]) >= (4500 if mode == "lost" else 2000) for r in results)
     print(f"{mode} {'PASS' if ok else 'FAIL'} | stopped: {reason} | freezes {len(results)}")
     return ok
 

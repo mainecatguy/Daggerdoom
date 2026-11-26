@@ -254,8 +254,8 @@ void P_Ticker (void)
 
 		DDTreadmill_Tick(Level); // [Doomerfall] no-op unless explicitly enabled
 		{ void DD_EncounterTestTick(FLevelLocals *); DD_EncounterTestTick(Level); } // [Doomerfall] test only, -ddenctest
-		bool DD_BridgeArrivalFreeze(FLevelLocals *); // [Doomerfall] a map change waiting for its setup: nothing acts, time counts
-		if (DD_BridgeArrivalFreeze(Level)) { Level->time++; Level->maptime++; Level->totaltime++; continue; }
+		bool DD_BridgeArrivalFreeze(FLevelLocals *); // [Doomerfall] a map change waiting for its setup: nothing acts, time stands
+		if (DD_BridgeArrivalFreeze(Level)) continue;
 
 		P_ThinkParticles(Level);	// [RH] make the particles think
 
