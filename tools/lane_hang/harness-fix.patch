@@ -1,0 +1,86 @@
+diff --git a/scripts/overnight/queue.ps1 b/scripts/overnight/queue.ps1
+--- a/scripts/overnight/queue.ps1
++++ b/scripts/overnight/queue.ps1
+@@ -65,9 +65,17 @@
+         '-GoalFile', $file.FullName, '-RunDir', $RunDir, '-Target', $Target, '-Lane', $Lane, '-Model', $model,
+         '-Hours', $hours.ToString('0.###', $Culture), '-MaxUsd', $budget.ToString('0.####', $Culture), '-MaxFailures', '28', '-ClaudeExe', $ClaudeExe)
+     if ($ClaudePrefix) { $runArgs += @('-ClaudePrefix', $ClaudePrefix) }
+-    & powershell.exe @runArgs *>> (Join-Path $RunDir "queue-$Lane-output.log")
+-
+-    $runCode = $LASTEXITCODE
++    # Output goes to files, not a pipe, and the lane waits for run.ps1 itself. A pipe stays open while any process
++    # that inherited it lives, such as a leftover test game, and that kept lanes from finishing (lane hang).
++    $argLine = ($runArgs | ForEach-Object { if ($_ -match '[\s"]') { '"' + (($_ -replace '"', '\"') -replace '(\\+)$', '$1$1') + '"' } else { $_ } }) -join ' '
++    $runOut = Join-Path $RunDir "queue-$Lane-run.log"
++    $p = Start-Process powershell.exe -ArgumentList $argLine -NoNewWindow -PassThru `
++        -RedirectStandardOutput $runOut -RedirectStandardError "$runOut.err"
++    $null = $p.Handle
++    $p.WaitForExit()
++    $runCode = $p.ExitCode
++    Get-Content -LiteralPath $runOut, "$runOut.err" -ErrorAction SilentlyContinue |
++        Add-Content -LiteralPath (Join-Path $RunDir "queue-$Lane-output.log") -Encoding utf8
+     $rows = @(Get-ChildItem -LiteralPath $RunDir -Filter 'metrics*.csv' -File | ForEach-Object {
+             try { Import-Csv -LiteralPath $_.FullName -ErrorAction Stop } catch { }
+         } | Where-Object { $_.Run -ge $runStart } | Sort-Object Run)
+diff --git a/scripts/overnight/run.ps1 b/scripts/overnight/run.ps1
+--- a/scripts/overnight/run.ps1
++++ b/scripts/overnight/run.ps1
+@@ -56,14 +56,54 @@
+     [IO.File]::WriteAllText($Path, $Text, (New-Object Text.UTF8Encoding($false)))
+ }
+ 
++# A job holds every process a child starts, even after the child exits. Ending it ends leftover test games, which
++# otherwise keep running and hold this script's inherited output pipe open, so queue.ps1 waits on them (lane hang).
++Add-Type -TypeDefinition @'
++using System;
++using System.Runtime.InteropServices;
++public static class RunJob {
++    [StructLayout(LayoutKind.Sequential)]
++    struct Limits {
++        public long PerProcessUserTimeLimit, PerJobUserTimeLimit; public uint LimitFlags;
++        public UIntPtr MinimumWorkingSetSize, MaximumWorkingSetSize; public uint ActiveProcessLimit;
++        public UIntPtr Affinity; public uint PriorityClass, SchedulingClass;
++        public ulong ReadOps, WriteOps, OtherOps, ReadBytes, WriteBytes, OtherBytes;
++        public UIntPtr ProcessMemoryLimit, JobMemoryLimit, PeakProcessMemoryUsed, PeakJobMemoryUsed;
++    }
++    [DllImport("kernel32.dll", SetLastError = true)] static extern IntPtr CreateJobObject(IntPtr security, string name);
++    [DllImport("kernel32.dll", SetLastError = true)] static extern bool SetInformationJobObject(IntPtr job, int infoClass, ref Limits info, int size);
++    [DllImport("kernel32.dll", SetLastError = true)] static extern bool AssignProcessToJobObject(IntPtr job, IntPtr process);
++    [DllImport("kernel32.dll", SetLastError = true)] static extern bool TerminateJobObject(IntPtr job, uint exitCode);
++    [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
++    // Kill on close also ends the tree if this script dies. Breakaway stays allowed for programs that ask for it.
++    public static IntPtr Start(IntPtr process) {
++        IntPtr job = CreateJobObject(IntPtr.Zero, null);
++        if (job == IntPtr.Zero) return job;
++        Limits limits = new Limits(); limits.LimitFlags = 0x2000 | 0x800;
++        if (!SetInformationJobObject(job, 9, ref limits, Marshal.SizeOf(typeof(Limits))) || !AssignProcessToJobObject(job, process)) {
++            CloseHandle(job); return IntPtr.Zero;
++        }
++        return job;
++    }
++    public static void End(IntPtr job) {
++        if (job == IntPtr.Zero) return;
++        TerminateJobObject(job, 1); CloseHandle(job);
++    }
++}
++'@
++
+ function Invoke-Logged([string]$Exe, [string]$ArgLine, [string]$InputText, [string]$Log) {
+     $in = "$Log.in"; Write-Text $in $InputText
+     $p = Start-Process -FilePath $Exe -ArgumentList $ArgLine -WorkingDirectory $Worktree -NoNewWindow -PassThru `
+         -RedirectStandardInput $in -RedirectStandardOutput $Log -RedirectStandardError "$Log.err"
+-    $null = $p.Handle
+-    $ms = [Math]::Max(60000, [int][Math]::Min(2147483000, ($Deadline - (Get-Date)).TotalMilliseconds))
+-    if (-not $p.WaitForExit($ms)) { & taskkill.exe /PID $p.Id /T /F 2>$null | Out-Null; return -1 }
+-    $p.WaitForExit(); $p.ExitCode
++    $job = [RunJob]::Start($p.Handle)
++    if ($job -eq [IntPtr]::Zero) { Write-Warning "Could not put $Exe in a job. Its leftover processes may outlive it." }
++    try {
++        $ms = [Math]::Max(60000, [int][Math]::Min(2147483000, ($Deadline - (Get-Date)).TotalMilliseconds))
++        if (-not $p.WaitForExit($ms)) { & taskkill.exe /PID $p.Id /T /F 2>$null | Out-Null; return -1 }
++        $p.WaitForExit(); $p.ExitCode
++    }
++    finally { [RunJob]::End($job) }
+ }
+ 
+ function Read-Result([string]$Log) {
