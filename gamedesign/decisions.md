@@ -308,3 +308,37 @@ Verdicts:
   acceptable as long as no drop is duplicated and no quest breaks.
 - **Rests on:** the owner's answers (2026-11-25). Found by fixed drops card 05 (`work/notes/20261125-202715.md`).
 - **Challenge:** None. Kept.
+
+## 2026-11-25: Should DRLA's Adaptive skill variant pick be seeded from the placement id?
+
+- **Verdict:** Deferred.
+- **Answer:** None. It goes to the owner. If the owner keeps Adaptive as DRLA built it, seeding its `Random` draws from
+  the placement id leans yes, but that alone cannot make a place the same across characters.
+- **Rests on:** `gamedesign.md`, Randomness: "events are fixed and not randomized per save", and the owner (2026-11-25):
+  "Our randomization is always seeded deterministically." Also "The world does not scale to the player" and "Never
+  adapt to the player. Randomness uses only fixed facts about the place and its area level." DRLA's
+  `RLAdaptiveSpawnPicker` (`DRLAMONS_MAB.acs`, lines 43-83) starts from player 1's `RLDangerLevel` (player progress),
+  forces Armageddon at danger 50 or more, and only then rolls ACS `Random`. Scope: the encounter planner spawns concrete
+  classes with `NO_REPLACE` and excludes `RLAdaptive*`, so Adaptive applies only on the stock-roster fallback and on
+  overworld seeds (`work/notes/20261125-220115-fixeddrops-finish.md`).
+- **Challenge:** The owner's "always seeded deterministically" reads strongly, and seeding the draws is a small
+  engineering change, which argues for Follows clearly on the narrow question. But the question as asked ("the same
+  every time") cannot be met by seeding, because the pick depends on the player's danger level. The real fix (area
+  level in place of danger, disabling Adaptive on Daggerfall maps, or exempting it as a player-chosen option) changes
+  how a difficulty mode plays. Whether picking Adaptive counts as a planned "custom option" that may be random is also
+  the owner's call. Kept as Deferred.
+
+## 2026-11-25: Are DRLA's kill-counter pickups exempt from "summoned and revived monsters drop nothing"?
+
+- **Verdict:** Leans exempt.
+- **Answer:** Exempt `RLMonsterKillIncrementer` and its subclasses, so summoned and revived kills still count toward
+  DRLA's kill stats, as in stock DRLA.
+- **Rests on:** the owner's ruling "2026-11-25: Which monsters drop loot when they were not placed by Daggerfall?",
+  which is framed as a loot question. `MonsterKillCounters.txt`: the counters are "USED BY THE PDA TO KEEP TRACK OF
+  KILLS, AND LEARN ENEMY STATS". They are invisible `TNT1` items with no pickup message. In ExtractedData, `KillCounter`
+  is referenced only by the DRLA Monsters actor files and DRLA Arsenal's `ACS_PDA.acs` and `bestiary.pdap`. DRLA's
+  danger level reads the separate `RLDangerLevel` item, so the counters do not feed it.
+- **Challenge:** The ruling's answer says "drop nothing", not "drop no loot", and the owner may have meant it
+  literally. Exempting the counters lets a Pain Elemental's endless Lost Souls farm bestiary unlocks, but stock DRLA
+  already allows that, and it gives no gear or loot. No object appears or vanishes in the world, nothing scales, and no
+  Daggerfall loot rule is touched. The literal wording keeps this a lean, not Follows clearly. Kept as Leans.
