@@ -22,9 +22,15 @@ the Marksmanship draft's +0% to +100%.
   The cripple lasts until the enemy dies. Cripple pool: +10% cripple that refills every 2 seconds and is added to the
   next hit, even one that dealt little damage. Doom tracks cripple entirely; Daggerfall does not mediate it (owner:
   too complicated, bad engineering).
-- **Skill 50:** +1 penetration. A bonus damage pool of 150 that refills over 1 second (kept, owner 2026-11-26).
-  Reloads another 20% faster. Estimate (rifles research numbers, skill 100): the pool adds about 40-80% to light and
-  medium rifles' damage per second and 15-25% to the heavies.
+- **Skill 50:** +1 penetration. Reloads another 20% faster. Bonus damage pool (owner, 2026-11-26), as told to the
+  player: "You get +100 and up to +100% damage over 2s (but not more than 500 over 2s)." The pool refills over 2
+  seconds and each shot spends what has refilled since the last one. A full pool gives +100 flat and +100% of the
+  shot's damage, the two together at most +500. A partly full pool gives that share of everything, the 500 limit too
+  (half full: +50, up to +50%, at most 250). The +100% applies to the shot after the +30 flat and the +60% baseline.
+  The +100 flat is added after those, so the player's own multipliers don't raise it; this helps low-level
+  characters with weak rifles most. The skill 75 cripple bonus still applies to the whole hit. Estimate (rifles
+  research numbers, skill 100, one target, against 20,000 HP): Anti-Materiel about 1,700 damage per second, Gauss
+  about 1,150, Sniper and Marksman about 1,100, Elephant Gun about 750.
 - **Skill 75:** crippled enemies take +2% damage for every 1% cripple, so +150% at the cap. It applies to damage from
   any source, not only rifles (owner, 2026-11-26: "people don't switch weapons all that much but if they want to they
   can, that's play"). Replaces steady shot. This makes rifles the guns for hunting large monsters (HP up to about
