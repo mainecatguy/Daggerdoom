@@ -81,7 +81,7 @@ def run(play, out, name, area):
     autosaves = sorted(saves.glob("*auto*.zds"), key=lambda p: p.stat().st_mtime)  # <character>-autoNN.zds
     if name == "load" and not autosaves:
         sys.exit("no autosave from the save run")
-    harness = make_harness(out, name, play)
+    harness = make_harness(out, name, play) if name.startswith("travel") else make_harness(out, name)  # civilwar.py swaps in its own two-argument one.
     uz_log, df_log, console, launcher = out / f"{name}-uz.log", out / f"{name}-df.log", out / f"log-{name}.txt", out / f"{name}-launcher.log"
     for path in (uz_log, df_log, console, launcher):
         path.unlink(missing_ok=True)
@@ -95,7 +95,7 @@ def run(play, out, name, area):
         uz += ["-skill", "3", "+map", "DDT07154", "-dfloadtest", f"resume:{autosaves[-1]}"]
         df += ["-dfsynctest", ng.DAGGER]
     elif name.startswith("travel"):  # The test start: a character in Daggerfall city, who has never been to Privateer's Hold.
-        uz += ["-skill", "3", "+map", "DDOVER01", "-dfuitest", "1"]
+        uz += ["-skill", "3", "+map", "DDOVER01"]
         df += ["-dfsynctest", ng.DAGGER]
     else:
         uz += ["-dfflow", "-dfnewgametest", "once", "-dfuitest", "0"]
@@ -111,7 +111,6 @@ def run(play, out, name, area):
         command += ["--dfu-arg", arg]
     proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     deadline, result, hwnd, tries, last, answered, escaped = time.time() + TIMEOUT, "timeout", None, 0, "", 0, 0
-    state = {"step": 0, "at": 0.0}
     try:
         while time.time() < deadline and proc.poll() is None:
             time.sleep(0.1)
@@ -133,9 +132,6 @@ def run(play, out, name, area):
                 escaped += 1
                 continue
             if name == "load":
-                continue
-            if name.startswith("travel"):
-                travel_step(hwnd, uzt, dft, state)
                 continue
             if "both games running" not in uzt:  # Character creation.
                 size = re.search(r"opened menu 4 at (\d+)x(\d+)", uzt)
@@ -164,36 +160,6 @@ def run(play, out, name, area):
     for line in lines:
         if not re.match(r"PD(DROP|KILL|CORPSE) |df .*ammo:", line):
             print(line[:220])
-
-
-def char(hwnd, text):
-    for c in text:
-        ng.user32.PostMessageW(hwnd, 0x102, ord(c), 1)  # WM_CHAR, forwarded to Daggerfall's open window by the bridge.
-        time.sleep(0.05)
-
-
-def travel_step(hwnd, uzt, dft, state):
-    """The real fast travel: -dfuitest opens Daggerfall's travel map in Doom; Find Location, type the name, Yes, Begin."""
-    now, step = time.time(), state["step"]
-    if step == 0 and "ui test: screenshot" in uzt or step == 0 and re.search(r"opened menu 1 at", uzt):
-        size = re.search(r"opened menu 1 at (\d+)x(\d+)", uzt)
-        if size:
-            ng.SURFACE[:] = [int(size.group(1)), int(size.group(2))]
-        state.update(step=1, at=now + 2.0)
-    elif step == 1 and now > state["at"]:
-        ng.key(hwnd, 0x46)  # F: Find Location.
-        state.update(step=2, at=now + 1.0)
-    elif step == 2 and now > state["at"]:
-        char(hwnd, "Privateer's Hold")
-        time.sleep(0.3)
-        ng.key(hwnd, 0x0D)
-        state.update(step=3, at=now + 1.0)
-    elif step == 3 and now > state["at"] and "top window is DaggerfallMessageBox" in dft:
-        ng.key(hwnd, 0x59)  # Yes.
-        state.update(step=4, at=now + 1.0)
-    elif step == 4 and now > state["at"] and "top window is DaggerfallTravelPopUp" in dft:
-        ng.key(hwnd, 0x42)  # Begin.
-        state.update(step=5)
 
 
 def assemble(play):

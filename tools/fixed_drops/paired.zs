@@ -8,8 +8,10 @@ class PDHarness : EventHandler // Not static: a bundled load restores phase from
 	const RADIUS = 1200;
 	// The Privateer's Hold dungeon door on its entrance map DDT07154 (x, y, z, nx, ny), from the town cache. Travel only.
 	static const double DOORSPOT[] = { @DOOR@ };
-	// 0 fresh, 1 save before the kill, 2 load the save run's autosave, 3 travel: a character in a town (the test start)
-	// fast travels to Privateer's Hold, then enters it through its door as a player would. A function, not a const and not a field: constant
+	// 0 fresh, 1 save before the kill, 2 load the save run's autosave, 3 travel: a character in Daggerfall city (the test
+	// start), who has never been to Privateer's Hold, goes overland to it and enters through its door as a player would.
+	// Daggerfall's Find Location only lists discovered places, so the overland trip uses the dd_tm_warp test hook (the
+	// overworld handoff fast travel uses) to the dungeon's map pixel, 109,158, instead of a long walk. A function, not a const and not a field: constant
 	// conditions upset UZDoom's script VM, and a field would be replaced from the save on load.
 	static int Mode() { return @MODE@; }
 	int phase, timer, ammoSeen;
@@ -129,6 +131,19 @@ class PDHarness : EventHandler // Not static: a bundled load restores phase from
 		switch (phase)
 		{
 		case 0: // The New Game arrival in the dungeon, with Daggerfall in play.
+			if (Mode() == 3 && level.MapName ~== "DDOVER01" && CVar.FindCVar("dd_sync_df_phase").GetInt() == 3 && timer == 175)
+			{
+				// The door's tile is Daggerfall world 3592755,11190793 (DDTRANSITION in a New Game log) over 256 units a
+				// tile. A location is entered only by walking into it, so land 100 tiles south and walk north from there.
+				CVar.FindCVar("dd_tm_warp").SetString("14034 43610");
+				Console.Printf("PDWARP from %s to 100 tiles south of Privateer's Hold", level.MapName);
+			}
+			if (Mode() == 3 && level.MapName ~== "DDOVER01" && timer > 175 + 105)	// Walk north, 40 units a tic.
+			{
+				vector2 to = p.pos.xy + (0, 40);
+				p.SetOrigin((to, p.CurSector.NextLowestFloorAt(to.x, to.y, p.pos.z + 64)), false);
+				p.vel = (0, 0, 0);
+			}
 			if (Mode() == 3 && level.MapName ~== "DDT07154" && timer >= 35 * 2 && timer % 70 == 0)	// Arrived outside: use the door.
 			{
 				vector2 normal = (DOORSPOT[3], DOORSPOT[4]);
@@ -138,7 +153,7 @@ class PDHarness : EventHandler // Not static: a bundled load restores phase from
 				CVar.FindCVar("dd_tm_use").SetInt(1);
 				Console.Printf("PDDOOR use at %.0f %.0f", p.pos.x, p.pos.y);
 			}
-			if (!(level.MapName ~== "MAP01") || CVar.FindCVar("dd_sync_df_phase").GetInt() != 3) { if (!(level.MapName ~== "DDT07154")) timer = 0; break; }
+			if (!(level.MapName ~== "MAP01") || CVar.FindCVar("dd_sync_df_phase").GetInt() != 3) { if (Mode() != 3) timer = 0; break; }
 			if (timer < 35 * 3) break;
 			players[0].cheats |= CF_GODMODE;
 			p.bNOTARGET = true;
@@ -281,10 +296,10 @@ class PDHarness : EventHandler // Not static: a bundled load restores phase from
 					if (a.bISMONSTER) present.Push(a);
 					if (a is "Inventory" && !Inventory(a).Owner) looseBefore.Push(a);
 				}
-				vector2 d = (cos(p.angle), sin(p.angle));
-				pe = Actor.Spawn("RLPainElemental", (start.xy - d * 96, start.z + 32));
-				ow = Actor.Spawn("RLFormerOverwatch", (start.xy + (d.y, -d.x) * 96, start.z));
-				Actor zm = Actor.Spawn("ZombieMan", (start.xy + (-d.y, d.x) * 96, start.z), ALLOW_REPLACE);	// DRLA's replacement.
+				vector2 d = (0, 1); vector3 at = (383, 1254, 0);	// The New Game start, the same room whatever the arrival.
+				pe = Actor.Spawn("RLPainElemental", (at.xy - d * 96, at.z + 32));
+				ow = Actor.Spawn("RLFormerOverwatch", (at.xy + (d.y, -d.x) * 96, at.z));
+				Actor zm = Actor.Spawn("ZombieMan", (at.xy + (-d.y, d.x) * 96, at.z), ALLOW_REPLACE);	// DRLA's replacement.
 				pe.target = p;
 				for (int i = -1; i <= 1; i++) pe.A_PainAttack("RLLostSoulPE", i * 60, PAF_NOSKULLATTACK);	// The Pain Elemental's own summon.
 				for (int i = -1; i <= 1; i += 2) ow.A_SpawnItemEx("RLUACDefenceDrone", -48, i * 32, 24, 0, 0, 0, 0, SXF_SETMASTER | SXF_NOCHECKPOSITION);	// The Overwatch's drones.
