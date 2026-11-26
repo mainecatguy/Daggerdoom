@@ -73,7 +73,7 @@ void DD_LootDied(AActor *mo)
 	mo->ddAiRng = 0;	// Dead: its corpse ticks as stock, and nothing it did alive reaches its loot.
 	mo->ddNoDrops = 0;
 	if (mo->player) return;
-	if (!mo->ddRecordId)
+	if (!mo->ddRecordId || (mo->ddRecordId & DYNAMIC_BIT))	// A summoned monster parked and restored by the treadmill gets only a session id.
 	{
 		// Summoned (no Daggerfall id): drops nothing, only on Daggerfall maps. Its death needs a running state so that
 		// what it spawns inherits the mark; a summoned monster from a placed one's live state reuses that state.
