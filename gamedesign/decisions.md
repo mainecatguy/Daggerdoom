@@ -434,3 +434,10 @@ Verdicts:
 - **Challenge:** The rule says the bonus adds to *starting* Endurance, and an old character's start is past; changing a
   stat by migration (a Mage loses 2) may surprise. But leaving old characters without the bonus would make them differ
   from the rule forever, and the project is exploratory with no released saves. Kept as Leans.
+
+## 2026-11-26: Rest in Doom, and a level-up HUD line [owner]
+
+- **Verdict:** Owner decided.
+- **Answer:** Resting gets a card: Daggerfall's rest menu exactly as in Daggerfall, opened in Doom by a keybind like the
+  other menus. Doom also shows "You have reached level N" on a level-up.
+- **Rests on:** Owner, 2026-11-26.
