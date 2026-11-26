@@ -46,12 +46,18 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bridge = owner;
             sync = positionSync;
             instance = this;
-            // Doomerfall wins over any formula mod. Level-up gives no rolled HP: Apply recomputes max HP instead,
-            // so current HP rises with it.
+            // Doomerfall wins over any formula mod. Level-up gives no rolled HP: Apply recomputes max HP at once
+            // (raising current HP with it), and the gain it made is returned, so the character sheet's
+            // "max = old raw max + gain" lands on the new max in the same frame its HP label is drawn.
             var provider = new Mod { LoadPriority = int.MaxValue };
             FormulaHelper.RegisterOverride<Func<PlayerEntity, int>>(provider, "RollMaxHealth",
                 player => MaxHealth(player.Level, player.Stats.PermanentEndurance));
-            FormulaHelper.RegisterOverride<Func<PlayerEntity, int>>(provider, "CalculateHitPointsPerLevelUp", player => 0);
+            FormulaHelper.RegisterOverride<Func<PlayerEntity, int>>(provider, "CalculateHitPointsPerLevelUp", player =>
+            {
+                int old = player.RawMaxHealth;
+                Apply(player);
+                return player.RawMaxHealth - old;
+            });
             SaveLoadManager.OnLoad += OnLoaded;
         }
 

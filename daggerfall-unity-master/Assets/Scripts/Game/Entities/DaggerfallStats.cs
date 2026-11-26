@@ -43,10 +43,11 @@ namespace DaggerfallWorkshop.Game.Entity
         int[] mods = new int[Count];
         int[] maxMods = new int[Count];
 
-        // Doomerfall: the class Endurance bonus (DoomerfallEndurance). The flag is saved and means the permanent
-        // Endurance already includes the bonus; the raise to Endurance's maximum is set from the career.
+        // Doomerfall: the class Endurance bonus (DoomerfallEndurance). The flag means the permanent Endurance
+        // already includes the bonus. The raise to Endurance's maximum is set from the career, and saved too, so a
+        // load restores breath and other vitals against the right maximum before Doomerfall sees the player.
         [SerializeField] bool doomerfallEnduranceBonus;
-        int doomerfallEnduranceMaxBonus;
+        [SerializeField] int doomerfallEnduranceMaxBonus;
 
         #endregion
 

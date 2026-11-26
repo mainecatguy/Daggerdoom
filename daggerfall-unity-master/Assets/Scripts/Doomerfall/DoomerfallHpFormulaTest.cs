@@ -6,6 +6,7 @@
 using System;
 using System.Collections;
 using System.IO;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using DaggerfallConnect;
 using DaggerfallWorkshop.Game.Entity;
@@ -27,6 +28,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         string dir;
         int passed, failed;
         bool loaded;
+        int loadedBreath;
 
         internal static void Attach(DoomerfallBridge owner, DoomerfallPositionSync positionSync)
         {
@@ -81,6 +83,16 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
             CheckFormula();
             CheckClassBonus();
+            // Doom must be playing its map, so its pawn exists to follow each max HP (DRLA loads slower).
+            float doomDeadline = Time.unscaledTime + 30f;
+            DfbUzState peer;
+            do
+            {
+                yield return null;
+                bridge.ReadPeerState(out peer);
+            } while (peer.uzPhase != Dfb.UZ_PHASE_PLAY && Time.unscaledTime < doomDeadline);
+            yield return new WaitForSecondsRealtime(1f);
+            Check("Doom is playing", peer.uzPhase == Dfb.UZ_PHASE_PLAY, "phase " + peer.uzPhase);
             yield return NewCharacter();
             yield return LevelAndEndurance();
             yield return OlderSave();
@@ -170,13 +182,22 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             p.SetHealth(p.MaxHealth - 10);
             yield return Frames(3);
             int oldMax = p.MaxHealth, oldHp = p.CurrentHealth;
-            // The character sheet's level-up, as written there.
-            p.Level++;
-            p.MaxHealth = p.RawMaxHealth + FormulaHelper.CalculateHitPointsPerLevelUp(p);
-            yield return Frames(3);
+            // The real character sheet's level-up. Its HP label is written in the same call as the level-up, so it
+            // must already show the new HP.
+            p.ReadyToLevelUp = true;
+            var sheet = new DaggerfallCharacterSheetWindow(DaggerfallUI.UIManager);
+            DaggerfallUI.UIManager.PushWindow(sheet);
+            yield return Frames(2);
+            var labelField = typeof(DaggerfallCharacterSheetWindow).GetField("healthLabel", BindingFlags.NonPublic | BindingFlags.Instance);
+            string shown = ((TextLabel)labelField.GetValue(sheet)).Text;
+            Expect("level-up through the character sheet", p.Level, 2);
             int max = DoomerfallEndurance.MaxHealth(p.Level, p.Stats.PermanentEndurance);
             Expect("level-up max hp", p.MaxHealth, max);
             Expect("level-up raises hp by the gain", p.CurrentHealth, oldHp + (max - oldMax));
+            Check("level-up sheet shows the new hp", shown == string.Format("{0}/{1}", oldHp + (max - oldMax), max), "label \"" + shown + "\"");
+            if (DaggerfallUI.UIManager.TopWindow == sheet)
+                DaggerfallUI.UIManager.PopWindow();
+            yield return Frames(3);
             yield return new WaitForSecondsRealtime(1f);
             Report("level up");
 
@@ -220,6 +241,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             Match e = new Regex(@"""Endurance""\s*:\s*(\d+)", RegexOptions.RightToLeft).Match(json, 0, at);
             string old = json.Substring(0, e.Groups[1].Index) + (end - bonus) + json.Substring(e.Groups[1].Index + e.Groups[1].Length, at - e.Groups[1].Index - e.Groups[1].Length);
             string rest = json.Substring(at + flag.Length);
+            // The Endurance maximum is saved with the stats, so a load restores breath against it.
+            Match maxBonus = Regex.Match(rest, @"^\s*,\s*""doomerfallEnduranceMaxBonus""\s*:\s*(-?\d+)");
+            Check("save has the endurance maximum bonus", maxBonus.Success && int.Parse(maxBonus.Groups[1].Value) == bonus,
+                maxBonus.Success ? maxBonus.Groups[1].Value : "missing");
+            if (maxBonus.Success)
+                rest = rest.Substring(maxBonus.Length);
             rest = new Regex(@"""maxHealth""\s*:\s*-?\d+").Replace(rest, "\"maxHealth\": 45", 1);
             rest = new Regex(@"""currentHealth""\s*:\s*-?\d+").Replace(rest, "\"currentHealth\": 30", 1);
             File.WriteAllText(file, old + rest);
@@ -234,11 +261,19 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             yield return new WaitForSecondsRealtime(1f);
             Report("older save loaded");
 
+            // Endurance past 100 and full breath (Endurance / 2): a load must not clamp breath to 50.
+            int top = p.Stats.GetMaxPermanentValue(DFCareer.Stats.Endurance);
+            p.Stats.SetPermanentStatValue(DFCareer.Stats.Endurance, top);
+            yield return Frames(3);
+            p.CurrentBreath = p.MaxBreath;
+            int breath = p.CurrentBreath;
             saves.Save(p.Name, SaveName);
             yield return new WaitForSecondsRealtime(1.5f);
             yield return Load(p.Name);
-            Expect("saved again and loaded: no double bonus", Player.Stats.PermanentEndurance, end);
-            Expect("saved again and loaded: max hp", Player.MaxHealth, max);
+            Expect("saved again and loaded: no double bonus", Player.Stats.PermanentEndurance, top);
+            Expect("saved again and loaded: max hp", Player.MaxHealth, DoomerfallEndurance.MaxHealth(Player.Level, top));
+            Expect("endurance " + top + ": breath kept through the load", loadedBreath, breath);
+            max = Player.MaxHealth;
             Report("reloaded");
         }
 
@@ -258,7 +293,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             Check("load finished", loaded, character);
         }
 
-        void OnLoaded(SaveData_v1 data) { loaded = true; }
+        // Breath as the load restored it, before anything refills it.
+        void OnLoaded(SaveData_v1 data) { loaded = true; loadedBreath = Player.CurrentBreath; }
 
         IEnumerator CustomClassShot()
         {
