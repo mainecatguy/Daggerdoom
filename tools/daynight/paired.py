@@ -34,6 +34,11 @@ MODS = GAME.parent / "GameMods"
 DRLA = ["DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3"]
 FATAL = ("DIED WITH FATAL", "VM execution aborted", "Execution could not continue", "Unable to open map")
 STEPS = "6:0 8:0 12:0 17:4 19:5 23:0 12:6 12:3"
+# Other checks (windows.py) point these at their own build and data.
+UZDOOM_BUILD = "uzdoom-daynight"
+RUNTIME = DEMO / "data" / "ddruntime.pk3"
+CACHE = DEMO / "data" / "cache"
+CONVERTER = DEMO / "data" / "converter" / "DungeonConverter.exe"
 
 
 def read(path):
@@ -69,7 +74,7 @@ def run(name, steps, hold, weather, draw, doom_args):
                                       + f'alias dnshot{count} ""\nwait 105; dnshot0\n')
     timeout = int(len(steps.split()) * hold + 40)
     uz = ["-noactivate", "-config", str(runs / f"{name}.ini"), "-dfbridgelog", str(uz_log), "-nosound", "-noautoload", "-skill", "3", "-nomonsters",
-          "-ddtowncache", str(DEMO / "data" / "cache"), "-ddconverter", str(DEMO / "data" / "converter" / "DungeonConverter.exe"),
+          "-ddtowncache", str(CACHE), "-ddconverter", str(CONVERTER),
           "-ddarena2", str(GAME / "DAGGER" / "ARENA2"), "+logfile", name, "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0",
           "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+screenshot_type", "png", "+screenshot_dir", str(shots),
           "+vid_maxfps", "0", "+vid_vsync", "0", "+dd_weather", str(weather), "+map", "DDT07154", "+exec", f"{name}.cfg"]
@@ -83,9 +88,9 @@ def run(name, steps, hold, weather, draw, doom_args):
     if draw:
         df += ["-dfworldlookshots", str(df_shots)]
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(BUILD / "launcher-daynight" / "Release" / "doomerfall-launcher.exe"),
-               "--minimized"] + ([] if draw else ["--nodraw"]) + ["--uzdoom", str(BUILD / "uzdoom-daynight" / "Release" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"),
+               "--minimized"] + ([] if draw else ["--nodraw"]) + ["--uzdoom", str(BUILD / UZDOOM_BUILD / "Release" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"),
                "--iwad", str(GAME / "wads" / "DOOM2.WAD"), "--uzdoom-cwd", str(runs), "--log", str(launcher)]
-    for mod in [MODS / n for n in DRLA] + [DEMO / "data" / "ddruntime.pk3", DEMO / "data" / "overworld.pk3", DEMO / "dfitems.pk3", DEMO / "doomerfall.pk3"]:
+    for mod in [MODS / n for n in DRLA] + [RUNTIME, DEMO / "data" / "overworld.pk3", DEMO / "dfitems.pk3", DEMO / "doomerfall.pk3"]:
         command += ["--mod", str(mod)]
     for arg in uz:
         command += ["--uzdoom-arg", arg]
