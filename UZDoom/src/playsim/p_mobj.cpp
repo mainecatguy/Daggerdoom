@@ -276,6 +276,7 @@ void AActor::Serialize(FSerializer &arc)
 		A("ddlootrng", ddLootRng) // [Doomerfall] written only when nonzero
 		A("ddlootid", ddLootId) // [Doomerfall] written only when nonzero
 		A("ddairng", ddAiRng) // [Doomerfall] written only when nonzero
+		A("ddnodrops", ddNoDrops) // [Doomerfall] written only when nonzero
 		A("spawnpoint", SpawnPoint)
 		A("spawnangle", SpawnAngle)
 		A("starthealth", StartHealth)
@@ -5817,6 +5818,7 @@ void AActor::PostBeginPlay ()
 
 void AActor::CallPostBeginPlay()
 {
+	if (DD_LootVanish(this)) return; // [Doomerfall] a summoned monster's drop is removed before anyone sees it
 	DDLootScope lootScope(this); // [Doomerfall] fixed loot
 	Super::CallPostBeginPlay();
 	Level->localEventManager->WorldThingSpawned(this);
@@ -8563,7 +8565,7 @@ void AActor::Revive()
 {
 	AActor *info = GetDefault();
 	FLinkContext ctx;
-	ddLootRng = ddAiRng = 0; // [Doomerfall] alive again: its live state is seeded again from its id, its loot when it next dies
+	ddLootRng = ddAiRng = 0; ddNoDrops = 0; // [Doomerfall] alive again: its live state is seeded again from its id, its loot when it next dies
 
 	bool flagchange = (flags & (MF_NOBLOCKMAP | MF_NOSECTOR)) != (info->flags & (MF_NOBLOCKMAP | MF_NOSECTOR));
 

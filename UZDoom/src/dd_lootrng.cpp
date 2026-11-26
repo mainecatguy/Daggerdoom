@@ -17,6 +17,13 @@
 //   on the player's own ticks or on anything else that happened in the game. The odds are untouched; only where the
 //   numbers come from changes. The live state is dropped when the monster starts dying, so its loot never depends on
 //   how it lived.
+// - Summoned monsters drop nothing (owner rule, 2026-11-25). On a Daggerfall map in a bridge session, a monster that
+//   dies without a Daggerfall id entered play some other way than Daggerfall's placements: a Pain Elemental's Lost Soul,
+//   a DRLA summoner's minion, a boss cube's spawn, an A_SpawnItemEx or script spawn. One rule covers every route: it is
+//   marked ddNoDrops, its death runs under a loot state as above, so everything spawned in its death and in the
+//   actions of what that spawns (drop helpers, random spawners) carries the mark, and any loose item with the mark is
+//   destroyed before its first PostBeginPlay (DD_LootVanish), so before anyone can see or touch it. Its corpse, gibs,
+//   other effects and anything given into an inventory stay as they are.
 // Living monsters never carry a loot state. A revived monster drops both states (AActor::Revive). Stock games never set
 // ddRecordId and have no bridge session, so nothing here runs for them.
 #include "dd_lootrng.h"
@@ -25,6 +32,8 @@
 #include "doomdata.h"
 #include "g_levellocals.h"
 #include "vm.h"
+#include "playsim/dd_log.h"
+#include "playsim/dd_treadmill.h"
 
 bool DD_BridgeHasSession();
 
@@ -60,8 +69,23 @@ uint64_t DD_LootSeedOf(uint64_t id, uint64_t salt)
 
 void DD_LootDied(AActor *mo)
 {
+	const uint64_t live = mo->ddAiRng;
 	mo->ddAiRng = 0;	// Dead: its corpse ticks as stock, and nothing it did alive reaches its loot.
-	if (!mo->ddRecordId || mo->player) return;
+	mo->ddNoDrops = 0;
+	if (mo->player) return;
+	if (!mo->ddRecordId)
+	{
+		// Summoned (no Daggerfall id): drops nothing, only on Daggerfall maps. Its death needs a running state so that
+		// what it spawns inherits the mark; a summoned monster from a placed one's live state reuses that state.
+		if (!(mo->flags3 & MF3_ISMONSTER) || !DD_BridgeHasSession() || !DDTreadmill_OnDaggerfallMap()) return;
+		const uint64_t where = Mix(Mix(uint64_t(mo->Level->maptime), uint64_t(llround(mo->X()))), uint64_t(llround(mo->Y())));
+		mo->ddNoDrops = 1;
+		mo->ddLootRng = Mix(live ? live : where, SALT_DEATH) | 1;
+		mo->ddLootId = 0;	// Not a Daggerfall seed: DD_LootSeed stays 0 for it.
+		spawnCounts.erase(mo);
+		DD_DebugPrintf("DDLOOT summoned %s dies: no drops\n", mo->GetClass()->TypeName.GetChars());
+		return;
+	}
 	mo->ddLootRng = mo->ddLootId = DD_LootSeedOf(mo->ddRecordId, SALT_DEATH);
 	if (spawnCounts.size() > 100000) spawnCounts.clear();	// Only dead owners' finished counts are lost.
 	spawnCounts.erase(mo);
@@ -95,7 +119,16 @@ void DD_LootInherit(AActor *mo)
 		s = Mix(parent, 0x6b6964ull);
 	}
 	mo->ddLootRng = mo->ddLootId = s ? s : 1;
+	mo->ddNoDrops = DD_LootOwner ? DD_LootOwner->ddNoDrops : 0;	// Made in a summoned monster's death, or by what that made.
 	spawnCounts.erase(mo);
+}
+
+bool DD_LootVanish(AActor *mo)
+{
+	if (!mo->ddNoDrops || !mo->IsKindOf(NAME_Inventory) || mo->PointerVar<AActor>(NAME_Owner)) return false;
+	DD_DebugPrintf("DDLOOT summoned drop removed %s\n", mo->GetClass()->TypeName.GetChars());
+	mo->Destroy();
+	return true;
 }
 
 uint64_t *DD_LootMapThingSeed(FLevelLocals *Level, FMapThing *mt, int index)

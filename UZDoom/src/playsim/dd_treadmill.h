@@ -11,6 +11,7 @@ class FSerializer;
 namespace FileSys { class FileReader; }
 
 extern bool DDTreadmill_Active;
+bool DDTreadmill_OnDaggerfallMap();	// A generated Daggerfall map (overworld, town, building or dungeon) is running.
 
 void DDTreadmill_BeginMap(FLevelLocals *Level);
 void DDTreadmill_Tick(FLevelLocals *Level);

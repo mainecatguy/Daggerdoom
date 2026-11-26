@@ -2072,6 +2072,7 @@ void DDTreadmill_BeginMap(FLevelLocals *Level)
 }
 
 bool DDTreadmill_RuntimeTowns() { return runtimeTowns; }
+bool DDTreadmill_OnDaggerfallMap() { return DDTreadmill_Active || townActive; }
 level_info_t *DDTreadmill_LevelInfoAt(unsigned index) { return index < runtimeInfos.size() ? &runtimeInfos[index] : nullptr; }
 bool DDTreadmill_HandoffPending() { return handoff.pending; }
 
