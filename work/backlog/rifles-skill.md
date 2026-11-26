@@ -23,8 +23,9 @@ the Marksmanship draft's +0% to +100%.
 - **Skill 50:** +1 penetration. A bonus damage pool of 150 that refills over 1 second. Reloads another 20% faster.
 - **Skill 75:** steady shot. Damage rises with the time since your last shot, up to +100% after 1.5 s, so slow rifles
   gain the most.
-- **Skill 100:** "overpenetration carry through". Open: whether this is the pistols' kill carry-through (only a kill's
-  leftover damage goes on) or a bullet that passes through every enemy.
+- **Skill 100:** true overpenetration. The shot passes through every enemy in its path, killing or not, with no limit.
+  The first penetration (from skill 50) loses no damage. Each penetration after that deals 3/4 of the one before.
+  Example, 4 pinkies in a row: 1st takes 100%, 2nd 100%, 3rd 75%, 4th 75% of 75%.
 
 The Marksmanship draft's kill carry-through at 25 (2026-11-25) is replaced by these perks.
 
