@@ -24,12 +24,11 @@ Owner decisions from earlier runs are recorded in `CHANGELOG.md`, `architecture.
 
 In order. Lanes `skillresearch`, `skillcore`, `skillperks`, `skillmenu`, `levelup` in `work/queue`.
 
-- `skillresearch` 01: research which rifles are in DRLA and DRLAX (decides whether rifles join the pistol skill).
 - `skillresearch` 02: research Skill XP from monsters and skill purchase costs; proposes the menu card.
-- `skillcore` 01: the new skills (Shotguns, Automatics, Explosives) in the slots of the monster languages, which are removed for now (owner, 2026-11-26). Rifles and Pistols is split off into `skillcore` 03, held in `work/queue/skillcore/held` until the rifles research is answered.
+- `skillcore` 01: the new skills (Shotguns, Automatics, Explosives) in the slots of the monster languages, which are removed for now (owner, 2026-11-26). `skillcore` 03 then adds Pistols (owner, 2026-11-26: "pistols and rifles becomes just pistols", "no rifle is counted").
+- `rifletag` 01 (owner, 2026-11-26): Doomerfall's own rifle tag on every DRLA rifle, after `skillcore` 01. Rifles get their own skill later (backlog: Marksmanship).
 - `skillcore` 02: perk popup (pause and show what the perk is).
-- `skillperks` 01 to 05: Jumping (adds fall damage first), Automatics, Explosives, Shotguns, then Rifles and Pistols
-  (gated on the owner's answer from the rifles research).
+- `skillperks` 01 to 05: Jumping (adds fall damage first), Automatics, Explosives, Shotguns, then Pistols (no rifles).
 - `skillmenu` 01: skill purchase menu with visible perks, Skill XP from kills. Gated on the owner approving research 02.
 - `skillmenu` 02: Daggerfall sound and message when a skill point is gained.
 - `levelup` 01: Daggerfall's level-up flow (rest, message, attribute points) shown and usable in Doom. Independent.

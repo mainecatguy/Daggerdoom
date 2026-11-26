@@ -410,11 +410,11 @@ Verdicts:
 
 ## 2026-11-26: Which rifles join Rifles and Pistols, and where do the single-shot heavies go? [skillresearch 01]
 
-- **Verdict:** Deferred.
-- **Answer:** None. The owner reserved this until after the rifles research (2026-11-26).
-- **Rests on:** `skills-in-doom.md` open answers; `skillperks` 05 gate. Energy Weapons is not approved, so "Railgun maybe
-  Energy" has no home for now.
-- **Challenge:** None. Kept.
+- **Verdict:** Owner decided (2026-11-26).
+- **Answer:** "Pistols and rifles becomes just pistols", and "no rifle is counted". The skill is Pistols. Rifles need a
+  tag so Doomerfall can tell them apart (DRLA's `SingleShotRifle` token does not match), and "for rifles we need a
+  skill" (backlog: Marksmanship).
+- **Rests on:** Owner, 2026-11-26, after the rifles research (`work/notes/20261126-003658.md`).
 
 ## 2026-11-26: Floor gun look label: show the plain Doom name until Daggerfall answers, or no label? [skillresearch]
 
