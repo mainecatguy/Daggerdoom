@@ -32,10 +32,10 @@ void DD_LootDied(AActor *mo);			// A monster with a Daggerfall id starts dying: 
 void DD_LootInherit(AActor *mo);		// Spawned during a loot roll: a drop, a drop helper or a spawner gets its own state.
 uint64_t *DD_LootMapThingSeed(FLevelLocals *Level, FMapThing *mt, int index);	// Null outside bridge sessions.
 uint64_t DD_LootItemId(AActor *item);	// The lasting id of a floor item, or 0 when it has none.
-uint64_t DD_LootFixItemId(AActor *item);
+uint64_t DD_LootFixItemId(AActor *item);	// The same, and an item without one gets one now (a gun Daggerfall names or takes).
 bool DD_LootGunKeepsId(uint64_t id, FName cls);	// A floor gun's lasting id, which Daggerfall's location record keeps.
 bool DD_LootIsGunClass(FName cls);	// A Doom weapon or DRLA weapon pickup class.
-uint64_t DD_LootRestoredGunId(FName cls, double x, double y, double z, int probe);	// A lasting id for a gun restored without one, else 0.	// The same, and an item without one gets one now (a gun Daggerfall names or takes).
+uint64_t DD_LootRestoredGunId(FName cls, double x, double y, double z, int probe);	// A lasting id for a gun restored without one, else 0.
 bool DD_LootVanish(AActor *mo);			// A loose item a dying summoned monster made: destroyed, true. Never true outside bridge sessions.
 uint64_t *DD_AiStateFor(DThinker *th);	// The live random state a thinker ticks under, or null (always null outside bridge sessions).
 

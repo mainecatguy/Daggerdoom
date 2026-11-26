@@ -185,6 +185,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DoomerfallDoomItem testUse;
         string artClass;
         float artDeadline;
+        readonly HashSet<uint> lateArt = new HashSet<uint>(); // Art requests that timed out; a late answer is still used.
 
         // Before any save can load, so Daggerfall can rebuild Doom items from it.
         internal static void Register()
@@ -498,6 +499,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (artClass != null && Time.unscaledTime > artDeadline)
             {
                 bridge.LogLine("doomitems: no art for \"" + artClass + "\" in time");
+                Art late;
+                if (art.TryGetValue(artClass, out late))
+                    late.requested = false; // Asked again the next time it is drawn or looked at.
+                lateArt.Add(artRequest);
                 artClass = null;
             }
             if (artClass != null || artQueue.Count == 0)
@@ -510,9 +515,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         internal void OnArt(uint request, uint status, string cls)
         {
-            if (request != artRequest || artClass == null)
+            if (request == artRequest && artClass != null)
+                artClass = null;
+            else if (!lateArt.Remove(request)) // A late answer to a timed-out request (Doom slow to answer) still counts.
                 return;
-            artClass = null;
             Art known;
             if (!art.TryGetValue(cls, out known))
                 return;
