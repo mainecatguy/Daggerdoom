@@ -91,7 +91,7 @@ def check(out):
             ok &= same
         else:
             ok = False
-        for tag in ("B", "D"):
+        for tag in ("B", "D", "E"):
             same = looks.get(tag + "1") and looks.get(tag + "1") == looks.get(tag + "2")
             print(f"  {tag} before and after leaving and coming back: {looks.get(tag + '1')!r} / {looks.get(tag + '2')!r}: {'ok' if same else 'NO'}")
             ok &= bool(same)

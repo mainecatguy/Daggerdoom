@@ -19,11 +19,11 @@ class PDLabels : StaticEventHandler
 	const RADIUS = 1200;
 	const LOOKTICS = 105;	// Daggerfall answers in a few tics; the first answer for a class may wait for its art (35 tics).
 
-	int phase, timer, step;
+	int phase, timer, step, round;
 	bool done;
-	vector3 start, bAt, dAt;
+	vector3 start, bAt, dAt, eAt;
 	Array<Actor> before;
-	Actor gunA, gunB, gunC, gunD;
+	Actor gunA, gunB, gunC, gunD, gunE;
 	String bClass;
 
 	void Finish(String how) { Console.Printf("PDDONE %s", how); done = true; }
@@ -202,6 +202,12 @@ class PDLabels : StaticEventHandler
 			gunD.SetOrigin((start.xy + Actor.AngleToVector(ad, 96), start.z), false);
 			gunD.vel = (0, 0, 0);
 			dAt = gunD.pos;
+			// E: a script-spawned gun nobody looks at before the first leave and return, so it is first recorded with no
+			// lasting id of its own; looked at after the return, then again after a second leave and return.
+			double ae = ClearAngle(p, ad);
+			gunE = Actor.Spawn("RLShotgunPickup", (start.xy + Actor.AngleToVector(ae, 96), start.z));
+			if (gunE) eAt = gunE.pos;
+			Console.Printf("PDLSPAWNED E %d at %.0f %.0f", gunE != null, eAt.x, eAt.y);
 			Console.Printf("PDLDROPPED D carried %d", Carried(gunD));
 			phase = 7; timer = 0;
 			break;
@@ -235,12 +241,36 @@ class PDLabels : StaticEventHandler
 			if (timer > 35 * 40) Finish("could not come back");
 			break;
 		case 10: // Back inside: B and D where they were left.
+			if (round == 1)
+			{
+				if (timer < 35 * 3 || !ready) break;
+				gunE = Nearest("RLShotgunPickup", eAt, false);
+				Console.Printf("PDLFOUND E %d", gunE != null);
+				phase = 13; timer = 0;
+				break;
+			}
 			if (timer < 35 * 3 || !ready) break;
 			gunB = bClass != "" ? Nearest(bClass, bAt, false) : null;
 			gunD = Nearest("RLShotgunPickup", dAt, true);
 			Console.Printf("PDLFOUND B %d D %d", gunB != null, gunD != null);
 			if (!gunD) { Finish("D gone after the return"); break; }
 			phase = 11; timer = 0; step = 0;
+			break;
+		case 12: // E after the first return, then leave and come back once more.
+			if (timer == 1 && gunE) p.angle = atan2(gunE.pos.y - p.pos.y, gunE.pos.x - p.pos.x);
+			if (LookStep(p, gunE, "E1")) { TurnAway(p); round = 1; phase = 8; timer = 0; }
+			break;
+		case 13: // E after the second return.
+			if (timer == 1 && gunE) p.angle = atan2(gunE.pos.y - p.pos.y, gunE.pos.x - p.pos.x);
+			if (!LookStep(p, gunE, "E2")) break;
+			if (!gunE) { Finish("E gone after the second return"); break; }
+			TurnAway(p);
+			gunD = Nearest("RLShotgunPickup", dAt, true);
+			if (!gunD) { Finish("D gone after the second return"); break; }
+			p.SetOrigin((gunD.pos.xy - Actor.AngleToVector(atan2(gunD.pos.y - start.y, gunD.pos.x - start.x), 48), gunD.pos.z), false);
+			p.angle = atan2(gunD.pos.y - p.pos.y, gunD.pos.x - p.pos.x);
+			p.vel = (0, 0, 0);
+			phase = 11; step = 2; timer = 0;
 			break;
 		case 20: // Load: B and D from the save run's positions.
 			if (timer < 35) break;
@@ -263,6 +293,15 @@ class PDLabels : StaticEventHandler
 		case 11: // Look at B and D again, then take D.
 			if (step == 0) { if (timer == 1 && gunB) p.angle = atan2(gunB.pos.y - p.pos.y, gunB.pos.x - p.pos.x); if (LookStep(p, gunB, "B2")) { TurnAway(p); step = 1; timer = 0; } break; }
 			if (step == 1) { if (timer < 10) break; if (timer == 10) p.angle = atan2(gunD.pos.y - p.pos.y, gunD.pos.x - p.pos.x); timer -= 9; bool end = LookStep(p, gunD, "D2"); timer += 9; if (end) { step = 2; timer = 0; } break; }
+			// The save run looks at E and leaves and comes back once more before D is taken, so every autosave (the load
+			// run takes the newest) still has D on the floor.
+			if (Mode() == 0 && round == 0)
+			{
+				gunE = Nearest("RLShotgunPickup", eAt, false);
+				Console.Printf("PDLFOUND E %d", gunE != null);
+				phase = 12; timer = 0;
+				break;
+			}
 			if (timer == 1) { Console.Printf("PDLUSE D"); PressUse(p); }
 			if (timer < 10) break;
 			if (!gunD || !gunD.bSPECIAL) { Console.Printf("PDLTAKEN D"); Finish("passed"); }

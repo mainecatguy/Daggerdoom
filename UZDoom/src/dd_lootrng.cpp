@@ -183,20 +183,43 @@ uint64_t DD_LootItemId(AActor *item)
 // with a lasting id is recorded as a full fact with its id instead (not a session fact; dd_treadmill.cpp ToFact).
 bool DD_LootGunKeepsId(uint64_t id, FName cls)
 {
-	if (!IsSessionId(id) || !(id & LASTING_MARK)) return false;
+	return IsSessionId(id) && (id & LASTING_MARK) && DD_LootIsGunClass(cls);
+}
+
+// A gun restored from a session fact (a record written before guns kept their ids) gets a lasting id from where it
+// lies, the same on every restore of that record; from then on the record keeps it as a full fact.
+uint64_t DD_LootRestoredGunId(FName cls, double x, double y, double z)
+{
+	if (!DD_LootIsGunClass(cls)) return 0;
+	uint64_t h = Mix(Mix(Mix(SALT_FLOOR ^ 0x7265, uint64_t(llround(x * 16))), uint64_t(llround(y * 16))), uint64_t(llround(z * 16)));
+	for (const char *c = cls.GetChars(); *c; c++) h = Mix(h, uint8_t(tolower(*c)));
+	return SESSION_ID | LASTING_MARK | (h & (LASTING_MARK - 1));
+}
+
+// A floor gun without a lasting id (a script or console spawn) gets one when Daggerfall first names it in the look label
+// or takes it, so Daggerfall's material roll for it is fixed from then on: the same in the label and at the take, saved
+// (ddlootid) and kept by the treadmill and the location record as a drop's id. Called only in bridge sessions.
+bool DD_LootIsGunClass(FName cls)
+{
 	static const FName weapon("Weapon"), drlaPickup("RLBaseWeaponPickup");
 	for (const PClass *c = PClass::FindActor(cls); c; c = c->ParentClass)
 		if (c->TypeName == weapon || c->TypeName == drlaPickup) return true;
 	return false;
 }
 
-// A floor gun without a lasting id (a script or console spawn) gets one when Daggerfall first names it in the look label
-// or takes it, so Daggerfall's material roll for it is fixed from then on: the same in the label and at the take, saved
-// (ddlootid) and kept by the treadmill and the location record as a drop's id. Called only in bridge sessions.
 uint64_t DD_LootFixItemId(AActor *item)
 {
-	if (const uint64_t id = DD_LootItemId(item)) return id;
 	if (!item) return 0;
+	const uint64_t id = DD_LootItemId(item);
+	// A gun holding one of the treadmill's counter ids (a game saved before guns kept lasting ids) gets a lasting one
+	// too, or its next restore would give it another counter id and another material. A session id never needs a
+	// tombstone, so the old id simply goes.
+	if (id && IsSessionId(id) && !(id & LASTING_MARK) && item->ddRecordId == id && DD_LootIsGunClass(item->GetClass()->TypeName))
+	{
+		item->ddRecordId = 0;
+		item->ddLootId = 0;
+	}
+	else if (id) return id;
 	uint64_t h = Mix(SALT_FLOOR, uint64_t(item->Level->maptime));
 	h = Mix(Mix(Mix(h, uint64_t(llround(item->X() * 16))), uint64_t(llround(item->Y() * 16))), uint64_t(llround(item->Z() * 16)));
 	for (const char *c = item->GetClass()->TypeName.GetChars(); *c; c++) h = Mix(h, uint8_t(tolower(*c)));

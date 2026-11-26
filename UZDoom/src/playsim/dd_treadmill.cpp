@@ -801,6 +801,7 @@ namespace
 		r = Record();
 		r.id = mo->ddRecordId;
 		if (!r.id) r.id = DD_LootItemId(mo);	// A drop from a fixed loot roll keeps the same id in every game.
+		if (!r.id && item) r.id = DD_LootIsGunClass(r.cls) ? DD_LootFixItemId(mo) : 0;	// [Doomerfall] a gun gets a lasting id
 		r.cls = mo->GetClass()->TypeName;
 		const DVector3 world = ToWorld(mo->Pos(), fromX, fromY);
 		r.x = world.X;
@@ -2432,7 +2433,7 @@ void DDTreadmill_ApplyPlace(FLevelLocals *Level, const DDPlaceKey &place, const 
 	for (const DDPlaceFact &f : facts)
 	{
 		Record r = FromFact(f, t);
-		if (f.session) r.id = SESSION_ID | ++nextDynamic;
+		if (f.session && !(r.id = DD_LootRestoredGunId(r.cls, r.x, r.y, r.z))) r.id = SESSION_ID | ++nextDynamic;	// [Doomerfall] a gun gets a lasting id
 		Store(r);
 		if (r.kind == KGone) { gone++; continue; }
 		Restore(Level, r);
@@ -2576,7 +2577,7 @@ void DDTreadmill_ApplyChunk(FLevelLocals *Level, int cx, int cy, const std::vect
 		Record r = FromChunkFact(f, cx, cy);
 		if (!f.session && expected.count(r.id)) { stats.keptLive++; continue; }
 		if (LiveAt(r) && (r.kind != KGone || f.session)) { stats.keptLive++; continue; }
-		if (f.session) r.id = SESSION_ID | ++nextDynamic;
+		if (f.session && !(r.id = DD_LootRestoredGunId(r.cls, r.x, r.y, r.z))) r.id = SESSION_ID | ++nextDynamic;	// [Doomerfall] a gun gets a lasting id
 		Store(r);
 		stats.stored++;
 	}
