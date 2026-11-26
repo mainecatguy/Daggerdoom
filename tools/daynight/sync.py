@@ -1,6 +1,6 @@
 """Combined check of fog, foggy sky, lit windows and winter together (both day/night follow-up branches merged).
 
-usage: sync.py UZDOOM CONVERTER OUT [assets] [shots] [cost] [stage] [town [lowres]] [interior]
+usage: sync.py UZDOOM CONVERTER OUT [assets] [shots] [cost] [stage] [town [lowres]] [interior] [dungeon]
 
 assets    OUT/data/ddruntime.pk3 with the window masks (CONVERTER --runtime-assets).
 shots     Doom only, Gothway Garden in winter (converter --winter through the town cache), hand-fed lines:
@@ -9,8 +9,9 @@ cost      frame times: winter night with heavy fog and windows, against the same
 stage     this worktree's Daggerfall Unity build to OUT/dfu (paired.py stage).
 town      paired, Daggerfall steps noon clear, noon heavy fog, 22:00 clear, 22:00 heavy fog, all in Morning Star
           (winter), with Daggerfall's camera saved each step; side-by-side sheet run/town-sheet.png.
-interior  paired, Doom walks into the tavern (dd_tm_use hook), Daggerfall follows; noon then 22:00 inside;
+interior  paired, Doom walks into the tavern (dd_tm_use hook), Daggerfall follows; hour-only steps 12, 12, 22 inside;
           sheet run/interior-sheet.png.
+dungeon   paired, the same through Gothway Garden's dungeon door into Privateer's Hold; sheet run/dungeon-sheet.png.
 Game-derived output stays in OUT.
 """
 import subprocess
@@ -29,6 +30,8 @@ FOG_CLEAR_NOON, FOG_CLEAR_NIGHT = "fog 1 2 0.0005 0 0 168 176 198 0", "fog 1 2 0
 FOG_HEAVY = "fog 1 2 0.05 0 0 128 128 128 1"
 WIN_NIGHT, WIN_DAY = windows.WIN_NIGHT, windows.WIN_DAY
 # The minimized paired window renders at 320x200; a fixed scene size keeps windows and fog readable in the screenshots.
+DUNGEON_DATA = Path(r"D:\dev\DoomDaggerfall-loop\review\dungeon-reentry")
+DUNGEON_DOOR = (3686.604, 14407.293, 3.143, -0.7071, -0.7071)  # Privateer's Hold entrance in DDT07154's DDDOORS: x y z nx ny
 SCALE = ["+vid_scalemode", "5", "+vid_scale_customwidth", "960", "+vid_scale_customheight", "540"]
 
 
@@ -73,11 +76,12 @@ def setup_paired(exe, converter, out):
     return paired
 
 
-def interior_harness(out):
+def interior_harness(out, door=interior.DOOR, name="dn_interior.pk3"):
     import zipfile
-    x, y, z, nx, ny = interior.DOOR
-    path = out / "run" / "dn_interior.pk3"
-    code = interior.HARNESS.replace("@X@", str(x)).replace("@Y@", str(y)).replace("@Z@", str(z)).replace("@NX@", str(nx)).replace("@NY@", str(ny))
+    x, y, z, nx, ny = door
+    path = out / "run" / name
+    v = lambda n: f"({n})"  # parenthesised: the template writes -@NX@, and -(-0.7) must not become --0.7
+    code = interior.HARNESS.replace("@X@", v(x)).replace("@Y@", v(y)).replace("@Z@", v(z)).replace("@NX@", v(nx)).replace("@NY@", v(ny))
     with zipfile.ZipFile(path, "w") as zf:
         zf.writestr("zscript.txt", code)
         zf.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "DNInterior" }\n')
@@ -109,8 +113,17 @@ def main():
         windows.sheet(out / "run", name, 8)
     if "interior" in steps:
         paired = setup_paired(exe, converter, out)
-        paired.run("interior", "12:0:0 12:0:0 22:0:0", 8, 1, True, ["-file", str(interior_harness(out)), "+dd_sky", NOON] + SCALE)
+        # Hour-only steps: a weather field makes Daggerfall call SetWeather, which puts its outdoor fog back even indoors.
+        paired.run("interior", "12 12 22", 8, 1, True, ["-file", str(interior_harness(out)), "+dd_sky", NOON] + SCALE)
         windows.sheet(out / "run", "interior", 8)
+    if "dungeon" in steps:
+        # Gothway Garden's dungeon door leads to Privateer's Hold; its converted packages come from the dungeon re-entry
+        # check's folder (read only). Doom walks through the door, Daggerfall follows into its own dungeon.
+        paired = setup_paired(exe, converter, out)
+        files = [str(DUNGEON_DATA / n) for n in ("privateershold.wad", "privateershold_mesh.pk3", "privateershold_doors.pk3")]
+        harness = interior_harness(out, DUNGEON_DOOR, "dn_dungeon.pk3")
+        paired.run("dungeon", "12 12 22", 8, 1, True, ["-file"] + files + [str(harness), "+dd_sky", NOON] + SCALE)
+        windows.sheet(out / "run", "dungeon", 8)
 
 
 if __name__ == "__main__":
