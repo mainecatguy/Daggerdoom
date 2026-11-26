@@ -68,7 +68,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
             if (picks <= 0)
             {
-                Text(DoomerfallLocks.Label(door) + " You have no lockpicks.");
+                Text(DoomerfallLocks.Label(door)); // card 01: the locked message only
                 return;
             }
             pickDoor = id;
