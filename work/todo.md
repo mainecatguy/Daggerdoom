@@ -16,7 +16,7 @@ Owner decisions from earlier runs are recorded in `CHANGELOG.md`, `architecture.
 
 ### Queued (owner, 2026-11-25)
 
-- `lockpick` card 02 (`work/queue/lockpick/02.opus.door-lock-bridge.md`): the door bridge step in one full run. Start the lane with `-From agent/lockpick-20261125-073553`. Thieves Guild sales are cancelled.
+- `lockpick` cards 03 and 04 (approved by the owner 2026-11-26): door lock state in the location record instead of a separate ledger; the arrival autosave waits until level setup is done (general fix, report back if the approach is wrong). Card 02 (Doom owns the live lock) is verified on `overnight/lockpick`; merge after 03 and 04.
 - `daynight` card 01 (`work/queue/daynight/01.opus.fog-sky-windows-winter.md`): distance fog, foggy sky, lit windows at night, winter textures. Starts from integration (the day/night branch is merged).
 
 
@@ -27,6 +27,9 @@ In order. Lanes `skillresearch`, `skillcore`, `skillperks`, `skillmenu`, `levelu
 - `skillresearch` 02: research Skill XP from monsters and skill purchase costs; proposes the menu card.
 - `skillcore` 01: the new skills (Shotguns, Automatics, Explosives) in the slots of the monster languages, which are removed for now (owner, 2026-11-26). `skillcore` 03 then adds Pistols (owner, 2026-11-26: "pistols and rifles becomes just pistols", "no rifle is counted").
 - `rifletag` 01 (owner, 2026-11-26): Doomerfall's own rifle tag on every DRLA rifle, after `skillcore` 01. Rifles get their own skill later (backlog: Rifles).
+- `skillcore` 04 (owner, 2026-11-26, "Rifles go now"): the Rifles skill on the sheet, no perks yet.
+- `lightcarbine` 01 (owner, 2026-11-26): the Light Carbine (semi-auto Battle Rifle, +20% damage) in the Doomerfall mod, working without DRLA; half of the assault-rifle monsters' Battle Rifle drops become carbines.
+- `startgun` 01 (owner, 2026-11-26): a new character's starting gun follows the highest weapon skill and replaces the starter pistol. After `skillcore` 01, 03, 04 and `lightcarbine` 01.
 - `skillcore` 02: perk popup (pause and show what the perk is).
 - `skillperks` 01 to 05: Jumping (adds fall damage first), Automatics, Explosives, Shotguns, then Pistols (no rifles).
 - `skillmenu` 01: skill purchase menu with visible perks, Skill XP from kills. Gated on the owner approving research 02.
