@@ -1,0 +1,386 @@
+"""Tests Daggerfall's level-up window in a paired run, with both real games on quiet_run's private desktop.
+
+usage: levelup.py assemble | run [travel] | check
+run: starts outside Privateer's Hold with DRLA. Daggerfall's -dfleveluptest earns the character one level and runs
+Daggerfall's own skill check (as resting and fast travel do), so Daggerfall opens its character sheet with the bonus
+points by itself. The harness checks that Doom shows it, then posts clicks to Doom's window as a player would: Exit
+before spending the points (Daggerfall refuses with its message), the stat with the most room, the spinner's up arrow
+until the pool is empty, and Exit. Then it checks the new level and stats in Daggerfall and in Doom's copy of the sheet.
+run travel: the same, but the skill check comes from a real fast travel made through Doom's travel map (first row of
+the region's location list), so the sheet must appear after the arrival.
+check: DOOM.WAD E1M1 with no bridge, stock and with the DRLA set, and -norun.
+"""
+import argparse
+import ctypes
+import ctypes.wintypes as wt
+import re
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+REPO = HERE.parents[1]
+sys.path.insert(0, str(REPO / "scripts" / "play"))
+argv, sys.argv = sys.argv, sys.argv[:1]
+import install  # noqa: E402  (only for its registry isolation)
+sys.argv = argv
+
+REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\levelup")
+SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\journal")  # Data, converter and sprite package.
+BUILD = Path(r"D:\dev\DoomDaggerfall-build")
+UZ_BUILD = BUILD / "uzdoom-location" / "Release"  # Configured from this worktree (no engine change in this card).
+SOUND = BUILD / "uzdoom-launcher" / "Release"
+BRIDGE_DLL = BUILD / "bridge-location" / "Release" / "doomerfall_bridge.dll"
+LAUNCHER = BUILD / "launcher-location" / "Release" / "doomerfall-launcher.exe"
+QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
+GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
+MODS = GAME.parent / "GameMods"
+DRLA = ["DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3"]
+DATA = ["ddruntime.pk3", "overworld.pk3", "privateershold.wad", "privateershold_mesh.pk3", "privateershold_doors.pk3"]
+GROUP = 7154
+FATAL = ("DIED WITH FATAL", "VM execution aborted", "Execution could not continue", "Unable to open map")
+TEST_MARK = 0x8000
+SHEET = "DaggerfallCharacterSheetWindow"
+# Character sheet in Daggerfall's 320x200 native layout (DaggerfallCharacterSheetWindow.Setup, StatsRollout).
+EXIT_BUTTON = (69, 188)
+MESSAGE_CLICK = (160, 100)
+
+
+def stat_button(i):
+    return (155, 16 + 24 * i)
+
+
+def spinner_up(i):
+    return (183, 9 + 24 * i)
+
+
+def read(path):
+    return path.read_text(errors="replace") if path.exists() else ""
+
+
+def assemble():
+    REVIEW.mkdir(parents=True, exist_ok=True)
+    for name, source in (("uzdoom", UZ_BUILD), ("dfu", REPO / "daggerfall-unity-master" / "Builds" / "Windows64")):
+        if (REVIEW / name).exists():
+            shutil.rmtree(REVIEW / name)
+        shutil.copytree(source, REVIEW / name, ignore=shutil.ignore_patterns("*.pdb", "*.ini", "*.ilk", "*.exp", "*.lib", "*.log"))
+    for dll in ("sndfile.dll", "soft_oal.dll"):
+        shutil.copy2(SOUND / dll, REVIEW / "uzdoom" / dll)
+    plugins = REVIEW / "dfu" / "DaggerfallUnity_Data" / "Plugins" / "x86_64"
+    plugins.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(BRIDGE_DLL, plugins / "doomerfall_bridge.dll")
+    (REVIEW / "dfu" / "Portable.txt").write_text("")
+    install.isolate_registry(REVIEW / "dfu")
+    if (REVIEW / "data").exists():
+        shutil.rmtree(REVIEW / "data")
+    shutil.copytree(SOURCE / "data", REVIEW / "data", ignore=shutil.ignore_patterns("work"))
+    shutil.copy2(LAUNCHER, REVIEW / "doomerfall-launcher.exe")
+    shutil.copy2(SOURCE / "dfitems.pk3", REVIEW / "dfitems.pk3")
+    subprocess.check_call([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), str(REVIEW / "doomerfall.pk3")])
+    write_demo()
+    print("assembled", REVIEW)
+
+
+def write_demo():
+    mods = " ".join(f'--mod "{MODS / n}"' for n in DRLA)
+    data = " ".join(f'--mod "%HERE%data\\{n}"' for n in DATA)
+    dagger = GAME / "DAGGER"
+    (REVIEW / "play.bat").write_text(
+        "@echo off\r\n"
+        "rem Level-up. Starts outside Privateer's Hold with DRLA. A few seconds in, a test hook earns the character one level\r\n"
+        "rem and runs Daggerfall's skill check (what resting or fast travel does). Daggerfall's character sheet then opens\r\n"
+        "rem inside Doom with the level-up bonus points: click a stat, click the small up arrow beside it to spend points,\r\n"
+        "rem and click Exit when the pool is empty. Exit before that shows Daggerfall's 'distribute your points' message.\r\n"
+        "set \"HERE=%~dp0\"\r\n"
+        "if not exist \"%HERE%play\" mkdir \"%HERE%play\"\r\n"
+        "set BINDS=\r\n"
+        "if not exist \"%HERE%play\\uzdoom.ini\" set BINDS=--uzdoom-arg +bind --uzdoom-arg i --uzdoom-arg \"netevent df_inventory\" --uzdoom-arg +bind --uzdoom-arg k --uzdoom-arg \"netevent df_fast_travel\" --uzdoom-arg +bind --uzdoom-arg j --uzdoom-arg \"netevent df_journal\"\r\n"
+        f"start \"\" \"%HERE%doomerfall-launcher.exe\" --nodraw --uzdoom \"%HERE%uzdoom\\uzdoom.exe\" --dfu \"%HERE%dfu\\DaggerfallUnity.exe\" --iwad \"{GAME / 'wads' / 'DOOM2.WAD'}\" {mods} {data} "
+        "--mod \"%HERE%dfitems.pk3\" --mod \"%HERE%doomerfall.pk3\" --uzdoom-cwd \"%HERE%play\" --log \"%HERE%play\\launcher.log\" "
+        "--uzdoom-arg -config --uzdoom-arg \"%HERE%play\\uzdoom.ini\" --uzdoom-arg -savedir --uzdoom-arg \"%HERE%play\\saves\" --uzdoom-arg -dfbridgelog --uzdoom-arg \"%HERE%play\\uz.log\" "
+        "--uzdoom-arg -ddtowncache --uzdoom-arg \"%HERE%data\\cache\" --uzdoom-arg -ddconverter --uzdoom-arg \"%HERE%data\\converter\\DungeonConverter.exe\" "
+        f"--uzdoom-arg -ddarena2 --uzdoom-arg \"{dagger}\\ARENA2\" --uzdoom-arg -skill --uzdoom-arg 3 --uzdoom-arg +map --uzdoom-arg DDT{GROUP:05d} --uzdoom-arg +vid_fullscreen --uzdoom-arg 0 --uzdoom-arg +i_pauseinbackground --uzdoom-arg 0 "
+        f"--dfu-arg -dfbridgelog --dfu-arg \"%HERE%play\\df.log\" --dfu-arg -dfsynctest --dfu-arg \"{dagger}\" --dfu-arg -dfleveluptest --dfu-arg \"%HERE%play\\levelup.log\" "
+        "--dfu-arg -screen-fullscreen --dfu-arg 0 --dfu-arg -screen-width --dfu-arg 1280 --dfu-arg -screen-height --dfu-arg 800 %BINDS%\r\n",
+        newline="")
+
+
+class Doom:
+    """Posts window messages to this run's Doom window, on whichever desktop quiet_run put it (as tools/journal)."""
+
+    def __init__(self, launcher_log):
+        self.user = ctypes.WinDLL("user32", use_last_error=True)
+        # Doom is DPI aware. From a DPI-unaware sender, Windows rescales posted mouse coordinates by the display scale,
+        # so the driver declares itself per-monitor aware (-4) before posting anything.
+        self.user.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))
+        self.user.PostMessageW.argtypes = (wt.HWND, wt.UINT, wt.WPARAM, wt.LPARAM)
+        self.user.OpenDesktopW.restype = wt.HANDLE
+        self.user.OpenDesktopW.argtypes = (wt.LPCWSTR, wt.DWORD, wt.BOOL, wt.DWORD)
+        self.user.EnumDesktopWindows.argtypes = (wt.HANDLE, ctypes.c_void_p, wt.LPARAM)
+        self.user.EnumDesktopsW.argtypes = (wt.HANDLE, ctypes.c_void_p, wt.LPARAM)
+        self.user.GetProcessWindowStation.restype = wt.HANDLE
+        self.user.CloseDesktop.argtypes = (wt.HANDLE,)
+        self.user.SetThreadDesktop.argtypes = (wt.HANDLE,)
+        self.surface = (320, 200)
+        pids = {int(m) for m in re.findall(r"started UZDoom pid (\d+)", read(launcher_log))}
+        names, found = [], []
+        desk_proc = ctypes.WINFUNCTYPE(wt.BOOL, wt.LPWSTR, wt.LPARAM)
+        win_proc = ctypes.WINFUNCTYPE(wt.BOOL, wt.HWND, wt.LPARAM)
+        keep = [desk_proc(lambda name, _: names.append(name) or True)]
+        self.user.EnumDesktopsW(self.user.GetProcessWindowStation(), keep[0], 0)
+
+        def visit(hwnd, _):
+            pid = wt.DWORD()
+            self.user.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+            if pid.value in pids and not self.user.GetWindow(hwnd, 4) and self.user.GetWindowTextLengthW(hwnd) > 0:
+                found.append(hwnd)
+            return True
+
+        callback = win_proc(visit)
+        for name in names:
+            desk = self.user.OpenDesktopW(name, 0, False, 0x01FF)
+            if not desk:
+                continue
+            before = len(found)
+            self.user.EnumDesktopWindows(desk, callback, 0)
+            if len(found) > before:
+                if not self.user.SetThreadDesktop(desk):
+                    print("  SetThreadDesktop failed, error", ctypes.get_last_error())
+                del found[:before]
+                break
+            self.user.CloseDesktop(desk)
+        if not found:
+            raise RuntimeError(f"could not find this run's Doom window (pids {pids}, desktops {names})")
+        info = []
+        for h in found:
+            buf = ctypes.create_unicode_buffer(128)
+            self.user.GetClassNameW(h, buf, 128)
+            info.append((h, buf.value))
+        self.hwnd = next((h for h, c in info if "doom" in c.lower()), None) or next((h for h, c in info if not c.startswith(("NV", "IME", "MSCTF", "Default IME"))), found[0])
+
+    def point(self, x, y):
+        width, height = self.surface
+        scale = min(width / 320, height / 200)
+        return int((height - 200 * scale) / 2 + y * scale) << 16 | int((width - 320 * scale) / 2 + x * scale)
+
+    def press(self, vk):
+        scan = self.user.MapVirtualKeyW(vk, 0)
+        self.user.PostMessageW(self.hwnd, 0x100, vk, 1 | (scan << 16))
+        time.sleep(0.12)
+        self.user.PostMessageW(self.hwnd, 0x101, vk, 1 | (scan << 16) | (3 << 30))
+        time.sleep(0.6)
+
+    def double_click(self, xy):
+        """Two quick clicks, as Daggerfall's list boxes need to choose a row (as tools/fast_travel_arrival)."""
+        lp = self.point(*xy)
+        self.user.PostMessageW(self.hwnd, 0x200, TEST_MARK, lp)
+        time.sleep(0.25)
+        for _ in range(2):
+            self.user.PostMessageW(self.hwnd, 0x201, 1 | TEST_MARK, lp)
+            time.sleep(0.05)
+            self.user.PostMessageW(self.hwnd, 0x202, TEST_MARK, lp)
+            time.sleep(0.05)
+
+    def click(self, xy):
+        lp = self.point(*xy)
+        self.user.PostMessageW(self.hwnd, 0x200, TEST_MARK, lp)
+        time.sleep(0.4)
+        self.user.PostMessageW(self.hwnd, 0x200, TEST_MARK, lp)  # A second move, so the hover is settled before the press.
+        time.sleep(0.4)
+        self.user.PostMessageW(self.hwnd, 0x201, 1 | TEST_MARK, lp)
+        time.sleep(0.25)
+        self.user.PostMessageW(self.hwnd, 0x202, TEST_MARK, lp)
+        time.sleep(0.8)
+
+
+class Run:
+    def __init__(self, travel=False):
+        self.travel = travel
+        self.dir = REVIEW / ("run-travel" if travel else "run")
+        self.dir.mkdir(parents=True, exist_ok=True)
+        self.uz_log, self.df_log, self.console = self.dir / "uz.log", self.dir / "df.log", self.dir / "log-levelup.txt"
+        self.launcher, self.views = self.dir / "launcher.log", self.dir / "levelup.log"
+        self.results = []
+        self.proc = None
+
+    def case(self, ok, what):
+        self.results.append((bool(ok), what))
+        print("CASE", "pass" if ok else "FAIL", what)
+
+    def view(self):
+        """The last logged state line, without its time."""
+        lines = [l for l in read(self.views).splitlines() if " top " in l]
+        return lines[-1].split(" ", 1)[1] if lines else ""
+
+    def wait(self, path, pattern, seconds):
+        end = time.time() + seconds
+        while time.time() < end and self.proc.poll() is None:
+            if re.search(pattern, read(path)):
+                return True
+            if any(k in read(self.console) for k in FATAL):
+                return False
+            time.sleep(0.2)
+        return False
+
+    def go(self):
+        for path in (self.uz_log, self.df_log, self.console, self.launcher, self.views):
+            path.unlink(missing_ok=True)
+        cache = REVIEW / "data" / "cache"
+        uz = ["-noactivate", "-config", str(self.dir / "uz.ini"), "-savedir", str(self.dir / "saves"), "-dfbridgelog", str(self.uz_log), "-nosound", "-noautoload", "-skill", "3",
+              "-ddtowncache", str(cache), "-ddconverter", str(REVIEW / "data" / "converter" / "DungeonConverter.exe"), "-ddarena2", str(GAME / "DAGGER" / "ARENA2"),
+              # -dfuitest also makes Doom ignore the real cursor, which Windows reports too; 0 opens no menu.
+              "-dfuitest", "1" if self.travel else "0", "+dd_ui_test_menu", "1", "+logfile", "levelup", "+screenshot_dir", str(self.dir / "shots"), "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{GROUP:05d}"]
+        df = ["-dfbridgelog", str(self.df_log), "-dfsynctest", str(GAME / "DAGGER"), "-dfleveluptest", str(self.views), *(["travel"] if self.travel else []), "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "400"]
+        command = [sys.executable, QUIET, "--timeout", "240" if self.travel else "150", "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
+                   "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
+                   "--uzdoom-cwd", str(self.dir), "--log", str(self.launcher)]
+        for mod in [MODS / n for n in DRLA] + [REVIEW / "data" / n for n in DATA] + [REVIEW / "dfitems.pk3", REVIEW / "doomerfall.pk3"]:
+            command += ["--mod", str(mod)]
+        for arg in uz:
+            command += ["--uzdoom-arg", arg]
+        for arg in df:
+            command += ["--dfu-arg", arg]
+        self.proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            self.drive()
+        except Exception as e:  # noqa: BLE001  (report and stop the games)
+            self.case(False, f"driver error: {e!r}")
+        finally:
+            if self.proc.poll() is None:
+                subprocess.call(["taskkill", "/F", "/T", "/PID", str(self.proc.pid)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                self.proc.wait()
+        self.summary()
+
+    def sheet(self):
+        """(leveling, pool, working stats, level, stats, maxhp) from the last state line, or None when the sheet is not on top."""
+        m = re.search(rf"top {SHEET} view leveling (\w+) pool (-?\d+)(?: working ([\d,]+))? \| level (\d+) stats ([\d,]+) maxhp (\d+)", self.view())
+        if not m:
+            return None
+        ints = lambda s: [int(v) for v in s.split(",")] if s else None  # noqa: E731
+        return m.group(1) == "True", int(m.group(2)), ints(m.group(3)), int(m.group(4)), ints(m.group(5)), int(m.group(6))
+
+    def drive(self):
+        if not self.wait(self.views, r"earned level", 90):
+            self.case(False, "the test never earned a level (game not ready)")
+            return
+        before = re.search(r"top \S+ view [^|]*\| level (\d+) stats ([\d,]+) maxhp (\d+)", read(self.views))
+        start_level, start_stats = int(before.group(1)), [int(v) for v in before.group(2).split(",")]
+        print("  earned:", [l for l in read(self.views).splitlines() if "earned" in l or "skill check" in l])
+        if self.travel and not self.trip():
+            return
+        opened = self.wait(self.uz_log, r"Daggerfall asked to show a window it opened by itself", 90) and self.wait(self.uz_log, r"Daggerfall opened menu 7 at", 10)
+        shown = self.wait(self.views, rf"top {SHEET} view leveling True", 5)
+        time.sleep(1.0)
+        state = self.sheet()
+        print(f"  sheet: {state}")
+        self.case(opened and shown and state and state[0] and state[1] > 0 and state[3] == start_level + 1,
+                  f"Daggerfall opened its level-up sheet by itself and Doom showed it (level {start_level} -> {state and state[3]}, pool {state and state[1]})")
+        if not state:
+            return
+        doom = Doom(self.launcher)
+        size = re.findall(r"opened menu \d+ at (\d+)x(\d+)", read(self.uz_log))
+        doom.surface = (int(size[-1][0]), int(size[-1][1]))
+        pool = state[1]
+
+        # Exit with points left: Daggerfall refuses with its message, and a click closes the message.
+        doom.click(EXIT_BUTTON)
+        refused = self.wait(self.views, r"top DaggerfallMessageBox [^\n]*\n?$", 3)
+        doom.click(MESSAGE_CLICK)
+        self.wait(self.views, rf"top {SHEET} [^\n]*\n?$", 3)
+        back = self.sheet()
+        self.case(refused and back and back[0] and back[1] == pool and "menu 7 closed" not in read(self.df_log),
+                  f"Exit with {pool} points left shows Daggerfall's message and keeps the sheet open ({back})")
+
+        # Spend every point on the stat with the most room below 100.
+        stat = min(range(8), key=lambda i: start_stats[i])
+        doom.click(stat_button(stat))
+        for _ in range(pool):
+            doom.click(spinner_up(stat))
+        spent = self.sheet()
+        print(f"  after spending on stat {stat}: {spent}")
+        self.case(spent and spent[1] == 0 and spent[2] and spent[2][stat] == start_stats[stat] + pool,
+                  f"clicking stat {stat} and its up arrow {pool} times spent the pool ({spent})")
+
+        # Exit closes the sheet and Doom's menu; the new stats are Daggerfall's.
+        doom.click(EXIT_BUTTON)
+        closed = self.wait(self.uz_log, r"ui: closed", 6)
+        time.sleep(1.5)
+        after = re.search(r"\| level (\d+) stats ([\d,]+) maxhp (\d+)\s*$", read(self.views).strip().splitlines()[-1])
+        level, stats = int(after.group(1)), [int(v) for v in after.group(2).split(",")]
+        expect = list(start_stats)
+        expect[stat] += pool
+        self.case(closed and level == start_level + 1 and stats == expect and SHEET not in self.view(),
+                  f"Exit closed the sheet back to Doom; Daggerfall has level {level}, stats {stats} (expected {expect})")
+
+        # Doom's copy of the sheet (only Strength is in Doom's log line, so check the level and, for stat 0, Strength).
+        lines = re.findall(r"sheet: read v\d+ epoch \d+ valid 1 level (\d+) str (\d+)/(\d+)", read(self.uz_log))
+        last = lines[-1] if lines else None
+        doom_ok = last and int(last[0]) == start_level + 1 and (stat != 0 or int(last[1]) == expect[0])
+        self.case(doom_ok, f"Doom's copy of the sheet has the new level (last sheet line {last})")
+
+    def trip(self):
+        """Fast travel to the first row of the region's location list, through the travel map Doom's -dfuitest opened."""
+        if not self.wait(self.uz_log, r"Daggerfall opened menu 1 at", 90) or not self.wait(self.views, r"waiting for a fast travel", 5):
+            self.case(False, "the travel map never opened in Doom")
+            return False
+        time.sleep(1.5)
+        doom = Doom(self.launcher)
+        size = re.findall(r"opened menu \d+ at (\d+)x(\d+)", read(self.uz_log))
+        doom.surface = (int(size[-1][0]), int(size[-1][1]))
+        doom.click((20, 190))  # I'm At.
+        doom.press(0x0D)  # Open the region.
+        doom.press(0x4C)  # The location list.
+        doom.double_click((100, 64))
+        if self.wait(self.df_log, r"top window is DaggerfallMessageBox", 5):
+            time.sleep(0.3)
+            doom.press(0x59)  # Yes.
+        if self.wait(self.df_log, r"top window is DaggerfallTravelPopUp", 5):
+            time.sleep(0.4)
+            doom.press(0x42)  # Begin.
+        arrived = self.wait(self.df_log, r"travel: Doom reached", 90)
+        self.case(arrived, "a real fast travel through Doom's travel map arrived")
+        return arrived
+
+    def summary(self):
+        for line in read(self.views).splitlines():
+            if "earned" in line or "error" in line or "skill check" in line:
+                print("df", line)
+        for line in read(self.console).splitlines():
+            if "Script error" in line or any(k in line for k in FATAL):
+                print("uz", line[:200])
+        kinds = sorted({l[:150] for l in read(REVIEW / "dfu" / "PortableAppdata" / "Player.log").splitlines() if "Exception" in l})
+        print("Player.log exception kinds:", len(kinds), kinds[:6])
+        bad = sum(not ok for ok, _ in self.results)
+        print(f"RESULT levelup: {len(self.results) - bad} passed, {bad} failed")
+
+
+def check():
+    runs = REVIEW / "run"
+    runs.mkdir(parents=True, exist_ok=True)
+    for label, mods in (("stock", []), ("drla", [str(MODS / n) for n in DRLA])):
+        log = runs / f"log-check-{label}.txt"
+        log.unlink(missing_ok=True)
+        command = [sys.executable, QUIET, "--timeout", "30", "--cwd", str(runs), "--", str(REVIEW / "uzdoom" / "uzdoom.exe"), "-noactivate", "-iwad", str(GAME / "wads" / "DOOM.WAD"), "-config", str(runs / f"check-{label}.ini"),
+                   "-nosound", "-noautoload", "-skill", "3", *(["-file", *mods] if mods else []), "+logfile", f"check-{label}", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+vid_fullscreen", "0",
+                   "+map", "E1M1", "+wait 105;quit"]
+        code = subprocess.call(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        body = read(log)
+        print(label, "exit", code, "| lines", len(body.splitlines()), "| E1M1", "E1M1" in body, "| bridge lines", sum("bridge" in l.lower() for l in body.splitlines()),
+              "| script errors", sum("Script error" in l for l in body.splitlines()), "| fatal", sum(any(k in l for k in FATAL) for l in body.splitlines()))
+    code = subprocess.call([sys.executable, QUIET, "--timeout", "30", "--cwd", str(runs), "--", str(REVIEW / "uzdoom" / "uzdoom.exe"), "-iwad", str(GAME / "wads" / "DOOM.WAD"), "-norun", "-nosound", "-stdout"],
+                           stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    print("-norun exit", code)
+
+
+ap = argparse.ArgumentParser()
+ap.add_argument("command", choices=("assemble", "run", "check"))
+ap.add_argument("mode", nargs="?", choices=("travel",))
+args = ap.parse_args()
+if args.command == "assemble":
+    assemble()
+elif args.command == "check":
+    check()
+else:
+    Run(args.mode == "travel").go()
