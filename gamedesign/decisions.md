@@ -344,3 +344,93 @@ Verdicts:
   literally. Exempting the counters lets a Pain Elemental's endless Lost Souls farm bestiary unlocks, but stock DRLA
   already allows that, and it gives no gear or loot. No object appears or vanishes in the world, nothing scales, and no
   Daggerfall loot rule is touched. The literal wording keeps this a lean, not Follows clearly. Kept as Leans.
+
+## 2026-11-26: Should the level-up sound (and Daggerfall's window sounds) be heard, and should Doom add a HUD line? [20261126-003657]
+
+- **Verdict:** Sound heard: Follows clearly. New HUD line: Not determined.
+- **Answer:** Daggerfall's level-up sound and its window sounds should be heard in a bridge session. Whether Daggerfall
+  plays them or Doom plays Daggerfall's sound is engineering. A "You have reached level N" line is new (Daggerfall
+  Unity has none) and goes to the owner.
+- **Rests on:** `gamedesign.md`, Audio row: "Daggerfall supplies music, UI sounds, and NPC barks; Doom supplies combat
+  SFX." The owner's skill point card (`skillmenu` 02): "play a Daggerfall sound and show the notification message
+  Daggerfall uses ... shown on Doom's screen."
+- **Challenge:** The session-wide mute (`DoomerfallNewGame`) may have been a deliberate engineering choice, and Doom
+  owns the window. But AGENTS.md does not give Doom sound, and the Audio row names UI sounds as Daggerfall's outright.
+  Unmuting Daggerfall entirely would also bring back its music, which is a larger change; the verdict covers UI sounds
+  only. Kept.
+
+## 2026-11-26: Should Doom report skill uses to Daggerfall, and which Doom events count for which skills? [20261126-003657]
+
+- **Verdict:** Report uses: Follows clearly. The event-to-skill mapping: Deferred.
+- **Answer:** Yes, Doom play should drive Daggerfall skill uses. Already decided by the owner: Running from time spent
+  running (1.5x), Backstabbing 10x faster from shooting unaware enemies, Climbing (already wired). The rest of the
+  mapping and its rates belong to the Skill XP proposal awaiting owner approval.
+- **Rests on:** `gamedesign.md`, Progression row: "Combat, spellcasting, and traversal drive Daggerfall's use-based skill
+  leveling". `skills-in-doom.md`. `skillmenu` 01: "use-based gain at the approved reduced rates".
+- **Challenge:** The owner is moving toward bought skills with Skill XP, which could make use-based gain minor. But his
+  own card keeps use-based gain at reduced rates, so the direction holds; only the rates and mapping are open. Kept.
+
+## 2026-11-26: Skill XP rate across area levels: 1 XP per HP, a per-area-level rate, or a softer start? [skillresearch 02]
+
+- **Verdict:** Deferred.
+- **Answer:** None. It goes to the owner.
+- **Rests on:** `skillmenu` 01 gate: stop BLOCKED unless the owner approved the proposal. All three options respect "only
+  cares about area level"; the softer start keys off the player's own skill, which is progression, not world scaling.
+- **Challenge:** Option A could be called the plain reading of "XP from monsters". But it is a new progression system
+  with new numbers and a large effect on pacing. Kept.
+
+## 2026-11-26: Use-based gain rate for kill-driven skills, and does guild training stay at full rate? [skillresearch 02]
+
+- **Verdict:** Use rates: Deferred. Guild training at full rate: Leans yes.
+- **Answer:** Use rates go to the owner with the Skill XP proposal. Guild training probably stays as in Daggerfall.
+- **Rests on:** `gamedesign.md`, "Daggerfall's systems are all planned". `skillbasics` 01 keeps window-based skills
+  working "as in Daggerfall".
+- **Challenge:** If buying is the main source of skills, full-rate paid training becomes a competing economy the owner
+  may want to tune with the rest. That keeps it a lean, not Follows clearly. Kept.
+
+## 2026-11-26: Skill purchase menu: which skills, what multiplier, where it opens, and do townspeople give Skill XP? [skillresearch 02]
+
+- **Verdict:** Critical Strike excluded: Follows clearly. Every other skill buyable: Leans yes. Flat multiplier of 2:
+  Not determined. Menu wherever the player could rest: Not determined. No Skill XP from townspeople or guards: Leans.
+- **Answer:** Critical Strike and the nine removed languages cannot be bought. The rest probably can. The multiplier
+  and where the menu opens go to the owner. Townspeople and guards probably give none.
+- **Rests on:** `skills-in-doom.md`: "Critical Strike is out", languages "removed for now" (owner, 2026-11-26).
+  `skillmenu` 01: "Skill XP from monsters", menu "probably reached from the character sheet".
+- **Challenge:** Original weapon skills and Destruction do nothing in Doom yet, so buying them is a trap for now, but
+  they still count toward level and are planned. Rewarding townsperson kills would push players toward crime, which
+  supports "no", though "monsters" may or may not cover hostile NPC bots. Kept.
+
+## 2026-11-26: How should Melee and the gun skills enter preset class skill lists? [skillresearch 02]
+
+- **Verdict:** Deferred.
+- **Answer:** None. It goes to the owner.
+- **Rests on:** no design text. It changes Daggerfall's class system and level rule for every preset class.
+- **Challenge:** "Daggerfall's systems are all planned" says nothing about new skills in old classes. Any rule chosen
+  changes how fast every character levels. Kept.
+
+## 2026-11-26: Which rifles join Rifles and Pistols, and where do the single-shot heavies go? [skillresearch 01]
+
+- **Verdict:** Deferred.
+- **Answer:** None. The owner reserved this until after the rifles research (2026-11-26).
+- **Rests on:** `skills-in-doom.md` open answers; `skillperks` 05 gate. Energy Weapons is not approved, so "Railgun maybe
+  Energy" has no home for now.
+- **Challenge:** None. Kept.
+
+## 2026-11-26: Floor gun look label: show the plain Doom name until Daggerfall answers, or no label? [skillresearch]
+
+- **Verdict:** Not determined (downgraded from Leans "no label" in challenge).
+- **Answer:** None. It goes to the owner or play-testing.
+- **Rests on:** AGENTS.md: Daggerfall owns inventory (item identity).
+- **Challenge:** The plain Doom name is not wrong, only less specific, so the "Daggerfall owns identity" argument is
+  weak. A blank first look may feel unresponsive, while the swap may feel like a flicker. That is a UI feel judgment,
+  not something the design settles.
+
+## 2026-11-26: Should saves made before the HP-from-Endurance change get the class Endurance bonus once on load? [hpformula]
+
+- **Verdict:** Leans yes.
+- **Answer:** Add the class bonus to Endurance once on load, capped, so older characters match new ones.
+- **Rests on:** `gamedesign/hp.md`: the bonus "adds to the starting Endurance and to the maximum Endurance", and "the
+  order Endurance is gained never matters".
+- **Challenge:** The rule says the bonus adds to *starting* Endurance, and an old character's start is past; changing a
+  stat by migration (a Mage loses 2) may surprise. But leaving old characters without the bonus would make them differ
+  from the rule forever, and the project is exploratory with no released saves. Kept as Leans.
