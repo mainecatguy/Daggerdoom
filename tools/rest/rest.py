@@ -137,7 +137,9 @@ class Run:
         for path in (self.uz_log, self.df_log, self.console, self.launcher, self.views):
             path.unlink(missing_ok=True)
         cache = REVIEW / "data" / "cache"
-        extra = ["+alias", "ddspawn", "wait 350; summon ZombieMan; ddspawn", "+notarget", "+ddspawn"] if self.monsters else []
+        # A monster in front of the player a second into the map (the rest control fires about 3 s in); notarget keeps it from
+        # attacking, so only the 12 m distance rule can block the rest.
+        extra = ["+wait 35;summon ZombieMan;notarget"] if self.monsters else []
         uz = ["-noactivate", "-config", str(self.dir / "uz.ini"), "-savedir", str(self.dir / "saves"), "-dfbridgelog", str(self.uz_log), "-nosound", "-noautoload", "-skill", "3",
               "-ddtowncache", str(cache), "-ddconverter", str(REVIEW / "data" / "converter" / "DungeonConverter.exe"), "-ddarena2", str(GAME / "DAGGER" / "ARENA2"),
               "-dfuitest", "1", "+dd_ui_test_menu", "10", "+logfile", "rest", "+screenshot_dir", str(self.dir / "shots"), "+vid_fullscreen", "0", "+wipetype", "0",
@@ -193,9 +195,10 @@ class Run:
             doom.click(MESSAGE_CLICK)
             closed = self.wait(self.uz_log, r"ui: closed", 6)
             time.sleep(1.0)
-            s = self.state()
-            self.case(closed and s and s[5] == before and "DaggerfallRestWindow" not in read(self.views),
-                      f"the message closes back to Doom, no rest window opened and no time passed ({before} -> {s and s[5]})")
+            # Daggerfall's clock at the menu's open and close (after it closes, normal play moves the clock on again).
+            ends = re.findall(r"rest: menu (?:opening|closed): [^\n]* game_minutes (\d+)", read(self.df_log))
+            self.case(closed and len(ends) == 2 and ends[0] == ends[1] and "DaggerfallRestWindow" not in read(self.views),
+                      f"the message closes back to Doom, no rest window opened and no time passed (game minutes at open, close: {ends})")
             return
 
         shown = self.wait(self.views, r"top DaggerfallRestWindow", 5)
