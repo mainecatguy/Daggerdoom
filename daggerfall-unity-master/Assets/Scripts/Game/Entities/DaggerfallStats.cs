@@ -43,6 +43,11 @@ namespace DaggerfallWorkshop.Game.Entity
         int[] mods = new int[Count];
         int[] maxMods = new int[Count];
 
+        // Doomerfall: the class Endurance bonus (DoomerfallEndurance). The flag is saved and means the permanent
+        // Endurance already includes the bonus; the raise to Endurance's maximum is set from the career.
+        [SerializeField] bool doomerfallEnduranceBonus;
+        int doomerfallEnduranceMaxBonus;
+
         #endregion
 
         #region Properties
@@ -65,6 +70,12 @@ namespace DaggerfallWorkshop.Game.Entity
         public int PermanentSpeed { get { return GetPermanentStatValue(DFCareer.Stats.Speed); } }
         public int PermanentLuck { get { return GetPermanentStatValue(DFCareer.Stats.Luck); } }
 
+        /// <summary>Doomerfall: true when the permanent Endurance includes the class Endurance bonus.</summary>
+        public bool DoomerfallEnduranceBonus { get { return doomerfallEnduranceBonus; } set { doomerfallEnduranceBonus = value; } }
+
+        /// <summary>Doomerfall: added to Endurance's maximum (both signs). 0 outside Doomerfall.</summary>
+        public int DoomerfallEnduranceMaxBonus { get { return doomerfallEnduranceMaxBonus; } set { doomerfallEnduranceMaxBonus = value; } }
+
         #endregion
 
         #region Constructors
@@ -84,16 +95,19 @@ namespace DaggerfallWorkshop.Game.Entity
         /// <returns>True if all at max.</returns>
         public bool IsAllMax()
         {
+            for (int i = 0; i < Count; i++)
+                if (GetPermanentStatValue(i) != GetMaxPermanentValue((DFCareer.Stats)i)) // Doomerfall: per-stat maximum
+                    return false;
+            return true;
+        }
+
+        /// <summary>
+        /// Highest permanent value of a stat. Doomerfall raises or lowers Endurance's by the class bonus.
+        /// </summary>
+        public int GetMaxPermanentValue(DFCareer.Stats stat)
+        {
             int max = FormulaHelper.MaxStatValue();
-            return (
-                PermanentStrength == max &&
-                PermanentIntelligence == max &&
-                PermanentWillpower == max &&
-                PermanentAgility == max &&
-                PermanentEndurance == max &&
-                PermanentPersonality == max &&
-                PermanentSpeed == max &&
-                PermanentLuck == max);
+            return stat == DFCareer.Stats.Endurance ? max + doomerfallEnduranceMaxBonus : max;
         }
 
         /// <summary>
@@ -111,6 +125,7 @@ namespace DaggerfallWorkshop.Game.Entity
             Luck = defaultValue;
             Array.Clear(mods, 0, Count);
             Array.Clear(maxMods, 0, Count);
+            doomerfallEnduranceBonus = false;
         }
 
         /// <summary>
@@ -128,6 +143,8 @@ namespace DaggerfallWorkshop.Game.Entity
             Personality = other.Personality;
             Speed = other.Speed;
             Luck = other.Luck;
+            doomerfallEnduranceBonus = other.doomerfallEnduranceBonus;
+            doomerfallEnduranceMaxBonus = other.doomerfallEnduranceMaxBonus;
         }
 
         /// <summary>
@@ -155,7 +172,7 @@ namespace DaggerfallWorkshop.Game.Entity
         public int GetLiveStatValue(DFCareer.Stats stat)
         {
             int value = GetPermanentStatValue(stat) + mods[(int)stat];
-            int maxValue = FormulaHelper.MaxStatValue() + maxMods[(int)stat];
+            int maxValue = GetMaxPermanentValue(stat) + maxMods[(int)stat]; // Doomerfall: per-stat maximum
 
             // Clamp live stat to 0-maxValue (accounting for any max value mods)
             value = Mathf.Clamp(value, 0, maxValue);
@@ -294,6 +311,7 @@ namespace DaggerfallWorkshop.Game.Entity
                 Personality = career.Personality;
                 Speed = career.Speed;
                 Luck = career.Luck;
+                doomerfallEnduranceBonus = false; // Doomerfall: class values, without the bonus
             }
         }
 

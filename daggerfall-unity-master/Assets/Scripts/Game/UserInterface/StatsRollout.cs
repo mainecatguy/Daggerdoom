@@ -167,6 +167,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             rolledStats.SetPermanentStatValue(DFCareer.Stats.Personality, personality);
             rolledStats.SetPermanentStatValue(DFCareer.Stats.Speed, speed);
             rolledStats.SetPermanentStatValue(DFCareer.Stats.Luck, luck);
+            Doomerfall.DoomerfallEndurance.AddCreationBonus(rolledStats, dfClass); // Doomerfall: class Endurance bonus
 
             // Roll bonus pool for player to distribute
             // Using maxBonusPool + 1 for inclusive range as above
@@ -237,7 +238,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             int workingValue = workingStats.GetPermanentStatValue(selectedStat);
 
             // Get max working value
-            int maxWorkingValue = FormulaHelper.MaxStatValue();
+            int maxWorkingValue = workingStats.GetMaxPermanentValue((DFCareer.Stats)selectedStat); // Doomerfall: per-stat maximum
 
             // Working value cannot rise above maxWorkingValue and bonus cannot fall below zero, unless freeEdit active
             if ((freeEdit && workingValue == maxFreeEditValue) ||
