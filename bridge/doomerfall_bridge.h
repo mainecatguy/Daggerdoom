@@ -662,6 +662,89 @@ typedef struct dfb_encounter_text
 	char text[40];          /* UTF-8, terminated unless full */
 } dfb_encounter_text;
 
+/* Location ledger: Daggerfall keeps the permanent record of what happened in each place, and Doom builds the place
+   from it. Doom sends a place's whole record when the player leaves it and when it saves there (BEGIN, NAMEs,
+   PLANs, FACTs, END); END replaces Daggerfall's record of that place. When the player enters a place, Doom sends
+   PLACE_REQUEST, and Daggerfall answers with the same sequence, whose generation echoes the request's. Facts are
+   changes from what the map, the encounter plan, or a Daggerfall placement rebuilds: dead (with the corpse), alive
+   but moved or hurt, taken (gone), and dropped. Positions are Daggerfall units in the place's own frame (Doom map
+   units / 0.75). A dungeon is keyed by its map id, a building interior by map id and building key, and the exterior
+   (towns and the overworld alike) by world chunk: 32 x 32 tiles, 8192 Daggerfall units a side, with positions in
+   the chunk's frame (x and y from the chunk's corner, z the world height). Exterior chunk records are sent for every
+   chunk whose facts changed, on leaving an exterior map and with every save; Doom asks for all of them at once
+   (PLACE_WORLD) after a load, and Daggerfall answers with one record per chunk and then an empty PLACE_WORLD record. */
+#define DFB_KIND_PLACE_BEGIN    200  /* both ways; starts one place's record; payload: dfb_place */
+#define DFB_KIND_PLACE_NAME     201  /* both ways; one class or death label of that record; a repeated index appends text; payload: dfb_place_name */
+#define DFB_KIND_PLACE_FACT     202  /* both ways; one fact; payload: dfb_place_fact */
+#define DFB_KIND_PLACE_PLAN     203  /* both ways; one line of the dungeon's first encounter request; payload: dfb_place_plan */
+#define DFB_KIND_PLACE_END      204  /* both ways; the record is complete; payload: dfb_place */
+#define DFB_KIND_PLACE_REQUEST  205  /* UZ to DF; the player entered this place; payload: dfb_place */
+#define DFB_PLACE_DUNGEON       1u   /* dfb_place.place_kind; map_id is Daggerfall's dungeon map id */
+#define DFB_PLACE_INTERIOR      2u   /* map_id is the location's map id, key the building key */
+#define DFB_PLACE_CHUNK         3u   /* exterior world chunk: map_id is the chunk's x, key its y */
+#define DFB_PLACE_WORLD         4u   /* a request for every exterior chunk; also the empty record that ends the answer */
+#define DFB_CHUNK_UNITS         8192 /* Daggerfall units on a side of an exterior chunk (32 tiles) */
+#define DFB_PLACE_KNOWN         1u   /* dfb_place.flags: Daggerfall has a record of this place (it was visited) */
+#define DFB_PLACE_ON_SAVE       2u   /* dfb_place.flags: sent for a save while the player is inside */
+#define DFB_FACT_MONSTER        0u   /* dfb_place_fact.kind: alive, but moved or hurt */
+#define DFB_FACT_CORPSE         1u   /* dead, lying here */
+#define DFB_FACT_ITEM           2u   /* an item lying here: moved, changed, or dropped */
+#define DFB_FACT_GONE           3u   /* taken or destroyed */
+#define DFB_FACT_DOORS          4u   /* a dungeon's hinged doors: death is the name "<stamp> <hex bits>" (door_objects.zs), id 0 */
+#define DFB_FACT_DROPPED        1u   /* dfb_place_fact.flags: Doom's MF_DROPPED */
+#define DFB_FACT_SESSION        2u   /* dfb_place_fact.flags: the id is Doom's own for this session (a drop), not a Daggerfall id */
+#define DFB_PLACE_NO_NAME       65535u
+
+typedef struct dfb_place
+{
+	uint32_t generation;
+	uint32_t place_kind;    /* DFB_PLACE_* */
+	int32_t map_id;
+	uint32_t flags;         /* DFB_PLACE_KNOWN, DFB_PLACE_ON_SAVE */
+	uint32_t facts;
+	uint32_t names;
+	uint32_t plan_lines;
+	int32_t key;            /* DFB_PLACE_INTERIOR: building key; DFB_PLACE_CHUNK: chunk y; otherwise 0 */
+} dfb_place;
+
+typedef struct dfb_place_name
+{
+	uint32_t generation;
+	uint16_t index;
+	uint16_t pad;
+	char text[40];          /* UTF-8, terminated unless full */
+} dfb_place_name;
+
+typedef struct dfb_place_fact
+{
+	uint64_t id;            /* a Daggerfall-derived id (mook, map pickup), or a session id with DFB_FACT_SESSION */
+	uint32_t generation;
+	float x;                /* Daggerfall units in the place's frame */
+	float y;
+	float z;
+	float height;           /* a corpse's height in Doom units */
+	int32_t health;
+	int32_t amount;         /* an item's amount */
+	uint16_t cls;           /* name index of the Doom class */
+	uint16_t death;         /* name index of a corpse's death label, or DFB_PLACE_NO_NAME */
+	uint16_t angle;         /* 65536 per turn */
+	uint8_t kind;           /* DFB_FACT_* */
+	uint8_t flags;          /* DFB_FACT_DROPPED, DFB_FACT_SESSION */
+	uint32_t pad;
+} dfb_place_fact;
+
+/* header 1: value is the planned mook count. header 0: one quest placement of the first request (Doom units). */
+typedef struct dfb_place_plan
+{
+	uint64_t placement;
+	uint32_t generation;
+	uint32_t header;
+	float x;
+	float y;
+	float z;
+	int32_t value;          /* header 1: mook count; header 0: the quest foe's enemy type */
+} dfb_place_plan;
+
 /* One NPC present in the listed interior. */
 typedef struct dfb_npc
 {

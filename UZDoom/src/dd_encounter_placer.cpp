@@ -14,7 +14,10 @@
 //   stronger ones (up to three times), then the rest move to the nearest placement with room. Points are dropped
 //   only when every placement is full, and the summary reports them.
 //
-// Everything runs in one call with a fixed order, so the same map and request give the same spots.
+// Everything runs in one call with a fixed order, so the same map and request give the same spots. The caller makes
+// players and monsters non-solid first (dd_monsters.cpp SpawnPass), so only the map, its decorations and the door and
+// action objects (always at their start pose when a plan runs) shape the plan, never who is standing where. Mooks of an
+// earlier request (the seeded army, for the quest foes' request) are passed in as occupied spots instead.
 
 #include <algorithm>
 #include <chrono>
@@ -95,6 +98,7 @@ public:
 	std::unordered_map<int64_t, double> walkCache;	// NaN when the step is blocked
 	std::unordered_map<std::string, PClassActor *> classes;
 	double maxR = 0;
+	int occupiedSpots = 0;	// spots 0 .. occupiedSpots-1 belong to an earlier request
 	// Per body size, the nodes of searches that found no spot: everything walkable from such a start. A start among
 	// them reaches only part of that area, so it is full for that size too, until spots are freed (Unplace).
 	std::map<std::pair<int, int>, std::unordered_set<int64_t>> fullNodes;
@@ -336,7 +340,18 @@ public:
 	{
 		double r, h, f;
 		Body(cls, r, h);
-		return Check(s.origin.X, s.origin.Y, s.origin.Z, r, h, true, f) && fabs(f - s.origin.Z) <= Step;
+		return Check(s.origin.X, s.origin.Y, s.origin.Z, r, h, true, f) && fabs(f - s.origin.Z) <= Step && !Occupied(s.origin.X, s.origin.Y, f, r, h);
+	}
+
+	// Overlaps a mook of an earlier request.
+	bool Occupied(double x, double y, double z, double r, double h) const
+	{
+		for (int i = 0; i < occupiedSpots; i++)
+		{
+			const Spot &o = spots[i];
+			if (fabs(o.x - x) < o.r + r && fabs(o.y - y) < o.r + r && o.z < z + h && z < o.z + o.h) return true;
+		}
+		return false;
 	}
 
 	// Spread wider first at the preferred spacing; when the whole walkable area is used up, crowd in at the minimum
@@ -517,7 +532,8 @@ public:
 };
 }
 
-bool DD_PlaceEncounters(FLevelLocals *Level, const FString &header, const std::vector<DDEncPlacementIn> &list, std::vector<DDEncMookOut> &out)
+bool DD_PlaceEncounters(FLevelLocals *Level, const FString &header, const std::vector<DDEncPlacementIn> &list, std::vector<DDEncMookOut> &out,
+	const std::vector<DDEncMookOut> *occupied)
 {
 	out.clear();
 	VMFunction *fPlan = nullptr;
@@ -543,6 +559,14 @@ bool DD_PlaceEncounters(FLevelLocals *Level, const FString &header, const std::v
 	pl.probe->flags2 |= MF2_PASSMOBJ;
 	pl.probe->flags3 |= MF3_ISMONSTER;	// lines that block monsters block it too
 	pl.probe->flags &= ~(MF_NOCLIP);
+	if (occupied)
+		for (const DDEncMookOut &m : *occupied)
+		{
+			double r, h;
+			Placer::Body(m.cls, r, h);
+			pl.AddSpot(m.pos.X, m.pos.Y, m.pos.Z, r, h);
+		}
+	pl.occupiedSpots = int(pl.spots.size());
 
 	// Walking distances from the entrance (the player start) and from every treasure marker.
 	std::unordered_map<int64_t, int> entrance, treasure;

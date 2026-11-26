@@ -339,10 +339,57 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             PlayerEntity player = GameManager.Instance.PlayerEntity;
             DaggerfallUnityItem item = player.Items.GetItem(uid);
             bool removed = status == Dfb.ITEM_TAKEN && item != null;
+            bool drop = (request & DropRequest) != 0;
             if (removed)
+            {
+                if (drop && DoomerfallHotkeys.Instance != null)
+                    DoomerfallHotkeys.Instance.ForgetActive(item);   // the gun Doom held went down with its pickup
                 player.Items.RemoveItem(item);
-            bridge.LogLine(string.Format("doomitems: used {0} \"{1}\": status {2}, record {3}", request, cls, status, removed ? "removed" : "kept"));
+            }
+            bridge.LogLine(string.Format("doomitems: {0} {1} \"{2}\": status {3}, record {4}", drop ? "dropped" : "used", request, cls, status, removed ? "removed" : "kept"));
             RefreshInventory();
+        }
+
+        // Owner rule (2026-11-24): a Doom item dropped from Daggerfall's inventory window becomes its own Doom pickup, not a
+        // Daggerfall pile. The window calls this with the items it is about to pile (DaggerfallInventoryWindow, on close).
+        // Each Doom item goes back to the player's inventory and Doom is asked to spawn it, a gun carrying its stored state
+        // (its magazine and DRLA mods); the item leaves Daggerfall's inventory only when Doom confirms (OnUsed), so a
+        // failed spawn loses nothing. The pickup is then a Doom ground item in the location record like any other.
+        const uint DropRequest = 0x40000000;   // keeps these requests apart from hotkey swaps in DoomerfallGuns.zs
+        const uint DropOnGround = 0x100, DropHeld = 0x200;   // DOOM_ITEM_USE status bits (dd_items.cpp)
+
+        internal static void DropToDoom(ItemCollection dropped)
+        {
+            if (instance == null || dropped == null)
+                return;
+            PlayerEntity player = GameManager.Instance.PlayerEntity;
+            List<DoomerfallDoomItem> doom = new List<DoomerfallDoomItem>();
+            for (int i = 0; i < dropped.Count; i++)
+            {
+                DoomerfallDoomItem item = dropped.GetItem(i) as DoomerfallDoomItem;
+                if (item != null)
+                    doom.Add(item);
+            }
+            foreach (DoomerfallDoomItem item in doom)
+            {
+                player.Items.Transfer(item, dropped);
+                uint request = (instance.nextRequest++) | DropRequest;
+                instance.pendingUses[request] = item.UID;
+                int lines = 0;
+                if (item.IsGun)
+                    foreach (string line in item.GunState.Split(';'))
+                    {
+                        int eq = line.IndexOf('=');
+                        int amount;
+                        if (eq <= 0 || !int.TryParse(line.Substring(eq + 1), out amount))
+                            continue;
+                        instance.Send(Dfb.KIND_GUN_STATE, request, (uint)amount, line.Substring(0, eq));
+                        lines++;
+                    }
+                bool held = DoomerfallHotkeys.Instance != null && DoomerfallHotkeys.Instance.ActiveGun == item;
+                instance.Send(Dfb.KIND_DOOM_ITEM_USE, request, DropOnGround | (held ? DropHeld : 0), item.DoomClass);
+                instance.bridge.LogLine(string.Format("doomitems: drop {0} \"{1}\" sent to Doom with {2} state lines{3}", request, item.shortName, lines, held ? ", the gun Doom holds" : ""));
+            }
         }
 
         internal static string NameFor(string cls)

@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x06ffd47705c9b7a6ULL
+#define DFB_SCHEMA_HASH 0xd11fd6ddbd88e288ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -260,6 +260,27 @@ static_assert((DFB_UZ_PHASE_LOADING) == (1), DFB_STALE);
 static_assert((DFB_UZ_PHASE_PLAY) == (2), DFB_STALE);
 static_assert((DFB_UZ_PHASE_PAUSED) == (3), DFB_STALE);
 static_assert((DFB_UZ_PHASE_SAVING) == (4), DFB_STALE);
+static_assert((DFB_KIND_PLACE_BEGIN) == (200), DFB_STALE);
+static_assert((DFB_KIND_PLACE_NAME) == (201), DFB_STALE);
+static_assert((DFB_KIND_PLACE_FACT) == (202), DFB_STALE);
+static_assert((DFB_KIND_PLACE_PLAN) == (203), DFB_STALE);
+static_assert((DFB_KIND_PLACE_END) == (204), DFB_STALE);
+static_assert((DFB_KIND_PLACE_REQUEST) == (205), DFB_STALE);
+static_assert((DFB_PLACE_DUNGEON) == (1u), DFB_STALE);
+static_assert((DFB_PLACE_INTERIOR) == (2u), DFB_STALE);
+static_assert((DFB_PLACE_CHUNK) == (3u), DFB_STALE);
+static_assert((DFB_PLACE_WORLD) == (4u), DFB_STALE);
+static_assert((DFB_CHUNK_UNITS) == (8192), DFB_STALE);
+static_assert((DFB_PLACE_KNOWN) == (1u), DFB_STALE);
+static_assert((DFB_PLACE_ON_SAVE) == (2u), DFB_STALE);
+static_assert((DFB_FACT_MONSTER) == (0u), DFB_STALE);
+static_assert((DFB_FACT_CORPSE) == (1u), DFB_STALE);
+static_assert((DFB_FACT_ITEM) == (2u), DFB_STALE);
+static_assert((DFB_FACT_GONE) == (3u), DFB_STALE);
+static_assert((DFB_FACT_DOORS) == (4u), DFB_STALE);
+static_assert((DFB_FACT_DROPPED) == (1u), DFB_STALE);
+static_assert((DFB_FACT_SESSION) == (2u), DFB_STALE);
+static_assert((DFB_PLACE_NO_NAME) == (65535u), DFB_STALE);
 static_assert((DFB_TOWNSFOLK_STREETS) == (0u), DFB_STALE);
 static_assert((DFB_TOWNSFOLK_INTERIOR) == (1u), DFB_STALE);
 
@@ -638,6 +659,80 @@ static_assert(offsetof(dfb_encounter_text, field) == 4, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_encounter_text::field), uint32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_encounter_text, text) == 8, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_encounter_text::text), char[40]>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_place) == 32, DFB_STALE);
+static_assert(offsetof(dfb_place, generation) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place::generation), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_place, place_kind) == 4, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place::place_kind), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_place, map_id) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place::map_id), int32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_place, flags) == 12, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place::flags), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_place, facts) == 16, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place::facts), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_place, names) == 20, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place::names), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_place, plan_lines) == 24, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place::plan_lines), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_place, key) == 28, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place::key), int32_t>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_place_name) == 48, DFB_STALE);
+static_assert(offsetof(dfb_place_name, generation) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place_name::generation), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_place_name, index) == 4, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place_name::index), uint16_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_place_name, pad) == 6, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place_name::pad), uint16_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_place_name, text) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place_name::text), char[40]>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_place_fact) == 48, DFB_STALE);
+static_assert(offsetof(dfb_place_fact, id) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place_fact::id), uint64_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_place_fact, generation) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place_fact::generation), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_place_fact, x) == 12, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place_fact::x), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_place_fact, y) == 16, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place_fact::y), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_place_fact, z) == 20, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place_fact::z), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_place_fact, height) == 24, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place_fact::height), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_place_fact, health) == 28, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place_fact::health), int32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_place_fact, amount) == 32, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place_fact::amount), int32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_place_fact, cls) == 36, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place_fact::cls), uint16_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_place_fact, death) == 38, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place_fact::death), uint16_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_place_fact, angle) == 40, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place_fact::angle), uint16_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_place_fact, kind) == 42, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place_fact::kind), uint8_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_place_fact, flags) == 43, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place_fact::flags), uint8_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_place_fact, pad) == 44, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place_fact::pad), uint32_t>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_place_plan) == 32, DFB_STALE);
+static_assert(offsetof(dfb_place_plan, placement) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place_plan::placement), uint64_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_place_plan, generation) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place_plan::generation), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_place_plan, header) == 12, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place_plan::header), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_place_plan, x) == 16, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place_plan::x), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_place_plan, y) == 20, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place_plan::y), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_place_plan, z) == 24, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place_plan::z), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_place_plan, value) == 28, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_place_plan::value), int32_t>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_npc) == 16, DFB_STALE);
 static_assert(offsetof(dfb_npc, id) == 0, DFB_STALE);

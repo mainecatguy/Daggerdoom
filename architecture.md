@@ -99,26 +99,32 @@ reason and are written down here.
 | The equipped weapon and its magazine, and the live count of the loaded ammo tier | The inventory: unequipped items, other ammo tiers, gold, Doom weapons and mods held |
 | Monster AI, movement, collision, combat | Deaths, quests, crime, loot rolls, container and loot pile contents, time |
 
-**Places (planned, `work/backlog/location-record.md`).**
+**Places (built 2026-11-24, `work/backlog/location-record.md`, notes `work/notes/20261124-190017.md`).**
 
-- Every Daggerfall place is rebuilt from its map and fixed seeds. DFU's location record holds only what differs from
-  the seed: dead, wounded and awake mooks (one 64-bit entry each, low-resolution position), map things used up
-  (bitset), and door, switch, lift and action states. Untracked mooks are alive, unhurt and asleep on their spawn spot.
-  Class, drops, death frames and spawn spots are never stored. Quest foes are added on top of the seeded army and never
-  change it.
-- When the player leaves a map, UZDoom distills it into record entries and sends them to DFU. UZDoom keeps no place
-  history of its own.
+- Every Daggerfall place is rebuilt from its map and fixed seeds: the army is planned from the map's markers alone
+  (plan version 1), quest foes are a separate request on top. DFU's location record (`DoomerfallLocations.json`, one
+  `DoomerfallPlaceCodec` blob per place) holds only what differs: corpses (13 bytes each, class and death label from
+  small per-place tables), loose Doom items (8 bytes plus carried state such as DRLA gun mods), map items used up
+  (bitset), and full facts for the rest (wounded or awake mooks, quest foes). Map items keep ids made of the map and
+  their index, so a tier-swapped pickup keeps its marker's id.
+- A corpse's look comes from its class and death label, not from the live actor (DRLA corpses never rest on a frame).
+- Dropped Daggerfall piles are kept in each place's record, in their own section, and put back on entry (outdoors,
+  within one chunk of the player). A Doom item dropped from DFU's inventory becomes its own Doom pickup instead.
+- When the player leaves a map, UZDoom distills it into record entries and sends them to DFU. UZDoom's world table is
+  a cache only; it is not saved.
 - Monsters spawned during play (summons, lost souls) are not kept once the player leaves.
-- Target size: a cleared high-level dungeon about 16-20 KB, an untouched one a few bytes.
+- Measured: a cleared level-30 dungeon (about 1,170 corpses, 780 loose items) is a 24 KB blob; the whole
+  `DoomerfallLocations.json` 33 KB raw, 20 KB packed. Hinged dungeon doors keep their position (card 5, one door fact per dungeon record); lifts, platforms and action chains reset on each visit.
 
 **Saves.**
 
 - A bundled save holds DFU's save and ledgers, plus UZDoom's snapshot of the current map. Loading restores the snapshot
-  exactly, and DFU's record is not applied over it.
+  exactly, and DFU's record is not applied over it. The snapshot keeps no world table (12-20 bytes of treadmill state);
+  after a load UZDoom asks DFU for each place's record as it needs it.
 - At every save UZDoom also sends the current place's record entries. If the snapshot cannot be restored (a map
   changed), the place is rebuilt from the record and only live combat details are lost (`work/backlog/rebuild-load.md`).
 - The snapshot leaves out what UZDoom generates from DFU's data, such as the overworld treadmill's terrain sectors
-  (88% of an overworld save today). Those are rebuilt on load.
+  (88% of an overworld save before). Those are rebuilt on load.
 - **A save is tied to its Doom mod set (owner, 2026-11-24).** Any WAD or mod set can be loaded, but switching mods means
   a new save. So saved records may name Doom classes directly, or through a per-save class table, without handling
   classes that vanish or change between mod sets. Whether a mod-set check on load exists is not yet verified.

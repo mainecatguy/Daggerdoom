@@ -14,7 +14,7 @@ Play through one Daggerfall dungeon (e.g., Privateer's Hold) and one town, fast-
 |---|---|---|
 | **World, Time & Weather** | **Daggerfall** | The calendar, seasons, regions, day/night cycle, weather, and fast travel govern the world. |
 | **Aesthetics & Tone** | **Daggerfall (world) + Doom (combat)** | Environments, architecture, skies, and props look like Daggerfall; weapons, monsters, gore, and combat effects look like Doom/DRLX. |
-| **World Persistence** | **Total Persistence** | Every killed monster, corpse, dropped item, unlocked door, and world change stays permanent across revisits. Persistence is total and uncompromising: there are no dungeon resets, respawns, or area refreshes. |
+| **World Persistence** | **Total Persistence** | Every killed monster, corpse, dropped item, unlocked door, and world change stays permanent across revisits. Persistence is total and uncompromising: there are no dungeon resets, respawns, or area refreshes. One exception (owner, 2026-11-25): Daggerfall's moving parts (lifts, platforms, lever chains, riddles, traps) reset when the player leaves a place, so a wrong saved state can never softlock a dungeon. Hinged doors keep their position. |
 | **Combat & Weapons** | **Doom / DRLX** | Pure real-time FPS gunplay, projectiles, hitscans, ammo economy, and Doom Roguelike Extended Arsenal weapon modding. No Daggerfall dice-roll-to-hit combat. |
 | **Monsters & Encounters** | **Doom / DRLX** | Daggerfall's monsters are replaced by packs of Doom/DRLX monsters that spill through available space and infight. Pack size is unpredictable and depends on the dungeon, from small packs up to slaughter-map scale. Difficulty follows area level. |
 | **NPCs, Dialogue & Quests** | **Daggerfall (peaceful) + Doom (hostile)** | Townsfolk, guilds, dialogue, and quests follow Daggerfall's rules. Once attacked or flagged hostile, NPCs fight as aggressive Doom bots, usually with powerful non-hitscan weapons. |
@@ -104,6 +104,8 @@ Ammunition will eventually be an inventory object. Damage rules, including mater
 - A system will let the player change the type of ammo loaded in a gun.
 - Daggerfall can tell Doom that the player has more than Doom's max ammo, and Doom accepts it.
 - There may be limits on how much ammo the player can carry. That is a future system.
+- **Guns never give ammo** (owner, 2026-11-24). They're guns, not ammo. Taking a gun with Use gives no ammo, whatever its source: map-placed, monster-dropped or player-dropped, on a first take or a retake. A DRLA gun's loaded magazine is part of the gun and travels with it.
+- **Items are dropped only from Daggerfall's inventory window** (owner, 2026-11-24). Doom's weapdrop, invdrop and drop do nothing. With DRLA loaded, neither do its Drop Item key (Zoom: guns, mod packs, armor, armor mods) and its backpack toss; without DRLA, Zoom works as normal. Their entries are hidden from the controls menus.
 
 Other todos:
 DFU loot should persist no matter where it is dropped if possible.

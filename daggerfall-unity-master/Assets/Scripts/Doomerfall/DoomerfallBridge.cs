@@ -68,6 +68,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DoomerfallNewGame newGame;
         DoomerfallPlainLoad plainLoad;
         DoomerfallMonsters monsters;
+        DoomerfallLocations locations;
         DoomerfallNpcs npcs;
         DoomerfallInfo info;
         DoomerfallSheet sheet;
@@ -196,6 +197,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             monsters.Init(this, sync);
             save.Monsters = monsters;
             newGame.Monsters = monsters;
+            locations = gameObject.AddComponent<DoomerfallLocations>();
+            locations.Init(this, monsters);
+            gameObject.AddComponent<DoomerfallPiles>().Init(this, sync, locations);
+            DoomerfallPilesTest.Attach(this, sync, locations); // test only: -dfpilestest
+            DoomerfallGunDropTest.Attach(this, sync); // test only: -dfgundroptest
+            save.Locations = locations;
+            newGame.Locations = locations;
             npcs = gameObject.AddComponent<DoomerfallNpcs>();
             npcs.Init(this, sync);
             info = gameObject.AddComponent<DoomerfallInfo>();
@@ -398,6 +406,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         break;
                     case Dfb.KIND_MONSTERS_REQUEST:
                         monsters.OnRequest();
+                        break;
+                    case Dfb.KIND_PLACE_BEGIN:
+                    case Dfb.KIND_PLACE_NAME:
+                    case Dfb.KIND_PLACE_PLAN:
+                    case Dfb.KIND_PLACE_FACT:
+                    case Dfb.KIND_PLACE_END:
+                    case Dfb.KIND_PLACE_REQUEST:
+                        locations.OnEvent(ref ev);
                         break;
                     case Dfb.KIND_NPCS_REQUEST:
                         npcs.OnRequest();

@@ -54,3 +54,7 @@ Owner decisions from earlier runs are recorded in `CHANGELOG.md`, `architecture.
 - **Rework the Doom HUD: chat with the owner first** (owner, 2026-11-23): remove Doom's weapon slot display, because guns come from Daggerfall hotkeys, and rework the HUD in general.
 - **QA bot runs** are long and run only overnight, 2AM to 7AM.
 - **Lightweight location record** is being built in its own session (`claude/location-record-d20944`).
+
+### Loading screen for long operations (owner, 2026-11-24)
+
+Long operations must not block the main thread so that Windows shows the program as not responding. Build one generic way to run them: pause the game, show a loading message, keep the window responsive, and resume when the work is done. First use: re-entering a dungeon, where planning and spawning a cleared level-30 dungeon takes about 1.9 s (location record notes `work/notes/20261124-190017.md`). The owner accepts that wait once it shows the message and pauses. No card yet; the orchestrator writes one in `work/queue`. Then find the other long operations (bundled save and load, which blocks Daggerfall for 2-3 s, and map and town building) and list them in the card.

@@ -198,6 +198,54 @@ class DFDoor : Actor
 
 class DFDoorHandler : EventHandler
 {
+	// [Doomerfall] The location record keeps each door open or closed (dd_treadmill.cpp): "<stamp> <hex>", one bit per
+	// door in DFDOORS order, a moving door at the end it is heading to. The stamp hashes DFDOORS, so a record made from
+	// another conversion is dropped and the doors reset.
+	static int Stamp()
+	{
+		int lump = Wads.CheckNumForFullName("DFDOORS");
+		if (lump < 0) return 0;
+		String text = Wads.ReadLump(lump);
+		int h = -2128831035;	// FNV-1a
+		for (int i = 0; i < text.Length(); i++) h = (h ^ text.ByteAt(i)) * 16777619;
+		return h | 1;
+	}
+
+	static String Distill()
+	{
+		int stamp = Stamp(), n = 0, nibble = 0;
+		String bits = "";
+		let it = ThinkerIterator.Create("DFDoor");
+		DFDoor d;
+		while (stamp && (d = DFDoor(it.Next())))
+		{
+			if (d.moving != 0 ? d.moving > 0 : d.swung > 0) nibble |= 1 << (n & 3);
+			if ((++n & 3) == 0) { bits.AppendFormat("%x", nibble); nibble = 0; }
+		}
+		if (n & 3) bits.AppendFormat("%x", nibble);
+		return n ? String.Format("%08x %s", stamp, bits) : "";
+	}
+
+	// The doors opened, or -1 when the stamp differs (nothing changes). An action keeps its own reset state.
+	static int Restore(String record)
+	{
+		Array<String> f;
+		record.Split(f, " ");
+		if (f.Size() != 2 || f[0] != String.Format("%08x", Stamp())) return -1;
+		int n = 0, open = 0;
+		let it = ThinkerIterator.Create("DFDoor");
+		DFDoor d;
+		while (d = DFDoor(it.Next()))
+		{
+			bool want = (n >> 2) < f[1].Length() && (f[1].Mid(n >> 2, 1).ToInt(16) >> (n & 3)) & 1;
+			n++;
+			d.moving = 0; d.stalled = false; d.swung = want ? d.SWING : 0;
+			d.Place(false); d.SetSightOpen(want); d.UpdateBlocking();
+			if (want) open++;
+		}
+		return open;
+	}
+
 	override void WorldLoaded(WorldEvent e)
 	{
 		if (e.IsSaveGame || e.IsReopen || !(level.MapName ~== "MAP01")) return;

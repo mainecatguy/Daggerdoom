@@ -437,8 +437,7 @@ void FinishTake(uint32_t request, uint32_t status)
 	FString tag = item ? ItemName(item) : CleanTag(take.cls.GetChars());
 	if (item && IsGun(item->GetClass()))
 	{
-		// Daggerfall holds the gun and a hotkey draws it. Doom gives only the ammo the gun comes with (DoomerfallGuns.zs).
-		doomOutgoing.push_back(FStringf("dfg_ammo:%s", take.cls.GetChars()));
+		// Daggerfall holds the gun and a hotkey draws it. Guns never give ammo (owner, 2026-11-24, gamedesign.md).
 		S_Sound(pmo, CHAN_ITEM, 0, "misc/w_pkup", 1, ATTN_NORM);
 		item->Destroy();
 	}
@@ -785,6 +784,10 @@ bool DD_ItemsEvent(const dfb_event &e)
 		dfb_doom_item d;
 		memcpy(&d, e.payload, sizeof(d));
 		if (e.kind == DFB_KIND_DOOM_ITEM_RESULT) doomOutgoing.push_back(FStringf("dfd_result:%u:%u", d.request, d.status));
+		// [Doomerfall] Daggerfall's inventory window dropped this Doom item: status bit 0x100 (plus 0x200 when it is
+		// the gun Doom holds). DoomerfallGuns.zs spawns its pickup, carrying the gun's GUN_STATE lines sent just before, and
+		// answers with DOOM_ITEM_USED, so Daggerfall lets go of the item only once the pickup exists.
+		else if (d.status & 0x100) doomOutgoing.push_back(FStringf("dfg_drop:%u:%u:%s", d.request, d.status, ClassOf(d).GetChars()));
 		else doomOutgoing.push_back(FStringf("dfd_use:%u:%s", d.request, ClassOf(d).GetChars()));
 		return true;
 	}
@@ -874,6 +877,12 @@ void DD_ItemsFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t
 // After a load, Doom's restored actors may not match Daggerfall until a fresh list arrives.
 void DD_ItemsResync()
 {
+	// The snapshot's markers carry the saving session's list numbers, which can equal a new list's after a load in a
+	// new launch, so a pile Daggerfall no longer has could survive as a ghost. Remove them all until the list arrives.
+	acceptedGeneration = 0;
+	outgoing.clear();
+	outgoing.push_back("dfi_clear");
+	outgoing.push_back(useRules ? "dfi_rules:1" : "dfi_rules:0");
 	wantList = spaceValid;
 	for (int &count : sentAmmo) count = -1; // Daggerfall forgot its reports when it loaded.
 	sentReadyAmmo = -2;
@@ -976,6 +985,12 @@ bool DD_UsePress(player_t *player)
 		lastResult = true;
 		return true;
 	}
+	// Guns never give ammo, and Doom's own pickup of a gun would (DRLA's Pickup states, a Weapon's AmmoGive).
+	if (IsGun(best->GetClass()))
+	{
+		Printf(PRINT_HIGH, "You cannot take that.\n");
+		return lastResult = true;
+	}
 	best->CallTouch(pmo);
 	// A refused pickup, such as a weapon the player already holds, stays in the world and leaves the press for a door.
 	lastResult = (best->ObjectFlags & OF_EuthanizeMe) || !(best->flags & MF_SPECIAL);
@@ -1075,7 +1090,8 @@ bool DD_ItemsNetEvent(dfb_session *session, const char *name)
 	if (!strncmp(name, "dfg_out:", 8))
 	{
 		static const struct { const char *word; uint16_t kind; } kinds[] = {
-			{ "state:", DFB_KIND_GUN_STATE }, { "stashed:", DFB_KIND_GUN_STASHED }, { "kept:", DFB_KIND_GUN_KEPT }, { "done:", DFB_KIND_GUN_EQUIPPED } };
+			{ "state:", DFB_KIND_GUN_STATE }, { "stashed:", DFB_KIND_GUN_STASHED }, { "kept:", DFB_KIND_GUN_KEPT }, { "done:", DFB_KIND_GUN_EQUIPPED },
+			{ "dropped:", DFB_KIND_DOOM_ITEM_USED } };	// [Doomerfall] a dropped Doom item's pickup was spawned, or not
 		for (auto &k : kinds)
 		{
 			const size_t n = strlen(k.word);
