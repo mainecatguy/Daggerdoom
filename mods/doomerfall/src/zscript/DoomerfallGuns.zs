@@ -81,8 +81,12 @@ class DoomerfallGuns : EventHandler
 		let held = (flags & 0x200) && wcls ? Weapon(mo.FindInventory(wcls)) : null;
 		if (held)
 		{
+			// Daggerfall's material line stays (DoomerfallGunMaterial); the gun's live state replaces the rest.
+			int material = names.Find("DoomerfallGunMaterial");
+			int materialAmount = material < names.Size() ? amounts[material] : 0;
 			names.Clear();
 			amounts.Clear();
+			if (materialAmount > 0) { names.Push("DoomerfallGunMaterial"); amounts.Push(materialAmount); }
 			String n = held.GetClassName();
 			Array<Inventory> extras;
 			for (Inventory i = mo.Inv; i; i = i.Inv)
@@ -298,5 +302,17 @@ class DoomerfallGuns : EventHandler
 		stateAmounts.Clear();
 		stateRequest = 0;
 		Tell("done", request, ok ? Taken : Refused, pickup);
+	}
+}
+
+// The Daggerfall material of a gun dropped from Daggerfall's inventory, carried by its pickup as material + 1, so taking
+// it back gives the same material and the look label can show it (dd_items.cpp, dd_look.cpp). Only Daggerfall sets it.
+class DoomerfallGunMaterial : Inventory
+{
+	Default
+	{
+		Inventory.MaxAmount 16;
+		+INVENTORY.UNDROPPABLE
+		+INVENTORY.UNTOSSABLE
 	}
 }
