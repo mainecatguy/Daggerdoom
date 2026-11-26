@@ -14,7 +14,7 @@ DEMO = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(r"D:\dev\DoomDaggerfall-
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 IWAD = r"D:\dev\DoomDaggerfall\GameResources\wads\DOOM.WAD"
 DAGGER = r"D:\dev\DoomDaggerfall\GameResources\DAGGER"
-SECONDS = 90
+SECONDS = 120
 
 NAMES = ("Medical Etiquette Streetwise Jumping Orcish Harpy Giantish Dragonish Nymph Daedric Spriggan Centaurian Impish "
          "Lockpicking Mercantile Pickpocket Stealth Swimming Climbing Backstabbing Dodging Running Destruction Restoration "
@@ -214,6 +214,18 @@ def main():
         check(reached_doom("old custom loaded"), "old custom class: gun skills reached Doom")
     b, a = entries.get("guns custom before save"), entries.get("guns custom loaded")
     check(a is not None and b is not None and a["lists"] == b["lists"], "guns-mode custom class keeps its own picks")
+    b, a = entries.get("lookalike custom before save"), entries.get("lookalike custom loaded")
+    check(a is not None and b is not None and a["lists"] == b["lists"],
+          "custom class with Mage's other skills but its own gun picks keeps them (not the Mage card)")
+    b, a = entries.get("old lookalike custom before save"), entries.get("old lookalike custom loaded")
+    want = custom_rule(b["lists"]) if b else None
+    check(a is not None and a["lists"] == want and a["lists"] != cards[0],
+          f"older custom class with Mage's other skills converts by the default map: {want}")
+    m = next((re.search(r"start (-?\d+) current (-?\d+)", l) for l in df_lines if "classic import warrior before" in l), None)
+    e = entries.get("classic import warrior")
+    check(m is not None and e is not None and e["level"] == 5 and e["calc"] == 5
+          and e["current"] - e["start"] == int(m.group(2)) - int(m.group(1)) and e["lists"] == cards[16],
+          "classic import (Warrior, level 5, trained weapons): Warrior card, level 5, same progress through the level")
     e = entries.get("new game knight")
     check(e is not None and e["lists"] == cards[17], "full new game (Knight): guns card on the sheet")
     if e:

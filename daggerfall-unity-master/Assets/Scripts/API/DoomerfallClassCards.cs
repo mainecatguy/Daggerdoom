@@ -87,30 +87,47 @@ namespace DaggerfallConnect
 
         /// <summary>
         /// Which preset class a 12-skill list is, or -1 for a custom class. Found by the class's fixed skills (not its
-        /// name, which may be localized): every slot that is not a weapon slot on the card must hold the card's skill,
-        /// or something an older version put there (a monster language or gun-slot number 4-12, or Critical Strike),
-        /// with at most two such older entries. Works for classic CLASS*.CFG data, saves from before the cards
-        /// (placeholder filler) and saves with the cards.
+        /// name, which may be localized): every slot must hold the card's skill in either mode, except that a slot the
+        /// no-guns table replaced may hold what older data had there (Critical Strike where the classic class had it; a
+        /// language or the placeholder's gun filler, 4-12, where it had a language). Works for classic CLASS*.CFG data,
+        /// saves from before the cards (placeholder filler) and saves with the cards; any other list is a custom class.
         /// </summary>
+        // Slots the no-guns table replaced: class index, slot, and the classic skill there (Critical Strike, or a
+        // monster language, written as Centaurian for "any language").
+        static readonly int[,] Replaced =
+        {
+            { 0, 9, -1 }, { 0, 10, -1 }, { 3, 9, -1 }, { 3, 10, -1 }, { 5, 7, 0 }, { 7, 8, 0 }, { 8, 6, 0 }, { 9, 7, 0 },
+            { 10, 6, 0 }, { 11, 0, 0 }, { 12, 1, 0 }, { 13, 5, 0 }, { 14, 5, 0 }, { 14, 11, -1 }, { 15, 9, 0 }, { 15, 11, -1 },
+        };
+
+        static S ClassicReplaced(int c, int p)
+        {
+            for (int i = 0; i < Replaced.GetLength(0); i++)
+                if (Replaced[i, 0] == c && Replaced[i, 1] == p)
+                    return Replaced[i, 2] == 0 ? S.CriticalStrike : S.Centaurian;
+            return S.None;
+        }
+
         public static int PresetIndexOf(S[] list)
         {
             for (int c = 0; c < NoGunsCards.Length; c++)
             {
-                int older = 0;
                 bool match = true;
                 for (int p = 0; p < 12 && match; p++)
                 {
-                    S card = NoGunsCards[c][p];
-                    if (card != GunsCards[c][p])
-                        continue; // weapon slot: Daggerfall or Doom skill, either mode
-                    if (list[p] == card)
-                        continue;
-                    if (list[p] == S.CriticalStrike || (list[p] >= S.Shotguns && list[p] <= S.Impish))
-                        older++;
+                    if (list[p] == NoGunsCards[c][p] || list[p] == GunsCards[c][p])
+                        continue; // the card's skill in either mode
+                    // Otherwise only a slot the no-guns table replaced may hold what older data had there:
+                    // Critical Strike, or a monster language (also read as the placeholder's gun filler, 4-12).
+                    S classic = ClassicReplaced(c, p);
+                    if (classic == S.CriticalStrike)
+                        match = list[p] == S.CriticalStrike;
+                    else if (classic != S.None)
+                        match = list[p] >= S.Shotguns && list[p] <= S.Impish;
                     else
                         match = false;
                 }
-                if (match && older <= 2)
+                if (match)
                     return c;
             }
             return -1;

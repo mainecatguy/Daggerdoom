@@ -82,6 +82,8 @@ namespace DaggerfallConnect.Save
             doc.skillUses = parsedData.skillUses;
             doc.skillsRaisedThisLevel1 = parsedData.skillsRaisedThisLevel1;
             doc.skillsRaisedThisLevel2 = parsedData.skillsRaisedThisLevel2;
+            ClassicSkills = new DaggerfallSkills(); // Doomerfall: kept for the level rebase
+            ClassicSkills.Copy(parsedData.skills);
             ClearLegacyLanguageSkills(doc); // Doomerfall
             doc.startingLevelUpSkillSum = parsedData.startingLevelUpSkillSum;
             doc.minMetalToHit = parsedData.minMetalToHit;
@@ -378,8 +380,19 @@ namespace DaggerfallConnect.Save
             }
         }
 
+        /// <summary>Doomerfall: the class lists as the classic save has them (before the class card), for the level
+        /// rebase on import (PlayerEntity.RebaseLevelUpSkillSum).</summary>
+        public DFCareer.Skills[] ClassicSkillLists { get; private set; }
+
+        /// <summary>Doomerfall: the skill values as the classic save has them (before the languages are cleared).</summary>
+        public DaggerfallSkills ClassicSkills { get; private set; }
+
         DFCareer ReadCareer(BinaryReader reader)
         {
+            long start = reader.BaseStream.Position; // Doomerfall: skill list bytes 16-27, as in CLASS*.CFG
+            reader.BaseStream.Position = start + 16;
+            ClassicSkillLists = Array.ConvertAll(reader.ReadBytes(12), b => (DFCareer.Skills)b);
+            reader.BaseStream.Position = start;
             ClassFile classFile = new ClassFile();
             classFile.Load(reader);
 

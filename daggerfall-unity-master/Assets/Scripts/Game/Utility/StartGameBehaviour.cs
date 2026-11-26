@@ -590,6 +590,8 @@ namespace DaggerfallWorkshop.Game.Utility
             // Assign data to player entity
             playerEntity.AssignCharacter(characterDocument, characterRecord.ParsedData.level, characterRecord.ParsedData.baseHealth, false);
             playerEntity.SetCurrentLevelUpSkillSum();
+            if (characterRecord.ClassicSkillLists != null && characterRecord.ClassicSkills != null) // Doomerfall: class card
+                playerEntity.RebaseLevelUpSkillSum(characterRecord.ClassicSkillLists, characterRecord.ClassicSkills);
 
             // Assign biography modifiers
             playerEntity.BiographyResistDiseaseMod = saveVars.BiographyResistDiseaseMod;

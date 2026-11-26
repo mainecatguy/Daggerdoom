@@ -589,7 +589,12 @@ namespace DaggerfallConnect
         /// </summary>
         public void ApplyClassCard(Skills firstLanguageSlot = Skills.Centaurian)
         {
-            Skills[] list = DoomerfallClassCards.Apply(SkillLists(), firstLanguageSlot);
+            SetSkillLists(DoomerfallClassCards.Apply(SkillLists(), firstLanguageSlot));
+        }
+
+        /// <summary>Doomerfall: sets the 12 listed skills in order (3 primary, 3 major, 6 minor).</summary>
+        public void SetSkillLists(Skills[] list)
+        {
             PrimarySkill1 = list[0]; PrimarySkill2 = list[1]; PrimarySkill3 = list[2];
             MajorSkill1 = list[3]; MajorSkill2 = list[4]; MajorSkill3 = list[5];
             MinorSkill1 = list[6]; MinorSkill2 = list[7]; MinorSkill3 = list[8];

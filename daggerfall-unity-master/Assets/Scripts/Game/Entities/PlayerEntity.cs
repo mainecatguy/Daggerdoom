@@ -1494,6 +1494,25 @@ namespace DaggerfallWorkshop.Game.Entity
         }
 
         /// <summary>
+        /// Doomerfall: after the class card replaced the class lists, shifts the starting sum by the change in the
+        /// level-up sum, so the level and the progress through it stay as they were. previousLists and previousSkills
+        /// are the class lists and skill values the starting sum was computed with.
+        /// </summary>
+        public void RebaseLevelUpSkillSum(DFCareer.Skills[] previousLists, DaggerfallSkills previousSkills)
+        {
+            DFCareer.Skills[] cardLists = career.SkillLists();
+            DaggerfallSkills currentSkills = skills;
+            career.SetSkillLists(previousLists);
+            skills = previousSkills;
+            SetCurrentLevelUpSkillSum();
+            int before = currentLevelUpSkillSum;
+            career.SetSkillLists(cardLists);
+            skills = currentSkills;
+            SetCurrentLevelUpSkillSum();
+            startingLevelUpSkillSum += currentLevelUpSkillSum - before;
+        }
+
+        /// <summary>
         /// Estimate the starting sum of skills used for determining player level.
         /// </summary>
         public void EstimateStartingLevelUpSkillSum()

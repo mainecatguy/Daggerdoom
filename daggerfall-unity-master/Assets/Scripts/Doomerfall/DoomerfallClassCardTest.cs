@@ -117,6 +117,41 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             yield return LoadAndWait(saves, "GunsCustom");
             LogCharacter("guns custom loaded" + (loaded ? "" : " (load timed out)"));
 
+            // Custom classes that share a preset's (Mage's) other skills but chose different weapon skills keep them:
+            // a guns-mode one keeps its own picks; an older one converts by the default map, not to the Mage card.
+            yield return SaveLoadCustom(saves, "Test Lookalike", new[] { S.Mysticism, S.Alteration, S.Thaumaturgy, S.Illusion, S.Destruction,
+                S.Restoration, S.Medical, S.Rifles, S.Melee, S.Etiquette, S.Mercantile, S.Dodging }, "lookalike custom", "GunsLookalike");
+            yield return SaveLoadCustom(saves, "Test Old Lookalike", new[] { S.Mysticism, S.Alteration, S.Thaumaturgy, S.Illusion, S.Destruction,
+                S.Restoration, S.Medical, S.LongBlade, S.Axe, S.Etiquette, S.Mercantile, S.Dodging }, "old lookalike custom", "OldLookalike");
+
+            // Classic save import, as StartGameBehaviour.LoadClassicSave does it (no classic save on this machine): a level-5
+            // Warrior whose starting sum was computed from its classic lists and trained weapon skills; the language/gun
+            // slots are then reset to untrained, the card lists apply, and the sum is rebased.
+            AssignNew(new ClassFile(ClassPath(16)).Career, 16, false);
+            player = GameManager.Instance.PlayerEntity;
+            S[] card = player.Career.SkillLists();
+            var classic = new DaggerfallSkills();
+            classic.Copy(player.Skills);
+            foreach (S s in new[] { S.Axe, S.LongBlade, S.BluntWeapon, S.HandToHand, S.Archery, S.ShortBlade })
+                classic.SetPermanentSkillValue(s, 60);
+            player.Career.SetSkillLists(RawClassicLists(16));
+            player.Skills = classic;
+            player.SetCurrentLevelUpSkillSum();
+            int classicStart = player.CurrentLevelUpSkillSum - 54; // halfway through level 5
+            Log(string.Format("classic import warrior before | level 5 start {0} current {1}", classicStart, player.CurrentLevelUpSkillSum));
+            var imported = new DaggerfallSkills();
+            imported.Copy(classic);
+            foreach (S g in Guns)
+                imported.SetPermanentSkillValue(g, 5); // CharacterRecord.ClearLegacyLanguageSkills
+            player.Skills = imported;
+            player.Career.SetSkillLists(card);
+            player.Level = 5;
+            player.StartingLevelUpSkillSum = classicStart;
+            player.SetCurrentLevelUpSkillSum();
+            player.RebaseLevelUpSkillSum(RawClassicLists(16), classic);
+            yield return new WaitForSecondsRealtime(StepSeconds);
+            LogCharacter("classic import warrior");
+
             // One full new game (Knight), world and all.
             var start = FindObjectOfType<StartGameBehaviour>();
             start.CharacterDocument = NewDocument(new ClassFile(ClassPath(17)).Career, 17, false);
@@ -124,6 +159,19 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             yield return new WaitForSecondsRealtime(2f);
             LogCharacter("new game knight");
             Log("done");
+        }
+
+        IEnumerator SaveLoadCustom(SaveLoadManager saves, string className, S[] lists, string label, string saveName)
+        {
+            DFCareer custom = new ClassFile(ClassPath(0)).Career;
+            custom.Name = className;
+            SetLists(custom, lists);
+            AssignNew(custom, 0, true);
+            LogCharacter(label + " before save");
+            saves.Save(character, saveName);
+            yield return new WaitForSecondsRealtime(1.5f);
+            yield return LoadAndWait(saves, saveName);
+            LogCharacter(label + " loaded" + (loaded ? "" : " (load timed out)"));
         }
 
         static string ClassPath(int index)
