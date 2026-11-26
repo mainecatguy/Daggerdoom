@@ -24,3 +24,7 @@ Game design rules for the player's maximum HP. Owner decisions are dated.
   Spellsword, Rogue, Assassin +4; Monk +6; Archer +8; Ranger, Knight +10; Warrior +12; Barbarian +17. Custom classes
   (4 to 30 HP per level) get -4 to +22.
 - In the custom class editor the control is labeled **ENDURANCE (AND MAX END) BONUS**.
+
+## HP restoration (owner, 2026-11-26)
+
+- "All sources of HP restoration are 3x" Daggerfall's. Resting restores HP three times as fast as in Daggerfall.
