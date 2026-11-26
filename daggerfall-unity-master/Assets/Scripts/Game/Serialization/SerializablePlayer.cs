@@ -279,7 +279,7 @@ namespace DaggerfallWorkshop.Game.Serialization
             entity.FaceIndex = data.playerEntity.faceIndex;
             entity.Reflexes = data.playerEntity.reflexes;
             entity.Career = data.playerEntity.careerTemplate;
-            entity.Career.RemapRemovedSkills(DaggerfallSkills.FirstLanguageSlotOf(data.playerEntity.skills)); // Doomerfall: an older save may list a removed language
+            DaggerfallConnect.DFCareer.Skills firstLanguageSlot = DaggerfallSkills.FirstLanguageSlotOf(data.playerEntity.skills); // Doomerfall: class card below
             entity.Name = data.playerEntity.name;
             entity.Level = data.playerEntity.level;
             entity.Stats = data.playerEntity.stats;
@@ -299,6 +299,11 @@ namespace DaggerfallWorkshop.Game.Serialization
             entity.StartingLevelUpSkillSum = data.playerEntity.startingLevelUpSkillSum;
             if ((entity.CurrentLevelUpSkillSum = data.playerEntity.currentLevelUpSkillSum) == 0)
                 entity.SetCurrentLevelUpSkillSum();
+            // Doomerfall: the class card may change the class lists; rebase the level-up sum so the level holds.
+            int savedLevelUpSkillSum = entity.CurrentLevelUpSkillSum;
+            entity.Career.ApplyClassCard(firstLanguageSlot);
+            entity.SetCurrentLevelUpSkillSum();
+            entity.StartingLevelUpSkillSum += entity.CurrentLevelUpSkillSum - savedLevelUpSkillSum;
             entity.Items.DeserializeItems(data.playerEntity.items);
             entity.WagonItems.DeserializeItems(data.playerEntity.wagonItems);
             entity.OtherItems.DeserializeItems(data.playerEntity.otherItems);

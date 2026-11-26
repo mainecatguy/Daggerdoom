@@ -46,6 +46,23 @@ Impish) are gone: you can no longer calm monsters by speaking to them.
   and practice are not carried over.
 - The gun skills do not change how guns behave yet.
 
+### Class skills
+
+Every class lists Doom weapon skills in place of Daggerfall's weapon skills. Each class has its own hand-made list,
+with at least one gun skill and usually two or more chosen to fit it. A Warrior's primary skills are Shotguns,
+Automatics and Melee, an Archer's primary skill is Rifles, and a Mage carries Pistols and Energy Weapons as minor skills.
+Destruction, Hand-to-Hand and Dodging stay where they were. Critical Strike and the monster languages are gone from
+every class, replaced by other skills, for example Running for the Assassin and the Monk.
+
+- The custom class maker offers the seven Doom weapon skills instead of Short Blade, Long Blade, Axe, Blunt Weapon and
+  Archery, and no longer offers Critical Strike.
+- A custom class from an older save converts by a default rule: Short Blade becomes Pistols, Long Blade Automatics,
+  Axe Shotguns, Blunt Weapon Melee and Archery Rifles. If the class already has that skill, it takes the first one it
+  lacks of Pistols, Shotguns, Automatics, Rifles, Explosives, Energy Weapons and Melee. A language becomes Etiquette,
+  Streetwise, Mercantile or Medical, and Critical Strike becomes a weapon skill or Running.
+- An older save loads at the same level, with the same progress towards the next level. The class lists change to the
+  new ones, but your skill values are kept as they were.
+
 ## Perks
 
 A skill earns a **perk** when it reaches 25, 50, 75 and 100.

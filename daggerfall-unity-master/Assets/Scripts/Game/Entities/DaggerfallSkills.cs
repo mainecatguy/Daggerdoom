@@ -78,10 +78,12 @@ namespace DaggerfallWorkshop.Game.Entity
         public bool HasEnergyAndMeleeSlots { get { return GunSkillsFormat >= 4; } }
 
         /// <summary>Doomerfall: the first skill slot a save's class lists still read as a monster language
-        /// (DFCareer.RemapRemovedSkills).</summary>
+        /// (DFCareer.ApplyClassCard).</summary>
         public static DFCareer.Skills FirstLanguageSlotOf(DaggerfallSkills saved)
         {
-            if (saved == null || !saved.HasPistolsSlot)
+            if (saved == null || !saved.IsGunSkillsFormat)
+                return DFCareer.Skills.Shotguns;
+            if (!saved.HasPistolsSlot)
                 return DFCareer.Skills.Pistols;
             if (!saved.HasRiflesSlot)
                 return DFCareer.Skills.Rifles;
