@@ -193,7 +193,7 @@ class DLHarness : EventHandler
 			{
 				savedListener = door.listener;
 				doorRecord = DFAction(Actor.Spawn("DFAction", door.pos, NO_REPLACE));
-				doorRecord.flag = 17;
+				doorRecord.flag = 30; // does nothing when run; only its activation count is checked
 				doorRecord.trigger = 10; // TR_DOOR
 				doorRecord.door = door;
 				door.listener = doorRecord;
@@ -202,9 +202,7 @@ class DLHarness : EventHandler
 			if (timer == 140)
 			{
 				Report(Shut() && !g, "no picks: the door stays shut and no minigame starts");
-				Report(door.lockState == 1 && doorRecord.activationCount == 0, "a Door-triggered unlock record does not run on the refused Use");
-				door.listener = savedListener;
-				doorRecord.Destroy();
+				Report(door.lockState == 1 && doorRecord.activationCount == 0, "a Door-triggered record does not run on the refused Use");
 				phase = 3;
 				timer = 0;
 			}
@@ -242,6 +240,12 @@ class DLHarness : EventHandler
 			if (timer == 35 * 6)
 			{
 				Report(started && !g && door.swung > 0 && door.lockState == 0, "a hit unlocks and opens the door");
+				if (doorRecord)
+				{
+					Report(doorRecord.activationCount == 1, String.Format("the Door-triggered record ran once, on the hit's open (count %d)", doorRecord.activationCount));
+					door.listener = savedListener;
+					doorRecord.Destroy();
+				}
 				timer = 0;
 				if (NEWGAME) { Finish(); break; }
 				Console.Printf("DLSAVE autosave");

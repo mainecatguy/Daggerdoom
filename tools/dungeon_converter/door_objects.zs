@@ -29,6 +29,7 @@ class DFDoorBlocker : Actor
 class DFDoorListener : Actor
 {
 	virtual void DoorUsed(DFDoor door, Actor user, bool locked) {}	// locked: Daggerfall holds the door locked and it stays shut
+	virtual void DoorOpenedUnlocked(DFDoor door, Actor user) {}	// Daggerfall unlocked and opened it (a lockpick hit): its toggle
 }
 
 class DFDoor : Actor
@@ -230,7 +231,9 @@ class DFDoorHandler : EventHandler
 		{
 			if (!d || d.loadId != id) continue;
 			d.lockState = state;
-			if (state == 0 && f.Size() > 3 && f[3] == "open" && d.swung <= 0 && d.moving == 0) d.ActionSet(true);
+			// As DaggerfallActionDoor.ToggleDoor after a pick: the open runs the door's Door-triggered record (not type 18's opens).
+			if (state == 0 && f.Size() > 3 && f[3] == "open" && d.swung <= 0 && d.moving == 0 && d.ActionSet(true) && d.listener)
+				d.listener.DoorOpenedUnlocked(d, players[consoleplayer].mo);
 		}
 	}
 

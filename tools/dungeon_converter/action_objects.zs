@@ -318,11 +318,15 @@ class DFAction : DFDoorListener
 	// DaggerfallActionDoor runs the door trigger on a player toggle; PlayerActivate then sends the direct trigger.
 	// A locked door does not toggle: DaggerfallActionDoor.Open returns before ExecuteActionOnToggle, so the door trigger
 	// does not fire. PlayerActivate's direct trigger still does.
+	// Exception: a first-activation DoorText record (99) runs before Daggerfall's lock check. A pick's open fires the door
+	// trigger once, through DoorOpenedUnlocked.
 	override void DoorUsed(DFDoor d, Actor user, bool locked)
 	{
-		if (!locked) Receive(user, FROM_DOOR);
+		if (!locked || (flag == 99 && activationCount == 0)) Receive(user, FROM_DOOR);
 		Receive(user, FROM_DIRECT);
 	}
+
+	override void DoorOpenedUnlocked(DFDoor d, Actor user) { Receive(user, FROM_DOOR); }
 
 	// Distance along a world ray to this object's box, or -1.
 	double RayHit(vector3 origin, vector3 dir, double range)
