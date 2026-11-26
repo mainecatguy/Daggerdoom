@@ -584,7 +584,12 @@ namespace
 		auto it = Level->GetThinkerIterator<AActor>();
 		while (AActor *mo = it.Next())
 		{
-			if (!mo->ddRecordId) { if (mo->IsKindOf(NAME_Inventory) && !IsOwned(mo)) loose.push_back(mo); continue; }
+			if (!mo->ddRecordId)
+			{
+				if (mo->ddHandoffId) live.insert(mo->ddHandoffId);	// [Doomerfall] A spawner that has not made its monster yet.
+				else if (mo->IsKindOf(NAME_Inventory) && !IsOwned(mo)) loose.push_back(mo);
+				continue;
+			}
 			if (IsOwned(mo)) mo->ddRecordId = 0;
 			else live.insert(mo->ddRecordId);
 		}
@@ -1043,7 +1048,9 @@ namespace
 				DDLootScope scope(&variant);
 				if (AActor *mo = Spawn(Level, cls, pos, ALLOW_REPLACE))
 				{
-					mo->ddRecordId = s.id;
+					// [Doomerfall] A mod's spawner (DRLA's RandomSpawners) hands the id to the monster it makes (DD_SpawnerHandoff).
+					if (DD_IsDrlaSpawner(mo) || !(mo->flags3 & MF3_ISMONSTER)) mo->ddHandoffId = s.id;
+					else mo->ddRecordId = s.id;
 					mo->SpawnPoint = mo->Pos();	// Spawn() leaves it at zero, which made every seeded monster look moved.
 					expected.insert(s.id);
 				}

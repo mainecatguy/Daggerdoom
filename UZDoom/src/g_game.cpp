@@ -2212,6 +2212,7 @@ void G_DoLoadGame ()
 	{
 		C_SerializeCVars(arc, "servercvars", CVAR_SERVERINFO);
 	}
+	{ void G_FallBackFromRemovedSkill(); G_FallBackFromRemovedSkill(); } // [Doomerfall] a save made on a removed skill
 
 	uint32_t time[2] = { 1,0 };
 

@@ -123,25 +123,24 @@ void DD_BodiesBeginMap(FLevelLocals *Level)
 CVAR(Int, dd_mon_test_kill, 0, CVAR_NOSAVE | CVAR_MOD) // Test only, with -ddmontest: 1 kills a placed monster, 2 a quest foe.
 
 //--------------------------------------------------------------------
-// [Doomerfall] DRLA's Monster-flagged spawners. Two DRLA spawners are Monster-flagged themselves, so a placed monster's
-// id would go to the spawner and the monster it makes would have none (and, summoned, drop nothing):
-// - RLAdaptiveSpawner and its subclasses (Adaptive skill): unshootable, health 0x7FFFFFFF; an ACS picker sends it to a
-//   Spawn* state that spawns the real monster (or another spawner, or a RandomSpawner) with A_SpawnItemEx, then it stops.
-// - RLTheHungrySpawner (Armageddon skill's Lost Soul): spawns several RLTheHungrySingleSpawner helpers (not monsters),
-//   each of which spawns an RLArmageddonLostSoul.
+// [Doomerfall] DRLA's Monster-flagged spawner and other spawners. RLTheHungrySpawner (Armageddon skill's Lost Soul) is
+// Monster-flagged itself, so a placed monster's id would go to the spawner and the monster it makes would have none
+// (and, summoned, drop nothing). It spawns several RLTheHungrySingleSpawner helpers (not monsters), each of which spawns
+// an RLArmageddonLostSoul. (DRLA's Adaptive spawners were the other case; the Doomerfall mod removes the Adaptive skill.)
 // Identified by class only, never by behaviour, so a Pain Elemental or any real summoner is never one. SpawnMook gives
-// such a spawner the id as ddHandoffId instead of ddRecordId, so it is never a mook. What it spawns while it acts (state
-// actions, PostBeginPlay: DD_ActingActor) carries the handoff on if it is not a monster, and the first monster spawned
-// along that line takes the id: one id, one drop set. Later monsters from the same spawner have no id: summoned. Without
-// a bridge session or without DRLA nothing here does anything.
+// such a spawner the id as ddHandoffId instead of ddRecordId, so it is never a mook; an overworld seed does the same for
+// it and for a RandomSpawner (DDTreadmill). What it spawns while it acts (state actions, PostBeginPlay: DD_ActingActor)
+// carries the handoff on if it is not a monster, and the first monster spawned along that line takes the id: one id,
+// one drop set. Later monsters from the same spawner have no id: summoned. Without a bridge session or without DRLA
+// nothing here does anything.
 //--------------------------------------------------------------------
 
 bool DD_BridgeHasSession();
 
 bool DD_IsDrlaSpawner(AActor *mo)
 {
-	static const FName adaptive("RLAdaptiveSpawner"), hungry("RLTheHungrySpawner");
-	return mo && (mo->flags3 & MF3_ISMONSTER) && DD_BridgeHasSession() && (mo->IsKindOf(adaptive) || mo->IsKindOf(hungry));
+	static const FName hungry("RLTheHungrySpawner");
+	return mo && (mo->flags3 & MF3_ISMONSTER) && DD_BridgeHasSession() && mo->IsKindOf(hungry);
 }
 
 void DD_SpawnerHandoff(AActor *mo)
@@ -160,7 +159,7 @@ void DD_SpawnerHandoff(AActor *mo)
 			while (AActor *carrier = all.Next()) if (carrier->ddHandoffId == id) carrier->ddHandoffId = 0;
 			return;
 		}
-	if (DD_IsDrlaSpawner(mo)) mo->ddHandoffId = id;	// Adaptive's Armageddon Lost Soul is an RLTheHungrySpawner.
+	if (DD_IsDrlaSpawner(mo)) mo->ddHandoffId = id;	// A spawner spawned by a spawner.
 	else if (!mo->ddRecordId)
 	{
 		mo->ddRecordId = id;

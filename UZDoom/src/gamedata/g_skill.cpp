@@ -34,6 +34,39 @@
 
 TArray<FSkillInfo> AllSkills;
 int DefaultSkill = -1;
+static bool DD_SkillsRemoved; // [Doomerfall] a MAPINFO "removeskill" took one out
+
+//==========================================================================
+//
+// [Doomerfall] removeskill <name>: takes one skill out of the list (the
+// Doomerfall mod removes DRLA's Adaptive). A name that is not defined does
+// nothing. Skills after it move down one index.
+//
+//==========================================================================
+
+void G_RemoveSkill(FName name)
+{
+	for (unsigned i = 0; i < AllSkills.Size(); i++)
+	{
+		if (AllSkills[i].Name != name) continue;
+		AllSkills.Delete(i);
+		if (DefaultSkill == (int)i) DefaultSkill = -1;
+		else if (DefaultSkill > (int)i) DefaultSkill--;
+		DD_SkillsRemoved = true;
+		return;
+	}
+}
+
+// [Doomerfall] After a removeskill, a skill index past the end (asked for by
+// -skill, the skill CVAR or a savegame) falls back to the default skill.
+// Without a removeskill this does nothing.
+void G_FallBackFromRemovedSkill()
+{
+	if (!DD_SkillsRemoved || (unsigned)*gameskill < AllSkills.Size()) return;
+	UCVarValue val;
+	val.Int = DefaultSkill >= 0 && DefaultSkill < (int)AllSkills.Size() ? DefaultSkill : 0;
+	gameskill->ForceSet(val, CVAR_Int);
+}
 
 //==========================================================================
 //
@@ -516,6 +549,7 @@ DEFINE_ACTION_FUNCTION(DObject, G_SkillName)
 
 void G_VerifySkill()
 {
+	G_FallBackFromRemovedSkill(); // [Doomerfall]
 	if (gameskill >= (int)AllSkills.Size())
 		gameskill = AllSkills.Size()-1;
 	else if (gameskill < 0)

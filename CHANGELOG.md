@@ -13,6 +13,12 @@ What is done on the project, newest first. Agents do not need to read this unles
 
 ## 2026-11-25
 
+### Adaptive removed; overworld seeds with DRLA (on `integration`)
+
+- **DRLA's Adaptive skill is gone whenever the Doomerfall mod is loaded** (owner: the world does not adapt to the player): the mod's MAPINFO says `removeskill adaptive`, a small new UZDoom MAPINFO keyword. Other skills keep their indices; a `-skill`, skill CVAR or savegame asking for it gets the default skill. Plain DRLA and stock WADs are unchanged. The spawner handoff no longer looks for Adaptive spawners.
+- **Overworld packs under DRLA now drop seeded loot:** the seed's id went to DRLA's RandomSpawner, so the real monster had none (dropped nothing) and leaving the area tombstoned the seed. The id now passes to the monster through the existing spawner handoff; leave-and-return keeps the dead dead and the living in place, with no duplicates.
+- Paired fixed drops series still passes unchanged. Notes: `work/notes/20261125-230756-adaptive-overworld.md`.
+
 ### Fixed drops finished on `integration`
 
 - **Card 05 merged** (`agent/fixeddrops-20261125-202715`: summoned monsters drop nothing on Daggerfall maps; travel arrival). Merge fix: its session-id test also matched every placed monster's id (tags 5-7 have bit 63); it now tests for a session id only.

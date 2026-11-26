@@ -5,9 +5,9 @@ version "4.14"
 // Static, so it keeps its state across the dungeon exit and re-entry of the revisit mode.
 //   0 revisit (DRLA, skill 3): a placed monster killed, raised by a stock Arch-vile and killed again drops nothing the
 //     second time. A second one is raised and left alive, a Pain Elemental's Lost Soul is summoned and left alive, and
-//     an id-less DRLA Adaptive spawner is held in its first state. The player leaves the dungeon and comes back; the
+//     an id-less DRLA Monster-flagged spawner (RLTheHungrySpawner) is held. The player leaves the dungeon and comes back; the
 //     raised monster and the soul are killed and drop nothing, and the held spawner was not stored and brought back.
-//   1 roster (DRLA Adaptive or Armageddon skill, the encounter planner removed so placements use the stock roster with
+//   1 roster (DRLA Armageddon skill, the encounter planner removed so placements use the stock roster with
 //     the skill's replacements): every monster on the level is killed; every death is listed with its loot seed, which
 //     is nonzero only for a monster holding a Daggerfall id, and the drops are listed with theirs.
 class PDRules : StaticEventHandler
@@ -51,7 +51,7 @@ class PDRules : StaticEventHandler
 		let it = ThinkerIterator.Create("Actor");
 		Actor a;
 		while (a = Actor(it.Next()))
-			if (a.bISMONSTER && !a.player && a.health > 0 && a != except1 && a != except2 && !(a is "RLAdaptiveSpawner") && a.GetClassName() != "RLTheHungrySpawner") a.Deactivate(null);	// Spawners must still spawn.
+			if (a.bISMONSTER && !a.player && a.health > 0 && a != except1 && a != except2 && a.GetClassName() != "RLTheHungrySpawner") a.Deactivate(null);	// Spawners must still spawn.
 	}
 
 	static void Kill(Actor a, Actor by)
@@ -76,7 +76,7 @@ class PDRules : StaticEventHandler
 		int n = 0;
 		let it = ThinkerIterator.Create("Actor");
 		Actor a;
-		while (a = Actor(it.Next())) if (a is "RLAdaptiveSpawner") n++;
+		while (a = Actor(it.Next())) if (a.GetClassName() == "RLTheHungrySpawner") n++;	// Adaptive is removed by the Doomerfall mod.
 		return n;
 	}
 
@@ -166,8 +166,8 @@ class PDRules : StaticEventHandler
 				Actor a;
 				while (a = Actor(it.Next())) if (a.GetClassName() == "RLLostSoulPE" && a.health > 0) soul = a;
 			}
-			// An id-less Adaptive spawner, held in its first state so that the exit finds it still waiting.
-			held = Actor.Spawn("RLAdaptiveFormerHuman", p.pos + (-96, 0, 0));
+			// An id-less Monster-flagged spawner, held in its first state so that the exit finds it still waiting.
+			held = Actor.Spawn("RLTheHungrySpawner", p.pos + (-96, 0, 0));
 			if (held) { held.A_SetTics(35 * 1000); heldAt = held.pos; }
 			if (!soul || !held || v2.health <= 0) { Finish(String.Format("summon failed soul %d held %d", soul != null, held != null)); break; }
 			Sleep();
@@ -199,7 +199,7 @@ class PDRules : StaticEventHandler
 			level.SetFrozen(false);
 			soul = Nearest(soulClass, soulAt);
 			v2 = Nearest(v2Class, v2At);
-			Console.Printf("PDRBACK soul %d raised %d adaptive %d heldspot %d", soul != null, v2 != null, CountAdaptive(), Nearest("RLAdaptiveFormerHuman", heldAt) != null);
+			Console.Printf("PDRBACK soul %d raised %d adaptive %d heldspot %d", soul != null, v2 != null, CountAdaptive(), Nearest("RLTheHungrySpawner", heldAt) != null);
 			Sleep();
 			Snapshot();
 			deaths = seeded = unseeded = 0;
@@ -226,7 +226,7 @@ class PDRules : StaticEventHandler
 				if (a.bISMONSTER && !a.player && a.health > 0) { n++; Console.Printf("PDRLIVE %s at %.0f %.0f %.0f", a.GetClassName(), a.pos.x, a.pos.y, a.pos.z); }
 			Console.Printf("PDRALIVE %d adaptive %d", n, CountAdaptive());
 			it = ThinkerIterator.Create("Actor");
-			while (a = Actor(it.Next())) if (a.bISMONSTER && !a.player && a.health > 0 && !(a is "RLAdaptiveSpawner")) Kill(a, p);
+			while (a = Actor(it.Next())) if (a.bISMONSTER && !a.player && a.health > 0 && a.GetClassName() != "RLTheHungrySpawner") Kill(a, p);
 			phase = 21; timer = 0;
 			break;
 		}
@@ -235,7 +235,7 @@ class PDRules : StaticEventHandler
 			{
 				let it = ThinkerIterator.Create("Actor");
 				Actor a;
-				while (a = Actor(it.Next())) if (a.bISMONSTER && !a.player && a.health > 0 && !(a is "RLAdaptiveSpawner")) Kill(a, p);
+				while (a = Actor(it.Next())) if (a.bISMONSTER && !a.player && a.health > 0 && a.GetClassName() != "RLTheHungrySpawner") Kill(a, p);
 			}
 			if (timer < 35 * 10) break;
 			Console.Printf("PDRROSTER deaths %d seeded %d unseeded %d drops %d", deaths, seeded, unseeded, NewLoose("roster"));

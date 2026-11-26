@@ -10,3 +10,8 @@ DoomEdNums
 	31641 = DoomerfallPickupClip
 	31642 = DoomerfallPickupShells
 }
+
+// The world does not adapt to the player (owner, 2026-11-25): DRLA's Adaptive skill is removed whenever this mod is
+// loaded. It is DRLA's last skill, so no other skill's index changes. A -skill, skill CVAR or savegame that still asks
+// for it gets the default skill (UZDoom's removeskill, gamedata/g_skill.cpp). Without DRLA this does nothing.
+removeskill adaptive

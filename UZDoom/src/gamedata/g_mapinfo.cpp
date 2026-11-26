@@ -2573,6 +2573,12 @@ void FMapInfoParser::ParseMapInfo (int lump, level_info_t &gamedefaults, level_i
 			AllSkills.Clear();
 			DefaultSkill = -1;
 		}
+		else if (sc.Compare("removeskill")) // [Doomerfall]
+		{
+			void G_RemoveSkill(FName name);
+			sc.MustGetString();
+			G_RemoveSkill(FName(sc.String));
+		}
 		else if (sc.Compare("gameinfo"))
 		{
 			if (format_type != FMT_Old)

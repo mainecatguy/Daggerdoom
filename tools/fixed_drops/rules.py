@@ -1,10 +1,10 @@
 """Fixed drops: the owner's rules for monsters Daggerfall did not place, with Daggerfall and Doom together (test only).
 
-usage: rules.py <play folder> revisit|adaptive<N>|armageddon<N> [--out <results folder name>]
+usage: rules.py <play folder> revisit|armageddon<N> [--out <results folder name>]
   revisit     DRLA at skill 3, a real New Game: a placed monster raised by a stock Arch-vile drops nothing on its second
               death; a raised monster and a summoned Lost Soul left alive drop nothing after the player leaves the
-              dungeon and comes back; an id-less DRLA Adaptive spawner present at the exit is not stored or brought back.
-  adaptive1   DRLA's Adaptive skill (menu index 7), Armageddon (6) for armageddon1, with the encounter planner removed
+              dungeon and comes back; an id-less DRLA Monster-flagged spawner present at the exit is not stored or brought back.
+  armageddon1 DRLA's Armageddon skill (menu index 6; the Doomerfall mod removes Adaptive), with the encounter planner removed
               (a copy of doomerfall.pk3 with its planner class renamed), so placements use the stock roster through the
               skill's replacements, which are DRLA's Monster-flagged spawners. Every monster on the level is killed and
               every death and drop is listed with its seed.
@@ -19,8 +19,8 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import paired  # noqa: E402
 
-MODES = {"revisit": 0, "adaptive": 1, "armageddon": 1}
-SKILL = {"adaptive": "7", "armageddon": "6"}  # Skill menu indexes (DRLA mapinfo order)
+MODES = {"revisit": 0, "armageddon": 1}
+SKILL = {"armageddon": "6"}  # Skill menu indexes (DRLA mapinfo order)
 
 
 def make_harness(out, name, play=None):
