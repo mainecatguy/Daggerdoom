@@ -86,6 +86,7 @@ void DD_LightsFlat(AActor *mo, bool interior);	// dd_lights.cpp
 void DD_LightsInterior(FLevelLocals *Level);
 void DD_LightsTick(FLevelLocals *Level);
 void DD_LightsReset();
+void DD_WeatherTick(FLevelLocals *Level);	// dd_weather.cpp
 void DD_LightsTextureName(const char *name, FTextureID tex);
 
 bool DDTreadmill_Active = false;
@@ -2069,6 +2070,8 @@ void DDTreadmill_BeginMap(FLevelLocals *Level)
 }
 
 bool DDTreadmill_RuntimeTowns() { return runtimeTowns; }
+// Where the player is, for Daggerfall's world look (dd_weather.cpp): 0 none, 1 exterior, 2 building interior, 3 dungeon.
+int DDTreadmill_Place() { return DDTreadmill_Active ? 1 : !townActive || currentTown < 0 ? 0 : !towns[currentTown].space ? 1 : towns[currentTown].spaceId < DUNGEON_SPACE ? 2 : 3; }
 level_info_t *DDTreadmill_LevelInfoAt(unsigned index) { return index < runtimeInfos.size() ? &runtimeInfos[index] : nullptr; }
 bool DDTreadmill_HandoffPending() { return handoff.pending; }
 
@@ -2152,6 +2155,7 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 	if (!pmo) return;
 	if (DD_BridgeHasSession()) DD_TownsfolkTick(Level);	// [Doomerfall] Idle until Daggerfall lists townspeople.
 	DD_LightsTick(Level);
+	DD_WeatherTick(Level);
 	if (runtimeTowns) DDTownCache::Poll();
 	if (travel.pending && !handoff.pending)
 	{

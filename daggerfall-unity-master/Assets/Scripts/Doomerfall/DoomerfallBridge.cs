@@ -156,6 +156,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfsheettest") >= 0)
                 gameObject.AddComponent<DoomerfallSheetTest>().Init(this, sync);
             DoomerfallLookTest.Apply(this, sync); // Test only, does nothing without -dflooktest
+            DoomerfallWorldLookTest.Apply(this, sync); // Test only, does nothing without -dfworldlooktest
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfloottest") >= 0)
                 gameObject.AddComponent<DoomerfallLootTest>().Init(this);
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dftalktest") >= 0 || Array.IndexOf(Environment.GetCommandLineArgs(), "-dftalkrefuse") >= 0)
@@ -219,6 +220,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             guards = gameObject.AddComponent<DoomerfallGuards>();
             guards.Init(this, sync);
             gameObject.AddComponent<DoomerfallCityLights>().Init(this);
+            gameObject.AddComponent<DoomerfallWorldLook>().Init(this);
             gameObject.AddComponent<DoomerfallHiddenWorld>().Init(this, sync, Environment.GetCommandLineArgs());
             DoomerfallWorldCost.Attach(this, sync, Environment.GetCommandLineArgs()); // measurement only: -dfworldcost
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfguardtest") >= 0)

@@ -51,6 +51,23 @@ The Daggerfall world is at **75% scale** in Doom (owner decision, 2026-11-22): 1
 - So far this scale has been applied to dungeons. The terrain treadmill test predates it.
 
 
+## Graphics
+
+Doomerfall is played and tested with these UZDoom renderer settings (owner, 2026-11-25):
+
+```
+gl_bloom 1; gl_light_shadowmap 1; gl_ssao 2; gl_lens 1
+```
+
+- Every launcher sets them:
+  - The Doomerfall launcher (`launcher/main.cpp`) adds them to every UZDoom it starts. Every play script that goes through it gets them, including `scripts/play/install.py`'s.
+  - Play scripts that start UZDoom directly pass them themselves: `play_demo.bat`, `play_drlax.bat`, and the play scripts written by `tools/groundloot/groundloot.py` and `tools/dungeon_converter/make_action_demo.py`.
+  - `scripts/overnight/quiet_run.py` adds them to every UZDoom a test starts.
+  - The launcher and quiet_run put them before the caller's arguments, so a test can override one.
+- A new launcher or play script must set them too.
+- Graphics work is judged with them on. That covers screenshots, brightness fits such as the day/night light (`tools/daynight/brightness.py`), and frame-time measurements.
+- They are not engine defaults, so stock UZDoom and plain WAD play keep stock settings.
+
 ## Standing Requirements
 
 - **Bridge speed:** The FIFO bridge between the games must be instantaneous. Speed and performance are paramount, so server-style designs such as gRPC are out.

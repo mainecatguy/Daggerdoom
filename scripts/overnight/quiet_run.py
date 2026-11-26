@@ -7,7 +7,8 @@ By default the program runs on a private desktop the user never sees, started mi
 (so games render exactly as they did minimized on the user's desktop). Nothing on a private desktop can show a
 window, take focus, flash the taskbar, or touch the mouse: Windows refuses ClipCursor and SetCursorPos from it.
 It also adds, when missing:
-  uzdoom.exe            +vid_fullscreen 0, -noactivate (no crash dialogs), -nosound
+  uzdoom.exe            +vid_fullscreen 0, -noactivate (no crash dialogs), -nosound, and Doomerfall's graphics
+                        settings (architecture.md, Graphics) so screenshots and frame times match what players see
   DaggerfallUnity.exe   -dfmute
 --sound leaves sound on. --user-desktop runs on the user's desktop, minimized and pushed out of focus, as before;
 use it only for something that cannot work on a private desktop, and say why.
@@ -127,6 +128,10 @@ class DesktopProcess:
         return self.returncode
 
 
+# Doomerfall's graphics settings (architecture.md, Graphics). The launcher adds the same.
+GRAPHICS = ["+gl_bloom", "1", "+gl_light_shadowmap", "1", "+gl_ssao", "2", "+gl_lens", "1"]
+
+
 def quiet_arguments(command, sound):
     """Adds the known quiet switches for the programs agents start, when the caller left them out."""
     name = os.path.basename(command[0]).lower()
@@ -140,6 +145,9 @@ def quiet_arguments(command, sound):
             added.append("-noactivate")
         if not sound and "-nosound" not in command:
             added.append("-nosound")
+        for i in range(0, len(GRAPHICS), 2):
+            if GRAPHICS[i] not in command:
+                added += GRAPHICS[i:i + 2]
     elif name == "daggerfallunity" and not sound and "-dfmute" not in command:
         added.append("-dfmute")
     return command[:1] + added + command[1:]

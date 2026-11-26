@@ -286,6 +286,9 @@ std::wstring UZDoomCommandLine(const Options &options)
 		AppendArg(line, L"-file");
 		for (const std::wstring &mod : options.mods) AppendArg(line, mod);
 	}
+	// Doomerfall's graphics settings (architecture.md, Graphics), before the caller's own so those can override them.
+	for (const wchar_t *arg : { L"+gl_bloom", L"1", L"+gl_light_shadowmap", L"1", L"+gl_ssao", L"2", L"+gl_lens", L"1" })
+		AppendArg(line, arg);
 	for (const std::wstring &arg : options.uzdoomArgs) AppendArg(line, arg);
 	return line;
 }
