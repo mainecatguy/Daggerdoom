@@ -188,11 +188,14 @@ bool DD_LootGunKeepsId(uint64_t id, FName cls)
 
 // A gun restored from a session fact (a record written before guns kept their ids) gets a lasting id from where it
 // lies, the same on every restore of that record; from then on the record keeps it as a full fact.
-uint64_t DD_LootRestoredGunId(FName cls, double x, double y, double z)
+// probe: the caller counts up past ids already in its table, so two same-class guns on one spot stay apart; facts are
+// restored in record order, so each gets the same id on every restore.
+uint64_t DD_LootRestoredGunId(FName cls, double x, double y, double z, int probe)
 {
 	if (!DD_LootIsGunClass(cls)) return 0;
 	uint64_t h = Mix(Mix(Mix(SALT_FLOOR ^ 0x7265, uint64_t(llround(x * 16))), uint64_t(llround(y * 16))), uint64_t(llround(z * 16)));
 	for (const char *c = cls.GetChars(); *c; c++) h = Mix(h, uint8_t(tolower(*c)));
+	h = Mix(h, uint64_t(probe));
 	return SESSION_ID | LASTING_MARK | (h & (LASTING_MARK - 1));
 }
 
@@ -220,7 +223,8 @@ uint64_t DD_LootFixItemId(AActor *item)
 		item->ddLootId = 0;
 	}
 	else if (id) return id;
-	uint64_t h = Mix(SALT_FLOOR, uint64_t(item->Level->maptime));
+	static uint64_t issued;	// Unique per gun even when two lie on one spot on the same tic. Once given, the id is saved.
+	uint64_t h = Mix(Mix(SALT_FLOOR, uint64_t(item->Level->maptime)), ++issued);
 	h = Mix(Mix(Mix(h, uint64_t(llround(item->X() * 16))), uint64_t(llround(item->Y() * 16))), uint64_t(llround(item->Z() * 16)));
 	for (const char *c = item->GetClass()->TypeName.GetChars(); *c; c++) h = Mix(h, uint8_t(tolower(*c)));
 	item->ddLootId = h ? h : 1;

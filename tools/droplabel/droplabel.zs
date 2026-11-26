@@ -23,7 +23,17 @@ class PDLabels : StaticEventHandler
 	bool done;
 	vector3 start, bAt, dAt, eAt;
 	Array<Actor> before;
-	Actor gunA, gunB, gunC, gunD, gunE;
+	Actor gunA, gunB, gunC, gunD, gunE, gunF;
+
+	// Unclaimed shotguns without a carried material on E's spot (E and F, the same class on the same spot).
+	int CountAtE()
+	{
+		int n = 0;
+		let it = ThinkerIterator.Create("Inventory");
+		Inventory a;
+		while (a = Inventory(it.Next())) if (!a.Owner && a.GetClassName() == "RLShotgunPickup" && !Carried(a) && (a.pos.xy - eAt.xy).Length() < 8) n++;
+		return n;
+	}
 	String bClass;
 
 	void Finish(String how) { Console.Printf("PDDONE %s", how); done = true; }
@@ -206,7 +216,7 @@ class PDLabels : StaticEventHandler
 			// lasting id of its own; looked at after the return, then again after a second leave and return.
 			double ae = ClearAngle(p, ad);
 			gunE = Actor.Spawn("RLShotgunPickup", (start.xy + Actor.AngleToVector(ae, 96), start.z));
-			if (gunE) eAt = gunE.pos;
+			if (gunE) { eAt = gunE.pos; gunF = Actor.Spawn("RLShotgunPickup", eAt); }
 			Console.Printf("PDLSPAWNED E %d at %.0f %.0f", gunE != null, eAt.x, eAt.y);
 			Console.Printf("PDLDROPPED D carried %d", Carried(gunD));
 			phase = 7; timer = 0;
@@ -221,6 +231,8 @@ class PDLabels : StaticEventHandler
 				Console.Printf("PDLSAVE autosave");
 				LevelLocals.MakeAutoSave();
 			}
+			// The autosave recorded the place (MakeRecord): unnamed E and F now hold lasting ids of their own.
+			if (timer == 35 * 5) Console.Printf("PDLESEED E %08x F %08x", gunE ? gunE.DD_LootSeed() : 0, gunF ? gunF.DD_LootSeed() : 0);
 			if (timer >= 35 * 6) { phase = 8; timer = 0; step = 0; }
 			break;
 		case 8: // Leave through the exit.
@@ -245,7 +257,7 @@ class PDLabels : StaticEventHandler
 			{
 				if (timer < 35 * 3 || !ready) break;
 				gunE = Nearest("RLShotgunPickup", eAt, false);
-				Console.Printf("PDLFOUND E %d", gunE != null);
+				Console.Printf("PDLFOUND E %d same spot %d", gunE != null, CountAtE());
 				phase = 13; timer = 0;
 				break;
 			}
@@ -298,7 +310,7 @@ class PDLabels : StaticEventHandler
 			if (Mode() == 0 && round == 0)
 			{
 				gunE = Nearest("RLShotgunPickup", eAt, false);
-				Console.Printf("PDLFOUND E %d", gunE != null);
+				Console.Printf("PDLFOUND E %d same spot %d", gunE != null, CountAtE());
 				phase = 12; timer = 0;
 				break;
 			}
