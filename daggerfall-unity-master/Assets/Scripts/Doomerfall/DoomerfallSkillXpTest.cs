@@ -11,6 +11,7 @@ using System.Collections.Generic;
 using System.IO;
 using DaggerfallConnect;
 using DaggerfallWorkshop.Game.Entity;
+using DaggerfallWorkshop.Game.Formulas;
 using DaggerfallWorkshop.Game.Serialization;
 using DaggerfallWorkshop.Game.UserInterface;
 using DaggerfallWorkshop.Game.UserInterfaceWindows;
@@ -98,6 +99,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     list.SelectIndex(i);
             yield return null;
             LogMenu("SXSELECTED");
+            // Line Daggerfall's level formula up with the current level first, as DoomerfallLevelUpTest does: the blank
+            // test character's starting sum (0) would otherwise report a level-up at the first check, bought or not.
+            P.SetCurrentLevelUpSkillSum();
+            P.StartingLevelUpSkillSum = P.CurrentLevelUpSkillSum + 28 - 15 * P.Level;
+            bool staleReady = P.ReadyToLevelUp;
+            P.ReadyToLevelUp = false;
+            Log(string.Format("SXBASELINE level {0} formula {1} sum {2} start {3} ready {4} (was {5})", P.Level, Formula(), P.CurrentLevelUpSkillSum,
+                P.StartingLevelUpSkillSum, P.ReadyToLevelUp, staleReady));
             Button buy = Find<Button>(menu.NativePanel, b => b.Label.Text == "BUY POINT");
             int price = DoomerfallSkillXp.Price(P, skill);
             buy.TriggerMouseClick(); // with earned XP only: refused unless the pool covers the price
@@ -116,7 +125,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 if (P.Skills.GetPermanentSkillValue(skill) == before)
                     break;
                 bought++;
-                Log(string.Format("SXBUY {0} -> {1} for {2}, pool {3}, ready {4}", name, before + 1, need, P.SkillXp, P.ReadyToLevelUp));
+                Log(string.Format("SXBUY {0} -> {1} for {2}, pool {3}, sum {4}, formula {5}, ready {6}", name, before + 1, need, P.SkillXp,
+                    P.CurrentLevelUpSkillSum, Formula(), P.ReadyToLevelUp));
                 yield return null;
             }
             Log(string.Format("SXBOUGHT {0} points of {1} ({2} -> {3}), test grant {4} XP, earned {5}, ready {6}", bought, name, startValue,
@@ -156,6 +166,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 yield return null;
             Log(string.Format("SXLOADED {0} pool {1} {2} {3} level {4}", done, P.SkillXp, name, P.Skills.GetPermanentSkillValue(skill), P.Level));
             Log("SXDONE");
+        }
+
+        static int Formula()
+        {
+            return FormulaHelper.CalculatePlayerLevel(P.StartingLevelUpSkillSum, P.CurrentLevelUpSkillSum);
         }
 
         void LogMenu(string tag)

@@ -10,6 +10,14 @@ class SXHarness : EventHandler
 	int total, ready;
 	Actor baron;
 
+	// The mod's own running tally of damage not yet reported (DoomerfallSkillXp.xpHp). WorldThingDamaged runs inside
+	// DamageMobj, so reading it just before and after one hit gives what the mod counted for that hit.
+	static int Counted()
+	{
+		let h = DoomerfallSkillXp(StaticEventHandler.Find('DoomerfallSkillXp'));
+		return h ? h.xpHp : -1;
+	}
+
 	override void WorldTick()
 	{
 		if (!playeringame[0] || !players[0].mo) return;
@@ -44,17 +52,20 @@ class SXHarness : EventHandler
 				if (!mo.bIsMonster || mo.health <= 0 || mo.Distance2D(p) > 400) continue;
 				int h = mo.health;
 				if (h >= 1000) baron = mo;
+				int c0 = Counted();
 				int taken = mo.DamageMobj(p, p, 100000, 'None');
-				total += h;
-				Console.Printf("SXHIT %s health %d, hit for 100000, took %d", mo.GetClassName(), h, taken);
+				int counted = Counted() - c0;
+				total += counted;
+				Console.Printf("SXHIT %s health %d, hit for 100000, took %d, mod counted %d", mo.GetClassName(), h, taken, counted);
 			}
 		}
 		if (hurt && baron && level.maptime == ready + 35 * 6) // raised and killed again: must give nothing more (cap per enemy)
 		{
 			bool raised = p.RaiseActor(baron, RF_NOCHECKPOSITION);
 			int h = baron.health;
+			int c0 = Counted();
 			int taken = baron.DamageMobj(p, p, 100000, 'None');
-			Console.Printf("SXRAISED %d health %d, hit for 100000, took %d (counts 0)", raised, h, taken);
+			Console.Printf("SXRAISED %d health %d, hit for 100000, took %d, mod counted %d (must be 0)", raised, h, taken, Counted() - c0);
 		}
 		if (hurt && !townsperson && level.maptime > ready + 35 * 7 && level.maptime <= ready + 35 * 60)
 		{
@@ -64,10 +75,12 @@ class SXHarness : EventHandler
 			{
 				if (mo.GetClassName() != 'DFTownsperson' || mo.health <= 0) continue;
 				int h = mo.health;
+				int c0 = Counted();
 				int taken = mo.DamageMobj(p, p, 500, 'None');
-				total += h;
+				int counted = Counted() - c0;
+				total += counted;
 				townsperson = true;
-				Console.Printf("SXTOWNSPERSON health %d, hit for 500, took %d, total counted %d", h, taken, total);
+				Console.Printf("SXTOWNSPERSON health %d, hit for 500, took %d, mod counted %d (tally before %d, after %d)", h, taken, counted, c0, c0 + counted);
 				break;
 			}
 		}
@@ -76,7 +89,7 @@ class SXHarness : EventHandler
 			released = true;
 			if (!townsperson) Console.Printf("SXTOWNSPERSON none found");
 			CVar.FindCVar("dd_ui_test_hold").SetInt(0);
-			Console.Printf("SXRELEASED total %d", total);
+			Console.Printf("SXRELEASED total mod counted %d, mod tally left %d", total, Counted());
 		}
 	}
 }
