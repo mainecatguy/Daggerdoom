@@ -16,5 +16,6 @@ server noarchive int dd_civilwar_test = 0;
 server noarchive bool dd_weaponcat_test = false;
 // Test hook: list the guns Doomerfall tags as rifles (zscript/DoomerfallRifleTagTest.zs).
 server noarchive bool dd_rifletag_test = false;
-// Log every Automatics perk event instead of the first 200 (zscript/DoomerfallAutomatics.zs). Logging only.
+// Log every Automatics and Explosives perk event instead of the first 200 of each (zscript/DoomerfallAutomatics.zs,
+// zscript/DoomerfallExplosives.zs). Logging only.
 server noarchive bool dd_perklog = false;

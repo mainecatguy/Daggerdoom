@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0xb51760797467b42dUL;
+        public const ulong SchemaHash = 0x519c1db4b6714c6bUL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -199,8 +199,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint FACES_MAX = 3;  // Daggerfall's HUD shows at most three faces
         public const uint FACE_MAX_SIDE = 64;
         public const uint SHEET_SLOT = 0;
-        public const int SHEET_FORMAT_VERSION = 7;  // 3: skill slots 4-6 are the gun skills, 7-12 unused; 4: slot 7 is Pistols; 5: slot 8 is Rifles; 6: slots 9-10 are Energy Weapons and Melee; 7: Automatics perk rules
-        public const int SHEET_INTS = 162;
+        public const int SHEET_FORMAT_VERSION = 8;  // 3: skill slots 4-6 are the gun skills, 7-12 unused; 4: slot 7 is Pistols; 5: slot 8 is Rifles; 6: slots 9-10 are Energy Weapons and Melee; 7: Automatics perk rules; 8: Explosives perk rules
+        public const int SHEET_INTS = 167;
         public const int SHEET_FORMAT = 0;  // DFB_SHEET_FORMAT_VERSION
         public const int SHEET_EPOCH = 1;
         public const int SHEET_VALID = 2;  // 1 when this describes the current, fully loaded character
@@ -250,6 +250,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const int SHEET_AUTO_SHOTS_PER_AMMO = 159;  // one ammo per this many shots; 1 or 0 is normal use
         public const int SHEET_AUTO_SUNDER_BP = 160;  // each hit makes the enemy take this much more damage from all sources ...
         public const int SHEET_AUTO_SUNDER_MAX_BP = 161;  // ... permanently, up to this much
+        public const int SHEET_EXPL_DAMAGE_BP = 162;  // damage bonus in 1/10000ths (+0% to +60% by skill)
+        public const int SHEET_EXPL_SELF_CUT_BP = 163;  // the player's own splash damage is cut by this much (95% at 25, 99% at 75)
+        public const int SHEET_EXPL_DIRECT_BP = 164;  // more damage to the enemy a shot hits directly (50; amount open, so 0)
+        public const int SHEET_EXPL_CHAIN_BP = 165;  // an enemy the explosives kill explodes for this much of its maximum health ...
+        public const int SHEET_EXPL_CHAIN_RADIUS = 166;  // ... in this radius (map units), each chained generation at half the last
         public const uint UI_NONE = 0;
         public const uint UI_TRAVEL_MAP = 1;
         public const uint UI_INVENTORY = 2;
