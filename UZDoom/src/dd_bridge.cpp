@@ -646,6 +646,7 @@ const char *UiCommandName(uint32_t id)
 	if (id == DFB_UI_REST) return "netevent df_rest";
 	if (id == DFB_UI_CHARACTER) return "netevent df_character";
 	if (id == DFB_UI_SPELLBOOK) return "netevent df_spellbook";
+	if (id == DFB_UI_STATUS) return "netevent df_status";
 	return id == DFB_UI_INVENTORY || id == DFB_UI_LOOT ? "netevent df_inventory" : id == DFB_UI_MAP ? "togglemap" : "netevent df_fast_travel";
 }
 
@@ -720,7 +721,17 @@ bool IsOpenMenuKey(long long lParam)
 	if (uiId == DFB_UI_DAGGERFALL) return false; // No Doom control opened it. The player answers it in Daggerfall.
 	if (uiTyping) return false; // The key is a letter for the text box.
 	if (uiId == DFB_UI_SPELLBOOK && key == 0x0E) return false; // Backspace is Daggerfall's own spellbook key: it closes the book, and still types in its text boxes.
+	if (uiId == DFB_UI_STATUS) return false; // Daggerfall's Status key pages from the status box to health and then closes it (StatusKeyAsEnter).
 	return bound.CompareNoCase(UiCommandName(uiId)) == 0;
+}
+
+// In Daggerfall's status boxes, Doom's Status key is sent as Enter, the boxes' own proceed key, as Daggerfall's Status key is.
+int StatusKeyAsEnter(int vk, long long lParam)
+{
+	if (uiId != DFB_UI_STATUS) return vk;
+	int key = int((lParam >> 16) & 0xFF);
+	if ((lParam >> 24) & 1) key |= 0x80;
+	return Bindings.GetBinding(key).CompareNoCase("netevent df_status") == 0 ? 0x0D : vk;
 }
 
 // In Daggerfall's map screens, the keys the player bound to Doom's movement pan the view. Daggerfall's maps pan
@@ -745,7 +756,7 @@ int UiKey(uint64_t wParam, long long lParam, bool down)
 {
 	const int vk = SidedVirtualKey(wParam, lParam);
 	int &sent = uiKeySentAs[vk & 0xFF];
-	const int key = down || !sent ? MapPanKey(vk, lParam) : sent;
+	const int key = down || !sent ? StatusKeyAsEnter(MapPanKey(vk, lParam), lParam) : sent;
 	sent = down ? key : 0;
 	return key;
 }
@@ -949,7 +960,8 @@ bool DD_BridgeNetEvent(const char *name)
 	}
 	if (!session) return false;
 	const bool inventory = !strcmp(name, "df_inventory"), journal = !strcmp(name, "df_journal"), rest = !strcmp(name, "df_rest");
-	const uint32_t window = !strcmp(name, "df_character") ? DFB_UI_CHARACTER : !strcmp(name, "df_spellbook") ? DFB_UI_SPELLBOOK : DFB_UI_NONE;
+	const uint32_t window = !strcmp(name, "df_character") ? DFB_UI_CHARACTER : !strcmp(name, "df_spellbook") ? DFB_UI_SPELLBOOK
+		: !strcmp(name, "df_status") ? DFB_UI_STATUS : DFB_UI_NONE;
 	if (!inventory && !journal && !rest && !window && strcmp(name, "df_fast_travel")) return false;
 	if (uiState != UiClosed)
 	{
@@ -957,7 +969,7 @@ bool DD_BridgeNetEvent(const char *name)
 		return true;
 	}
 	if (!UiCanOpen()) return true;
-	if (inventory || window) // Character sheet and spellbook: Daggerfall's own windows, with its own refusals.
+	if (inventory || window) // Character sheet, spellbook and status: Daggerfall's own windows, with its own refusals.
 	{
 		OpenUi(inventory ? DFB_UI_INVENTORY : window, inventory ? 0 : ownState.world_context); // The sheet's journal travels only from outdoors.
 		return true;

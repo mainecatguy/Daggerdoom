@@ -24,5 +24,6 @@ OptionMenu "DoomerfallControlsMenu"
 	Control "Open Spellbook", "netevent df_spellbook"
 	Control "Rest", "netevent df_rest"
 	Control "Info", "netevent df_info"
+	Control "Status (location, time, health)", "netevent df_status"
 	Control "Change Ammo", "netevent df_change_ammo"
 }

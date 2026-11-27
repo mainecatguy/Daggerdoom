@@ -388,6 +388,7 @@ typedef struct dfb_face
 #define DFB_UI_REST       10u  /* Daggerfall's rest window; dfb_ui_command.context is DFB_REST_* bits from Doom's state */
 #define DFB_UI_CHARACTER  11u  /* Daggerfall's character sheet; context is Doom's DFB_WORLD_* (its journal travels only outdoors) */
 #define DFB_UI_SPELLBOOK  12u  /* Daggerfall's spellbook, refused with Daggerfall's own message when none is carried */
+#define DFB_UI_STATUS     13u  /* Daggerfall's status boxes (its Status key): where the player is and the time, then health; context is Doom's DFB_WORLD_* */
 
 #define DFB_REST_MONSTERS_NEAR 1u /* a hostile Doom monster sees the player or is within Daggerfall's resting distance */
 #define DFB_REST_NOT_GROUNDED  2u /* Doom's player is in the air or swimming */
