@@ -59,8 +59,8 @@ Impish) are gone: you can no longer calm monsters by speaking to them.
   semi-automatic and single-shot rifles that are not explosives, energy weapons, shotguns or pistols.
 - No rifle counts as a pistol.
 - **Energy Weapons** covers guns that use cells (plasma rifles, lasers, railguns, BFGs) and energy guns that recharge
-  instead of using cells (the nuclear plasma guns and BFGs), even when they fire like a shotgun or an automatic. Energy
-  pistols still count as Pistols.
+  instead of using cells (the nuclear plasma guns and BFGs), even when they fire like an automatic. Energy pistols and
+  energy shotguns belong to two skills (below).
 - **Melee** covers the chainsaw and other melee weapons, such as powered saws, the Ripper and the Dragonslayer sword. Your bare fists are not
   Melee: they use Hand-to-Hand, as in Daggerfall.
 - Energy Weapons and Melee are placeholders for now: they show on the sheet, can be trained and are saved, but have
@@ -106,6 +106,16 @@ A skill earns a **perk** when it reaches 25, 50, 75 and 100.
 
 Some guns fit two weapon skills, for example a laser shotgun is both a Shotgun and an Energy Weapon. Such a gun uses
 whichever of its skills is higher, never both at once.
+
+- **Pistols and Energy Weapons:** energy pistols, both the cell-fed ones (plasma pistols, the Plasma Uzi, the Baron
+  Blaster, the Neural Stunner) and the self-charging ones (blasters, nuclear plasma pistols and the nuclear plasma
+  revolver).
+- **Shotguns and Energy Weapons:** energy shotguns, such as the laser shotgun, plasma shotguns and the nuclear plasma
+  shotgun.
+- No other pair counts: a pistol that fires shotgun shells is only a Pistol, and an automatic shotgun is only a
+  Shotgun.
+- If both skills are equal, the gun uses its main skill: Pistols for an energy pistol, Energy Weapons for an energy
+  shotgun.
 
 ## Resting
 

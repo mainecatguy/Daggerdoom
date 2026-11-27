@@ -17,7 +17,7 @@
 //     is or descends from RocketAmmo / Cell. DRLA has no explosive or energy token. Energy also takes the DRLA energy
 //     guns that recharge instead of using cells (IsEnergyGun's list: the Nuclear family, BFG Infinity, Lightweaver,
 //     the nano-shrapnel Plasma Shotgun (Plasma damage), and the nano-manufacture Laser Rifle, Plasma Rifle and
-//     Tristar Blaster). Self-charging energy pistols stay Pistols.
+//     Tristar Blaster), and the self-charging energy pistols (Pistol first, Energy second; see Both).
 //   - Shotgun, Precision, Automatic, Pistol: stock Shotgun and SuperShotgun, Chaingun, Pistol, or DRLA's
 //     RLShotgunTypeWeapon, RLSingleShotRifleTypeWeapon, RLRapidfireTypeWeapon, RLPistolTypeWeapon tokens.
 // Pistols (owner, 2026-11-26): stock Pistol and DRLA's pistol-token guns; no rifle is a pistol. No DRLA rifle carries
@@ -67,20 +67,51 @@ class DoomerfallWeaponCategory abstract
 		return category >= 0 && category <= Unarmed ? names[category] : "other";
 	}
 
+	// A weapon's first category, by the precedence above.
 	clearscope static int Of(Weapon w)
 	{
-		if (!w) return Other;
+		int first, second;
+		[first, second] = Both(w);
+		return first;
+	}
+
+	// A weapon's two categories: its first, and a second one (or Other) where it truly fits two skills. Owner,
+	// 2026-11-26 (gamedesign/decisions/20261126-two-skill-weapons-owner.md): the pairs are a Pistol or Shotgun that is
+	// also an Energy Weapon. An energy pistol is Pistol then Energy; an energy shotgun (cell-fed, or on the recharging
+	// list) is Energy then Shotgun. Other overlaps (a Storm pistol's shotgun token, the Autoshotgun's rapid-fire token,
+	// a missile pistol's rockets) stay one category, as before. Stock Doom has no such gun, but a mod's cell-fed
+	// subclass of Pistol, Shotgun or SuperShotgun gets both without DRLA.
+	clearscope static int, int Both(Weapon w)
+	{
+		if (!w) return Other, Other;
 		let owner = w.Owner;
 		bool held = owner && owner.player && owner.player.ReadyWeapon == w;
-		if (w is "Fist" || IsClass(w, "RLFist")) return Unarmed;
-		if (w.bMeleeWeapon || w is "Chainsaw" || IsClass(w, "RLDragonslayer") || (held && HasToken(owner, "RLMeleeTypeWeapon"))) return Melee;
-		if (w is "Pistol" || (held && HasToken(owner, "RLPistolTypeWeapon"))) return Pistol;
-		if (AmmoIs(w, "RocketAmmo")) return Explosive;
-		if (AmmoIs(w, "Cell") || IsEnergyGun(w)) return Energy;
-		if (w is "Shotgun" || w is "SuperShotgun" || (held && HasToken(owner, "RLShotgunTypeWeapon"))) return Shotgun;
-		if (held && HasToken(owner, "RLSingleShotRifleTypeWeapon")) return Precision;
-		if (w is "Chaingun" || (held && HasToken(owner, "RLRapidfireTypeWeapon"))) return Automatic;
-		return Other;
+		if (w is "Fist" || IsClass(w, "RLFist")) return Unarmed, Other;
+		if (w.bMeleeWeapon || w is "Chainsaw" || IsClass(w, "RLDragonslayer") || (held && HasToken(owner, "RLMeleeTypeWeapon"))) return Melee, Other;
+		// ZScript names are case-insensitive: these must not be called energy or shotgun, or they hide the enum values.
+		bool isEnergy = AmmoIs(w, "Cell") || IsEnergyGun(w);
+		if (w is "Pistol" || (held && HasToken(owner, "RLPistolTypeWeapon"))) return Pistol, isEnergy ? Energy : Other;
+		if (AmmoIs(w, "RocketAmmo")) return Explosive, Other;
+		bool isShotgun = w is "Shotgun" || w is "SuperShotgun" || (held && HasToken(owner, "RLShotgunTypeWeapon"));
+		if (isEnergy) return Energy, isShotgun ? Shotgun : Other;
+		if (isShotgun) return Shotgun, Other;
+		if (held && HasToken(owner, "RLSingleShotRifleTypeWeapon")) return Precision, Other;
+		if (w is "Chaingun" || (held && HasToken(owner, "RLRapidfireTypeWeapon"))) return Automatic, Other;
+		return Other, Other;
+	}
+
+	// The Daggerfall skill slot a weapon uses, or -1. A weapon in two skills uses whichever of the two is higher in
+	// Daggerfall's live character sheet, never both (manual.md, "Weapons that belong to two skills"); on a tie, or
+	// without Daggerfall (a Doom-only game), it uses its first category's skill. Anything that reads a weapon's skill
+	// should call this rather than SkillSlot(Of(w)).
+	clearscope static int SkillSlotOf(Weapon w)
+	{
+		int first, second;
+		[first, second] = Both(w);
+		int a = SkillSlot(first), b = SkillSlot(second);
+		if (b < 0) return a;
+		if (a < 0) return b;
+		return Actor.DD_SheetSkill(b) > Actor.DD_SheetSkill(a) ? b : a;
 	}
 
 	// The category of the player's held gun, or Other.
@@ -110,7 +141,11 @@ class DoomerfallWeaponCategory abstract
 			"RLNuclearVBFG9000", "RLNuclearBiggestFuckingGun", "RLNuclearOnslaught", "RLHighPowerNuclearBFG9000",
 			"RLHighPowerNuclearPlasmaRifle", "RLAssaultRifleNuclearPlasmaRifle", "RLBurstCannonNuclearPlasmaRifle",
 			"RLBFGInfinity", "RLNanoManufactureAmmoLaserRifle", "RLNanoManufactureAmmoPlasmaRifle",
-			"RLNanoManufactureAmmoTristarBlaster", "RLLightweaver", "RLNanoShrapnelPlasmaShotgun"
+			"RLNanoManufactureAmmoTristarBlaster", "RLLightweaver", "RLNanoShrapnelPlasmaShotgun",
+			// Self-charging energy pistols (laser or plasma, no cells). Their pistol token makes them Pistol first.
+			"RLBlaster", "RLNuclearPlasmaPistol", "RLHighPowerBlaster", "RLHighPowerNuclearPlasmaPistol",
+			"RLNuclearPlasmaRevolver", "RLOverchargedBlaster", "RLStormBlaster", "RLStormNuclearPlasmaPistol",
+			"RLSuperchargedNuclearPlasmaPistol", "RLNanoManufactureAmmoBlaster", "RLHeavyPulseBlaster"
 		};
 		for (int i = 0; i < energyGuns.Size(); i++)
 			if (IsClass(w, energyGuns[i])) return true;

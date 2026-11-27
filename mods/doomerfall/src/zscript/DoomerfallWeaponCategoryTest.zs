@@ -1,5 +1,6 @@
 // Test hook: with +set dd_weaponcat_test 1, gives the player each sample gun in turn, waits until it is held, and
-// prints "WEAPCAT <class> <category> <skill slot>" lines, ending with "WEAPCAT done".
+// prints "WEAPCAT <class> <category> <skill slot> held=<class> second=<category> <slot> uses=<slot>" lines, ending
+// with "WEAPCAT done".
 // tools/weapon_category/run_weaponcat_test.py runs it with and without DRLA and checks the output.
 class DoomerfallWeaponCategoryTest : StaticEventHandler
 {
@@ -15,9 +16,11 @@ class DoomerfallWeaponCategoryTest : StaticEventHandler
 		"RLFist", "RLDoubleChainsaw", "RLPiercingChainsaw", "RLEnergysaw", "RLRipper",
 		"RLNuclearPlasmaRifle", "RLNuclearBFG9000", "RLBFGInfinity", "RLNanoManufactureAmmoLaserRifle",
 		"RLNuclearPlasmaPistol", "RLLightweaver", "RLDragonslayer",
-		"RLNanoShrapnelPlasmaShotgun"
+		"RLNanoShrapnelPlasmaShotgun",
+		"RLLaserShotgun", "RLPlasmaShotgun", "RLNuclearPlasmaShotgun", "RLHeavyPlasmaShotgun", "RLBlaster",
+		"RLPlasmaUzi", "RLBaronBlaster", "RLStormNuclearPlasmaPistol", "RLMiniMissilePistol"
 	};
-	const SampleCount = 56;
+	const SampleCount = 65;
 	const WaitTics = 70;
 
 	int next, wait;
@@ -64,7 +67,9 @@ class DoomerfallWeaponCategoryTest : StaticEventHandler
 	{
 		let held = p.ReadyWeapon;
 		String heldName = held ? String.Format("%s", held.GetClassName()) : "none";
-		int cat = DoomerfallWeaponCategory.OfHeld(p);
-		Console.Printf("WEAPCAT %s %s %d held=%s", wanted, DoomerfallWeaponCategory.Label(cat), DoomerfallWeaponCategory.SkillSlot(cat), heldName);
+		int cat, second;
+		[cat, second] = DoomerfallWeaponCategory.Both(held);
+		Console.Printf("WEAPCAT %s %s %d held=%s second=%s %d uses=%d", wanted, DoomerfallWeaponCategory.Label(cat), DoomerfallWeaponCategory.SkillSlot(cat), heldName,
+			DoomerfallWeaponCategory.Label(second), DoomerfallWeaponCategory.SkillSlot(second), DoomerfallWeaponCategory.SkillSlotOf(held));
 	}
 }
