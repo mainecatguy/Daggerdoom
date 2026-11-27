@@ -18,4 +18,9 @@ bool DDNature_Load();	// Reads DDNATURE once. False when it is missing.
 // north: map pixel row counted from the south.
 void DDNature_Layout(int px, int north, const float *heights, int worldHeight, const short *rect, std::vector<DDNatureFlat> &out);
 int DDNature_Archive(int px, int north, bool winter);
+// DefaultTerrainTexturing's ground tile of each of the pixel's 128 x 128 tiles, index x + y * 128 (x east, y north):
+// the record (low 6 bits) in DDNature_GroundArchive, 64 = rotate, 128 = flip. Same heights as DDNature_Layout.
+void DDNature_Tiles(int px, int north, const float *heights, uint8_t *tiles);
+// TerrainMaterialProvider.GetClimateInfo: the pixel's ground archive, its snow set in winter outside deserts.
+int DDNature_GroundArchive(int px, int north, bool winter);
 bool DDNature_Scale(int archive, int record, float &sx, float &sy);

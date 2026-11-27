@@ -116,7 +116,7 @@ namespace
 		return std::clamp(value, -1.f, 1.f);
 	}
 
-	// DefaultTerrainTexturing.CreateLookupTable, without the rotate and flip bits (LayoutNature masks them off).
+	// DefaultTerrainTexturing.CreateLookupTable: record, plus 64 to rotate and 128 to flip (LayoutNature masks them off).
 	struct Lookup
 	{
 		uint8_t t[64];
@@ -125,7 +125,10 @@ namespace
 			const int s = shapeStart;
 			const int fwd[16] = { baseStart, s, s, s + 1, s, s + 1, saddle, s + 2, s, saddle, s + 1, s + 2, s + 1, s + 2, s + 2, baseEnd };
 			const int rev[16] = { baseStart, s + 2, s + 2, s + 1, s + 2, s + 1, saddle, s, s + 2, saddle, s + 1, s, s + 1, s, s, baseEnd };
-			for (int i = 0; i < 16; i++) t[o + i] = uint8_t(reverse ? rev[i] : fwd[i]);
+			enum { R = 64, F = 128 };
+			const int fwdBits[16] = { 0, R, F, R, 0, 0, 0, R, R | F, R, F, F, R | F, 0, R | F, 0 };
+			const int revBits[16] = { 0, R | F, 0, R | F, F, F, R, R | F, R, 0, 0, 0, R, F, R, 0 };
+			for (int i = 0; i < 16; i++) t[o + i] = uint8_t(reverse ? rev[i] | revBits[i] : fwd[i] | fwdBits[i]);
 		}
 		Lookup()
 		{
@@ -219,6 +222,24 @@ int DDNature_Archive(int px, int north, bool winter)
 	}
 	if (winter && (archive == 504 || archive == 506 || archive == 508 || archive == 510)) archive++;
 	return archive;
+}
+
+void DDNature_Tiles(int px, int north, const float *heights, uint8_t *tiles)
+{
+	TileTypes(px, WORLD_H - 1 - north, heights, tiles);
+}
+
+int DDNature_GroundArchive(int px, int north, bool winter)
+{
+	const int c = present ? climate[size_t(WORLD_H - 1 - north) * WORLD_W + px] : 231;
+	// MapsFile.GetWorldClimateSettings' ground archive and base type.
+	switch (c)
+	{
+	case 224: case 225: case 229: return 2;				// desert base type: no snow set
+	case 226: case 230: return winter ? 103 : 102;		// mountain, mountain woods
+	case 223: case 227: case 228: return winter ? 403 : 402;	// ocean, rainforest, swamp
+	default: return winter ? 303 : 302;					// woodlands, haunted woodlands
+	}
 }
 
 bool DDNature_Scale(int archive, int record, float &sx, float &sy)

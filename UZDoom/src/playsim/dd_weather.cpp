@@ -6,7 +6,7 @@
 //   - Sky: the DFSKY texture is rewritten from SKYnn.DAT (frame, afternoon mirror) or NITEnnI0.IMG with stars, as
 //     DaggerfallSky does. Read from the arena2 folder given by -ddarena2; nothing is written to disk.
 //   - Light: in exteriors, Daggerfall's daylight: its exterior ambient (PlayerAmbientLight) plus its sun light
-//     (SunlightManager) on an average surface, weighted by the sun's height (a low sun lights flat ground less). The town mesh takes it as is, Doom's sectors on a curve. Interiors take
+//     (SunlightManager) on an average surface, weighted by the sun's height (a low sun lights flat ground less). The town mesh and exterior floors take it as is, Doom's sectors (sprites) on a curve. Interiors take
 //     Daggerfall's slight night tint. Dungeons are unchanged (Daggerfall has no time of day there).
 //   - Fog: Daggerfall's exponential weather fog (WeatherManager), in sector fog and on the DFMesh layer.
 //   - Rain and snow: particles around the player, outdoors only (PlayerWeather).
@@ -231,20 +231,24 @@ float Daylight()
 	return world.ambient / 255.f + *dd_sun_share * facing * world.sun / 100.f;
 }
 
-int place = -1, applied = -1;	// applied: a key of the light state the current map's sectors hold
+int place = -1;
+int64_t applied = -1;	// a key of the light state the current map's sectors hold
 
 void ApplyLight(FLevelLocals *Level)
 {
 	// The DFMesh layer takes Daggerfall's daylight as it is (DD_WeatherMeshLight). Doom's own sector lighting also
 	// darkens with distance, so sectors map it onto min..max: fitted so the ground's average brightness follows
 	// Daggerfall's own camera across the day (tools/daynight/brightness.py, work/notes/20261125-080437-daynight.md).
+	// Exterior floors (the overworld's ground) instead take the daylight as the mesh does: full plane light, so no
+	// distance darkening, times a grey floor colour. Unity lights its terrain the same at every distance.
 	const int light = clamp(int(*dd_daylight_min + (*dd_daylight_max - *dd_daylight_min) * std::min(Daylight(), 1.f) + 0.5f), 0, 255);
+	const int ground = clamp(int(std::min(Daylight(), 1.f) * 255 + 0.5f), 0, 255);
 	const float density = FogDensity();
 	const PalEntry tint = density > 0 ? FogTint() : PalEntry(0);
 	// Interiors and dungeons take fog only when Daggerfall sends its own (older builds sent weather alone).
 	const bool fog = place == 1 || (haveFog && (place == 2 || place == 3));
 	const int fogUnits = fog ? int(density * FOG_UNITS + 0.5f) : 0;
-	const int key = ((place == 1 ? light : place == 2 ? 1 + world.night : 0) << 20) ^ (fogUnits << 4) ^ int(tint.d) ^ place;
+	const int64_t key = (int64_t(place == 1 ? ground : 0) << 40) ^ (int64_t((place == 1 ? light : place == 2 ? 1 + world.night : 0) << 20) ^ (fogUnits << 4) ^ int(tint.d) ^ place);
 	if (key == applied) return;
 	applied = key;
 	if (fog)
@@ -260,8 +264,14 @@ void ApplyLight(FLevelLocals *Level)
 	}
 	if (place == 1)
 	{
-		for (auto &sec : Level->sectors) sec.SetLightLevel(light);
-		DD_DebugPrintf("DDWEATHER exterior light %d (ambient %d, sun %d at %d deg), weather %d, fog %.2f colour %06x, %d sectors\n", light, world.ambient, world.sun, world.elevation, world.weather, density, int(tint.d & 0xffffff), int(Level->sectors.Size()));
+		for (auto &sec : Level->sectors)
+		{
+			sec.SetLightLevel(light);
+			sec.ChangeFlags(sector_t::floor, 0, PLANEF_ABSLIGHTING);
+			sec.SetPlaneLight(sector_t::floor, 255);
+			sec.SetSpecialColor(sector_t::floor, PalEntry(255, ground, ground, ground));
+		}
+		DD_DebugPrintf("DDWEATHER exterior light %d ground %d (ambient %d, sun %d at %d deg), weather %d, fog %.2f colour %06x, %d sectors\n", light, ground, world.ambient, world.sun, world.elevation, world.weather, density, int(tint.d & 0xffffff), int(Level->sectors.Size()));
 	}
 	else if (place == 2)
 	{
