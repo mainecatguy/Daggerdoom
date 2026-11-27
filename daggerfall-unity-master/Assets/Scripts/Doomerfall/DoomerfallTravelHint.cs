@@ -1,4 +1,5 @@
-// Doomerfall: the danger word the travel map shows for a location, taken from the place's own area level.
+// Doomerfall: the danger word the travel map shows for a dungeon, taken from the place's own area level.
+// Cities, towns and other non-dungeon places show no word (owner, 2026-11-26).
 //
 // The owner asked for a feeling rather than a number (beginner, weak, moderate, very hard, legendary), coming only
 // from the place's level, never its type. Levels are percentile ranks 1 to 30, so equal six-level bands give each
@@ -31,11 +32,34 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         }
 
         /// <summary>
-        /// The danger word for a travel map location, or null while the levels are still being ranked or if they
+        /// True for the location types the travel map's own Dungeons filter button hides: labyrinths, keeps, ruins,
+        /// graveyards and covens.
+        /// </summary>
+        internal static bool IsDungeon(DFRegion.LocationTypes type)
+        {
+            switch (type)
+            {
+                case DFRegion.LocationTypes.DungeonLabyrinth:
+                case DFRegion.LocationTypes.DungeonKeep:
+                case DFRegion.LocationTypes.DungeonRuin:
+                case DFRegion.LocationTypes.Graveyard:
+                case DFRegion.LocationTypes.Coven:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>
+        /// The danger word for a travel map dungeon (null for any other place), or null while the levels are still being ranked or if they
         /// failed. Never waits for the ranking, so the map label can call it every frame.
         /// </summary>
         internal static string ForLocation(ContentReader.MapSummary summary)
         {
+            // Owner (2026-11-26): only dungeons get a word. A city's level comes from its palace dungeon, which says
+            // nothing about its streets, so towns, homes, temples and taverns show none.
+            if (!IsDungeon(summary.LocationType))
+                return null;
             if (hasCache && cachedMapId == summary.MapID)
                 return cachedWord;
             if (!DoomerfallAreaLevels.IsFinished)

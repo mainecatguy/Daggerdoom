@@ -25,16 +25,17 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     internal sealed class DoomerfallTravelHintTest : MonoBehaviour
     {
-        // Region, place. Picked from the area level script output to cover every word and both kinds of place.
+        // Region, place. Dungeons of several levels show a word; the hamlet and the two cities (which have palace
+        // dungeons) show none. report.txt prints each place's current type, level and shown word.
         static readonly string[][] Places =
         {
-            new[] { "Daggerfall", "Privateer's Hold" },     // dungeon, level 1
-            new[] { "Daggerfall", "Gothway Garden" },       // hamlet, no dungeon, terrain level 1
-            new[] { "Daggerfall", "Daggerfall" },           // city with a dungeon, level 7
-            new[] { "Wayrest", "Wayrest" },                 // city with a dungeon, level 16
-            new[] { "Daggerfall", "Castle Necromoghan" },   // dungeon, level 19, in a low region
-            new[] { "Wayrest", "Woodborne Hall" },          // dungeon, level 28
-            new[] { "Orsinium Area", "Orsinium" },          // dungeon, level 29
+            new[] { "Daggerfall", "Privateer's Hold" },     // dungeon
+            new[] { "Daggerfall", "Gothway Garden" },       // hamlet, no dungeon
+            new[] { "Daggerfall", "Daggerfall" },           // city with a palace dungeon
+            new[] { "Wayrest", "Wayrest" },                 // city with a palace dungeon
+            new[] { "Daggerfall", "Castle Necromoghan" },   // dungeon
+            new[] { "Wayrest", "Woodborne Hall" },          // dungeon
+            new[] { "Orsinium Area", "Orsinium" },          // dungeon
         };
 
         string dir;
@@ -119,30 +120,40 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 DoomerfallAreaLevels.Level level;
                 DoomerfallAreaLevels.ForLocation(location, out level);
                 string file = Safe(place[1]) + ".png";
-                report.AppendFormat("{0} / {1}: dungeon {2}, terrain {3}, area {4}, word {5}, label \"{6}\", file {7}\n", place[0], place[1],
-                    level.dungeon, level.terrain, level.Area, DoomerfallTravelHint.Word(level.Area), window.Label, file);
+                report.AppendFormat("{0} / {1}: type {2}, dungeon {3}, terrain {4}, area {5}, shown word {6}, label \"{7}\", file {8}\n", place[0], place[1],
+                    summary.LocationType, level.dungeon, level.terrain, level.Area, DoomerfallTravelHint.ForLocation(summary) ?? "(none)", window.Label, file);
                 ScreenCapture.CaptureScreenshot(Path.Combine(dir, file));
                 yield return new WaitForEndOfFrame();
                 yield return null;
             }
 
-            // The confirmation box the Find Location button shows, for the level 19 castle.
-            ContentReader.MapSummary castle;
-            DFLocation unused;
-            if (Find("Daggerfall", "Castle Necromoghan", out castle, out unused))
-            {
-                window.Show(castle);
-                for (int i = 0; i < 5; i++)
-                    yield return null;
-                window.Confirm();
-                for (int i = 0; i < 10; i++)
-                    yield return null;
-                ScreenCapture.CaptureScreenshot(Path.Combine(dir, "confirm.png"));
-                yield return new WaitForEndOfFrame();
-                yield return null;
-                report.AppendLine("confirm: top window " + ui.TopWindow.GetType().Name);
-            }
+            // The confirmation box the Find Location button shows: the castle has a Danger line, the city none.
+            yield return ConfirmShot(window, ui, report, "Castle Necromoghan", "confirm.png");
+            yield return ConfirmShot(window, ui, report, "Daggerfall", "confirm_city.png");
             report.AppendLine("done");
+        }
+
+        IEnumerator ConfirmShot(TestWindow window, IUserInterfaceManager ui, StringBuilder report, string name, string file)
+        {
+            ContentReader.MapSummary summary;
+            DFLocation unused;
+            if (!Find("Daggerfall", name, out summary, out unused))
+                yield break;
+            for (int pops = 0; ui.TopWindow != window && pops < 5; pops++)
+            {
+                ui.PopWindow();
+                yield return null;
+            }
+            window.Show(summary);
+            for (int i = 0; i < 5; i++)
+                yield return null;
+            window.Confirm();
+            for (int i = 0; i < 10; i++)
+                yield return null;
+            ScreenCapture.CaptureScreenshot(Path.Combine(dir, file));
+            yield return new WaitForEndOfFrame();
+            yield return null;
+            report.AppendLine("confirm " + name + ": top window " + ui.TopWindow.GetType().Name + ", file " + file);
         }
 
         static bool Find(string region, string name, out ContentReader.MapSummary summary, out DFLocation location)
