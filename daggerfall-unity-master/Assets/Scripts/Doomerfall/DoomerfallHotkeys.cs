@@ -469,6 +469,27 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             Send(Dfb.KIND_GUN_EQUIP, request, Dfb.GUN_CLEAR, "");
         }
 
+        // A bridged New Game's starting guns (DoomerfallStartingGun), already in the inventory. Each goes on the first free
+        // plain square of its weapon slot key. Doom keeps only its fist, then the first gun is drawn.
+        internal void BeginStartKit(IList<DoomerfallDoomItem> guns, IList<int> slots)
+        {
+            ResetState(); // A new character: only the fist, and nothing adopted counts.
+            adoptWanted = false; // Doom's new game guns are not the player's.
+            plainDraw = null;
+            plainKey = plainSquare = -1;
+            for (int i = 0; i < guns.Count; i++)
+            {
+                int k = slots[i], q = FirstSquare(k >= 0 && k < Keys ? k : 0);
+                while (k >= 0 && k < Keys && q < 3 && table[k, q] != null) q++;
+                bool placed = k >= 0 && k < Keys && q < 3;
+                if (placed) Assign(k, q, guns[i]);
+                if (i == 0) { plainDraw = guns[i]; plainKey = placed ? k : -1; plainSquare = placed ? q : 0; }
+            }
+            Log(string.Format("new game: starting guns given, table {0}; Doom keeps only its fist first", Describe()));
+            Begin(Dfb.GUN_CLEAR, null, -1, -1);
+            Send(Dfb.KIND_GUN_EQUIP, request, Dfb.GUN_CLEAR, "");
+        }
+
         // ---- Presses ----
 
         internal void OnEvent(ushort kind, uint req, uint status, string cls)
@@ -623,7 +644,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 adopted.Add(item);
             }
             else if (requestFlags == Dfb.GUN_CLEAR && plainDraw != null)
-                Log(string.Format("plain load: Doom put away its new game gun \"{0}\"; not added", cls));
+                Log(string.Format("plain load or New Game kit: Doom put away its new game gun \"{0}\"; not added", cls));
             else
                 Log(string.Format("Doom held an unexpected gun \"{0}\" (state \"{1}\"); not added", cls, state));
         }

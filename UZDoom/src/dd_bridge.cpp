@@ -2091,6 +2091,7 @@ void NgSendArrived(bool ok)
 		arrivalSave = false;
 		Log("save: dropped the autosave for a map change, a New Game or plain load is arriving");
 	}
+	if (ok) DD_ItemsSendStarter(); // Daggerfall gives the starting guns from it: a New Game's and a plain load's.
 	dfb_event e{};
 	e.kind = DFB_KIND_NEWGAME_ARRIVED;
 	e.tic = gametic;
@@ -2153,8 +2154,7 @@ void PlainArrived()
 	else if (DDTreadmill_PlayerSpace(x, y, z, yaw, target))
 		Log("plain load: Doom player at %.1f,%.1f,%.1f yaw %.1f in space %d, %.1f units from the save", x, y, z, yaw, target,
 			sqrt((x - plainWorld.start_x) * (x - plainWorld.start_x) + (y - plainWorld.start_y) * (y - plainWorld.start_y)));
-	DD_ItemsSendStarter();
-	NgSendArrived(true);
+	NgSendArrived(true); // Sends the starter gun facts first.
 	ngState = NgWaitGo;
 }
 

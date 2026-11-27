@@ -94,7 +94,29 @@ every class, replaced by other skills, for example Running for the Assassin and 
 
 Your Daggerfall class is your only class. New Game goes straight from Doom's menu to Daggerfall's character creation,
 with no Doom Roguelike Arsenal class menu, and your Doom character has no DRLA class perk (no Marine Ammochain and the
-like). You start with fists and a pistol. Perks come from your skills.
+like). You start with fists and a gun chosen by your best gun skill (below). Perks come from your skills.
+
+### Your starting gun
+
+When guns are in the game, a new character starts with the most basic gun of their highest gun skill, instead of the
+pistol. The pistol's usual starting bullets (60 with the Doom Roguelike Arsenal, 50 without) set the ammo:
+
+| Highest skill | Starting gun | Starting ammo |
+|---|---|---|
+| Pistols | Pistol | 60 bullets (50) |
+| Rifles | Light Carbine | 60 bullets (50) |
+| Automatics | Chaingun | 60 bullets (50) |
+| Shotguns | Shotgun | 20 shells (16) |
+| Explosives | Rocket launcher | 12 rockets (10) |
+| Melee | Chainsaw | none |
+
+- With the Doom Roguelike Arsenal you get its version of the gun; without it, stock Doom's. The Light Carbine is the
+  same either way.
+- Only these six skills count. Hand-to-Hand, Energy Weapons and Daggerfall's old weapon skills do not.
+- **A tie gives you every tied gun.** Ammo of one kind is not doubled: Pistols and Rifles tied at 30 give a pistol, a
+  Light Carbine and 60 bullets. The first gun in the table's order is in your hands; the others are in your inventory.
+- Each starting gun goes on its usual number key (pistol 2, shotgun 3, chaingun and Light Carbine 4, rocket launcher
+  5, chainsaw on 1 after your fists).
 
 ## Perks
 

@@ -914,7 +914,7 @@ void DD_ItemsResync()
 	sentLevel = -2;
 }
 
-// Plain Daggerfall load (no Doom half): tells Daggerfall the starter gun, the loaded mods' pistol (DRLA's RLPistol, else
+// New Game and plain Daggerfall load arrivals (NgSendArrived): tells Daggerfall the starter gun, the loaded mods' pistol (DRLA's RLPistol, else
 // stock Pistol) by its world pickup class, its weapon slot, and the player class's start amount of its reserve ammo.
 void DD_ItemsSendStarter()
 {
