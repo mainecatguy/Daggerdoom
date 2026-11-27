@@ -167,3 +167,9 @@ A door you have picked open reads **Door**.
 - When you go through a door into or out of a dungeon or building, or walk out of a town, the game pauses until the
   new place is ready (and autosaved, if autosaves are on). A long wait shows **Loading...**. Nothing in the new place moves or
   attacks you until play resumes.
+
+## Damage numbers
+
+Turn on **Show damage numbers** in Options, HUD Options to see how much damage each of your hits does: a small gold
+number rises over the monster you hit and fades in about a second. Hits that land together, such as shotgun pellets,
+show as one number. It is off by default.
