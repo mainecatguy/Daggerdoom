@@ -139,6 +139,30 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             foreach (DaggerfallBillboardBatch batch in FindObjectsOfType<DaggerfallBillboardBatch>())
                 if (Vector3.Distance(batch.transform.position, terrain.transform.position) < 2 * unityTerrain.terrainData.size.x)
                     report.AppendLine($"  batch {batch.name} at {batch.transform.position} parent {(batch.transform.parent ? batch.transform.parent.name : "-")}");
+            // The drawn billboards nearest the player, from the batch meshes (vertex positions in world space).
+            Vector3 me = GameManager.Instance.PlayerObject.transform.position;
+            var near = new List<Vector3>();
+            foreach (DaggerfallBillboardBatch batch in FindObjectsOfType<DaggerfallBillboardBatch>())
+            {
+                MeshFilter mf = batch.GetComponent<MeshFilter>();
+                if (mf && mf.sharedMesh)
+                    foreach (Vector3 v in mf.sharedMesh.vertices)
+                    {
+                        Vector3 w = batch.transform.TransformPoint(v);
+                        if (Mathf.Abs(w.x - me.x) < 13 && Mathf.Abs(w.z - me.z) < 13) near.Add(w);
+                    }
+            }
+            report.AppendLine($"  fov {Camera.main.fieldOfView}; billboard vertices within 2 tiles: {near.Count}");
+            // Every billboard this pixel's own batch draws, as tiles: what the game shows, against the layout above.
+            var drawn = new SortedSet<string>();
+            DaggerfallBillboardBatch own = terrain.GetComponentInChildren<DaggerfallBillboardBatch>();
+            MeshFilter ownMesh = own ? own.GetComponent<MeshFilter>() : null;
+            if (ownMesh && ownMesh.sharedMesh)
+                foreach (Vector3 v in ownMesh.sharedMesh.vertices)
+                    drawn.Add($"{Mathf.RoundToInt(v.x / tile)} {Mathf.RoundToInt(v.z / tile)}");
+            File.WriteAllLines(Path.Combine(dir, $"drawn_{mx}_{my}.txt"), drawn);
+            foreach (Vector3 v in near.GetRange(0, Mathf.Min(24, near.Count)))
+                report.AppendLine($"    vertex {v} = tile ({(v.x - terrain.transform.position.x) / tile:F2}, {(v.z - terrain.transform.position.z) / tile:F2})");
         }
 
         // DefaultTerrainNature.LayoutNature's own steps, recording each flat instead of drawing it.
