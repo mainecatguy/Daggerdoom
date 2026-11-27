@@ -90,18 +90,14 @@ namespace
 	std::unordered_map<int, std::vector<RingFlat>> pixelFlats;
 	struct FlatBatch { int texture, first, count; };
 	std::vector<FlatBatch> flatBatches;	// flat quads follow the terrain in the same buffer, one batch per texture
-	int flatCount;
 	bool flatsIncomplete;	// the last build lacked pixels that were not laid out yet
 	Key flatsBuilt;
 
 	constexpr int PIXEL = 128;
 	int PixelKey(int px, int north) { return north * 1000 + px; }
 
-	int laidOut;
-	double layoutMax, layoutTotal;	// pixel layouts since the last flats build, for the log
 	void LayOut(int px, int north)
 	{
-		const uint64_t start = I_nsTime();
 		static std::vector<DDHorizonFlat> raw;
 		raw.clear();
 		DDTreadmill_HorizonFlats(px, north, raw);
@@ -116,10 +112,6 @@ namespace
 			out.push_back({ fl.gx, fl.gy, fl.texture, CoarseHeight(fl.gx, fl.gy), fl.sink,
 				left, left + tex->GetDisplayWidth() * fl.sx, top, top - tex->GetDisplayHeight() * fl.sy });
 		}
-		const double ms = (I_nsTime() - start) / 1e6;
-		laidOut++;
-		layoutMax = std::max(layoutMax, ms);
-		layoutTotal += ms;
 	}
 
 	// The map pixels that reach into the ring around a key's chunk, nearest first.
@@ -276,7 +268,6 @@ namespace
 
 	void BuildFlats(const Key &key)
 	{
-		const uint64_t start = I_nsTime();
 		const Band band(key);
 		auto fineHeight = [&](int x, int y) { return band.FineHeight(x, y); };
 		const int fx0 = band.fx0, fx1 = band.fx1, fy0 = band.fy0, fy1 = band.fy1;
@@ -313,12 +304,10 @@ namespace
 			return (exact ? fineHeight(fl->gx, fl->gy) : fl->coarseZ) - fl->sink;
 		};
 		flatBatches.clear();
-		flatCount = 0;
 		const float eyeX = float((midX - anchorX) * TILE), eyeY = float((midY - anchorY) * TILE);
 		for (auto &group : byTexture)
 		{
 			flatBatches.push_back({ group.first, int(verts.size()), int(group.second.size()) * 6 });
-			flatCount += int(group.second.size());
 			for (const RingFlat *fl : group.second)
 				FlatQuad(float((fl->gx - anchorX) * TILE), float((fl->gy - anchorY) * TILE), groundZ(fl), fl->left, fl->right, fl->top, fl->bottom, eyeX, eyeY);
 		}
@@ -339,10 +328,7 @@ namespace
 			std::copy(verts.begin(), verts.end(), out);
 			flatBuffer->UnlockVertexBuffer();
 		}
-		DD_DebugPrintf("DDHORIZON built %d far and %d near flats (%d textures) around tile %d,%d in %.1f ms; %d pixels laid out before it, one per frame, longest %.1f ms, total %.1f ms\n",
-			flatCount, int(nearFlats.size()), int(flatBatches.size()), key.cx, key.cy, (I_nsTime() - start) / 1e6, laidOut, layoutMax, layoutTotal);
-		laidOut = 0;
-		layoutMax = layoutTotal = 0;
+		DD_DebugPrintf("DDHORIZON built flats around tile %d,%d: %d near, %d textures far\n", key.cx, key.cy, int(nearFlats.size()), int(flatBatches.size()));
 	}
 }
 
