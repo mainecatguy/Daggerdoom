@@ -23,10 +23,11 @@ import run_new_game as ng  # noqa: E402  (its window-message driver for Daggerfa
 
 DRLA = [Path(r"D:\dev\DoomDaggerfall\GameMods") / n for n in ("DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3")]
 DATA = ["ddruntime.pk3", "overworld.pk3", "privateershold.wad", "privateershold_mesh.pk3", "privateershold_doors.pk3"]
-# The diagonal corridor by the entrance (notes 20261126-225039); two corridor-side 45-degree bevels, which the old
-# converter left as grid steps and the new one writes as 44.4-degree planes; a wide 26.6-degree ramp (a plane before too).
-# Found by an engine scan of floor normals; 840,-96 from the earlier notes is a steep stair (flat 96-unit steps).
-SPOTS = "700,860;20,620;940,1512;2300,1700"
+# The diagonal corridor by the entrance (notes 20261126-225039); two 45-degree corridor-side bevels, which the old
+# converter left as flat 8-unit steps and the new one writes as 44.4-degree planes; a visible 26.6-degree ramp. Chosen and
+# checked against the visible mesh with floor_check.py (evidence in work/notes/20261126-231823.md). 840,-96 from the
+# earlier notes is a 69-degree stair, which stays stepped by design.
+SPOTS = "700,860;52,620;931,1490;690,-300"
 TIMEOUT = 420
 
 
