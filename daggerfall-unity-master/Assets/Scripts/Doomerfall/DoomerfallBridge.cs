@@ -546,7 +546,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
             if (loadingPause == null)
                 loadingPause = new DoomerfallLoadingPause(this);
-            loadingPause.Tick(alive && peer.uzPhase == Dfb.UZ_PHASE_LOADING);
+            // Doom does not publish while a hold blocks its main thread (a big dungeon spawn), so a LOADING state stays held
+            // well past the 1 s heartbeat limit; only a dead Doom (no state for 60 s) releases it without a fresh phase.
+            loadingPause.Tick(age >= 0 && age < 60000000000L && peer.uzPhase == Dfb.UZ_PHASE_LOADING);
             DoomerfallLoadingPauseTest.Tick(this, loadingPause.Held);
 
             if (alive && now >= nextPingNs)
