@@ -16,7 +16,9 @@ One launch through the launcher and quiet_run.py: UZDoom on DOOM.WAD E1M1 with t
 harness, the harness walking forward; Daggerfall Unity with -dfsynctest and -dfattrtest, which sets Strength and Speed to 0, 100,
 50 and 10 in turn. Checks, for every report with a Daggerfall character: fists and chainsaw deal pistol damage times
 1 + Strength/100 (Doom's integer rounding), the speed factor is 0.75 + Speed/200, and low and high values were both
-seen, with the distance walked in 12 tics in the ratio of the speed factors.
+seen, with the distance walked in 12 tics in the ratio of the speed factors. Source checks (Strength above 0, really
+holding fists): a rocket fired from a pistol and a barrel credited to the player do pistol damage, while a rocket fired
+while holding fists and a direct fist hit are boosted.
 """
 import re
 import shutil
@@ -32,6 +34,7 @@ DAGGER = r"D:\dev\DoomDaggerfall\GameResources\DAGGER"
 MODS = Path(r"D:\dev\DoomDaggerfall\GameMods")
 DRLA = [MODS / f for f in ["DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3"]]
 LINE = re.compile(r"ATTR str=(-?\d+) spd=(-?\d+) fist=(\d+) saw=(\d+) pistol=(\d+) move=([\d.]+) tweak=([\d.]+) item=(\d)")
+SRC = re.compile(r"ATTRSRC str=(\d+) gunrocket=(\d+) meleerocket=(\d+) barrel=(\d+) fist=(\d+) pistol=(\d+) held=(\w+) punch=(\d+)")
 BAD = re.compile(r'Script error, "(doomerfall|attr-harness)\.pk3|(doomerfall|attr-harness)\.pk3:zscript\S*, line \d+|\bFatal error|VM execution aborted', re.I)
 BG = ["+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+vid_fullscreen", "0"]
 
@@ -160,6 +163,20 @@ def paired(source, build, dfu, bridge, launcher, work):
         print(f"walk ratio high/low {got:.3f}, speed factor ratio {want:.3f}")
         checks.append(("high Strength hits harder with melee than low", hi[2] > lo[2] and hi[3] > lo[3]))
         checks.append(("walked distance follows the speed factor (within 5%)", lo[5] > 0 and abs(got / want - 1) < 0.05))
+    # The bonus follows the attack that dealt the damage, not the weapon held when it lands.
+    src = [m for m in map(SRC.search, con) if m]
+    for m in src:
+        print("  ", m.group(0))
+    checks.append(("source test ran with Strength above 0, holding fists", bool(src)))
+    if src:
+        s, g, mr, b, f, pc = (int(x) for x in src[0].groups()[:6])
+        boosted = max(1, int(pc * (1 + min(s, 100) / 100.0)))
+        print(f"source test str {s}: gun rocket {g}, fist rocket {mr}, barrel {b}, fist {f}, pistol {pc}, boosted {boosted}")
+        checks.append(("gun-fired rocket landing while fists are held is not boosted", g == pc and boosted > pc))
+        checks.append(("barrel credited to the player while fists are held is not boosted", b == pc))
+        checks.append(("rocket fired while holding fists is boosted (traced to the melee attack)", mr == boosted))
+        checks.append(("direct fist hit is boosted", f == boosted))
+        checks.append(("real hitscan punch (puff as inflictor) is boosted", int(src[0].group(8)) == boosted))
     return checks
 
 

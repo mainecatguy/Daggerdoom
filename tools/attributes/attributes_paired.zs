@@ -9,6 +9,7 @@ version "3.3"
 //     (the function Doom's movement calls) applies to a walking forward move.
 // Prints one line per measurement:
 //   ATTR str=<live> spd=<live> fist=<lost> saw=<lost> pistol=<lost> move=<units> tweak=<factor> item=<0|1>
+// and once, the source test (SourceTest): ATTRSRC ...
 class AttrDummy : Actor
 {
 	Default
@@ -35,8 +36,102 @@ class AttrPaired : StaticEventHandler
 	double homeAngle;
 	bool haveHome;
 	int fist, saw, pistol;
+	int srcPhase, srcWait;
+	bool srcDone;
+	Actor gunRocket, meleeRocket;
 
 	override void OnRegister() { lastStr = -2; lastSpd = -2; }
+
+	// Once, at the first Strength above 0: the bonus must follow the attack that dealt the damage, not the weapon held
+	// when it lands. Really switches to a pistol and fires (spawns) a rocket owned by the player, really switches to
+	// fists and fires another, then, holding fists, hits dummies with: the gun-fired rocket (as its impact or splash
+	// would), the fist-fired rocket, a barrel credited to the player, the player directly, and a pistol control.
+	//   ATTRSRC str=<live> gunrocket=<lost> meleerocket=<lost> barrel=<lost> fist=<lost> pistol=<lost>
+	void SourceTest(PlayerInfo p, int s)
+	{
+		let mo = p.mo;
+		if (srcPhase == 0)
+		{
+			if (Ready(p, "Pistol"))
+			{
+				gunRocket = Fire(mo);
+				srcPhase = 1;
+			}
+		}
+		else if (srcPhase == 1)
+		{
+			if (Ready(p, "Fist"))
+			{
+				meleeRocket = Fire(mo);
+				srcPhase = 2;
+				srcWait = 0;
+			}
+		}
+		else if (++srcWait > 3)
+		{
+			let barrel = Actor.Spawn("ExplosiveBarrel", mo.Pos + (0, 0, -1000), NO_REPLACE);
+			barrel.bNoInteraction = true;
+			barrel.target = mo;
+			int g = HitWith(mo, gunRocket), m = HitWith(mo, meleeRocket), b = HitWith(mo, barrel), f = HitWith(mo, mo);
+			Console.Printf("ATTRSRC str=%d gunrocket=%d meleerocket=%d barrel=%d fist=%d pistol=%d held=%s punch=%d", s, g, m, b, f,
+				Hit(p, "Pistol"), p.ReadyWeapon ? p.ReadyWeapon.GetClassName() : 'none', Punch(mo));
+			barrel.Destroy();
+			if (gunRocket) gunRocket.Destroy();
+			if (meleeRocket) meleeRocket.Destroy();
+			srcDone = true;
+		}
+	}
+
+	// Switches to a weapon of this class for real; true once it is up.
+	bool Ready(PlayerInfo p, class<Weapon> wc)
+	{
+		let w = Weapon(p.mo.FindInventory(wc));
+		if (!w)
+		{
+			p.mo.GiveInventory(wc, 1);
+			w = Weapon(p.mo.FindInventory(wc));
+			if (!w) return false;
+		}
+		if (p.ReadyWeapon != w)
+		{
+			if (p.PendingWeapon != w) p.PendingWeapon = w;
+			return false;
+		}
+		return p.PendingWeapon == WP_NOCHANGE;
+	}
+
+	// A rocket the player fired this tic, frozen out of the way so it never explodes by itself.
+	Actor Fire(Actor mo)
+	{
+		let r = Actor.Spawn("Rocket", mo.Pos + (0, 0, -1000), NO_REPLACE);
+		r.bNoInteraction = true;
+		r.target = mo;
+		return r;
+	}
+
+	// A real 20-point hitscan punch (LineAttack, so a puff is the inflictor, as for A_Punch and A_Saw) at a dummy just
+	// in front of the player, who stands where the walk test put them back. 0 if the dummy was not hit.
+	int Punch(Actor mo)
+	{
+		let dummy = Actor.Spawn("AttrDummy", mo.Vec3Angle(mo.radius + 20, mo.Angle), NO_REPLACE);
+		dummy.Height = 128;
+		int before = dummy.Health;
+		mo.LineAttack(mo.Angle, 64, 0, 20, 'Melee', "BulletPuff");
+		int lost = before - dummy.Health;
+		dummy.Destroy();
+		return lost;
+	}
+
+	// Health a fresh dummy loses to a 20-point hit with this inflictor and the player as source.
+	int HitWith(Actor mo, Actor inflictor)
+	{
+		let dummy = Actor.Spawn("AttrDummy", mo.Pos + (0, 0, -1000), NO_REPLACE);
+		int before = dummy.Health;
+		dummy.DamageMobj(inflictor, mo, 20, 'None');
+		int lost = before - dummy.Health;
+		dummy.Destroy();
+		return lost;
+	}
 
 	override void WorldTick()
 	{
@@ -46,7 +141,11 @@ class AttrPaired : StaticEventHandler
 		if (!haveHome) { home = mo.Pos; homeAngle = mo.Angle; haveHome = true; }
 		int s = Actor.DD_SheetStat(0), v = Actor.DD_SheetStat(6);
 		if (s != lastStr || v != lastSpd) { lastStr = s; lastSpd = v; stable = 0; measured = false; moveTimer = 0; return; }
-		if (measured) return;
+		if (measured)
+		{
+			if (s > 0 && !srcDone) SourceTest(p, s);
+			return;
+		}
 		if (++stable < SettleTics) return;
 		if (moveTimer == 0)
 		{
