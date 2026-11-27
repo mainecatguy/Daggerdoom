@@ -94,6 +94,8 @@ git -C D:\dev\DoomDaggerfall merge-base --is-ancestor integration <branch>
 git -C D:\dev\DoomDaggerfall fetch . <branch>:integration
 ```
 
+After verification and before merging, delete that work's old builds (owner, 2026-11-26; the disk filled to over 300 GB). Remove its per-feature build folders in `D:\dev\DoomDaggerfall-build` (such as `uzdoom-<feature>` and `merge-<feature>`) and older review installs or `verify/*` worktrees in `D:\dev\DoomDaggerfall-loop\review` that it replaces. Remove worktrees with `git worktree remove`, not by deleting the folder. Never delete `DoomDaggerfall-build\uzdoom` or `uzdoom-launcher` (scripts use them), a running lane's folders, or anything a running game or build is using (check `Get-Process uzdoom`). Keep the build that the owner will play-test until they are done with it.
+
 Use `git merge-tree --write-tree <a> <b>` for a trial merge. After merging, update `CHANGELOG.md` and anything that became stale.
 
 The owner wants finished work merged to `integration` regularly, when it does not make things worse and does not interrupt running work. When the main checkout is on `integration`, a normal `git merge` works. If you move `integration` with `update-ref` instead, the main checkout's files stay behind: run `git -C D:\dev\DoomDaggerfall read-tree -m -u <old> <new>` afterward (it keeps uncommitted edits and refuses on overlap).
