@@ -838,6 +838,7 @@ set (PCH_SOURCES
 	playsim/dd_towncache.cpp # [Doomerfall]
 	playsim/dd_lights.cpp # [Doomerfall]
 	playsim/dd_weather.cpp # [Doomerfall]
+	playsim/dd_dftextures.cpp # [Doomerfall]
 	playsim/dd_log.cpp # [Doomerfall]
 	playsim/p_user.cpp
 	rendering/r_utility.cpp

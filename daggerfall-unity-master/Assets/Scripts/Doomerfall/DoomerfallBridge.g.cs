@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x324f1817b9f85182UL;
+        public const ulong SchemaHash = 0x3fd1dd90281ad776UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -147,6 +147,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_TOWNSFOLK_END = 66;  // DF to UZ; the list is complete, and anyone not in it is out of sight; payload: dfb_townsfolk
         public const ushort KIND_TOWNSPERSON_DEATH = 67;  // UZ to DF; a townsperson died; payload: dfb_townsperson_death
         public const ushort KIND_TOWNSFOLK_REQUEST = 68;  // UZ to DF; send the current list again; payload: dfb_townsfolk
+        public const ushort KIND_TOWNSFOLK_CORPSE = 69;  // DF to UZ; one corpse in sight; payload: dfb_corpse
+        public const ushort KIND_CORPSE_PLACE = 70;  // UZ to DF; where a Daggerfall person's body fell; payload: dfb_corpse_place
         public const ushort KIND_GUARD_SPAWN = 160;  // DF to UZ; payload: dfb_guard_spawn
         public const ushort KIND_GUARD_DEATH = 161;  // UZ to DF; that guard's Doom bot died; payload: dfb_guard_death
         public const uint GUARD_TAG = 4;
@@ -320,8 +322,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint TOWNSFOLK_INTERIOR = 1;
 
         // Native size of every generated struct, for the attach check.
-        public static readonly Type[] StructTypes = { typeof(DfbFaces), typeof(DfbFace), typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbPlainLoad), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbWorldContainer), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbInfoRequest), typeof(DfbInfoText), typeof(DfbDoomItem), typeof(DfbDoor), typeof(DfbItemArt), typeof(DfbClimbUses), typeof(DfbNpcUse), typeof(DfbNpcUseResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbEncounterArea), typeof(DfbEncounterText), typeof(DfbPlace), typeof(DfbPlaceName), typeof(DfbPlaceFact), typeof(DfbPlacePlan), typeof(DfbNpc), typeof(DfbTownsfolk), typeof(DfbTownsperson), typeof(DfbTownspersonDeath), typeof(DfbGuardSpawn), typeof(DfbGuardDeath), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
-        public static readonly int[] StructSizes = { 8, 16, 64, 24, 24, 16, 24, 24, 48, 32, 48, 48, 32, 16, 48, 40, 16, 48, 32, 48, 48, 32, 464, 8, 24, 16, 32, 32, 48, 48, 32, 48, 48, 32, 16, 32, 40, 24, 40, 8, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
+        public static readonly Type[] StructTypes = { typeof(DfbFaces), typeof(DfbFace), typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbPlainLoad), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbWorldContainer), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbInfoRequest), typeof(DfbInfoText), typeof(DfbDoomItem), typeof(DfbDoor), typeof(DfbItemArt), typeof(DfbClimbUses), typeof(DfbNpcUse), typeof(DfbNpcUseResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbEncounterArea), typeof(DfbEncounterText), typeof(DfbPlace), typeof(DfbPlaceName), typeof(DfbPlaceFact), typeof(DfbPlacePlan), typeof(DfbNpc), typeof(DfbTownsfolk), typeof(DfbTownsperson), typeof(DfbCorpse), typeof(DfbCorpsePlace), typeof(DfbTownspersonDeath), typeof(DfbGuardSpawn), typeof(DfbGuardDeath), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
+        public static readonly int[] StructSizes = { 8, 16, 64, 24, 24, 16, 24, 24, 48, 32, 48, 48, 32, 16, 48, 40, 16, 48, 32, 48, 48, 32, 464, 8, 24, 16, 32, 32, 48, 48, 32, 48, 48, 32, 16, 32, 40, 32, 32, 24, 40, 8, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
     }
 
     static class DfbBytes
@@ -431,6 +433,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public DfbTownsfolk townsfolk;  // TOWNSFOLK_BEGIN, TOWNSFOLK_END, TOWNSFOLK_REQUEST
         [FieldOffset(16)] public DfbTownsperson townsperson;  // TOWNSPERSON
         [FieldOffset(16)] public DfbTownspersonDeath townspersonDeath;  // TOWNSPERSON_DEATH
+        [FieldOffset(16)] public DfbCorpse corpse;  // TOWNSFOLK_CORPSE
+        [FieldOffset(16)] public DfbCorpsePlace corpsePlace;  // CORPSE_PLACE
         [FieldOffset(16)] public DfbGuardSpawn guardSpawn;  // GUARD_SPAWN
         [FieldOffset(16)] public DfbGuardDeath guardDeath;  // GUARD_DEATH
         [FieldOffset(16)] public DfbPlace place;  // PLACE_BEGIN, PLACE_END, PLACE_REQUEST
@@ -1169,6 +1173,29 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(28)] public float vy;
         [FieldOffset(32)] public float facing;  // Doom angle in degrees: 0 is east, counterclockwise
         [FieldOffset(36)] public float z;  // interior lists: Doom height of the spot, so the right storey is found; else 0
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 32)]
+    struct DfbCorpse
+    {
+        [FieldOffset(0)] public ulong id;  // the dead person's id
+        [FieldOffset(8)] public uint generation;
+        [FieldOffset(12)] public ushort archive;
+        [FieldOffset(14)] public ushort record;
+        [FieldOffset(16)] public float x;
+        [FieldOffset(20)] public float y;
+        [FieldOffset(24)] public float z;
+        [FieldOffset(28)] public float pad;
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 32)]
+    struct DfbCorpsePlace
+    {
+        [FieldOffset(0)] public ulong id;
+        [FieldOffset(8)] public double x;
+        [FieldOffset(16)] public double y;
+        [FieldOffset(24)] public float z;
+        [FieldOffset(28)] public uint space;  // DFB_TOWNSFOLK_STREETS or DFB_TOWNSFOLK_INTERIOR
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 24)]

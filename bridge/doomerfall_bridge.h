@@ -229,6 +229,10 @@ extern "C" {
 #define DFB_KIND_TOWNSFOLK_END     66  /* DF to UZ; the list is complete, and anyone not in it is out of sight; payload: dfb_townsfolk */
 #define DFB_KIND_TOWNSPERSON_DEATH 67  /* UZ to DF; a townsperson died; payload: dfb_townsperson_death */
 #define DFB_KIND_TOWNSFOLK_REQUEST 68  /* UZ to DF; send the current list again; payload: dfb_townsfolk */
+/* Corpses of Daggerfall people (townspeople, guards) that Daggerfall keeps. They are listed inside a townsfolk list, in
+   its coordinates and generation; anyone not listed is out of sight. Doom reports where a body fell, before its death event. */
+#define DFB_KIND_TOWNSFOLK_CORPSE  69  /* DF to UZ; one corpse in sight; payload: dfb_corpse */
+#define DFB_KIND_CORPSE_PLACE      70  /* UZ to DF; where a Daggerfall person's body fell; payload: dfb_corpse_place */
 
 /* Guards: Daggerfall spawned a city guard. Its own copy stays inert, and Doom runs a hostile bot in its place.
    A guard id is tag (3, value 4) | Daggerfall's spawn serial (61). One event per guard; index and count describe the group. */
@@ -852,6 +856,29 @@ typedef struct dfb_townsperson
 	float facing;         /* Doom angle in degrees: 0 is east, counterclockwise */
 	float z;              /* interior lists: Doom height of the spot, so the right storey is found; else 0 */
 } dfb_townsperson;
+
+/* A corpse Daggerfall keeps, drawn with its billboard archive and record. x, y and z as in dfb_townsperson. */
+typedef struct dfb_corpse
+{
+	uint64_t id;          /* the dead person's id */
+	uint32_t generation;
+	uint16_t archive;
+	uint16_t record;
+	float x;
+	float y;
+	float z;
+	float pad;
+} dfb_corpse;
+
+/* Streets (DFB_TOWNSFOLK_STREETS): x east and y north in Daggerfall world units. Interior: Doom map units, z the floor. */
+typedef struct dfb_corpse_place
+{
+	uint64_t id;
+	double x;
+	double y;
+	float z;
+	uint32_t space;       /* DFB_TOWNSFOLK_STREETS or DFB_TOWNSFOLK_INTERIOR */
+} dfb_corpse_place;
 
 /* Position is Daggerfall world units, for logs. */
 typedef struct dfb_townsperson_death

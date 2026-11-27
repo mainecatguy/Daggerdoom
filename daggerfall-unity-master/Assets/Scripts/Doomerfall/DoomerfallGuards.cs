@@ -92,6 +92,18 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             pending.Clear();
         }
 
+        // The corpse image of that guard's Daggerfall copy, as EnemyDeath would pick it. False if there is no copy.
+        internal bool CorpseOf(ulong id, out int archive, out int record)
+        {
+            archive = record = 0;
+            GameObject guard;
+            MobileUnit unit = copies.TryGetValue(id, out guard) && guard ? guard.GetComponentInChildren<MobileUnit>() : null;
+            if (!unit)
+                return false;
+            DoomerfallCorpses.EnemyCorpse(unit.Enemy, out archive, out record);
+            return true;
+        }
+
         internal void OnDeath(ulong id)
         {
             GameObject guard;

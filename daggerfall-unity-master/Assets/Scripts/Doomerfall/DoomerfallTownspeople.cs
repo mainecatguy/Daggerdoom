@@ -6,6 +6,8 @@
 //
 // Inside a house, this lists the people whose schedule has them at home there (asleep, or indoors at home), each on
 // a spot picked from their own seed, so they are found in the same place on every visit.
+//
+// The ledger also keeps the corpses of people killed in Doom (DoomerfallCorpses.cs), which these lists carry too.
 
 using System;
 using System.Collections.Generic;
@@ -35,6 +37,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public sealed class LedgerData
         {
             public List<string> dead = new List<string>();
+            public List<DoomerfallCorpse> corpses = new List<DoomerfallCorpse>();
         }
 
         internal struct Candidate
@@ -49,6 +52,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         LedgerData ledger = new LedgerData();
         readonly HashSet<ulong> dead = new HashSet<ulong>();
         readonly List<Candidate> candidates = new List<Candidate>();
+        readonly List<DoomerfallCorpse> shownCorpses = new List<DoomerfallCorpse>();
         TownRoster roster;
         uint generation;
         bool listedEmpty = true;
@@ -137,6 +141,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
             double hours = DaggerfallUnity.Instance.WorldTime.Now.ToSeconds() / 3600.0;
             Collect(hours, px, pz);
+            DoomerfallCorpses.Select(ledger.corpses, roster.MapId, 0, roster.OriginX, roster.OriginZ, px, pz, ViewRange, shownCorpses);
             Publish();
             if (test != null) test.AfterPublish(bridge, roster, candidates, hours, px, pz, dead.Count);
         }
@@ -321,12 +326,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         void PublishHome(int building)
         {
+            DoomerfallCorpses.Select(ledger.corpses, roster.MapId, building, 0, 0, 0, 0, 0, shownCorpses);
             generation++;
             DfbEvent e = default(DfbEvent);
             e.kind = Dfb.KIND_TOWNSFOLK_BEGIN;
             e.tic = (uint)Time.frameCount;
             e.townsfolk.generation = generation;
-            e.townsfolk.count = (uint)candidates.Count;
+            e.townsfolk.count = (uint)(candidates.Count + shownCorpses.Count);
             e.townsfolk.mapId = roster.MapId;
             e.townsfolk.space = Dfb.TOWNSFOLK_INTERIOR;
             bridge.Send(ref e);
@@ -349,9 +355,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 bridge.Send(ref row);
                 line.AppendFormat(" {0:x16}@{1:F0},{2:F0},{3:F0}", p.id, at.x, at.y, at.z);
             }
+            foreach (DoomerfallCorpse c in shownCorpses)
+            {
+                SendCorpse(c, (float)c.x, (float)c.y);
+                line.AppendFormat(" corpse {0}@{1:F0},{2:F0},{3:F0}", c.id, c.x, c.y, c.z);
+            }
             e.kind = Dfb.KIND_TOWNSFOLK_END;
             bridge.Send(ref e);
-            listedEmpty = candidates.Count == 0;
+            listedEmpty = candidates.Count + shownCorpses.Count == 0;
             string text = string.Format("town: at home in building {0}: {1}{2}", building, candidates.Count, line);
             if (text != lastHomeLine)
             {
@@ -396,7 +407,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             e.kind = Dfb.KIND_TOWNSFOLK_BEGIN;
             e.tic = (uint)Time.frameCount;
             e.townsfolk.generation = generation;
-            e.townsfolk.count = (uint)candidates.Count;
+            e.townsfolk.count = (uint)(candidates.Count + shownCorpses.Count);
             e.townsfolk.mapId = roster.MapId;
             e.townsfolk.originX = roster.OriginX;
             e.townsfolk.originZ = roster.OriginZ;
@@ -417,9 +428,66 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 row.townsperson.facing = c.pose.facing;
                 bridge.Send(ref row);
             }
+            foreach (DoomerfallCorpse c in shownCorpses)
+                SendCorpse(c, (float)(c.x - roster.OriginX), (float)(c.y - roster.OriginZ));
             e.kind = Dfb.KIND_TOWNSFOLK_END;
             bridge.Send(ref e);
-            listedEmpty = candidates.Count == 0;
+            listedEmpty = candidates.Count + shownCorpses.Count == 0;
+        }
+
+        void SendCorpse(DoomerfallCorpse c, float x, float y)
+        {
+            DfbEvent row = default(DfbEvent);
+            row.kind = Dfb.KIND_TOWNSFOLK_CORPSE;
+            row.tic = (uint)Time.frameCount;
+            row.corpse.id = Convert.ToUInt64(c.id, 16);
+            row.corpse.generation = generation;
+            row.corpse.archive = (ushort)c.archive;
+            row.corpse.record = (ushort)c.record;
+            row.corpse.x = x;
+            row.corpse.y = y;
+            row.corpse.z = c.z;
+            bridge.Send(ref row);
+        }
+
+        // Doom reports where a Daggerfall person's body fell, just before the death itself. Daggerfall decides the
+        // corpse: a townsperson lies as the human corpse, except a guard, who becomes the city watch instead
+        // (ApplyCrime); a city guard lies as its own enemy corpse (guardCorpse, from DoomerfallGuards).
+        internal void OnCorpsePlace(ulong id, double x, double y, float z, uint space, DoomerfallGuards guards)
+        {
+            string key = id.ToString("x16");
+            int archive = DoomerfallCorpses.HumanArchive, record = DoomerfallCorpses.HumanRecord;
+            if ((id >> 61) == Dfb.TOWNSPERSON_TAG)
+            {
+                TownPerson p = FindPersonAnyState(id);
+                if (p != null && p.guard)
+                {
+                    bridge.LogLine("corpse: " + key + " was a guard, who becomes the city watch and leaves no corpse");
+                    return;
+                }
+            }
+            else if ((id >> 61) != Dfb.GUARD_TAG || !guards.CorpseOf(id, out archive, out record))
+            {
+                bridge.LogLine("corpse: " + key + " is no Daggerfall person this keeps");
+                return;
+            }
+            PlayerGPS gps = GameManager.Instance.PlayerGPS;
+            PlayerEnterExit enter = GameManager.Instance.PlayerEnterExit;
+            bool inside = space == Dfb.TOWNSFOLK_INTERIOR;
+            if (!gps.HasCurrentLocation || (inside && !enter.IsPlayerInsideBuilding) || DoomerfallCorpses.Has(ledger.corpses, key))
+            {
+                bridge.LogLine("corpse: " + key + " not kept (no location, not inside, or already kept)");
+                return;
+            }
+            DoomerfallCorpse c = new DoomerfallCorpse
+            {
+                id = key, mapId = gps.CurrentMapID, building = inside ? enter.BuildingDiscoveryData.buildingKey : 0,
+                x = x, y = y, z = z, archive = archive, record = record,
+            };
+            ledger.corpses.Add(c);
+            bridge.LogLine(string.Format("corpse: kept {0} in map {1} building {2} at {3:F1},{4:F1},{5:F1} as {6}-{7}; {8} corpses in all",
+                key, c.mapId, c.building, x, y, z, archive, record, ledger.corpses.Count));
+            nextPoll = 0;
         }
 
         void PublishEmpty()
@@ -550,11 +618,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             ledger = File.Exists(path) ? (LedgerData)SaveLoadManager.Deserialize(typeof(LedgerData), File.ReadAllText(path)) ?? new LedgerData() : new LedgerData();
             if (ledger.dead == null)
                 ledger.dead = new List<string>();
+            if (ledger.corpses == null)
+                ledger.corpses = new List<DoomerfallCorpse>();
             dead.Clear();
             foreach (string key in ledger.dead)
                 dead.Add(Convert.ToUInt64(key, 16));
             nextPoll = 0;
-            bridge.LogLine("town: ledger restored with " + dead.Count + " deaths");
+            bridge.LogLine("town: ledger restored with " + dead.Count + " deaths and " + ledger.corpses.Count + " corpses");
         }
     }
 }
