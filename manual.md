@@ -52,14 +52,23 @@ You are back in Doom with the new attributes in effect.
 What your attributes do now. They use your current value, so spells and effects that fortify or drain an attribute
 count while they last.
 
+- **Strength:** your melee hits do more damage: +1% per point, so +50% at 50 and double damage at 100. Melee means
+  your fists and kicks and weapons that use the Melee skill, such as the chainsaw, the Ripper and the Energysaw.
+  Shots fired from a gun never get it, even if they land after you switch to your fists. Strength above 100 counts
+  as 100.
 - **Agility:** you reload and switch weapons faster: up to 40% faster at 100 (20% at 50). You also get a chance to
   dodge damage completely: 15% at 100 (7.5% at 50). Agility above 100 counts as 100.
+- **Speed:** how fast you walk and run in Doom. 50 is normal speed; 0 is 25% slower and 100 is 25% faster. It does
+  not change how fast you climb or how high you jump. Speed above 100 counts as 100.
+- **Endurance:** raises your maximum HP (see Health).
 - **Willpower:** changes the damage you take in combat and from the environment (monsters, your own explosions,
   harmful floors, crushers, falls): 20% less at 100, normal at 50, 20% more at 0. It is applied last, after armor and
   resistances. Willpower above 100 counts as 100. It also affects your ability to cast spells.
 - **Luck:** monsters drop ammo more often: each ammo drop has a Luck-in-100 chance to come with a second one, so about
   twice as many ammo drops at 100 (half again as many at 50). It never changes what else a place's monsters drop. Luck above 100
   counts as 100. Luck keeps all its usual Daggerfall effects too.
+- **Intelligence** and **Personality:** work as in Daggerfall (Intelligence sets your spell points; Personality helps
+  when talking, trading and dealing with people).
 
 ## Weapon skills
 
