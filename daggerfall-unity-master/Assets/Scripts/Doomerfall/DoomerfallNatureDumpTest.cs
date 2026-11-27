@@ -134,7 +134,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             yield return new WaitForSecondsRealtime(3f);
             ScreenCapture.CaptureScreenshot(Path.Combine(dir, $"shot_{mx}_{my}.png"));
             yield return new WaitForSecondsRealtime(1f);
-            report.AppendLine($"  done, player at {GameManager.Instance.PlayerObject.transform.position}");
+            report.AppendLine($"  done, player at {GameManager.Instance.PlayerObject.transform.position} camera {Camera.main.transform.position} fwd {Camera.main.transform.forward}");
+            report.AppendLine($"  terrain at {terrain.transform.position} size {unityTerrain.terrainData.size} sampleHeight {unityTerrain.SampleHeight(at)} wanted {at}");
+            foreach (DaggerfallBillboardBatch batch in FindObjectsOfType<DaggerfallBillboardBatch>())
+                if (Vector3.Distance(batch.transform.position, terrain.transform.position) < 2 * unityTerrain.terrainData.size.x)
+                    report.AppendLine($"  batch {batch.name} at {batch.transform.position} parent {(batch.transform.parent ? batch.transform.parent.name : "-")}");
         }
 
         // DefaultTerrainNature.LayoutNature's own steps, recording each flat instead of drawing it.
