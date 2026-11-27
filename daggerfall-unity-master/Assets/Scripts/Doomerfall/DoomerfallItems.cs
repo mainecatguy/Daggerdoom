@@ -400,7 +400,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             Known known;
             if (!items || !loot || loot.customDrop || items.ledger.piles == null || items.ledger.stocked == null || !items.roster.TryGetValue(loot.GetInstanceID(), out known))
                 return;
-            string key = items.PlaceKey() + "|" + known.id.ToString("x16");
+            string key = PlaceKey() + "|" + known.id.ToString("x16");
             items.ledger.piles[key] = loot.Items.SerializeItems();
             items.ledger.stocked[key] = loot.stockedDate;
             items.restored.Add(loot.GetInstanceID());
