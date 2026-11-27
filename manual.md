@@ -152,7 +152,8 @@ pistol. The pistol's usual starting bullets (60 with the Doom Roguelike Arsenal,
 
 You earn **Skill XP** by hurting things in Doom: **1 Skill XP for every 100 damage** you deal, added up across
 everything you hit. Monsters, guards and townspeople all count. Damage beyond what kills a target does not count, so
-a rocket into a small monster is worth only that monster's health.
+a rocket into a small monster is worth only that monster's health. Each target is worth its full health at most once,
+even if it heals or is brought back to life. Your own allies are worth nothing.
 
 Spend Skill XP in the **Skills menu**. Open it with **U** in Doom, or click **SKILLS** at the bottom of the
 character sheet (P). Rebind the key in Options, Customize Controls, Doomerfall Controls, "Open Skills".
