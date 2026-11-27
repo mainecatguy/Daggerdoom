@@ -51,6 +51,20 @@ def main():
         patched.mkdir(parents=True, exist_ok=True)
         (patched / "paired.zs").write_text(text)
         fd.HERE = patched
+    if "--click-boxes" in sys.argv:
+        # 2026-11-27: posted Y/Enter/Esc stopped reaching Daggerfall's message boxes (an older Daggerfall build stalls
+        # the same way), while clicks still arrive. Click through boxes and videos instead, sweeping the button row.
+        sys.argv.remove("--click-boxes")
+        plain_act = fd.ng.act
+
+        def act(hwnd, top, tries):
+            if "MessageBox" in top or top == "DaggerfallPopupWindow":
+                fd.ng.click(hwnd, 120 + (tries % 6) * 8, 100 + (tries // 6 % 8) * 6)
+            elif top == "DaggerfallVidPlayerWindow":
+                fd.ng.click(hwnd, 160, 100)
+            else:
+                plain_act(hwnd, top, tries)
+        fd.ng.act = act
     source, dfu, work = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3]).resolve()
     play = work / "play"
     if not play.exists():
@@ -63,6 +77,16 @@ def main():
     out = work / "results"
     out.mkdir(parents=True, exist_ok=True)
     fd.EXTRA_DF[:] = ["-dfshieldtest"]
+    # The fixed-drops harness ends the run at PDDONE; keep the games up until this test has finished as well.
+    fd.TIMEOUT = 420
+    plain_read = fd.ng.read
+
+    def read(path):
+        text = plain_read(path)
+        if Path(path).name == "log-fresh1.txt" and "shield test: done" not in plain_read(out / "fresh1-df.log"):
+            text = text.replace("PDDONE", "PDWAIT")
+        return text
+    fd.ng.read = read
     fd.run(play, out, "fresh1", 10)
     log = fd.ng.read(out / "fresh1-df.log")
     lines = [l for l in log.splitlines() if "shield test:" in l]
@@ -88,6 +112,11 @@ def main():
     checks.append(("Daggerfall took the shield off on load", "shields: took off" in log))
     errors = [l for l in log.splitlines() if "Exception" in l]
     checks.append(("no exceptions in the bridge log", not errors))
+    player = play / "dfu" / "PortableAppdata" / "Player.log"
+    ptext = plain_read(player) if player.exists() else ""
+    shield_errors = [b for b in ptext.split("Exception")[1:] if "DoomerfallShields" in b[:600]]
+    checks.append(("no exception from shield code in Unity's Player.log", not shield_errors))
+    checks.append(("the test finished", "shield test: done" in log))
     for label, ok in checks:
         print("PASS" if ok else "FAIL", label)
     print("RESULT", "PASS" if all(ok for _, ok in checks) else "FAIL")

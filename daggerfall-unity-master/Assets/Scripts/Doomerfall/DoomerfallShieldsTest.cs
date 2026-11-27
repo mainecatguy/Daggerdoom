@@ -22,6 +22,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
     internal sealed class DoomerfallShieldsTest : MonoBehaviour
     {
         const string SaveName = "ShieldTest";
+        static readonly DFLocation.BuildingTypes[] Shops = {
+            DFLocation.BuildingTypes.Alchemist, DFLocation.BuildingTypes.Armorer, DFLocation.BuildingTypes.Bookseller,
+            DFLocation.BuildingTypes.ClothingStore, DFLocation.BuildingTypes.GemStore, // no FurnitureStore: Daggerfall has no stock table for it
+            DFLocation.BuildingTypes.GeneralStore, DFLocation.BuildingTypes.PawnShop, DFLocation.BuildingTypes.WeaponSmith };
         DoomerfallBridge bridge;
         DoomerfallPositionSync sync;
         int shields, armor, items;
@@ -90,13 +94,21 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     continue;
                 for (int i = 0; i < 40; i++)
                 {
-                    if (type <= DFLocation.BuildingTypes.Palace)
+                    PlayerGPS.DiscoveredBuilding building = new PlayerGPS.DiscoveredBuilding { buildingType = type, quality = 1 + i % 20 };
+                    if (Array.IndexOf(Shops, type) >= 0)
                     {
-                        container.StockShopShelf(new PlayerGPS.DiscoveredBuilding { buildingType = type, quality = 1 + i % 20 });
+                        container.StockShopShelf(building);
                         Count(container.Items);
                     }
-                    container.StockHouseContainer(new PlayerGPS.DiscoveredBuilding { buildingType = type, quality = 1 + i % 20 });
-                    Count(container.Items);
+                    try
+                    {
+                        container.StockHouseContainer(building);
+                        Count(container.Items);
+                    }
+                    catch (Exception e)
+                    {
+                        if (i == 0) Log("house container " + type + " not stocked: " + e.GetType().Name);
+                    }
                 }
             }
             Destroy(holder);
