@@ -117,7 +117,11 @@ def main():
         views("b")
     lines.append("dd_horizon 0; wait 4")
     views("off")
-    lines.append("dd_horizon 1; quit")
+    # On again after the off set: the off shots are taken later in game time, so anything that changes with time
+    # (day/night light, animated or lit flats) shows in this set too and is not the distant view's doing.
+    lines.append("dd_horizon 1; wait 4")
+    views("on2")
+    lines.append("quit")
     cfg = os.path.join(WORK, f"{args.name}.cfg")
     with open(cfg, "w", newline="\n") as f:
         for i, l in enumerate(lines):

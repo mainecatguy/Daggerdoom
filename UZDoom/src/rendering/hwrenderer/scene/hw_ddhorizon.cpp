@@ -219,6 +219,61 @@ namespace
 	DFrameBuffer *flatBufferOwner;
 	int flatAnchorX, flatAnchorY;
 
+	// Flats within NEAR_TILES of the chunk's middle face the camera itself: they are kept apart and their quads are
+	// rebuilt whenever the camera has moved a tile, so none can turn edge-on. On a town or dungeon exterior map the ring
+	// starts a few tiles from the player (beyond the map's 24-tile nature margin). Farther flats face the chunk's
+	// middle; the camera is at most 23 tiles from it, so they turn at most about 14 degrees away from it.
+	constexpr int NEAR_TILES = 96;
+	constexpr double NEAR_MOVE = TILE;	// Doom units the camera may move before the near quads turn again
+	struct NearFlat { int texture; float x, y, z, left, right, top, bottom; };	// x, y from the flat anchor
+	std::vector<NearFlat> nearFlats;	// grouped by texture
+	std::vector<FlatBatch> nearBatches;
+	FModelVertexBuffer *nearBuffer;
+	DFrameBuffer *nearBufferOwner;
+	bool nearDirty;
+	double nearCamX, nearCamY;
+
+	// One flat's quad, sized and offset as its sprite, across the line from the eye (both from the anchor).
+	void FlatQuad(float x, float y, float z, float left, float right, float top, float bottom, float eyeX, float eyeY)
+	{
+		float rx = y - eyeY, ry = eyeX - x;	// the viewer's right, across the line of sight
+		const float len = std::sqrt(rx * rx + ry * ry);
+		if (len > 0) { rx /= len; ry /= len; } else { rx = 1; ry = 0; }
+		auto corner = [&](float a, float h, float u, float v) {
+			FModelVertex vx;
+			vx.Set(x + rx * a, z + h, y + ry * a, u, v);
+			vx.SetNormal(0, 1, 0);
+			verts.push_back(vx);
+		};
+		corner(left, top, 0, 0); corner(right, top, 1, 0); corner(right, bottom, 1, 1);
+		corner(left, top, 0, 0); corner(right, bottom, 1, 1); corner(left, bottom, 0, 1);
+	}
+
+	void BuildNear(double camX, double camY)
+	{
+		verts.clear();
+		nearBatches.clear();
+		for (const NearFlat &n : nearFlats)
+		{
+			if (nearBatches.empty() || nearBatches.back().texture != n.texture) nearBatches.push_back({ n.texture, int(verts.size()), 0 });
+			FlatQuad(n.x, n.y, n.z, n.left, n.right, n.top, n.bottom, float(camX), float(camY));
+			nearBatches.back().count += 6;
+		}
+		delete nearBuffer;
+		nearBuffer = nullptr;
+		nearBufferOwner = screen;
+		if (!verts.empty())
+		{
+			nearBuffer = new FModelVertexBuffer(false, true);
+			FModelVertex *out = nearBuffer->LockVertexBuffer(int(verts.size()));
+			std::copy(verts.begin(), verts.end(), out);
+			nearBuffer->UnlockVertexBuffer();
+		}
+		nearCamX = camX;
+		nearCamY = camY;
+		nearDirty = false;
+	}
+
 	void BuildFlats(const Key &key)
 	{
 		const uint64_t start = I_nsTime();
@@ -236,8 +291,9 @@ namespace
 		// On the map's own tiles and in the fine band the flat stands on the exact ground; elsewhere on the coarse quad.
 		std::vector<int> ring;
 		RingPixels(key, ring);
-		std::unordered_map<int, std::vector<const RingFlat *>> byTexture;
-		const double flatR2 = double(RADIUS_TILES - STEP) * (RADIUS_TILES - STEP);
+		std::unordered_map<int, std::vector<const RingFlat *>> byTexture, nearByTexture;
+		const double flatR2 = double(RADIUS_TILES - STEP) * (RADIUS_TILES - STEP), nearR2 = double(NEAR_TILES) * NEAR_TILES;
+		const int midX = key.cx + CHUNK / 2, midY = key.cy + CHUNK / 2;
 		flatsIncomplete = false;
 		for (int pixel : ring)
 		{
@@ -247,35 +303,30 @@ namespace
 			{
 				const double dx = fl.gx - key.cx, dy = fl.gy - key.cy;
 				if (dx * dx + dy * dy > flatR2 || DDTreadmill_HorizonMapHasFlat(fl.gx, fl.gy)) continue;
-				byTexture[fl.texture].push_back(&fl);
+				const double mx = fl.gx - midX, my = fl.gy - midY;
+				(mx * mx + my * my < nearR2 ? nearByTexture : byTexture)[fl.texture].push_back(&fl);
 			}
 		}
+		auto groundZ = [&](const RingFlat *fl) {
+			const bool exact = (fl->gx >= key.x0 && fl->gx <= key.x1 && fl->gy >= key.y0 && fl->gy <= key.y1)
+				|| (fl->gx >= fx0 && fl->gx <= fx1 && fl->gy >= fy0 && fl->gy <= fy1);
+			return (exact ? fineHeight(fl->gx, fl->gy) : fl->coarseZ) - fl->sink;
+		};
 		flatBatches.clear();
 		flatCount = 0;
-		const float eyeX = float((key.cx + CHUNK / 2 - anchorX) * TILE), eyeY = float((key.cy + CHUNK / 2 - anchorY) * TILE);
+		const float eyeX = float((midX - anchorX) * TILE), eyeY = float((midY - anchorY) * TILE);
 		for (auto &group : byTexture)
 		{
 			flatBatches.push_back({ group.first, int(verts.size()), int(group.second.size()) * 6 });
 			flatCount += int(group.second.size());
 			for (const RingFlat *fl : group.second)
-			{
-				const bool exact = (fl->gx >= key.x0 && fl->gx <= key.x1 && fl->gy >= key.y0 && fl->gy <= key.y1)
-					|| (fl->gx >= fx0 && fl->gx <= fx1 && fl->gy >= fy0 && fl->gy <= fy1);
-				const float z = (exact ? fineHeight(fl->gx, fl->gy) : fl->coarseZ) - fl->sink;
-				const float x = float((fl->gx - anchorX) * TILE), y = float((fl->gy - anchorY) * TILE);
-				float rx = y - eyeY, ry = eyeX - x;	// the viewer's right, across the line of sight
-				const float len = std::sqrt(rx * rx + ry * ry);
-				if (len > 0) { rx /= len; ry /= len; } else { rx = 1; ry = 0; }
-				auto corner = [&](float a, float h, float u, float v) {
-					FModelVertex vx;
-					vx.Set(x + rx * a, z + h, y + ry * a, u, v);
-					vx.SetNormal(0, 1, 0);
-					verts.push_back(vx);
-				};
-				corner(fl->left, fl->top, 0, 0); corner(fl->right, fl->top, 1, 0); corner(fl->right, fl->bottom, 1, 1);
-				corner(fl->left, fl->top, 0, 0); corner(fl->right, fl->bottom, 1, 1); corner(fl->left, fl->bottom, 0, 1);
-			}
+				FlatQuad(float((fl->gx - anchorX) * TILE), float((fl->gy - anchorY) * TILE), groundZ(fl), fl->left, fl->right, fl->top, fl->bottom, eyeX, eyeY);
 		}
+		nearFlats.clear();
+		for (auto &group : nearByTexture)
+			for (const RingFlat *fl : group.second)
+				nearFlats.push_back({ fl->texture, float((fl->gx - anchorX) * TILE), float((fl->gy - anchorY) * TILE), groundZ(fl), fl->left, fl->right, fl->top, fl->bottom });
+		nearDirty = true;
 
 		delete flatBuffer;
 		flatBuffer = nullptr;
@@ -288,8 +339,8 @@ namespace
 			std::copy(verts.begin(), verts.end(), out);
 			flatBuffer->UnlockVertexBuffer();
 		}
-		DD_DebugPrintf("DDHORIZON built %d flats (%d textures) around tile %d,%d in %.1f ms; %d pixels laid out before it, one per frame, longest %.1f ms, total %.1f ms\n",
-			flatCount, int(flatBatches.size()), key.cx, key.cy, (I_nsTime() - start) / 1e6, laidOut, layoutMax, layoutTotal);
+		DD_DebugPrintf("DDHORIZON built %d far and %d near flats (%d textures) around tile %d,%d in %.1f ms; %d pixels laid out before it, one per frame, longest %.1f ms, total %.1f ms\n",
+			flatCount, int(nearFlats.size()), int(flatBatches.size()), key.cx, key.cy, (I_nsTime() - start) / 1e6, laidOut, layoutMax, layoutTotal);
 		laidOut = 0;
 		layoutMax = layoutTotal = 0;
 	}
@@ -366,16 +417,31 @@ void DDHorizon_Draw(HWDrawInfo *di, FRenderState &state)
 	state.EnableModelMatrix(true);
 	state.SetMaterial(TexMan.GetGameTexture(ground, true), UF_Skin, 0, CLAMP_NONE, NO_TRANSLATION, -1);
 	state.Draw(DT_Triangles, 0, vertexCount);
-	if (flatBuffer && flatBufferOwner == screen && !flatBatches.empty())	// the distant nature flats, alpha tested like sprites
+	if (flatBufferOwner == screen && (flatBuffer || !nearFlats.empty()))	// the distant nature flats, alpha tested like sprites
 	{
-		state.SetVertexBuffer(flatBuffer->vertexBuffer(), 0, 0);
 		state.mModelMatrix.loadIdentity();
 		state.mModelMatrix.translate(float(flatAnchorX * TILE + f.offX), float(f.offZ), float(flatAnchorY * TILE + f.offY));
 		state.AlphaFunc(Alpha_GEqual, 0.5f);
-		for (const FlatBatch &b : flatBatches)
+		if (flatBuffer)
 		{
-			state.SetMaterial(TexMan.GameByIndex(b.texture), UF_Skin, 0, CLAMP_XY, NO_TRANSLATION, -1);
-			state.Draw(DT_Triangles, b.first, b.count);
+			state.SetVertexBuffer(flatBuffer->vertexBuffer(), 0, 0);
+			for (const FlatBatch &b : flatBatches)
+			{
+				state.SetMaterial(TexMan.GameByIndex(b.texture), UF_Skin, 0, CLAMP_XY, NO_TRANSLATION, -1);
+				state.Draw(DT_Triangles, b.first, b.count);
+			}
+		}
+		// The near flats, turned to the camera again once it has moved a tile.
+		const double camX = camera->X() - f.offX - flatAnchorX * TILE, camY = camera->Y() - f.offY - flatAnchorY * TILE;
+		if (nearDirty || nearBufferOwner != screen || std::hypot(camX - nearCamX, camY - nearCamY) > NEAR_MOVE) BuildNear(camX, camY);
+		if (nearBuffer)
+		{
+			state.SetVertexBuffer(nearBuffer->vertexBuffer(), 0, 0);
+			for (const FlatBatch &b : nearBatches)
+			{
+				state.SetMaterial(TexMan.GameByIndex(b.texture), UF_Skin, 0, CLAMP_XY, NO_TRANSLATION, -1);
+				state.Draw(DT_Triangles, b.first, b.count);
+			}
 		}
 		state.AlphaFunc(Alpha_GEqual, 0.f);
 	}
