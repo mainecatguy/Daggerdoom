@@ -239,6 +239,9 @@ def run(name):
         size_checks(read(console), df_body)
     if tiers and not load:
         pack_checks(df_body)
+        # The look label for a Regular, then a Silver clip just ahead: the plain name, then the material (card ammoname 01).
+        looks = re.findall(r'^look: "(.*)"', read(console), re.M)
+        print("look labels:", looks, "PASS" if "Bullets" in looks and "Silver Bullets" in looks else "FAIL")
     print("MATCH" if doom and all(doom.get(c) == dagger.get(c) for c in CLASSES) else "MISMATCH")
 
 

@@ -16,6 +16,7 @@ class AMHarness : EventHandler
 	const SIZERUN = @SIZERUN@; // The sizes run: each pickup size, and monster drops, give Doom's amounts in both games.
 	const SAVED = 10;
 	vector3 dropSpot;
+	Actor lookItem;
 	Array<Inventory> sized;
 	Array<String> sizedWhat;
 	Array<Actor> victims;
@@ -346,7 +347,14 @@ class AMHarness : EventHandler
 			Next();
 			break;
 		}
-		case 44:
+		case 44: // Meanwhile a Regular, then a Silver clip lies just ahead, out of touch reach, for the look label ("look:" in the log).
+			if (timer == 20 || timer == 70)
+			{
+				if (lookItem) lookItem.Destroy();
+				lookItem = Actor.Spawn(timer == 20 ? "DFAmmo_Clip_0" : "DFAmmo_Clip_2", p.Vec3Angle(56, p.angle), NO_REPLACE);
+				Console.Printf("AMLOOK %s ahead", lookItem ? lookItem.GetClassName() : 'none');
+			}
+			if (timer == 120 && lookItem) lookItem.Destroy();
 			if (timer == 140) { Report("after tier pickups"); phase = 7; timer = 0; }
 			break;
 		case 50: // Daggerfall's test hook (-dfchangeammotest) adds tiered bullets and a DRLA pistol on key 4.
