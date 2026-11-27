@@ -12,6 +12,8 @@
 
 using System;
 using DaggerfallConnect;
+using DaggerfallConnect.Arena2;
+using DaggerfallWorkshop.Game.UserInterfaceWindows;
 using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop.Game.Formulas;
 
@@ -71,6 +73,18 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             player.Skills.SetPermanentSkillValue(i, value);
             player.SetSkillRecentlyIncreased(i);
             player.SetCurrentLevelUpSkillSum();
+            if (value == 100 && player.GetPrimarySkills().Contains(skill)) // as RaiseSkills: "You are now a master of..."
+            {
+                TextFile.Token[] tokens = DaggerfallUnity.Instance.TextProvider.GetRSCTokens(4020);
+                if (tokens != null && tokens.Length > 0)
+                {
+                    var box = new DaggerfallMessageBox(DaggerfallUI.UIManager);
+                    box.SetTextTokens(tokens);
+                    box.ClickAnywhereToClose = true;
+                    box.Show();
+                }
+                DaggerfallUI.Instance.PlayOneShot(SoundClips.ArenaFanfareLevelUp);
+            }
             bool levelUp = player.CheckForLevelUp();
             if (bridge != null)
                 bridge.LogLine(string.Format("skillxp: bought {0} {1} for {2} XP, pool {3}, level-up {4}", skill, value, price, player.SkillXp, levelUp));

@@ -8,6 +8,7 @@ class SXHarness : EventHandler
 	static const double DOORDATA[] = { @DOOR@ };
 	bool monsters, hurt, townsperson, released;
 	int total, ready;
+	Actor baron;
 
 	override void WorldTick()
 	{
@@ -42,12 +43,20 @@ class SXHarness : EventHandler
 			{
 				if (!mo.bIsMonster || mo.health <= 0 || mo.Distance2D(p) > 400) continue;
 				int h = mo.health;
+				if (h >= 1000) baron = mo;
 				int taken = mo.DamageMobj(p, p, 100000, 'None');
 				total += h;
 				Console.Printf("SXHIT %s health %d, hit for 100000, took %d", mo.GetClassName(), h, taken);
 			}
 		}
-		if (hurt && !townsperson && level.maptime <= ready + 35 * 60)
+		if (hurt && baron && level.maptime == ready + 35 * 6) // raised and killed again: must give nothing more (cap per enemy)
+		{
+			bool raised = p.RaiseActor(baron, RF_NOCHECKPOSITION);
+			int h = baron.health;
+			int taken = baron.DamageMobj(p, p, 100000, 'None');
+			Console.Printf("SXRAISED %d health %d, hit for 100000, took %d (counts 0)", raised, h, taken);
+		}
+		if (hurt && !townsperson && level.maptime > ready + 35 * 7 && level.maptime <= ready + 35 * 60)
 		{
 			Actor mo;
 			let it = ThinkerIterator.Create("Actor");

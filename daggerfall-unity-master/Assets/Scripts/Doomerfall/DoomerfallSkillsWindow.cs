@@ -162,7 +162,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             for (int i = 0; i < perkLabels.Length; i++)
             {
                 int level = DoomerfallPerks.Thresholds[i];
-                string text = DoomerfallPerks.Describe(s, level) ?? "Not decided yet.";
+                string text = DoomerfallPerks.Describe(s, level) ?? "Not available yet.";
                 TextLabel l = perkLabels[i];
                 l.Position = new Vector2(InfoX, y);
                 l.Text = string.Format("{0} {1}: {2}", value >= level ? "*" : "-", level, text);
