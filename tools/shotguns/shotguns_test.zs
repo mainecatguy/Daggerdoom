@@ -9,6 +9,8 @@ version "4.10"
 //   knock sets (knock, knock100, collide): the player stands 64 units from a target that stands 40 units from a wall
 //     (collide: a second target between it and the wall) and fires once; the harness logs how far the target moved,
 //     whether it staggered and what it lost. Then the same with a 10x heavier target.
+//   switch (damage rule; Plasma Shotgun only): the projectile pellets are slowed to a crawl as they spawn and another
+//     gun is put up before they land; their hits must still get the Shotguns damage bonus (the shared shot tag).
 
 class ShotTestWall : Actor // Damage only: never moves.
 {
@@ -38,7 +40,7 @@ class ShotPerkTest : EventHandler
 
 	override void OnRegister()
 	{
-		static const String c[] = { "off", "dmg", "reload", "reloadheld", "p50", "p100", "knock", "knock100", "collide" };
+		static const String c[] = { "off", "dmg", "reload", "reloadheld", "p50", "p100", "knock", "knock100", "collide", "switch" };
 		static const String g[] = { "Shotgun", "RLShotgun", "RLDoubleShotgun", "RLAssaultShotgun", "RLAutoshotgun", "RLPlasmaShotgun" };
 		for (int i = 0; i < c.Size(); i++) cfgs.Push(c[i]);
 		for (int i = 0; i < g.Size(); i++) { class<Actor> k = g[i]; if (k) guns.Push(g[i]); else Console.Printf("SHOTTEST absent %s", g[i]); }
@@ -49,7 +51,7 @@ class ShotPerkTest : EventHandler
 	bool Arrived(String c)
 	{
 		int d = 0, r = 0, p = 0, k = 0, s = 0, o = 0;
-		if (c == "dmg") d = 7500;
+		if (c == "dmg" || c == "switch") d = 7500;
 		else if (c == "reload" || c == "reloadheld") r = 3500;
 		else if (c == "p50") p = 5000;
 		else if (c == "p100") p = 10000;
@@ -73,6 +75,24 @@ class ShotPerkTest : EventHandler
 		if (!e.DamageSource || !e.DamageSource.player) return;
 		if (target && e.Thing == target) { hits++; lost += e.Damage; }
 		if (target2 && e.Thing == target2 && !e.Inflictor) lost2 += e.Damage; // Collision damage only, not a stray pellet.
+		let w = e.DamageSource.player.ReadyWeapon;
+		if (target && e.Thing == target && phase == 21) Console.Printf("SHOTTEST heldhit %s tic=%d", w ? w.GetClassName() : 'None', level.maptime - fireTic);
+	}
+
+	// The switch case: slow the player's projectile pellets to a crawl as they spawn and put another gun up.
+	override void WorldThingSpawned(WorldEvent e)
+	{
+		let a = e.Thing;
+		PlayerInfo p = players[consoleplayer];
+		if (phase != 21 || !a || !a.bMissile || a.target != p.mo) return;
+		a.vel *= 0.006; // about 0.3 units per tic: lands well after the gun's 25-tic shot and its lowering
+		Console.Printf("SHOTTEST slowed %s speed %.2f", a.GetClassName(), a.vel.Length());
+		if (p.PendingWeapon != WP_NOCHANGE) return;
+		for (let i = p.mo.Inv; i; i = i.Inv)
+		{
+			let w = Weapon(i);
+			if (w && w != p.ReadyWeapon && guns.Find(w.GetClassName()) == guns.Size()) { p.PendingWeapon = w; Console.Printf("SHOTTEST switch to %s", w.GetClassName()); break; }
+		}
 	}
 
 	// A spot 124 units from a one-sided wall with a clear line to it, from the start: the player stands there facing the
@@ -122,6 +142,7 @@ class ShotPerkTest : EventHandler
 		case 2: // select the gun
 		{
 			if (gun >= guns.Size()) { cfg++; phase = 0; break; }
+			if (c == "switch" && guns[gun] != "RLPlasmaShotgun") { gun++; break; }
 			class<Weapon> k = guns[gun];
 			mo.GiveInventory(k, 1);
 			heldGun = Weapon(mo.FindInventory(k));
@@ -137,7 +158,8 @@ class ShotPerkTest : EventHandler
 				int first, second;
 				[first, second] = DoomerfallWeaponCategory.Both(heldGun);
 				Console.Printf("SHOTTEST case %s %s cat=%s slot=%d sub=%d", c, guns[gun], DoomerfallWeaponCategory.Label(first), DoomerfallWeaponCategory.SkillSlotOf(heldGun), sub);
-				if (KnockSet(c))
+				if (c == "switch") { target = Place("ShotTestWall", 64); phase = 20; }
+				else if (KnockSet(c))
 				{
 					target = Place(sub ? "ShotTestHeavy" : "ShotTestMonster", 64);
 					if (c == "collide") target2 = Place("ShotTestMonster", 114);
@@ -190,6 +212,22 @@ class ShotPerkTest : EventHandler
 			if (target) target.Destroy();
 			if (target2) target2.Destroy();
 			gun++; phase = 2;
+			break;
+		case 20: // switch: one shot
+			if (p.WeaponState & WF_WEAPONREADY)
+			{
+				Console.Printf("SHOTTEST fire tic=%d", level.maptime);
+				phase = 21; // before firing: the spawn event slows the shots
+				mo.FireWeapon(null);
+				fireTic = level.maptime;
+			}
+			break;
+		case 21:
+			if (level.maptime - fireTic >= 200)
+			{
+				Console.Printf("SHOTTEST switchres hits=%d lost=%d held=%s", hits, lost, p.ReadyWeapon ? p.ReadyWeapon.GetClassName() : 'None');
+				phase = 8;
+			}
 			break;
 		case 10: // knock sets: one shot
 			if (p.WeaponState & WF_WEAPONREADY)

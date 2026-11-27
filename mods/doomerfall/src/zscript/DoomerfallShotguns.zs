@@ -19,8 +19,8 @@
 //                  its speed then over the strongest launch; if it is stopped by another actor, both take up to the
 //                  collision damage the same way. Once per shot each.
 //
-// Only hits from a Shotguns gun count: hitscan damage comes with its puff as the inflictor and lands in the tic it is
-// fired, so a puff hit while a Shotguns gun is held came from that gun.
+// Only hits from a Shotguns gun count, by the shared shot tag (DoomerfallShots.zs): a hitscan pellet's puff lands in the
+// tic it is fired, so it is the held gun's; a projectile pellet carries the tag of the gun that fired it.
 class DoomerfallShotguns : StaticEventHandler
 {
 	// DFB_SHEET_* indices; must match bridge/doomerfall_bridge.h.
@@ -68,28 +68,15 @@ class DoomerfallShotguns : StaticEventHandler
 		DDLog.Debug(String.Format("shotguns: %s", msg));
 	}
 
-	// Whether damage through this inflictor came from a Shotguns gun of this player.
+	// Whether damage through this inflictor came from a Shotguns gun of this player (DoomerfallShots.Find: the held gun for
+	// a hitscan pellet's puff, the shot's tag for a projectile pellet, its explosion and anything it spawned, so a Plasma
+	// Shotgun ball that lands after a switch still counts). Doom saves keep the tags.
 	static bool FromGun(Actor player, Actor inflictor)
 	{
-		if (!player || !player.player || !inflictor) return false;
-		if (inflictor.bIsPuff) return IsShotgun(player.player.ReadyWeapon);
-		let h = DoomerfallShotguns(StaticEventHandler.Find("DoomerfallShotguns"));
-		return h && h.shots.Find(inflictor) < h.shots.Size();
-	}
-
-	// Projectile pellets (such as DRLA's Plasma Shotgun, when Shotguns is its higher skill): a missile the player fires
-	// next to them while a Shotguns gun is mid-shot is that gun's, and its hits count when it lands, even after a switch.
-	// Not kept by saves.
-	Array<Actor> shots;
-
-	override void WorldThingSpawned(WorldEvent e)
-	{
-		let m = e.Thing;
-		if (!m || !m.bMissile || !m.target || !m.target.player || m.target.player.mo != m.target) return;
-		let p = m.target.player;
-		if (!IsShotgun(p.ReadyWeapon) || (p.WeaponState & WF_WEAPONREADY)) return;
-		if (m.Distance2D(m.target) > m.target.radius + m.radius + 64) return; // Spawned by something else out in the world.
-		shots.Push(m);
+		class<Weapon> gun;
+		int skill;
+		DoomerfallShotTag tag;
+		return DoomerfallShots.Find(player, inflictor, gun, skill, tag) && skill == SkillShotguns;
 	}
 
 	// Pellets that hit each enemy this tic, and who fired them.
@@ -122,7 +109,6 @@ class DoomerfallShotguns : StaticEventHandler
 		hitShooters.Clear();
 		hitPellets.Clear();
 		Fly();
-		for (int i = shots.Size() - 1; i >= 0; i--) if (!shots[i]) shots.Delete(i);
 
 		if (Actor.DD_SheetValue(SheetValid) != 1) return; // Rules come from Daggerfall's character only.
 		for (int i = 0; i < MAXPLAYERS; i++)
@@ -204,7 +190,8 @@ class DoomerfallShotguns : StaticEventHandler
 		if (!mo || mo.health <= 0) return;
 		int dmg = int(round(most * strength));
 		Log(String.Format("%s %s speed share %.3f damage %d (most %d)", what, mo.GetClassName(), strength, dmg, most));
-		if (dmg > 0) mo.DamageMobj(null, shooter, dmg, 'None', DMG_THRUSTLESS);
+		// The rule's amount exactly: no shooter's damage boosts (NO_ENHANCE: DRLA items, other perks) on top.
+		if (dmg > 0) mo.DamageMobj(null, shooter, dmg, 'None', DMG_THRUSTLESS | DMG_NO_ENHANCE);
 	}
 }
 
@@ -251,7 +238,7 @@ class DoomerfallShotgunsPerks : Inventory
 		int bp = DoomerfallShotguns.Rule(DoomerfallShotguns.ShotDamageBp);
 		if (bp <= 0) return;
 		newdamage = DoomerfallShotguns.Scale(damage, 1 + bp / 10000.);
-		DoomerfallShotguns.Log(String.Format("hit %s with %s: %d -> %d", source ? source.GetClassName() : 'None', owner.player.ReadyWeapon.GetClassName(), damage, newdamage));
+		DoomerfallShotguns.Log(String.Format("hit %s with %s: %d -> %d", source ? source.GetClassName() : 'None', inflictor.GetClassName(), damage, newdamage));
 	}
 
 	// Runs after the player's weapon frames moved this tic, so a frame entered this tic still has all its tics.

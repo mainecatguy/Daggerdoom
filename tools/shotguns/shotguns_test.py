@@ -21,12 +21,13 @@ DRLA = ["DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.
 SHEET_INTS, SHEET_FORMAT_VERSION = 173, 9
 RULES = {  # 167 damage, 168 reload cut, 169 pellets, 170 knock, 171 slam, 172 collide
     "off": {}, "dmg": {167: 7500}, "reload": {168: 3500}, "reloadheld": {168: 3500}, "p50": {169: 5000}, "p100": {169: 10000},
-    "knock": {170: 10000, 171: 200}, "knock100": {169: 10000, 170: 20000, 171: 400}, "collide": {170: 10000, 171: 200, 172: 200}}
+    "knock": {170: 10000, 171: 200}, "knock100": {169: 10000, 170: 20000, 171: 400}, "collide": {170: 10000, 171: 200, 172: 200}, "switch": {167: 7500}}
 BAD = re.compile(r'Script error, "(doomerfall|shottest)\.pk3|(doomerfall|shottest)\.pk3:zscript\S*, line \d+|\bFatal error|VM execution aborted', re.I)
 CASE = re.compile(r"SHOTTEST case (\w+) (\w+) cat=(\w+) slot=(-?\d+) sub=(\d)")
 SHOT = re.compile(r"SHOTTEST shot (\w+) (\w+) n=(\d+) hits=(\d+) lost=(\d+) cycle=(\d+)")
 RELOAD = re.compile(r"SHOTTEST reload (\w+) (\w+) tics=(\d+) mag=(-?\d+)")
 KNOCKT = re.compile(r"SHOTTEST knock (\w+) (\w+) sub=(\d) moved=([\d.]+) pain=(\d) hits=(\d+) lost=(\d+) lost2=(\d+)")
+SHOTGUNS = {"Shotgun", "SuperShotgun", "RLShotgun", "RLDoubleShotgun", "RLAssaultShotgun", "RLAutoshotgun", "RLPlasmaShotgun"}
 HIT = re.compile(r"shotguns: hit (\S+) with (\S+): (\d+) -> (\d+)")
 PELLETS = re.compile(r"shotguns: pellets (\S+) (\d+) -> (\d+)")
 RFRAME = re.compile(r"shotguns: reload (\S+) frame (\d+) -> (\d+) tics")
@@ -147,6 +148,20 @@ def analyse(name, lines, checks, report):
         L = c["lines"]
         perk = [l for l in L if "shotguns:" in l]
         shots = shots_of(L)
+        if cfg == "switch":
+            res = [m for l in L if (m := re.search(r"SHOTTEST switchres hits=(\d+) lost=(\d+) held=(\S+)", l))]
+            held = [m for l in L if (m := re.search(r"SHOTTEST heldhit (\S+) tic=(\d+)", l))]
+            hl = [HIT.search(l) for l in perk if HIT.search(l)]
+            r = res[0] if res else None
+            check(f"{tag}: the slowed pellets hit after the switch", bool(r and int(r.group(1)) > 0 and held), L[-6:])
+            check(f"{tag}: another gun was up at every hit", bool(held) and all(h.group(1) not in SHOTGUNS for h in held), [h.group(0) for h in held][:3])
+            bad = [h.group(0) for h in hl if int(h.group(4)) not in (max(1, math.floor(int(h.group(3)) * 1.75 + 1e-9)), math.ceil(int(h.group(3)) * 1.75 - 1e-9))]
+            check(f"{tag}: every hit still +75% (one hit line per hit, the target lost what they say)",
+                  bool(r and hl and not bad and len(hl) == int(r.group(1)) and sum(int(h.group(4)) for h in hl) == int(r.group(2))),
+                  (bad[:3], len(hl), r and r.group(0)))
+            if r:
+                report.append(f"{gun} switch: held at the hits {sorted({h.group(1) for h in held})}, {r.group(1)} hits, lost {r.group(2)}")
+            continue
         if cfg in ("off", "dmg", "reload", "reloadheld", "p50", "p100"):
             check(f"{tag}: 5 shots hit", len(shots) == 5 and all(int(m.group(4)) > 0 for m, _ in shots), len(shots))
             hits = [int(m.group(4)) for m, _ in shots]
