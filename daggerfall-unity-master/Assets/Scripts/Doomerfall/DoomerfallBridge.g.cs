@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0xaeb19132966c3f4bUL;
+        public const ulong SchemaHash = 0x924208702d6d10cfUL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -200,8 +200,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint FACES_MAX = 3;  // Daggerfall's HUD shows at most three faces
         public const uint FACE_MAX_SIDE = 64;
         public const uint SHEET_SLOT = 0;
-        public const int SHEET_FORMAT_VERSION = 9;  // 3: skill slots 4-6 are the gun skills, 7-12 unused; 4: slot 7 is Pistols; 5: slot 8 is Rifles; 6: slots 9-10 are Energy Weapons and Melee; 7: Automatics perk rules; 8: Explosives perk rules; 9: Shotguns perk rules
-        public const int SHEET_INTS = 173;
+        public const int SHEET_FORMAT_VERSION = 10;  // 3: skill slots 4-6 are the gun skills, 7-12 unused; 4: slot 7 is Pistols; 5: slot 8 is Rifles; 6: slots 9-10 are Energy Weapons and Melee; 7: Automatics perk rules; 8: Explosives perk rules; 9: Shotguns perk rules; 10: Energy Weapons perk rules
+        public const int SHEET_INTS = 177;
         public const int SHEET_FORMAT = 0;  // DFB_SHEET_FORMAT_VERSION
         public const int SHEET_EPOCH = 1;
         public const int SHEET_VALID = 2;  // 1 when this describes the current, fully loaded character
@@ -262,6 +262,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const int SHEET_SHOT_KNOCK_BP = 170;  // knockback strength, 10000 = the 75 perk's
         public const int SHEET_SHOT_SLAM_DAMAGE = 171;  // most extra damage an enemy knocked into a wall takes
         public const int SHEET_SHOT_COLLIDE_DAMAGE = 172;  // most damage a knocked enemy and what it hits each take
+        public const int SHEET_ENERGY_DAMAGE_BP = 173;  // damage bonus in 1/10000ths (+0% to +50% by skill)
+        public const int SHEET_ENERGY_SPLASH_BP = 174;  // a hit that is not an explosion also deals this much of its damage ...
+        public const int SHEET_ENERGY_SPLASH_RADIUS = 175;  // ... to every other enemy within this many map units
+        public const int SHEET_ENERGY_SPEED_BP = 176;  // the guns' projectiles fly this much faster, in 1/10000ths
         public const uint UI_NONE = 0;
         public const uint UI_TRAVEL_MAP = 1;
         public const uint UI_INVENTORY = 2;
