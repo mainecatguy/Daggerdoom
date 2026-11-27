@@ -2,7 +2,7 @@
 
 usage: shelf_run.py assemble | run NAME [--building TYPE] [--rates] [--stock-mods]
 assemble copies this checkout's builds (UZDoom, launcher and bridge DLL from BUILD, Daggerfall Unity, doomerfall.pk3)
-and the town data and dfitems.pk3 of an existing demo (BASE) into REVIEW, and writes play.bat. run walks into the first building of TYPE
+and data made by this checkout's converter (scripts/play/install.py make_data) into REVIEW, and writes play.bat. run walks into the first building of TYPE
 (default GeneralStore; the test town has no other shop) in the test town and presses Use on its shelves (tools/shop_menu/harness.zs, with Daggerfall's
 -dfshoptest closing each window), then prints Daggerfall's "shop restock" lines: the level each shelf rolled at.
 --rates also passes -dfshoplevelrates (1,000 weapon smith and armorer shelves at several levels).
@@ -24,7 +24,6 @@ import install  # noqa: E402  (only for its registry isolation)
 sys.argv = argv
 
 REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\shop-shelf-levels")
-BASE = Path(r"D:\dev\DoomDaggerfall-loop\review\town-corpses")
 BUILD = Path(r"D:\dev\DoomDaggerfall-build")
 UZ_BUILD, BRIDGE_BUILD, LAUNCHER_BUILD = BUILD / "uzdoom-shoplvl" / "Release", BUILD / "bridge-shoplvl" / "Release", BUILD / "launcher-shoplvl" / "Release"
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
@@ -53,16 +52,15 @@ def lumps(path):
 
 def assemble():
     REVIEW.mkdir(parents=True, exist_ok=True)
-    if not (REVIEW / "data").exists():
-        shutil.copytree(BASE / "data", REVIEW / "data")
+    if not (REVIEW / "data" / "converter").exists() or "--fresh-data" in sys.argv:
+        install.make_data(BUILD / "shoplvl-data", REVIEW)   # data, town cache and dfitems.pk3 from this checkout's converter
     for name, source in (("uzdoom", UZ_BUILD), ("dfu", REPO / "daggerfall-unity-master" / "Builds" / "Windows64")):
         if (REVIEW / name).exists():
             shutil.rmtree(REVIEW / name)
         shutil.copytree(source, REVIEW / name, ignore=shutil.ignore_patterns("*.pdb", "*.ini"))
     for dll in ("sndfile.dll", "soft_oal.dll"):
-        shutil.copy2(BASE / "uzdoom" / dll, REVIEW / "uzdoom" / dll)
+        shutil.copy2(BUILD / "uzdoom-launcher" / "Release" / dll, REVIEW / "uzdoom" / dll)
     shutil.copy2(LAUNCHER_BUILD / "doomerfall-launcher.exe", REVIEW / "doomerfall-launcher.exe")
-    shutil.copy2(BASE / "dfitems.pk3", REVIEW / "dfitems.pk3")
     (REVIEW / "doomerfall-drla.pk3").unlink(missing_ok=True)
     subprocess.check_call([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), str(REVIEW / "doomerfall.pk3")])
     plugins = REVIEW / "dfu" / "DaggerfallUnity_Data" / "Plugins" / "x86_64"
@@ -190,6 +188,7 @@ ap.add_argument("name", nargs="?", default="t")
 ap.add_argument("--building", default="GeneralStore", help="Daggerfall building type to go into, as the converter lists it")
 ap.add_argument("--rates", action="store_true")
 ap.add_argument("--stock-mods", action="store_true")
+ap.add_argument("--fresh-data", action="store_true", help="assemble: remake the data even if present")
 args = ap.parse_args()
 if args.command == "assemble":
     assemble()
