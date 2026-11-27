@@ -36,8 +36,8 @@ def ddt_lumps(path):
     return lumps
 
 
-def convert(exe, group, ddt, work):
-    r = subprocess.run([str(exe), "--group", str(group), "--ddt", str(ddt), "--out", str(work), "--arena2", str(GAME / "DAGGER" / "ARENA2")],
+def convert(exe, group, ddt, work, winter=False):
+    r = subprocess.run([str(exe), "--group", str(group), "--ddt", str(ddt), "--out", str(work), "--arena2", str(GAME / "DAGGER" / "ARENA2")] + (["--winter"] * winter),
                        capture_output=True, text=True, errors="replace", stdin=subprocess.DEVNULL)
     if r.returncode != 0 or not ddt.exists():
         sys.exit(f"conversion of group {group} failed: {(r.stdout + r.stderr)[-400:]}")
@@ -59,14 +59,15 @@ def main():
     for target in args.targets:
         group, _, mode = target.partition(":")
         group = int(group)
-        town = cache / f"T{group:05d}.ddt"
+        # The test character's date is in winter, so the game reads the town's winter file (dd_towncache.cpp FileFor).
+        town = cache / f"T{group:05d}W.ddt"
         if not town.exists():
-            convert(args.converter, group, town, args.out / "work" / f"T{group}")
+            convert(args.converter, group, town, args.out / "work" / f"T{group}", winter=True)
         doors = [l.split() for l in ddt_lumps(town)["DDDOORS"].decode().splitlines() if l.strip()]
         dungeon_doors = [d for d in doors if d[0] == "1"]
         if not dungeon_doors:
             sys.exit(f"group {group} has no dungeon door")
-        door = dungeon_doors[0]
+        door = min(dungeon_doors, key=lambda d: float(d[5]))  # the lowest: some ruins also have door planes on upper floors
         map_id = int(door[1])
         dgroup = DUNGEON_GROUP + (map_id & 0xFFFFF)
         dddt = cache / f"T{dgroup:05d}.ddt"
@@ -91,7 +92,7 @@ def main():
         (run / "saves").mkdir(parents=True)
         text = HARNESS.read_text()
         text = text.replace("@DOORS@", ", ".join(door[3:8])).replace("@EXITS@", ", ".join(v for e in exits for v in e) or "0, 0, 0, 0, 0")
-        text = text.replace("@MODE@", "route").replace("const LIMIT = 35 * 14;", "const LIMIT = 35 * 40;")  # a runtime conversion takes up to ~12 s
+        text = text.replace("@MODE@", "route").replace("const LIMIT = 35 * 14;", "const LIMIT = 35 * 90;")  # a runtime conversion took 7-47 s, depending on machine load
         text = text.replace("if (inside || level.maptime < 4) break;", 'if (inside || level.maptime < 4 || CVar.FindCVar("dd_sync_df_phase").GetInt() != 3) break;')
         import zipfile
         with zipfile.ZipFile(run / "harness.pk3", "w") as z:

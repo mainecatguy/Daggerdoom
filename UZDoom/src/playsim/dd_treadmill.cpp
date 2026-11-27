@@ -2879,7 +2879,7 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 			if (d.kind != 0 && d.target == wanted)
 			{
 				if (EnterDoor(Level, pmo, d, dungeonRequestHasStart ? dungeonRequestStart : nullptr)) return;
-				if (runtimeTowns && DDTownCache::Status(DoorGroup(d)) != DDTownCache::State::Failed) { dungeonRequest = wanted; return; }	// [Doomerfall] Converting.
+				if (runtimeTowns && DDTownCache::Status(DoorGroup(d)) != DDTownCache::State::Failed) { DDTownCache::Request(DoorGroup(d), 0); dungeonRequest = wanted; return; }	// [Doomerfall] Converting. The return skips TickTownDoors' scan, so ask here.
 				break;
 			}
 		DD_DebugPrintf("DDTRAVEL no door to dungeon %d in %s\n", wanted, Level->MapName.GetChars());
