@@ -395,14 +395,26 @@ public:
 			FTexture::SetSize(width, height);
 			image.Resize(width * height * 4);
 		}
+		// Daggerfall's windows are laid out on a 320x200 panel centred in the frame. A full-screen window covers it.
+		const double s = std::min(width / 320.0, height / 200.0);
+		const int px0 = int((width - 320 * s) / 2) + 2, px1 = int((width + 320 * s) / 2) - 2;
+		const int py0 = int((height - 200 * s) / 2) + 2, py1 = int((height + 200 * s) / 2) - 2;
+		int64_t clearInPanel = 0;
 		const uint8_t *in = static_cast<const uint8_t *>(bgra);
 		uint8_t *out = image.Data();
+		int x = -1, y = 0;
 		for (size_t i = 0, n = image.Size(); i < n; i += 4)
 		{
+			if (++x == width)
+			{
+				x = 0;
+				y++;
+			}
 			const uint8_t a = in[i + 3];
 			if (a == 255 || a == 0)
 			{
 				memcpy(out + i, in + i, 4);
+				if (!a) clearInPanel += x >= px0 && x < px1 && y >= py0 && y < py1;
 				continue;
 			}
 			const unsigned scale = fix.unpremultiply[a];
@@ -411,7 +423,10 @@ public:
 			out[i + 2] = uint8_t(std::min(255u, (in[i + 2] * scale) >> 8));
 			out[i + 3] = fix.alpha[a];
 		}
+		coversPanel = clearInPanel * 100 <= int64_t(std::max(0, px1 - px0)) * std::max(0, py1 - py0);
 	}
+
+	bool coversPanel = true; // At most 1% of the 320x200 panel is clear: a full-screen window, shown on black.
 
 	FBitmap GetBgraBitmap(const PalEntry *, int *) override
 	{
@@ -977,8 +992,12 @@ void DD_BridgeDrawUi()
 		DrawText(twod, NewSmallFont, CR_GOLD, (twod->GetWidth() - NewSmallFont->StringWidth(text) * CleanXfac) / 2, twod->GetHeight() / 2, text, DTA_CleanNoMove, true, TAG_DONE);
 		return;
 	}
-	// No backdrop: the paused Doom view shows around a small window (merchant, message box). Full-screen ones cover it.
-	if (uiState == UiClosed || !uiHasFrame) return;
+	if (uiState == UiClosed) return;
+	// The paused Doom view shows around a small window (merchant, message box). Full-screen windows, and new game and
+	// load, stay on black as before.
+	if (!uiHasFrame || uiPixels[uiActiveTexture]->coversPanel || uiId == DFB_UI_NEW_GAME || uiId == DFB_UI_LOAD_GAME)
+		Dim(twod, 0, 1.f, 0, 0, twod->GetWidth(), twod->GetHeight());
+	if (!uiHasFrame) return;
 	int x, y, w, h;
 	UiRect(x, y, w, h);
 	DrawTexture(twod, uiTextures[uiActiveTexture], x, y, DTA_DestWidth, w, DTA_DestHeight, h, DTA_LeftOffset, 0, DTA_TopOffset, 0, TAG_DONE);

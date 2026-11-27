@@ -260,6 +260,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
             IUserInterfaceManager manager = DaggerfallUI.UIManager;
             bool atHud = manager.TopWindow == null || manager.TopWindow is DaggerfallHUD;
+            // Transparent around windows, so Doom can show its view behind small ones. With only the HUD up (a fast
+            // travel settling, a fade) the frame stays black, as before.
+            if (target)
+                target.ClearColor = atHud ? Color.black : Color.clear;
             if (bridge.LogEnabled && manager.TopWindow != lastTop)
             {
                 lastTop = manager.TopWindow;
@@ -717,13 +721,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (surfaceWidth != Screen.width || surfaceHeight != Screen.height)
                 scaled = new RenderTexture(surfaceWidth, surfaceHeight, 0, RenderTextureFormat.ARGB32);
             bridge.LogLine(string.Format("ui: surface {0}x{1} for a {2}x{3} window", surfaceWidth, surfaceHeight, Screen.width, Screen.height));
-        }
-
-        /// <summary>True while a Daggerfall menu is shown in Doom. Daggerfall's HUD then stays out of the frame: popups
-        /// draw their parent window behind them, and behind a popup over the HUD Doom shows its own view and HUD.</summary>
-        public static bool MenuShown
-        {
-            get { return instance && instance.openId != 0; }
         }
 
         /// <summary>Doom's mouse position in Unity screen pixels, with the origin at the bottom left.</summary>

@@ -478,7 +478,7 @@ namespace DaggerfallWorkshop.Game
                 {
                     oldRT = RenderTexture.active;
                     RenderTexture.active = customRenderTarget.TargetTexture;
-                    customRenderTarget.Clear();
+                    customRenderTarget.Clear(customRenderTarget.ClearColor);
                 }
 
                 // A docked large HUD changes viewport area

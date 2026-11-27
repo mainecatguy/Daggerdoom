@@ -50,6 +50,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             yield return Show("messagebox-dimmed", () => ui.PushWindow(Box(ui, DaggerfallUI.Instance.DaggerfallHUD)));
             yield return Show("pause", () => DaggerfallUI.PostMessage(DaggerfallUIMessages.dfuiOpenPauseOptionsDialog));
             yield return Show("spellbook", () => DaggerfallUI.PostMessage(DaggerfallUIMessages.dfuiOpenSpellBookWindow));
+            yield return Show("charactersheet", () => ui.PushWindow(new DaggerfallCharacterSheetWindow(ui)));
+            yield return Show("talk", () => ui.PushWindow(new DaggerfallTalkWindow(ui)));
             yield return Show("automap", () => DaggerfallUI.PostMessage(DaggerfallUIMessages.dfuiOpenAutomap));
             yield return Show("travelmap", () => DaggerfallUI.PostMessage(DaggerfallUIMessages.dfuiOpenTravelMapWindow));
             Step("done");
