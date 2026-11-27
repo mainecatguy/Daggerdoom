@@ -120,6 +120,8 @@ def paired(source, build, dfu, bridge, launcher, work):
     install.isolate_registry(play / "dfu")
     shutil.copy2(Path(launcher) / "doomerfall-launcher.exe", play / "doomerfall-launcher.exe")
     build_mod(play / "doomerfall.pk3")
+    # The real game loads doomerfall-drla.pk3 with DRLA; without it a random DRLA class is picked (see tools/agility).
+    subprocess.run([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), "--drla", str(play / "doomerfall-drla.pk3")], check=True)
     harn = harness(work)
     run = play / "run"
     run.mkdir(exist_ok=True)
@@ -133,7 +135,7 @@ def paired(source, build, dfu, bridge, launcher, work):
     command = [sys.executable, QUIET, "--timeout", "230", "--", str(play / "doomerfall-launcher.exe"), "--minimized",
                "--uzdoom", str(play / "uzdoom" / "uzdoom.exe"), "--dfu", str(play / "dfu" / "DaggerfallUnity.exe"),
                "--iwad", IWAD, "--uzdoom-cwd", str(run), "--log", str(run / "will-launcher.log")]
-    for mod in DRLA + [play / "doomerfall.pk3", harn]:
+    for mod in DRLA + [play / "doomerfall.pk3", play / "doomerfall-drla.pk3", harn]:
         command += ["--mod", str(mod)]
     for a in uz:
         command += ["--uzdoom-arg", a]
