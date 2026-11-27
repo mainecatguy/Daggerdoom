@@ -45,10 +45,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DFLocation location;
             string word = null;
             if (DoomerfallAreaLevels.ForMapId(summary.MapID, out level))
-                word = Word(level.Area);
+                word = Word(level.Place); // the town level for a town
             else if (DaggerfallUnity.Instance.ContentReader.GetLocation(summary.RegionIndex, summary.MapIndex, out location)
                 && DoomerfallAreaLevels.ForLocation(location, out level))
-                word = Word(level.Area); // a location a mod added
+                word = Word(level.Place); // a location a mod added
 
             cachedMapId = summary.MapID;
             cachedWord = word;

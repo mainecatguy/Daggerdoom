@@ -3,7 +3,8 @@
 // Inputs:  classic MAPS.BSA and POLITIC.PAK, read straight from Arena2 so mods that add locations or repaint
 //          regions cannot change the ranking, plus the hand tables and fixed seeds below.
 // Outputs: Dungeon level per location (ranked within its size class), terrain level per land map pixel
-//          (ranked over all land pixels), and ForLocation / ForMapPixel / ForCurrentPlace lookups.
+//          (ranked over all land pixels), town level per town (the higher of its terrain level and its class level),
+//          and ForLocation / ForMapPixel / ForCurrentPlace lookups.
 //
 // This is a port of tools/area_level/area_level.py, the formula the owner approved on 2026-11-23
 // (work/notes/20261123-225515-area-level-proposal.md). Keep the two in step: same tables, same seeds, and the
@@ -59,6 +60,24 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         // Story places with a fixed level, applied after ranking. Every new character wakes up in Privateer's Hold.
         static readonly Dictionary<int, int> Overrides = new Dictionary<int, int> { { 187853213, 1 } };
 
+        // ---- Towns (owner, 2026-11-24 and 2026-11-26) ------------------------------------------------------------
+        // Outdoors in a town the area level is the town's level: the higher of the terrain level and the class level.
+        // It is a danger level only (guards, night spawns); it never sets shop quality or any building's wealth.
+        // Classes by location type ("type" scheme): village small, hamlet medium, city large, and a city named after
+        // its region a capital. Same table and aliases as tools/area_level/area_level.py.
+        const int TypeCity = 0, TypeHamlet = 1, TypeVillage = 2;
+        internal const int TownSmall = 5, TownMedium = 10, TownLarge = 15, TownCapital = 20;
+        static readonly Dictionary<string, string> CapitalAlias = new Dictionary<string, string>
+        {
+            { "Glenumbra Moors", "Glenumbra" }, { "Dragontail Mountains", "Dragontail" }, { "Wrothgarian Mountains", "Wrothgaria" },
+            { "Antiphyllos", "Antyphyllos" }, { "Orsinium Area", "Orsinium" }, { "Alik'r Desert", "Alik'ra" },
+        };
+
+        // The town level holds over the whole town Doom map. UZDoom's town map reaches 24 tiles (256 Daggerfall units
+        // each) past the location's rectangle, and the player leaves it for the overworld at 20 (dd_treadmill.cpp,
+        // Town::margin and ExitMargin). Daggerfall's own location rect check (4096 units, 16 tiles) lies inside this.
+        internal const int TownEdge = 24 * 256;
+
         // Location type bytes that pick a size class. Everything else with a dungeon is a labyrinth.
         const int TypeKeep = 7, TypeRuin = 10, TypeGraveyard = 12;
         const int ClassLabyrinth = 0, ClassKeep = 1, ClassRuin = 2, ClassGraveyard = 3, ClassCount = 4;
@@ -68,6 +87,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             internal int dungeon;   // 0 when the place has no dungeon
             internal int terrain;   // the countryside around the place
+            internal int town;      // outdoors in a town: max(terrain, class level); 0 when the place is not a town
+            /// <summary>The level the travel map shows: the town level for a town, otherwise Area.</summary>
+            internal int Place { get { return town > 0 ? town : Area; } }
             internal int Area { get { return dungeon > 0 ? dungeon : terrain; } }
         }
 
@@ -187,6 +209,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DFRegion.RegionMapTable map = location.MapTableData;
             int x = map.Longitude / 128, y = 499 - map.Latitude / 128;
             level.terrain = TerrainAt(t, x, y);
+            string region = location.RegionIndex >= 0 && location.RegionIndex < MapsFile.RegionNames.Length ? MapsFile.RegionNames[location.RegionIndex] : "";
+            level.town = TownLevel(level.terrain, (int)map.LocationType, region, location.Name ?? "");
             int dtype = (int)map.DungeonType;
             if (dtype >= 0 && dtype < TypeLean.Length)
             {
@@ -206,18 +230,119 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return t == null || t.error != null ? 0 : TerrainAt(t, x, y);
         }
 
-        /// <summary>Where the player is now: the dungeon's level inside a dungeon, otherwise the terrain level of the map pixel. 0 if unknown.</summary>
+        /// <summary>
+        /// Where the player is now: the dungeon's level inside a dungeon, the town level outdoors on a town's Doom map,
+        /// otherwise the terrain level of the map pixel (building interiors included, until they get their own). 0 if unknown.
+        /// </summary>
         internal static int ForCurrentPlace()
         {
             GameManager game = GameManager.Instance;
             if (game == null || game.PlayerGPS == null)
                 return 0;
             Level level;
-            if (game.PlayerEnterExit && game.PlayerEnterExit.IsPlayerInsideDungeon && game.PlayerGPS.HasCurrentLocation
+            PlayerEnterExit enter = game.PlayerEnterExit;
+            if (enter && enter.IsPlayerInsideDungeon && game.PlayerGPS.HasCurrentLocation
                 && ForLocation(game.PlayerGPS.CurrentLocation, out level) && level.dungeon > 0)
                 return level.dungeon;
+            if (!enter || !enter.IsPlayerInside)
+            {
+                int town = TownAt(game.PlayerGPS.WorldX, game.PlayerGPS.WorldZ);
+                if (town > 0)
+                    return town;
+            }
             DaggerfallConnect.Utility.DFPosition pixel = game.PlayerGPS.CurrentMapPixel;
             return ForMapPixel(pixel.X, pixel.Y);
+        }
+
+        /// <summary>
+        /// The town level at a Daggerfall world position, or 0 when it is not on a town's Doom map, taken as the
+        /// town's location rectangle extended by TownEdge. Looks at the position's map pixel and its neighbours, since
+        /// a town map near a pixel edge reaches into the next pixel. The highest town wins where two overlap.
+        /// Main thread only.
+        /// </summary>
+        internal static int TownAt(int worldX, int worldZ)
+        {
+            Table t = Ready();
+            DaggerfallUnity dfu = DaggerfallUnity.Instance;
+            if (t == null || t.error != null || dfu == null || !dfu.IsReady)
+                return 0;
+            DaggerfallConnect.Utility.DFPosition pixel = MapsFile.WorldCoordToMapPixel(worldX, worldZ);
+            int best = 0;
+            for (int dy = -1; dy <= 1; dy++)
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    TownRect rect;
+                    if (!TownRectAt(dfu, pixel.X + dx, pixel.Y + dy, out rect) || rect.level <= best)
+                        continue;
+                    if (worldX >= rect.minX - TownEdge && worldX <= rect.maxX + TownEdge && worldZ >= rect.minZ - TownEdge && worldZ <= rect.maxZ + TownEdge)
+                        best = rect.level;
+                }
+            return best;
+        }
+
+        struct TownRect { internal int minX, maxX, minZ, maxZ, level; }
+
+        static readonly Dictionary<int, TownRect> townRects = new Dictionary<int, TownRect>();
+        static readonly HashSet<int> notTowns = new HashSet<int>();
+
+        // A town's location rectangle in world units, worked out as PlayerGPS.SetLocationRect does. Cached per pixel.
+        static bool TownRectAt(DaggerfallUnity dfu, int x, int y, out TownRect rect)
+        {
+            rect = default(TownRect);
+            if (x < 0 || x >= MapWidth || y < 0 || y >= MapHeight)
+                return false;
+            int key = y * MapWidth + x;
+            if (townRects.TryGetValue(key, out rect))
+                return true;
+            if (notTowns.Contains(key))
+                return false;
+            if (townRects.Count + notTowns.Count > 4096)
+            {
+                townRects.Clear();
+                notTowns.Clear();
+            }
+            DaggerfallWorkshop.Utility.ContentReader.MapSummary summary;
+            DFLocation location;
+            Level level;
+            if (!dfu.ContentReader.HasLocation(x, y, out summary) || !IsTownType((int)summary.LocationType)
+                || !dfu.ContentReader.GetLocation(summary.RegionIndex, summary.MapIndex, out location)
+                || !ForLocation(location, out level) || level.town <= 0)
+            {
+                notTowns.Add(key);
+                return false;
+            }
+            DaggerfallConnect.Utility.DFPosition origin = MapsFile.MapPixelToWorldCoord(x, y);
+            DaggerfallConnect.Utility.DFPosition tile = TerrainHelper.GetLocationTerrainTileOrigin(location);
+            rect.minX = origin.X + tile.X * 2 * MapsFile.WorldMapTileDim;
+            rect.minZ = origin.Y + tile.Y * 2 * MapsFile.WorldMapTileDim;
+            rect.maxX = rect.minX + location.Exterior.ExteriorData.Width * MapsFile.WorldMapRMBDim;
+            rect.maxZ = rect.minZ + location.Exterior.ExteriorData.Height * MapsFile.WorldMapRMBDim;
+            rect.level = level.town;
+            townRects[key] = rect;
+            return true;
+        }
+
+        static bool IsTownType(int locationType)
+        {
+            return locationType == TypeCity || locationType == TypeHamlet || locationType == TypeVillage;
+        }
+
+        /// <summary>The class level of a town (5, 10, 15 or 20), or 0 for any other location type.</summary>
+        internal static int TownClassLevel(int locationType, string regionName, string locationName)
+        {
+            if (locationType == TypeVillage) return TownSmall;
+            if (locationType == TypeHamlet) return TownMedium;
+            if (locationType != TypeCity) return 0;
+            string capital;
+            if (!CapitalAlias.TryGetValue(regionName, out capital))
+                capital = regionName;
+            return string.Equals(locationName.Trim(), capital.Trim(), StringComparison.OrdinalIgnoreCase) ? TownCapital : TownLarge;
+        }
+
+        static int TownLevel(int terrain, int locationType, string regionName, string locationName)
+        {
+            int cls = TownClassLevel(locationType, regionName, locationName);
+            return cls > 0 ? Math.Max(terrain, cls) : 0;
         }
 
         static int TerrainAt(Table t, int x, int y)
@@ -320,6 +445,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     int x = lon / 128, y = 499 - lat / 128;
 
                     Level level = new Level { terrain = TerrainAt(t, x, y) };
+                    level.town = TownLevel(level.terrain, ltype, MapsFile.RegionNames[region], Latin1Name(names, 4 + i * 32));
                     t.byMapId[mapId] = level;
                     if (dtype >= TypeLean.Length)
                         continue;
@@ -357,6 +483,19 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 }
             }
             return maps;
+        }
+
+        // A 32-byte, zero-padded location name from the names record, read as Latin-1 like the script.
+        static string Latin1Name(byte[] names, int offset)
+        {
+            char[] chars = new char[32];
+            int n = 0;
+            while (n < 32 && offset + n < names.Length && names[offset + n] != 0)
+            {
+                chars[n] = (char)names[offset + n];
+                n++;
+            }
+            return new string(chars, 0, n);
         }
 
         static int SizeClass(int locationType)

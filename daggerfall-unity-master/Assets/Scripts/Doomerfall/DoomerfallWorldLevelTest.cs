@@ -32,6 +32,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         internal static void Attach(DoomerfallBridge owner)
         {
+            DoomerfallTownLevelWatch.Attach(owner); // test only: -dftownlevellog
             string[] args = Environment.GetCommandLineArgs();
             int at = Array.IndexOf(args, "-dfworldleveltest");
             int level;
