@@ -72,10 +72,12 @@ class DoomerfallAttributeEffects : Inventory
 	//     plasma shot that lands after a switch to fists does not count;
 	//   - anything else credited to the player never counts: no inflictor, the player as inflictor (BFG tracers,
 	//     A_BFGSpray), a barrel the player set off, a spawned explosion.
-	bool MeleeAttack(Actor inflictor)
+	bool MeleeAttack(Actor inflictor, int flags = 0)
 	{
 		if (!inflictor || inflictor == owner) return false;
 		if (inflictor.bIsPuff && inflictor.GetAge() == 0) return HoldsMelee(owner);
+		// A rail attack (DRLA Energysaw: A_RailAttack) passes a plain-Spawned puff without ISPUFF, flagged DMG_RAILGUN.
+		if ((flags & DMG_RAILGUN) && inflictor.GetAge() == 0 && !inflictor.bMissile) return HoldsMelee(owner);
 		if (inflictor.bMissile || inflictor.default.bMissile) return HeldMeleeAt(level.totaltime - inflictor.GetAge());
 		return false;
 	}
@@ -89,7 +91,7 @@ class DoomerfallAttributeEffects : Inventory
 	// P_DamageMobj passes the target as "source".
 	override void ModifyDamage(int damage, Name damageType, out int newdamage, bool passive, Actor inflictor, Actor source, int flags, double angle)
 	{
-		if (passive || damage <= 0 || source == owner || !MeleeAttack(inflictor)) return;
+		if (passive || damage <= 0 || source == owner || !MeleeAttack(inflictor, flags)) return;
 		double f = StrengthMeleeFactor();
 		if (f != 1.0) newdamage = max(1, int(damage * f));
 	}
