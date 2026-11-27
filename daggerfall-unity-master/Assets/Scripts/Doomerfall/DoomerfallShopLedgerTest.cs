@@ -50,24 +50,26 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             string second = Months(1001, day0, false);
             Log(first == second ? "PASS two runs give identical stock (" + first.Length + " chars of daily signature)" : "FAIL two runs differ");
 
+            foreach (int[] c in new[] { new[] { 1, 6, 3 }, new[] { 5, 6, 5 }, new[] { 10, 8, 2 }, new[] { 30, 20, 3 }, new[] { 30, 20, 6 } })
+                StockSize(c[0], c[1], c[2], day0);
             foreach (int level in new[] { 30, 20 })
                 DaedricRate(level, day0);
             Log(string.Format("done in {0:F1}s", Time.realtimeSinceStartup - started));
         }
 
-        DaggerfallLoot[] MakeShelves()
+        DaggerfallLoot[] MakeShelves(int count = Shelves)
         {
-            DaggerfallLoot[] shelves = new DaggerfallLoot[Shelves];
-            for (int i = 0; i < Shelves; i++)
+            DaggerfallLoot[] shelves = new DaggerfallLoot[count];
+            for (int i = 0; i < count; i++)
                 shelves[i] = new GameObject("Doomerfall ledger test shelf").AddComponent<DaggerfallLoot>();
             return shelves;
         }
 
         static void Free(DaggerfallLoot[] shelves) { foreach (DaggerfallLoot s in shelves) Destroy(s.gameObject); }
 
-        static void Day(DaggerfallLoot[] shelves, int location, int day, int level)
+        static void Day(DaggerfallLoot[] shelves, int location, int day, int level, int quality = 20)
         {
-            PlayerGPS.DiscoveredBuilding smith = new PlayerGPS.DiscoveredBuilding { buildingType = DFLocation.BuildingTypes.WeaponSmith, quality = 20, buildingKey = BuildingKey };
+            PlayerGPS.DiscoveredBuilding smith = new PlayerGPS.DiscoveredBuilding { buildingType = DFLocation.BuildingTypes.WeaponSmith, quality = quality, buildingKey = BuildingKey };
             using (new WorldLevel.Scope(level))
                 for (int i = 0; i < shelves.Length; i++)
                     DoomerfallShopLedger.Restock(shelves[i], smith, location, i, shelves.Length, day, level);
@@ -153,10 +155,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         stillThere[b]++;
                         stillAge[b] += Days + 1 - kv.Value;
                     }
-                int total = 0;
-                foreach (DaggerfallLoot s in shelves) total += s.Items.Count;
-                Log(string.Format("top weapon smith, level 30, {0} shelves sharing a stock target of {1}, {2} days; {3} items on the shelves at the end",
-                    Shelves, DoomerfallShopLedger.StockTarget(30), Days, total));
+                int total = 0, stocked = 0;
+                foreach (DaggerfallLoot s in shelves) { total += s.Items.Count; stocked += DoomerfallShopLedger.Stocked(s.Items); }
+                Log(string.Format("top weapon smith, level 30, {0} shelves sharing a stock target of {1}, {2} days; at the end {3} items on the shelves: {4} stocked goods (incl. the player-sold sword if still there), {5} Doom ammo stacks",
+                    Shelves, DoomerfallShopLedger.StockTarget(30), Days, total, stocked, total - stocked));
                 for (int b = 0; b < 4; b++)
                     Log(string.Format("  {0}: {1} sold off, mean {2:F1} days on the shelf; {3} still there at the end (mean age {4:F1} days)",
                         bands[b], left[b], left[b] > 0 ? (double)life[b] / left[b] : 0, stillThere[b], stillThere[b] > 0 ? (double)stillAge[b] / stillThere[b] : 0));
@@ -169,6 +171,43 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
             Free(shelves);
             return sig.ToString();
+        }
+
+        /// <summary>180 days at one weapon smith: the stocked goods (not ammo, horse or cart) across all shelves stay at the
+        /// building's stock target, whatever the shelf count, and new non-ammo goods keep arriving to the end.</summary>
+        void StockSize(int level, int quality, int count, int day0)
+        {
+            const int Days = 180, WarmUp = 30;
+            DaggerfallLoot[] shelves = MakeShelves(count);
+            int target = DoomerfallShopLedger.StockTarget(level), cap = count * ((target + count - 1) / count);
+            int min = int.MaxValue, max = 0, ammoMax = 0, lateArrivals = 0;
+            long sum = 0, ammoSum = 0;
+            HashSet<DaggerfallUnityItem> known = new HashSet<DaggerfallUnityItem>();
+            for (int d = 1; d <= Days; d++)
+            {
+                Day(shelves, 7000 + level * 10 + count, day0 + d, level, quality);
+                int stocked = 0, ammo = 0;
+                foreach (DaggerfallLoot s in shelves)
+                {
+                    stocked += DoomerfallShopLedger.Stocked(s.Items);
+                    for (int i = 0; i < s.Items.Count; i++)
+                    {
+                        DaggerfallUnityItem item = s.Items.GetItem(i);
+                        if (item is DoomerfallAmmoItem) ammo++;
+                        else if (known.Add(item) && d > Days - 30) lateArrivals++;
+                    }
+                }
+                if (d > WarmUp)
+                {
+                    min = Mathf.Min(min, stocked); max = Mathf.Max(max, stocked); sum += stocked;
+                    ammoMax = Mathf.Max(ammoMax, ammo); ammoSum += ammo;
+                }
+            }
+            Free(shelves);
+            int n = Days - WarmUp;
+            bool pass = max <= cap && min >= target * 3 / 4 && lateArrivals > 0;
+            Log(string.Format("{0} stock size: weapon smith level {1}, quality {2}, {3} shelves, target {4} (cap {5} with rounding): stocked goods per day {6}-{7}, mean {8:F1}; Doom ammo stacks (outside the target, first shelf) mean {9:F1}, max {10}; {11} new non-ammo items in the last 30 days",
+                pass ? "PASS" : "FAIL", level, quality, count, target, cap, min, max, (double)sum / n, (double)ammoSum / n, ammoMax, lateArrivals));
         }
 
         /// <summary>Replays DoomerfallShopLedger's sell-off for one day (same seed, same roll order) without touching the shelf.</summary>

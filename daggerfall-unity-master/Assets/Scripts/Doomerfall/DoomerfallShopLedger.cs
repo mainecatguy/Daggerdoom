@@ -6,7 +6,9 @@
 //      (SellChance): cheap goods leave in days, Daedric goods linger for months. Nothing else removes items.
 //   2. If the shelf is below its share of the building's stock (StockTarget from the shop level, split over the
 //      building's shelves), one classic delivery is rolled and items from it are added until the share is full.
-//      Doom ammo from the delivery is always added (it restocks often and sells fast).
+//      Doom ammo and the horse and cart do not count against the share. Doom ammo restocks every day (it sells fast),
+//      as one delivery per building on its first shelf, outside the stock target. A general store's one horse and one
+//      cart are kept on the first shelf as well.
 // Every roll in a period draws from Unity's generator seeded by (location, building, delivery number, shelf), so the
 // same building on the same day always gets the same goods. Weapon and armor material uses the owner's approved odds
 // (DoomerfallDrops.RollMaterial) at the shop's level instead of Daggerfall's classic curve.
@@ -60,7 +62,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 {
                     Random.InitState(Seed(location, building.buildingKey, day, shelfIndex));
                     SellOff(shelf.Items);
-                    Deliver(shelf, building, share);
+                    Deliver(shelf, building, share, shelfIndex == 0);
                 }
             }
             finally
@@ -143,8 +145,24 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 items.RemoveItem(item);
         }
 
-        static void Deliver(DaggerfallLoot shelf, PlayerGPS.DiscoveredBuilding building, int share)
+        /// <summary>Items on a shelf that count against its share of the stock target: everything except Doom ammo and the horse and cart.</summary>
+        internal static int Stocked(ItemCollection items)
         {
+            int n = 0;
+            for (int i = 0; i < items.Count; i++)
+            {
+                DaggerfallUnityItem item = items.GetItem(i);
+                if (!(item is DoomerfallAmmoItem) && item.ItemGroup != ItemGroups.Transportation)
+                    n++;
+            }
+            return n;
+        }
+
+        // Doom ammo sits outside the stock target: the building gets one ammo delivery a day, on its first shelf
+        // (takesAmmo), and the other shelves drop the ammo from their deliveries.
+        static void Deliver(DaggerfallLoot shelf, PlayerGPS.DiscoveredBuilding building, int share, bool takesAmmo)
+        {
+            int stocked = Stocked(shelf.Items);
             ItemCollection delivery = new ItemCollection();
             shelf.AddShopDelivery(building, delivery);
             List<DaggerfallUnityItem> goods = new List<DaggerfallUnityItem>();
@@ -161,8 +179,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 bool transport = item.ItemGroup == ItemGroups.Transportation;
                 if (transport && shelf.Items.Contains(item.ItemGroup, item.TemplateIndex))
                     continue;   // one horse, one cart
-                if (!ammo && !transport && shelf.Items.Count >= share)
-                    continue;   // a general store always has its horse and cart, as in Daggerfall's classic restock
+                if ((ammo || transport) && !takesAmmo)
+                    continue;   // the building's one horse and cart are on its first shelf too
+                if (!ammo && !transport)
+                {
+                    if (stocked >= share)
+                        continue;   // a general store always has its horse and cart, as in Daggerfall's classic restock
+                    stocked++;
+                }
                 shelf.Items.AddItem(item, ItemCollection.AddPosition.Back, !ammo);   // ammo joins a matching stack
             }
         }
