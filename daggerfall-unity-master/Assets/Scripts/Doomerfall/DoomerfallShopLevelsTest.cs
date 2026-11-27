@@ -70,14 +70,20 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DoomerfallAreaLevels.Warm();
             report.AppendFormat("warm call on main thread {0:0.000} ms\n", clock.Elapsed.TotalMilliseconds);
             report.AppendLine(DoomerfallAreaLevels.Status());
-            report.AppendLine(DoomerfallShopLevels.Status());
+            report.AppendLine(DoomerfallShopLevels.TestStatus());
 
             StringBuilder csv = new StringBuilder("map_id,type,name_seed,quality,level\n");
-            foreach (int[] s in DoomerfallShopLevels.Classic())
+            int[] counts = new int[DoomerfallAreaLevels.MaxLevel + 1];
+            HashSet<int> places = new HashSet<int>();
+            foreach (int[] s in DoomerfallShopLevels.TestClassic())
+            {
                 csv.AppendFormat("{0},{1},{2},{3},{4}\n", s[0], s[1], s[2], s[3], s[4]);
+                counts[s[4]]++;
+                places.Add(s[0]);
+            }
             File.WriteAllText(Path.Combine(dir, "classic.csv"), csv.ToString());
+            report.AppendFormat("classic shops in {0} locations\n", places.Count);
 
-            int[] counts = DoomerfallShopLevels.Counts();
             StringBuilder line = new StringBuilder("counts:");
             for (int level = 1; level < counts.Length; level++)
                 line.AppendFormat(" {0}:{1}", level, counts[level]);
@@ -124,7 +130,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         int level = DoomerfallShopLevels.ForShop(location, b);
                         total++;
                         if (level == 0) zero++;
-                        if (DoomerfallShopLevels.PlaceAmongClassic(location, b) == level) fallbackSame++;
+                        if (DoomerfallShopLevels.TestPlaceAmongClassic(location, b) == level) fallbackSame++;
                         int band = b.Quality <= 3 ? 0 : b.Quality <= 7 ? 1 : b.Quality <= 13 ? 2 : b.Quality <= 17 ? 3 : 4;
                         bandMin[band] = Math.Min(bandMin[band], level);
                         bandMax[band] = Math.Max(bandMax[band], level);

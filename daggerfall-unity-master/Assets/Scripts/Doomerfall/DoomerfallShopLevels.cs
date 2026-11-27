@@ -3,7 +3,8 @@
 //
 // Inputs:  each classic location's building list, map table and names from MAPS.BSA, read once by
 //          DoomerfallAreaLevels on its worker thread and handed to Build().
-// Outputs: ForShop(location, building) -> level, 0 if the building is not a shop.
+// Outputs: ForShop(location, building) -> level, 0 if the building is not a shop. Test-only accessors are in
+//          DoomerfallShopLevelsTestAccess.cs.
 //
 // The rule is proposal C, band-locked rank, which the owner chose on 2026-11-26
 // (work/notes/20261124-124736-shop-levels.md). This is a port of tools/shop_levels/shop_level.py: keep the two in
@@ -24,7 +25,7 @@ using DaggerfallWorkshop.Utility;
 
 namespace DaggerfallWorkshop.Game.Doomerfall
 {
-    internal static class DoomerfallShopLevels
+    internal static partial class DoomerfallShopLevels
     {
         // ---- Tables, identical to shop_level.py ---------------------------------------------------------------
         static readonly int[] BandLow = { 1, 5, 11, 19, 25 };
@@ -50,8 +51,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             internal Dictionary<ulong, int> levelById;   // (MapId, type, NameSeed, quality) -> level
             internal ulong[][] bandKeys;                  // sorted classic keys per band, for shops that are not classic
-            internal int[] counts;                        // shops per level, index 1..30
-            internal int locations;
             internal long milliseconds;
             internal string error;
         }
@@ -83,17 +82,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return t != null && t.error == null ? t : null;
         }
 
-        /// <summary>One line for logs: how long the table took on the worker, or why it failed.</summary>
-        internal static string Status()
-        {
-            if (table == null)
-                DoomerfallAreaLevels.WaitUntilBuilt();
-            Table t = table;
-            if (t == null) return "shop levels: not built";
-            if (t.error != null) return "shop levels: failed, " + t.error;
-            return string.Format("shop levels: {0} shops in {1} locations in {2} ms on the area level worker", t.levelById.Count, t.locations, t.milliseconds);
-        }
-
         /// <summary>
         /// Level of a shop, 1 to 30, or 0 if the building is not a shop or the table could not be built.
         /// </summary>
@@ -109,35 +97,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (t.levelById.TryGetValue(Id(location.MapTableData.MapId, type, nameSeed, building.Quality), out level))
                 return level;
             return PlaceAmongClassic(t, building.Quality, TownClassOf(location), Seed(location.MapTableData.MapId, type, nameSeed));
-        }
-
-        /// <summary>For a shop the classic list does not hold: where its key falls among the classic keys of its band.</summary>
-        internal static int PlaceAmongClassic(in DFLocation location, in BuildingSummary building)
-        {
-            Table t = Ready();
-            if (t == null || !RMBLayout.IsShop(building.BuildingType))
-                return 0;
-            return PlaceAmongClassic(t, building.Quality, TownClassOf(location), Seed(location.MapTableData.MapId, (int)building.BuildingType, building.NameSeed & 0xFFFF));
-        }
-
-        /// <summary>Shops per level, index 1 to 30. Null if the table could not be built.</summary>
-        internal static int[] Counts()
-        {
-            Table t = Ready();
-            return t == null ? null : (int[])t.counts.Clone();
-        }
-
-        /// <summary>Every classic shop as (MapId, type, NameSeed, quality, level). Empty if the table could not be built.</summary>
-        internal static IEnumerable<int[]> Classic()
-        {
-            Table t = Ready();
-            if (t == null)
-                yield break;
-            foreach (KeyValuePair<ulong, int> entry in t.levelById)
-            {
-                ulong id = entry.Key;
-                yield return new[] { (int)(uint)(id >> 32), (int)(id >> 24) & 0xFF, (int)(id >> 8) & 0xFFFF, (int)(id & 0xFF), entry.Value };
-            }
         }
 
         static int PlaceAmongClassic(Table t, int quality, int townClass, uint seed)
@@ -162,7 +121,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             List<Shop>[] bands = new List<Shop>[BandLow.Length];
             for (int b = 0; b < bands.Length; b++)
                 bands[b] = new List<Shop>();
-            HashSet<int> locations = new HashSet<int>();
             int regions = Math.Min(maps.Count / 4, MapsFile.RegionNames.Length);
             for (int region = 0; region < regions; region++)
             {
@@ -197,15 +155,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         int nameSeed = BitConverter.ToUInt16(items, o);
                         int quality = items[o + 25];
                         bands[Band(quality)].Add(new Shop { mapId = mapId, type = type, nameSeed = nameSeed, quality = quality, townClass = townClass, seed = Seed(mapId, type, nameSeed) });
-                        locations.Add(mapId);
                     }
                 }
             }
 
             t.levelById = new Dictionary<ulong, int>();
             t.bandKeys = new ulong[bands.Length][];
-            t.counts = new int[DoomerfallAreaLevels.MaxLevel + 1];
-            t.locations = locations.Count;
             for (int b = 0; b < bands.Length; b++)
             {
                 Shop[] members = bands[b].ToArray();
@@ -217,7 +172,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     int level = BandLow[b] + (int)((long)i * width / members.Length);
                     t.levelById[Id(members[i].mapId, members[i].type, members[i].nameSeed, members[i].quality)] = level;
                     t.bandKeys[b][i] = members[i].Key;
-                    t.counts[level]++;
                 }
             }
         }
