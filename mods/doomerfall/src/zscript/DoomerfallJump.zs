@@ -47,8 +47,8 @@ class DoomerfallJump : StaticEventHandler
 		for (int i = 0; i < MAXPLAYERS; i++) st[i] = null;
 	}
 
-	clearscope int Skill() const { return testSkill >= 0 ? testSkill : skill; }
-	clearscope bool Active() const { return rules && Skill() >= 0; }
+	clearscope int JumpSkill() const { return testSkill >= 0 ? testSkill : skill; }
+	clearscope bool Active() const { return rules && JumpSkill() >= 0; }
 
 	// Jump height multiplier: linear to +100% at 100, plus a 25% spike from 25 on.
 	clearscope static double HeightFactor(int s)
@@ -75,7 +75,7 @@ class DoomerfallJump : StaticEventHandler
 			let mo = players[i].mo;
 			if (!mo) continue;
 			// Jump height is velocity squared, so the height factor's square root scales the jump velocity.
-			double jumpZ = Active() ? mo.default.JumpZ * sqrt(HeightFactor(Skill())) : mo.default.JumpZ;
+			double jumpZ = Active() ? mo.default.JumpZ * sqrt(HeightFactor(JumpSkill())) : mo.default.JumpZ;
 			if (mo.JumpZ != jumpZ) mo.JumpZ = jumpZ;
 			if (!Active()) { st[i] = null; continue; }
 			if (!st[i]) { st[i] = new("DoomerfallJumpState"); Reset(mo, st[i]); }
@@ -115,7 +115,7 @@ class DoomerfallJump : StaticEventHandler
 			if (s.airborne) Land(p, mo, s);
 			s.airborne = false;
 			s.groundZ = mo.pos.z;
-			s.airJumpsLeft = AirJumps(Skill());
+			s.airJumpsLeft = AirJumps(JumpSkill());
 			return;
 		}
 		if (!s.airborne)
@@ -130,12 +130,12 @@ class DoomerfallJump : StaticEventHandler
 	{
 		double fell = s.fallStartZ - mo.pos.z;
 		int damage = FallDamage(fell);
-		if (damage > 0 && FallImmune(Skill()))
+		if (damage > 0 && FallImmune(JumpSkill()))
 		{
-			DDLog.Debug(String.Format("DFJUMP land fell=%.1f damage=0 (immune, Jumping %d)", fell, Skill()));
+			DDLog.Debug(String.Format("DFJUMP land fell=%.1f damage=0 (immune, Jumping %d)", fell, JumpSkill()));
 			return;
 		}
-		if (fell > UnitsPerMetre) DDLog.Debug(String.Format("DFJUMP land fell=%.1f damage=%d Jumping=%d", fell, damage, Skill()));
+		if (fell > UnitsPerMetre) DDLog.Debug(String.Format("DFJUMP land fell=%.1f damage=%d Jumping=%d", fell, damage, JumpSkill()));
 		if (damage > 0) mo.DamageMobj(null, null, damage, 'Falling', DMG_NO_ARMOR | DMG_NO_FACTOR | DMG_NO_PROTECT | DMG_NO_ENHANCE);
 	}
 

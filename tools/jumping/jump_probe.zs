@@ -57,7 +57,7 @@ class DoomerfallJumpTest : StaticEventHandler
 		}
 		if (phase == 2) // in the air: count mid-air jumps, press again at each apex
 		{
-			if (mo.vel.z > lastVelZ + 1) airJumps++;
+			if (mo.vel.z > lastVelZ + 1 && mo.vel.z > 1 && !Grounded(mo)) airJumps++; // not the landing's stop
 			maxZ = max(maxZ, mo.pos.z);
 			if (!sawApex && mo.vel.z <= 0) { sawApex = true; firstRise = maxZ - z0; }
 			if (mo.vel.z <= 0 && presses < 3 && !Grounded(mo) && t > 2) { p.cmd.buttons |= BT_JUMP; presses++; }
