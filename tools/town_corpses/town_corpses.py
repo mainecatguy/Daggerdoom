@@ -1,12 +1,14 @@
 """Daggerfall townspeople and guards leave corpses in Doom, drawn from Daggerfall's own files at run time.
 
-usage: town_corpses.py assemble <source review folder> | run NAME (kill | load [--pack]) | check
+usage: town_corpses.py assemble <source review folder> | run NAME (kill | guard | load | guardload) [--pack] | check
 assemble builds review\\town-corpses from a paired review folder (data, dfitems.pk3, portable Daggerfall Unity) with
 this checkout's UZDoom (D:\\dev\\DoomDaggerfall-build\\uzdoom-corpses), launcher, bridge, Daggerfall Unity build and
 doomerfall.pk3, and writes the demo play.bat.
 run kill: town start with DRLA; kill the nearest townsperson (test only), screenshots before, during the blood splash
 and of the corpse, leave town and walk back, list the corpses again, autosave.
-run load: load that autosave in a fresh launch and list the corpses. --pack first puts a stand-in texture pack image
+run guard: the same at noon with Daggerfall's -dfguardtest: enter the Gothway tavern, kill one of the guard bots
+Daggerfall sends in, screenshots, go out and back in, list the corpses again, autosave.
+run load / guardload: load that autosave in a fresh launch and list the corpses. --pack first puts a stand-in texture pack image
 for the human corpse (TEXTURE.380 record 1) in Daggerfall Unity's StreamingAssets/Textures, and removes it after.
 The stand-in is drawn here (a plain shape), not taken from the game.
 check runs DOOM.WAD E1M1 with no bridge, stock and with DRLA.
@@ -165,7 +167,7 @@ def run(name, mode, pack):
     console = runs / "log-console.txt"
     uz = ["-ddqa", str(inbox.parent), "-noactivate", "-nosound", "-noautoload", "-file", str(harness), "+logfile", "console", "+wipetype", "0",
           "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+dd_debugmessages", "0"] + size_args(1280, 800)
-    if mode == "load":
+    if mode.endswith("load"):
         newest = max(saves.glob("auto*.zds"), key=lambda p: p.stat().st_mtime, default=None)
         if newest is None:
             sys.exit("no save to load")
@@ -178,8 +180,9 @@ def run(name, mode, pack):
     uz = [a if a != str(runs / "saves") else str(saves) for a in uz]
     if pack:
         make_pack()
-    timeout = 150 if mode == "kill" else 100
-    command = [sys.executable, QUIET, "--timeout", str(timeout), "--"] + launch_args(runs, uz, ["-dfmute", "-dftownhour", "12"] if mode == "kill" else ["-dfmute"], False)
+    timeout = 100 if mode.endswith("load") else 150
+    df = ["-dfmute"] + ([] if mode.endswith("load") else ["-dftownhour", "12"]) + (["-dfguardtest"] if mode == "guard" else [])
+    command = [sys.executable, QUIET, "--timeout", str(timeout), "--"] + launch_args(runs, uz, df, False)
     command = [str(saves) if a == str(runs / "saves") else a for a in command]
     proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     reason, end, shots, sent = "timeout", time.time() + timeout + 3, set(), 0
@@ -214,7 +217,7 @@ def run(name, mode, pack):
         if "DDCORPSE" in line or "DDDFTEX" in line:
             print("UZ", line[:220])
     for line in read(runs / "df.log").splitlines():
-        if "corpse" in line or "town: death" in line or "town: murder" in line or "ledger" in line or "exception" in line.lower():
+        if "corpse" in line or "guardtest: called" in line or "guards:" in line or "town: death" in line or "town: murder" in line or "ledger" in line or "exception" in line.lower():
             print("DF", line[:220])
 
 

@@ -23,6 +23,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DoomerfallPositionSync sync;
         readonly List<GameObject> pending = new List<GameObject>();
         readonly Dictionary<ulong, GameObject> copies = new Dictionary<ulong, GameObject>();
+        readonly Dictionary<ulong, int> corpses = new Dictionary<ulong, int>(); // EnemyDeath's corpse texture, taken at spawn
         ulong serial;
 
         internal void Init(DoomerfallBridge owner, DoomerfallPositionSync positionSync)
@@ -74,6 +75,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     continue;
                 ulong id = ((ulong)Dfb.GUARD_TAG << 61) | (++serial & ((1UL << 61) - 1));
                 copies[id] = guard;
+                corpses[id] = CorpseTexture(guard);
                 Vector3 local = space.InverseTransformPoint(guard.transform.position);
                 DfbEvent e = default(DfbEvent);
                 e.kind = Dfb.KIND_GUARD_SPAWN;
@@ -87,20 +89,37 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 e.guardSpawn.index = (ushort)i;
                 e.guardSpawn.count = (ushort)pending.Count;
                 bridge.Send(ref e);
-                bridge.LogLine(string.Format("guards: sent {0:x16} ({1} of {2}) at doom {3:F1},{4:F1} target {5}", id, i + 1, pending.Count, e.guardSpawn.x, e.guardSpawn.y, peer.spaceTarget));
+                bridge.LogLine(string.Format("guards: sent {0:x16} ({1} of {2}) at doom {3:F1},{4:F1} target {5}, corpse texture {6}", id, i + 1, pending.Count, e.guardSpawn.x, e.guardSpawn.y, peer.spaceTarget, corpses[id]));
             }
             pending.Clear();
         }
 
-        // The corpse image of that guard's Daggerfall copy, as EnemyDeath would pick it. False if there is no copy.
+        // The corpse texture of a guard's Daggerfall copy, as EnemyDeath picks it (from DaggerfallEnemy.MobileUnit). If the
+        // copy has no unit, the city watch's own entry in EnemyBasics.
+        static int CorpseTexture(GameObject guard)
+        {
+            DaggerfallEnemy enemy = guard.GetComponent<DaggerfallEnemy>();
+            MobileUnit unit = enemy ? enemy.MobileUnit : null;
+            MobileEnemy mobile = unit ? unit.Enemy : CityWatch();
+            return mobile.Gender == MobileGender.Female && mobile.FemaleCorpseTexture != 0 ? mobile.FemaleCorpseTexture : mobile.CorpseTexture;
+        }
+
+        static MobileEnemy CityWatch()
+        {
+            foreach (MobileEnemy e in EnemyBasics.Enemies)
+                if (e.ID == (int)MobileTypes.Knight_CityWatch)
+                    return e;
+            return default(MobileEnemy);
+        }
+
+        // The corpse image of that guard, taken from its Daggerfall copy when it was sent. False if this sent no such guard.
         internal bool CorpseOf(ulong id, out int archive, out int record)
         {
             archive = record = 0;
-            GameObject guard;
-            MobileUnit unit = copies.TryGetValue(id, out guard) && guard ? guard.GetComponentInChildren<MobileUnit>() : null;
-            if (!unit)
+            int texture;
+            if (!corpses.TryGetValue(id, out texture))
                 return false;
-            DoomerfallCorpses.EnemyCorpse(unit.Enemy, out archive, out record);
+            EnemyBasics.ReverseCorpseTexture(texture, out archive, out record);
             return true;
         }
 
@@ -113,6 +132,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return;
             }
             copies.Remove(id);
+            corpses.Remove(id);
             if (guard)
                 Destroy(guard);
             bridge.LogLine(string.Format("guards: death {0:x16}, removed Daggerfall's copy", id));

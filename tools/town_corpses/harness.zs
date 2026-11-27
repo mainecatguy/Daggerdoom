@@ -4,13 +4,35 @@ version "4.14"
 //   kill   wait for townspeople, stand 96 units from the nearest one facing it, kill it (test only), list corpses,
 //          ask for screenshots, walk 30000 units away, list, walk back into town, list again, and autosave.
 //   load   after a load: wait for Daggerfall's list, stand where the corpse is, list corpses, ask for a screenshot.
+//   guard  (with Daggerfall's -dfguardtest) enter the Gothway tavern; once Daggerfall's guards come in as bots, kill one
+//          (test only), list corpses, ask for screenshots, go out and back in, list again, and autosave.
+//   guardload  as load, for the guard run's autosave inside the tavern.
 class TCHarness : StaticEventHandler
 {
 	static const double DOORDATA[] = { @DOOR@ };
 	const LIMIT = 35 * 100;
 	int phase, timer, backAt;
-	vector3 spot;
-	double face;
+	vector3 spot, land;
+	double face, landAngle;
+	bool landed;
+
+	static bool Inside() { return level.MapName.Left(3) ~== "DDS"; }
+
+	// A living guard bot (any player but player 0), or null.
+	static Actor Guard()
+	{
+		for (int i = 1; i < MAXPLAYERS; i++)
+			if (playeringame[i] && players[i].mo && players[i].mo.health > 0) return players[i].mo;
+		return null;
+	}
+
+	void AtDoor(PlayerPawn p)
+	{
+		p.SetOrigin((DOORDATA[0] + DOORDATA[3] * 48, DOORDATA[1] + DOORDATA[4] * 48, DOORDATA[2]), false);
+		p.vel = (0, 0, 0);
+		p.angle = atan2(-DOORDATA[4], -DOORDATA[3]);
+		p.pitch = 0;
+	}
 
 	static int Corpses(String tag)
 	{
@@ -45,7 +67,7 @@ class TCHarness : StaticEventHandler
 
 	override void WorldTick()
 	{
-		if (phase >= 9 || !playeringame[0] || !players[0].mo) return;
+		if (phase == 9 || !playeringame[0] || !players[0].mo) return;
 		let p = players[0].mo;
 		String mode = "@MODE@";
 		p.bNOTARGET = true;
@@ -62,6 +84,13 @@ class TCHarness : StaticEventHandler
 				p.SetOrigin((DOORDATA[0] + DOORDATA[3] * 64, DOORDATA[1] + DOORDATA[4] * 64, DOORDATA[2]), false);
 				p.vel = (0, 0, 0);
 				p.angle = atan2(DOORDATA[4], DOORDATA[3]);
+			}
+			if (mode == "guard")
+			{
+				if (Inside() || timer < 60) break;
+				AtDoor(p);
+				if (timer == 80) { CVar.FindCVar("dd_tm_use").SetInt(1); phase = 30; timer = 0; }
+				break;
 			}
 			if (timer < 420) break;
 			if (mode.IndexOf("load") >= 0)
@@ -133,6 +162,52 @@ class TCHarness : StaticEventHandler
 			if (timer < 210) break;
 			Console.Printf("TCDONE ok");
 			phase = 9;
+			break;
+		case 30:	// Inside the tavern: wait for Daggerfall's guards to come in as bots, then kill one.
+			if (!Inside()) { if (timer > 35 * 20) { Console.Printf("TCDONE door did not open"); phase = 9; } break; }
+			if (!landed) { landed = true; land = p.pos; landAngle = p.angle; Console.Printf("TCINSIDE %s", level.MapName); }
+			let g = Guard();
+			if (!g) { if (timer > 35 * 40) { Console.Printf("TCDONE no guard came"); phase = 9; } break; }
+			if (timer < 35 * 2) break;
+			LookAt(p, g);
+			Console.Printf("TCGUARD player %d at %.1f %.1f %s", g.PlayerNumber(), g.pos.x, g.pos.y, TexMan.GetName(g.picnum));
+			Console.Printf("TCSHOT gbefore");
+			g.DamageMobj(p, p, 1000000, 'None', DMG_FORCED);
+			phase = 31;
+			timer = 0;
+			break;
+		case 31:
+			if (timer == 3) Console.Printf("TCSHOT gblood");
+			if (timer < 70) break;
+			Corpses("gafterkill");
+			let gc = FirstCorpse();
+			if (gc) LookAt(p, gc);
+			Console.Printf("TCSHOT gcorpse");
+			phase = 32;
+			timer = 0;
+			break;
+		case 32:	// Out through the way in (a landing faces away from its door), then back in.
+			if (timer == 20) { p.SetOrigin(land, false); p.angle = landAngle + 180; p.vel = (0, 0, 0); }
+			if (timer == 26) CVar.FindCVar("dd_tm_use").SetInt(1);
+			if (!Inside() && timer > 26) { Console.Printf("TCLEAVE to %s", level.MapName); phase = 33; timer = 0; break; }
+			if (timer > 35 * 20) { Console.Printf("TCDONE exit did not work"); phase = 9; }
+			break;
+		case 33:
+			if (timer < 70) break;
+			if (timer == 70) Corpses("goutside");
+			AtDoor(p);
+			if (timer == 90) CVar.FindCVar("dd_tm_use").SetInt(1);
+			if (Inside()) { Console.Printf("TCBACK map %s", level.MapName); phase = 34; timer = 0; break; }
+			if (timer > 35 * 20) { Console.Printf("TCDONE no re-entry"); phase = 9; }
+			break;
+		case 34:
+			if (timer < 35 * 4) break;
+			Corpses("greturn");
+			let rc = FirstCorpse();
+			if (rc) LookAt(p, rc);
+			Console.Printf("TCSHOT greturn");
+			phase = 4;
+			timer = 0;
 			break;
 		case 20:
 			if (timer == 40) Console.Printf("TCSHOT loaded");

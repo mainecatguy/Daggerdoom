@@ -28,13 +28,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         // (EnemyBasics). A townsperson leaves no corpse in Daggerfall Unity, so it gets that human corpse.
         internal const int HumanArchive = 380, HumanRecord = 1;
 
-        // The corpse image of a Daggerfall enemy, as EnemyDeath picks it.
-        internal static void EnemyCorpse(MobileEnemy enemy, out int archive, out int record)
-        {
-            int texture = enemy.Gender == MobileGender.Female && enemy.FemaleCorpseTexture != 0 ? enemy.FemaleCorpseTexture : enemy.CorpseTexture;
-            EnemyBasics.ReverseCorpseTexture(texture, out archive, out record);
-        }
-
         internal static bool Has(List<DoomerfallCorpse> corpses, string id)
         {
             foreach (DoomerfallCorpse c in corpses)
