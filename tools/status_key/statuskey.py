@@ -150,6 +150,7 @@ class Run:
         self.launcher, self.views = self.dir / "launcher.log", self.dir / "status.log"
         self.results = []
         self.proc = None
+        self.greetings = 0  # building greeting boxes closed before the indoor status check
 
     def case(self, ok, what):
         self.results.append((bool(ok), what))
@@ -191,6 +192,7 @@ class Run:
         self.proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
             if self.area(1, "outdoors", ("outside",), VK_Y):
+                self.close_greeting()
                 self.area(2, "indoors", ("dungeon",) if self.mode == "dungeon" else ("building",), VK_ESC if self.mode == "building" else VK_Y)
             self.wait(self.console, "SKDONE", 5)
         except Exception as e:  # noqa: BLE001  (report and stop the games)
@@ -200,6 +202,16 @@ class Run:
                 subprocess.call(["taskkill", "/F", "/T", "/PID", str(self.proc.pid)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 self.proc.wait()
         self.summary()
+
+    def close_greeting(self):
+        """Entering a shop or home shows Daggerfall's greeting box (menu 7) first, as in Daggerfall Unity; close it."""
+        if self.mode != "building":
+            return
+        if self.wait(self.uz_log, r"(?s)Daggerfall opened menu 7 at|(Daggerfall opened menu 13 at.*){2}", 90) and "opened menu 7 at" in read(self.uz_log):
+            time.sleep(1.0)
+            doom_driver(self.launcher, self.uz_log).tap(VK_ESC)
+            self.greetings = 1
+            print("  closed the building's greeting box")
 
     def area(self, n, where, areas, second_key):
         mark = len(read(self.views))
@@ -219,10 +231,10 @@ class Run:
         second = self.last_box(mark2)
         print("  second box:", second)
         closes = len(re.findall(r"ui: closed \(", read(self.uz_log)))
-        self.case(second and HEALTH.search(second[3]) and closes == n - 1,
+        self.case(second and HEALTH.search(second[3]) and closes == n - 1 + self.greetings,
                   f"{where}: pressing the key again shows Daggerfall's health box, the menu stays open ('{second and second[3]}')")
         doom.tap(second_key)
-        ok = self.wait(self.uz_log, r"(?s)(ui: closed \(.*){%d}" % n, 8)
+        ok = self.wait(self.uz_log, r"(?s)(ui: closed \(.*){%d}" % (n + self.greetings), 8)
         reasons = re.findall(r"ui: closed \(([^)]*)\)", read(self.uz_log))
         self.case(ok and self.wait(self.views, r"top DaggerfallHUD ", 5, mark2),
                   f"{where}: {'Escape' if second_key == VK_ESC else 'the key'} closes it back to Doom ({reasons})")
