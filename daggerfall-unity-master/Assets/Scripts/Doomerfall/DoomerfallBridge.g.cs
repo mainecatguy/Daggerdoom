@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x924208702d6d10cfUL;
+        public const ulong SchemaHash = 0x4a806facfc248030UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -200,8 +200,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint FACES_MAX = 3;  // Daggerfall's HUD shows at most three faces
         public const uint FACE_MAX_SIDE = 64;
         public const uint SHEET_SLOT = 0;
-        public const int SHEET_FORMAT_VERSION = 10;  // 3: skill slots 4-6 are the gun skills, 7-12 unused; 4: slot 7 is Pistols; 5: slot 8 is Rifles; 6: slots 9-10 are Energy Weapons and Melee; 7: Automatics perk rules; 8: Explosives perk rules; 9: Shotguns perk rules; 10: Energy Weapons perk rules
-        public const int SHEET_INTS = 177;
+        public const int SHEET_FORMAT_VERSION = 11;  // 3: skill slots 4-6 are the gun skills, 7-12 unused; 4: slot 7 is Pistols; 5: slot 8 is Rifles; 6: slots 9-10 are Energy Weapons and Melee; 7: Automatics perk rules; 8: Explosives perk rules; 9: Shotguns perk rules; 10: Energy Weapons perk rules; 11: Energy Weapons burn rules
+        public const int SHEET_INTS = 181;
         public const int SHEET_FORMAT = 0;  // DFB_SHEET_FORMAT_VERSION
         public const int SHEET_EPOCH = 1;
         public const int SHEET_VALID = 2;  // 1 when this describes the current, fully loaded character
@@ -266,6 +266,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const int SHEET_ENERGY_SPLASH_BP = 174;  // a hit that is not an explosion also deals this much of its damage ...
         public const int SHEET_ENERGY_SPLASH_RADIUS = 175;  // ... to every other enemy within this many map units
         public const int SHEET_ENERGY_SPEED_BP = 176;  // the guns' projectiles fly this much faster, in 1/10000ths
+        public const int SHEET_ENERGY_BURN_BP = 177;  // a direct hit sets the enemy burning for this much of its damage over 3 s
+        public const int SHEET_ENERGY_CONVERT_BP = 178;  // a direct hit first turns this much of the enemy's burn into instant damage
+        public const int SHEET_ENERGY_BURST_BP = 179;  // that converted damage bursts out, setting enemies nearby burning for this ...
+        public const int SHEET_ENERGY_BURST_RADIUS = 180;  // ... much of it, within this many map units (0: no burst)
         public const uint UI_NONE = 0;
         public const uint UI_TRAVEL_MAP = 1;
         public const uint UI_INVENTORY = 2;

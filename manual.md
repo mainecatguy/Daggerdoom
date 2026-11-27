@@ -214,6 +214,20 @@ Shotguns covers shotguns, such as the stock shotgun, the Double Shotgun, the Ass
   than your Energy Weapons skill. Then their balls get the damage bonus and the knockback, but you do not yet get more
   balls per shot at 50 and 100. A ball still counts if you switch guns before it lands.
 
+### Energy Weapons
+
+Energy Weapons covers plasma, laser and BFG guns, such as the stock Plasma Rifle and BFG9000.
+
+- **Damage:** every hit does more damage as the skill rises, up to 50% more at 100.
+- **25, plasma burn:** an enemy you hit directly burns for half the hit's damage over 3 seconds. Burn stacks without
+  limit. Hits that do not explode also splash 20% of their damage onto enemies right beside the one you hit.
+- **50:** burn rises to the hit's full damage, and each direct hit first turns 20% of the enemy's burn into instant
+  damage.
+- **75:** burn rises to 125%, and each direct hit turns 40% of the burn into instant damage.
+- **100:** burn rises to 150%. The burn a hit turns into damage also bursts out, setting nearby enemies burning. The
+  burst never hurts you, and it does not set off more bursts: hit those enemies to burst them in turn.
+- Energy projectiles fly 15% faster at each of 25, 50, 75 and 100.
+
 ## Falling and jumping
 
 In Daggerfall's world, falls hurt, by Daggerfall's own rule:

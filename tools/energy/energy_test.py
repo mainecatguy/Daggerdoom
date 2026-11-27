@@ -1,4 +1,4 @@
-"""Energy Weapons perks before burn (mods/doomerfall/src/zscript/DoomerfallEnergy.zs) against a fake Daggerfall peer.
+"""Energy Weapons perks (mods/doomerfall/src/zscript/DoomerfallEnergy.zs, DoomerfallEnergyBurn.zs) against a fake Daggerfall peer.
 
 usage: python quiet_run.py --timeout 900 -- python tools/energy/energy_test.py <uzdoom.exe> <doomerfall_bridge.dll> <work folder> [stock|drla|nobridge ...]
 
@@ -9,7 +9,9 @@ changed (+set dd_perklog 1). Runs DOOM.WAD E1M1:
   stock    doomerfall.pk3 only: stock PlasmaRifle and BFG9000.
   drla     play_drlax.bat's DRLA set: RLPlasmaRifle and RLLaserRifle (hitscan), and the stock classes.
   nobridge doomerfall.pk3 only, no bridge session: nothing changes.
-Rule sets: off, dmg (+50%), splash (20% within 64), speed25 (+15%), speed (+60%).
+Rule sets: off, dmg (+50%), splash (20% within 64), speed25 (+15%), speed (+60%), and the four burn levels (card 08):
+burn25 (burn 50%), burn50 (100%, convert 20%), burn75 (125%, convert 40%), burn100 (150%, convert 40%, burst 40% within
+128), then stress (burn100 rules, a burning 400-monster pack hit by burst-making volleys; checks the time they take).
 """
 import ctypes as C, math, re, struct, subprocess, sys, time, uuid, zipfile
 from pathlib import Path
@@ -21,15 +23,24 @@ from save_handshake_test import Event, DfState  # noqa: E402
 IWAD = Path(r"D:\dev\DoomDaggerfall\GameResources\wads\DOOM.WAD")
 MODS = Path(r"D:\dev\DoomDaggerfall\GameMods")
 DRLA = ["DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3"]
-SHEET_INTS, SHEET_FORMAT_VERSION = 177, 10
+SHEET_INTS, SHEET_FORMAT_VERSION = 181, 11
 RULES = {  # 173 damage, 174/175 splash bp/radius, 176 speed
-    "off": {}, "dmg": {173: 5000}, "splash": {174: 2000, 175: 64}, "speed25": {176: 1500}, "speed": {176: 6000}}
+    "off": {}, "dmg": {173: 5000}, "splash": {174: 2000, 175: 64}, "speed25": {176: 1500}, "speed": {176: 6000},
+    # 177 burn, 178 convert, 179/180 burst bp/radius (DoomerfallEnergyRules.cs at skills 25/50/75/100)
+    "burn25": {177: 5000}, "burn50": {177: 10000, 178: 2000}, "burn75": {177: 12500, 178: 4000},
+    "burn100": {177: 15000, 178: 4000, 179: 4000, 180: 128}}
+RULES["stress"] = RULES["burn100"]
+BURN = {"burn25": (0.5, 0, 0), "burn50": (1.0, 0.2, 0), "burn75": (1.25, 0.4, 0), "burn100": (1.5, 0.4, 0.4)}
+STRESS_VOLLEY_MS = 8.0  # a 40-hit volley, every hit converting and bursting into ~100 neighbours, must fit in this
 SPEED = {"speed25": 1.15, "speed": 1.6}
 BAD = re.compile(r'Script error, "(doomerfall|entest)\.pk3|(doomerfall|entest)\.pk3:zscript\S*, line \d+|\bFatal error|VM execution aborted', re.I)
 HIT = re.compile(r"energy: hit (\S+) (direct|explosion): (\d+) -> (\d+) \(x([\d.]+)\) tic (\d+) by (\S+)")
 SPLASH = re.compile(r"energy: splash from (\S+) hit (\d+) by (\S+): (\d+) enemies within (\d+) took (\d+) \((\d+) bp each\)")
 SPEEDL = re.compile(r"energy: speed (\S+) x([\d.]+) ([\d.]+) -> ([\d.]+)")
 DMG = re.compile(r"ENTEST dmg (\S+) (\d+) by (\S+) flags (\d+)")
+BURNL = re.compile(r"energy: burn (\S+) hit (\d+): \+([\d.]+) burn, pool ([\d.]+)")
+CONV = re.compile(r"energy: convert (\S+): took ([\d.]+) of its burn ([\d.]+), dealt (\d+); burst (\d+) enemies ([\d.]+) burn each")
+STRESS = re.compile(r"ENTEST stress end hits (\d+) max volley ms ([\d.]+) max single ms ([\d.]+) max tic gap ms ([\d.]+) burning (\d+)")
 MISSILE = re.compile(r"ENTEST missile (\S+) vel ([\d.]+) speed ([\d.]+) default ([\d.]+) gen (-?\d+)")
 
 
@@ -104,7 +115,7 @@ def cases_of(lines):
     for l in lines:
         if m := re.search(r"ENTEST case (\w+) (\w+) slot=(-?\d+)", l):
             cur = {"cfg": m.group(1), "gun": m.group(2), "slot": int(m.group(3)), "hits": [], "splash": [], "speed": [],
-                   "dmg": [], "missiles": [], "fires": 0, "ended": False}
+                   "dmg": [], "missiles": [], "fires": 0, "ended": False, "burn": [], "conv": []}
             cases.append(cur)
         elif cur is None:
             continue
@@ -113,6 +124,10 @@ def cases_of(lines):
             cur = None
         elif h := HIT.search(l):
             cur["hits"].append(h)
+        elif b := BURNL.search(l):
+            cur["burn"].append(b)
+        elif cv := CONV.search(l):
+            cur["conv"].append(cv)
         elif s := SPLASH.search(l):
             cur["splash"].append(s)
         elif v := SPEEDL.search(l):
@@ -140,6 +155,17 @@ def analyse(name, lines, checks, report):
     sights = [l for l in lines if "ENTEST sight " in l]
     check("the target sees both near monsters and the far one (so radius, not walls, keeps the far one out)",
           sights and all(l.strip().endswith("near1 1 near2 1 far 1") for l in sights), sights[:2])
+    stress = [STRESS.search(l) for l in lines if STRESS.search(l)]
+    if name != "nobridge":
+        check("stress ran", stress, [l for l in lines if "ENTEST stress" in l][-3:])
+        for m in stress:
+            vol = float(m.group(2))
+            check(f"stress: a 40-hit burst volley into a burning 400 pack takes under {STRESS_VOLLEY_MS} ms ({vol:.2f})", vol < STRESS_VOLLEY_MS)
+            # The first burn ends after 3 s; at the 6 s end only burn from bursts is left. Pack members spawned inside walls
+            # cannot be seen by their neighbours and stop burning, so not all 400.
+            check("stress: bursts keep most of the pack burning after the first burn ran out", int(m.group(5)) >= 300, m.group(0))
+            report.append(f"{name} stress: {m.group(0)[13:]}; volleys: " + ", ".join(
+                re.search(r"ms ([\d.]+)", l).group(1) for l in lines if "ENTEST stress volley" in l))
     base = {}
     for c in cases_of(lines):
         tag = f"{c['cfg']} {c['gun']}"
@@ -200,6 +226,8 @@ def analyse(name, lines, checks, report):
             check(f"{tag}: no damage bonus without the damage rule", not c["hits"])
             report.append(f"{name} {tag}: {len(c['splash'])} splashes; near took {sum(d[1] for d in spl if d[0].startswith('near'))}, "
                           f"far took {sum(d[1] for d in spl if d[0] == 'far')}; e.g. {[s.group(0)[8:] for s in c['splash'][:2]]}")
+        elif c["cfg"] in BURN:
+            burn_case(c, tag, check, report, name)
         elif c["cfg"] in SPEED:
             f = SPEED[c["cfg"]]
             if hitscan:
@@ -210,6 +238,42 @@ def analyse(name, lines, checks, report):
             bad = [m.group(0) for m in shots if abs(float(m.group(2)) - f * float(m.group(4))) > 0.05 * f * float(m.group(4))]
             check(f"{tag}: projectiles fly at x{f} their normal speed", not bad, bad[:2])
             report.append(f"{name} {tag}: speeds {sorted({round(float(m.group(2)), 2) for m in shots})} (default {sorted({float(m.group(4)) for m in shots})})")
+
+
+def burn_case(c, tag, check, report, name):
+    f, conv, burst = BURN[c["cfg"]]
+    spl = [d for d in c["dmg"] if d[2] == "DoomerfallEnergySplash"]
+    check(f"{tag}: no damage bonus or splash without those rules", not c["hits"] and not c["splash"] and not spl)
+    check(f"{tag}: hits set burning", c["burn"], c["dmg"][:4])
+    bad = [b.group(0) for b in c["burn"] if abs(float(b.group(3)) - f * int(b.group(2))) > 0.006]
+    check(f"{tag}: each hit burns {f:.0%} of its damage", not bad, bad[:3])
+    if not conv:
+        check(f"{tag}: no conversion below 50", not c["conv"], [x.group(0) for x in c["conv"][:2]])
+    else:
+        check(f"{tag}: later hits convert burn", c["conv"])
+        bad = [x.group(0) for x in c["conv"] if abs(float(x.group(2)) - conv * float(x.group(3))) > 0.002 + 0.001 * float(x.group(3))]
+        check(f"{tag}: each conversion takes {conv:.0%} of the remaining burn", not bad, bad[:3])
+        bad = [x.group(0) for x in c["conv"] if int(x.group(4)) not in rounded(float(x.group(2)), 1) and int(x.group(4)) != 0]
+        check(f"{tag}: converted burn is dealt at once (chance rounding)", not bad, bad[:3])
+    if burst:
+        check(f"{tag}: conversions burst into the monsters nearby", any(int(x.group(5)) >= 1 for x in c["conv"]), [x.group(0) for x in c["conv"][:3]])
+        bad = [x.group(0) for x in c["conv"] if abs(float(x.group(6)) - burst * float(x.group(2))) > 0.006]
+        check(f"{tag}: burst burn is {burst:.0%} of the converted amount", not bad, bad[:3])
+        nearfire = sum(d[1] for d in c["dmg"] if d[0] in ("near1", "near2", "far") and d[2] == "None")
+        check(f"{tag}: monsters near the target burned", nearfire > 0)
+    else:
+        check(f"{tag}: no bursts below 100", not any(int(x.group(5)) for x in c["conv"]))
+    # The target's books: burn ticks (inflictor None) pay what was added minus what was converted, +-1 for the last fraction.
+    added = sum(float(b.group(3)) for b in c["burn"] if b.group(1) == "EnTestTarget")
+    taken = sum(float(x.group(2)) for x in c["conv"] if x.group(1) == "EnTestTarget")
+    ticks = sum(d[1] for d in c["dmg"] if d[0] == "target" and d[2] == "None")
+    check(f"{tag}: the target's burn paid out in full (added {added:.2f} - converted {taken:.2f} = ticks {ticks})", abs(ticks - (added - taken)) <= 1.5)
+    dealt = sum(int(x.group(4)) for x in c["conv"] if x.group(1) == "EnTestTarget")
+    got = sum(d[1] for d in c["dmg"] if d[0] == "target" and d[2] == "DoomerfallEnergyBurst")
+    check(f"{tag}: the target took exactly the converted damage ({dealt} / {got})", dealt == got)
+    check(f"{tag}: the player never took burn or burst damage", not any(d[0] == "player" and d[2] in ("None", "DoomerfallEnergyBurst") for d in c["dmg"]))
+    report.append(f"{name} {tag}: {len(c['burn'])} burns ({added:.1f} on the target), {len(c['conv'])} conversions ({taken:.1f} taken, {dealt} dealt), "
+                  f"target burn ticks {ticks}, bursts {sum(int(x.group(5)) for x in c['conv'])}; e.g. {[x.group(0)[8:] for x in c['conv'][:2]]}")
 
 
 def main():
@@ -224,7 +288,7 @@ def main():
     checks, report = [], []
     only = sys.argv[4:]
     drla = [MODS / n for n in DRLA] + [mod, harness]
-    for name, files, bridged, timeout in (("stock", [mod, harness], True, 240), ("drla", drla, True, 400),
+    for name, files, bridged, timeout in (("stock", [mod, harness], True, 480), ("drla", drla, True, 700),
                                           ("nobridge", [mod, harness], False, 90)):
         if only and name not in only:
             continue

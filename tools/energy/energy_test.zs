@@ -1,6 +1,8 @@
 version "4.10"
 
-// Test harness for the Energy Weapons perks before burn (tools/energy/energy_test.py). Not part of the game.
+// Test harness for the Energy Weapons perks (tools/energy/energy_test.py). Not part of the game.
+// Burn rule sets (card 08) wait 140 tics after the last shot so every burn has paid out. The last set, "stress", burns
+// a dense 20 x 20 pack (EnTestMonster, 20 units apart) and fires bursts into it (see Stress).
 // For each rule set and gun it asks the fake Daggerfall peer for the rules ("ENTEST want <cfg>"), waits until Doom reads
 // them, selects the gun, puts the player back at the start and places:
 //   target   a big shootable post 96 units ahead, in the line of fire (the hits land here);
@@ -31,7 +33,7 @@ class EnPerkTest : EventHandler
 
 	override void OnRegister()
 	{
-		static const String c[] = { "off", "dmg", "splash", "speed25", "speed" };
+		static const String c[] = { "off", "dmg", "splash", "speed25", "speed", "burn25", "burn50", "burn75", "burn100", "stress" };
 		for (int i = 0; i < c.Size(); i++) cfgs.Push(c[i]);
 		static const String g[] = { "PlasmaRifle", "BFG9000", "RLPlasmaRifle", "RLLaserRifle" };
 		for (int i = 0; i < g.Size(); i++) { class<Actor> kk = g[i]; if (kk) guns.Push(g[i]); }
@@ -40,11 +42,20 @@ class EnPerkTest : EventHandler
 	bool Arrived(String c)
 	{
 		int d = Actor.DD_SheetValue(173), s = Actor.DD_SheetValue(174), r = Actor.DD_SheetValue(175), v = Actor.DD_SheetValue(176);
-		if (c == "off") return (d == 0 && s == 0 && r == 0 && v == 0) || Actor.DD_SheetValue(2) == -1;
+		if (c == "off" && Actor.DD_SheetValue(2) == -1) return true;
+		if (c == "off" && !(d == 0 && s == 0 && r == 0 && v == 0)) return false;
 		if (c == "dmg") return d == 5000 && s == 0 && v == 0;
 		if (c == "splash") return d == 0 && s == 2000 && r == 64 && v == 0;
-		if (c == "speed25") return d == 0 && s == 0 && v == 1500;
-		return d == 0 && s == 0 && v == 6000; // speed
+		int b = Actor.DD_SheetValue(177), cv = Actor.DD_SheetValue(178), bb = Actor.DD_SheetValue(179), br = Actor.DD_SheetValue(180);
+		bool noburn = b == 0 && cv == 0 && bb == 0 && br == 0;
+		if (c == "off") return noburn;
+		if (c == "speed25") return d == 0 && s == 0 && v == 1500 && noburn;
+		if (c == "speed") return d == 0 && s == 0 && v == 6000 && noburn;
+		bool plain = d == 0 && s == 0 && v == 0;
+		if (c == "burn25") return plain && b == 5000 && cv == 0 && bb == 0;
+		if (c == "burn50") return plain && b == 10000 && cv == 2000 && bb == 0;
+		if (c == "burn75") return plain && b == 12500 && cv == 4000 && bb == 0;
+		return plain && b == 15000 && cv == 4000 && bb == 4000 && br == 128; // burn100, stress
 	}
 
 	void Fill(PlayerInfo p, Weapon w)
@@ -66,7 +77,7 @@ class EnPerkTest : EventHandler
 
 	override void WorldThingDamaged(WorldEvent e)
 	{
-		if (phase < 3) return;
+		if (phase < 3 || phase >= 10) return;
 		Console.Printf("ENTEST dmg %s %d by %s flags %d", Who(e.Thing), e.Damage, e.Inflictor ? e.Inflictor.GetClassName() : 'None', e.DamageFlags);
 	}
 
@@ -74,7 +85,7 @@ class EnPerkTest : EventHandler
 	{
 		let a = e.Thing;
 		PlayerInfo p = players[consoleplayer];
-		if (phase < 3 || !a || !a.bMissile || a.target != p.mo) return;
+		if (phase < 3 || phase >= 10 || !a || !a.bMissile || a.target != p.mo) return;
 		let tag = DoomerfallShotTag.Of(a);
 		Console.Printf("ENTEST missile %s vel %.3f speed %.3f default %.3f gen %d", a.GetClassName(), a.vel.Length(), a.Speed, a.default.Speed,
 			tag ? tag.generation : -1);
@@ -84,7 +95,7 @@ class EnPerkTest : EventHandler
 	{
 		let a = e.Thing;
 		PlayerInfo p = players[consoleplayer];
-		if (phase < 3 || !a || !a.default.bMissile || a.target != p.mo) return;
+		if (phase < 3 || phase >= 10 || !a || !a.default.bMissile || a.target != p.mo) return;
 		Console.Printf("ENTEST gone %s at %.0f %.0f %.0f from player %.0f target at %.0f %.0f %.0f", a.GetClassName(), a.pos.x, a.pos.y, a.pos.z,
 			a.Distance2D(p.mo), target ? target.pos.x : 0, target ? target.pos.y : 0, target ? target.pos.z : 0);
 	}
@@ -125,7 +136,7 @@ class EnPerkTest : EventHandler
 			phase = 1; wait = 0;
 			break;
 		case 1:
-			if (Arrived(c)) { phase = 2; wait = 0; }
+			if (Arrived(c)) { phase = c == "stress" ? 10 : 2; wait = 0; }
 			else if (++wait > 350) { Console.Printf("ENTEST timeout sheet %s", c); step++; phase = 0; }
 			break;
 		case 2:
@@ -162,11 +173,72 @@ class EnPerkTest : EventHandler
 			break;
 		}
 		case 4:
-			if (++t < 70) break;
+			if (++t < (c.Left(4) == "burn" ? 140 : 70)) break;
 			Console.Printf("ENTEST end %s %s", c, guns[gun]);
 			Clear();
 			gun++; phase = 0;
 			break;
+		default:
+			if (Stress(p)) { step++; phase = 0; }
+			break;
 		}
+	}
+
+	// Stress: 400 EnTestMonsters 20 units apart (each burst reaches over 100 of them), all burning 300. Then for 6 s,
+	// a BFG-sized volley (40 direct hits of 200 on random pack members) every 35 tics, and one plasma-sized hit (40) every
+	// 3 tics, through DoomerfallEnergyBurn.Hit with the burn100 rules: each hit converts and bursts. Logs the time each
+	// volley takes and the longest gap between tics. Perk logging is turned off first (it is not part of normal play).
+	Array<Actor> pack;
+	double lastTic, maxGap, maxVolley, maxSingle;
+	int bursts;
+	bool Stress(PlayerInfo p)
+	{
+		let mo = p.mo;
+		double now = MSTimeF();
+		if (phase == 10)
+		{
+			let log = CVar.FindCVar("dd_perklog");
+			if (log) log.SetBool(false);
+			mo.SetOrigin(start, false); mo.angle = 0;
+			for (int i = 0; i < 400; i++)
+			{
+				let m = Actor.Spawn("EnTestMonster", mo.Vec3Offset(48 + (i % 20) * 20, ((i / 20) - 10) * 20, 0), NO_REPLACE);
+				if (!m) continue;
+				pack.Push(m);
+				DoomerfallBurn.Apply(m, 300, mo);
+			}
+			Console.Printf("ENTEST stress pack %d burning %d", pack.Size(), Count());
+			phase = 11; t = 0; lastTic = now;
+			return false;
+		}
+		if (t > 5) maxGap = max(maxGap, now - lastTic);
+		lastTic = now;
+		t++;
+		if (t <= 210)
+		{
+			int n = t % 35 == 0 ? 40 : t % 3 == 0 ? 1 : 0;
+			double t0 = MSTimeF();
+			for (int k = 0; k < n; k++)
+			{
+				let m = pack[Random[EnTest](0, pack.Size() - 1)];
+				if (m && m.health > 0) { DoomerfallEnergyBurn.Hit(m, mo, n > 1 ? 200 : 40); bursts++; }
+			}
+			double took = MSTimeF() - t0;
+			if (n > 1) { maxVolley = max(maxVolley, took); Console.Printf("ENTEST stress volley tic %d hits %d ms %.3f burning %d", t, n, took, Count()); }
+			else if (n == 1) maxSingle = max(maxSingle, took);
+			return false;
+		}
+		Console.Printf("ENTEST stress end hits %d max volley ms %.3f max single ms %.3f max tic gap ms %.1f burning %d",
+			bursts, maxVolley, maxSingle, maxGap, Count());
+		for (int i = 0; i < pack.Size(); i++) if (pack[i]) pack[i].Destroy();
+		pack.Clear();
+		return true;
+	}
+
+	int Count()
+	{
+		int n = 0;
+		for (int i = 0; i < pack.Size(); i++) if (pack[i] && DoomerfallBurn.Burning(pack[i])) n++;
+		return n;
 	}
 }
