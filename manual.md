@@ -380,8 +380,11 @@ words painted into the menu pictures (such as the character sheet's headings and
 - The small popups for shopkeepers (Talk / Sell), guild halls (Join Guild / Talk / service), smiths (Repair Item /
   Talk / Sell) and witches (Talk / Daedra Summoning / Quest) draw all their row words as text, so a popup no longer
   mixes painted and text words in its rows. Their EXIT button stays a picture.
-- A Daggerfall Unity font replacement changes all text: put a font named `FONT0003-SDF.ttf` (or `.otf`) in
-  Daggerfall Unity's `StreamingAssets\Fonts` folder, or install a font mod. Painted words, including EXIT and the
-  character sheet's headings, stay as they are.
+- A Daggerfall Unity font replacement changes text drawn in the font it replaces. A font named `FONT0003-SDF.ttf`
+  (or `.otf`) in Daggerfall Unity's `StreamingAssets\Fonts` folder, or in a font mod, replaces the default font. Most
+  menu text uses it, including the four popups. Daggerfall's other fonts are replaced separately by files named
+  `FONT0000-SDF` (large font: quest journal, spell maker), `FONT0001-SDF` (titles), `FONT0002-SDF` (small font) and
+  `FONT0004-SDF` (item stack counts). Painted words, including EXIT and the character sheet's headings, stay as
+  they are.
 - A Daggerfall Unity texture pack that replaces a menu picture shows as the pack made it. If it replaces one of the
   four popups' pictures, that popup keeps the pack's own painted row words instead of drawing them as text.
