@@ -1,13 +1,13 @@
-"""No generated Doom pickups in house interiors (owner, 2026-11-24). Dungeons and other buildings keep them.
+"""No generated Doom pickups in any building interior: dungeons only (owner, 2026-11-26; houses since 2026-11-24).
 
 usage: housepickups.py build | survey [GROUP] | assemble | run MODE [--stock-mods] | wad
 build:    builds this worktree's converter into D:\\dev\\DoomDaggerfall-build\\housepickups-converter.
 survey:   converts every building of one town with that converter and prints each building's type and pickup line.
-assemble: makes the demo folder from the usekey review folder (current integration builds), with this converter and
+assemble: makes the demo folder from the magicmenu-stage review folder (integration builds), with this converter and
           an empty interior cache, so every building is converted on demand by this converter.
 run MODE: both real games, minimized, with DRLA. Counts generated pickups outdoors in town, then enters by a town door:
           house    a House* building: expects no pickups.
-          shop     a general store: expects pickups (other buildings unchanged).
+          shop     a general store: expects no pickups.
           dungeon  Privateer's Hold: expects pickups.
 wad:      DOOM.WAD E1M1 with no bridge, stock and with the DRLA set, with the Doomerfall mod loaded.
 """
@@ -24,8 +24,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
-REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\housepickups")
-SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\usekey")  # Integration UZDoom, Daggerfall Unity, bridge, launcher, data.
+REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\dungeonpickups")
+SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\magicmenu-stage")  # Integration UZDoom, Daggerfall Unity, bridge, launcher, data.
 BUILD = Path(r"D:\dev\DoomDaggerfall-build")
 CONVERTER = BUILD / "housepickups-converter"
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
@@ -119,9 +119,10 @@ def assemble():
         sys.exit("mesh export failed: " + text.stderr[-300:])
     for name in ("privateershold.wad", "privateershold_mesh.pk3", "privateershold_doors.pk3"):
         shutil.copy2(out / name, data / name)
-    things = len(re.findall(rb"type = 3164[0-2];", wad_textmap(data / "privateershold.wad")))
+    things = len(re.findall(rb"type = 316(?:4\d|50);", wad_textmap(data / "privateershold.wad")))
     print("privateershold.wad pickup things:", things)
     subprocess.check_call([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), str(REVIEW / "doomerfall.pk3")])
+    subprocess.check_call([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), "--drla", str(REVIEW / "doomerfall-drla.pk3")])
     fresh_cache()
     write_demo()
     print("assembled", REVIEW)
@@ -171,15 +172,15 @@ class HPDemoStart : StaticEventHandler
     dagger = GAME / "DAGGER"
     (REVIEW / "play.bat").write_text(
         "@echo off\r\n"
-        "rem No Doom pickups in houses. Starts in town facing a house door, with DRLA. Press Use (E) to enter: no stimpacks, clips or shells inside.\r\n"
-        "rem Shops, taverns, temples and the dungeon (Privateer's Hold, the big door in town) still have them. Q is Info, I the inventory, K fast travel.\r\n"
+        "rem Doom pickups are in dungeons only. Starts in town facing a house door, with DRLA. Press Use (E) to enter: no pickups inside, nor in shops or other buildings.\r\n"
+        "rem Privateer's Hold (the big door in town) has them: clips, shells, health, some rockets or cells, rarely a powerup. Q is Info, I the inventory, K fast travel.\r\n"
         "set \"HERE=%~dp0\"\r\n"
         "if not exist \"%HERE%play\" mkdir \"%HERE%play\"\r\n"
         "set BINDS=\r\n"
         "if not exist \"%HERE%play\\uzdoom.ini\" set BINDS=--uzdoom-arg +bind --uzdoom-arg q --uzdoom-arg \"netevent df_info\" "
         "--uzdoom-arg +bind --uzdoom-arg i --uzdoom-arg \"netevent df_inventory\" --uzdoom-arg +bind --uzdoom-arg k --uzdoom-arg \"netevent df_fast_travel\"\r\n"
         f"start \"\" \"%HERE%doomerfall-launcher.exe\" --nodraw --uzdoom \"%HERE%uzdoom\\uzdoom.exe\" --dfu \"%HERE%dfu\\DaggerfallUnity.exe\" --iwad \"{GAME / 'wads' / 'DOOM2.WAD'}\" {mods} {data} "
-        "--mod \"%HERE%dfitems.pk3\" --mod \"%HERE%doomerfall.pk3\" --mod \"%HERE%demo_start.pk3\" --uzdoom-cwd \"%HERE%play\" --log \"%HERE%play\\launcher.log\" "
+        "--mod \"%HERE%dfitems.pk3\" --mod \"%HERE%doomerfall.pk3\" --mod \"%HERE%doomerfall-drla.pk3\" --mod \"%HERE%demo_start.pk3\" --uzdoom-cwd \"%HERE%play\" --log \"%HERE%play\\launcher.log\" "
         "--uzdoom-arg -config --uzdoom-arg \"%HERE%play\\uzdoom.ini\" --uzdoom-arg -savedir --uzdoom-arg \"%HERE%play\\saves\" --uzdoom-arg -dfbridgelog --uzdoom-arg \"%HERE%play\\uz.log\" "
         "--uzdoom-arg -ddtowncache --uzdoom-arg \"%HERE%data\\cache\" --uzdoom-arg -ddconverter --uzdoom-arg \"%HERE%data\\converter\\DungeonConverter.exe\" "
         f"--uzdoom-arg -ddarena2 --uzdoom-arg \"{dagger}\\ARENA2\" --uzdoom-arg -skill --uzdoom-arg 3 --uzdoom-arg +map --uzdoom-arg DDT{GROUP:05d} --uzdoom-arg +vid_fullscreen --uzdoom-arg 0 --uzdoom-arg +i_pauseinbackground --uzdoom-arg 0 "
@@ -197,7 +198,7 @@ def run(mode, stock_mods):
         path.unlink(missing_ok=True)
     door = door_row(mode, fresh_cache())
     print("door", " ".join(door[:3]))
-    text = (HERE / "harness.zs").read_text().replace("@DOOR@", ", ".join(door[3:8])).replace("@WANT@", "0" if mode == "house" else "1")
+    text = (HERE / "harness.zs").read_text().replace("@DOOR@", ", ".join(door[3:8])).replace("@WANT@", "1" if mode == "dungeon" else "0")
     harness = runs / f"{name}_harness.pk3"
     with zipfile.ZipFile(harness, "w") as z:
         z.writestr("zscript.txt", text)
@@ -211,7 +212,7 @@ def run(mode, stock_mods):
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
                "--uzdoom-cwd", str(runs), "--log", str(launcher)]
-    for mod in ([] if stock_mods else [MODS / n for n in DRLA]) + [data / n for n in DATA] + [REVIEW / "dfitems.pk3", REVIEW / "doomerfall.pk3", harness]:
+    for mod in ([] if stock_mods else [MODS / n for n in DRLA]) + [data / n for n in DATA] + [REVIEW / "dfitems.pk3", REVIEW / "doomerfall.pk3"] + ([] if stock_mods else [REVIEW / "doomerfall-drla.pk3"]) + [harness]:
         command += ["--mod", str(mod)]
     for arg in uz:
         command += ["--uzdoom-arg", arg]

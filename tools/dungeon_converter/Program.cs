@@ -78,6 +78,7 @@ static partial class Program
         if (args.Contains("--city") || args.Contains("--group")) return City.Run(args); // cities have their own pipeline in CityExport.cs
         string name = null, outDir = null, arena2 = @"D:\dev\DoomDaggerfall\GameResources\DAGGER\ARENA2";
         if (args.Contains("--list-water")) return ListWater(arena2);
+        if (args.Contains("--pickup-lean-survey")) return PickupLeanSurvey(Array.IndexOf(args, "--arena2") is int pa && pa >= 0 ? args[pa + 1] : arena2); // PickupExport.cs
         if (args.Contains("--list-dungeon-types")) return ListDungeonTypes(Array.IndexOf(args, "--arena2") is int la && la >= 0 ? args[la + 1] : arena2);
         if (args.Contains("--list-tilted-doors")) return ListTiltedDoors(arena2);
         if (args.Contains("--list-main")) return ListMain(arena2, args.Contains("--list-all"));

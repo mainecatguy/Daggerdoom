@@ -15,6 +15,8 @@ namespace DaggerfallWorkshop.Game.Items
     {
         // Salts keep each kind of roll on its own stream, so a pile and an enemy at the same spot differ.
         public const long DungeonPile = 1, InteriorPile = 2, DungeonEnemy = 3, DoomerfallEnemy = 4, QuestFoe = 5, DoomFloorItem = 6, DoomStarterGun = 7;
+        // Used by the dungeon converter, which copies Of: a dungeon's fixed lean among Doom pickups (PickupExport.cs).
+        public const long DoomPickupLean = 8;
         // Separate streams for the rolls Daggerfall makes after an enemy's spells are set.
         public const long EnemyExtras = 101;
 
