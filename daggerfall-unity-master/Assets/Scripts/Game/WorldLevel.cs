@@ -18,6 +18,9 @@ namespace DaggerfallWorkshop.Game
         /// <summary>Doomerfall sets this in a bridge session: the dungeon level of a location, or 0 if unknown.</summary>
         public static Func<DFLocation, int> DungeonProvider;
 
+        /// <summary>Doomerfall sets this in a bridge session: the shop level of a shop building, or 0 if unknown.</summary>
+        public static Func<PlayerGPS.DiscoveredBuilding, int> ShopProvider;
+
         static int scoped;
 
         /// <summary>True when the world level comes from area levels instead of the player.</summary>
@@ -44,6 +47,13 @@ namespace DaggerfallWorkshop.Game
         public static Scope ForDungeon(in DFLocation location)
         {
             int level = DungeonProvider != null ? DungeonProvider(location) : 0;
+            return new Scope(level);
+        }
+
+        /// <summary>Scope for restocking a shop's shelves: they roll at the shop's level. Does nothing outside Doomerfall.</summary>
+        public static Scope ForShop(in PlayerGPS.DiscoveredBuilding building)
+        {
+            int level = ShopProvider != null ? ShopProvider(building) : 0;
             return new Scope(level);
         }
 

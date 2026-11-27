@@ -131,6 +131,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             SessionActive = true;
             WorldLevel.CurrentPlaceProvider = DoomerfallDrops.CurrentWorldLevel;   // the world scales to area level, never the player
             WorldLevel.DungeonProvider = DoomerfallDrops.DungeonWorldLevel;
+            WorldLevel.ShopProvider = building => DoomerfallShopShelves.Level(building, Log);   // shelves roll at the shop's level
             ownSize = (uint)Marshal.SizeOf(typeof(DfbDfState));
             peerSize = (uint)Marshal.SizeOf(typeof(DfbUzState));
             Log(string.Format("attached to session {0}, protocol {1}, layout {2:x16}", pendingSession,
@@ -510,6 +511,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             SessionActive = false;
             WorldLevel.CurrentPlaceProvider = null;
             WorldLevel.DungeonProvider = null;
+            WorldLevel.ShopProvider = null;
             if (sheet != null) sheet.Dispose();
             if (session != IntPtr.Zero) DfbNative.dfb_close(session);
             session = IntPtr.Zero;

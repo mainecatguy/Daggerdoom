@@ -148,6 +148,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         // Adds ammo to a shop shelf being restocked (DaggerfallLoot.StockShopShelf). Weapon smiths stock every tier;
         // general stores stock only Regular. Other shops stock none.
+        // The shop's level (DoomerfallShopLevels) is available here as WorldLevel.Current; odds ignore it for now.
         internal static void StockShop(DFLocation.BuildingTypes buildingType, int quality, ItemCollection items)
         {
             if (!DoomerfallAmmo.IsRegistered || items == null)
