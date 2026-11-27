@@ -19,6 +19,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DoomerfallHotkeys hotkeys;
         DoomerfallAmmo ammo;
         DoomerfallBridge bridge;
+        DoomerfallPositionSync sync;
         int step, gunKey, runs, fails;
         float wait, deadline;
         DoomerfallDoomItem gun;
@@ -32,7 +33,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         }
 
         void OnDestroy() { SaveLoadManager.OnLoad -= OnLoad; }
-        void OnLoad(SaveData_v1 data) { step = 0; wait = Time.unscaledTime + 4f; Log("a save loaded; checking again"); }
+        void OnLoad(SaveData_v1 data) { step = 0; wait = Time.unscaledTime + 1f; Log("a save loaded; checking again"); }
 
         void Log(string text) { bridge.LogLine("fisttest: " + text); }
 
@@ -54,6 +55,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     gun = hotkeys.ActiveGun;
                     gunKey = KeyOf(gun);
                     if (gun == null || gunKey < 0 || ammo == null || ammo.ReadyMelee) return; // Doom must report the gun raised first.
+                    if (sync == null) sync = GetComponent<DoomerfallPositionSync>();
+                    if (sync == null || !sync.Engaged || sync.LoadRunning) return; // Both games in the area, not mid-transition, as a player pressing 1.
                     Static();
                     hotkeys.Press(DoomerfallHotkeys.FistKey, Dfb.HOTKEY_PLAIN);
                     Next(1);

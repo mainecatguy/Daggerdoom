@@ -186,6 +186,7 @@ def main():
         command += ["--dfu-arg", arg]
 
     limit = 85 if load in ("again", "restart") else TIMEOUT  # Two characters are made in this run.
+    limit += 40 if WAIT_DF else 0  # Time for the waited-for lines after arrival or a load.
     command[command.index("--timeout") + 1] = str(limit)
     if INSIDE_QUIET:
         command = command[command.index("--") + 1:]
