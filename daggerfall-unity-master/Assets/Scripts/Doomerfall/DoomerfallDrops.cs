@@ -42,10 +42,24 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         /// </summary>
         internal static int CurrentWorldLevel()
         {
+            return TestAreaLevel() >= 0 ? Clamped(0) : Clamped(DoomerfallAreaLevels.ForCurrentPlace());
+        }
+
+        /// <summary>
+        /// WorldLevel's danger provider in a bridge session: as CurrentWorldLevel, but a shop, house or guild hall's own
+        /// level never applies, so enemies indoors stay at the place's danger level.
+        /// </summary>
+        internal static int CurrentDangerLevel()
+        {
+            return TestAreaLevel() >= 0 ? Clamped(0) : Clamped(DoomerfallAreaLevels.ForCurrentDanger());
+        }
+
+        // The -dfarealevel test override wins (callers skip the lookup then); otherwise 1 to 30, 1 if unknown.
+        static int Clamped(int level)
+        {
             int test = TestAreaLevel();
             if (test >= 0)
                 return Mathf.Max(1, test);
-            int level = DoomerfallAreaLevels.ForCurrentPlace();
             return level > 0 ? Mathf.Min(level, MaxAreaLevel) : UndefinedAreaLevel;
         }
 

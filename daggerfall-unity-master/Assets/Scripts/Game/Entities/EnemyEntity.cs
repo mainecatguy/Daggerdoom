@@ -273,7 +273,7 @@ namespace DaggerfallWorkshop.Game.Entity
                 else
                 {
                     // Default like a class enemy
-                    level = WorldLevel.Current;   // Doomerfall: area level in a bridge session
+                    level = WorldLevel.Danger;   // Doomerfall: area level in a bridge session
                     maxHealth = FormulaHelper.RollEnemyClassMaxHealth(level, career.HitPointsPerLevel);
                 }
             }
@@ -301,7 +301,7 @@ namespace DaggerfallWorkshop.Game.Entity
                 // Enemy class is levelled to player and uses similar health rules
                 // City guards are 3 to 6 levels above the player
                 // Doomerfall: in a bridge session both are measured from the area level instead
-                level = WorldLevel.Current;
+                level = WorldLevel.Danger;
                 if (careerIndex == (int)MobileTypes.Knight_CityWatch - 128)
                     level += UnityEngine.Random.Range(3, 7);
 
@@ -335,7 +335,8 @@ namespace DaggerfallWorkshop.Game.Entity
             try
             {
             // Generate loot table items
-            DaggerfallLoot.GenerateItems(mobileEnemy.LootTableKey, items);
+            using (new WorldLevel.Scope(WorldLevel.Danger))   // Doomerfall: enemy loot at the danger level, never a building's wealth
+                DaggerfallLoot.GenerateItems(mobileEnemy.LootTableKey, items);
             if (entityType == EntityTypes.EnemyClass) Doomerfall.DoomerfallLockpick.AddLoot(items); // [Doomerfall] lockpicks: human enemies only
 
             // Enemy classes and some monsters use equipment

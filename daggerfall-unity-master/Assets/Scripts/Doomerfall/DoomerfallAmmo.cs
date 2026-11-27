@@ -565,7 +565,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 int pixel = (int)(key % 1000000), x = pixel % 1000, y = pixel / 1000;
                 int level = test;
                 if (level < 0 && key == 2000000)
-                    level = DoomerfallAreaLevels.ForCurrentPlace(); // Doom does not know the pixel yet: where Daggerfall's player is.
+                    level = DoomerfallAreaLevels.ForCurrentDanger(); // Doom does not know the pixel yet: where Daggerfall's player is.
                 else if (level < 0)
                 {
                     level = 0;

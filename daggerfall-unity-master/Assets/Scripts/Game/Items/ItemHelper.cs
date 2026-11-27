@@ -1395,7 +1395,7 @@ namespace DaggerfallWorkshop.Game.Items
 
         public void AssignEnemyStartingEquipment(PlayerEntity player, EnemyEntity enemyEntity, int variant)
         {
-            int itemLevel = WorldLevel.Current;   // Doomerfall: area level in a bridge session
+            int itemLevel = WorldLevel.Danger;   // Doomerfall: area level in a bridge session
             Genders playerGender = player.Gender;
             Races race = player.Race;
             int chance = 0;

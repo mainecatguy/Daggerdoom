@@ -860,7 +860,8 @@ namespace DaggerfallWorkshop.Game
                     // Stock shop shelf on first access
                     if (loot.stockedDate < DaggerfallLoot.CreateStockedDate(DaggerfallUnity.Instance.WorldTime.Now))
                     {
-                        loot.StockShopShelf(playerEnterExit.BuildingDiscoveryData);
+                        using (WorldLevel.ForShop(playerEnterExit.BuildingDiscoveryData))   // Doomerfall: the shop's level in a bridge session
+                            loot.StockShopShelf(playerEnterExit.BuildingDiscoveryData);
                         OnLootSpawned?.Invoke(this, new ContainerLootSpawnedEventArgs { ContainerType = loot.ContainerType, Loot = loot.Items });
                     }
                     // Open Trade Window if shop is open

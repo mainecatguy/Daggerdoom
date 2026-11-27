@@ -718,7 +718,8 @@ namespace DaggerfallWorkshop.Game
             // If we fail for any reason, use that old chestnut "this house has nothing of value"
             try
             {
-                interior.DoLayout(doorOwner, door, climateBase, buildingDiscoveryData);
+                using (WorldLevel.ForBuilding(buildingDiscoveryData))   // Doomerfall: loot piles roll at the building's level in a bridge session
+                    interior.DoLayout(doorOwner, door, climateBase, buildingDiscoveryData);
             }
             catch (Exception e)
             {

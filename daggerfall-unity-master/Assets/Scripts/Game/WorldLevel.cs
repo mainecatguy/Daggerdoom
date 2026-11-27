@@ -15,8 +15,14 @@ namespace DaggerfallWorkshop.Game
         /// <summary>Doomerfall sets this in a bridge session: the area level where the player is now, or 0 if unknown.</summary>
         public static Func<int> CurrentPlaceProvider;
 
+        /// <summary>Doomerfall sets this in a bridge session: the danger level where the player is now (a building's own level never applies), or 0 if unknown.</summary>
+        public static Func<int> DangerProvider;
+
         /// <summary>Doomerfall sets this in a bridge session: the dungeon level of a location, or 0 if unknown.</summary>
         public static Func<DFLocation, int> DungeonProvider;
+
+        /// <summary>Doomerfall sets this in a bridge session: the shop level of a shop building, or 0 if unknown.</summary>
+        public static Func<PlayerGPS.DiscoveredBuilding, int> ShopProvider;
 
         static int scoped;
 
@@ -52,10 +58,42 @@ namespace DaggerfallWorkshop.Game
             get { return UsesAreaLevel ? DoomerfallQuestRewardLevel : GameManager.Instance.PlayerEntity.Level; }
         }
 
+        /// <summary>
+        /// The level enemies are made at here and now. Same as Current, except inside a shop, house or guild hall,
+        /// whose own level is wealth (what is rolled there), not danger. Outside Doomerfall it is Current.
+        /// </summary>
+        public static int Danger
+        {
+            get
+            {
+                if (scoped > 0 || DangerProvider == null)
+                    return Current;
+                int level = DangerProvider();
+                return level > 0 ? level : Current;
+            }
+        }
+
         /// <summary>Scope for building a dungeon's layout before the player is inside it. Does nothing outside Doomerfall.</summary>
         public static Scope ForDungeon(in DFLocation location)
         {
             int level = DungeonProvider != null ? DungeonProvider(location) : 0;
+            return new Scope(level);
+        }
+
+        /// <summary>Scope for restocking a shop's shelves: they roll at the shop's level. Does nothing outside Doomerfall.</summary>
+        public static Scope ForShop(in PlayerGPS.DiscoveredBuilding building)
+        {
+            int level = ShopProvider != null ? ShopProvider(building) : 0;
+            return new Scope(level);
+        }
+
+        /// <summary>Doomerfall sets this in a bridge session: the level of a building being entered (shop, or a house or guild hall in a town), or 0 for the area level.</summary>
+        public static Func<PlayerGPS.DiscoveredBuilding, int> BuildingProvider;
+
+        /// <summary>Scope for laying out a building's interior before the player is inside it. Does nothing outside Doomerfall.</summary>
+        public static Scope ForBuilding(in PlayerGPS.DiscoveredBuilding building)
+        {
+            int level = BuildingProvider != null ? BuildingProvider(building) : 0;
             return new Scope(level);
         }
 
