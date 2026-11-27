@@ -297,6 +297,27 @@ void HWFlat::DrawFloodPlanes(HWDrawInfo *di, FRenderState &state)
 
 //==========================================================================
 //
+// [Doomerfall] Daggerfall exteriors: the ground takes Daggerfall's daylight (plus Doom's extra light, for weapon
+// flashes) as its base light, flat at every distance, as the DFMesh layer does and as Unity lights its terrain. Only
+// the base light changes: dynamic lights still add on top, and the floor's object colour is untouched. Inactive
+// unless Daggerfall's weather line says exterior (DD_WeatherMeshLight, playsim/dd_weather.cpp).
+//
+//==========================================================================
+bool DD_WeatherMeshLight(float &brightness);
+
+static void DD_ExteriorGroundLight(FRenderState &state, ELightMode lightmode, int rel, const FColormap &cm, float alpha)
+{
+	float daylight;
+	if (!DD_WeatherMeshLight(daylight)) return;
+	const float b = std::clamp(daylight + rel / 255.f, 0.f, 1.f);
+	const PalEntry c = cm.LightColor;
+	state.SetColorAlpha(PalEntry(uint8_t(c.r * b), uint8_t(c.g * b), uint8_t(c.b * b)), alpha, cm.Desaturation);
+	if (isSoftwareLighting(lightmode)) state.SetSoftLightLevel(255);
+	state.SetLightParms(1.f, 0.f);
+}
+
+//==========================================================================
+//
 //
 //
 //==========================================================================
@@ -315,6 +336,7 @@ void HWFlat::DrawFlat(HWDrawInfo *di, FRenderState &state, bool translucent)
 
 	SetColor(state, di->Level, di->lightmode, lightlevel, rel, di->isFullbrightScene(), Colormap, alpha);
 	SetFog(state, di->Level, di->lightmode, lightlevel, rel, di->isFullbrightScene(), &Colormap, false);
+	if (!ceiling && !di->isFullbrightScene()) DD_ExteriorGroundLight(state, di->lightmode, rel, Colormap, alpha);	// [Doomerfall]
 	state.SetObjectColor(FlatColor | 0xff000000);
 	state.SetAddColor(AddColor | 0xff000000);
 	state.ApplyTextureManipulation(TextureFx);

@@ -36,6 +36,7 @@ CASES = {
 }
 VIEWS = [("east", 0, 0, 0), ("eastdown", 0, 35, 0), ("high", 0, 25, 1500), ("west", 180, 0, 0),
          ("down", 0, 90, 2500)]  # name, angle, pitch, raise; down: straight down, tile transitions (north is up)
+LIT = ("lit", 180, 40, 128)  # --lights: pitched down at the ground ahead, where a dynamic light is attached
 
 HARNESS = r'''version "4.10"
 class WSHarness : EventHandler
@@ -51,6 +52,11 @@ class WSHarness : EventHandler
 	override void NetworkProcess(ConsoleEvent e)
 	{
 		if (e.Name == "ws_walk") { walking = true; current = -1; return; }
+		if (e.Name == "ws_light" && players[0].mo)	// an orange dynamic light 300 units ahead, on the ground (a stand-in for a muzzle flash or rocket)
+		{
+			players[0].mo.A_AttachLight("wslight", DynamicLight.PointLight, 0xff8020, 320, 0, 0, (300, 0, -100));
+			return;
+		}
 		if (e.Name != "ws_view") return;
 		if ((current < 0 || walking) && players[0].mo) baseZ = players[0].mo.floorz;
 		walking = false;
@@ -85,7 +91,7 @@ def run_case(args, name, lines):
     out = os.path.join(os.path.abspath(args.out), name)
     os.makedirs(out, exist_ok=True)
     harness = os.path.join(out, "ws_harness.pk3")
-    data = ", ".join(f"{a}, {p}, {r}" for _, a, p, r in VIEWS)
+    data = ", ".join(f"{a}, {p}, {r}" for _, a, p, r in VIEWS + [LIT])
     with zipfile.ZipFile(harness, "w") as z:
         z.writestr("zscript.txt", HARNESS.replace("@DATA@", data))
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "WSHarness" }\n')
@@ -95,7 +101,16 @@ def run_case(args, name, lines):
             steps += [("walk", None)] + [(i, "walked-" + view) for i, view in steps]
         if args.flip:  # then a new Daggerfall season line arrives mid-game, and every view again as flipped-<view>
             steps += [("flip", None)] + [(i, "flipped-" + view) for i, (view, *_rest) in enumerate(VIEWS)]
+        if args.lights:  # the ground with a dynamic light (dark by itself at night), then with light-amp (fullbright)
+            lit = len(VIEWS)
+            steps += [(lit, "nolight-lit"), ("light", None), (lit, "light-lit"), ("amp", None), (lit, "amp-lit"), (3, "amp-west")]
         for n, (i, view) in enumerate(steps):
+            if i == "light":
+                f.write(f'alias wsstep{n} "netevent ws_light; wait 5; wsstep{n + 1}"\n')
+                continue
+            if i == "amp":
+                f.write(f'alias wsstep{n} "give infrared; wait 5; wsstep{n + 1}"\n')
+                continue
             if i == "flip":
                 f.write(f'alias wsstep{n} "dd_sky \\"{args.flip}\\"; wait 10; wsstep{n + 1}"\n')
                 continue
@@ -110,8 +125,9 @@ def run_case(args, name, lines):
         f.write("[GlobalSettings]\nqueryiwad=false\nvid_fullscreen=false\nwin_maximized=false\nvid_defwidth=960\nvid_defheight=540\n"
                 "win_w=960\nwin_h=540\nvid_scalefactor=1\n")
     log = os.path.join(out, "log-ws.txt")
-    if os.path.exists(log):
-        os.remove(log)
+    for old_log in (log, os.path.join(out, "log-log-ws-txt.txt")):
+        if os.path.exists(old_log):
+            os.remove(old_log)
     sky = []
     for line in lines:
         sky += ["+dd_sky", line]
@@ -127,7 +143,8 @@ def run_case(args, name, lines):
     end, reason, text = time.time() + args.timeout + 5, "timeout", ""
     while time.time() < end:
         time.sleep(0.5)
-        text = open(log, errors="replace").read() if os.path.exists(log) else ""
+        found = [p for p in (log, os.path.join(out, "log-log-ws-txt.txt")) if os.path.exists(p)]  # the engine may rename it
+        text = open(found[0], errors="replace").read() if found else ""
         if any(k in text for k in FATAL):
             reason = "fatal"
             break
@@ -157,6 +174,7 @@ def main():
     ap.add_argument("--timeout", type=int, default=45)
     ap.add_argument("--case", nargs="*", default=list(CASES))
     ap.add_argument("--walk", action="store_true", help="after the views, walk west about 36 tiles and take them again")
+    ap.add_argument("--lights", action="store_true", help="after the views: a dynamic light on the ground, then light-amp")
     ap.add_argument("--flip", help="a sky line sent after the views (another season), then the views again")
     args = ap.parse_args()
     args.cache = args.cache or os.path.join(args.out, "cache")
