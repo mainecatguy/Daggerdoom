@@ -166,7 +166,7 @@ class Run:
         return False
 
     def last_box(self, start=0):
-        rows = re.findall(r"top DaggerfallMessageBox \| area (\S+) \| here '([^']*)' \| hour (\d+) \| text '(.*)'", read(self.views)[start:])
+        rows = re.findall(r"top DaggerfallMessageBox \| area (\S+) \| here '(.*?)' \| hour (\d+) \| text '(.*)'", read(self.views)[start:])
         return rows[-1] if rows else None
 
     def go(self):

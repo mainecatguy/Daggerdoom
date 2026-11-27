@@ -23,7 +23,7 @@ class SKHarness : StaticEventHandler // Static: it must keep its stage across th
 		bool paused = lastMs && now - lastMs > 700;
 		lastMs = now;
 		timer++;
-		bool inside = level.MapName.Left(3) ~== "DDS" || level.MapName ~== "MAP01" || p.pos.z < DOORDATA[2] - 1000; // Dungeons may load below the town.
+		bool inside = level.MapName.Left(3) ~== "DDS" || level.MapName ~== "MAP01"; // Interiors and dungeons load as their own map.
 		CVar hold = CVar.FindCVar("dd_ui_test_hold");
 
 		switch (stage)
