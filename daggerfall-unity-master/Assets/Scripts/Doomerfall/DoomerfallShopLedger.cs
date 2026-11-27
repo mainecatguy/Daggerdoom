@@ -16,7 +16,7 @@
 using System.Collections.Generic;
 using DaggerfallWorkshop.Game.Formulas;
 using DaggerfallWorkshop.Game.Items;
-using DaggerfallWorkshop.Game.Utility;
+using DaggerfallWorkshop.Utility;
 using UnityEngine;
 
 namespace DaggerfallWorkshop.Game.Doomerfall
