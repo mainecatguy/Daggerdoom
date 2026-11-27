@@ -13,6 +13,8 @@ What is done on the project, newest first. Agents do not need to read this unles
 
 ## 2026-11-26
 
+- **Two-skill weapons (on `integration`):** energy pistols are Pistol + Energy and energy shotguns Energy + Shotgun; `DoomerfallWeaponCategory.SkillSlotOf` uses the higher live skill (new read-only `Actor.DD_SheetSkill`, so UZDoom must be rebuilt). Verified on `verify/skillcore7`: startup 1337, weapon category test (73 PASS), paired two-skill check, class card test (74 ok). Notes: `work/notes/20261126-174427.md`.
+
 ### Weapon skills, weapon categories and class cards (on `integration`)
 
 - **Seven new skills in the removed monster-language slots:** Shotguns, Automatics, Explosives, Pistols, Rifles, Energy Weapons and Melee (slots 4-10). They show on the sheet, train, save, and are sent to Doom in the character sheet (format 6, `DFB_SKILL_*`). Monster languages are gone; their old enchantments stay but do nothing.
