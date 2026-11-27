@@ -1,6 +1,6 @@
 gameinfo
 {
-	AddEventHandlers = "Doomerfall_Events", "DoomerfallItems", "DoomerfallGuns", "DoomerfallAttributes", "DoomerfallLightCarbineDrops", "DoomerfallClimb", "DoomerfallJump", "DoomerfallLook", "DoomerfallDamageNumbers", "DoomerfallLockpick", "DoomerfallReload", "DoomerfallAgility", "DoomerfallShots", "DoomerfallAutomatics", "DoomerfallExplosives", "DoomerfallShotguns", "DoomerfallAmmoTiers", "DoomerfallEncounterPoolHolder", "DoomerfallEncounterPoolDump", "DoomerfallEncounterPlanTest", "DoomerfallEncounterBudgetTest", "DoomerfallCivilWarTest", "DoomerfallWeaponCategoryTest", "DoomerfallRifleTagTest", "DoomerfallWeaponTypesTest", "DoomerfallLightCarbineTest"
+	AddEventHandlers = "Doomerfall_Events", "DoomerfallItems", "DoomerfallGuns", "DoomerfallAttributes", "DoomerfallLightCarbineDrops", "DoomerfallClimb", "DoomerfallJump", "DoomerfallLook", "DoomerfallDamageNumbers", "DoomerfallLockpick", "DoomerfallReload", "DoomerfallAgility", "DoomerfallShots", "DoomerfallAutomatics", "DoomerfallExplosives", "DoomerfallShotguns", "DoomerfallPistols", "DoomerfallAmmoTiers", "DoomerfallEncounterPoolHolder", "DoomerfallEncounterPoolDump", "DoomerfallEncounterPlanTest", "DoomerfallEncounterBudgetTest", "DoomerfallCivilWarTest", "DoomerfallWeaponCategoryTest", "DoomerfallRifleTagTest", "DoomerfallWeaponTypesTest", "DoomerfallLightCarbineTest"
 }
 
 // Placed only by the dungeon converter (tools/dungeon_converter/PickupExport.cs).
