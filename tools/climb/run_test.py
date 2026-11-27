@@ -66,7 +66,7 @@ def main():
     subprocess.run([sys.executable, os.path.join(REPO, 'scripts', 'doomerfall', 'build_pk3.py'), os.path.join(a.work, 'doomerfall.pk3')], check=True)
     subprocess.run([sys.executable, os.path.join(REPO, 'tools', 'climb', 'build_test.py'), a.work], check=True)
 
-    lines = run_part(a.exe, a.work, a.iwad, 1) + run_part(a.exe, a.work, a.iwad, 2) + run_part(a.exe, a.work, a.iwad, 3)
+    lines = run_part(a.exe, a.work, a.iwad, 1) + run_part(a.exe, a.work, a.iwad, 2) + run_part(a.exe, a.work, a.iwad, 3, timeout=60)
     for l in lines:
         if 'CLIMBTEST' in l or 'DFCLIMB' in l or 'error' in l.lower():
             print(l)
@@ -88,7 +88,9 @@ def main():
         ('Doom slope limit restored off Daggerfall maps', lambda: f('off-slope60', 'climbed') == 0 and f('off-slope60', 'z') < 100 and abs(f('off-slope60', 'steep') - 0.70711) < 1e-3),
         ('too-steep staircase (32 risers, 12 treads) is one climb, walking', lambda: f('steepwalk', 'starts') == 1 and f('steepwalk', 'topped') == 1),
         ('too-steep staircase is one climb, running', lambda: f('steeprun', 'starts') == 1 and f('steeprun', 'topped') == 1),
-        ('a 64-unit ledge still ends the climb (rests, then a new climb)', lambda: f('ledge', 'rested') >= 20 and f('ledge', 'starts') >= 2),
+        ('a 64-unit ledge still ends the climb (rests, then a new climb)', lambda: f('ledge64', 'rested') >= 20 and f('ledge64', 'starts') >= 2),
+        ('a 24-unit ledge still ends the climb (wider than a 16-unit stair tread)', lambda: f('ledge24', 'rested') >= 20 and f('ledge24', 'starts') >= 2),
+        ('strafing mid-crossing on steep stairs is not held in place', lambda: f('tread-strafe', 'crossing') == 1 and (abs(f('tread-strafe', 'dy')) > 5 or f('tread-strafe', 'climbing') == 0 and abs(f('tread-strafe', 'dz')) > 5)),
     ]
     failed = 0
     for name, check in checks:

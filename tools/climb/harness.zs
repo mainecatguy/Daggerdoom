@@ -98,13 +98,24 @@ class ClimbHarness : EventHandler
 				Next();
 			}
 		}
-		else if (scen == 2)
+		else if (scen == 2 || scen == 3) // 64- and 24-unit ledges: the climb tops out and the player stands there
 		{
-			if (lt == 0) { Place(770, 660); fwd = Walk; starts = 0; rested = 0; wasClimbing = false; return; }
+			if (lt == 0) { Place(770, scen == 2 ? 660 : 920); fwd = Walk; starts = 0; rested = 0; wasClimbing = false; return; }
 			if (!Climbing() && abs(mo.floorz - 96) < 0.1 && mo.pos.z <= mo.floorz + 0.1) rested++;
 			if (lt == 300)
 			{
-				Console.Printf("CLIMBTEST ledge starts=%d rested=%d z=%.1f", starts, rested, mo.pos.z);
+				Console.Printf("CLIMBTEST ledge%d starts=%d rested=%d z=%.1f", scen == 2 ? 64 : 24, starts, rested, mo.pos.z);
+				Next();
+			}
+		}
+		else if (scen == 4) // Strafe from the middle of a tread crossing on the steep stairs: the player is not held.
+		{
+			if (lt == 0) { Place(770, 390); fwd = Walk; starts = 0; wasClimbing = false; zA = -1; return; }
+			if (zA < 0 && Climbing() && mo.pos.z > 64 && mo.vel.x > 2) { zA = lt; fwd = 0; side = Strafe; y0 = mo.pos.y; z0 = mo.pos.z; }
+			if ((zA >= 0 && lt == zA + 15) || lt > 400)
+			{
+				Console.Printf("CLIMBTEST tread-strafe crossing=%d dy=%.1f dz=%.1f climbing=%d", zA >= 0, mo.pos.y - y0, mo.pos.z - z0, Climbing() ? 1 : 0);
+				side = 0;
 				Console.Printf("CLIMBTEST part3 done uses=%d", uses);
 				done = true;
 			}

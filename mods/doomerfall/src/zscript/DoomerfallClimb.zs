@@ -29,7 +29,7 @@ class DoomerfallClimb : StaticEventHandler
 	const Touch = 12.0;        // how far beyond the player's radius a surface still counts as touching
 	const StillMove = 2.0;     // moving less than this per tic while pushing counts as blocked
 	const Hug = 1.0;           // velocity into the wall while climbing, which keeps contact
-	const NarrowLedge = 32.0;  // a ledge up to the player's width with a climbable surface behind it does not end a climb
+	const NarrowLedge = 16.0;  // a stair tread this deep or less with a climbable surface behind it does not end a climb
 	const UsesEvery = 35;
 
 	bool rules;
@@ -205,7 +205,7 @@ class DoomerfallClimb : StaticEventHandler
 		double wallAng = atan2(-s.normal.y, -s.normal.x);
 		if (!FindSurface(mo, wallAng, mo.MaxStepHeight - 4))
 		{
-			TopOrLetGo(mo, s, cmd.forwardmove);
+			TopOrLetGo(mo, s, cmd.forwardmove, cmd.sidemove);
 			return;
 		}
 		Vector2 n = found;
@@ -265,25 +265,29 @@ class DoomerfallClimb : StaticEventHandler
 		else if (!ground) s.pushTics = 0; // Daggerfall: a failed airborne grab restarts the wait; on the ground it rerolls.
 	}
 
-	// A ledge no wider than the player with another climbable surface right behind it (a staircase far too steep to
-	// walk, such as Privateer's Hold's cliff) does not end the climb. Forward rises to the ledge at climb speed, then
-	// crosses it to that surface, so Doom's step-up adds no free height. Holding still stays put. False when there is
-	// no such ledge.
+	// A stair tread (at most NarrowLedge deep, under half the player's width) with another climbable surface right
+	// behind it, as on a staircase far too steep to walk such as Privateer's Hold's cliff, does not end the climb.
+	// Forward rises to the tread at climb speed, then crosses it to that surface, so Doom's step-up adds no free height.
+	// No input stays put. False when there is no such tread; then the climb tops out or lets go as on any wall.
 	bool CrossNarrowLedge(PlayerPawn mo, DoomerfallClimbState s, int forward)
 	{
 		Vector2 n = s.normal;
-		if (!FindSurface(mo, atan2(-n.y, -n.x), mo.MaxStepHeight - 4, NarrowLedge)) return false;
+		if (!FindSurface(mo, atan2(-n.y, -n.x), mo.MaxStepHeight - 4, NarrowLedge + mo.radius)) return false;
 		Vector2 next = found;
-		// The highest floor between the player and that surface, at most step height above the feet (the trace passed
-		// over anything taller). A floor far below the feet is a gap, not a ledge.
-		double top = -1e9;
-		for (double d = 0; d < foundDist; d += 4)
+		double far = foundDist;
+		// The tread: the floor just in front of that surface, at most step height above the feet (the trace passed over
+		// anything taller); a floor far below the feet is a gap. Its depth is measured back from that surface to where
+		// the floor leaves the tread's height, on either side of the player.
+		Vector2 at = mo.pos.xy - n * (far - 1);
+		double top = mo.GetZAt(at.x, at.y, 0, GZF_ABSOLUTEPOS);
+		if (top > mo.pos.z + mo.MaxStepHeight || top < mo.pos.z - 2 * mo.MaxStepHeight) return false;
+		double d = far - 1;
+		for (; d > far - NarrowLedge - 4; d -= 2)
 		{
-			Vector2 at = mo.pos.xy - n * d;
-			double z = mo.GetZAt(at.x, at.y, 0, GZF_ABSOLUTEPOS);
-			if (z <= mo.pos.z + mo.MaxStepHeight) top = max(top, z);
+			at = mo.pos.xy - n * (d - 2);
+			if (abs(mo.GetZAt(at.x, at.y, 0, GZF_ABSOLUTEPOS) - top) > 1) break;
 		}
-		if (top < mo.pos.z - 2 * mo.MaxStepHeight) return false;
+		if (far - d > NarrowLedge) return false;
 		s.normal = next;
 		if (forward <= 0) mo.vel = (0, 0, 0);
 		else if (top > mo.pos.z) mo.vel = (0, 0, min(s.speed, top - mo.pos.z));
@@ -297,10 +301,11 @@ class DoomerfallClimb : StaticEventHandler
 	}
 
 	// The surface ended. Near the top, carry the player over onto the ledge, as Daggerfall's forward push does.
-	void TopOrLetGo(PlayerPawn mo, DoomerfallClimbState s, int forward)
+	void TopOrLetGo(PlayerPawn mo, DoomerfallClimbState s, int forward, int sidemove)
 	{
 		Vector2 n = s.normal;
-		if (!s.slipping && forward >= 0 && CrossNarrowLedge(mo, s, forward)) return;
+		// Only rising past a surface's top (or holding still) reaches a tread; strafing off a surface ends as before.
+		if (!s.slipping && forward >= 0 && sidemove == 0 && CrossNarrowLedge(mo, s, forward)) return;
 		Vector2 ahead = mo.pos.xy - n * (mo.radius + 8);
 		double top = mo.GetZAt(ahead.x, ahead.y, 0, GZF_ABSOLUTEPOS);
 		bool atTop = top > mo.pos.z - 1 && top <= mo.pos.z + mo.MaxStepHeight;
