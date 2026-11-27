@@ -273,6 +273,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         void OnLoad(SaveData_v1 saveData)
         {
             ItemCollection items = GameManager.Instance.PlayerEntity.Items;
+            // Doom items in the wagon or left for repair get their weight and value too (saves from before values).
+            foreach (ItemCollection other in new[] { GameManager.Instance.PlayerEntity.WagonItems, GameManager.Instance.PlayerEntity.OtherItems })
+                for (int i = 0; other != null && i < other.Count; i++)
+                    if (other.GetItem(i) is DoomerfallDoomItem)
+                        DoomerfallWeaponValues.Apply((DoomerfallDoomItem)other.GetItem(i));
             StringBuilder list = new StringBuilder();
             for (int i = 0; i < items.Count; i++)
             {
