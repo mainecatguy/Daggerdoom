@@ -23,8 +23,14 @@ class DoomerfallWorldItem : Actor
 		Stop;
 	}
 
+	// A dropped pile of one ammo type (DoomerfallAmmoPileArt.cs): record is the type, plus 4 for a box's worth.
+	const AmmoArchive = 9100;
+	// Doom's own pickup sprites, which DRLA's ammo pickups also use: clip, shells, rocket, cell, then their boxes.
+	static const String AmmoSprites[] = { "CLIPA0", "SHELA0", "ROCKA0", "CELLA0", "AMMOA0", "SBOXA0", "BROKA0", "CELPA0" };
+
 	void Show(int archive, int record, double width, double height)
 	{
+		if (archive == AmmoArchive && ShowAmmo(record)) return;
 		TextureID tex = TexMan.CheckForTexture(String.Format("DP%03d%03d", archive, record), TexMan.Type_Any);
 		if (!tex.IsValid()) tex = TexMan.CheckForTexture("DPNOSPR", TexMan.Type_Any);
 		if (!tex.IsValid()) return;
@@ -33,6 +39,16 @@ class DoomerfallWorldItem : Actor
 		if (w <= 0 || h <= 0) return;
 		picnum = tex;
 		scale = (width > 0 ? width / w : 1, height > 0 ? height / h : 1);
+	}
+
+	bool ShowAmmo(int record)
+	{
+		if (record < 0 || record >= AmmoSprites.Size()) return false;
+		TextureID tex = TexMan.CheckForTexture(AmmoSprites[record], TexMan.Type_Sprite);
+		if (!tex.IsValid()) return false;
+		picnum = tex;
+		scale = (1, 1);
+		return true;
 	}
 }
 
