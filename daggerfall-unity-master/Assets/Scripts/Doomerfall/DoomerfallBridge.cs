@@ -155,6 +155,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             sync.Init(this, Environment.GetCommandLineArgs());
             hp = new DoomerfallHp(this, sync, Environment.GetCommandLineArgs());
             gameObject.AddComponent<DoomerfallEndurance>().Init(this, sync);  // max HP from Endurance and level
+            DoomerfallDevTravel.Attach(this); // dev only: -dfdevtravel reveals half the dungeons on the travel map
             DoomerfallHpFormulaTest.Attach(this, sync); // test only: -dfhpformulatest
             DoomerfallAttributesTest.Attach(this, sync); // test only: -dfattrtest
             sheet = new DoomerfallSheet(this, sync, Environment.GetCommandLineArgs());

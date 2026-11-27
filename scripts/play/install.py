@@ -179,6 +179,9 @@ def main():
     play = PLAY.replace("@DAGGER@", str(GAME / "DAGGER")).replace("@IWAD@", str(GAME / "wads" / "DOOM2.WAD")).replace("@MODS@", str(GAME.parent / "GameMods"))
     play = play.replace("@TRY@", "\nrem ".join(TRY))
     (target / "play.bat").write_text(play, newline="\r\n")
+    # Dev mode: half of all dungeons start discovered on the travel map (DoomerfallDevTravel.cs).
+    dev = play.replace("--dfu-arg -dfflow", "--dfu-arg -dfdevtravel --dfu-arg -dfflow", 1)
+    (target / "play-dev.bat").write_text(dev, newline="\r\n")
     print("installed", target)
 
 
