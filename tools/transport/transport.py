@@ -197,14 +197,17 @@ class Run:
         ns = {"__file__": str(path), "__name__": "levelup_driver"}
         exec(compile(read(path).split("\nap = argparse.ArgumentParser()")[0], str(path), "exec"), ns)
         doom = ns["Doom"](self.launcher)
-        size = re.findall(r"opened menu \d+ at (\d+)x(\d+)", read(self.uz_log))
+        # Daggerfall may shrink the surface right after opening (640x400 to Doom's 320x200), so its newest size counts.
+        size = re.findall(r"ui: surface (\d+)x(\d+) for", read(self.df_log)) or re.findall(r"opened menu \d+ at (\d+)x(\d+)", read(self.uz_log))
         doom.surface = (int(size[-1][0]), int(size[-1][1]))
         return doom
 
     def row(self, name):
-        """A transport row in Daggerfall's 320x200 layout, from the panel's logged position."""
+        """A transport row in Daggerfall's 320x200 layout. The panel is centered both ways (its alignment overrides the
+        logged Position), so its corner comes from the logged size."""
         m = re.match(r"(-?\d+),(-?\d+) (\d+)x(\d+)", (self.state() or {}).get("panel", ""))
-        x, y = (int(m.group(1)), int(m.group(2))) if m else (95, 71)
+        w, h = (int(m.group(3)), int(m.group(4))) if m else (130, 60)
+        x, y = (320 - w) // 2, (200 - h) // 2
         return x + ROWS[name][0], y + ROWS[name][1]
 
     def open(self, n):
