@@ -30,6 +30,7 @@ GROUP = 7154
 DUNGEON = ("ddruntime.pk3", "overworld.pk3", "privateershold.wad", "privateershold_mesh.pk3", "privateershold_doors.pk3")
 FATAL = ("DIED WITH FATAL", "errors while parsing", "VM execution aborted", "Execution could not continue", "Unable to open map")
 STEP, SHOTS = 0.25, 21
+DOOM_BORDER = (28, 79)  # Doom's window size includes its frame here: asking 1280x800 gives a 1252x721 screen (log "Resolution:")
 SENT = "hudtest: sample sent"  # DoomerfallHudMessagesTest, in df.log
 
 
@@ -67,7 +68,7 @@ def assemble(source):
     print("assembled", REVIEW)
 
 
-def launch_args(runs, uz_extra, df_extra, minimized):
+def launch_args(runs, uz_extra, df_extra, minimized, size=(1280, 800)):
     command = [str(REVIEW / "doomerfall-launcher.exe")] + (["--minimized"] if minimized else []) + ["--nodraw",
                "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"),
                "--iwad", str(GAME / "wads" / "DOOM2.WAD"), "--uzdoom-cwd", str(runs), "--log", str(runs / "launcher.log")]
@@ -77,7 +78,7 @@ def launch_args(runs, uz_extra, df_extra, minimized):
           "-ddtowncache", str(REVIEW / "data" / "cache"), "-ddconverter", str(REVIEW / "data" / "converter" / "DungeonConverter.exe"),
           "-ddarena2", str(GAME / "DAGGER" / "ARENA2"), "+map", f"DDT{GROUP:05d}"] + uz_extra
     df = ["-dfbridgelog", str(runs / "df.log"), "-dfsynctest", str(GAME / "DAGGER"), "-screen-fullscreen", "0",
-          "-screen-width", "1280", "-screen-height", "800"] + df_extra
+          "-screen-width", str(size[0]), "-screen-height", str(size[1])] + df_extra
     for arg in uz:
         command += ["--uzdoom-arg", arg]
     for arg in df:
@@ -110,6 +111,9 @@ def pairs(runs):
         if not (a.exists() and b.exists()):
             continue
         left, right = Image.open(a).convert("RGB"), Image.open(b).convert("RGB")
+        if left.size != right.size:
+            print(f"frame {i}: sizes differ, Daggerfall Unity {left.size}, Doom {right.size}; not compared")
+            continue
         h = max(left.height, right.height)
         pair = Image.new("RGB", (left.width + right.width + 8, h), (40, 40, 40))
         pair.paste(left, (0, 0))
@@ -134,9 +138,12 @@ def run(name, size):
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "HMHarness" }\n')
     console = runs / "log-console.txt"
     uz = ["-ddqa", str(inbox.parent), "-noactivate", "-nosound", "-noautoload", "-file", str(harness), "+logfile", "console", "+wipetype", "0",
-          "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+dd_debugmessages", "0"] + size_args(*size)
+          "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+dd_debugmessages", "0"] + size_args(size[0] + DOOM_BORDER[0], size[1] + DOOM_BORDER[1])
     timeout = 150
-    command = [sys.executable, QUIET, "--timeout", str(timeout), "--"] + launch_args(runs, uz, ["-dfmute", "-dfhudtest", str(runs / "dfshots"), "-dfhudtestsize", "1252x721"], False)  # Not minimized: a minimized window renders at 320x200.
+    command = [sys.executable, QUIET, "--timeout", str(timeout), "--"] + launch_args(runs, uz, ["-dfmute", "-dfhudtest", str(runs / "dfshots")], False, size)  # Not minimized: a minimized window renders at 320x200.
+    # Both games get the same window size, and Daggerfall Unity's frames are its own screen size: its SDF text is laid out
+    # in screen pixels (TextLabel: GL.LoadPixelMatrix(Screen.width, Screen.height)), so a render texture of another size
+    # squashes it.
     proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def send(line):
@@ -193,7 +200,7 @@ def check():
 ap = argparse.ArgumentParser()
 ap.add_argument("command", choices=("assemble", "run", "check", "pairs"))
 ap.add_argument("arg", nargs="?", default="t", help="assemble: the source review folder; run/pairs: a run name")
-ap.add_argument("--size", type=int, nargs=2, default=(1280, 800), metavar=("W", "H"))
+ap.add_argument("--size", type=int, nargs=2, default=(1252, 721), metavar=("W", "H"))  # fits quiet_run's private desktop
 args = ap.parse_args()
 if args.command == "assemble":
     assemble(Path(args.arg))

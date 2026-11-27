@@ -62,20 +62,25 @@ class Doomerfall_Events : StaticEventHandler
 	// Daggerfall's HUD text, sent by the engine (dd_info.cpp), drawn as Daggerfall Unity draws it: HUD rows centered from the
 	// top of its 320x200 screen scaled to fit the window, each held for the time Daggerfall gave it (a second by default)
 	// and then scrolled away (PopupText.cs), and mid-screen text centered at row 146 (DaggerfallHUD.cs). Daggerfall's yellow
-	// text with its dark shadow one pixel down and right, in Daggerfall's FONT0003 (fonts/dffont3, which the converter
-	// writes into ddruntime.pk3 from the player's ARENA2; Doom's SmallFont when it is missing).
+	// text with its dark shadow down and right, in the font Daggerfall Unity draws by default: FONT0003's smooth SDF face
+	// (fonts/dffont3sdf, which the converter rasterizes into ddruntime.pk3 from Daggerfall Unity's FONT0003-SDF asset at
+	// several texels per Daggerfall pixel, with its advances and baseline; Daggerfall Unity offsets that face's shadow
+	// 0.4 pixel, TextLabel.DrawLabel), else the classic pixel FONT0003 (fonts/dffont3, from the player's ARENA2, shadow one
+	// pixel), else Doom's SmallFont.
 	// Layout: Doomerfall's compass is planned for the top centre (owner, 2026-11-26), where Daggerfall Unity starts its
 	// rows. The rows keep Daggerfall Unity's spacing and motion but start HudCompassBand pixels lower, and a row scrolling
 	// away is cut off at the band's bottom edge as Daggerfall Unity's are cut off by the top of the screen, so no row ever
 	// draws over the compass. Doom's own pickup messages stay top left.
 	const HudPopDelay = 1.0;
 	const HudMaxRows = 7;
+	const HudGlyphHeight = 7; // FONT0003's classic glyph height; the SDF font's height is this times its texels per pixel
 	const HudCompassBand = 26; // 320x200 pixels kept clear at the top: room for Daggerfall's 69x17 compass box, and below DRLA's top HUD key bar
 	ui Array<String> hudRows;
 	ui double hudTimer, hudNextDelay;
 	ui int hudLastMs, midUntilMs;
 	ui String midText;
 	ui Font hudFont;
+	ui bool hudSdf;
 	ui bool hudFontChecked;
 
 	override void InterfaceProcess(ConsoleEvent e)
@@ -105,13 +110,16 @@ class Doomerfall_Events : StaticEventHandler
 		}
 	}
 
-	ui void DrawDaggerfallLine(Font f, String text, double y, double scale)
+	// scale: screen pixels per Daggerfall pixel; texels: font texels per Daggerfall pixel.
+	ui void DrawDaggerfallLine(Font f, String text, double y, double scale, double texels)
 	{
-		double x = (Screen.GetWidth() - f.StringWidth(text) * scale) / 2;
+		double s = scale / texels;
+		double x = (Screen.GetWidth() - f.StringWidth(text) * s) / 2;
+		double shadow = (hudSdf ? 0.4 : 1) * scale;
 		// Daggerfall's glyphs are plain white, which a translation would darken: they are tinted untranslated.
 		int tr = f == SmallFont ? Font.CR_WHITE : Font.CR_UNTRANSLATED;
-		Screen.DrawText(f, tr, x + scale, y + scale, text, DTA_ScaleX, scale, DTA_ScaleY, scale, DTA_Color, Color(255, 93, 77, 12));
-		Screen.DrawText(f, tr, x, y, text, DTA_ScaleX, scale, DTA_ScaleY, scale, DTA_Color, Color(255, 243, 239, 44));
+		Screen.DrawText(f, tr, x + shadow, y + shadow, text, DTA_ScaleX, s, DTA_ScaleY, s, DTA_Color, Color(255, 93, 77, 12));
+		Screen.DrawText(f, tr, x, y, text, DTA_ScaleX, s, DTA_ScaleY, s, DTA_Color, Color(255, 243, 239, 44));
 	}
 
 	ui void DrawDaggerfallText()
@@ -136,13 +144,16 @@ class Doomerfall_Events : StaticEventHandler
 		if (!hudFontChecked)
 		{
 			hudFontChecked = true;
-			hudFont = Font.GetFont("dffont3");
+			hudFont = Font.GetFont("dffont3sdf");
+			hudSdf = hudFont != null;
+			if (!hudFont) hudFont = Font.GetFont("dffont3");
 		}
 		Font f = hudFont ? hudFont : SmallFont;
+		double texels = hudFont ? f.GetHeight() / double(HudGlyphHeight) : 1;
 		// Daggerfall Unity's native panel: 320x200 scaled to fit and centered.
 		double scale = min(Screen.GetWidth() / 320.0, Screen.GetHeight() / 200.0);
 		double top = (Screen.GetHeight() - 200 * scale) / 2;
-		double rowHeight = f.GetHeight() + 1;
+		double rowHeight = f.GetHeight() / texels + 1;
 		double y = 4 + HudCompassBand;
 		if (hudTimer < 0) y += rowHeight * hudTimer / HudPopDelay;
 		if (hudRows.Size())
@@ -151,12 +162,12 @@ class Doomerfall_Events : StaticEventHandler
 			Screen.SetClipRect(0, clipTop, Screen.GetWidth(), Screen.GetHeight() - clipTop);
 			for (int i = 0; i < hudRows.Size() && i <= HudMaxRows; i++)
 			{
-				DrawDaggerfallLine(f, hudRows[i], top + y * scale, scale);
+				DrawDaggerfallLine(f, hudRows[i], top + y * scale, scale, texels);
 				y += rowHeight;
 			}
 			Screen.ClearClipRect();
 		}
-		if (now < midUntilMs) DrawDaggerfallLine(f, midText, top + 146 * scale, scale);
+		if (now < midUntilMs) DrawDaggerfallLine(f, midText, top + 146 * scale, scale, texels);
 	}
 
 	override void NetworkProcess(ConsoleEvent e)

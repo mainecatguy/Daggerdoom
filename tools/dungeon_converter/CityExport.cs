@@ -237,13 +237,15 @@ static partial class Program
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outFile)));
             string temp = outFile + ".tmp";
             if (File.Exists(temp)) File.Delete(temp);
-            int meshImages = 0, flatImages = 0, windowMasks = 0, fontGlyphs = 0;
+            int meshImages = 0, flatImages = 0, windowMasks = 0, fontGlyphs = 0, sdfGlyphs = 0;
             var npcAnimation = new StringBuilder();
             using (var zip = ZipFile.Open(temp, ZipArchiveMode.Create))
             {
                 void Text(string name, string body) { using var s = new StreamWriter(zip.CreateEntry(name, CompressionLevel.Fastest).Open()); s.Write(body); }
                 using (var s = zip.CreateEntry("DDGROUPS", CompressionLevel.Fastest).Open()) { index.Position = 0; index.CopyTo(s); }
                 fontGlyphs = FontExport.Write(zip, arena2); // Daggerfall's HUD font for Doom's HUD messages
+                string sdfFonts = FontExport.FindSdfFolder(args); // and the smooth one Daggerfall Unity draws by default
+                sdfGlyphs = FontExport.WriteSdf(zip, sdfFonts == null ? null : Path.Combine(sdfFonts, "FONT0003-SDF.asset"), FontExport.ClassicHeight(arena2, "FONT0003.FNT"), "dffont3sdf");
                 foreach (string path in Directory.GetFiles(arena2, "TEXTURE.*").OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
                 {
                     if (!int.TryParse(Path.GetExtension(path).TrimStart('.'), out int archive)) continue;
@@ -294,7 +296,7 @@ static partial class Program
             File.Move(temp, outFile, true);
             // A readable list for choosing test locations. It names game content, so it stays beside the package, outside the repository.
             File.WriteAllLines(Path.ChangeExtension(outFile, ".groups.tsv"), groups.Select((g, id) => $"{id}\t{g.Count}\t{g.Max(p => p.BlocksWide * p.BlocksHigh)}\t{string.Join("; ", g.Select(p => $"{p.Region}/{p.Name} {p.Type} {p.BlocksWide}x{p.BlocksHigh}"))}"));
-            Console.WriteLine($"runtime assets: {groups.Count} groups ({tooLarge} over the map limit), {meshImages} mesh textures, {windowMasks} window masks, {flatImages} billboards, {fontGlyphs} font glyphs, {new FileInfo(outFile).Length / 1048576} MiB, {clock.ElapsedMilliseconds} ms");
+            Console.WriteLine($"runtime assets: {groups.Count} groups ({tooLarge} over the map limit), {meshImages} mesh textures, {windowMasks} window masks, {flatImages} billboards, {fontGlyphs} font glyphs, {sdfGlyphs} SDF font glyphs, {new FileInfo(outFile).Length / 1048576} MiB, {clock.ElapsedMilliseconds} ms");
             return 0;
         }
 

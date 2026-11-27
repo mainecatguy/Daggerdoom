@@ -114,7 +114,8 @@ def make_data(build_dir, target):
     exe = converter / "DungeonConverter.exe"
     arena2 = ["--arena2", ARENA2]
     print("data: shared runtime package")
-    run([exe, "--runtime-assets", "--out", stage / "ddruntime.pk3", *arena2])
+    run([exe, "--runtime-assets", "--out", stage / "ddruntime.pk3", *arena2,  # with Daggerfall Unity's smooth HUD font
+         "--dfu-fonts", REPO / "daggerfall-unity-master" / "Assets" / "Resources" / "Fonts"])
     print("data:", DUNGEON)
     dungeon = scratch / "dungeon"
     run([exe, DUNGEON, "--out", dungeon, *arena2])  # The map, its doors, and its pickups.
