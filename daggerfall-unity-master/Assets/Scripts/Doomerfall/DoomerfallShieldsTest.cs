@@ -70,8 +70,17 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         IEnumerator Run()
         {
+            Log("waiting for play");
+            float nextWaitLog = Time.realtimeSinceStartup + 10f;
             while (!sync.InGame || sync.Phase != Dfb.DF_PHASE_PLAY)
+            {
+                if (Time.realtimeSinceStartup >= nextWaitLog)
+                {
+                    nextWaitLog += 10f;
+                    Log(string.Format("still waiting: in game {0}, phase {1}", sync.InGame, sync.Phase));
+                }
                 yield return null;
+            }
             yield return new WaitForSecondsRealtime(1f);
             PlayerEntity player = GameManager.Instance.PlayerEntity;
             Log("active " + DoomerfallShields.Active);
