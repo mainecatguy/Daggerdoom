@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x4762cf63b10ebefaUL;
+        public const ulong SchemaHash = 0xb51760797467b42dUL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -192,6 +192,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint HP_HEAL = 2;
         public const uint HPF_VALID = 1;  // dfb_df_state.hp_current and hp_max describe a live Daggerfall player
         public const uint HPF_DEAD = 2;  // Daggerfall reports the player dead
+        public const uint PLF_SLOWFALL = 1;  // dfb_df_state.player_flags: a Slowfall effect is active, so a fall starts over each frame (AcrobatMotor.ApplyGravity)
+        public const uint PLF_OUTDOOR_WATER = 2;  // the player is outdoors over a water tile (PlayerTileMapIndex 0), where a landing does no damage (AcrobatMotor.CheckFallingDamage)
         public const uint FACES_SLOT = 1;
         public const uint FACES_FORMAT_VERSION = 1;
         public const uint FACES_MAX = 3;  // Daggerfall's HUD shows at most three faces
@@ -1139,7 +1141,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(40)] public uint hpAppliedEvent;  // event_no of the last dfb_hp_event Daggerfall applied
         [FieldOffset(44)] public uint hpFlags;  // DFB_HPF_*
         [FieldOffset(48)] public int damageBonusBp;
-        [FieldOffset(52)] public uint pad0;
+        [FieldOffset(52)] public uint playerFlags;  // DFB_PLF_*: Daggerfall's falling damage exemptions, which Doom applies to its falls
         // 200 reserved bytes at offset 56
     }
 

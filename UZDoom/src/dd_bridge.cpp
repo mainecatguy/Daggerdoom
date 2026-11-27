@@ -790,6 +790,13 @@ int DD_BridgeSheetValue(int index)
 	return s && index >= 0 && index < DFB_SHEET_INTS ? s[index] : -1;
 }
 
+// Daggerfall's falling damage exemptions for ZScript (Actor.DD_PlayerFlags): DFB_PLF_* from its last published state,
+// 0 with no session.
+int DD_BridgePlayerFlags()
+{
+	return session && peerSeen ? int(peerState.player_flags) : 0;
+}
+
 // One line in the bridge log (-dfbridgelog) and the console, for the other dd_*.cpp files.
 void DD_BridgeLog(const char *text) { Log("%s", text); }
 

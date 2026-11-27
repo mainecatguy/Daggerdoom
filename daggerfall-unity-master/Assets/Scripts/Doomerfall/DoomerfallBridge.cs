@@ -60,6 +60,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DoomerfallUi ui;
         DoomerfallHp hp;
         DoomerfallDamageBonus damageBonus;
+        DoomerfallFallState fallState;
         DoomerfallSave save;
         DoomerfallItems items;
         DoomerfallDoomItems doomItems;
@@ -156,6 +157,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dffacetest") >= 0)
                 gameObject.AddComponent<DoomerfallFaceTest>().Init(this, sync); // Test only
             damageBonus = new DoomerfallDamageBonus(this, sync);
+            fallState = new DoomerfallFallState(this, sync);
             DoomerfallDamageBonusTest.Apply(this, damageBonus, Environment.GetCommandLineArgs()); // Test only, does nothing without -dfdamagetest
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfsheettest") >= 0)
                 gameObject.AddComponent<DoomerfallSheetTest>().Init(this, sync);
@@ -284,6 +286,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             own.dfHeartbeat++;
             hp.Fill(ref own);
             damageBonus.Fill(ref own);
+            fallState.Fill(ref own);
             sheet.Publish();
             faces.Publish();
             DfbNative.dfb_publish_state(session, ref own, ownSize);
@@ -525,6 +528,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             own.demoValue = (uint)Time.frameCount;
             hp.Fill(ref own);
             damageBonus.Fill(ref own);
+            fallState.Fill(ref own);
             sheet.Publish();
             faces.Publish();
             DfbNative.dfb_publish_state(session, ref own, ownSize);

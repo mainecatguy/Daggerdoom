@@ -285,6 +285,8 @@ extern "C" {
 #define DFB_HP_HEAL   2u
 #define DFB_HPF_VALID 1u  /* dfb_df_state.hp_current and hp_max describe a live Daggerfall player */
 #define DFB_HPF_DEAD  2u  /* Daggerfall reports the player dead */
+#define DFB_PLF_SLOWFALL      1u  /* dfb_df_state.player_flags: a Slowfall effect is active, so a fall starts over each frame (AcrobatMotor.ApplyGravity) */
+#define DFB_PLF_OUTDOOR_WATER 2u  /* the player is outdoors over a water tile (PlayerTileMapIndex 0), where a landing does no damage (AcrobatMotor.CheckFallingDamage) */
 
 /* Character sheet. Daggerfall writes this bulk slot as a flat array of DFB_SHEET_INTS int32 values whenever one
    changes, and Doom only reads it. Each group is indexed in Daggerfall's own enum order. "Base" excludes active
@@ -951,7 +953,7 @@ typedef struct dfb_df_state
 	/* The player's damage bonus, which Daggerfall tabulates (gamedesign/damage.md): 1/10000ths over base damage, so 0
 	   is none and 10000 is +100%. Doom multiplies the damage the player deals by 1 + bp / 10000. */
 	int32_t damage_bonus_bp;
-	uint32_t pad0;
+	uint32_t player_flags;     /* DFB_PLF_*: Daggerfall's falling damage exemptions, which Doom applies to its falls */
 	uint8_t reserved[DFB_STATE_BYTES - 56];
 } dfb_df_state;
 

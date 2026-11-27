@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x4762cf63b10ebefaULL
+#define DFB_SCHEMA_HASH 0xb51760797467b42dULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -192,6 +192,8 @@ static_assert((DFB_HP_HIT) == (1u), DFB_STALE);
 static_assert((DFB_HP_HEAL) == (2u), DFB_STALE);
 static_assert((DFB_HPF_VALID) == (1u), DFB_STALE);
 static_assert((DFB_HPF_DEAD) == (2u), DFB_STALE);
+static_assert((DFB_PLF_SLOWFALL) == (1u), DFB_STALE);
+static_assert((DFB_PLF_OUTDOOR_WATER) == (2u), DFB_STALE);
 static_assert((DFB_FACES_SLOT) == (1u), DFB_STALE);
 static_assert((DFB_FACES_FORMAT_VERSION) == (1u), DFB_STALE);
 static_assert((DFB_FACES_MAX) == (3u), DFB_STALE);
@@ -965,8 +967,8 @@ static_assert(offsetof(dfb_df_state, hp_flags) == 44, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_df_state::hp_flags), uint32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_df_state, damage_bonus_bp) == 48, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_df_state::damage_bonus_bp), int32_t>::value, DFB_STALE);
-static_assert(offsetof(dfb_df_state, pad0) == 52, DFB_STALE);
-static_assert(std::is_same<decltype(dfb_df_state::pad0), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_df_state, player_flags) == 52, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_df_state::player_flags), uint32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_df_state, reserved) == 56, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_df_state::reserved), uint8_t[200]>::value, DFB_STALE);
 

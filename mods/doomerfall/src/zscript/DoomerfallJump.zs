@@ -7,7 +7,9 @@
 //      Daggerfall, so Daggerfall applies it to its own HP).
 // Falling damage is Daggerfall's rule (PlayerHealth.ApplyPlayerFallDamage and AcrobatMotor.CheckFallingDamage):
 // the fall is measured from where the player left the ground to where they land, and every metre past 5 costs 5 HP.
-// So a jump that lands where it started, double and triple jumps included, never hurts.
+// So a jump that lands where it started, double and triple jumps included, never hurts. Daggerfall's two exemptions
+// come over the bridge (Actor.DD_PlayerFlags, DoomerfallFallState.cs): while Slowfall is active the fall starts over
+// every tic, and a landing outdoors on a water tile does no damage.
 // Jumping skill: jump height +1% per point to +100% at 100, plus 25% from 25 on; one extra jump in mid-air at 50,
 // two at 100; no falling damage from 75. Below 75 Jumping does not reduce falling damage (the owner has not chosen a
 // curve yet). Nothing here runs unless the engine sends dfi_rules:1 and Daggerfall has a character, so Doom maps
@@ -30,6 +32,8 @@ class DoomerfallJump : StaticEventHandler
 	const FallThreshold = 5.0;     // Daggerfall: metres of fall that do no damage
 	const HPPerMetre = 5.0;        // Daggerfall: HP per metre past the threshold
 	const SkillEvery = 8;          // tics between reads of the skill
+	const FlagSlowfall = 1;        // DFB_PLF_SLOWFALL
+	const FlagOutdoorWater = 2;    // DFB_PLF_OUTDOOR_WATER
 
 	bool rules;
 	int skill;                     // Jumping's permanent value, or -1 without a Daggerfall character
@@ -138,8 +142,8 @@ class DoomerfallJump : StaticEventHandler
 		// The move used last tic's velocity (a landing has already zeroed vel.z), plus gravity.
 		bool jumped = moved > max(s.lastVel.Length(), mo.vel.Length()) * 2 + 64;
 		// Not falling: dead, flying, no-clipping, held on a climb (no gravity), or in water (Daggerfall: no falling
-		// damage on landing in water). Doom's maps have no water volume for Daggerfall's outdoor sea and lakes yet, so a
-		// fall onto them counts as ground; only swimmable water (dungeon pools) is exempt.
+		// damage on landing in water). Daggerfall's outdoor sea and lakes have no water volume in Doom's maps; Daggerfall's
+		// outdoor water flag covers them in Land.
 		if (jumped || p.health <= 0 || p.playerstate != PST_LIVE || (p.cheats & CF_NOCLIP2) || mo.bFly || mo.bNoGravity ||
 			mo.waterlevel > 0)
 		{
@@ -162,6 +166,8 @@ class DoomerfallJump : StaticEventHandler
 			s.airborne = true;
 			s.fallStartZ = s.groundZ;
 		}
+		// Daggerfall: Slowfall restarts the fall every frame, so only the part after it ends can hurt.
+		if (Actor.DD_PlayerFlags() & FlagSlowfall) s.fallStartZ = mo.pos.z;
 		if ((p.cmd.buttons & BT_JUMP) && !(p.oldbuttons & BT_JUMP)) AirJump(p, mo, s);
 	}
 
@@ -172,6 +178,11 @@ class DoomerfallJump : StaticEventHandler
 		if (damage > 0 && FallImmune(JumpSkill()))
 		{
 			DDLog.Debug(String.Format("DFJUMP land fell=%.1f damage=0 (immune, Jumping %d)", fell, JumpSkill()));
+			return;
+		}
+		if (damage > 0 && (Actor.DD_PlayerFlags() & FlagOutdoorWater))
+		{
+			DDLog.Debug(String.Format("DFJUMP land fell=%.1f damage=0 (outdoor water)", fell));
 			return;
 		}
 		if (fell > UnitsPerMetre) DDLog.Debug(String.Format("DFJUMP land fell=%.1f damage=%d Jumping=%d", fell, damage, JumpSkill()));
