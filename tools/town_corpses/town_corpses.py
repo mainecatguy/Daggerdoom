@@ -1,11 +1,12 @@
 """Daggerfall townspeople and guards leave corpses in Doom, drawn from Daggerfall's own files at run time.
 
-usage: town_corpses.py assemble <source review folder> | run NAME (kill | guard | load | guardload | guardreload) [--pack] | check
+usage: town_corpses.py assemble <source review folder> | run NAME (kill | creature | guard | load | guardload | guardreload) [--pack] | check
 assemble builds review\\town-corpses from a paired review folder (data, dfitems.pk3, portable Daggerfall Unity) with
 this checkout's UZDoom (D:\\dev\\DoomDaggerfall-build\\uzdoom-corpses), launcher, bridge, Daggerfall Unity build and
 doomerfall.pk3, and writes the demo play.bat.
 run kill: town start with DRLA; kill the nearest townsperson (test only), screenshots before, during the blood splash
 and of the corpse, leave town and walk back, list the corpses again, autosave.
+run creature: as kill, but spawn a Daggerfall rat (test only), watch its images, kill it.
 run guard: the same at noon with Daggerfall's -dfguardtest: enter the Gothway tavern, kill one of the guard bots
 Daggerfall sends in, screenshots, go out and back in, list the corpses again, autosave.
 run guardreload: load the guard autosave with -dfguardtest, kill one of the new guards, list the corpses (two).

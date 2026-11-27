@@ -104,6 +104,7 @@ bool DD_WeatherText(const char *text);	// playsim/dd_weather.cpp
 bool DFMesh_WindowText(const char *text);	// rendering/hwrenderer/scene/hw_dfmesh.cpp
 void DD_GuardsFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t target);
 void DD_GuardDied(dfb_session *session, AActor *mo);
+void DD_CreatureDied(dfb_session *session, AActor *mo);	// dd_creatures.cpp
 
 FARG_ADVANCED(dfbridge, "Doomerfall", "session", "Attaches to the Doomerfall bridge session created by the launcher.");
 FARG_ADVANCED(dfbridgelog, "Doomerfall", "file", "Appends Doomerfall bridge traffic and latency to a log file.");
@@ -846,6 +847,7 @@ void DD_BridgeMonsterDied(AActor *mo)
 	if (session) DD_MonsterDied(session, mo);
 	if (session) DD_TownsfolkDied(session, mo);
 	if (session) DD_GuardDied(session, mo);
+	if (session) DD_CreatureDied(session, mo);
 }
 
 // A ZScript pickup request, seen as its network event runs. False for every other event and outside a session.

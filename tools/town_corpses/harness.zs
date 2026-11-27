@@ -7,13 +7,29 @@ version "4.14"
 //   guard  (with Daggerfall's -dfguardtest) enter the Gothway tavern; once Daggerfall's guards come in as bots, kill one
 //          (test only), list corpses, ask for screenshots, go out and back in, list again, and autosave.
 //   guardload  as load, for the guard run's autosave inside the tavern.
+//   creature  as kill, but spawns a Daggerfall rat (TCCreature, test only) between the player and the nearest townsperson, lets it chase,
+//          bite and be hurt, logging which Daggerfall record group it shows, then kills it.
 //   guardreload  as guardload with Daggerfall's -dfguardtest: after listing the saved corpse, kill one of the new
 //          guards Daggerfall sends in and list again (a new session's guard must not reuse a saved guard's id).
+// Test only: a Daggerfall rat (TEXTURE.255, MobileTypes 0) that walks to the player and bites for nothing.
+class TCCreature : DFCreature
+{
+	Default { Speed 6; PainChance 256; MeleeRange 64; }
+	States
+	{
+	Spawn: PLAY A 4 A_Look; Loop;
+	See: PLAY A 3 A_Chase; Loop;
+	Melee: PLAY A 6 A_FaceTarget; PLAY A 6 A_CustomMeleeAttack(0); PLAY A 6; Goto See;
+	Pain: PLAY A 12; Goto See;
+	}
+}
+
 class TCHarness : StaticEventHandler
 {
 	static const double DOORDATA[] = { @DOOR@ };
 	const LIMIT = 35 * 100;
-	int phase, timer, backAt;
+	int phase, timer, backAt, seen;
+	Actor rat;
 	vector3 spot, land;
 	double face, landAngle;
 	bool landed;
@@ -72,7 +88,7 @@ class TCHarness : StaticEventHandler
 		if (phase == 9 || !playeringame[0] || !players[0].mo) return;
 		let p = players[0].mo;
 		String mode = "@MODE@";
-		p.bNOTARGET = true;
+		p.bNOTARGET = phase != 40;
 		players[0].cheats |= CF_GODMODE;
 		timer++;
 		if (timer > LIMIT) { Console.Printf("TCDONE timeout phase %d", phase); phase = 9; return; }
@@ -80,7 +96,7 @@ class TCHarness : StaticEventHandler
 		{
 		case 0:
 			if (level.maptime < 8 || CVar.FindCVar("dd_sync_df_phase").GetInt() != 3) break;
-			if (mode.IndexOf("kill") >= 0 && timer < 300)
+			if ((mode.IndexOf("kill") >= 0 || mode == "creature") && timer < 300)
 			{
 				// Stand outside the Gothway tavern, where townspeople walk at noon (as the townspeople test does).
 				p.SetOrigin((DOORDATA[0] + DOORDATA[3] * 64, DOORDATA[1] + DOORDATA[4] * 64, DOORDATA[2]), false);
@@ -113,6 +129,18 @@ class TCHarness : StaticEventHandler
 				if (p.Distance2D(mo) < range) { range = p.Distance2D(mo); best = mo; }
 			if (!best) { if (timer > 1400) { Console.Printf("TCDONE nobody to kill"); phase = 9; } break; }
 			LookAt(p, best);
+			if (mode == "creature")
+			{
+				rat = Actor.Spawn("TCCreature", p.pos + (Actor.AngleToVector(p.angle, 160), 0));
+				rat.args[0] = 255;
+				rat.args[1] = 0;
+				rat.angle = p.angle + 180;
+				p.bNOTARGET = false;
+				Console.Printf("TCRAT spawned at %.1f %.1f", rat.pos.x, rat.pos.y);
+				phase = 40;
+				timer = 0;
+				break;
+			}
 			Console.Printf("TCKILL %08x%08x at %.1f %.1f %s", best.args[1], best.args[0], best.pos.x, best.pos.y, TexMan.GetName(best.picnum));
 			Console.Printf("TCSHOT before");
 			phase = 1;
@@ -166,6 +194,24 @@ class TCHarness : StaticEventHandler
 			Console.Printf("TCDONE ok");
 			phase = 9;
 			break;
+		case 40:	// The rat: log each record group it shows (DFBB255_<record>_<frame>), hurt it once, then kill it.
+		{
+			if (!rat) { Console.Printf("TCDONE rat gone"); phase = 9; break; }
+			String pic = TexMan.GetName(rat.picnum);
+			int group = pic.Length() > 9 ? pic.Mid(8).ToInt() / 5 : -1;
+			if (group >= 0 && !(seen & (1 << group))) { seen |= 1 << group; Console.Printf("TCRAT group %d %s state %s", group, pic, rat.InStateSequence(rat.curstate, rat.FindState("Melee")) ? "melee" : rat.InStateSequence(rat.curstate, rat.FindState("Pain")) ? "pain" : rat.InStateSequence(rat.curstate, rat.SeeState) ? "see" : "other"); }
+			if (timer == 10) Console.Printf("TCSHOT rat");
+			if (timer == 35 * 6) rat.DamageMobj(p, p, 1, 'None');
+			if (timer == 35 * 6 + 2) Console.Printf("TCSHOT rathurt");
+			if (timer < 35 * 8) break;
+			LookAt(p, rat);
+			Console.Printf("TCKILL %08x%08x rat at %.1f %.1f %s", rat.args[1], rat.args[0], rat.pos.x, rat.pos.y, pic);
+			p.bNOTARGET = true;
+			rat.DamageMobj(p, p, 1000, 'None', DMG_FORCED);
+			phase = 1;
+			timer = 0;
+			break;
+		}
 		case 30:	// Inside the tavern: wait for Daggerfall's guards to come in as bots, then kill one.
 			if (!Inside()) { if (timer > 35 * 20) { Console.Printf("TCDONE door did not open"); phase = 9; } break; }
 			if (!landed) { landed = true; land = p.pos; landAngle = p.angle; Console.Printf("TCINSIDE %s", level.MapName); }

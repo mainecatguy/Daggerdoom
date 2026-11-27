@@ -232,7 +232,7 @@ extern "C" {
 /* Corpses of Daggerfall people (townspeople, guards) that Daggerfall keeps. They are listed inside a townsfolk list, in
    its coordinates and generation; anyone not listed is out of sight. Doom reports where a body fell, before its death event. */
 #define DFB_KIND_TOWNSFOLK_CORPSE  69  /* DF to UZ; one corpse in sight; payload: dfb_corpse */
-#define DFB_KIND_CORPSE_PLACE      70  /* UZ to DF; where a Daggerfall person's body fell; payload: dfb_corpse_place */
+#define DFB_KIND_CORPSE_PLACE      70  /* UZ to DF; where a Daggerfall person's or creature's body fell; payload: dfb_corpse_place */
 
 /* Guards: Daggerfall spawned a city guard. Its own copy stays inert, and Doom runs a hostile bot in its place.
    A guard id is tag (3, value 4) | Daggerfall's spawn serial (61). One event per guard; index and count describe the group. */
@@ -878,6 +878,8 @@ typedef struct dfb_corpse_place
 	double y;
 	float z;
 	uint32_t space;       /* DFB_TOWNSFOLK_STREETS or DFB_TOWNSFOLK_INTERIOR */
+	uint32_t creature;    /* a Daggerfall creature shown in Doom (DFCreature): its MobileTypes value + 1; 0 for a person */
+	uint32_t reserved;
 } dfb_corpse_place;
 
 /* Position is Daggerfall world units, for logs. */

@@ -322,4 +322,4 @@ show as one number. It is off by default.
 
 ## The dead stay dead
 
-A townsperson you kill in town falls where they stood, with Daggerfall's blood splash, and leaves a body. The body stays there when you leave and come back and after you save and load. Killing a townsperson is still murder. City guards who come into a building after you work the same way: a guard you kill leaves a body that stays.
+A townsperson you kill in town falls where they stood, with Daggerfall's blood splash, and leaves a body (except a town watchman: as in Daggerfall, attacking one turns them into the city watch, and outdoors that watch does not come after you in Doom yet, so the watchman just vanishes). The body stays there when you leave and come back and after you save and load. Killing a townsperson is still murder. City guards who come into a building after you work the same way: a guard you kill leaves a body that stays.

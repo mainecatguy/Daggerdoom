@@ -274,12 +274,13 @@ void TickCorpses(FLevelLocals *Level)
 }
 }
 
-// A Daggerfall person's body fell (a townsperson here, a guard in dd_guards.cpp). Tells Daggerfall where, before the
-// death event, so Daggerfall can keep the corpse; plays Daggerfall's blood splash; and lays an imageless DFCorpse that
-// shows Daggerfall's corpse image once Daggerfall lists it.
-void DD_CorpseFell(dfb_session *session, AActor *mo, uint64_t id, bool interior, double worldX, double worldZ)
+// A Daggerfall person's body fell (a townsperson here, a guard in dd_guards.cpp), or a Daggerfall creature's
+// (dd_creatures.cpp, creature = its MobileTypes value + 1). Tells Daggerfall where, before the death event, so
+// Daggerfall can keep the corpse; plays Daggerfall's blood splash; and lays an imageless DFCorpse that shows
+// Daggerfall's corpse image once Daggerfall lists it.
+void DD_CorpseFellAs(dfb_session *session, AActor *mo, uint64_t id, bool interior, double worldX, double worldZ, uint32_t creature)
 {
-	const dfb_corpse_place place{ id, interior ? mo->X() : worldX, interior ? mo->Y() : worldZ, float(mo->floorz), interior ? DFB_TOWNSFOLK_INTERIOR : DFB_TOWNSFOLK_STREETS };
+	const dfb_corpse_place place{ id, interior ? mo->X() : worldX, interior ? mo->Y() : worldZ, float(mo->floorz), interior ? DFB_TOWNSFOLK_INTERIOR : DFB_TOWNSFOLK_STREETS, creature, 0 };
 	dfb_event e{};
 	e.kind = DFB_KIND_CORPSE_PLACE;
 	e.tic = gametic;
@@ -309,6 +310,11 @@ void DD_CorpseFell(dfb_session *session, AActor *mo, uint64_t id, bool interior,
 	DD_DebugPrintf("DDCORPSE fell %016" PRIx64 " at %.1f,%.1f,%.1f (%s %.1f,%.1f)\n", id, mo->X(), mo->Y(), mo->floorz, interior ? "interior" : "world", place.x, place.y);
 }
 
+void DD_CorpseFell(dfb_session *session, AActor *mo, uint64_t id, bool interior, double worldX, double worldZ)
+{
+	DD_CorpseFellAs(session, mo, id, interior, worldX, worldZ, 0);
+}
+
 // Called by P_DamageMobj for any actor with a ddRecordId. Daggerfall only lets the player hurt townspeople
 // (DaggerfallEntityBehaviour.HandleAttackFromSource); enemies never attack them.
 bool DD_TownsfolkRefuseDamage(AActor *target, AActor *source)
@@ -316,8 +322,11 @@ bool DD_TownsfolkRefuseDamage(AActor *target, AActor *source)
 	return IsTownspersonId(target->ddRecordId) && !(source && source->player);
 }
 
+void DD_CreaturesTick(FLevelLocals *Level);	// dd_creatures.cpp
+
 void DD_TownsfolkTick(FLevelLocals *Level)
 {
+	DD_CreaturesTick(Level);
 	if (!everListed) return;
 	bool snap = false;
 	if (listPending)

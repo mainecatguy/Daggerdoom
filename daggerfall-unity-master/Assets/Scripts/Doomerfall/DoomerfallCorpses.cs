@@ -1,4 +1,4 @@
-// Doomerfall: the corpses of Daggerfall people killed in Doom (townspeople and guards). Runs only in a bridge session.
+// Doomerfall: the corpses of Daggerfall people killed in Doom (townspeople and guards), and of Daggerfall creatures. Runs only in a bridge session.
 //
 // Daggerfall keeps each corpse where the body fell, with the billboard image Daggerfall gives it, in the townspeople
 // ledger, so it is still there after leaving and returning and after a save and load. DoomerfallTownspeople lists
@@ -27,6 +27,19 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         // Daggerfall Unity gives every human class, the city watch among them, TEXTURE.380 record 1 as its corpse
         // (EnemyBasics). A townsperson leaves no corpse in Daggerfall Unity, so it gets that human corpse.
         internal const int HumanArchive = 380, HumanRecord = 1;
+
+        // A Daggerfall creature's corpse image, as EnemyDeath picks it (its male texture's corpse). False if no such type.
+        internal static bool CreatureCorpse(int mobileType, out int archive, out int record)
+        {
+            archive = record = 0;
+            foreach (MobileEnemy e in EnemyBasics.Enemies)
+                if (e.ID == mobileType)
+                {
+                    EnemyBasics.ReverseCorpseTexture(e.CorpseTexture, out archive, out record);
+                    return true;
+                }
+            return false;
+        }
 
         internal static bool Has(List<DoomerfallCorpse> corpses, string id)
         {

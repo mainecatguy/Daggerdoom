@@ -457,7 +457,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         townspeople.OnDeath(ev.townspersonDeath.id, ev.townspersonDeath.worldX, ev.townspersonDeath.worldZ);
                         break;
                     case Dfb.KIND_CORPSE_PLACE:
-                        townspeople.OnCorpsePlace(ev.corpsePlace.id, ev.corpsePlace.x, ev.corpsePlace.y, ev.corpsePlace.z, ev.corpsePlace.space, guards);
+                        townspeople.OnCorpsePlace(ev.corpsePlace.id, ev.corpsePlace.x, ev.corpsePlace.y, ev.corpsePlace.z, ev.corpsePlace.space, ev.corpsePlace.creature, guards);
                         break;
                     case Dfb.KIND_GUARD_DEATH:
                         guards.OnDeath(ev.guardDeath.id);

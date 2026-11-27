@@ -452,12 +452,21 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         // Doom reports where a Daggerfall person's body fell, just before the death itself. Daggerfall decides the
         // corpse: a townsperson lies as the human corpse, except a guard, who becomes the city watch instead
-        // (ApplyCrime); a city guard lies as its own enemy corpse (guardCorpse, from DoomerfallGuards).
-        internal void OnCorpsePlace(ulong id, double x, double y, float z, uint space, DoomerfallGuards guards)
+        // (ApplyCrime); a city guard lies as its own enemy corpse (guardCorpse, from DoomerfallGuards); a Daggerfall
+        // creature shown in Doom (creature = its MobileTypes value + 1) lies as that creature's corpse.
+        internal void OnCorpsePlace(ulong id, double x, double y, float z, uint space, uint creature, DoomerfallGuards guards)
         {
             string key = id.ToString("x16");
             int archive = DoomerfallCorpses.HumanArchive, record = DoomerfallCorpses.HumanRecord;
-            if ((id >> 61) == Dfb.TOWNSPERSON_TAG)
+            if (creature != 0)
+            {
+                if (!DoomerfallCorpses.CreatureCorpse((int)creature - 1, out archive, out record))
+                {
+                    bridge.LogLine("corpse: " + key + " is creature type " + (creature - 1) + ", which Daggerfall does not know");
+                    return;
+                }
+            }
+            else if ((id >> 61) == Dfb.TOWNSPERSON_TAG)
             {
                 TownPerson p = FindPersonAnyState(id);
                 if (p != null && p.guard)
