@@ -547,6 +547,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (loadingPause == null)
                 loadingPause = new DoomerfallLoadingPause(this);
             loadingPause.Tick(alive && peer.uzPhase == Dfb.UZ_PHASE_LOADING);
+            DoomerfallLoadingPauseTest.Tick(this, loadingPause.Held);
 
             if (alive && now >= nextPingNs)
             {

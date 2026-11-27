@@ -95,6 +95,8 @@ def main():
         uz_args += ["-dfloadtest", f"{load}:{run / 'saves' / (name + '.zds')}"]
     dfu_args = ["-dfbridgelog", str(df_log), "-dfflow", DAGGER, "-dfplainloadtest", save_name, "-dfmute",
                 "-screen-fullscreen", "0", "-screen-width", "1280", "-screen-height", "800"]
+    if "--loading-test" in sys.argv:  # and Daggerfall's side of it (DoomerfallLoadingPauseTest.cs)
+        dfu_args.append("-dfloadingpausetest")
     command = [sys.executable, QUIET, "--timeout", str(TIMEOUT), "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", IWAD,
                "--uzdoom-cwd", str(run), "--log", str(launcher)]
@@ -127,6 +129,9 @@ def main():
             if not load and "plain load: both games running" in df and "flags 0 done" in df:
                 result = "reached"
                 time.sleep(4)  # Both games run together briefly; ammo settles.
+                # The loading test watches for the poison's first tick after the hold (DoomerfallLoadingPauseTest.cs).
+                while "--loading-test" in sys.argv and "poison after the release" not in read(df_log) and time.time() < deadline:
+                    time.sleep(0.5)
                 break
             time.sleep(0.2)
     finally:
