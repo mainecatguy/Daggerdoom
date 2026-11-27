@@ -1095,9 +1095,10 @@ int DD_BridgeDamageBonus(AActor *source, AActor *target, int damage)
 	return scaled;
 }
 
-// P_DamageMobj (after armor, the very last step before the player's health would drop) and DD_BridgeHpThink (health
-// lowered by direct assignment: scripts such as DRLA's Soul Shatter, and P_PoisonDamage, which subtracts health
-// itself): the owner's Willpower rule (2026-11-26), a final modifier to all damage the bridged player takes.
+// P_DamageMobj (after armor, the very last step before the player's health would drop) and P_PoisonDamage (after its
+// damage factors; it subtracts health itself, and DD_BridgeHpThink then reports that already scaled drop unchanged):
+// the owner's Willpower rule (2026-11-26), a final modifier to all damage the bridged player takes. Health that
+// scripts set directly (costs such as DRLA's Soul Shatter, set-to-N effects) is not damage and is not scaled.
 // Daggerfall's live Willpower, values above 100 counting as 100: x1.2 at 0, x1 at 50, x0.8 at 100, linear between,
 // which is exactly (300 - Willpower) / 250, done in integers. The remainder carries to the next hit, so many small
 // hits scale by the exact factor. Unchanged without a session or a character, for other players, and for telefrags
@@ -1165,8 +1166,7 @@ void DD_BridgeHpThink(player_t *player)
 	{
 		const int delta = player->health - hpMirrored;
 		hpDirect++;
-		const int amount = delta < 0 ? DD_BridgeWillpowerDamage(player, -delta, false) : delta; // Willpower: last step
-		if (amount > 0) HpSend(delta < 0 ? DFB_HP_HIT : DFB_HP_HEAL, amount, "direct assignment");
+		HpSend(delta < 0 ? DFB_HP_HIT : DFB_HP_HEAL, std::abs(delta), "direct assignment");
 	}
 	const int confirmed = std::max(1, peerState.hp_current); // 0 without the dead flag cannot be shown as alive
 	player->health = player->mo->health = confirmed;

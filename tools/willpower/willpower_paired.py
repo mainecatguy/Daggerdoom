@@ -13,8 +13,8 @@ paired: as tools/agility/agility_paired.py: <play folder> is copied once to <wor
 UZDoom, Daggerfall Unity, bridge DLL and launcher. One launch through the launcher and quiet_run.py: UZDoom on DOOM.WAD
 E1M1 with the DRLA set, doomerfall.pk3 and the harness; Daggerfall Unity with -dfsynctest and -dfwillpowertest, which
 sets Willpower to 1, 100, 50 and 75 in turn. For each value the harness hurts the real player from hitscan,
-projectile, melee, environment (sector damage), layered (a test armor absorbing a flat 2 of 5) and direct (health
-lowered by assignment) sources. Checks: every logged hit is exactly (damage x (300 - Willpower) + carry) / 250; per
+projectile, melee, environment (sector damage), layered (a test armor absorbing a flat 2 of 5) and poison
+(P_PoisonDamage) sources, plus health lowered by assignment, which must NOT be scaled. Checks: every logged hit is exactly (damage x (300 - Willpower) + carry) / 250; per
 window: every hit reaching the Willpower step logged its damage in and out; the damage in on the layered window is 3
 (after the armor, so Willpower comes last); the damage out totals damage in x (1.2 - 0.4 x Willpower/100) within one
 point; Daggerfall's HP dropped by exactly the damage out; and against Willpower 50 each source's damage at 1 and 100
@@ -38,7 +38,8 @@ SEEN = re.compile(r"WILLSEEN will=(-?\d+)")
 HIT = re.compile(r"willpower: tic (\d+) player takes (\d+) -> (\d+) \(willpower (-?\d+)\)")
 BAD = re.compile(r'Script error, "(doomerfall|will-harness)\.pk3|(doomerfall|will-harness)\.pk3:zscript\S*, line \d+|\bFatal error|VM execution aborted', re.I)
 BG = ["+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+vid_fullscreen", "0"]
-SOURCES = ["hitscan", "projectile", "melee", "environment", "layered", "direct"]
+SOURCES = ["hitscan", "projectile", "melee", "environment", "layered", "poison"]  # scaled
+UNSCALED = "direct"  # health set by assignment: a cost, not damage
 
 
 def factor(will):
@@ -165,7 +166,11 @@ def paired(source, build, dfu, bridge, launcher, work):
         exact = exact and dout == units // 250
         carry = units % 250
     checks.append(("every logged hit is exactly (damage x (300 - Willpower) + carry) / 250", exact))
-    checks.append(("all six sources measured at Willpower 1, 50 and 100",
+    plain = [w for w in windows if w["src"] == UNSCALED]
+    windows = [w for w in windows if w["src"] != UNSCALED]
+    checks.append(("health lowered by assignment is not scaled: no Willpower step, Daggerfall HP drops by the full 40",
+                   bool(plain) and all(w["n"] == 0 and w["drop"] == w["nominal"] for w in plain)))
+    checks.append(("all six damage sources measured at Willpower 1, 50 and 100",
                    all((v, s) in by for v in (1, 50, 100) for s in SOURCES)))
     checks.append(("every window took hits and logged the Daggerfall value", bool(windows) and
                    all(w["n"] > 0 and w["logwill"] == [w["will"]] for w in windows)))

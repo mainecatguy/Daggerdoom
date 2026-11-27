@@ -9,7 +9,8 @@ version "3.3"
 //   environment 10 x 4  the player's own sector made to hurt 4 every tic for 10 tics (P_PlayerInSpecialSector)
 //   layered     10 x 5  direct hits while the player holds a test armor that absorbs a flat 2, so the damage
 //                        reaching the last step is 3; Willpower applied before armor would give 5 x f - 2 instead
-//   direct      10 x 4  the player's health lowered by assignment, one per tic (DD_BridgeHpThink's path)
+//   poison      10 x 4  Doom poison damage (PlayerInfo.PoisonDamage, P_PoisonDamage), one per tic
+//   direct      10 x 4  the player's health lowered by assignment, one per tic: a health cost, NOT scaled
 // Prints, per window, the Daggerfall HP before and after (mo.health once Daggerfall has answered) and the tics it
 // covered, so the script can match the bridge log's "willpower:" lines (damage in, damage out) to it:
 //   WILL src=<name> will=<live> nominal=<hits x damage> before=<hp> after=<hp> from=<tic> to=<tic>
@@ -84,7 +85,8 @@ class WillPaired : StaticEventHandler
 		case 1: return "projectile";
 		case 2: return "melee";
 		case 3: return "environment";
-		case 5: return "direct";
+		case 5: return "poison";
+		case 6: return "direct";
 		}
 		return "layered";
 	}
@@ -121,7 +123,7 @@ class WillPaired : StaticEventHandler
 			if (++stable >= SettleTics) { src = 0; step = 0; tics = 0; }
 			return;
 		}
-		if (src >= 6) return; // done until Willpower changes
+		if (src >= 7) return; // done until Willpower changes
 		tics++;
 		if (step == 0) // heal and wait
 		{
@@ -152,7 +154,7 @@ class WillPaired : StaticEventHandler
 			src++;
 			step = 0;
 			tics = 0;
-			if (src >= 6 && attacker) { attacker.Destroy(); attacker = null; }
+			if (src >= 7 && attacker) { attacker.Destroy(); attacker = null; }
 		}
 	}
 
@@ -185,7 +187,12 @@ class WillPaired : StaticEventHandler
 			s.damageamount = oldAmount; s.damageinterval = oldInterval; s.damagetype = oldType;
 			return true;
 		}
-		if (src == 5) // health lowered by assignment, as DRLA's Soul Shatter script does with APROP_Health
+		if (src == 5)
+		{
+			mo.player.PoisonDamage(attacker, 4, false);
+			return ++fired >= Hits;
+		}
+		if (src == 6) // health lowered by assignment, as DRLA's Soul Shatter script does with APROP_Health
 		{
 			mo.health -= 4;
 			mo.player.health = mo.health;
