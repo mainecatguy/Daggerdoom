@@ -25,7 +25,7 @@ head = [
     "rem  it turns into a sack; take it out and it is bullets again. Leave and come back, or save and load: same piles.",
     "rem  Try: New Game, pick up some ammo in Privateer's Hold, press I and drop part of a stack.",
 ]
-body = lines[7:]  # Past the template's own "THIS DEMO" block (its lines 2-7).
+body = lines[next(i for i, l in enumerate(lines) if l.startswith("rem Doomerfall:")):]  # Past the template's own "THIS DEMO" block.
 assert body[0].startswith("rem Doomerfall:"), body[0]
 (DST / "play.bat").write_text("\r\n".join(head + body) + "\r\n")
 print("demo at", DST)
