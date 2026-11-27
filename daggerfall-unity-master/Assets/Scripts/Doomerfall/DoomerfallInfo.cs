@@ -126,7 +126,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     // A town's bulletin board (Daggerfall's sign) is read in every mode, as PlayerActivate's BulletinBoardCheck.
                     DaggerfallBulletinBoard board;
                     float meters;
-                    if (FindBulletinBoard(worldX, worldZ, out board, out meters))
+                    if (FindBulletinBoard(worldX, worldZ, id, out board, out meters))
                     {
                         GameManager.Instance.PlayerActivate.DoomerfallReadBulletinBoard(board, meters);
                         return string.Format("bulletin board at {0:F0},{1:F0}, {2:F1} m away", worldX, worldZ, meters);
@@ -185,8 +185,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         // The bulletin board (RMBLayout gives it a DaggerfallBulletinBoard) whose model footprint holds the world point Doom's
         // ray hit, and how far that point is from the player, in meters. Footprint only, as FindBuilding, because Doom's
-        // heights do not match Daggerfall's.
-        bool FindBulletinBoard(double worldX, double worldZ, out DaggerfallBulletinBoard found, out float meters)
+        // heights do not match Daggerfall's. rayLength is Doom's view ray to the point in Daggerfall units (the request's
+        // id), as Daggerfall's own hit distance; Daggerfall's synced player position lags Doom's, so it is only a fallback.
+        bool FindBulletinBoard(double worldX, double worldZ, ulong rayLength, out DaggerfallBulletinBoard found, out float meters)
         {
             found = null;
             meters = 0;
@@ -219,7 +220,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     found = board;
                 }
             }
-            if (found)
+            if (found && rayLength > 0)
+                meters = rayLength * MeshReader.GlobalScale;
+            else if (found)
                 meters = (float)(Math.Sqrt((worldX - gps.WorldX) * (worldX - gps.WorldX) + (worldZ - gps.WorldZ) * (worldZ - gps.WorldZ)) * MeshReader.GlobalScale);
             return found;
         }

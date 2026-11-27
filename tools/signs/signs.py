@@ -58,7 +58,14 @@ def build_uzdoom():
         code = subprocess.call(["cmake", "-S", str(REPO / "UZDoom"), "-B", str(UZ_BUILD), "-G", "Visual Studio 18 2026", "-A", "x64"], stdout=log, stderr=log)
         if not code:
             code = subprocess.call(["cmake", "--build", str(UZ_BUILD), "--config", "Release", "--parallel", "6"], stdout=log, stderr=log)
-    print("uzdoom build exit", code)
+        # The bridge DLL and launcher share the session layout with UZDoom, so they come from this checkout too.
+        for name in ("bridge", "launcher"):
+            out = UZ_BUILD.parent / f"{name}-signs"
+            if not code:
+                code = subprocess.call(["cmake", "-S", str(REPO / name), "-B", str(out), "-G", "Visual Studio 18 2026", "-A", "x64"], stdout=log, stderr=log)
+            if not code:
+                code = subprocess.call(["cmake", "--build", str(out), "--config", "Release", "--parallel", "6"], stdout=log, stderr=log)
+    print("uzdoom, bridge and launcher build exit", code)
 
 
 def lumps(path):
@@ -125,14 +132,14 @@ def assemble():
     shutil.copytree(SOURCE / "data", REVIEW / "data", ignore=shutil.ignore_patterns("work"))
     shutil.copy2(BUILD / "cache" / f"T{GROUP:05d}.ddt", REVIEW / "data" / "cache" / f"T{GROUP:05d}.ddt")
     shutil.copy2(BUILD / "boards.txt", REVIEW / "data" / "boards.txt")
-    for name in ("dfitems.pk3", "doomerfall-launcher.exe"):
-        shutil.copy2(SOURCE / name, REVIEW / name)
+    shutil.copy2(SOURCE / "dfitems.pk3", REVIEW / "dfitems.pk3")
+    shutil.copy2(UZ_BUILD.parent / "launcher-signs" / "Release" / "doomerfall-launcher.exe", REVIEW / "doomerfall-launcher.exe")
     subprocess.check_call([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), str(REVIEW / "doomerfall.pk3")])
     subprocess.check_call([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), "--drla", str(REVIEW / "doomerfall-drla.pk3")])
     shutil.copytree(REPO / "daggerfall-unity-master" / "Builds" / "Windows64", REVIEW / "dfu", ignore=shutil.ignore_patterns("*.pdb"))
     plugins = REVIEW / "dfu" / "DaggerfallUnity_Data" / "Plugins" / "x86_64"
     plugins.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(SOURCE / "dfu" / "DaggerfallUnity_Data" / "Plugins" / "x86_64" / "doomerfall_bridge.dll", plugins / "doomerfall_bridge.dll")
+    shutil.copy2(UZ_BUILD.parent / "bridge-signs" / "Release" / "doomerfall_bridge.dll", plugins / "doomerfall_bridge.dll")
     (REVIEW / "dfu" / "Portable.txt").write_text("")
     install.isolate_registry(REVIEW / "dfu")
     write_demo()
