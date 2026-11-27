@@ -42,6 +42,10 @@ class NoClassProbe : StaticEventHandler
 		Console.Printf("noclass probe: map %s tick %d class %s perks [%s ] weapons [%s ] ready %s stamina %d armorspecial %d clips %d",
 			level.MapName, ticks, pmo.GetClassName(), perks, weapons, held ? held.GetClassName() : 'none',
 			Count(pmo, "RLStamina"), Count(pmo, "RLArmorSpecial"), Count(pmo, "Clip"));
+		String key = "$PDA_CLASS_" .. pmo.GetClassName() .. "_NAME";
+		int pw, ph;
+		[pw, ph] = TexMan.GetSize(TexMan.CheckForTexture("PPDAMAR1", TexMan.Type_Any));
+		Console.Printf("noclass probe: pda name \"%s\" portrait %dx%d", StringTable.Localize(key), pw, ph);
 	}
 
 	clearscope static int Count(Actor pmo, String name)

@@ -1,0 +1,12 @@
+// DRLA's PDA class page (scripts/player.pdap) looks up PDA_CLASS_<player class>_* by the player's class name.
+[enu default]
+
+PDA_CLASS_DOOMERFALLPLAYER_NAME =
+	"No Doom class";
+PDA_CLASS_DOOMERFALLPLAYER_ABILITIES =
+	"\c[Green]NO CLASS PERK.\c-\n\n"
+	"Your Daggerfall class is your only class. Your perks come from your Daggerfall skills.\n\n";
+PDA_CLASS_DOOMERFALLPLAYER_STORY =
+	"\c-You start with your fists and a pistol. Your Daggerfall class and skills decide everything else.\n";
+PDA_CLASS_DOOMERFALLPLAYER_HEIGHT =
+	"0";

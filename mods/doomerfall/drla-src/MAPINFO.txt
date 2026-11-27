@@ -6,3 +6,6 @@ gameinfo
 {
 	PlayerClasses = "DoomerfallPlayer"
 }
+// DRLA's PDA class page draws its portrait by class index (scripts/PDA_LIB.ach DRLA_ClassIcon, 5 entries), so index 0
+// would show the Marine portrait. graphics/PPDAMAR1.png and PPDAMAR2.png (its two animation frames, animdefs.txt), 1x1 transparent images, blank it. The Marine is not
+// selectable in bridged games, and standalone DRLA never loads this pk3.

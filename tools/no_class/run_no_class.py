@@ -138,7 +138,7 @@ def bridged(stage, run):
     for a in uz_args: cmd += ["--uzdoom-arg", a]
     for a in dfu_args: cmd += ["--dfu-arg", a]
     proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    deadline, result, last, tries, hwnd, arrived = time.time() + 90, "timeout", "", 0, None, 0.0
+    deadline, result, last, tries, hwnd, arrived = time.time() + 110, "timeout", "", 0, None, 0.0
     try:
         while time.time() < deadline and not hwnd:
             time.sleep(0.5)
@@ -152,7 +152,7 @@ def bridged(stage, run):
             if "DRLAX_PlayerClassProxyMenu" in menus(console) or "PlayerclassMenu" in menus(console): result = "class menu shown"; break
             if "both games running" in uz:
                 arrived = arrived or time.time()
-                if time.time() - arrived > 12: result = "arrived"; break  # The probe reports 10 s into the map.
+                if time.time() - arrived > 25: result = "arrived"; break  # The probe reports every 5 s from its UI tick.
                 time.sleep(0.5)
                 continue
             if "difficulty chosen" not in uz and "asking for a difficulty" in uz:
@@ -177,6 +177,7 @@ def bridged(stage, run):
     print("bridged:", "PASS" if ok else "FAIL", "| result:", result, "| last DF window:", last, "| menus:", menus(console))
     print("  class list:", re.findall(r"noclass probe: \d+ player classes:.*", ng.read(console))[:1])
     for line in r: print("  report:", line)
+    print("  pda:", sorted(set(re.findall(r"noclass probe: pda .*", ng.read(console)))))
     for line in [l for l in ng.read(uz_log).splitlines() if re.search(r"new game|difficulty|class", l)][-12:]: print("  uz:", line)
     return ok
 
