@@ -138,7 +138,7 @@ def main():
         df_out = [l for l in dft.splitlines() if "Daggerfall is in exterior" in l]
         refused = "not available yet" in log
         returned = "DTRETURN" in log or "DTDONE done" in log
-        ok = reason == "finished" and arrive and df_in and returned and not refused and "DTFAIL" not in log
+        ok = bool(reason == "finished" and arrive and df_in and returned and not refused and "DTFAIL" not in log)
         results.append(ok)
         print(f"{'PASS' if ok else 'FAIL'} group {group} dungeon {map_id} ({'prebuilt' if prebuilt else mode or 'cached'}): stopped {reason}, refused {refused}")
         for l in arrive[:1] + df_in[:1] + df_out[-1:] + [l for l in log.splitlines() if l.startswith(("DTFAIL", "DTDONE", "DTRETURN")) or any(k in l for k in FATAL)][:4]:

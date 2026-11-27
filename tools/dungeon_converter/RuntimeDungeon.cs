@@ -65,7 +65,7 @@ static partial class Program
             using var p = Process.Start(info);
             string output = p.StandardOutput.ReadToEnd() + p.StandardError.ReadToEnd();
             p.WaitForExit();
-            File.AppendAllText(Path.Combine(work, "convert.log"), output);
+            File.AppendAllText(Path.Combine(work, "steps.log"), output); // the engine writes this process's own output to convert.log
             return p.ExitCode;
         }
         int mapCode = Step();
