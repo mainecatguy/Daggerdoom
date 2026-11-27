@@ -4,7 +4,7 @@
 //
 // The text mirrors the rules where they are built. Keep it in step when a rule changes:
 //   Strength   mods/doomerfall/src/zscript/DoomerfallAttributes.zs   melee damage x (1 + STR / 100)
-//   Willpower  UZDoom/src/dd_bridge.cpp DD_BridgeWillpowerDamage      damage taken x (300 - WIL) / 250, applied last
+//   Willpower  UZDoom/src/dd_bridge.cpp DD_BridgeWillpowerDamage      Doom combat/environment damage taken x (300 - WIL) / 250, last (not Daggerfall's own damage)
 //   Agility    mods/doomerfall/src/zscript/DoomerfallAgility.zs      reload/switch x (1 + 0.4 AGI / 100), evade 15% AGI / 100
 //   Endurance  DoomerfallEndurance.MaxHealth                         50 + END + (level - 1) x END / 15
 //   Speed      mods/doomerfall/src/zscript/DoomerfallAttributes.zs   move speed x (0.75 + SPD / 200)
@@ -116,7 +116,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     };
                 case DFCareer.Stats.Willpower:
                     return new[] {
-                        "In Doomerfall, Willpower changes all damage you take:",
+                        "In Doomerfall, Willpower changes the damage you take",
+                        "in combat and from the environment:",
                         "damage x (300 - Willpower) / 250, applied last,",
                         "after armor and resistances. x1.2 at 0, x1 at 50,",
                         "x0.8 at 100. " + Over100,

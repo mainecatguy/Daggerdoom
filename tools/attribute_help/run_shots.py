@@ -33,6 +33,7 @@ EXPECT = [
     "Yours (55): " + str(round(50 + 55 + 4 * 55 / 15)) + " max HP at level 5.",  # 119.67 -> 120
     "Yours (80): +15% move speed.",                        # 0.75 + 80/200 = 1.15
     "100% chance of a second drop.",                       # Luck above 100 counts as 100 (or capped at 100)
+    "in combat and from the environment:",                 # Willpower scales only Doom's damage, as manual.md says
 ]
 
 
@@ -46,7 +47,11 @@ def stage(dfu):
     for name in ("settings.ini", "KeyBinds.txt"):
         shutil.copy2(DEMO / "dfu" / "PortableAppdata" / name, dfu / "PortableAppdata" / name)
     ini = dfu / "PortableAppdata" / "settings.ini"
-    ini.write_text(re.sub(r"(?m)^MyDaggerfallPath = .*$", lambda m: "MyDaggerfallPath = " + str(GAME / "DAGGER"), ini.read_text()))
+    text = re.sub(r"(?m)^MyDaggerfallPath = .*$", lambda m: "MyDaggerfallPath = " + str(GAME / "DAGGER"), ini.read_text())
+    # Daggerfall Unity applies these over -screen-width/-height, so the capture size is set here.
+    for key, value in (("ResolutionWidth", "1280"), ("ResolutionHeight", "800"), ("Fullscreen", "False")):
+        text = re.sub(rf"(?m)^{key} = .*$", f"{key} = {value}", text)
+    ini.write_text(text)
     print("staged", dfu)
 
 
