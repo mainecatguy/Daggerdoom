@@ -217,6 +217,17 @@ def check_setup(name, lines, out, checks, stock=False):
             bad.append(l)
     checks.append((f'{name}: {plain} PlainHumanoid plans ({cwp} Civil War) hold only plain, visible Former Humans '
                    f'{sorted(seen)} {bad[:6]}', plain == 33 and cwp > 0 and not bad))
+    # PlainHumanoid (seedas=Humanoid) narrows the classes only: Privateer's Hold's plan keeps Humanoid's leanings.
+    ph = {}
+    for l in out:
+        if l.startswith('ENCPLAN plan '):
+            d = kv(l[len('ENCPLAN plan '):])
+            if d['idx'] == '1506' and d['seed'] == '0' and d['level'] == '1':
+                ph[d['type']] = d
+    keys = ('genes', 'themed', 'civilwar', 'tierlean', 'size', 'placement', 'awareness')
+    same = len(ph) == 2 and all(ph['Humanoid'][k] == ph['PlainHumanoid'][k] for k in keys)
+    checks.append((f'{name}: Privateer\'s Hold PlainHumanoid plan keeps Humanoid\'s genes, themed, placement and awareness '
+                   f'{[(k, ph.get("Humanoid", {}).get(k), ph.get("PlainHumanoid", {}).get(k)) for k in keys]}', same))
     ncw = sum(p['civilwar'] == '1' for p in plans.values())
     checks.append((f'{name}: Civil War in {ncw}/{len(plans)} plans (design: about 35%)', 0.2 * len(plans) < ncw < 0.5 * len(plans)))
     return out, warns
