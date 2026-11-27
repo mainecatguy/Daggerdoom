@@ -374,7 +374,14 @@ show as one number. It is off by default.
 
 ## Menu text and font mods
 
-Daggerfall's menus (inventory, shops, talk, character sheet, and the small Talk / Sell, guild, repair and witch
-popups) draw all their words in Daggerfall's font. A Daggerfall Unity font replacement changes them all: put a font
-named `FONT0003-SDF.ttf` (or `.otf`) in Daggerfall Unity's `StreamingAssets\Fonts` folder, or install a font mod.
-Daggerfall Unity texture packs for menu pictures work too.
+Daggerfall's menus mix two kinds of words: text (item names, the talk window, numbers, and labels such as Sell) and
+words painted into the menu pictures (such as the character sheet's headings and the red EXIT buttons).
+
+- The small popups for shopkeepers (Talk / Sell), guild halls (Join Guild / Talk / service), smiths (Repair Item /
+  Talk / Sell) and witches (Talk / Daedra Summoning / Quest) draw all their row words as text, so a popup no longer
+  mixes painted and text words in its rows. Their EXIT button stays a picture.
+- A Daggerfall Unity font replacement changes all text: put a font named `FONT0003-SDF.ttf` (or `.otf`) in
+  Daggerfall Unity's `StreamingAssets\Fonts` folder, or install a font mod. Painted words, including EXIT and the
+  character sheet's headings, stay as they are.
+- A Daggerfall Unity texture pack that replaces a menu picture shows as the pack made it. If it replaces one of the
+  four popups' pictures, that popup keeps the pack's own painted row words instead of drawing them as text.

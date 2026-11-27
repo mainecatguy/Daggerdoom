@@ -2,7 +2,7 @@
 // the text Doom shows can be compared with Daggerfall Unity's. Gives the player Casual Pants (the item in the owner's
 // screenshot), and whenever the inventory is the top window, fills its info panel with that item, as hovering would.
 // With a folder, once the inventory is open it also shows the character sheet, a shop (trade) window and the talk
-// window, then the merchant, guild, repair and witches' coven popups in turn, and saves Daggerfall Unity's own render of each (the UI render target Doom is sent) to
+// window, then the merchant, guild (not a member, then a member), repair and witches' coven popups in turn, and saves Daggerfall Unity's own render of each (the UI render target Doom is sent) to
 // <folder>/dfu-<name>.png, logging each step to <folder>/dfu-steps.txt.
 // Starts itself; no hook in game classes. Used by tools/menu_text/menu_text.py --menutext.
 
@@ -63,6 +63,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 DaggerfallMerchantServicePopupWindow.Services.Sell));
             yield return Popup("guild", () => new DaggerfallGuildServicePopupWindow(DaggerfallUI.UIManager,
                 Npc((int)GuildNpcServices.MG_Training), FactionFile.GuildGroups.MagesGuild, MagesGuildFaction));
+            // General Populace counts as a member, so the popup shows GILD01I0's greyed Join Guild.
+            yield return Popup("guildmember", () => new DaggerfallGuildServicePopupWindow(DaggerfallUI.UIManager,
+                Npc((int)GuildNpcServices.MG_Training), FactionFile.GuildGroups.GeneralPopulace, MagesGuildFaction));
             yield return Popup("repair", () => new DaggerfallMerchantRepairPopupWindow(DaggerfallUI.UIManager, Npc(0)));
             yield return Popup("coven", () => new DaggerfallWitchesCovenPopupWindow(DaggerfallUI.UIManager, Npc(0)));
             Step("done");

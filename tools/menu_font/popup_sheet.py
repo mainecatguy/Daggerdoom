@@ -8,11 +8,11 @@ from pathlib import Path
 
 from PIL import Image
 
-NAMES = ("merchant", "guild", "repair", "coven")
+NAMES = ("merchant", "guild", "guildmember", "repair", "coven")
 
 
 def crop(path):
-    image = Image.open(path)
+    image = Image.open(path) if path.exists() else Image.new("RGB", (1252, 721))  # black cell: that popup did not open
     w, h = image.size
     scale = min(w / 320, h / 200)
     left, top = (w - 320 * scale) / 2, (h - 200 * scale) / 2
