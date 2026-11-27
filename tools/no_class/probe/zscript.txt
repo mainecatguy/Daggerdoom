@@ -1,0 +1,70 @@
+version "4.0"
+
+// Test-only probe for tools/no_class/run_no_class.py. Never loaded by the game. Logs to the console log (+logfile):
+// the class list, each menu that opens, and a few seconds into each map the player's class, perk items and weapons.
+class NoClassProbe : StaticEventHandler
+{
+	int ticks;
+	ui String lastMenu;
+	ui int uiTicks;
+	bool listed;
+
+	override void WorldLoaded(WorldEvent e)
+	{
+		ticks = 0;
+		if (!listed)
+		{
+			listed = true;
+			String names = "";
+			for (int i = 0; i < PlayerClasses.Size(); i++) names = names .. " " .. PlayerClasses[i].Type.GetClassName();
+			Console.Printf("noclass probe: %d player classes:%s", PlayerClasses.Size(), names);
+		}
+	}
+
+	override void WorldTick()
+	{
+		ticks++;
+		if (ticks == 70 || ticks == 350) Report();
+	}
+
+	clearscope void Report()
+	{
+		let pmo = players[consoleplayer].mo;
+		if (!pmo) return;
+		String perks = "", weapons = "";
+		for (Inventory i = pmo.Inv; i; i = i.Inv)
+		{
+			String n = i.GetClassName();
+			if (n.IndexOf("Perk") >= 0) perks = perks .. " " .. n;
+			if (i is "Weapon") weapons = weapons .. " " .. n;
+		}
+		let held = players[consoleplayer].ReadyWeapon;
+		Console.Printf("noclass probe: map %s tick %d class %s perks [%s ] weapons [%s ] ready %s stamina %d armorspecial %d clips %d",
+			level.MapName, ticks, pmo.GetClassName(), perks, weapons, held ? held.GetClassName() : 'none',
+			Count(pmo, "RLStamina"), Count(pmo, "RLArmorSpecial"), Count(pmo, "Clip"));
+		String key = "$PDA_CLASS_" .. pmo.GetClassName() .. "_NAME";
+		int pw, ph;
+		[pw, ph] = TexMan.GetSize(TexMan.CheckForTexture("PPDAMAR1", TexMan.Type_Any));
+		Console.Printf("noclass probe: pda name \"%s\" portrait %dx%d", StringTable.Localize(key), pw, ph);
+	}
+
+	clearscope static int Count(Actor pmo, String name)
+	{
+		class<Inventory> c = name;
+		return c ? pmo.CountInv(c) : -1;
+	}
+
+	override void UiTick()
+	{
+		// World ticks stop while the bridge holds Doom (New Game trip, arrival wait), so also report from here.
+		if (++uiTicks % 175 == 0 && gamestate == GS_LEVEL) Report();
+		let m = Menu.GetCurrentMenu();
+		String n = "none";
+		if (m is "ListMenu") n = ListMenu(m).mDesc.mMenuName;
+		else if (m is "OptionMenu") n = OptionMenu(m).mDesc.mMenuName;
+		else if (m) n = m.GetClassName();
+		if (n == lastMenu) return;
+		lastMenu = n;
+		Console.Printf("noclass probe: menu %s", n);
+	}
+}
