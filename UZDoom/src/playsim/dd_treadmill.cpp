@@ -2766,6 +2766,35 @@ bool DDTreadmill_MeshOffset(double &x, double &y, double &z)
 	return true;
 }
 
+// [Doomerfall] The distant terrain view (hw_ddhorizon.cpp): where world tiles sit on this map, and the tiles it draws itself.
+bool DDTreadmill_HorizonFrame(DDHorizonFrame &f)
+{
+	if (!primaryLevel || handoff.pending) return false;
+	if (DDTreadmill_Active)
+	{
+		f.offX = -originX * double(SPACING) - HALF;
+		f.offY = -originY * double(SPACING) - HALF;
+		f.offZ = 0;
+		f.x0 = originX; f.x1 = originX + CELLS; f.y0 = originY; f.y1 = originY + CELLS;
+	}
+	else if (townActive && currentTown >= 0 && !towns[currentTown].space && LoadWorld())
+	{
+		const Town &t = towns[currentTown];
+		f.offX = -t.originX * DOOM_PER_DF;
+		f.offY = -t.originY * DOOM_PER_DF;
+		f.offZ = Z_BASE - t.ground * DOOM_PER_DF;
+		f.x0 = t.visual.x0; f.x1 = t.visual.x1; f.y0 = t.visual.y0; f.y1 = t.visual.y1;
+	}
+	else return false;
+	return true;
+}
+
+// Doom height (overworld frame) at a global tile vertex, clamped to the world.
+float DDTreadmill_HorizonHeight(int gx, int gy)
+{
+	return SampleVertex(std::clamp(gx, 0, WORLD_W * PIXEL_TILES), std::clamp(gy, 0, WORLD_H * PIXEL_TILES));
+}
+
 void DD_QaTick(FLevelLocals *Level); // [Doomerfall] QA bot (dd_qa.cpp), inactive without -ddqa
 void DDTreadmill_Tick(FLevelLocals *Level)
 {

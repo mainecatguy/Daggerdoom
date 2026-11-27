@@ -696,6 +696,7 @@ set( FASTMATH_SOURCES
 	rendering/hwrenderer/scene/hw_decal.cpp
 	rendering/hwrenderer/scene/hw_drawinfo.cpp
 	rendering/hwrenderer/scene/hw_dfmesh.cpp # [Doomerfall]
+	rendering/hwrenderer/scene/hw_ddhorizon.cpp # [Doomerfall]
 	rendering/hwrenderer/scene/hw_drawlist.cpp
 	rendering/hwrenderer/scene/hw_clipper.cpp
 	rendering/hwrenderer/scene/hw_flats.cpp
