@@ -13,8 +13,15 @@
 //                  (DoomerfallSunder rides on the enemy).
 //
 // A shot is a tic in which the gun spent ammo while the trigger was down, or hit something while it was down; several
-// pellets or bullets in one tic are one shot. Damage the player deals in a tic with no shot (a projectile that lands
-// later) gets the damage bonus but not the burst bonus.
+// pellets or bullets in one tic are one shot.
+//
+// Only hits from an Automatics gun count, not whatever the player happens to hold when a hit lands:
+//   bullets      hitscan damage comes with its puff as the inflictor and lands in the tic it is fired, so a puff hit
+//                while an Automatics gun is held came from that gun.
+//   projectiles  a projectile the player fires next to them while an Automatics gun is held and the trigger is down is
+//                remembered with the burst state of its shot; its hit and its splash count when it lands, even after a
+//                weapon switch. Projectiles spawned away from the player (a rocket's fragments) are not the gun's.
+// Rockets, grenades, barrels, other guns' projectiles and anything else get nothing.
 // Fractional damage rounds up with the chance of the fraction, so +1% on a 5-point bullet is worth +1% on average.
 class DoomerfallAutomatics : StaticEventHandler
 {
@@ -60,8 +67,58 @@ class DoomerfallAutomatics : StaticEventHandler
 		DDLog.Debug(String.Format("automatics: %s", msg));
 	}
 
+	// Projectiles fired by an Automatics gun, with whether their shot was a burst shot. Not kept by saves: a projectile
+	// in flight at a save loses its bonus.
+	Array<Actor> shots;
+	Array<bool> shotBurst;
+	Array<Name> shotGun;
+
+	// Whether damage through this inflictor came from an Automatics gun of this player, and if so whether it was a burst
+	// shot. For a bullet this also counts the shot.
+	static bool FromGun(Actor player, Actor inflictor, out bool burst, out Name gun)
+	{
+		burst = false;
+		gun = 'None';
+		let perks = player ? DoomerfallAutomaticsPerks(player.FindInventory("DoomerfallAutomaticsPerks")) : null;
+		if (!perks || !inflictor) return false;
+		if (inflictor.bIsPuff)
+		{
+			if (!IsAutomatic(player.player.ReadyWeapon)) return false;
+			burst = perks.MarkShot();
+			gun = player.player.ReadyWeapon.GetClassName();
+			return true;
+		}
+		let h = DoomerfallAutomatics(StaticEventHandler.Find("DoomerfallAutomatics"));
+		int i = h ? h.shots.Find(inflictor) : 0;
+		if (!h || i >= h.shots.Size()) return false;
+		burst = h.shotBurst[i];
+		gun = h.shotGun[i];
+		return true;
+	}
+
+	override void WorldThingSpawned(WorldEvent e)
+	{
+		let m = e.Thing;
+		if (!m || !m.bMissile || !m.target || !m.target.player || m.target.player.mo != m.target) return;
+		let pmo = m.target;
+		let perks = DoomerfallAutomaticsPerks(pmo.FindInventory("DoomerfallAutomaticsPerks"));
+		if (!perks || !IsAutomatic(pmo.player.ReadyWeapon) || !perks.TriggerDown()) return;
+		if (m.Distance2D(pmo) > pmo.radius + m.radius + 64) return; // Spawned by something else out in the world.
+		shots.Push(m);
+		shotBurst.Push(perks.MarkShot());
+		shotGun.Push(pmo.player.ReadyWeapon.GetClassName());
+		Log(String.Format("projectile %s from %s", m.GetClassName(), pmo.player.ReadyWeapon.GetClassName()));
+	}
+
 	override void WorldTick()
 	{
+		for (int i = shots.Size() - 1; i >= 0; i--)
+		{
+			if (shots[i]) continue;
+			shots.Delete(i);
+			shotBurst.Delete(i);
+			shotGun.Delete(i);
+		}
 		if (Actor.DD_SheetValue(SheetValid) != 1) return; // Rules come from Daggerfall's character only.
 		for (int i = 0; i < MAXPLAYERS; i++)
 		{
@@ -76,9 +133,11 @@ class DoomerfallAutomatics : StaticEventHandler
 		let victim = e.Thing;
 		let src = e.DamageSource;
 		if (e.Damage <= 0 || !victim || victim.player || victim.health <= 0 || !src || !src.player || src.player.mo != src) return;
-		if (!IsAutomatic(src.player.ReadyWeapon) || !e.Inflictor || !e.Inflictor.bIsPuff) return; // the gun's own bullets only
 		int step = Rule(AutoSunderBp), cap = Rule(AutoSunderMaxBp);
 		if (step <= 0 || cap <= 0) return;
+		bool burst;
+		Name gun;
+		if (!FromGun(src, e.Inflictor, burst, gun)) return; // Hits from an Automatics gun only.
 		let s = DoomerfallSunder(victim.FindInventory("DoomerfallSunder"));
 		if (!s)
 		{
@@ -177,6 +236,16 @@ class DoomerfallAutomaticsPerks : Inventory
 		DoomerfallAutomatics.Log(String.Format("ammo %s used %d refunded %d (1 per %d) now %d", ammo.GetClassName(), used, refund, per, ammo.Amount));
 	}
 
+	// A shot of the held Automatics gun this tic (a bullet hit or a fired projectile): counts it if the trigger is down
+	// and says whether it is one of the burst's first n shots.
+	bool MarkShot()
+	{
+		Sync();
+		if (TriggerDown()) CountShot();
+		int n = DoomerfallAutomatics.Rule(DoomerfallAutomatics.AutoBurstShots);
+		return n > 0 && lastShotTic == level.maptime && burstShots <= n;
+	}
+
 	override void DoEffect()
 	{
 		Super.DoEffect();
@@ -186,21 +255,16 @@ class DoomerfallAutomaticsPerks : Inventory
 	override void ModifyDamage(int damage, Name damageType, out int newdamage, bool passive, Actor inflictor, Actor source, int flags)
 	{
 		// Active: source is the actor being hit. The player's own hits on others only.
-		// Only the gun's own bullets: hitscan damage arrives with its puff as inflictor. Rockets, barrels and other
-		// projectiles that land while an Automatics gun is held get nothing.
-		if (passive || damage <= 0 || !owner || !owner.player || source == owner || !inflictor || !inflictor.bIsPuff) return;
-		let w = owner.player.ReadyWeapon;
-		if (!DoomerfallAutomatics.IsAutomatic(w)) return;
-		Sync();
-		if (TriggerDown()) CountShot();
+		if (passive || damage <= 0 || !owner || !owner.player || source == owner) return;
+		bool burst;
+		Name gun;
+		if (!DoomerfallAutomatics.FromGun(owner, inflictor, burst, gun)) return; // Hits from an Automatics gun only.
 		double factor = 1 + DoomerfallAutomatics.Rule(DoomerfallAutomatics.AutoDamageBp) / 10000.;
-		int n = DoomerfallAutomatics.Rule(DoomerfallAutomatics.AutoBurstShots);
-		bool burst = n > 0 && lastShotTic == level.maptime && burstShots <= n;
 		if (burst) factor *= 1 + DoomerfallAutomatics.Rule(DoomerfallAutomatics.AutoBurstBp) / 10000.;
 		if (factor == 1) return;
 		newdamage = DoomerfallAutomatics.Scale(damage, factor);
-		DoomerfallAutomatics.Log(String.Format("hit %s with %s shot %d%s: %d -> %d (x%.4f) tic %d", source ? source.GetClassName() : 'None',
-			w.GetClassName(), burstShots, burst ? " burst" : "", damage, newdamage, factor, level.maptime));
+		DoomerfallAutomatics.Log(String.Format("hit %s with %s shot %d%s: %d -> %d (x%.4f) tic %d by %s", source ? source.GetClassName() : 'None',
+			gun, burstShots, burst ? " burst" : "", damage, newdamage, factor, level.maptime, inflictor.GetClassName()));
 	}
 }
 
