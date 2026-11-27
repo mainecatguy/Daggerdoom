@@ -66,7 +66,7 @@ class FindSteepStairs : EventHandler
 					int f = FloorAt(qx[h] + dx[k] * d / 8, qy[h] + dy[k] * d / 8, top);
 					if (f == -99999) break;
 					int rise = f - top;
-					if (rise > 24 && rise <= 72) { risers++; top = f; run = d; tread = 0; }
+					if (rise > 24 && rise <= CVar.FindCVar("steep_max").GetInt()) { risers++; top = f; run = d; tread = 0; }
 					else if (rise > -4 && rise <= 24) { top = f; tread += 8; if (tread > 32) break; }
 					else break;
 				}

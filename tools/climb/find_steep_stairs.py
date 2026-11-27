@@ -1,6 +1,6 @@
 """Finds steep stairs (risers over Doom's 24-unit step, short treads) reachable on foot in a converted dungeon map.
 
-usage: find_steep_stairs.py <uzdoom.exe> <play data folder with privateershold.wad> <output folder> [x y z]
+usage: find_steep_stairs.py <uzdoom.exe> <play data folder with privateershold.wad> <output folder> [x y z [max riser]]
 Default start: the cave a new character wakes in, in Privateer's Hold (510,1672 on floor 960).
 Runs the map alone (no Daggerfall) on a private desktop (quiet_run) and prints the STEEP lines, tallest first."""
 import re
@@ -20,13 +20,13 @@ pk3 = out / "find_steep_stairs.pk3"
 with zipfile.ZipFile(pk3, "w") as z:
     z.write(Path(__file__).with_name("find_steep_stairs.zs"), "zscript.txt")
     z.writestr("mapinfo.txt", 'GameInfo { AddEventHandlers = "FindSteepStairs" }\n')
-    z.writestr("cvarinfo.txt", "server int steep_x = 0;\nserver int steep_y = 0;\nserver int steep_z = 0;\n")
+    z.writestr("cvarinfo.txt", "server int steep_x = 0;\nserver int steep_y = 0;\nserver int steep_z = 0;\nserver int steep_max = 72;\n")
 log = out / "log-steep-log.txt"
 log.unlink(missing_ok=True)
 files = [str(data / n) for n in ("ddruntime.pk3", "privateershold.wad", "privateershold_mesh.pk3", "privateershold_doors.pk3")]
 cmd = [sys.executable, QUIET, "--timeout", "300", "--cwd", str(out), "--", str(uz), "-iwad", IWAD, "-file", *files, str(pk3),
        "-config", str(out / "steep.ini"), "+logfile", "steep.log", "+map", "MAP01", "+steep_x", start[0], "+steep_y", start[1],
-       "+steep_z", start[2], "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"]
+       "+steep_z", start[2], "+steep_max", "72" if len(sys.argv) < 8 else sys.argv[7], "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"]
 proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 deadline = time.time() + 300
 text = ""
