@@ -814,6 +814,23 @@ DEFINE_ACTION_FUNCTION(AActor, DD_MonsterMoveScale)
 	ACTION_RETURN_FLOAT(DD_MonsterMoveScale);
 }
 
+bool DDTreadmill_RuntimeLump(const char *mapname, const char *name, FString *out); // [Doomerfall] dd_treadmill.cpp
+
+DEFINE_ACTION_FUNCTION(AActor, DD_InRuntimeDungeon)
+{
+	PARAM_PROLOGUE;
+	ACTION_RETURN_BOOL(DDTreadmill_RuntimeLump(primaryLevel->MapName.GetChars(), nullptr, nullptr));
+}
+
+DEFINE_ACTION_FUNCTION(AActor, DD_RuntimeDungeonLump)
+{
+	PARAM_PROLOGUE;
+	PARAM_STRING(name);
+	FString body;
+	DDTreadmill_RuntimeLump(primaryLevel->MapName.GetChars(), name.GetChars(), &body);
+	ACTION_RETURN_STRING(body);
+}
+
 DEFINE_ACTION_FUNCTION(AActor, DD_OnDaggerfallMap)
 {
 	PARAM_PROLOGUE;

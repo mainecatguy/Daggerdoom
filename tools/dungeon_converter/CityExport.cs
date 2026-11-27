@@ -268,7 +268,6 @@ static partial class Program
                         AppendAnimation(npcAnimation, f => $"dfflat/F{animatedArchive:D3}R{animatedRecord:D2}{(f > 0 ? $"_f{f}" : "")}.png", frames, mobile ? (record == 5 || record == 15 ? 1 : 4) : BillboardFps(archive)); // MobilePersonBillboard's idle and walk speeds
                     }
                 }
-                if (npcAnimation.Length > 0) Text("ANIMDEFS", npcAnimation.ToString());
                 Text("DFMOBILE", mobileScales.ToString());
                 var home = maps.GetLocation(WorldTerrain.Places[(207, 213)].RegionIndex, WorldTerrain.Places[(207, 213)].LocationIndex);
                 var scene = new Scene(arena2, home, 0, 0);
@@ -280,12 +279,16 @@ static partial class Program
                     Text($"models/dfdoors/gate{slot}.obj", scene.GateObj(slot));
                     modeldef += $"Model DFDoorVisual{slot}{(char)10}{{{(char)10}Path \"models/dfdoors\"{(char)10}DONTCULLBACKFACES{(char)10}Model 0 \"gate{slot}.obj\"{(char)10}FrameIndex DFDR A 0 0{(char)10}}}{(char)10}";
                 }
-                Text("MODELDEF", modeldef);
+                var catalogModels = new StringBuilder(modeldef);
+                string catalogClasses = WriteDungeonCatalog(zip, arena2, maps, blocks, arch, npcAnimation, catalogModels);
+                if (npcAnimation.Length > 0) Text("ANIMDEFS", npcAnimation.ToString());
+                Text("MODELDEF", catalogModels.ToString());
                 // One map entry is the template for every generated location. The engine gives each its own copy.
-                Text("MAPINFO", "GameInfo\n{\n\tAddEventHandlers = \"DFRuntimeHandler\"\n}\nmap DDTOWN \"Daggerfall Location\"\n{\n\tpixelratio = 1.0\n\tsky1 = \"DFSKY\"\n\tkeepfullinventory\n}\n");
+                Text("MAPINFO", "GameInfo\n{\n\tAddEventHandlers = \"DFRuntimeHandler\", \"DFDoorHandler\", \"DFActionHandler\"\n}\nmap DDTOWN \"Daggerfall Location\"\n{\n\tpixelratio = 1.0\n\tsky1 = \"DFSKY\"\n\tkeepfullinventory\n}\nmap DDDUNGN \"Daggerfall Dungeon\"\n{\n\tpixelratio = 1.0\n\tkeepfullinventory\n\tUsePlayerStartZ\n}\n");
                 string doors = File.ReadAllText(Path.Combine(SourceDirectory(), "door_objects.zs"));
                 doors = doors.Substring(doors.IndexOf((char)10) + 1);
-                Text("zscript.zs", RuntimeScript + doors + "class DFDoorVisual0 : DFDoorVisual {}" + (char)10 + "class DFDoorVisual1 : DFDoorVisual {}" + (char)10);
+                string actionScript = string.Join((char)10, File.ReadAllLines(Path.Combine(SourceDirectory(), "action_objects.zs")).Where(line => !line.StartsWith("version ")));
+                Text("zscript.zs", RuntimeScript + doors + "class DFDoorVisual0 : DFDoorVisual {}" + (char)10 + "class DFDoorVisual1 : DFDoorVisual {}" + (char)10 + actionScript + (char)10 + catalogClasses);
             }
             File.Move(temp, outFile, true);
             // A readable list for choosing test locations. It names game content, so it stays beside the package, outside the repository.
@@ -465,7 +468,7 @@ class DFRuntimeHandler : EventHandler
 
         // ---- Visual scene ----
 
-        sealed class Scene
+        internal sealed class Scene
         {
             public readonly List<(V3 a, V3 b, V3 c)> Colliders = new List<(V3, V3, V3)>();
             public readonly List<int> ColliderOwners = new List<int>(); // building id per collider triangle, or -1 for walls, gates, and props
@@ -932,8 +935,13 @@ class DFRuntimeHandler : EventHandler
                     ("DFGATES", Encoding.ASCII.GetBytes(string.Join((char)10, GatePlacements) + (char)10)), ("DDTOWN", Encoding.ASCII.GetBytes(townInfo)),
                     ("DDDOORS", Encoding.ASCII.GetBytes(string.Join((char)10, DoorLines) + (char)10)),
                 };
-                var packed = new byte[entries.Length][];
-                System.Threading.Tasks.Parallel.For(0, entries.Length, i =>
+                WriteDdt(path, entries);
+            }
+
+            public static void WriteDdt(string path, IList<(string name, byte[] data)> entries)
+            {
+                var packed = new byte[entries.Count][];
+                System.Threading.Tasks.Parallel.For(0, entries.Count, i =>
                 {
                     var body = new MemoryStream();
                     using (var z = new ZLibStream(body, CompressionLevel.Fastest, true)) z.Write(entries[i].data);
@@ -944,8 +952,8 @@ class DFRuntimeHandler : EventHandler
                 using (var w = new BinaryWriter(File.Create(temp)))
                 {
                     w.Write(Encoding.ASCII.GetBytes("DDT3"));
-                    w.Write(entries.Length);
-                    for (int i = 0; i < entries.Length; i++)
+                    w.Write(entries.Count);
+                    for (int i = 0; i < entries.Count; i++)
                     {
                         w.Write(Encoding.ASCII.GetBytes(entries[i].name.PadRight(8, '\0')));
                         w.Write(entries[i].data.Length);

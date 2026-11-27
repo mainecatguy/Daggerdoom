@@ -21,12 +21,18 @@ static partial class Program
     static bool IsActionDoorModel(uint id, string description) =>
         id != RedBrickDoorModel && description is "DOR" or "DDR" or "NEW" or "CAV";
 
+    static bool catalogNames;
+    static readonly HashSet<int> SwappableArchives = new HashSet<int> { 74, 119, 120, 122, 123, 124, 168 }; // SwapArchive's inputs
+
     sealed class DoorModel
     {
         public uint Id;
         public bool Flipped; // model drawn upside down (roll of 180 degrees): the flip is baked into the vertices
         public string Name => $"m{Id}{(Flipped ? "f" : "")}";
         public int Slot;
+        public string Variant = ""; // the archives Daggerfall's texture table swapped in, in original archive order
+        public string CatalogName => Name + Variant; // a model's name in ddruntime.pk3, the same in every dungeon
+        public string Token => catalogNames ? "_" + CatalogName : Slot.ToString(); // the visual field of DFDOORS and DFACTIONS
         public double X0 = 1e9, X1 = -1e9, Y0 = 1e9, Y1 = -1e9, Z0 = 1e9, Z1 = -1e9;
         public string Obj;
         public readonly HashSet<(int archive, int record)> Textures = new HashSet<(int, int)>();
@@ -47,6 +53,7 @@ static partial class Program
                     model.Z0 = Math.Min(model.Z0, l.Z); model.Z1 = Math.Max(model.Z1, l.Z);
                 }
         double cx = (model.X0 + model.X1) / 2, cy = (model.Y0 + model.Y1) / 2;
+        var swaps = new SortedDictionary<int, int>();
         var text = new StringBuilder("# Daggerfall door model\n"); // the engine's OBJ parser only recognizes usemtl after a newline
         int next = 1;
         string F(double v) => v.ToString("0.#####", CultureInfo.InvariantCulture);
@@ -56,6 +63,7 @@ static partial class Program
             double w = source.GetWidth(sub.TextureRecord), h = source.GetHeight(sub.TextureRecord);
             var key = (SwapArchive(sub.TextureArchive, table, location), sub.TextureRecord);
             model.Textures.Add(key);
+            if (key.Item1 != sub.TextureArchive || SwappableArchives.Contains(sub.TextureArchive)) swaps[sub.TextureArchive] = key.Item1;
             text.Append($"usemtl dfmesh/a{key.Item1:D3}r{key.Item2:D2}.png\n");
             foreach (var plane in sub.Planes)
             {
@@ -77,6 +85,7 @@ static partial class Program
             }
         }
         model.Obj = text.ToString();
+        model.Variant = string.Concat(swaps.Select(kv => "_" + kv.Value));
         return model;
     }
 
@@ -149,7 +158,7 @@ static partial class Program
             classes.Append($"\nclass DFDoorVisual{m.Slot} : DFDoorVisual {{}}\n");
             modeldef.Append($"Model DFDoorVisual{m.Slot}\n{{\n\tPath \"models/dfdoors\"\n\tDONTCULLBACKFACES\n\tModel 0 \"{m.Name}.obj\"\n\tFrameIndex DFDR A 0 0\n}}\n");
         }
-        classes.Append(File.ReadAllText(Path.Combine(SourceDirectory(), "action_objects.zs")));
+        if (!runtimeDungeon) classes.Append(File.ReadAllText(Path.Combine(SourceDirectory(), "action_objects.zs"))); // ddruntime.pk3 holds it for runtime dungeons
         var actionModels = actions.Models.Values.OrderBy(m => m.Slot).ToList();
         foreach (var m in actionModels)
         {
@@ -171,7 +180,7 @@ static partial class Program
         if (actions.Lights.Count > 0) Text("DFDLIGHTS", DungeonLightLump(actions));
         Text("DFACTIONS", ActionLump(actions));
         Text("zscript.zs", classes.ToString());
-        Text("MAPINFO", "GameInfo\n{\n\tAddEventHandlers = \"DFDoorHandler\", \"DFActionHandler\"\n}\n");
+        if (!runtimeDungeon) Text("MAPINFO", "GameInfo\n{\n\tAddEventHandlers = \"DFDoorHandler\", \"DFActionHandler\"\n}\n"); // ddruntime.pk3 adds them for runtime dungeons
         Text("DFDOORS", string.Join("\n", placements) + "\n");
         Text("MODELDEF", modeldef.ToString());
         foreach (var m in models) Text($"models/dfdoors/{m.Name}.obj", m.Obj);

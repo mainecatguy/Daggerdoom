@@ -234,6 +234,10 @@ namespace
 
 	// Doors between towns, building interiors, and dungeons.
 	constexpr int SPACE_BASE = 1000000, DUNGEON_SPACE = 17000000, DOOR_PREFETCH = 2;
+	// [Doomerfall] A dungeon converted during play: cache group DUNGEON_GROUP + location id (the low 20 bits of its map id,
+	// as DungeonSlot). It is also its space id, and its map is named like an interior (SpaceMapName).
+	constexpr int DUNGEON_GROUP = 30000000;
+	int DungeonGroup(int mapId) { return DUNGEON_GROUP + (mapId & 0xFFFFF); }
 	constexpr double USE_REACH = 96, DOOR_CANCEL = 768, EXIT_STEP = 31.5;	// 128 Daggerfall units of reach. The step is three player radii. A door still converting is dropped only past the prefetch range.
 	struct DoorSpot { int kind, target, index; double x, y, z, nx, ny; };
 	struct ReturnPoint { bool valid = false; FString map; double x = 0, y = 0, z = 0, yaw = 0; };
@@ -1305,11 +1309,33 @@ namespace
 		return text;
 	}
 
+	// [Doomerfall] The town entry for a dungeon converted during play, from its cache file's DDDUNGN.
+	int TownForRuntimeDungeon(int group, const DDTownCache::EntryPtr &entry)
+	{
+		const auto *info = entry ? entry->Find("DDDUNGN") : nullptr;
+		if (!info || !entry->Find("MAPWAD")) return -1;
+		Town t;
+		FString text((const char *)info->data(), info->size());
+		for (auto &line : text.Split("\n"))
+		{
+			SpaceExit e;
+			if (sscanf(line.GetChars(), "mapid %d", &t.dungeonMapId) == 1) continue;
+			if (sscanf(line.GetChars(), "exit %lf %lf %lf %lf %lf", &e.x, &e.y, &e.z, &e.nx, &e.ny) == 5) t.exits.push_back(e);
+		}
+		if (DungeonGroup(t.dungeonMapId) != group) return -1;
+		PlaceSpace(t, group, DungeonSlot(t.dungeonMapId), FStringf("D%d", t.dungeonMapId));
+		t.map = SpaceMapName(group);
+		DD_DebugPrintf("DDTM runtime dungeon %d is %s, %d exits\n", t.dungeonMapId, t.map.GetChars(), int(t.exits.size()));
+		towns.push_back(std::move(t));
+		return int(towns.size()) - 1;
+	}
+
 	// The town entry for an interior, built from its cache file.
 	int TownForSpace(int id, const DDTownCache::EntryPtr &entry)
 	{
 		for (size_t i = 0; i < towns.size(); i++)
 			if (towns[i].space && towns[i].spaceId == id) return int(i);
+		if (id >= DUNGEON_GROUP) return TownForRuntimeDungeon(id, entry);
 		const auto *info = entry ? entry->Find("DDTOWN") : nullptr;
 		if (!info) return -1;
 		Town t;
@@ -1939,8 +1965,13 @@ namespace
 	{
 		for (size_t i = 0; i < towns.size(); i++)
 			if (towns[i].space && towns[i].dungeonMapId == mapId) return int(i);
-		return -1;
+		if (!runtimeTowns) return -1;
+		const int group = DungeonGroup(mapId);	// [Doomerfall] Converted during play.
+		return DDTownCache::Status(group) == DDTownCache::State::Ready ? TownForSpace(group, DDTownCache::Get(group)) : -1;
 	}
+
+	// The cache group a town door needs: an interior's space id, or a dungeon's runtime group.
+	int DoorGroup(const DoorSpot &d) { return d.kind == 0 ? d.target : DungeonGroup(d.target); }
 
 	// Goes through a town door. False means the destination is not ready yet.
 	bool EnterDoor(FLevelLocals *Level, AActor *pmo, const DoorSpot &d, const double *dungeonStart = nullptr)
@@ -2026,23 +2057,24 @@ namespace
 		{
 			std::vector<std::pair<double, int>> near;
 			for (const DoorSpot &d : townDoors)
-				if (d.kind == 0)
+				if (d.kind == 0 || DungeonTown(d.target) < 0)	// [Doomerfall] and dungeons not converted yet
 				{
 					const double dist = (DVector2(d.x, d.y) - pmo->Pos().XY()).Length();
-					if (dist < 768) near.push_back({ dist, d.target });
+					if (dist < 768) near.push_back({ dist, DoorGroup(d) });
 				}
 			std::sort(near.begin(), near.end());
 			DDTownCache::BeginScan();
 			int requested = 0, lastId = -1;
 			for (auto &n : near)
 				if (n.second != lastId && requested < DOOR_PREFETCH) { DDTownCache::Request(n.second, n.first + 1); lastId = n.second; requested++; }
-			if (pendingDoor >= 0 && townDoors[pendingDoor].kind == 0) DDTownCache::Request(townDoors[pendingDoor].target, 0);	// Last, so the pressed door outranks prefetching.
+			if (pendingDoor >= 0) DDTownCache::Request(DoorGroup(townDoors[pendingDoor]), 0);
+			if (dungeonRequest >= 0) DDTownCache::Request(DungeonGroup(dungeonRequest), 0);	// New Game or a load into a dungeon not converted yet	// Last, so the pressed door outranks prefetching.
 		}
 		if (pendingDoor >= 0)
 		{
 			const DoorSpot d = townDoors[pendingDoor];
 			if ((DVector2(d.x, d.y) - pmo->Pos().XY()).Length() > DOOR_CANCEL) { Printf(PRINT_HIGH, "You left the door.\n"); pendingDoor = -1; }
-			else if (DDTownCache::Status(d.target) == DDTownCache::State::Failed) { Printf(PRINT_HIGH, "This door will not open.\n"); pendingDoor = -1; }
+			else if (DDTownCache::Status(DoorGroup(d)) == DDTownCache::State::Failed) { Printf(PRINT_HIGH, "This door will not open.\n"); pendingDoor = -1; }
 			else if (EnterDoor(Level, pmo, d)) pendingDoor = -1;
 			return;
 		}
@@ -2056,10 +2088,10 @@ namespace
 		}
 		if (best < 0) { if (fresh) DD_UseWall(pmo->player); return; }	// Use on a building's wall names it, as Daggerfall's Info does.
 		const DoorSpot d = townDoors[best];
-		if (d.kind == 1 && DungeonTown(d.target) < 0) { Printf(PRINT_HIGH, "This dungeon is not available yet.\n"); return; }
+		if (d.kind == 1 && DungeonTown(d.target) < 0 && !runtimeTowns) { Printf(PRINT_HIGH, "This dungeon is not available yet.\n"); return; }
 		if (EnterDoor(Level, pmo, d)) return;
 		pendingDoor = best;
-		DDTownCache::Request(d.target, 0);
+		DDTownCache::Request(DoorGroup(d), 0);
 		Printf(PRINT_HIGH, "Opening...\n");
 	}
 
@@ -2844,7 +2876,8 @@ level_info_t *DDTreadmill_FindLevelInfo(const char *mapname)
 	upper.ToUpper();
 	auto found = runtimeInfoByName.find(upper.GetChars());
 	if (found != runtimeInfoByName.end()) return found->second;
-	level_info_t *base = FindLevelInfo("DDTOWN", false);
+	level_info_t *base = SpaceOfMap(mapname) >= DUNGEON_GROUP ? FindLevelInfo("DDDUNGN", false) : nullptr;	// [Doomerfall] runtime dungeon
+	if (!base) base = FindLevelInfo("DDTOWN", false);
 	if (!base) return nullptr;
 	runtimeInfos.push_back(*base);
 	level_info_t *info = &runtimeInfos.back();
@@ -2865,6 +2898,40 @@ bool DDTreadmill_OpenTownMap(const char *mapname, FileSys::FileReader &reader)
 	if (!wad) return false;
 	mapEntry = entry;
 	return reader.OpenMemory(wad->data(), wad->size());
+}
+
+// [Doomerfall] With name null: whether mapname is a dungeon converted during play and its cache file is loaded. Otherwise
+// also copies that dungeon's lump (cache names hold 8 characters; DFPOINTS is inside its map WAD) and says if it exists.
+bool DDTreadmill_RuntimeLump(const char *mapname, const char *name, FString *out)
+{
+	if (SpaceOfMap(mapname) < DUNGEON_GROUP || !mapEntry || !mapEntry->Find("DDDUNGN")) return false;
+	if (!name) return true;
+	if (stricmp(name, "DFPOINTS") == 0)
+	{
+		const auto *wad = mapEntry->Find("MAPWAD");
+		if (!wad || wad->size() < 12) return false;
+		const uint8_t *w = wad->data();
+		int32_t count, dir;
+		memcpy(&count, w + 4, 4);
+		memcpy(&dir, w + 8, 4);
+		for (int32_t i = 0; i < count && dir >= 0 && size_t(dir) + 16 * size_t(i + 1) <= wad->size(); i++)
+		{
+			const uint8_t *e = w + dir + 16 * i;
+			int32_t pos, size;
+			memcpy(&pos, e, 4);
+			memcpy(&size, e + 4, 4);
+			if (strnicmp((const char *)e + 8, "DFPOINTS", 8) || pos < 0 || size < 0 || size_t(pos) + size_t(size) > wad->size()) continue;
+			if (out) *out = FString((const char *)w + pos, size);
+			return true;
+		}
+		return false;
+	}
+	char key[9] = {};
+	strncpy(key, name, 8);
+	const auto *body = mapEntry->Find(key);
+	if (!body) return false;
+	if (out) *out = FString((const char *)body->data(), body->size());
+	return true;
 }
 
 bool DDTreadmill_MapMesh(const char *mapname, const uint8_t *&data, size_t &size, int &key)
@@ -2931,6 +2998,7 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 			if (d.kind != 0 && d.target == wanted)
 			{
 				if (EnterDoor(Level, pmo, d, dungeonRequestHasStart ? dungeonRequestStart : nullptr)) return;
+				if (runtimeTowns && DDTownCache::Status(DoorGroup(d)) != DDTownCache::State::Failed) { dungeonRequest = wanted; return; }	// [Doomerfall] Converting.
 				break;
 			}
 		DD_DebugPrintf("DDTRAVEL no door to dungeon %d in %s\n", wanted, Level->MapName.GetChars());
