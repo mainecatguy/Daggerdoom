@@ -59,14 +59,26 @@ def lumps(path):
         return {name: zlib.decompress(f.read(packed)) if raw else b"" for name, raw, packed in heads}
 
 
-def door(root, dungeon):
+def door(root, mode, group=GROUP):
     data = root / "data"
-    rows = [l.split() for l in lumps(data / "cache" / f"T{GROUP:05d}.ddt")["DDDOORS"].decode().splitlines()]
-    if dungeon:
-        return next(r for r in rows if r[:2] == ["1", "187853213"])
-    listed = subprocess.run([str(data / "converter" / "DungeonConverter.exe"), "--group", str(GROUP), "--list-buildings", "--arena2", str(GAME / "DAGGER" / "ARENA2")],
-                            stdin=subprocess.DEVNULL, capture_output=True, text=True)
-    types = {int(m[0]): m[1] for m in re.findall(r"BUILDING (\d+) (\S+)", listed.stdout)}
+    ddt = data / "cache" / f"T{group:05d}.ddt"
+    converter, arena2 = str(data / "converter" / "DungeonConverter.exe"), str(GAME / "DAGGER" / "ARENA2")
+    if not ddt.exists():  # Another place's town map; its dungeon converts on the door press.
+        subprocess.check_call([converter, "--group", str(group), "--ddt", str(ddt), "--out", str(BUILD / "restsync" / f"town{group}"), "--arena2", arena2], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
+    rows = [l.split() for l in lumps(ddt)["DDDOORS"].decode().splitlines()]
+    if mode == "dungeon":
+        return next(r for r in rows if r[:2] == ["1", "187853213"]) if group == GROUP else next(r for r in rows if r[0] == "1")
+    listed = subprocess.run([converter, "--group", str(group), "--list-buildings", "--arena2", arena2], stdin=subprocess.DEVNULL, capture_output=True, text=True)
+    order = [(int(m[0]), m[1]) for m in re.findall(r"BUILDING (\d+) (\S+)", listed.stdout)]
+    types = dict(order)
+    if mode == "house":  # The home with the most residents in the last census (Daggerfall's -dftownreport, as tools/townhomes).
+        census = [tuple(map(int, l.split()[1:4])) for l in read(REVIEW / "runs" / "homes.txt").splitlines() if l.startswith("townhome ")]
+        doors = {int(r[1]) for r in rows}
+        census = [c for c in census if c[0] < len(order) and order[c[0]][0] in doors]
+        if not census:
+            sys.exit("no census yet: run street first")
+        space = order[max(census, key=lambda c: c[2])[0]][0]
+        return next(r for r in rows if r[0] == "0" and int(r[1]) == space)
     return next(r for r in rows if r[0] == "0" and types.get(int(r[1])) == "Tavern")  # street and tavern
 
 
@@ -95,7 +107,7 @@ def assemble():
 
 
 def write_demo():
-    d = door(REVIEW, False)
+    d = door(REVIEW, "street")
     with zipfile.ZipFile(REVIEW / "demo_start.pk3", "w") as z:
         z.writestr("zscript.txt", (HERE / "harness.zs").read_text().replace("@DOOR@", ", ".join(d[3:8])).replace("@MODE@", "demo"))
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "RSHarness" }\n')
@@ -123,9 +135,9 @@ def write_demo():
 
 
 class Run:
-    def __init__(self, mode, rest, root, fast=False):
-        self.mode, self.rest, self.root, self.fast = mode, rest or mode == "dungeon", root, fast
-        self.dir = REVIEW / "runs" / (("before-" if root != REVIEW else "") + mode + ("-rest" if rest else "") + ("-fast" if fast else ""))
+    def __init__(self, mode, rest, root, fast=False, group=GROUP, hour=None):
+        self.mode, self.rest, self.root, self.fast, self.group, self.hour = mode, rest, root, fast, group, hour
+        self.dir = REVIEW / "runs" / (("before-" if root != REVIEW else "") + mode + ("-rest" if rest else "-loiter") + ("-fast" if fast else "") + (f"-g{group}" if group != GROUP else ""))
         self.dir.mkdir(parents=True, exist_ok=True)
         self.uz_log, self.df_log, self.console = self.dir / "uz.log", self.dir / "df.log", self.dir / "log-restsync.txt"
         self.launcher, self.views = self.dir / "launcher.log", self.dir / "rest.log"
@@ -148,7 +160,7 @@ class Run:
     def go(self):
         for path in (self.uz_log, self.df_log, self.console, self.launcher, self.views):
             path.unlink(missing_ok=True)
-        d = door(self.root, self.mode == "dungeon")
+        d = door(self.root, self.mode, self.group)
         harness = self.dir / "restsync_harness.pk3"
         with zipfile.ZipFile(harness, "w") as z:
             z.writestr("zscript.txt", (HERE / "harness.zs").read_text().replace("@DOOR@", ", ".join(d[3:8])).replace("@MODE@", self.mode))
@@ -157,8 +169,9 @@ class Run:
         uz = ["-noactivate", "-config", str(self.dir / "uz.ini"), "-savedir", str(self.dir / "saves"), "-dfbridgelog", str(self.uz_log), "-nosound", "-noautoload", "-skill", "3",
               "-ddtowncache", str(data / "cache"), "-ddconverter", str(data / "converter" / "DungeonConverter.exe"), "-ddarena2", str(GAME / "DAGGER" / "ARENA2"),
               "-dfuitest", "1", "+dd_ui_test_menu", "10", "+dd_ui_test_hold", "1", "+logfile", "restsync", "+screenshot_dir", str(self.dir / "shots"), "+vid_fullscreen", "0", "+wipetype", "0",
-              "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{GROUP:05d}"]
-        df = ["-dfbridgelog", str(self.df_log), "-dfsynctest", str(GAME / "DAGGER"), "-dfresttest", str(self.views),
+              "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{self.group:05d}"]
+        df = ["-dfbridgelog", str(self.df_log), "-dfsynctest", str(GAME / "DAGGER"), "-dfresttest", str(self.views), "-dftownreport", *(["-dfresttestroom"] if self.rest and self.mode == "tavern" else []),
+                  *(["-dftownhour", str(self.hour)] if self.hour is not None else []),
               "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "400"]
         command = [sys.executable, QUIET, "--timeout", "200", "--", str(self.root / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                    "--uzdoom", str(self.root / "uzdoom" / "uzdoom.exe"), "--dfu", str(self.root / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
@@ -247,6 +260,12 @@ class Run:
                 print("df.log", line[:200])
         tops = [l for l in read(self.views).splitlines() if "top " in l]
         print("windows:", sorted({re.search(r"top (\S+)", l).group(1) for l in tops}))
+        census = [l[l.index("townhome "):] for l in df.splitlines() if "townhome " in l]
+        if census and self.group == GROUP:
+            (REVIEW / "runs" / "homes.txt").write_text("\n".join(census) + "\n")
+        for line in read(self.views).splitlines():
+            if "rented" in line:
+                print("rest test:", line)
         result = re.findall(r"RSRESULT .*", console)
         print("RESULT", self.mode, "rest" if self.rest else "loiter", result[-1] if result else "none")
 
@@ -271,7 +290,9 @@ def check():
 
 ap = argparse.ArgumentParser()
 ap.add_argument("command", choices=("assemble", "demo", "run", "check"))
-ap.add_argument("mode", nargs="?", choices=("street", "tavern", "dungeon"))
+ap.add_argument("mode", nargs="?", choices=("street", "tavern", "house", "dungeon"))
+ap.add_argument("--group", type=int, default=GROUP, help="location group to start in (its dungeon door for dungeon)")
+ap.add_argument("--hour", type=int, help="Daggerfall's clock at the start (-dftownhour)")
 ap.add_argument("--rest", action="store_true")
 ap.add_argument("--root", type=Path, default=REVIEW)
 ap.add_argument("--fast", action="store_true", help="click the end-of-rest message the moment it shows")
@@ -283,4 +304,4 @@ elif args.command == "demo":
 elif args.command == "check":
     check()
 else:
-    Run(args.mode or "street", args.rest, args.root, args.fast).go()
+    Run(args.mode or "street", args.rest, args.root, args.fast, args.group, args.hour).go()

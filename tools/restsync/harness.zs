@@ -6,7 +6,7 @@ version "4.14"
 // WorldTick runs only on tics that play (not behind a menu, not during a frozen hold), so the first tic after a
 // real-time gap of over 0.7 s is the first frame the player sees after the menu. For 4 s after that it reports any
 // person who moves more than 32 units in one tic (RSJUMP), appears (RSNEW), vanishes (RSGONE), or an NPC that is
-// shown or hidden (RSNPC). RSRESUME says how many people changed place across the menu, which nobody saw.
+// shown or hidden (RSNPC); NPCs' positions are followed the same way. RSRESUME says how many people changed place across the menu, which nobody saw.
 class RSHarness : StaticEventHandler
 {
 	static const double DOORDATA[] = { @DOOR@ };
@@ -20,6 +20,7 @@ class RSHarness : StaticEventHandler
 	Array<bool> seen;
 	Array<Actor> npcs;
 	Array<bool> npcShown;
+	Array<double> npcX, npcY;
 
 	void Track(int tic)
 	{
@@ -54,7 +55,16 @@ class RSHarness : StaticEventHandler
 		{
 			bool shown = !mo.bINVISIBLE;
 			int at = npcs.Find(mo);
-			if (at == npcs.Size()) { npcs.Push(mo); npcShown.Push(shown); continue; }
+			if (at == npcs.Size())
+			{
+				npcs.Push(mo); npcShown.Push(shown); npcX.Push(mo.pos.x); npcY.Push(mo.pos.y);
+				if (watch > 0 && watch < WATCH_TICS) { news++; near++; Console.Printf("RSNEW tic %d npc %08x", tic, mo.args[0]); }
+				continue;
+			}
+			double nd = (mo.pos.xy - (npcX[at], npcY[at])).Length();
+			if (watch == WATCH_TICS && nd > JUMP_UNITS) moved++;
+			else if (watch > 0 && nd > JUMP_UNITS) { jumps++; near++; Console.Printf("RSJUMP tic %d npc %08x moved %.0f in one tic", tic, mo.args[0], nd); }
+			npcX[at] = mo.pos.x; npcY[at] = mo.pos.y;
 			if (shown != npcShown[at] && watch > 0 && watch < WATCH_TICS) { npcFlips++; near++; Console.Printf("RSNPC tic %d npc %08x %s", tic, mo.args[0], shown ? "shown" : "hidden"); }
 			npcShown[at] = shown;
 		}
