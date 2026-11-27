@@ -5,7 +5,8 @@ assemble: makes D:\\dev\\DoomDaggerfall-loop\\review\\building-greeting from the
           (integration UZDoom, launcher, bridge, data) with this worktree's Daggerfall Unity build, and writes play.bat.
 run MODE: both real games on quiet_run's private desktop, with DRLA, in the test town. Enters one town door:
           shop    a general store: expects Daggerfall's shop quality text (a message box shown in Doom).
-          house   a House1-4 building: expects the home greeting (a message box) when Daggerfall holds it unlocked.
+          house   a House2-4 building: expects the home greeting (a message box) when Daggerfall holds it unlocked (06:00-18:00).
+          House1 is left out: it has no open hours and greets only as a quest site.
           tavern  a tavern: expects no greeting.
           Prints Daggerfall's greeting and window lines, Doom's menu lines, and saves Doom's screen (MODE-N.png) 1, 3 and 6 s
           after Doom is inside.
@@ -36,7 +37,7 @@ GROUP = 7154
 FATAL = ("DIED WITH FATAL", "VM execution aborted", "Execution could not continue", "Unable to open map")
 DOOM_BORDER = (28, 79)  # As in tools/hud_messages: Doom's window size includes its frame.
 SHOTS = (1, 3, 6)
-WANT = {"shop": lambda k: k == "GeneralStore", "house": lambda k: re.fullmatch(r"House[1-4]", k) is not None, "tavern": lambda k: k == "Tavern"}
+WANT = {"shop": lambda k: k == "GeneralStore", "house": lambda k: re.fullmatch(r"House[2-4]", k) is not None, "tavern": lambda k: k == "Tavern"}
 
 
 def read(path):
