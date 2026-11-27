@@ -579,7 +579,10 @@ namespace DaggerfallWorkshop.Game
                         if (GameManager.Instance.PlayerEntity.Items.Contains(Items.ItemGroups.MiscItems, (int)Items.MiscItems.Spellbook))
                             uiManager.PushWindow(dfSpellBookWindow);
                         else
+                        {
                             AddHUDText(TextManager.Instance.GetLocalizedText("noSpellbook"));
+                            Doomerfall.DoomerfallUi.NoSpellbook(TextManager.Instance.GetLocalizedText("noSpellbook")); // Doomerfall: its HUD is hidden
+                        }
                     }
                     break;
                 case DaggerfallUIMessages.dfuiOpenUseMagicItemWindow:

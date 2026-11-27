@@ -8,10 +8,10 @@ window, the spellbook's selected row, magicka, the ready spell and whether a cas
 menu through the same command the key is bound to (netevent df_spellbook / df_character); after that every press and
 click is a real window message through Doom's window (key presses posted to Doom's window do not reach its game bindings,
 as tools/journal found).
-run hotkey: the spellbook opens on the first spell; Down and a click change the selection; Backspace (bound to the
-  spellbook, as play.bat binds it) closes it back to Doom; Doom runs again before the next open; the Exit button closes
-  it; choosing the caster-only spell (double click) is Daggerfall's own: the spell is readied and cast in Daggerfall, the
-  menu closes, and the spellbook opens again afterwards.
+run hotkey: the spellbook opens on the first spell; Down and a click change the selection; Backspace (Daggerfall's own
+  spellbook key, passed through by Doom) closes it back to Doom; Doom runs again before the next open; the Exit button
+  closes it; choosing a spell casts nothing and says so; renaming a spell, Backspace deletes a letter.
+run sheetnobook: without a spellbook, the sheet's Spellbook button shows Daggerfall's line in the menu.
 run sheet: P's command opens the character sheet; its Spellbook button opens the spellbook inside the same Doom menu;
   Backspace closes the spellbook back to the sheet (Daggerfall's own key); the sheet's Exit closes the menu.
 run nobook: without a spellbook, the key shows Daggerfall's "no spellbook" line on Doom's HUD and opens nothing.
@@ -53,7 +53,9 @@ FIRST_ROW = (75, 35)
 BOOK_EXIT = (268, 174)
 SHEET_SPELLBOOK = (101, 157)
 SHEET_EXIT = (69, 188)
-VK_BACK, VK_DOWN = 0x08, 0x28
+NAME_LABEL = (165, 23)  # The selected spell's name at (123,2) in the panel; a click renames it.
+MESSAGE_CLICK = (160, 100)
+VK_BACK, VK_DOWN, VK_RETURN = 0x08, 0x28, 0x0D
 BINDS = ["+bind", "backspace", "netevent df_spellbook", "+bind", "p", "netevent df_character"]
 
 
@@ -97,7 +99,7 @@ def write_demo():
         "rem Spellbook. Starts outside Privateer's Hold with DRLA. A second after the game starts, a test hook gives you a spellbook\r\n"
         "rem with two spells and fills your magicka. Press Backspace to open Daggerfall's spellbook (Backspace, Escape or Exit closes\r\n"
         "rem it). Press P for the character sheet, then click its Spellbook button; closing the spellbook returns to the sheet.\r\n"
-        "rem Choosing a spell is Daggerfall's own: a caster-only spell is cast in Daggerfall at once (no Doom animation yet).\r\n"
+        "rem Casting is not built yet: choosing a spell says so. Click a spell's name to rename it (Backspace deletes letters).\r\n"
         "rem Rebind the keys in Options, Customize Controls, Doomerfall Controls.\r\n"
         "set \"HERE=%~dp0\"\r\n"
         "if not exist \"%HERE%play\" mkdir \"%HERE%play\"\r\n"
@@ -149,12 +151,12 @@ class Run:
         return False
 
     def state(self):
-        """The last logged state: (top, selected, spells, magicka, ready, casting)."""
-        rows = re.findall(r"top (\S+) \| selected (\S+) spells (\d+) \| magicka (\d+)/\d+ hp \S+ \| ready (.*?) casting (\w+)", read(self.views))
+        """The last logged state: (top, selected, spells, magicka, ready, casting, first spell's name)."""
+        rows = re.findall(r"top (\S+) \| selected (\S+)(?: first '([^']*)')? spells (\d+) \| magicka (\d+)/\d+ hp \S+ \| ready (.*?) casting (\w+)", read(self.views))
         if not rows:
             return None
-        top, selected, spells, magicka, ready, casting = rows[-1]
-        return top, selected, int(spells), int(magicka), ready, casting == "True"
+        top, selected, first, spells, magicka, ready, casting = rows[-1]
+        return top, selected, int(spells), int(magicka), ready, casting == "True", first
 
     def top_is(self, name, seconds=5):
         return self.wait(self.views, r"top %s \|[^\n]*\n?$" % name, seconds) or (self.state() or ("",))[0] == name
@@ -162,12 +164,12 @@ class Run:
     def go(self):
         for path in (self.uz_log, self.df_log, self.console, self.launcher, self.views):
             path.unlink(missing_ok=True)
-        menu, opens = {"hotkey": (12, 4), "sheet": (11, 1), "nobook": (12, 1)}[self.mode]
+        menu, opens = {"hotkey": (12, 3), "sheet": (11, 1), "nobook": (12, 1), "sheetnobook": (11, 1)}[self.mode]
         uz = ["-noactivate", "-config", str(self.dir / "uz.ini"), "-savedir", str(self.dir / "saves"), "-dfbridgelog", str(self.uz_log), "-nosound", "-noautoload", "-skill", "3",
               "-ddtowncache", str(REVIEW / "data" / "cache"), "-ddconverter", str(REVIEW / "data" / "converter" / "DungeonConverter.exe"), "-ddarena2", str(GAME / "DAGGER" / "ARENA2"),
               "-dfuitest", str(opens), "+dd_ui_test_menu", str(menu), *BINDS, "+logfile", "spellbook", "+screenshot_dir", str(self.dir / "shots"), "+vid_fullscreen", "0", "+wipetype", "0",
               "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{GROUP:05d}"]
-        df = ["-dfbridgelog", str(self.df_log), "-dfsynctest", str(GAME / "DAGGER"), "-dfspellbooktest", str(self.views), *(["nobook"] if self.mode == "nobook" else []),
+        df = ["-dfbridgelog", str(self.df_log), "-dfsynctest", str(GAME / "DAGGER"), "-dfspellbooktest", str(self.views), *(["nobook"] if "nobook" in self.mode else []),
               "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "400"]
         command = [sys.executable, QUIET, "--timeout", "240", "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                    "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
@@ -227,8 +229,8 @@ class Run:
         clicked = self.state()
         self.case(down and down[1] == "1/2" and clicked and clicked[1] == "0/2", f"Down selects the second spell ({down and down[1]}), a click on the first row selects it again ({clicked and clicked[1]})")
         doom.press(VK_BACK)
-        ok, reasons = self.closed(1, "Doom asked")
-        self.case(ok and self.top_is("DaggerfallHUD"), f"Backspace closes it back to Doom ({reasons})")
+        ok, reasons = self.closed(1, "player closed it")
+        self.case(ok and self.top_is("DaggerfallHUD"), f"Backspace (Daggerfall's own spellbook key, passed through by Doom) closes it back to Doom ({reasons})")
 
         # Doom runs between menus: its map time at the next open is later than at this close.
         reopened = self.opened(2) and self.top_is("DaggerfallSpellBookWindow")
@@ -241,8 +243,8 @@ class Run:
         ok, reasons = self.closed(2, "player closed it")
         self.case(ok, f"the spellbook's Exit button closes it ({reasons})")
 
-        # Choosing a spell is Daggerfall's own (DaggerfallSpellBookWindow.SpellsListBox_OnUseSelectedItem): it readies the
-        # spell and returns to the HUD; a caster-only spell is cast at once by Daggerfall's effect manager.
+        # Casting from Doom is not built yet: choosing a spell (double click) readies and casts nothing in a bridge session,
+        # and Daggerfall says so in a message box inside the menu.
         if not (self.opened(3) and self.top_is("DaggerfallSpellBookWindow")):
             self.case(False, "the spellbook opened a third time")
             return
@@ -250,19 +252,27 @@ class Run:
         before = self.state()
         doom = self.doom()
         doom.double_click(FIRST_ROW)
-        ok, reasons = self.closed(3)
-        time.sleep(3.0)
+        held = self.top_is("DaggerfallMessageBox") and self.wait(self.df_log, r"spell choice held", 3)
+        time.sleep(2.0)
         after = self.state()
-        cast = re.findall(r"casting True", read(self.views))
-        self.case(ok and before and after and after[3] < before[3] and after[4] == "none" and not after[5],
-                  f"choosing the caster-only spell closes the menu and Daggerfall casts it (magicka {before and before[3]} -> {after and after[3]}, "
-                  f"ready {after and after[4]}, cast animation seen {bool(cast)}, now playing {after and after[5]}; {reasons[-1:]})")
-        again = self.opened(4) and self.top_is("DaggerfallSpellBookWindow")
-        self.case(again, "after the cast, the spellbook opens again")
-        if again:
-            doom.press(VK_BACK)
-            ok, reasons = self.closed(4, "Doom asked")
-            self.case(ok, f"and closes again ({reasons})")
+        self.case(held and before and after and after[3] == before[3] and after[4] == "none" and "casting True" not in read(self.views) and self.count(self.uz_log, r"ui: closed \(") == 2,
+                  f"choosing a spell casts nothing: a message box says so, magicka {before and before[3]} -> {after and after[3]}, ready {after and after[4]}, menu still open")
+        doom.click(MESSAGE_CLICK)
+        self.case(self.top_is("DaggerfallSpellBookWindow"), "a click closes the message, back to the spellbook")
+
+        # Renaming: Backspace in Daggerfall's text box deletes a letter instead of closing the menu.
+        doom.click(NAME_LABEL)
+        prompt = self.top_is("DaggerfallInputMessageBox")
+        doom.press(VK_BACK)
+        still = self.top_is("DaggerfallInputMessageBox") and self.count(self.uz_log, r"ui: closed \(") == 2
+        doom.press(VK_RETURN)
+        time.sleep(0.5)
+        s = self.state()
+        self.case(prompt and still and s and s[0] == "DaggerfallSpellBookWindow" and s[6] == before[6][:-1],
+                  f"rename: Backspace deletes a letter in the text box, the menu stays open ('{before[6]}' -> '{s and s[6]}')")
+        doom.click(BOOK_EXIT)
+        ok, reasons = self.closed(3, "player closed it")
+        self.case(ok, f"Exit closes it ({reasons})")
 
     def sheet(self):
         shown = self.opened(1, 11) and self.top_is("DaggerfallCharacterSheetWindow")
@@ -298,6 +308,22 @@ class Run:
         self.case("spellbook refused, the player carries no spellbook" in read(self.df_log) and "DaggerfallSpellBookWindow" not in read(self.views),
                   "Daggerfall logged the refusal and never pushed its spellbook window")
 
+    def sheetnobook(self):
+        shown = self.opened(1, 11) and self.top_is("DaggerfallCharacterSheetWindow")
+        if not shown:
+            self.case(False, "the character sheet opened")
+            return
+        time.sleep(0.5)
+        doom = self.doom()
+        doom.click(SHEET_SPELLBOOK)
+        box = self.top_is("DaggerfallMessageBox") and self.wait(self.df_log, r"spellbook refused inside the menu", 3)
+        self.case(box and "DaggerfallSpellBookWindow" not in read(self.views), "without a spellbook, the sheet's Spellbook button shows Daggerfall's line in a message box in the menu")
+        doom.click(MESSAGE_CLICK)
+        self.case(self.top_is("DaggerfallCharacterSheetWindow") and "ui: closed" not in read(self.uz_log), "a click closes the message, back to the sheet")
+        doom.click(SHEET_EXIT)
+        ok, reasons = self.closed(1, "player closed it")
+        self.case(ok, f"the sheet's Exit closes the menu ({reasons})")
+
     def summary(self):
         for line in read(self.views).splitlines():
             if "error" in line or "prepared" in line:
@@ -332,7 +358,7 @@ def check():
 
 ap = argparse.ArgumentParser()
 ap.add_argument("command", choices=("assemble", "run", "check"))
-ap.add_argument("mode", nargs="?", choices=("hotkey", "sheet", "nobook"), default="hotkey")
+ap.add_argument("mode", nargs="?", choices=("hotkey", "sheet", "nobook", "sheetnobook"), default="hotkey")
 args = ap.parse_args()
 if args.command == "assemble":
     assemble()

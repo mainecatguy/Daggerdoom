@@ -190,12 +190,10 @@ you only on a fresh install. Doom stays frozen while either is open.
 
 - The character sheet works as in Daggerfall. Its **Spellbook**, **Inventory** and **Logbook** buttons open those windows
   on top of it, and closing them takes you back to the sheet.
-- The spellbook works as in Daggerfall: browse your spells and their effects, sort them, and delete them. Backspace,
+- The spellbook works as in Daggerfall: browse your spells and their effects, sort, rename and delete them. Backspace,
   Escape or **Exit** closes it.
-- You need a spellbook in your inventory. Without one, Doom says "You have no spellbook!"
-- Casting from Doom is not finished. Choosing a spell in the spellbook readies it as in Daggerfall. A spell you cast on
-  yourself takes effect at once and costs its magicka, but Doom shows no casting animation yet. A spell aimed at others
-  stays ready, because Doom has no cast key yet.
+- You need a spellbook in your inventory. Without one, you are told "You have no spellbook!"
+- **You cannot cast spells yet.** Choosing a spell in the spellbook says so and does nothing else.
 
 ## Locked doors
 

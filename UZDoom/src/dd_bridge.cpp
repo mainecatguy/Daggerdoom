@@ -647,6 +647,7 @@ bool IsOpenMenuKey(long long lParam)
 	if ((lParam >> 24) & 1) key |= 0x80;
 	const FString &bound = Bindings.GetBinding(key);
 	if (uiId == DFB_UI_DAGGERFALL) return false; // No Doom control opened it. The player answers it in Daggerfall.
+	if (uiId == DFB_UI_SPELLBOOK && key == 0x0E) return false; // Backspace is Daggerfall's own spellbook key: it closes the book, and still types in its text boxes.
 	return bound.CompareNoCase(UiCommandName(uiId)) == 0;
 }
 

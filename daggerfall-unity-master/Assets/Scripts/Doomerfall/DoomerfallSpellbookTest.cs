@@ -131,6 +131,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 if (box != null)
                     list = box.SelectedIndex + "/" + box.Count;
             }
+            EffectBundleSettings first;
+            if (p.GetSpell(0, out first))
+                list += " first '" + first.Name + "'";
             EntityEffectManager effects = GameManager.Instance.PlayerEffectManager;
             EntityEffectBundle ready = effects ? effects.ReadySpell : null;
             return string.Format("top {0} | selected {1} spells {2} | magicka {3}/{4} hp {5}/{6} | ready {7} casting {8}",

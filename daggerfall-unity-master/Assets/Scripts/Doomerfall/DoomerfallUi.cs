@@ -490,6 +490,27 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return true;
         }
 
+        /// <summary>Choosing a spell in Daggerfall's spellbook. Casting from Doom is not built yet (backlog
+        /// magic-casting-and-self-spells), so in a bridge session the choice readies and casts nothing, and says so.</summary>
+        public static bool HoldsSpellChoice()
+        {
+            if (!instance)
+                return false;
+            DaggerfallUI.MessageBox("You cannot cast spells yet.");
+            instance.bridge.LogLine("ui: spell choice held, casting from Doom is not built yet");
+            return true;
+        }
+
+        /// <summary>Daggerfall refused its spellbook from inside a Doom menu (the character sheet's Spellbook button) with a
+        /// line on its hidden HUD, so the same line shows in the menu.</summary>
+        public static void NoSpellbook(string text)
+        {
+            if (!instance || !instance.windowOpen)
+                return;
+            DaggerfallUI.MessageBox(text);
+            instance.bridge.LogLine("ui: spellbook refused inside the menu, the player carries no spellbook");
+        }
+
         /// <summary>Daggerfall's Load window is showing in Doom (DFB_UI_LOAD_GAME).</summary>
         internal static bool LoadWindowOpen { get { return instance && instance.openId == Dfb.UI_LOAD_GAME; } }
 
