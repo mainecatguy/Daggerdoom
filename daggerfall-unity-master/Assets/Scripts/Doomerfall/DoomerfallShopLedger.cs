@@ -148,7 +148,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     continue;
                 if (item.ItemGroup == ItemGroups.Transportation && shelf.Items.Contains(item.ItemGroup, item.TemplateIndex))
                     continue;   // one horse, one cart
-                shelf.Items.AddItem(item, ItemCollection.AddPosition.Back, true);
+                shelf.Items.AddItem(item, ItemCollection.AddPosition.Back, !ammo);   // ammo joins a matching stack
             }
         }
 

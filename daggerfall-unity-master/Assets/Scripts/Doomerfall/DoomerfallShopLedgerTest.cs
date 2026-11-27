@@ -86,14 +86,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             StringBuilder sig = new StringBuilder();
             for (int d = 1; d <= Days; d++)
             {
-                if (d == SoldDay + 1)
+                Day(shelves, location, day0 + d, 30);
+                if (d == SoldDay)   // the player sells after the day's restock, as in game
                 {
                     playerSold = ItemBuilder.CreateWeapon(Weapons.Longsword, WeaponMaterialTypes.Steel);
                     ItemCollection basket = new ItemCollection();
                     basket.AddItem(playerSold);
                     DoomerfallShopLedger.PutOnShelves(basket, new List<DaggerfallLoot>(shelves));
                 }
-                Day(shelves, location, day0 + d, 30);
                 HashSet<DaggerfallUnityItem> now = new HashSet<DaggerfallUnityItem>();
                 foreach (DaggerfallLoot s in shelves)
                 {
@@ -144,8 +144,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 for (int b = 0; b < 4; b++)
                     Log(string.Format("  {0}: {1} sold off, mean {2:F1} days on the shelf; {3} still there at the end (mean age {4:F1} days)",
                         bands[b], left[b], left[b] > 0 ? (double)life[b] / left[b] : 0, stillThere[b], stillThere[b] > 0 ? (double)stillAge[b] / stillThere[b] : 0));
-                Log(string.Format("{0} player-sold steel longsword ({1} gold, {2:P0} a day): put on a shelf before day {3}, seen on day {4}, sold off on day {5}",
-                    playerSoldOn == SoldDay + 1 ? "PASS" : "FAIL", playerSold.value, DoomerfallShopLedger.SellChance(playerSold), SoldDay + 1, playerSoldOn,
+                Log(string.Format("{0} player-sold steel longsword ({1} gold, {2:P0} a day): sold to the shop on day {3}, seen on a shelf on day {4}, sold off on day {5}",
+                    playerSoldOn == SoldDay ? "PASS" : "FAIL", playerSold.value, DoomerfallShopLedger.SellChance(playerSold), SoldDay, playerSoldOn,
                     playerSoldGone < 0 ? "(still there)" : playerSoldGone.ToString()));
                 Log(string.Format("{0} expensive items linger longer than cheap ones", MeanLife(left, life, stillThere, stillAge, 0) < MeanLife(left, life, stillThere, stillAge, 2) ? "PASS" : "FAIL"));
             }
