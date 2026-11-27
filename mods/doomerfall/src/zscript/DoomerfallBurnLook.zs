@@ -1,7 +1,28 @@
-// The fire look for burning monsters (DoomerfallBurn.zs). Purely visual: no damage, no actors, no thinkers.
-// Particles (A_SpawnParticle) in fire colours rise over the monster's body: they work on any monster, need no mod
-// sprites (works without DRLA), and cost far less than one flame actor per monster, so hundreds can burn at once.
+// The fire look for burning monsters (DoomerfallBurn.zs). Purely visual: the flames never deal damage or block.
+// A light cut of the Schism mod's burn effect (its FlameTrails flame, sprites DDBF = Schism FRPR, art/README.md):
+// short flames rise off the body, more on bigger monsters, sized to the monster. No flares, smoke, or damage
+// actors. Chosen over engine particles (barely visible) and the Arch-vile flame (Doom II only, hides small monsters)
+// with screenshots and frame times: work/notes/20261127-134921.md.
 // Off with dd_burn_look 0; the burn damage keeps running.
+class DoomerfallBurnFlame : Actor
+{
+	Default
+	{
+		+NOINTERACTION
+		+NOBLOCKMAP
+		+NOGRAVITY
+		+NOTONAUTOMAP
+		RenderStyle "Add";
+		Scale 0.5;
+	}
+	States
+	{
+	Spawn:
+		DDBF ABCDEFGH 3 Bright;
+		Stop;
+	}
+}
+
 class DoomerfallBurnLook play
 {
 	static bool Enabled()
@@ -12,19 +33,20 @@ class DoomerfallBurnLook play
 
 	static void Draw(Actor v)
 	{
-		// One particle every 3 tics (about 7 alive per monster), staggered per monster so a pack does not pulse in step.
-		if ((Level.maptime + v.SpawnTime) % 3 != 0) return;
-		double r = v.radius * 0.8;
+		// Every 4 tics, staggered per monster so a pack does not pulse in step. Each flame lives 24 tics.
+		if ((Level.maptime + v.SpawnTime) % 4 != 0) return;
+		double r = v.radius * 0.7;
 		double h = v.height;
+		double s = 0.5 * clamp(h / 56.0, 0.6, 1.6);
+		// One flame per ZombieMan-sized area (20 x 56), up to 4.
+		int n = clamp(int(v.radius * h / 1120.0 + 0.5), 1, 4);
+		for (int k = 0; k < n; k++)
 		{
-			int colour = Random[DoomerfallBurnLook](0, 2);
-			Color c = colour == 0 ? Color(255, 255, 160, 0) : (colour == 1 ? Color(255, 255, 80, 0) : Color(255, 255, 220, 60));
-			v.A_SpawnParticle(c, SPF_FULLBRIGHT | SPF_RELATIVE, Random[DoomerfallBurnLook](18, 30),
-				FRandom[DoomerfallBurnLook](3, 6),
-				0,
-				FRandom[DoomerfallBurnLook](-r, r), FRandom[DoomerfallBurnLook](-r, r), FRandom[DoomerfallBurnLook](0, h * 0.8),
-				FRandom[DoomerfallBurnLook](-0.3, 0.3), FRandom[DoomerfallBurnLook](-0.3, 0.3), FRandom[DoomerfallBurnLook](0.8, 1.6),
-				0, 0, 0.02, 1.0, -1, -0.1);
+			let f = Actor.Spawn("DoomerfallBurnFlame",
+				v.Vec3Offset(FRandom[DoomerfallBurnLook](-r, r), FRandom[DoomerfallBurnLook](-r, r), FRandom[DoomerfallBurnLook](h * 0.15, h * 0.75)), NO_REPLACE);
+			if (!f) continue;
+			f.scale = (s, s);
+			f.vel = (v.vel.x + FRandom[DoomerfallBurnLook](-0.4, 0.4), v.vel.y + FRandom[DoomerfallBurnLook](-0.4, 0.4), FRandom[DoomerfallBurnLook](1.0, 2.0));
 		}
 	}
 }
