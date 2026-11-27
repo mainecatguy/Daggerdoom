@@ -90,6 +90,12 @@ every class, replaced by other skills, for example Running for the Assassin and 
 - An older save loads at the same level, with the same progress towards the next level. The class lists change to the
   new ones, but your skill values are kept as they were.
 
+### No Doom class
+
+Your Daggerfall class is your only class. New Game goes straight from Doom's menu to Daggerfall's character creation,
+with no Doom Roguelike Arsenal class menu, and your Doom character has no DRLA class perk (no Marine Ammochain and the
+like). You start with fists and a pistol. Perks come from your skills.
+
 ## Perks
 
 A skill earns a **perk** when it reaches 25, 50, 75 and 100.
