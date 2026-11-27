@@ -1417,12 +1417,23 @@ namespace
 	std::vector<TObjPtr<AActor *>> townNature;
 	int natureSpawned;
 
+	void LayoutNature(int px, int north, std::vector<DDNatureFlat> &out);
+
 	const std::vector<DDNatureFlat> &NatureOf(int px, int north)
 	{
 		const int key = north * WORLD_W + px;
 		auto found = natureCache.find(key);
 		if (found != natureCache.end()) return found->second;
 		if (natureCache.size() >= 16) natureCache.clear();
+		std::vector<DDNatureFlat> &out = natureCache[key];
+		LayoutNature(px, north, out);
+		return out;
+	}
+
+	// The pixel's flats from the rule, without the cache (the distant view keeps its own).
+	void LayoutNature(int px, int north, std::vector<DDNatureFlat> &out)
+	{
+		const int key = north * WORLD_W + px;
 		static std::vector<float> raw;
 		const float *heights;
 		short rect[4];
@@ -1441,9 +1452,7 @@ namespace
 				for (int y = 0; y <= PIXEL_TILES; y++) raw[size_t(x) * (PIXEL_TILES + 1) + y] = RawHeight(px, north, x, y);
 			heights = raw.data();
 		}
-		std::vector<DDNatureFlat> &out = natureCache[key];
 		DDNature_Layout(px, north, heights, int(SmallAt(px, WORLD_H - 1 - north)), hasRect ? rect : nullptr, out);
-		return out;
 	}
 
 	// The flats whose tile corner lies in global tiles [gx0, gx1) x [gy0, gy1), and on the town's ground if one is given.
@@ -2995,6 +3004,31 @@ bool DDTreadmill_HorizonFrame(DDHorizonFrame &f)
 float DDTreadmill_HorizonHeight(int gx, int gy)
 {
 	return SampleVertex(std::clamp(gx, 0, WORLD_W * PIXEL_TILES), std::clamp(gy, 0, WORLD_H * PIXEL_TILES));
+}
+
+void DDTreadmill_HorizonFlats(int px, int north, std::vector<DDHorizonFlat> &out)
+{
+	if (!dd_natureflats || px < 0 || px >= WORLD_W || north < 0 || north >= WORLD_H || smallMap.empty() || !DDNature_Load()) return;
+	const int archive = DDNature_Archive(px, north, DDTownCache::IsWinter());
+	FTextureID tex[32];
+	for (int r = 0; r < 32; r++) tex[r] = FlatTexture(FStringf("dfflat/F%03dR%02d.png", archive, r).GetChars());
+	static std::vector<DDNatureFlat> flats;
+	flats.clear();
+	LayoutNature(px, north, flats);
+	for (const DDNatureFlat &f : flats)
+	{
+		float sx, sy;
+		if (!tex[f.record].isValid() || !DDNature_Scale(archive, f.record, sx, sy)) continue;
+		out.push_back({ px * PIXEL_TILES + f.x, north * PIXEL_TILES + f.y, float(f.sink * DOOM_PER_DF), tex[f.record].GetIndex(), sx, sy });
+	}
+}
+
+// The same tests as SpawnNature: the overworld window's chunks, or a town map's walkable margin.
+bool DDTreadmill_HorizonMapHasFlat(int gx, int gy)
+{
+	if (DDTreadmill_Active) return gx >= originX && gx < originX + CELLS && gy >= originY && gy < originY + CELLS;
+	if (townActive && currentTown >= 0) return towns[currentTown].Near(gx, gy, towns[currentTown].margin);
+	return false;
 }
 
 void DD_QaTick(FLevelLocals *Level); // [Doomerfall] QA bot (dd_qa.cpp), inactive without -ddqa

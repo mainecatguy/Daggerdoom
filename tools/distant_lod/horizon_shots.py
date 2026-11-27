@@ -27,19 +27,20 @@ class HorizonShot : EventHandler
 {
 	static const double YAWS[] = { 0, 90, 180, 270 };
 	int view, phase, ox, oy;
-	bool have;
+	bool have, armed;
 	Vector2 start;
 
 	override void NetworkProcess(ConsoleEvent e)
 	{
 		if (e.Name == "hzview") view = e.Args[0];
 		else if (e.Name == "hzphase") phase = e.Args[0];
+		else if (e.Name == "hzarm") armed = true;
 	}
 
 	override void WorldTick()
 	{
 		let p = players[0].mo;
-		if (!p || level.maptime < 5) return;
+		if (!p || level.maptime < 5 || !armed) return;
 		bool over = level.MapName == "DDOVER01";
 		int cx = over ? CVar.FindCVar("dd_tm_originx").GetInt() : 0, cy = over ? CVar.FindCVar("dd_tm_originy").GetInt() : 0;
 		if (!have) { have = true; ox = cx; oy = cy; start = p.pos.xy; }
@@ -50,7 +51,7 @@ class HorizonShot : EventHandler
 			at = ((ox + 80 - cx) * 192.0 - 12288, (oy + 64 - cy) * 192.0 - 12288);
 			if (phase == 1) at.x += 2000;
 		}
-		p.SetOrigin((at.x, at.y, p.GetZAt(at.x, at.y, 0, GZF_ABSOLUTEPOS)), false);
+		p.SetOrigin((at.x, at.y, p.GetZAt(at.x, at.y, 0, GZF_ABSOLUTEPOS) + @RISE@), false);
 		p.vel = (0, 0, 0);
 		if (@ATX@ == 0) p.angle = YAWS[view];
 		p.pitch = @PITCH@;
@@ -78,8 +79,10 @@ def main():
     ap.add_argument("--exe", default=r"D:\dev\DoomDaggerfall-build\uzdoom-distantlod\Release\uzdoom.exe")
     ap.add_argument("--data", default=r"D:\dev\DoomDaggerfall-loop\review\arrival-spawn\data")
     ap.add_argument("--pitch", default="0")
+    ap.add_argument("--rise", default="0", help="camera height above the ground, as from a hilltop")
     ap.add_argument("--at", help="X,Y,YAW: a fixed local spot and facing on a location map (all four shots use it)")
     ap.add_argument("--drla", action="store_true")
+    ap.add_argument("--warp", help="overworld only: global tile 'X Y' to warp to first (dd_tm_warp)")
     ap.add_argument("--timeout", type=int, default=60)
     args = ap.parse_args()
 
@@ -90,7 +93,7 @@ def main():
     at = [v + ".0" for v in args.at.split(",")] if args.at else ["0.0", "0.0", "0.0"]
     harness = os.path.join(WORK, "horizon_shot.pk3")
     with zipfile.ZipFile(harness, "w") as z:
-        z.writestr("zscript.txt", ZS.replace("@PITCH@", args.pitch + ".0").replace("@ATX@", at[0]).replace("@ATY@", at[1]).replace("@ATYAW@", at[2]))
+        z.writestr("zscript.txt", ZS.replace("@PITCH@", args.pitch + ".0").replace("@RISE@", args.rise + ".0").replace("@ATX@", at[0]).replace("@ATY@", at[1]).replace("@ATYAW@", at[2]))
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "HorizonShot" }\n')
     ini = os.path.join(WORK, f"{args.name}.ini")
     with open(ini, "w", newline="\n") as f:
@@ -107,6 +110,7 @@ def main():
             # The turn is sent twice and given 50 tics: a shot once came out with the previous view's image.
             lines.append(f'netevent hzview {i}; wait 25; netevent hzview {i}; wait 25; screenshot \\"{shot}\\"; wait 10')
 
+    lines.append("netevent hzarm; wait 10")
     views("a")
     if over:
         lines.append("netevent hzphase 1; wait 70; netevent hzphase 2; wait 40")
@@ -119,7 +123,8 @@ def main():
         for i, l in enumerate(lines):
             f.write(f'alias hzstep{i} "{l}; hzstep{i + 1}"\n')
         # 12 s before the first shot: a nearby town's mesh streams in from the cache and would change the window.
-        f.write(f'alias hzstep{len(lines)} "quit"\nwait 420; hzstep0\n')
+        warp = f'wait 70; dd_tm_warp "{args.warp}"; ' if args.warp else ''
+        f.write(f'alias hzstep{len(lines)} "quit"\n{warp}wait 420; hzstep0\n')
 
     log = os.path.join(WORK, f"log-{args.name}.txt")
     if os.path.exists(log):

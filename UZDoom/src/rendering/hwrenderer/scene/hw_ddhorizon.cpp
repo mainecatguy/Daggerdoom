@@ -7,6 +7,8 @@
 // Everything is computed from world tile coordinates, so the ring is the same ground on every map that shows it and
 // stays put across treadmill shifts. Nothing is stored. Inside the map's own tiles nothing is drawn; a fine band (one
 // tile per quad) meets the map's terrain edge exactly, and coarse quads (four tiles) cover the rest.
+// The wilderness nature flats the map does not spawn itself stand on the ring as quads, from the same layout rule
+// (dd_nature.cpp) as the actors, so every map that shows a piece of ground shows the same trees there.
 // Inactive unless dd_treadmill.cpp reports a Daggerfall exterior. Collision and game logic are not touched.
 
 #include <algorithm>
@@ -21,6 +23,7 @@
 #include "hw_dfmesh.h"
 #include "hw_drawinfo.h"
 #include "playsim/dd_treadmill.h"
+#include "playsim/dd_towncache.h"
 #include "playsim/dd_log.h"
 #include "hw_material.h"
 #include "hw_modelvertexbuffer.h"
@@ -68,21 +71,82 @@ namespace
 	FModelVertexBuffer *buffer;
 	DFrameBuffer *bufferOwner;
 	Key built;
-	bool haveBuilt;
+	bool haveBuilt, builtWinter;
 	int vertexCount, anchorX, anchorY;
 	std::vector<FModelVertex> verts;
 
-	void Build(const Key &key, const DDHorizonFrame &f)
+	// The ground of a coarse quad (STEP tiles, on the world grid) at a tile corner, on the same diagonal as quad() below.
+	float CoarseHeight(int x, int y)
+	{
+		const int qx = FloorTo(x, STEP), qy = FloorTo(y, STEP);
+		const float u = float(x - qx) / STEP, v = float(y - qy) / STEP;
+		const float h00 = Height(qx, qy), h10 = Height(qx + STEP, qy), h11 = Height(qx + STEP, qy + STEP), h01 = Height(qx, qy + STEP);
+		return u >= v ? h00 + u * (h10 - h00) + v * (h11 - h10) : h00 + v * (h01 - h00) + u * (h11 - h01);
+	}
+
+	// Distant nature flats: the same layout the maps spawn as actors (dd_nature.cpp), by map pixel, with the sprite's
+	// size and offsets and the coarse ground under it. Only a cache: the layout is a pure function of the pixel.
+	struct RingFlat { int gx, gy, texture; float coarseZ, sink, left, right, top, bottom; };
+	std::unordered_map<int, std::vector<RingFlat>> pixelFlats;
+	struct FlatBatch { int texture, first, count; };
+	std::vector<FlatBatch> flatBatches;	// flat quads follow the terrain in the same buffer, one batch per texture
+	int flatCount;
+	bool flatsIncomplete;	// the last build lacked pixels that were not laid out yet
+	Key flatsBuilt;
+
+	constexpr int PIXEL = 128;
+	int PixelKey(int px, int north) { return north * 1000 + px; }
+
+	int laidOut;
+	double layoutMax, layoutTotal;	// pixel layouts since the last flats build, for the log
+	void LayOut(int px, int north)
 	{
 		const uint64_t start = I_nsTime();
-		if (heights.size() > 4000) heights.clear();
-		anchorX = key.cx;
-		anchorY = key.cy;
-		// The fine band around the map's own tiles, on the coarse grid.
-		const int fx0 = FloorTo(key.x0 - FINE_BAND, STEP), fx1 = CeilTo(key.x1 + FINE_BAND, STEP);
-		const int fy0 = FloorTo(key.y0 - FINE_BAND, STEP), fy1 = CeilTo(key.y1 + FINE_BAND, STEP);
+		static std::vector<DDHorizonFlat> raw;
+		raw.clear();
+		DDTreadmill_HorizonFlats(px, north, raw);
+		auto &out = pixelFlats[PixelKey(px, north)];
+		out.clear();
+		out.reserve(raw.size());
+		for (const DDHorizonFlat &fl : raw)
+		{
+			FGameTexture *tex = TexMan.GameByIndex(fl.texture);
+			if (!tex) continue;
+			const float left = -tex->GetDisplayLeftOffset() * fl.sx, top = tex->GetDisplayTopOffset() * fl.sy;
+			out.push_back({ fl.gx, fl.gy, fl.texture, CoarseHeight(fl.gx, fl.gy), fl.sink,
+				left, left + tex->GetDisplayWidth() * fl.sx, top, top - tex->GetDisplayHeight() * fl.sy });
+		}
+		const double ms = (I_nsTime() - start) / 1e6;
+		laidOut++;
+		layoutMax = std::max(layoutMax, ms);
+		layoutTotal += ms;
+	}
+
+	// The map pixels that reach into the ring around a key's chunk, nearest first.
+	void RingPixels(const Key &key, std::vector<int> &out)
+	{
+		out.clear();
+		const int c = key.cx, d = key.cy;	// the ring's centre, as in Build
+		std::vector<std::pair<double, int>> found;
+		for (int north = std::max(FloorDiv(d - RADIUS_TILES, PIXEL), 0); north <= std::min(FloorDiv(d + RADIUS_TILES, PIXEL), 499); north++)
+			for (int px = std::max(FloorDiv(c - RADIUS_TILES, PIXEL), 0); px <= std::min(FloorDiv(c + RADIUS_TILES, PIXEL), 999); px++)
+			{
+				const double dx = std::max({ px * PIXEL - c, 0, c - (px + 1) * PIXEL }), dy = std::max({ north * PIXEL - d, 0, d - (north + 1) * PIXEL });
+				if (dx * dx + dy * dy <= double(RADIUS_TILES) * RADIUS_TILES) found.push_back({ dx * dx + dy * dy, PixelKey(px, north) });
+			}
+		std::sort(found.begin(), found.end());
+		for (auto &p : found) out.push_back(p.second);
+	}
+
+	// The fine band around the map's own tiles, on the coarse grid.
+	struct Band
+	{
+		int fx0, fx1, fy0, fy1;
+		explicit Band(const Key &key) : fx0(FloorTo(key.x0 - FINE_BAND, STEP)), fx1(CeilTo(key.x1 + FINE_BAND, STEP)),
+			fy0(FloorTo(key.y0 - FINE_BAND, STEP)), fy1(CeilTo(key.y1 + FINE_BAND, STEP)) {}
 		// A fine vertex on the band's outer edge takes the coarse edge's height there, so the two meet without cracks.
-		auto fineHeight = [&](int x, int y) {
+		float FineHeight(int x, int y) const
+		{
 			if ((x == fx0 || x == fx1) && y % STEP)
 			{
 				const int a = FloorTo(y, STEP);
@@ -96,7 +160,19 @@ namespace
 				return Height(a, y) * (1 - t) + Height(a + STEP, y) * t;
 			}
 			return Height(x, y);
-		};
+		}
+	};
+
+	// The terrain ring. The flats are built on a later frame (BuildFlats), so one frame never does both.
+	void Build(const Key &key)
+	{
+		const uint64_t start = I_nsTime();
+		if (heights.size() > 4000) heights.clear();
+		anchorX = key.cx;
+		anchorY = key.cy;
+		const Band band(key);
+		auto fineHeight = [&](int x, int y) { return band.FineHeight(x, y); };
+		const int fx0 = band.fx0, fx1 = band.fx1, fy0 = band.fy0, fy1 = band.fy1;
 		verts.clear();
 		auto emit = [&](int x, int y, float h) {
 			FModelVertex v;
@@ -138,6 +214,85 @@ namespace
 		DD_DebugPrintf("DDHORIZON built %d triangles around tile %d,%d (map tiles %d..%d x %d..%d) in %.1f ms\n",
 			vertexCount / 3, key.cx, key.cy, key.x0, key.x1, key.y0, key.y1, (I_nsTime() - start) / 1e6);
 	}
+
+	FModelVertexBuffer *flatBuffer;
+	DFrameBuffer *flatBufferOwner;
+	int flatAnchorX, flatAnchorY;
+
+	void BuildFlats(const Key &key)
+	{
+		const uint64_t start = I_nsTime();
+		const Band band(key);
+		auto fineHeight = [&](int x, int y) { return band.FineHeight(x, y); };
+		const int fx0 = band.fx0, fx1 = band.fx1, fy0 = band.fy0, fy1 = band.fy1;
+		flatAnchorX = key.cx;
+		flatAnchorY = key.cy;
+		const int anchorX = flatAnchorX, anchorY = flatAnchorY;
+		verts.clear();
+
+		// Nature flats the running map does not spawn itself, inside the ring, from pixels already laid out (Draw lays
+		// out one missing pixel per frame and builds again when they are all there). Each is a quad turned to face the
+		// middle of the camera's chunk (rebuilt when the camera enters another chunk), sized and offset as its sprite.
+		// On the map's own tiles and in the fine band the flat stands on the exact ground; elsewhere on the coarse quad.
+		std::vector<int> ring;
+		RingPixels(key, ring);
+		std::unordered_map<int, std::vector<const RingFlat *>> byTexture;
+		const double flatR2 = double(RADIUS_TILES - STEP) * (RADIUS_TILES - STEP);
+		flatsIncomplete = false;
+		for (int pixel : ring)
+		{
+			auto found = pixelFlats.find(pixel);
+			if (found == pixelFlats.end()) { flatsIncomplete = true; continue; }
+			for (const RingFlat &fl : found->second)
+			{
+				const double dx = fl.gx - key.cx, dy = fl.gy - key.cy;
+				if (dx * dx + dy * dy > flatR2 || DDTreadmill_HorizonMapHasFlat(fl.gx, fl.gy)) continue;
+				byTexture[fl.texture].push_back(&fl);
+			}
+		}
+		flatBatches.clear();
+		flatCount = 0;
+		const float eyeX = float((key.cx + CHUNK / 2 - anchorX) * TILE), eyeY = float((key.cy + CHUNK / 2 - anchorY) * TILE);
+		for (auto &group : byTexture)
+		{
+			flatBatches.push_back({ group.first, int(verts.size()), int(group.second.size()) * 6 });
+			flatCount += int(group.second.size());
+			for (const RingFlat *fl : group.second)
+			{
+				const bool exact = (fl->gx >= key.x0 && fl->gx <= key.x1 && fl->gy >= key.y0 && fl->gy <= key.y1)
+					|| (fl->gx >= fx0 && fl->gx <= fx1 && fl->gy >= fy0 && fl->gy <= fy1);
+				const float z = (exact ? fineHeight(fl->gx, fl->gy) : fl->coarseZ) - fl->sink;
+				const float x = float((fl->gx - anchorX) * TILE), y = float((fl->gy - anchorY) * TILE);
+				float rx = y - eyeY, ry = eyeX - x;	// the viewer's right, across the line of sight
+				const float len = std::sqrt(rx * rx + ry * ry);
+				if (len > 0) { rx /= len; ry /= len; } else { rx = 1; ry = 0; }
+				auto corner = [&](float a, float h, float u, float v) {
+					FModelVertex vx;
+					vx.Set(x + rx * a, z + h, y + ry * a, u, v);
+					vx.SetNormal(0, 1, 0);
+					verts.push_back(vx);
+				};
+				corner(fl->left, fl->top, 0, 0); corner(fl->right, fl->top, 1, 0); corner(fl->right, fl->bottom, 1, 1);
+				corner(fl->left, fl->top, 0, 0); corner(fl->right, fl->bottom, 1, 1); corner(fl->left, fl->bottom, 0, 1);
+			}
+		}
+
+		delete flatBuffer;
+		flatBuffer = nullptr;
+		flatBufferOwner = screen;
+		flatsBuilt = key;
+		if (!verts.empty())
+		{
+			flatBuffer = new FModelVertexBuffer(false, true);
+			FModelVertex *out = flatBuffer->LockVertexBuffer(int(verts.size()));
+			std::copy(verts.begin(), verts.end(), out);
+			flatBuffer->UnlockVertexBuffer();
+		}
+		DD_DebugPrintf("DDHORIZON built %d flats (%d textures) around tile %d,%d in %.1f ms; %d pixels laid out before it, one per frame, longest %.1f ms, total %.1f ms\n",
+			flatCount, int(flatBatches.size()), key.cx, key.cy, (I_nsTime() - start) / 1e6, laidOut, layoutMax, layoutTotal);
+		laidOut = 0;
+		layoutMax = layoutTotal = 0;
+	}
 }
 
 void DDHorizon_Draw(HWDrawInfo *di, FRenderState &state)
@@ -151,7 +306,23 @@ void DDHorizon_Draw(HWDrawInfo *di, FRenderState &state)
 	// Rebuilt when the map's own tiles move (a treadmill shift or a new map) or the player enters another chunk.
 	const Key key{ f.x0, f.x1, f.y0, f.y1,
 		FloorTo(int(std::floor((camera->X() - f.offX) / TILE)), CHUNK), FloorTo(int(std::floor((camera->Y() - f.offY) / TILE)), CHUNK) };
-	if (!haveBuilt || !(built == key) || !buffer || bufferOwner != screen) Build(key, f);
+	const bool winter = DDTownCache::IsWinter();
+	if (winter != builtWinter) { pixelFlats.clear(); builtWinter = winter; flatsIncomplete = true; }	// the season picks the nature archive
+	// One heavy step per frame at most: the terrain when the key changes, else laying out one missing pixel's flats
+	// (nearest first), else the flats. Until the flats are built again the previous ones stay, in their own world place.
+	if (!haveBuilt || !(built == key) || !buffer || bufferOwner != screen) Build(key);
+	else if (flatsIncomplete || !(flatsBuilt == key) || flatBufferOwner != screen)
+	{
+		static std::vector<int> ring;
+		RingPixels(key, ring);
+		bool laid = false;
+		for (int pixel : ring)
+			if (!pixelFlats.count(pixel)) { LayOut(pixel % 1000, pixel / 1000); laid = true; break; }
+		if (!laid) BuildFlats(key);
+		if (pixelFlats.size() > ring.size() + 32)	// drop pixels the ring has left behind
+			for (auto it = pixelFlats.begin(); it != pixelFlats.end();)
+				it = std::find(ring.begin(), ring.end(), it->first) == ring.end() ? pixelFlats.erase(it) : std::next(it);
+	}
 	if (vertexCount == 0) return;
 
 	static FTextureID ground;
@@ -195,6 +366,19 @@ void DDHorizon_Draw(HWDrawInfo *di, FRenderState &state)
 	state.EnableModelMatrix(true);
 	state.SetMaterial(TexMan.GetGameTexture(ground, true), UF_Skin, 0, CLAMP_NONE, NO_TRANSLATION, -1);
 	state.Draw(DT_Triangles, 0, vertexCount);
+	if (flatBuffer && flatBufferOwner == screen && !flatBatches.empty())	// the distant nature flats, alpha tested like sprites
+	{
+		state.SetVertexBuffer(flatBuffer->vertexBuffer(), 0, 0);
+		state.mModelMatrix.loadIdentity();
+		state.mModelMatrix.translate(float(flatAnchorX * TILE + f.offX), float(f.offZ), float(flatAnchorY * TILE + f.offY));
+		state.AlphaFunc(Alpha_GEqual, 0.5f);
+		for (const FlatBatch &b : flatBatches)
+		{
+			state.SetMaterial(TexMan.GameByIndex(b.texture), UF_Skin, 0, CLAMP_XY, NO_TRANSLATION, -1);
+			state.Draw(DT_Triangles, b.first, b.count);
+		}
+		state.AlphaFunc(Alpha_GEqual, 0.f);
+	}
 	state.EnableModelMatrix(false);
 	state.EnableFog(true);
 	state.SetVertexBuffer(screen->mVertexData);
