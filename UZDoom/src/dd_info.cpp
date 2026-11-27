@@ -39,7 +39,8 @@ constexpr double AimSlack = 4.0;     // Billboards are thin, so the crosshair ma
 
 uint32_t nextRequest = 1, textRequest;
 std::string pending, hudPending;
-std::vector<std::string> hudHeld; // DFB_KIND_HUD_TEXT lines waiting for Daggerfall's menu to close
+struct HeldLine { std::string text; bool mid; uint32_t holdMs; };
+std::vector<HeldLine> hudHeld; // DFB_KIND_HUD_TEXT lines waiting for Daggerfall's menu to close
 
 bool IsNpc(const AActor *mo, bool &centered)
 {
@@ -72,12 +73,13 @@ void UseAsGrab(player_t *player)
 	DDTreadmill_PressDoor();
 }
 
-// Daggerfall's HUD text (top, centered) or mid-screen text, for the Doomerfall mod to draw.
-void Show(const std::string &text, bool mid)
+// Daggerfall's HUD text (top, centered) or mid-screen text, for the Doomerfall mod to draw. holdMs is how long
+// Daggerfall holds the line, 0 for its default.
+void Show(const std::string &text, bool mid, uint32_t holdMs = 0)
 {
 	Printf(PRINT_LOG, "%s\n", text.c_str());
 	FString name;
-	name.Format("%s%s", mid ? "dfhud_mid:" : "dfhud_top:", text.c_str());
+	name.Format("%s%u:%s", mid ? "dfhud_mid:" : "dfhud_top:", holdMs, text.c_str());
 	staticEventManager.Console(-1, name, 0, 0, 0, false, true);
 }
 
@@ -285,8 +287,8 @@ bool DD_InfoEvent(const dfb_event &e)
 		hudPending.append(t.text, strnlen(t.text, sizeof(t.text)));
 		if (e.flags & DFB_INFO_MORE) return true;
 		// Doom draws no HUD over a Daggerfall menu, so a line sent while one is open waits for it to close.
-		if (DD_BridgeUiActive()) hudHeld.push_back(hudPending);
-		else Show(hudPending, t.style == DFB_INFO_MID);
+		if (DD_BridgeUiActive()) hudHeld.push_back({hudPending, t.style == DFB_INFO_MID, t.request});
+		else Show(hudPending, t.style == DFB_INFO_MID, t.request);
 		hudPending.clear();
 		return true;
 	}
@@ -304,7 +306,7 @@ bool DD_InfoEvent(const dfb_event &e)
 // Daggerfall's menu closed: show the HUD lines that came while it was open.
 void DD_InfoUiClosed()
 {
-	for (const std::string &line : hudHeld) Show(line, false);
+	for (const HeldLine &line : hudHeld) Show(line.text, line.mid, line.holdMs);
 	hudHeld.clear();
 }
 

@@ -110,9 +110,9 @@ extern "C" {
    building door); Daggerfall answers with the name it knows, without running any interaction or changing any state. */
 #define DFB_KIND_LOOK          93  /* UZ to DF; payload: dfb_info_request, target DFB_INFO_NPC, _TOWNSPERSON, _PILE, _BUILDING or _DOOM_GUN */
 #define DFB_KIND_LOOK_TEXT     94  /* DF to UZ; the label for that request, empty for none; payload: dfb_info_text; DFB_INFO_MORE as on INFO_TEXT */
-/* A message Daggerfall shows on Doom's HUD by itself, not as an answer, such as a level-up. Doom shows it once no
-   Daggerfall menu is open. */
-#define DFB_KIND_HUD_TEXT      95  /* DF to UZ; payload: dfb_info_text, request 0; DFB_INFO_MORE as on INFO_TEXT */
+/* A message Daggerfall shows on its HUD by itself, not as an answer: every AddHUDText, PopupMessage and
+   SetMidScreenText outside an Info or Use capture, and the level-up line. Doom shows it once no Daggerfall menu is open. */
+#define DFB_KIND_HUD_TEXT      95  /* DF to UZ; payload: dfb_info_text, request = ms Daggerfall holds the line, 0 for its default; DFB_INFO_MORE as on INFO_TEXT */
 
 /* Doom items held by Daggerfall. A Doom item is named by the Doom world pickup class the player took. Daggerfall
    keeps the record in its inventory and save; Doom draws the sprite and applies the item when it is used. */

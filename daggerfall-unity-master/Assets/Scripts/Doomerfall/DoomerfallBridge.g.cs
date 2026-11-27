@@ -73,7 +73,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_INFO_NAME = 92;  // UZ to DF; a monster's Doom name, sent just before its DFB_KIND_INFO; payload: dfb_info_text
         public const ushort KIND_LOOK = 93;  // UZ to DF; payload: dfb_info_request, target DFB_INFO_NPC, _TOWNSPERSON, _PILE, _BUILDING or _DOOM_GUN
         public const ushort KIND_LOOK_TEXT = 94;  // DF to UZ; the label for that request, empty for none; payload: dfb_info_text; DFB_INFO_MORE as on INFO_TEXT
-        public const ushort KIND_HUD_TEXT = 95;  // DF to UZ; payload: dfb_info_text, request 0; DFB_INFO_MORE as on INFO_TEXT
+        public const ushort KIND_HUD_TEXT = 95;  // DF to UZ; payload: dfb_info_text, request = ms Daggerfall holds the line, 0 for its default; DFB_INFO_MORE as on INFO_TEXT
         public const ushort KIND_DOOM_ITEM_TAKE = 140;  // UZ to DF; the player pressed Use on a Doom item, which waits for the answer; payload: dfb_doom_item
         public const ushort KIND_DOOM_ITEM_RESULT = 141;  // DF to UZ; status DFB_ITEM_TAKEN, DFB_ITEM_TOO_HEAVY, or DFB_ITEM_REFUSED; payload: dfb_doom_item
         public const ushort KIND_DOOM_ITEM_USE = 142;  // DF to UZ; the player used this item in Daggerfall's inventory; payload: dfb_doom_item
