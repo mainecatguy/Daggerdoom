@@ -1,7 +1,7 @@
 """Tests Daggerfall's spellbook opened from Doom, from its own key and from the character sheet, in a paired run with both
 real games on quiet_run's private desktop.
 
-usage: spellbook.py assemble | run hotkey | run sheet | run nobook | check
+usage: spellbook.py assemble | run hotkey | run sheet | run nobook | run sheetnobook | run inventory | check
 All runs start outside Privateer's Hold with DRLA. Daggerfall's -dfspellbooktest gives the player a spellbook with two
 standard spells (the cheapest caster-only one first, the cheapest ranged one second) and full magicka, and logs the top
 window, the spellbook's selected row, magicka, the ready spell and whether a cast is playing. Doom's -dfuitest opens the
@@ -13,7 +13,10 @@ run hotkey: the spellbook opens on the first spell; Down and a click change the 
   closes it; choosing a spell casts nothing and says so; renaming a spell, Backspace deletes a letter.
 run sheetnobook: without a spellbook, the sheet's Spellbook button shows Daggerfall's line in the menu.
 run sheet: P's command opens the character sheet; its Spellbook button opens the spellbook inside the same Doom menu;
-  Backspace closes the spellbook back to the sheet (Daggerfall's own key); the sheet's Exit closes the menu.
+  choosing a spell there casts nothing and says so; Backspace closes the spellbook back to the sheet (Daggerfall's own
+  key); the sheet's Exit closes the menu.
+run inventory: the inventory's spellbook item (Magic tab, Use, click it) opens the spellbook in the same menu; choosing a
+  spell casts nothing and says so; Exit returns to the inventory.
 run nobook: without a spellbook, the key shows Daggerfall's "no spellbook" line on Doom's HUD and opens nothing.
 check: DOOM.WAD E1M1 with no bridge, stock and with the DRLA set, plus the new events doing nothing there, and -norun.
 """
@@ -35,10 +38,10 @@ sys.argv = argv
 REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\spellbook")
 SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\runtime-dungeons")  # Data, converter, item and sprite packages.
 BUILD = Path(r"D:\dev\DoomDaggerfall-build")
-UZ_BUILD = BUILD / "uzdoom-quiet" / "Release"  # Configured from this worktree (tools/spellbook/build_native.py).
+UZ_BUILD = BUILD / "uzdoom-spellbook" / "Release"  # Configured from this worktree (tools/spellbook/build_native.py).
 SOUND = BUILD / "uzdoom-launcher" / "Release"
-BRIDGE_DLL = BUILD / "bridge-quiet" / "Release" / "doomerfall_bridge.dll"
-LAUNCHER = BUILD / "launcher-quiet" / "Release" / "doomerfall-launcher.exe"
+BRIDGE_DLL = BUILD / "bridge-spellbook" / "Release" / "doomerfall_bridge.dll"
+LAUNCHER = BUILD / "launcher-spellbook" / "Release" / "doomerfall-launcher.exe"
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
 MODS = GAME.parent / "GameMods"
@@ -55,6 +58,11 @@ SHEET_SPELLBOOK = (101, 157)
 SHEET_EXIT = (69, 188)
 NAME_LABEL = (165, 23)  # The selected spell's name at (123,2) in the panel; a click renames it.
 MESSAGE_CLICK = (160, 100)
+# The inventory is a full 320x200 panel: Magic tab (93,0 69x10), Use (226,103 31x14), first item of the list at (163,48)
+# (9-pixel arrow column, then 50x38 items).
+INV_MAGIC_TAB = (127, 5)
+INV_USE = (241, 110)
+INV_FIRST_ITEM = (197, 67)
 VK_BACK, VK_DOWN, VK_RETURN = 0x08, 0x28, 0x0D
 BINDS = ["+bind", "backspace", "netevent df_spellbook", "+bind", "p", "netevent df_character"]
 
@@ -164,7 +172,7 @@ class Run:
     def go(self):
         for path in (self.uz_log, self.df_log, self.console, self.launcher, self.views):
             path.unlink(missing_ok=True)
-        menu, opens = {"hotkey": (12, 3), "sheet": (11, 1), "nobook": (12, 1), "sheetnobook": (11, 1)}[self.mode]
+        menu, opens = {"hotkey": (12, 3), "sheet": (11, 1), "nobook": (12, 1), "sheetnobook": (11, 1), "inventory": (2, 1)}[self.mode]
         uz = ["-noactivate", "-config", str(self.dir / "uz.ini"), "-savedir", str(self.dir / "saves"), "-dfbridgelog", str(self.uz_log), "-nosound", "-noautoload", "-skill", "3",
               "-ddtowncache", str(REVIEW / "data" / "cache"), "-ddconverter", str(REVIEW / "data" / "converter" / "DungeonConverter.exe"), "-ddarena2", str(GAME / "DAGGER" / "ARENA2"),
               "-dfuitest", str(opens), "+dd_ui_test_menu", str(menu), *BINDS, "+logfile", "spellbook", "+screenshot_dir", str(self.dir / "shots"), "+vid_fullscreen", "0", "+wipetype", "0",
@@ -291,12 +299,47 @@ class Run:
         time.sleep(0.3)
         s = self.state()
         self.case(s and s[1] == "1/2", f"the spellbook takes input there (Down selects {s and s[1]})")
+        self.held(doom)
         doom.press(VK_BACK)
         back = self.top_is("DaggerfallCharacterSheetWindow")
         self.case(back and "ui: closed" not in read(self.uz_log), "Backspace closes the spellbook back to the character sheet (Daggerfall's own key), the menu stays open")
         doom.click(SHEET_EXIT)
         ok, reasons = self.closed(1, "player closed it")
         self.case(ok and self.top_is("DaggerfallHUD"), f"the sheet's Exit closes the menu back to Doom ({reasons})")
+
+    def held(self, doom):
+        """Choosing the first spell (double click) in an open spellbook casts nothing and says so; a click closes the message."""
+        before = self.state()
+        closes = self.count(self.uz_log, r"ui: closed \(")
+        doom.double_click(FIRST_ROW)
+        box = self.top_is("DaggerfallMessageBox") and self.wait_count(self.df_log, r"spell choice held", self.count(self.df_log, r"spell choice held") + 1, 3)
+        time.sleep(2.0)
+        after = self.state()
+        self.case(box and before and after and after[3] == before[3] and after[4] == "none" and "casting True" not in read(self.views) and self.count(self.uz_log, r"ui: closed \(") == closes,
+                  f"choosing a spell casts nothing: a message box says so, magicka {before and before[3]} -> {after and after[3]}, ready {after and after[4]}, menu still open")
+        doom.click(MESSAGE_CLICK)
+        self.case(self.top_is("DaggerfallSpellBookWindow"), "a click closes the message, back to the spellbook")
+
+    def inventory(self):
+        """The route that existed before this work: the inventory's spellbook item (Magic tab, Use, click the book)."""
+        shown = self.opened(1, 2) and self.top_is("DaggerfallInventoryWindow")
+        self.case(shown, "the inventory command opens Daggerfall's inventory in Doom")
+        if not shown:
+            return
+        time.sleep(0.5)
+        doom = self.doom()
+        for point in (INV_MAGIC_TAB, INV_USE, INV_FIRST_ITEM):
+            doom.click(point)
+            time.sleep(0.4)
+        book = self.top_is("DaggerfallSpellBookWindow")
+        s = self.state()
+        self.case(book and s and s[2] == 2 and "ui: closed" not in read(self.uz_log), f"using the spellbook item opens the spellbook in the same Doom menu (state {s})")
+        if not book:
+            return
+        self.held(doom)
+        doom.click(BOOK_EXIT)
+        back = self.top_is("DaggerfallInventoryWindow")
+        self.case(back and "ui: closed" not in read(self.uz_log), "the spellbook's Exit returns to the inventory, the menu stays open")
 
     def nobook(self):
         asked = self.wait(self.uz_log, r"asked Daggerfall to open menu 12", 60)
@@ -358,7 +401,7 @@ def check():
 
 ap = argparse.ArgumentParser()
 ap.add_argument("command", choices=("assemble", "run", "check"))
-ap.add_argument("mode", nargs="?", choices=("hotkey", "sheet", "nobook", "sheetnobook"), default="hotkey")
+ap.add_argument("mode", nargs="?", choices=("hotkey", "sheet", "nobook", "sheetnobook", "inventory"), default="hotkey")
 args = ap.parse_args()
 if args.command == "assemble":
     assemble()

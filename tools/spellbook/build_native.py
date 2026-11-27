@@ -9,7 +9,8 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 BUILD = Path(r"D:\dev\DoomDaggerfall-build")
-TARGETS = {"uzdoom": ("UZDoom", "uzdoom-quiet"), "bridge": ("bridge", "bridge-quiet"), "launcher": ("launcher", "launcher-quiet")}
+# Folders of their own: the "-quiet" folders an earlier run used are configured from another lane's worktree.
+TARGETS = {"uzdoom": ("UZDoom", "uzdoom-spellbook"), "bridge": ("bridge", "bridge-spellbook"), "launcher": ("launcher", "launcher-spellbook")}
 log = BUILD / "spellbook-native.log"
 with open(log, "a") as out:
     for target in sys.argv[1:] or list(TARGETS):

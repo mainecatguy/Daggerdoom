@@ -193,8 +193,8 @@ you only on a fresh install. Doom stays frozen while either is open.
 - The spellbook works as in Daggerfall: browse your spells and their effects, sort, rename and delete them. Backspace,
   Escape or **Exit** closes it.
 - You need a spellbook in your inventory. Without one, you are told "You have no spellbook!"
-- Choosing a spell in a spellbook opened with Backspace or P says "You cannot cast spells yet." (casting from Doom is
-  not finished; this may change).
+- **You cannot cast spells yet.** Choosing a spell in the spellbook, however you opened it (Backspace, the character
+  sheet, the spellbook in your inventory, or the level-up sheet), says so and does nothing else.
 
 ## Locked doors
 

@@ -491,12 +491,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         }
 
         /// <summary>Choosing a spell in Daggerfall's spellbook. Casting from Doom is not built yet (backlog
-        /// magic-casting-and-self-spells), so a spellbook reached through this run's new key routes readies and casts
-        /// nothing, and says so. Routes that existed before (the inventory's spellbook item, the level-up sheet) stay stock
-        /// until the owner decides (work/notes/20261127-023449.md).</summary>
+        /// magic-casting-and-self-spells), so in a bridge session every route to the spellbook (its key, the character
+        /// sheet, the inventory's spellbook item, the level-up sheet) readies and casts nothing, and says so (owner,
+        /// 2026-11-27: the menu first, casting with the casting card).</summary>
         public static bool HoldsSpellChoice()
         {
-            if (!instance || (instance.openId != Dfb.UI_SPELLBOOK && instance.openId != Dfb.UI_CHARACTER))
+            if (!instance)
                 return false;
             DaggerfallUI.MessageBox("You cannot cast spells yet.");
             instance.bridge.LogLine("ui: spell choice held, casting from Doom is not built yet");
