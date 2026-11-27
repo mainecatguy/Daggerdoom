@@ -1,7 +1,8 @@
 """Look label names (test only): every visible Doom pickup is named by the Doomerfall mod's rule (DoomerfallItemName.Of),
 which the look label and Daggerfall's inventory use, for stock DOOM.WAD and with the DRLA set. No bridge.
 
-usage: looklabel.py names <uzdoom.exe> [--out <folder>]
+usage: looklabel.py names|e1m1 <uzdoom.exe> [--out <folder>]
+  e1m1: DOOM.WAD E1M1 with no Doomerfall files, alone and with the DRLA set; exit 0 and no fatal error.
   Runs E1M1 twice (stock, DRLA) with this worktree's doomerfall.pk3 (and doomerfall-drla.pk3 with DRLA) and
   tools/looklabel/harness.zs, then checks: no name is a pickup message ("Picked up ...", "You got ..."), no name is
   empty or holds a format code, and known items get their plain names (Stimpack, Medikit, ...).
@@ -82,9 +83,31 @@ def names(uzdoom, out):
     print("LOOK LABEL NAMES", "PASS" if ok else "FAIL")
 
 
+def e1m1(uzdoom, out):
+    """DOOM.WAD E1M1 alone and with play_drlax.bat's DRLA set, no Doomerfall files: the engine change stays inactive."""
+    ok = True
+    for label, files in (("e1m1-stock", []), ("e1m1-drla", [MODS / n for n in DRLA])):
+        log = out / f"log-{label}.txt"
+        log.unlink(missing_ok=True)
+        command = [sys.executable, QUIET, "--timeout", "30", "--cwd", str(out), "--", str(uzdoom), "-iwad", str(GAME / "wads" / "DOOM.WAD"),
+                   "-config", str(out / f"{label}.ini"), "-nosound", "-skill", "3", *(["-file", *map(str, files)] if files else []),
+                   "+logfile", label, "+map", "E1M1", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1",
+                   "+vid_lowerinbackground", "0", "+vid_fullscreen", "0", "+wait 175;quit"]
+        code = subprocess.call(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        body = log.read_text(errors="replace") if log.exists() else ""
+        fatal = [l for l in body.splitlines() if any(k in l for k in FATAL)]
+        entered = "E1M1" in body
+        print(f"{label}: exit {code}, entered E1M1 {entered}, fatal {len(fatal)}, script errors {body.count('Script error')}")
+        ok &= code == 0 and entered and not fatal
+    print("E1M1", "PASS" if ok else "FAIL")
+
+
 if __name__ == "__main__":
-    if len(sys.argv) < 3 or sys.argv[1] != "names":
+    if len(sys.argv) < 3 or sys.argv[1] not in ("names", "e1m1"):
         sys.exit(__doc__)
+    if sys.argv[1] == "e1m1":
+        e1m1(Path(sys.argv[2]), Path(r"D:\dev\DoomDaggerfall-loop\review\looklabel-tests"))
+        sys.exit()
     folder = Path(sys.argv[sys.argv.index("--out") + 1]) if "--out" in sys.argv else Path(r"D:\dev\DoomDaggerfall-loop\review\looklabel-tests")
     folder.mkdir(parents=True, exist_ok=True)
     report = open(folder / "summary.txt", "w", encoding="utf-8")  # Everything printed also goes here.
