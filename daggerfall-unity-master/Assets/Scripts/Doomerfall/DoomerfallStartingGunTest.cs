@@ -43,8 +43,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bridge.LogLine("startguntest: holding the class skills: " + skills);
         }
 
-        // Untrained values as character creation rolls them (3-6), chosen so that the old "highest of the six" rule would
-        // pick the carbine and the shotgun (both 6) for a character with no gun class skill.
+        // Untrained values as character creation rolls them (3-6), chosen so that a character with no gun class skill
+        // ties Rifles and Shotguns (both 6) and gets the carbine and the shotgun.
         static readonly DFCareer.Skills[] Seven = { DFCareer.Skills.Pistols, DFCareer.Skills.Rifles, DFCareer.Skills.Automatics,
             DFCareer.Skills.Shotguns, DFCareer.Skills.Explosives, DFCareer.Skills.Melee, DFCareer.Skills.EnergyWeapons };
         static readonly short[] Untrained = { 3, 6, 5, 6, 4, 5, 4 };

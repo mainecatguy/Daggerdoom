@@ -10,8 +10,8 @@
 //
 // DRLA's gun when DRLA is loaded, stock Doom's otherwise; the Light Carbine is the Doomerfall mod's either way. Only these
 // six skills count, compared by value whether trained or not (not Hand-to-Hand, Daggerfall's weapon skills, or Energy
-// Weapons, which comes later). The starter pistol stays only when all six are 0. Whether an untrained 3-6 roll should
-// pick the gun is an open question for the owner (work/notes/20261126-231433.md). Ties give every tied
+// Weapons, which comes later). Class skill or not makes no difference (owner, 2026-11-27): a class with none of
+// the six gets its best untrained roll's gun. The starter pistol stays only when all six are 0. Ties give every tied
 // gun; each ammo type comes once, the largest amount any tied gun gets, so a Pistols and Rifles tie gets N bullets, not
 // 2N. The first tied gun in the table's order is drawn. Every gun goes on its weapon slot key while that key has room.
 // Doom keeps only its fist; the kit is made of real Daggerfall items, and Daggerfall's ammo stacks set Doom's counters.
