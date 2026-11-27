@@ -38,6 +38,8 @@ def args():
     p.add_argument("--extra-df", nargs="*", default=[])
     p.add_argument("--menutext", action="store_true", help="Daggerfall's -dfmenutexttest <out>: Casual Pants in the info "
                    "panel, then character sheet, shop and talk; Daggerfall's own renders saved as <out>/dfu-*.png")
+    p.add_argument("--backdrop", action="store_true", help="Daggerfall's -dfmenubackdroptest <out>: small and full-screen "
+                   "windows over the inventory in turn; Daggerfall's renders with alpha saved as <out>/dfu-*.png")
     p.add_argument("--drive", action="store_true", help=argparse.SUPPRESS)
     return p.parse_args()
 
@@ -56,7 +58,8 @@ def launcher_command(a, here, out):
           "+win_w", w, "+win_h", h, "+vid_scalemode", "0", "+vid_scalefactor", "1",
           "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"] + a.extra_uz
     df = ["-dfbridgelog", out / "df.log", "-dfsynctest", RES + "\\DAGGER", "-screen-fullscreen", "0",
-          "-screen-width", dw, "-screen-height", dh] + a.extra_df + (["-dfmenutexttest", out] if a.menutext else [])
+          "-screen-width", dw, "-screen-height", dh] + a.extra_df + (["-dfmenutexttest", out] if a.menutext else []) + \
+        (["-dfmenubackdroptest", out] if a.backdrop else [])
     cmd = [str(here / "doomerfall-launcher.exe"), "--show-dfu", "--nodraw",  # Not --minimized: a minimized Doom renders at 320x200.
            "--uzdoom", str(here / "uzdoom/uzdoom.exe"), "--dfu", str(here / "dfu/DaggerfallUnity.exe"),
            "--iwad", RES + "\\wads\\DOOM2.WAD", "--uzdoom-cwd", str(out), "--log", str(out / "launcher.log")]

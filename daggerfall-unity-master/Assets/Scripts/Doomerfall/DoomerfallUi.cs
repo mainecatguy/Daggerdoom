@@ -260,6 +260,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
             IUserInterfaceManager manager = DaggerfallUI.UIManager;
             bool atHud = manager.TopWindow == null || manager.TopWindow is DaggerfallHUD;
+            // Transparent around windows, so Doom can show its view behind small ones. With only the HUD up (a fast
+            // travel settling, a fade) the frame stays black, as before.
+            if (target)
+                target.ClearColor = atHud ? Color.black : Color.clear;
             if (bridge.LogEnabled && manager.TopWindow != lastTop)
             {
                 lastTop = manager.TopWindow;

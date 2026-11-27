@@ -361,6 +361,27 @@ void HandleEvent(const dfb_event &e, int64_t now)
 // While one is open Doom is paused, draws the newest frame, and forwards all input.
 //==========================================================================
 
+// Daggerfall clears its menu render to transparent, so the Doom view shows around a small window. Unity's UI blending
+// also blends the alpha channel (alpha = a*a + dst*(1-a)), so the frame's alpha is not plain coverage. Over an opaque
+// panel it never drops below 0.75: that is opaque, already composited. Below that the pixel lay over the clear: its
+// coverage is sqrt(alpha) and its colour was premultiplied by it, which Doom's blend needs undone.
+struct DDUiAlphaFix
+{
+	uint8_t alpha[256];
+	uint16_t unpremultiply[256]; // 8.8 fixed point
+
+	DDUiAlphaFix()
+	{
+		for (int a = 0; a < 256; a++)
+		{
+			const int coverage = a >= OpaqueFrom ? 255 : int(std::sqrt(a / 255.0) * 255.0 + 0.5);
+			alpha[a] = uint8_t(coverage);
+			unpremultiply[a] = uint16_t(a >= OpaqueFrom || !coverage ? 256 : std::min(65535, 65280 / coverage));
+		}
+	}
+	static constexpr int OpaqueFrom = 190; // 0.75 * 255, less a readback rounding step
+};
+
 class DDUiTexture : public FTexture
 {
 	TArray<uint8_t> image;
@@ -368,13 +389,44 @@ class DDUiTexture : public FTexture
 public:
 	void SetFrame(const void *bgra, int width, int height)
 	{
+		static const DDUiAlphaFix fix;
 		if (width != Width || height != Height)
 		{
 			FTexture::SetSize(width, height);
 			image.Resize(width * height * 4);
 		}
-		memcpy(image.Data(), bgra, image.Size());
+		// Daggerfall's windows are laid out on a 320x200 panel centred in the frame. A full-screen window covers it.
+		const double s = std::min(width / 320.0, height / 200.0);
+		const int px0 = int((width - 320 * s) / 2) + 2, px1 = int((width + 320 * s) / 2) - 2;
+		const int py0 = int((height - 200 * s) / 2) + 2, py1 = int((height + 200 * s) / 2) - 2;
+		int64_t clearInPanel = 0;
+		const uint8_t *in = static_cast<const uint8_t *>(bgra);
+		uint8_t *out = image.Data();
+		int x = -1, y = 0;
+		for (size_t i = 0, n = image.Size(); i < n; i += 4)
+		{
+			if (++x == width)
+			{
+				x = 0;
+				y++;
+			}
+			const uint8_t a = in[i + 3];
+			if (a == 255 || a == 0)
+			{
+				memcpy(out + i, in + i, 4);
+				if (!a) clearInPanel += x >= px0 && x < px1 && y >= py0 && y < py1;
+				continue;
+			}
+			const unsigned scale = fix.unpremultiply[a];
+			out[i] = uint8_t(std::min(255u, (in[i] * scale) >> 8));
+			out[i + 1] = uint8_t(std::min(255u, (in[i + 1] * scale) >> 8));
+			out[i + 2] = uint8_t(std::min(255u, (in[i + 2] * scale) >> 8));
+			out[i + 3] = fix.alpha[a];
+		}
+		coversPanel = clearInPanel * 100 <= int64_t(std::max(0, px1 - px0)) * std::max(0, py1 - py0);
 	}
+
+	bool coversPanel = true; // At most 1% of the 320x200 panel is clear: a full-screen window, shown on black.
 
 	FBitmap GetBgraBitmap(const PalEntry *, int *) override
 	{
@@ -941,7 +993,10 @@ void DD_BridgeDrawUi()
 		return;
 	}
 	if (uiState == UiClosed) return;
-	Dim(twod, 0, 1.f, 0, 0, twod->GetWidth(), twod->GetHeight());
+	// The paused Doom view shows around a small window (merchant, message box). Full-screen windows, and new game and
+	// load, stay on black as before.
+	if (!uiHasFrame || uiPixels[uiActiveTexture]->coversPanel || uiId == DFB_UI_NEW_GAME || uiId == DFB_UI_LOAD_GAME)
+		Dim(twod, 0, 1.f, 0, 0, twod->GetWidth(), twod->GetHeight());
 	if (!uiHasFrame) return;
 	int x, y, w, h;
 	UiRect(x, y, w, h);

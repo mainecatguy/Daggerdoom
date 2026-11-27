@@ -1446,7 +1446,7 @@ void D_Display ()
 		CT_Drawer ();
 
 		// draw pause pic
-		if ((paused || pauseext) && menuactive == MENU_Off && StatusBar != nullptr)
+		if ((paused || pauseext) && menuactive == MENU_Off && StatusBar != nullptr && !DD_BridgeUiActive()) // Doomerfall: a Daggerfall menu over the view says enough
 		{
 			// [MK] optionally let the status bar handle this
 			bool skip = false;
