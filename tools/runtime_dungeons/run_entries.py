@@ -51,6 +51,8 @@ def main():
     ap.add_argument("--converter", type=Path, required=True)
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--timeout", type=int, default=75)
+    ap.add_argument("--dfu-flag", action="append", default=[], help="one more Daggerfall argument (repeatable), such as -dfarealevel")
+    ap.add_argument("--uz-flag", action="append", default=[], help="one more UZDoom argument (repeatable), such as -ddloadingtest")
     ap.add_argument("targets", nargs="+")
     args = ap.parse_args()
     cache = args.out / "cache"
@@ -103,7 +105,9 @@ def main():
               "-ddconverter", str(args.converter), "-ddarena2", str(GAME / "DAGGER" / "ARENA2"), "-noautoload", "-skill", "3",
               "+logfile", "console", "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1",
               "+vid_lowerinbackground", "0", "+map", f"DDT{group:05d}"]
+        uz += args.uz_flag
         df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
+        df += args.dfu_flag
         command = [sys.executable, QUIET, "--timeout", str(args.timeout), "--", str(args.kit / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                    "--uzdoom", args.uzdoom, "--dfu", str(args.kit / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
                    "--uzdoom-cwd", str(run), "--log", str(run / "launcher.log")]

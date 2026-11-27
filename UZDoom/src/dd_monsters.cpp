@@ -472,15 +472,18 @@ void SpawnPass(FLevelLocals *Level, const std::vector<Placement> &list, const st
 }
 
 // A dungeon arrival's plan and spawn can block the main thread for seconds (a level-30 Privateer's Hold: about 1.9 s).
-// A big one first puts the loading message on screen (dd_loading.cpp), and runs a tic later. Big: many encounter
-// markers (Privateer's Hold has 42; a level-30 army plans thousands of mooks from them), or a slow spawn here before.
+// A big one first puts the loading message on screen (dd_loading.cpp), and runs a tic later. Big: this dungeon's spawn
+// took SlowMs or more earlier this session, or, not known yet, its encounter markers times the area level reach
+// BigEstimate (the army grows with both: Privateer's Hold, 42 markers, takes 0.35 s at level 1 and 1.9 s at level 30;
+// a level-17 spider nest, 55 markers, 31 ms).
 bool SpawnMayRun()
 {
-	constexpr size_t BigMarkers = 30;
-	constexpr double SlowMs = 250;
+	constexpr double SlowMs = 250, BigEstimate = 1000;
 	const bool leaders = leadersPending && incomingFacts.have && incomingFacts.area.map_id == dungeonMapId;
+	if (!leaders || DD_LoadingShown()) return true;
 	const auto known = spawnMs.find(dungeonMapId);
-	if (!leaders || (markers.size() < BigMarkers && (known == spawnMs.end() || known->second < SlowMs)) || DD_LoadingShown()) return true;
+	const double estimate = double(markers.size()) * std::max(1, int(incomingFacts.area.area_level));
+	if (known != spawnMs.end() ? known->second < SlowMs : estimate < BigEstimate) return true;
 	DD_LoadingHold("dungeon spawn", true);
 	return false;
 }
