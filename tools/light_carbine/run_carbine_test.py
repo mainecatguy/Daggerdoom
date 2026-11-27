@@ -31,7 +31,7 @@ RIFLE_TICS = 4                 # The Battle Rifle's shot: Y Z V B (or W A), one 
 # run in order, counting game tics). After the handler has set up, a round: an alt-fire press (the handler starts on it, emptying the magazine), one pull on
 # the empty gun, a 40-tic hold, 25 taps two tics down and two up, the reload key, and a last 40-tic hold for DRLA's
 # Battle Rifle.
-ROUND = ('wait 300; +altattack; wait 2; -altattack; wait 30; +attack; wait 2; -attack; wait 100; +attack; wait 40; -attack; wait 20; '
+ROUND = ('wait 400; +altattack; wait 6; -altattack; wait 30; +attack; wait 2; -attack; wait 100; +attack; wait 40; -attack; wait 20; '
          + '+attack; wait 2; -attack; wait 2; ' * 25
          + 'wait 20; +reload; wait 6; -reload; wait 150; +attack; wait 40; -attack')
 
@@ -114,6 +114,17 @@ def fire_checks(name, lines, checks, drla):
     after = [e[2] for e in between(reload_at, len(ev), 'CARBINE mag')]
     ok = before and after and after[-1][0] == 20 and after[-1][1] == before[-1][1] - (20 - before[-1][0])
     checks.append((f'{name}: the reload key fills the magazine from the reserve', bool(ok), (before[-1:], after[-1:])))
+    # 5. Reload frames as DRLA's Battle Rifle: N-U on the empty magazine, C-J with rounds left.
+    frames = [(int(m.group(3)), m.group(1), int(m.group(2))) for m in
+              (re.search(r'CARBINE frame=([A-Z]) mag=(\d+) tic=(\d+)', l) for l in lines) if m]
+    # K-M are the shared magazine-in frames at the end of both reloads (DRLA's ReloadWorking), so not compared.
+    empty = {f for t, f, mag in frames if ev[presses[0]][1] <= t < ev[presses[1]][1] and f not in 'KLM'}
+    partial = {(f, mag > 0) for t, f, mag in frames if t >= ev[reload_at][1] and f not in 'KLM'}
+    checks.append((f'{name}: the empty-magazine reload plays frames N-U', empty == set('NOPQRSTU'), sorted(empty)))
+    checks.append((f'{name}: the reload with rounds left plays frames C-J', {f for f, _ in partial} == set('CDEFGHIJ')
+                   and all(left for _, left in partial), sorted(partial)))
+    pick = value(lines, r'CARBINE pickup has=(\d+) firstClip=(\d+) secondClip=(\d+)')
+    checks.append((f'{name}: the first carbine picked up gives no bullets, another gives 20', pick == (1, 0, 20), pick))
     damage = [e[2] for e in ev if e[0] == 'CARBINE hit']
     checks.append((f'{name}: every carbine hit is 6 x 1d3 (6, 12 or 18)', bool(damage) and set(damage) <= CARBINE_DAMAGE,
                    sorted(set(damage))))

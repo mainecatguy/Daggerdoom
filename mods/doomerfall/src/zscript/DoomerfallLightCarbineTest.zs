@@ -13,7 +13,7 @@ class DoomerfallLightCarbineTest : StaticEventHandler
 	bool finished;
 	Actor target;
 	int riflesSpawned, carbinesSpawned;
-	int lastButtons, lastAlt, lastMag, lastReserve, reloadTic;
+	int lastButtons, lastAlt, lastMag, lastReserve, reloadTic, lastFrame;
 	bool sawPress;
 
 	override void WorldLoaded(WorldEvent e)
@@ -92,12 +92,29 @@ class DoomerfallLightCarbineTest : StaticEventHandler
 				Console.Printf("CARBINE mag=%d reserve=%d tic=%d", mag, reserve, level.maptime);
 			lastMag = mag;
 			lastReserve = reserve;
+			// Reload frames (C to U): the runner checks C-J with rounds left and N-U on an empty magazine, as DRLA.
+			let psp = p.FindPSprite(PSP_WEAPON);
+			int frame = psp && p.ReadyWeapon && p.ReadyWeapon.GetClassName() == 'DoomerfallLightCarbine' && psp.Sprite == Actor.GetSpriteIndex('DFLC') ? psp.Frame : -1;
+			if (phase == 2 && frame != lastFrame && frame >= 2 && frame <= 20)
+				Console.Printf("CARBINE frame=%c mag=%d tic=%d", 65 + frame, mag, level.maptime);
+			lastFrame = frame;
 		}
 		lastAlt = lastButtons;
 		lastButtons = buttons;
 		switch (phase)
 		{
 		case 0:
+		{
+			// Pickups, as DRLA's Battle Rifle: the first gives only the gun, another gives 20 bullets.
+			mo.SetInventory("Clip", 0);
+			let first = Inventory(Actor.Spawn("DoomerfallLightCarbine", mo.pos));
+			first.CallTryPickup(mo);
+			int afterFirst = mo.CountInv("Clip");
+			let second = Inventory(Actor.Spawn("DoomerfallLightCarbine", mo.pos));
+			second.CallTryPickup(mo);
+			Console.Printf("CARBINE pickup has=%d firstClip=%d secondClip=%d", mo.CountInv("DoomerfallLightCarbine"), afterFirst, mo.CountInv("Clip"));
+			if (second && !second.Owner) second.Destroy();
+		}
 			mo.GiveInventory("DoomerfallLightCarbine", 1);
 			mo.SetInventory("DoomerfallLightCarbineClip", 0);
 			mo.SetInventory("Clip", 100);
