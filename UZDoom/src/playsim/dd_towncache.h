@@ -17,6 +17,7 @@ namespace DDTownCache
 	struct Entry
 	{
 		std::unordered_map<std::string, std::vector<uint8_t>> lumps;
+		bool winter = false;	// [Doomerfall] read from a winter file (T<id>W.ddt): Daggerfall's winter textures
 		const std::vector<uint8_t> *Find(const char *name) const
 		{
 			auto it = lumps.find(name);

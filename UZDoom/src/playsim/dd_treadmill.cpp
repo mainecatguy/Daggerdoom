@@ -210,6 +210,7 @@ namespace
 
 	// Generated locations. The index comes from the DDGROUPS lump, and map data comes from the town cache.
 	constexpr int REQUEST_TILES = 100, SCAN_TICS = 8, FLAT_CHUNKS_PER_TIC = 2, RUNTIME_MESH_KEY = 1 << 24;
+	constexpr int WINTER_MESH_KEY = 1 << 30;	// [Doomerfall] added for a winter mesh, so a season change uploads the other one
 	struct RuntimeGroup { std::vector<TileRect> rects; TileRect box{}; bool tooLarge = false; int town = -1; };
 	std::vector<RuntimeGroup> groups;
 	bool runtimeTowns;
@@ -466,9 +467,52 @@ namespace
 		return nullptr;
 	}
 
+	// [Doomerfall] Daggerfall Unity's ground tiles (DefaultTerrainTexturing, dd_nature.cpp) in the pixel's climate and
+	// season, as the town meshes draw them, so the open ground meets a town with no seam. baseFloor without DDNATURE.
+	std::unordered_map<int, std::vector<uint8_t>> tileCache;	// key north * WORLD_W + px
+	std::unordered_map<int, FTextureID> groundTextures;			// key archive * 64 + record
+	bool groundWinter;
+
+	const float *PixelHeights(int px, int north, short *rect, bool &hasRect);
+	FTextureID FlatTexture(const char *name);
+
+	const uint8_t *TilesOf(int px, int north)
+	{
+		const int key = north * WORLD_W + px;
+		auto found = tileCache.find(key);
+		if (found != tileCache.end()) return found->second.data();
+		if (tileCache.size() >= 16) tileCache.clear();
+		short rect[4];
+		bool hasRect;
+		const float *heights = PixelHeights(px, north, rect, hasRect);
+		std::vector<uint8_t> &tiles = tileCache[key];
+		tiles.resize(size_t(PIXEL_TILES) * PIXEL_TILES);
+		DDNature_Tiles(px, north, heights, tiles.data());
+		return tiles.data();
+	}
+
+	// The floor texture and its rotation for global tile gx, gy. The flat's 192-unit repeat matches the tile grid, and
+	// Daggerfall Unity's rotate and flip are quarter turns of the tile image.
+	FTextureID GroundAt(int gx, int gy, DAngle &angle)
+	{
+		angle = nullAngle;
+		DDNature_Load();	// the climates; without DDNATURE every pixel is woodland, as for the nature flats
+		const int px = std::clamp(gx / PIXEL_TILES, 0, WORLD_W - 1), north = std::clamp(gy / PIXEL_TILES, 0, WORLD_H - 1);
+		const uint8_t tile = TilesOf(px, north)[std::clamp(gx - px * PIXEL_TILES, 0, PIXEL_TILES - 1) + std::clamp(gy - north * PIXEL_TILES, 0, PIXEL_TILES - 1) * PIXEL_TILES];
+		const int key = DDNature_GroundArchive(px, north, groundWinter) * 64 + (tile & 63);
+		auto id = groundTextures.find(key);
+		if (id == groundTextures.end())
+			id = groundTextures.emplace(key, FlatTexture(FStringf("dfmesh/a%03dr%02d.png", key / 64, key % 64).GetChars())).first;
+		if (!id->second.isValid()) return baseFloor;
+		static const double turns[4] = { 0, 270, 180, 90 };	// none, rotate, flip, both (CityExport.AddTerrain's UVs)
+		angle = DAngle::fromDeg(turns[tile >> 6]);
+		return id->second;
+	}
+
 	void RewriteGrid()
 	{
 		const Town *lod = LodTown();
+		groundWinter = DDTownCache::IsWinter();
 		for (auto &t : tris)
 		{
 			DVector3 p[3];
@@ -484,7 +528,10 @@ namespace
 			// Where a town's mesh supplies the ground, the grid's own floor is not drawn. Collision is unchanged.
 			const double cx = originX + ((p[0].X + p[1].X + p[2].X) / 3 + HALF) / SPACING, cy = originY + ((p[0].Y + p[1].Y + p[2].Y) / 3 + HALF) / SPACING;
 			const bool covered = lod && cx >= lod->visual.x0 && cx < lod->visual.x1 && cy >= lod->visual.y0 && cy < lod->visual.y1;
-			t.sec->SetTexture(sector_t::floor, covered ? FNullTextureID() : baseFloor, false);
+			DAngle angle;
+			const FTextureID ground = covered ? FNullTextureID() : GroundAt(int(floor(cx)), int(floor(cy)), angle);
+			t.sec->SetTexture(sector_t::floor, ground, false);
+			if (!covered) t.sec->SetAngle(sector_t::floor, angle);
 			// NaN never equals the plane's TexZ, so the renderer re-uploads
 			// this floor the next time the sector is actually drawn.
 			for (auto &vbo : t.sec->vboheight)
@@ -1421,6 +1468,22 @@ namespace
 	int natureSpawned;
 
 	void LayoutNature(int px, int north, std::vector<DDNatureFlat> &out);
+	// The pixel's 129 x 129 heights after location blending (valid until the next call), and its location rectangle.
+	const float *PixelHeights(int px, int north, short *rect, bool &hasRect)
+	{
+		static std::vector<float> raw;
+		auto loc = locRects.find(north * WORLD_W + px);
+		hasRect = loc != locRects.end();
+		if (hasRect)
+		{
+			rect[0] = loc->second.x0; rect[1] = loc->second.x1; rect[2] = loc->second.y0; rect[3] = loc->second.y1;
+			return BlendedPixel(px, north, loc->second).data();
+		}
+		raw.resize(size_t(PIXEL_TILES + 1) * (PIXEL_TILES + 1));
+		for (int x = 0; x <= PIXEL_TILES; x++)
+			for (int y = 0; y <= PIXEL_TILES; y++) raw[size_t(x) * (PIXEL_TILES + 1) + y] = RawHeight(px, north, x, y);
+		return raw.data();
+	}
 
 	const std::vector<DDNatureFlat> &NatureOf(int px, int north)
 	{
@@ -1436,25 +1499,9 @@ namespace
 	// The pixel's flats from the rule, without the cache (the distant view keeps its own).
 	void LayoutNature(int px, int north, std::vector<DDNatureFlat> &out)
 	{
-		const int key = north * WORLD_W + px;
-		static std::vector<float> raw;
-		const float *heights;
 		short rect[4];
-		bool hasRect = false;
-		auto loc = locRects.find(key);
-		if (loc != locRects.end())
-		{
-			heights = BlendedPixel(px, north, loc->second).data();
-			rect[0] = loc->second.x0; rect[1] = loc->second.x1; rect[2] = loc->second.y0; rect[3] = loc->second.y1;
-			hasRect = true;
-		}
-		else
-		{
-			raw.resize(size_t(PIXEL_TILES + 1) * (PIXEL_TILES + 1));
-			for (int x = 0; x <= PIXEL_TILES; x++)
-				for (int y = 0; y <= PIXEL_TILES; y++) raw[size_t(x) * (PIXEL_TILES + 1) + y] = RawHeight(px, north, x, y);
-			heights = raw.data();
-		}
+		bool hasRect;
+		const float *heights = PixelHeights(px, north, rect, hasRect);
 		DDNature_Layout(px, north, heights, int(SmallAt(px, WORLD_H - 1 - north)), hasRect ? rect : nullptr, out);
 	}
 
@@ -1513,6 +1560,60 @@ namespace
 			}
 			it = keep ? std::next(it) : natureActors.erase(it);
 		}
+	}
+
+	// [Doomerfall] Daggerfall's season changed (or first arrived after the overworld loaded): the ground tiles and the
+	// nature flats in the window take the new season's sets now, not only as new chunks stream in.
+	void RefreshSeason(FLevelLocals *Level)
+	{
+		RewriteGrid();
+		for (auto &chunk : natureActors)
+			for (auto &ptr : chunk.second)
+				if (AActor *mo = ptr.Get()) mo->Destroy();
+		natureActors.clear();
+		for (int cy = originY / CHUNK_TILES; cy < (originY + CELLS) / CHUNK_TILES; cy++)
+			for (int cx = originX / CHUNK_TILES; cx < (originX + CELLS) / CHUNK_TILES; cx++) SpawnNatureChunk(Level, cx, cy);
+		DD_DebugPrintf("DDTM season %s: ground and nature redrawn\n", groundWinter ? "winter" : "summer");
+	}
+
+	// [Doomerfall] Daggerfall's season changed while the player is in a town (or its first season line came after the
+	// town loaded): the other season's conversion is requested, and once ready its mesh is drawn and the plain
+	// billboards (trees, rocks, lamps) are replaced by its own. The map and the people (DFNpc, with their state) stay.
+	void RefreshTownSeason(FLevelLocals *Level, int group)
+	{
+		if (group < 0 || !mapEntry || mapEntry->winter == DDTownCache::IsWinter()) return;
+		if (Level->maptime % SCAN_TICS == 0) DDTownCache::Request(group, 0);
+		const auto fresh = DDTownCache::Get(group);
+		if (!fresh || fresh->winter != DDTownCache::IsWinter() || !fresh->Find("DFMESH")) return;
+		mapEntry = fresh;
+		PClassActor *flat = PClass::FindActor("DFCityFlat"), *npc = PClass::FindActor("DFNpc");
+		const auto *body = fresh->Find("DFFLATS");
+		int replaced = 0;
+		if (flat && body)
+		{
+			std::vector<AActor *> old;
+			auto it = Level->GetThinkerIterator<AActor>();
+			while (AActor *mo = it.Next()) if (mo->GetClass() == flat) old.push_back(mo);
+			for (AActor *mo : old) mo->Destroy();
+			FString text((const char *)body->data(), body->size());
+			for (auto &line : text.Split("\n"))
+			{
+				char name[40];
+				double x, y, z;
+				float sx, sy;
+				uint64_t id = 0;
+				if (sscanf(line.GetChars(), "%39s %lf %lf %lf %f %f %" SCNx64, name, &x, &y, &z, &sx, &sy, &id) < 6 || (id && npc)) continue;	// people are DFNpc, left as they are
+				const FTextureID tex = FlatTexture(name);
+				if (!tex.isValid()) continue;
+				AActor *mo = Spawn(Level, flat, DVector3(x, y, z), NO_REPLACE);
+				if (!mo) continue;
+				mo->picnum = tex;
+				mo->Scale = DVector2(sx, sy);
+				DD_LightsFlat(mo, false);
+				replaced++;
+			}
+		}
+		DD_DebugPrintf("DDTOWN season %s: town mesh and %d billboards replaced\n", fresh->winter ? "winter" : "summer", replaced);
 	}
 
 	// A generated town's ground: the flats within its walkable margin.
@@ -1643,7 +1744,9 @@ namespace
 			if (dist < nearestDist) { nearestDist = dist; nearest = n; }
 			if (g.tooLarge) continue;
 			DDTownCache::Request(n, dist);
-			if (DDTownCache::Status(n) != DDTownCache::State::Ready) continue;
+			// [Doomerfall] after a season change the distant town stays drawn in the old season while the new one loads
+			const bool shown = lodTown >= 0 && lodEntry && towns[lodTown].group == n;
+			if (DDTownCache::Status(n) != DDTownCache::State::Ready && !shown) continue;
 			const int town = TownForGroup(n, DDTownCache::Get(n));
 			if (town < 0) continue;
 			Town &t = towns[town];
@@ -1655,6 +1758,8 @@ namespace
 		}
 		dd_tm_nearest = nearest;
 		dd_tm_neareststate = nearest >= 0 ? int(DDTownCache::Status(nearest)) : 0;
+		if (bestLod >= 0 && bestLod == lodTown && lodEntry && lodEntry->winter != DDTownCache::IsWinter())	// [Doomerfall] new season ready: reload
+			if (const auto fresh = DDTownCache::Get(towns[bestLod].group); fresh && fresh->winter == DDTownCache::IsWinter()) lodTown = -2;
 		SetLodTown(Level, bestLod);
 	}
 
@@ -2320,8 +2425,9 @@ namespace
 		for (int cy = originY / CHUNK_TILES; cy < (originY + CELLS) / CHUNK_TILES; cy++)	// nature is never saved
 			for (int cx = originX / CHUNK_TILES; cx < (originX + CELLS) / CHUNK_TILES; cx++) SpawnNatureChunk(Level, cx, cy);
 		DDTreadmill_Active = true;
+		groundWinter = !DDTownCache::IsWinter();	// [Doomerfall] the next tick redraws the ground: the save may hold older floors
 		int drawn = 0;
-		for (auto &t : tris) drawn += t.sec->GetTexture(sector_t::floor) == baseFloor;
+		for (auto &t : tris) drawn += t.sec->GetTexture(sector_t::floor).isValid();
 		DD_DebugPrintf("DDTM resumed origin=%d,%d records=%d pending=%d floors drawn=%d of %d\n", originX, originY, int(table.size()), int(pending.size()), drawn, int(tris.size()));
 	}
 
@@ -2955,7 +3061,7 @@ bool DDTreadmill_MapMesh(const char *mapname, const uint8_t *&data, size_t &size
 	if (!mesh) return false;
 	data = mesh->data();
 	size = mesh->size();
-	key = RUNTIME_MESH_KEY + group;
+	key = RUNTIME_MESH_KEY + group + (mapEntry->winter ? WINTER_MESH_KEY : 0);
 	return true;
 }
 
@@ -2966,7 +3072,7 @@ bool DDTreadmill_LodMesh(const uint8_t *&data, size_t &size, int &key)
 	if (!mesh) return false;
 	data = mesh->data();
 	size = mesh->size();
-	key = RUNTIME_MESH_KEY + towns[lodTown].group;
+	key = RUNTIME_MESH_KEY + towns[lodTown].group + (lodEntry->winter ? WINTER_MESH_KEY : 0);
 	return true;
 }
 
@@ -3116,6 +3222,7 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 	{
 		TickTownDoors(Level, pmo);
 		const Town &t = towns[currentTown];
+		if (!t.space && runtimeTowns) RefreshTownSeason(Level, t.group);
 		if (t.space && t.spaceId >= DUNGEON_SPACE && DD_BridgeHasSession()) DD_MonstersTick(Level);
 		if (t.space) return;	// Interiors and dungeons are left through their doors.
 		const double tx = (pmo->X() / DOOM_PER_DF + t.originX) / 256, ty = (pmo->Y() / DOOM_PER_DF + t.originY) / 256;
@@ -3150,6 +3257,7 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 			}
 	}
 
+	if (DDTownCache::IsWinter() != groundWinter) RefreshSeason(Level);
 	ProcessPending(Level, SPAWNS_PER_TIC);
 
 	int dx = pmo->X() > SHIFT_AT ? CHUNK_TILES : pmo->X() < -SHIFT_AT ? -CHUNK_TILES : 0;
