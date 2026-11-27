@@ -6,7 +6,7 @@
 //   - Sky: the DFSKY texture is rewritten from SKYnn.DAT (frame, afternoon mirror) or NITEnnI0.IMG with stars, as
 //     DaggerfallSky does. Read from the arena2 folder given by -ddarena2; nothing is written to disk.
 //   - Light: in exteriors, Daggerfall's daylight: its exterior ambient (PlayerAmbientLight) plus its sun light
-//     (SunlightManager) on an average surface, weighted by the sun's height (a low sun lights flat ground less). The town mesh takes it as is, Doom's sectors on a curve. Interiors take
+//     (SunlightManager) on an average surface, weighted by the sun's height (a low sun lights flat ground less). The town mesh and exterior floors (hw_flats.cpp) take it as is, Doom's sectors on a curve. Interiors take
 //     Daggerfall's slight night tint. Dungeons are unchanged (Daggerfall has no time of day there).
 //   - Fog: Daggerfall's exponential weather fog (WeatherManager), in sector fog and on the DFMesh layer.
 //   - Rain and snow: particles around the player, outdoors only (PlayerWeather).

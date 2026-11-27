@@ -26,11 +26,12 @@ ARENA2 = r"D:\dev\DoomDaggerfall\GameResources\DAGGER\ARENA2"
 FATAL = ("FATAL", "VM execution aborted", "Script error", "Execution could not continue")
 
 # Daggerfall's lines as the bridge sends them (sky: index frame stars night ambient weather loop sun elevation winter).
-# Winter noon clear is Daggerfall's own (work/notes/20261126-145333.md). Snow is scaled from it by WeatherManager's
-# SnowSunlightScale / WinterSunlightScale (0.45 / 0.65) with weather 6 and SnowyFogSettings' 0.005/m: an estimate.
+# Winter noon clear is Daggerfall's own (work/notes/20261126-145333.md). Snow noon and night are Daggerfall's own lines,
+# captured in the paired run of work/notes/20261127-051951.md (Daggerfall's month 0, weather 6).
 CASES = {
     "winter-noon": ["sky 19 32 0 0 91 0 0 62 90 1", "fog 1 2 0.0005 0 0 168 176 198 0"],
-    "winter-snow": ["sky 19 32 0 0 63 6 0 43 90 1", "fog 1 2 0.005 0 0 128 128 128 0"],
+    "winter-snow": ["sky 23 32 0 0 74 6 0 48 90 1", "fog 1 2 0.0005 0 0 56 59 71 0"],
+    "winter-snow-night": ["sky 23 0 0 1 50 6 6 0 -60 1", "fog 1 2 0.0005 0 0 3 2 1 0"],
     "winter-night": ["sky 19 0 1 1 20 0 0 0 -60 1", "fog 1 2 0.0005 0 0 20 20 20 0"],
     "summer-noon": ["sky 18 31 0 0 214 0 0 106 90 0", "fog 1 2 0.0005 0 0 168 176 198 0"],
 }

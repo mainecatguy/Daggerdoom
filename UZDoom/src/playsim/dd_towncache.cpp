@@ -375,7 +375,8 @@ namespace DDTownCache
 	}
 
 	// Daggerfall's season (dd_weather.cpp). Places loaded from now on use the other texture set; loaded data is dropped
-	// unless a map holds it, so the next area load picks the new season (the current one keeps its look).
+	// unless a map holds it, so the next area load picks the new season. The treadmill re-requests the town in view or
+	// underfoot and swaps it in once ready (dd_treadmill.cpp: ScanLocations, RefreshTownSeason).
 	void SetWinter(bool on)
 	{
 		if (on == winter) return;
