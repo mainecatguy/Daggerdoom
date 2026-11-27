@@ -70,7 +70,7 @@ class Doomerfall_Events : StaticEventHandler
 	// draws over the compass. Doom's own pickup messages stay top left.
 	const HudPopDelay = 1.0;
 	const HudMaxRows = 7;
-	const HudCompassBand = 20; // 320x200 pixels kept clear at the top: Daggerfall's compass box is 17 high, plus a margin
+	const HudCompassBand = 26; // 320x200 pixels kept clear at the top: room for Daggerfall's 69x17 compass box, and below DRLA's top HUD key bar
 	ui Array<String> hudRows;
 	ui double hudTimer, hudNextDelay;
 	ui int hudLastMs, midUntilMs;
@@ -108,8 +108,10 @@ class Doomerfall_Events : StaticEventHandler
 	ui void DrawDaggerfallLine(Font f, String text, double y, double scale)
 	{
 		double x = (Screen.GetWidth() - f.StringWidth(text) * scale) / 2;
-		Screen.DrawText(f, Font.CR_WHITE, x + scale, y + scale, text, DTA_ScaleX, scale, DTA_ScaleY, scale, DTA_Color, Color(255, 93, 77, 12));
-		Screen.DrawText(f, Font.CR_WHITE, x, y, text, DTA_ScaleX, scale, DTA_ScaleY, scale, DTA_Color, Color(255, 243, 239, 44));
+		// Daggerfall's glyphs are plain white, which a translation would darken: they are tinted untranslated.
+		int tr = f == SmallFont ? Font.CR_WHITE : Font.CR_UNTRANSLATED;
+		Screen.DrawText(f, tr, x + scale, y + scale, text, DTA_ScaleX, scale, DTA_ScaleY, scale, DTA_Color, Color(255, 93, 77, 12));
+		Screen.DrawText(f, tr, x, y, text, DTA_ScaleX, scale, DTA_ScaleY, scale, DTA_Color, Color(255, 243, 239, 44));
 	}
 
 	ui void DrawDaggerfallText()

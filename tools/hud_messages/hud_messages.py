@@ -49,8 +49,17 @@ def assemble(source):
     shutil.copy2(BUILD / "hudmsg-data" / "ddruntime.pk3", REVIEW / "data" / "ddruntime.pk3")
     shutil.copytree(BUILD / "uzdoom-hudmsg" / "Release", REVIEW / "uzdoom", ignore=shutil.ignore_patterns("*.pdb", "*.ilk", "*.lib", "*.exp"))
     shutil.copytree(REPO / "daggerfall-unity-master" / "Builds" / "Windows64", REVIEW / "dfu", ignore=shutil.ignore_patterns("Player*.log", "*.pdb"))
-    for name in ("dfitems.pk3", "doomerfall-launcher.exe"):
-        shutil.copy2(source / name, REVIEW / name)
+    shutil.copy2(source / "dfitems.pk3", REVIEW / "dfitems.pk3")
+    # The launcher and bridge DLL must come from this checkout: another branch's bridge layout refuses the session (-5).
+    for name in ("launcher", "bridge"):
+        out = BUILD / f"hudmsg-{name}"
+        subprocess.check_call(["cmake", "-S", str(REPO / name), "-B", str(out), "-G", "Visual Studio 18 2026", "-A", "x64"], stdout=subprocess.DEVNULL)
+        subprocess.check_call(["cmake", "--build", str(out), "--config", "Release", "--parallel", "6"], stdout=subprocess.DEVNULL)
+    shutil.copy2(BUILD / "hudmsg-launcher" / "Release" / "doomerfall-launcher.exe", REVIEW / "doomerfall-launcher.exe")
+    shutil.copy2(BUILD / "hudmsg-bridge" / "Release" / "doomerfall_bridge.dll", REVIEW / "dfu" / "DaggerfallUnity_Data" / "Plugins" / "x86_64")
+    # -dfsynctest needs a portable install.
+    shutil.copy2(source / "dfu" / "Portable.txt", REVIEW / "dfu")
+    shutil.copytree(source / "dfu" / "PortableAppdata", REVIEW / "dfu" / "PortableAppdata", dirs_exist_ok=True)
     build = REPO / "scripts" / "doomerfall" / "build_pk3.py"
     subprocess.check_call([sys.executable, str(build), str(REVIEW / "doomerfall.pk3")])
     subprocess.check_call([sys.executable, str(build), "--drla", str(REVIEW / "doomerfall-drla.pk3")])
@@ -127,7 +136,7 @@ def run(name, size):
     uz = ["-ddqa", str(inbox.parent), "-noactivate", "-nosound", "-noautoload", "-file", str(harness), "+logfile", "console", "+wipetype", "0",
           "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+dd_debugmessages", "0"] + size_args(*size)
     timeout = 150
-    command = [sys.executable, QUIET, "--timeout", str(timeout), "--"] + launch_args(runs, uz, ["-dfmute", "-dfhudtest", str(runs / "dfshots")], False)  # Not minimized: a minimized window renders at 320x200.
+    command = [sys.executable, QUIET, "--timeout", str(timeout), "--"] + launch_args(runs, uz, ["-dfmute", "-dfhudtest", str(runs / "dfshots"), "-dfhudtestsize", "1252x721"], False)  # Not minimized: a minimized window renders at 320x200.
     proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def send(line):
