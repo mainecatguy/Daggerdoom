@@ -32,7 +32,9 @@ def main():
         lines += [f'dd_nature_dump {mx} {my} "{out / ("doom_" + name + ".txt")}"', "screenshot", "wait 35"]
     lines.append("quit")
     script = out / "shots.cfg"
-    script.write_text("\n".join(lines) + "\n")
+    script.write_text("; ".join(lines).replace("\\", "/") + "\n")	# one line: waits only hold within one command line
+    for old in out.glob("doom_*.txt"):
+        old.unlink()
     cache = out / "cache"
     cache.mkdir(exist_ok=True)
     game = [a.exe, "-iwad", IWAD, "-file", str(data / "ddruntime.pk3"), str(data / "overworld.pk3"), "-config", str(out / "test.ini"),
