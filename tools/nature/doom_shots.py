@@ -42,7 +42,7 @@ def main():
     cache = out / "cache"
     cache.mkdir(exist_ok=True)
     game = [a.exe, "-iwad", IWAD, "-file", str(data / "ddruntime.pk3"), str(data / "overworld.pk3"), "-config", str(out / "test.ini"),
-            "-nosound", "-noautoload", "-skill", "3", "-width", "1280", "-height", "720", "-ddtowncache", str(cache),
+            "-nosound", "-noautoload", "-ddnaturetest", "-skill", "3", "-width", "1280", "-height", "720", "-ddtowncache", str(cache),
             "-ddconverter", str(data / "converter" / "DungeonConverter.exe"), "-ddarena2", ARENA2, "+logfile", "log.txt", "+dd_debugmessages", "1",
             "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0",
             "+vid_scalemode", "5", "+vid_scale_customwidth", "1280", "+vid_scale_customheight", "720",	# a private desktop renders 320x200 otherwise

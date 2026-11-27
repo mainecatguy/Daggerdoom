@@ -268,18 +268,3 @@ void DDNature_Layout(int px, int north, const float *heights, int worldHeight, c
 			out.push_back({ uint8_t(x), uint8_t(y), uint8_t(record), steepness / SLOPE_SINK * 40.f });	// metres to Daggerfall units
 		}
 }
-
-// Test only: dd_nature_dump <mapPixelX> <mapPixelY> <file> writes a pixel's layout (Daggerfall Unity's map pixel numbering),
-// which tools/nature compares with Daggerfall Unity's own. Needs a running overworld.
-const std::vector<DDNatureFlat> *DDTreadmill_NatureOf(int px, int north);	// dd_treadmill.cpp
-CCMD(dd_nature_dump)
-{
-	if (argv.argc() < 4) return;
-	const int px = atoi(argv[1]), north = WORLD_H - 1 - atoi(argv[2]);
-	const std::vector<DDNatureFlat> *flats = DDTreadmill_NatureOf(px, north);
-	FILE *f = fopen(argv[3], "w");
-	if (!f) return;
-	fprintf(f, "pixel %d %d archive %d flats %d\n", px, atoi(argv[2]), DDNature_Archive(px, north, false), flats ? int(flats->size()) : -1);
-	if (flats) for (const DDNatureFlat &n : *flats) fprintf(f, "%d %d %d\n", n.x, n.y, n.record);
-	fclose(f);
-}
