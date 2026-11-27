@@ -1,0 +1,8 @@
+// Bridged games have one Doom player class, with no DRLA class effects (DECORATE.txt). This pk3 is loaded only in
+// bridged games with DRLA, after DRLA and DRLA X, so it replaces their class list there. Standalone UZDoom with DRLA
+// never loads it and keeps DRLA's classes. New Game in a bridged game skips any class menu (UZDoom menu/doommenu.cpp)
+// and starts the first class in this list.
+gameinfo
+{
+	PlayerClasses = "DoomerfallPlayer"
+}

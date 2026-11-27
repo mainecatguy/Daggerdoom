@@ -183,10 +183,20 @@ void M_DDConfirmNewGame()
 	M_ActivateMenu(newmenu);
 }
 
+// Doomerfall: a mod's own class menu (DRLA X's DRLAX_PlayerClassProxyMenu) is any menu with an item that opens the episode menu.
+static bool M_DDLeadsToEpisodeMenu(FName menu)
+{
+	DMenuDescriptor **desc = MenuDescriptors.CheckKey(menu);
+	if (desc != nullptr && *desc != nullptr)
+		for (DMenuItemBase *item : (*desc)->mItems)
+			if (item != nullptr && item->mAction == NAME_EpisodeMenu) return true;
+	return false;
+}
+
 bool M_SetSpecialMenu(FName& menu, int param)
 {
-	// Doomerfall: New Game goes to Daggerfall's character creation. No effect without -dfflow.
-	if ((menu.GetIndex() == NAME_PlayerclassMenu || menu.GetIndex() == NAME_EpisodeMenu) && DD_BridgeNewGameMenu()) return false;
+	// Doomerfall: New Game goes to Daggerfall's character creation, past any class menu. No effect without -dfflow.
+	if ((menu.GetIndex() == NAME_PlayerclassMenu || menu.GetIndex() == NAME_EpisodeMenu || M_DDLeadsToEpisodeMenu(menu)) && DD_BridgeNewGameMenu()) return false;
 	if (menu.GetIndex() == NAME_MainMenu && DD_BridgeBlocksMainMenu()) { M_ClearMenus(); return false; } // Doomerfall
 
 	// some menus need some special treatment
