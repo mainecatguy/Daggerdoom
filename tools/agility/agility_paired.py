@@ -12,10 +12,11 @@ item is never given, nothing is evaded, and switch and reload times are measured
 paired: as tools/attributes/attributes_paired.py (card 01): <play folder> is copied once to <work folder>/play and gets
 this checkout's UZDoom, Daggerfall Unity, bridge DLL and launcher. One launch through the launcher and quiet_run.py:
 UZDoom on DOOM.WAD E1M1 with the DRLA set, doomerfall.pk3 and the harness; Daggerfall Unity with -dfsynctest and
--dfagilitytest, which sets Agility to 0, 100, 50 and 10 in turn, twice. Checks: the item is held, low and high Agility
+-dfagilitytest, which sets Agility to 1, 100, 50 and 10 in turn, twice. Checks: the item is held, low and high Agility
 were both measured, reload and switch at 100 take about 1/1.4 of the time at 0, every measurement's times follow
-1 / (1 + 0.4 x Agility/100) against the Agility 0 baseline, evasion is about 15% x Agility/100 of the hits, and
-self-damage, attacker-less damage and telefrags are never evaded.
+1 / (1 + 0.4 x Agility/100) against the baseline, evasion is about 15% x Agility/100 of the hits on a dummy (also for
+self-damage and attacker-less damage), telefrags are never evaded, and on the real vulnerable player at Agility 100
+and 1 some hits are evaded at about that rate and Daggerfall's HP drops by exactly the hits not evaded.
 """
 import math
 import re
@@ -32,6 +33,7 @@ DAGGER = r"D:\dev\DoomDaggerfall\GameResources\DAGGER"
 MODS = Path(r"D:\dev\DoomDaggerfall\GameMods")
 DRLA = [MODS / f for f in ["DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3"]]
 LINE = re.compile(r"AGI agi=(-?\d+) item=(\d) weapon=(\w+) switch=(-?\d+) reload=(-?\d+) evade=(\d+) of=(\d+) self=(\d+) null=(\d+) tele=(\d+)")
+PLAYER = re.compile(r"AGIPLAYER agi=(-?\d+) hits=(\d+) evaded=(\d+) before=(-?\d+) after=(-?\d+)")
 BAD = re.compile(r'Script error, "(doomerfall|agi-harness)\.pk3|(doomerfall|agi-harness)\.pk3:zscript\S*, line \d+|\bFatal error|VM execution aborted', re.I)
 BG = ["+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+vid_fullscreen", "0"]
 
@@ -173,14 +175,27 @@ def paired(source, build, dfu, bridge, launcher, work):
         checks.append(("every reload time follows 1 / (1 + 0.4 x Agility/100) (within 8%)",
                        all(abs((br / r["reload"]) / (1 + 0.4 * min(r["agi"], 100) / 100.0) - 1) < 0.08 for r in live)))
     # Evasion: binomial, 4 standard deviations, against 15% x Agility/100.
-    def evade_ok(r):
-        p = 0.15 * min(r["agi"], 100) / 100.0
-        sd = math.sqrt(max(p * (1 - p), 1e-9) / r["of"])
-        return abs(r["evade"] / r["of"] - p) <= 4 * sd + 1e-9
-    checks.append(("evaded share is 15% x Agility/100 (within 4 standard deviations)", bool(live) and all(evade_ok(r) for r in live)))
+    def share_ok(agi, n, of):
+        p = 0.15 * min(agi, 100) / 100.0
+        sd = math.sqrt(max(p * (1 - p), 1e-9) / of)
+        return abs(n / of - p) <= 4 * sd + 1.5 / of
+    checks.append(("evaded share is 15% x Agility/100 (within 4 standard deviations)",
+                   bool(live) and all(share_ok(r["agi"], r["evade"], r["of"]) for r in live)))
     checks.append(("Agility 100 evades some hits", bool(high) and all(r["evade"] > 0 for r in high)))
-    checks.append(("self-damage, attacker-less damage and telefrags never evaded",
-                   bool(live) and all(r["self"] == r["null"] == r["tele"] == 0 for r in live)))
+    checks.append(("self-damage and attacker-less damage evaded at the same rate (300 each)",
+                   bool(live) and all(share_ok(r["agi"], r["self"], 300) and share_ok(r["agi"], r["null"], 300) for r in live)))
+    checks.append(("telefrags never evaded", bool(live) and all(r["tele"] == 0 for r in live)))
+    # The real player: hits on the vulnerable player, Daggerfall's HP drops by exactly the hits not evaded.
+    pl = [tuple(int(x) for x in m.groups()) for m in map(PLAYER.search, con) if m]
+    for agi, hits, ev, before, after in pl:
+        print(f"  player at Agility {agi}: {ev} of {hits} hits evaded ({100.0 * ev / hits:.1f}%), Daggerfall HP {before} -> {after}")
+    p100 = [x for x in pl if x[0] >= 100]
+    p1 = [x for x in pl if x[0] == 1]
+    checks.append(("player hit at Agility 100 and at 1", bool(p100) and bool(p1)))
+    checks.append(("player at Agility 100 evades some hits, about 15% (4 standard deviations)",
+                   bool(p100) and all(x[2] > 0 and share_ok(x[0], x[2], x[1]) for x in p100)))
+    checks.append(("player at Agility 1 evades about 0.15%", bool(p1) and all(share_ok(x[0], x[2], x[1]) for x in p1)))
+    checks.append(("Daggerfall's HP drops by exactly the hits not evaded", bool(pl) and all(b - a == h - e for _, h, e, b, a in pl)))
     return checks
 
 

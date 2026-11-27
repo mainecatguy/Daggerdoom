@@ -1,7 +1,7 @@
 // Agility in Doom (owner, 2026-11-26; manual.md "Attributes"). Daggerfall owns the character sheet and sends its live
 // attributes (Actor.DD_SheetStat, -1 without a Daggerfall character); Doom applies Agility here:
 //   - reloads and weapon switches run up to 40% faster (x1.4 animation speed at 100);
-//   - a chance to evade an attack's damage entirely, up to 15% at 100.
+//   - a chance to evade damage entirely, up to 15% at 100.
 // Linear from 0 at Agility 0; values are clamped to 0..100 and read live, so a change on the sheet applies at once.
 // Without a Daggerfall character the item is never given, so stock Doom and plain WADs are unchanged.
 
@@ -89,11 +89,12 @@ class DoomerfallAgilityEffects : Inventory
 		ExtraTic(psp);
 	}
 
-	// Defensive only: an attack by someone else misses entirely (damage 0, so no pain, push or Daggerfall HP loss).
-	// Not evaded: self-damage, harm with no attacker (floors, crushers, falling), telefrags and forced damage.
+	// Defensive only: the damage is evaded entirely (damage 0, so no pain, push or Daggerfall HP loss). The owner's
+	// rule is "a chance to evade damage", so any damage counts, whoever or whatever deals it. Only Doom's
+	// unstoppable damage is left alone: telefrags (which free a blocked teleport destination) and DMG_FORCED.
 	override void ModifyDamage(int damage, Name damageType, out int newdamage, bool passive, Actor inflictor, Actor source, int flags, double angle)
 	{
-		if (!passive || damage <= 0 || !source || source == owner || (flags & DMG_FORCED) || damageType == 'Telefrag') return;
+		if (!passive || damage <= 0 || (flags & DMG_FORCED) || damageType == 'Telefrag') return;
 		double chance = EvadeChance();
 		if (chance > 0 && Random[DoomerfallEvade](0, 9999) < chance * 10000) newdamage = 0;
 	}

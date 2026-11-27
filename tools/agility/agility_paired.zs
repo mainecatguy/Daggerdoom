@@ -5,10 +5,12 @@ version "3.3"
 //   - switch: tics from asking for weapon B until B is up and ready, then back to A (two real switches, summed);
 //   - reload: weapon A with an empty magazine and reserve ammo is sent to its Reload state, tics until it is ready
 //     again (-1 for a weapon without a magazine, such as stock Doom's pistol);
-//   - evasion: 2000 one-point hits through P_DamageMobj from an attacker on a dummy holding the Agility item, and 300
-//     each that must never be evaded: self-damage, no attacker, telefrag.
+//   - evasion on a dummy holding the Agility item: 2000 one-point hits through P_DamageMobj from an attacker, and 300
+//     each of self-damage and damage with no attacker (evaded at the same rate), and of telefrags (never evaded);
+//   - evasion on the real player, once at Agility 100 and once at 1 (PlayerTest), with Daggerfall's HP before and after.
 // Prints one line per measurement:
 //   AGI agi=<live> item=<0|1> weapon=<A> switch=<tics> reload=<tics> evade=<n> of=<N> self=<n> null=<n> tele=<n>
+//   AGIPLAYER agi=<live> hits=<n> evaded=<n> before=<hp> after=<hp>
 class AgiDummy : Actor
 {
 	Default
@@ -84,7 +86,6 @@ class AgiPaired : StaticEventHandler
 		if (phase == 0)
 		{
 			if (!wa) { wa = Pick("RLPistol", "Pistol"); wb = Pick("RLShotgun", "Shotgun"); }
-			mo.bInvulnerable = true;
 			if (Ready(p, wa) && ++stable >= SettleTics) { phase = 1; tics = 0; }
 			return;
 		}
@@ -118,6 +119,35 @@ class AgiPaired : StaticEventHandler
 			if (w && (p.WeaponState & WF_WEAPONREADY) && !inReload && mo.CountInv(w.AmmoType1) > 0) { reloadTics = tics; Report(p, agi); }
 			else if (tics > Timeout) { reloadTics = -1; Report(p, agi); }
 		}
+		else if (phase == 6 && tics >= HpWait) // Daggerfall has answered the hits
+		{
+			Console.Printf("AGIPLAYER agi=%d hits=%d evaded=%d before=%d after=%d", agi, playerHits, playerEvaded, hpBefore, mo.health);
+			phase = 5;
+		}
+	}
+
+	// Once each at Agility 100 and 1 (with a character): real one-point hits on the vulnerable player from an
+	// attacker, through P_DamageMobj, the Agility item the game gave and the bridge's HP report. A hit that dealt
+	// damage returns it, an evaded one returns 0. Armor is bypassed so it cannot absorb a one-point hit.
+	const HpWait = 35;
+	int playerHits, playerEvaded, hpBefore;
+	bool hitAt100, hitAt1;
+
+	bool PlayerTest(PlayerInfo p, int agi)
+	{
+		if (!(agi >= 100 && !hitAt100) && !(agi == 1 && !hitAt1)) return false;
+		if (agi >= 100) hitAt100 = true; else hitAt1 = true;
+		let mo = p.mo;
+		let attacker = Actor.Spawn("AgiDummy", mo.Pos + (0, 0, 4000), NO_REPLACE);
+		playerHits = agi >= 100 ? 60 : 30;
+		playerEvaded = 0;
+		hpBefore = mo.health;
+		for (int i = 0; i < playerHits; i++)
+			if (mo.DamageMobj(attacker, attacker, 1, 'None', DMG_NO_ARMOR | DMG_THRUSTLESS) <= 0) playerEvaded++;
+		attacker.Destroy();
+		phase = 6;
+		tics = 0;
+		return true;
 	}
 
 	void Report(PlayerInfo p, int agi)
@@ -137,5 +167,6 @@ class AgiPaired : StaticEventHandler
 		dummy.Destroy();
 		attacker.Destroy();
 		phase = 5; // done until Agility changes
+		if (agi >= 0) PlayerTest(p, agi);
 	}
 }

@@ -50,14 +50,10 @@ You are back in Doom with the new attributes in effect.
 ## Attributes
 
 What your attributes do now. They use your current value, so spells and effects that fortify or drain an attribute
-count while they last. Anything above 100 counts as 100.
+count while they last.
 
 - **Agility:** you reload and switch weapons faster: up to 40% faster at 100 (20% at 50). You also get a chance to
-  dodge an attack completely, taking no damage from it: 15% at 100 (7.5% at 50). Dodging works against enemy attacks,
-  not against your own explosions, falls, or harmful floors.
-- **Endurance:** raises your maximum HP (see Health).
-- **Intelligence** and **Personality:** work as in Daggerfall (Intelligence sets your spell points; Personality helps
-  when talking, trading and dealing with people).
+  dodge damage completely: 15% at 100 (7.5% at 50). Agility above 100 counts as 100.
 
 ## Weapon skills
 
