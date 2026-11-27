@@ -43,9 +43,9 @@ RIFLES = {'RLMarksmanRifle': 'precision', 'RLBattleRifle': 'automatic', 'RLVangu
           'RLSniperRifle': 'other', 'RLElephantGun': 'precision', 'RLGaussRifle': 'precision',
           'RLAntiMaterielRifle': 'precision'}
 DRLA_EXPECT.update(RIFLES)
-# Owner (backlog rifles-skill.md): these are Automatics, not rifles. They carry DRLA's single-shot rifle token, so they
-# read precision today; they must never get the Rifles slot.
-NOT_RIFLES = {'RLAssaultRifleChaingun': 'precision', 'RLAssaultRifleMinigun': 'precision', 'RLAutocannon': 'precision'}
+# Owner (backlog rifles-skill.md; 2026-11-26 "Those all sound like automatics"): these are Automatics, not rifles,
+# although they carry DRLA's single-shot rifle token. They must never get the Rifles slot.
+NOT_RIFLES = {'RLAssaultRifleChaingun': 'automatic', 'RLAssaultRifleMinigun': 'automatic', 'RLAutocannon': 'automatic'}
 DRLA_EXPECT.update(NOT_RIFLES)
 # Energy Weapons and Melee (skillcore placeholders, 2026-11-26). DRLA's fist is unarmed like the stock one; its melee
 # weapons have the melee token (the Energysaw also uses cells, and Melee comes first). Energy guns that recharge
