@@ -371,3 +371,10 @@ A door you have picked open reads **Door**.
 Turn on **Show damage numbers** in Options, HUD Options to see how much damage each of your hits does: a small gold
 number rises over the monster you hit and fades in about a second. Hits that land together, such as shotgun pellets,
 show as one number. It is off by default.
+
+## Menu text and font mods
+
+Daggerfall's menus (inventory, shops, talk, character sheet, and the small Talk / Sell, guild, repair and witch
+popups) draw all their words in Daggerfall's font. A Daggerfall Unity font replacement changes them all: put a font
+named `FONT0003-SDF.ttf` (or `.otf`) in Daggerfall Unity's `StreamingAssets\Fonts` folder, or install a font mod.
+Daggerfall Unity texture packs for menu pictures work too.

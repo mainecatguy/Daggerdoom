@@ -25,22 +25,28 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         /// <summary>Covers a painted button word at rect (in parent's native pixels) and draws text in its place.</summary>
         public static void Relabel(Panel parent, Rect rect, string text, bool dim = false)
         {
-            if (!DoomerfallBridge.SessionActive || parent == null)
+            if (!DoomerfallBridge.SessionActive)
                 return;
             if (plain == null)
                 plain = ImageReader.GetTexture(PlainImage);
-            if (plain == null)
+            Relabel(parent, rect, text, dim, plain, PlainRow, new Vector2(PlainWidth, PlainHeight));
+        }
+
+        /// <summary>As Relabel, covering with plainRow of source, an image whose classic size is nativeSize.</summary>
+        public static void Relabel(Panel parent, Rect rect, string text, bool dim, Texture2D source, Rect plainRow, Vector2 nativeSize)
+        {
+            if (!DoomerfallBridge.SessionActive || parent == null || source == null)
                 return;
             // Cropped rects are texture pixels from the bottom left; scale for texture packs with larger images.
-            float sx = plain.width / PlainWidth, sy = plain.height / PlainHeight;
+            float sx = source.width / nativeSize.x, sy = source.height / nativeSize.y;
             var cover = new Panel
             {
                 Position = rect.position,
                 Size = rect.size,
-                BackgroundTexture = plain,
+                BackgroundTexture = source,
                 BackgroundTextureLayout = BackgroundLayout.Cropped,
-                BackgroundCroppedRect = new Rect(PlainRow.x * sx, (PlainHeight - PlainRow.yMax) * sy,
-                    PlainRow.width * sx, PlainRow.height * sy),
+                BackgroundCroppedRect = new Rect(plainRow.x * sx, (nativeSize.y - plainRow.yMax) * sy,
+                    plainRow.width * sx, plainRow.height * sy),
             };
             parent.Components.Add(cover);
             // As the popups' own service label: one pixel down, centred, no shadow, default font and colour.
@@ -56,6 +62,20 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             if (button != null)
                 Relabel(button, new Rect(Vector2.zero, button.Size), text);
+        }
+
+        /// <summary>
+        /// The guild popup (GILD00I0/GILD01I0.IMG, 130 x 51) relabels its Join Guild and Talk rows with strips of its own
+        /// plain service row, so a texture pack that restyles only the guild image still matches.
+        /// </summary>
+        public static void RelabelGuild(Panel mainPanel, Button talkButton, Rect joinRect, Rect serviceRect, bool member)
+        {
+            if (!DoomerfallBridge.SessionActive || mainPanel == null)
+                return;
+            var size = new Vector2(130, 51);
+            Relabel(mainPanel, joinRect, "Join Guild", member, mainPanel.BackgroundTexture, serviceRect, size);
+            if (talkButton != null)
+                Relabel(talkButton, new Rect(Vector2.zero, talkButton.Size), "Talk", false, mainPanel.BackgroundTexture, serviceRect, size);
         }
     }
 }
