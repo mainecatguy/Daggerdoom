@@ -120,6 +120,13 @@ class DoomerfallWeaponCategory abstract
 		return p ? Of(p.ReadyWeapon) : Other;
 	}
 
+	// Doomerfall's rifle tag: whether a weapon counts as a rifle. Only the Light Carbine so far (owner, 2026-11-26);
+	// todo rifletag 01 tags the DRLA rifles. Rifles have no skill category yet (backlog: Rifles).
+	clearscope static bool IsRifle(Weapon w)
+	{
+		return w is "DoomerfallLightCarbine";
+	}
+
 	private clearscope static bool HasToken(Actor owner, String token)
 	{
 		class<Inventory> c = token; // Looked up at run time, so this works without DRLA loaded.
