@@ -170,6 +170,11 @@ def analyse(name, lines, checks, report):
             check("stress: bursts keep most of the pack burning after the first burn ran out", int(m.group(5)) >= 300, m.group(0))
             report.append(f"{name} stress: {m.group(0)[13:]}; volleys: " + ", ".join(
                 re.search(r"ms ([\d.]+)", l).group(1) for l in lines if "ENTEST stress volley" in l))
+    if name != "nobridge":
+        lethal = [l for l in lines if "ENTEST lethal neighbours" in l]
+        check("a direct hit that kills a burning enemy still bursts at 100 (both neighbours catch fire)",
+              lethal and "burning 2 of 2" in lethal[0], lethal + [l for l in lines if "ENTEST lethal victim" in l or "convert EnTestMonster" in l][:3])
+        report.append(f"{name} lethal: {lethal[:1]}")
     base = {}
     for c in cases_of(lines):
         tag = f"{c['cfg']} {c['gun']}"

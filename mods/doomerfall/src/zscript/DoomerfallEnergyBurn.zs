@@ -22,7 +22,9 @@ class DoomerfallEnergyBurn play
 		int burnBp = DoomerfallEnergy.Rule(EnergyBurnBp);
 		if (burnBp <= 0 || !victim) return;
 		int convertBp = DoomerfallEnergy.Rule(EnergyConvertBp);
-		if (convertBp > 0 && victim.health > 0)
+		// A hit that kills still converts (its record lives until the next tick): nothing is dealt to the corpse, but at
+		// 100 the converted burn still bursts.
+		if (convertBp > 0)
 		{
 			double before = DoomerfallBurn.Pool(victim);
 			double taken = before > 0 ? DoomerfallBurn.Take(victim, convertBp / 10000.) : 0;
@@ -31,7 +33,7 @@ class DoomerfallEnergyBurn play
 				int amount = Round(taken);
 				int burstBp = DoomerfallEnergy.Rule(EnergyBurstBp), radius = DoomerfallEnergy.Rule(EnergyBurstRadius);
 				let burst = Actor.Spawn("DoomerfallEnergyBurst", victim.pos + (0, 0, victim.height / 2));
-				int dealt = amount > 0 ? victim.DamageMobj(burst, src, amount, 'Fire', DMG_THRUSTLESS | DMG_DD_DEALT) : 0;
+				int dealt = amount > 0 && victim.health > 0 ? victim.DamageMobj(burst, src, amount, 'Fire', DMG_THRUSTLESS | DMG_DD_DEALT) : 0;
 				int spread = 0;
 				if (burstBp > 0 && radius > 0 && burst) spread = Burst(burst, victim, src, taken * burstBp / 10000., radius);
 				DoomerfallEnergy.Log(String.Format("convert %s: took %.3f of its burn %.3f, dealt %d; burst %d enemies %.2f burn each tic %d",

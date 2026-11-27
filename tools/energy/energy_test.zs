@@ -200,6 +200,7 @@ class EnPerkTest : EventHandler
 			let log = CVar.FindCVar("dd_perklog");
 			if (log) log.SetBool(false);
 			mo.SetOrigin(start, false); mo.angle = 0;
+			Lethal(mo);
 			for (int i = 0; i < 400; i++)
 			{
 				let m = Actor.Spawn("EnTestMonster", mo.Vec3Offset(48 + (i % 20) * 20, ((i / 20) - 10) * 20, 0), NO_REPLACE);
@@ -233,6 +234,23 @@ class EnPerkTest : EventHandler
 		for (int i = 0; i < pack.Size(); i++) if (pack[i]) pack[i].Destroy();
 		pack.Clear();
 		return true;
+	}
+
+	// A direct hit that kills a burning enemy still converts and, at 100, bursts. Engine order on a lethal hit: health
+	// is already <= 0, before Die, and the burn record still exists when WorldThingDamaged (and so Hit) runs; here health
+	// is set to that state and Hit is called directly.
+	void Lethal(Actor mo)
+	{
+		let v = Actor.Spawn("EnTestMonster", mo.Vec3Angle(96, 0), NO_REPLACE);
+		let n1 = Actor.Spawn("EnTestMonster", v.Vec3Offset(0, 46, 0), NO_REPLACE);
+		let n2 = Actor.Spawn("EnTestMonster", v.Vec3Offset(36, 30, 0), NO_REPLACE);
+		DoomerfallBurn.Apply(v, 100, mo);
+		v.health = -10;
+		Console.Printf("ENTEST lethal victim health %d pool %.2f", v.health, DoomerfallBurn.Pool(v));
+		DoomerfallEnergyBurn.Hit(v, mo, 50);
+		Console.Printf("ENTEST lethal neighbours burning %d of 2 (pools %.2f %.2f) victim pool %.2f", int(DoomerfallBurn.Burning(n1)) + int(DoomerfallBurn.Burning(n2)),
+			DoomerfallBurn.Pool(n1), DoomerfallBurn.Pool(n2), DoomerfallBurn.Pool(v));
+		n1.Destroy(); n2.Destroy(); v.Destroy();
 	}
 
 	int Count()
