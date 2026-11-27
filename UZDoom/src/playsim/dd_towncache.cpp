@@ -368,6 +368,7 @@ namespace DDTownCache
 		DD_DebugPrintf("DDTCACHE season %s: places load with %s textures from now on\n", on ? "winter" : "summer", on ? "winter" : "summer");
 	}
 
+	bool IsWinter() { return winter; }	// [Doomerfall] the season the nature flats use (dd_nature.cpp)
 	void Pin(int group) { pinned = group; }
 	bool Converting() { return running >= 0; }
 	void BeginScan() { wanted.clear(); }
