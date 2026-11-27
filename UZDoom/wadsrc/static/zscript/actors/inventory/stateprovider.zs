@@ -88,6 +88,15 @@ class StateProvider : Inventory
 			player.ReadyWeapon.ReloadCounter = 0;
 	}
 
+	// Doomerfall: the pellet count of a spread shot after the player's items had their say (Inventory.ModifyPellets).
+	// No item changes it unless the Doomerfall mod gives one, so other games are unchanged.
+	static int DD_Pellets(PlayerInfo player, int pellets)
+	{
+		if (!player || !player.mo) return pellets;
+		for (let item = player.mo.Inv; item; item = item.Inv) pellets = item.ModifyPellets(player.ReadyWeapon, pellets);
+		return pellets;
+	}
+
 
 	//---------------------------------------------------------------------------
 	//
@@ -167,6 +176,7 @@ class StateProvider : Inventory
 		{
 			if (numbullets < 0)
 				numbullets = 1;
+			numbullets = DD_Pellets(player, numbullets); // Doomerfall
 			for (i = 0; i < numbullets; i++)
 			{
 				double pangle = bangle;

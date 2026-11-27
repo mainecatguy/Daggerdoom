@@ -44,10 +44,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             new Perk("Jumping", 75, "Falling no longer hurts you.", true),
             new Perk("Jumping", 100, "Triple jump: jump twice more in mid-air.", true),
 
-            new Perk("Shotguns", 25, "Shotguns reload about 35% faster."),
-            new Perk("Shotguns", 50, "Shotguns fire more pellets."),
-            new Perk("Shotguns", 75, "Shotgun blasts knock enemies back hard and stagger them, and an enemy slammed into a wall takes extra damage."),
-            new Perk("Shotguns", 100, "Shotguns fire even more pellets and reload faster still."),
+            new Perk("Shotguns", 25, "Shotguns reload about 35% faster.", true),
+            new Perk("Shotguns", 50, "Shotguns fire 50% more pellets.", true),
+            new Perk("Shotguns", 75, "Shotgun blasts knock enemies back and stagger them. The more pellets hit, the harder the shove, and big enemies move less. An enemy slammed into a wall takes up to 200 extra damage.", true),
+            new Perk("Shotguns", 100, "Shotguns fire twice the pellets, and the knockback and wall slam are twice as strong (up to 400 damage).", true),
 
             new Perk("Automatics", 25, "Burst fire: the first 3 shots of a burst do 30% more damage. The bonus comes back 0.3 seconds after you stop firing.", true),
             new Perk("Automatics", 50, "Every second shot from an automatic weapon uses no ammo.", true),

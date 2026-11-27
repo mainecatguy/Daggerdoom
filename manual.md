@@ -94,8 +94,8 @@ Impish) are gone: you can no longer calm monsters by speaking to them.
   maker cannot make Enhances Skill items for the weapon skills.
 - A character imported from a classic Daggerfall save starts the weapon skills untrained; their old language values
   and practice are not carried over.
-- Automatics and Explosives change how their guns behave (see "Automatics" and "Explosives" below). The other gun
-  skills do not yet.
+- Automatics, Explosives and Shotguns change how their guns behave (see "Automatics", "Explosives" and "Shotguns"
+  below). The other gun skills do not yet.
 
 ### Class skills
 
@@ -194,6 +194,24 @@ Explosives covers rocket, missile and grenade launchers, such as the stock rocke
 - Only your explosive weapon's own shots count. An exploding barrel, or a rocket that goes off while you hold a
   different gun, gets nothing; a rocket keeps its bonuses if you switch weapons before it lands.
 - These only work in the Daggerfall world. Your current skill counts.
+
+### Shotguns
+
+Shotguns covers shotguns, such as the stock shotgun, the Double Shotgun, the Assault Shotgun and the Autoshotgun.
+
+- **Damage:** every pellet does more damage as the skill rises, up to 75% more at 100.
+- **25:** shotguns reload about 35% faster. For a shotgun that pumps or reloads after every shot, such as the stock
+  shotgun, that is the pump after each shot, so it fires about a quarter faster.
+- **50:** shotguns fire 50% more pellets.
+- **75, knockback:** a shotgun blast shoves the enemy away from you and staggers it. The more pellets hit, the harder
+  the shove, so it is strongest up close and with a big shotgun such as the Double Shotgun. Big, heavy enemies move
+  less, and a light shove does not stagger. An enemy knocked into a wall takes up to 200 extra damage, more the faster
+  it hits. This happens once per shot, not once per pellet.
+- **100:** shotguns fire twice as many pellets, and the knockback and wall damage are twice as strong (up to 400).
+- Only pellets from the shotgun itself count. These only work in the Daggerfall world, and your current skill counts.
+- Shotguns that fire energy balls instead of pellets, such as the Plasma Shotgun, use Shotguns only when it is higher
+  than your Energy Weapons skill. Then their balls get the damage bonus and the knockback, but you do not yet get more
+  balls per shot at 50 and 100.
 
 ## Falling and jumping
 

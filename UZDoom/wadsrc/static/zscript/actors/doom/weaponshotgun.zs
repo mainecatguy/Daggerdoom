@@ -94,7 +94,8 @@ extend class StateProvider
 
 		double pitch = BulletSlope ();
 
-		for (int i = 0; i < 7; i++)
+		int pellets = DD_Pellets(player, 7); // Doomerfall
+		for (int i = 0; i < pellets; i++)
 		{
 			GunShot (false, "BulletPuff", pitch);
 		}

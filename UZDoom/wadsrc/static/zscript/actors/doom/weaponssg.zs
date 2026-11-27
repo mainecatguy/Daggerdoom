@@ -102,7 +102,8 @@ extend class StateProvider
 
 		double pitch = BulletSlope ();
 
-		for (int i = 0 ; i < 20 ; i++)
+		int pellets = DD_Pellets(player, 20); // Doomerfall
+		for (int i = 0 ; i < pellets ; i++)
 		{
 			int damage = 5 * random[FireSG2](1, 3);
 			double ang = angle + Random2[FireSG2]() * (11.25 / 256);

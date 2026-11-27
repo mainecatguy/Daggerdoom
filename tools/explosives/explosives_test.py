@@ -22,7 +22,7 @@ from save_handshake_test import Event, DfState  # noqa: E402
 IWAD = Path(r"D:\dev\DoomDaggerfall\GameResources\wads\DOOM.WAD")
 MODS = Path(r"D:\dev\DoomDaggerfall\GameMods")
 DRLA = ["DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3"]
-SHEET_INTS, SHEET_FORMAT_VERSION = 167, 8
+SHEET_INTS, SHEET_FORMAT_VERSION = 173, 9
 RULES = {  # 162 damage, 163 self cut, 164 direct, 165/166 chain bp/radius
     "off": {}, "dmg": {162: 6000}, "self25": {163: 9500}, "self75": {163: 9900}, "direct": {164: 5000},
     "chain": {165: 2500, 166: 128}}
