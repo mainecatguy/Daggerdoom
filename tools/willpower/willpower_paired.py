@@ -34,6 +34,7 @@ DAGGER = r"D:\dev\DoomDaggerfall\GameResources\DAGGER"
 MODS = Path(r"D:\dev\DoomDaggerfall\GameMods")
 DRLA = [MODS / f for f in ["DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3"]]
 WINDOW = re.compile(r"WILL src=(\w+) will=(-?\d+) nominal=(\d+) before=(-?\d+) after=(-?\d+) from=(\d+) to=(\d+)")
+ENV = re.compile(r"WILLENV will=(\d+) before=(\d+) after=(-?\d+)")
 KILL = re.compile(r"WILLKILL will=(\d+) hp=(\d+) tic=(\d+)")
 SENT = re.compile(r"hp: sent event \d+: hit (\d+) \(damage\)")
 SEEN = re.compile(r"WILLSEEN will=(-?\d+)")
@@ -193,13 +194,18 @@ def paired(source, build, dfu, bridge, launcher, work):
             print(f"  {s:11s} willpower {v} vs 50: x{ratio:.3f} (want x{factor(v):.3f})")
             ok = ok and abs(ratio - factor(v)) <= 1.5 / max(1, b["drop"]) * factor(v) + 0.03
         checks.append((f"each source at Willpower {v} vs 50 changes by x{factor(v):.3f}", ok))
-    # Kill call: A_Die at Willpower 75 reports the full HP as one hit and Daggerfall reports death.
+    envs = [tuple(int(x) for x in m.groups()) for m in map(ENV.search, con) if m]
+    for will, b, a in envs:
+        print(f"  no-inflictor hit of the full {b} HP at willpower {will}: Daggerfall HP {b} -> {a}")
+    checks.append(("no-inflictor damage equal to current HP is scaled at Willpower 75: the player survives with ~10%",
+                   len(envs) == 1 and abs((envs[0][1] - envs[0][2]) - envs[0][1] * factor(envs[0][0])) < 1.0 and envs[0][2] > 0))
+    # Kill call: Thing_Destroy at Willpower 75 reports the full HP as one hit and Daggerfall reports death.
     kills = [tuple(int(x) for x in m.groups()) for m in map(KILL.search, con) if m]
     sent = [int(m.group(1)) for m in map(SENT.search, uzl) if m]
     died = any("Daggerfall reports death" in l for l in uzl)
     for will, hp, tic in kills:
-        print(f"  A_Die at willpower {will}: hp {hp}; last hit sent {sent[-1] if sent else None}; Daggerfall death {died}")
-    checks.append(("A_Die at Willpower 75 still kills: full HP sent as one hit, Daggerfall reports death",
+        print(f"  Thing_Destroy at willpower {will}: hp {hp}; last hit sent {sent[-1] if sent else None}; Daggerfall death {died}")
+    checks.append(("Thing_Destroy at Willpower 75 still kills: full HP sent as one hit, Daggerfall reports death",
                    len(kills) == 1 and bool(sent) and sent[-1] == kills[0][1] and died))
     print("Willpower values measured:", wills)
     return checks

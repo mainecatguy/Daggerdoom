@@ -11,7 +11,8 @@ version "3.3"
 //                        reaching the last step is 3; Willpower applied before armor would give 5 x f - 2 instead
 //   poison      10 x 4  Doom poison damage (PlayerInfo.PoisonDamage, P_PoisonDamage), one per tic
 //   direct      10 x 4  the player's health lowered by assignment, one per tic: a health cost, NOT scaled
-// Then, at Willpower 75 only (the last value), heals and runs A_Die on the player: a kill call must stay lethal.
+// Then, at Willpower 75 only (the last value): a no-inflictor hit equal to the current health, which the player must
+// survive (x0.9), and Thing_Destroy on the player, which must still kill.
 // Prints, per window, the Daggerfall HP before and after (mo.health once Daggerfall has answered) and the tics it
 // covered, so the script can match the bridge log's "willpower:" lines (damage in, damage out) to it:
 //   WILL src=<name> will=<live> nominal=<hits x damage> before=<hp> after=<hp> from=<tic> to=<tic>
@@ -126,11 +127,20 @@ class WillPaired : StaticEventHandler
 		}
 		if (src >= 8) return; // done until Willpower changes
 		tics++;
-		if (src == 7) // kill call: at the last value (75, x0.9), A_Die on the full-health player must still kill
-		{
+		if (src == 7) // at the last value (75, x0.9): a no-inflictor hit of exactly the current health must be scaled
+		{             // (the player survives); then Thing_Destroy on the player must still kill
 			if (will != 75) { src = 8; return; }
-			if (tics == 1) mo.GiveBody(1000);
-			if (tics >= HpWait) { Console.Printf("WILLKILL will=%d hp=%d tic=%d", will, mo.health, gametic); mo.A_Die('Suicide'); src = 8; }
+			if (tics == 1 || tics == 2 * HpWait + 1) mo.GiveBody(1000);
+			if (tics == HpWait) { hpBefore = mo.health; mo.TakeInventory("DoomerfallAgilityEffects", 1); mo.DamageMobj(null, null, mo.health, 'Slime'); } // no Agility dodge
+			if (tics == 2 * HpWait) Console.Printf("WILLENV will=%d before=%d after=%d", will, hpBefore, mo.health);
+			if (tics >= 3 * HpWait)
+			{
+				Console.Printf("WILLKILL will=%d hp=%d tic=%d", will, mo.health, gametic);
+				mo.ChangeTid(31337);
+				mo.TakeInventory("DoomerfallAgilityEffects", 1); // no Agility dodge; re-given next tic
+				mo.A_CallSpecial(133, 31337); // Thing_Destroy (tid 31337), not extreme: damage = health
+				src = 8;
+			}
 			return;
 		}
 		if (step == 0) // heal and wait

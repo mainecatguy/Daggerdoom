@@ -1090,6 +1090,7 @@ static int hasBuddha(player_t *player)
 bool DD_BridgeHpHit(player_t *player, int damage); // [Doomerfall] false outside a bridge session
 int DD_BridgeDamageBonus(AActor *source, AActor *target, int damage); // [Doomerfall] damage unchanged outside a bridge session
 int DD_BridgeWillpowerDamage(player_t *player, int damage, bool keep); // [Doomerfall] damage unchanged outside a bridge session
+bool DD_KillCall; // [Doomerfall] true only during Thing_Destroy's kill (p_lnspec.cpp), so Willpower leaves it lethal
 bool DD_TownsfolkRefuseDamage(AActor *target, AActor *source); // [Doomerfall] dd_townsfolk.cpp
 
 static int DamageMobj (AActor *target, AActor *inflictor, AActor *source, int damage, FName mod, int flags, DAngle angle, bool& needevent)
@@ -1404,9 +1405,9 @@ static int DamageMobj (AActor *target, AActor *inflictor, AActor *source, int da
 		}
 
 		// [Doomerfall] Willpower, the last step; unchanged outside a bridge session. Reduced to 0 counts as no hit. Kill
-		// calls (A_Die, A_Kill*, Thing_Destroy: exactly the target's health, and forced, armor- and factor-free, or with
-		// no inflictor) are left unscaled like telefrags, so they still kill.
-		const bool ddKillCall = rawdamage == target->health && ((flags & DMG_FORCED) || !inflictor || (flags & (DMG_NO_ARMOR | DMG_NO_FACTOR)) == (DMG_NO_ARMOR | DMG_NO_FACTOR));
+		// calls (exactly the target's health and: forced, A_Die; armor- and factor-free, A_Kill*; or Thing_Destroy, which
+		// sets DD_KillCall) are left unscaled like telefrags, so they still kill.
+		const bool ddKillCall = rawdamage == target->health && ((flags & DMG_FORCED) || DD_KillCall || (flags & (DMG_NO_ARMOR | DMG_NO_FACTOR)) == (DMG_NO_ARMOR | DMG_NO_FACTOR));
 		if (damage > 0 && (damage = DD_BridgeWillpowerDamage(player, damage, telefragDamage || ddKillCall)) <= 0) return 0;
 
 		bool compat_voodoo_zombie = target->Level->i_compatflags2 & COMPATF2_VOODOO_ZOMBIES;
