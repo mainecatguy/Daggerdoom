@@ -37,6 +37,7 @@ namespace DDTownCache
 	void Poll();
 	void Pin(int group);	// This group is never evicted from memory. -1 clears it.
 	void SetWinter(bool on);	// Daggerfall's season: places loaded afterwards use its winter textures.
+	bool IsWinter();	// [Doomerfall] the season last sent, for the nature flats
 
 	EntryPtr Get(int group);			// The data if it is ready now.
 	EntryPtr GetBlocking(int group);	// Reads or converts now. For loading a save, or a future fast-travel transition.

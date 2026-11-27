@@ -74,9 +74,11 @@ static partial class Program
         CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
         if (args.Contains("--world")) return WorldTerrain.RunExport(args); // shared height data for the overworld and town maps
         if (args.Contains("--runtime-assets")) return City.RuntimeAssets(args); // the shared package for locations converted during play
+        if (IsRuntimeDungeonGroup(args)) return RunRuntimeDungeon(args); // RuntimeDungeon.cs: one dungeon for the running game
         if (args.Contains("--city") || args.Contains("--group")) return City.Run(args); // cities have their own pipeline in CityExport.cs
         string name = null, outDir = null, arena2 = @"D:\dev\DoomDaggerfall\GameResources\DAGGER\ARENA2";
         if (args.Contains("--list-water")) return ListWater(arena2);
+        if (args.Contains("--list-dungeon-types")) return ListDungeonTypes(Array.IndexOf(args, "--arena2") is int la && la >= 0 ? args[la + 1] : arena2);
         if (args.Contains("--list-tilted-doors")) return ListTiltedDoors(arena2);
         if (args.Contains("--list-main")) return ListMain(arena2, args.Contains("--list-all"));
         if (args.Contains("--list-flats")) return ListFlats(arena2);
@@ -99,6 +101,8 @@ static partial class Program
             else if (args[a] == "--no-walls" || args[a] == "--export-mesh" || args[a] == "--no-ceiling-relief" || args[a] == "--door-dump" || args[a] == "--action-dump" || args[a] == "--runtime-dungeon") { }
             else if (args[a] == "--texture-table") a++; // used by --export-mesh: six archives, comma separated
             else if (args[a] == "--grid-collision") gridCollision = true; // old axis-aligned boundaries and flat planes
+            else if (args[a] == "--map-name") OutputMapName = args[++a];
+            else if (args[a] == "--catalog-names") catalogNames = true; // door and action visuals named by model, as in ddruntime.pk3
             else if (args[a] == "--open-actions") openActions = true;            else if (args[a] == "--route-step") routeStep = int.Parse(args[++a]); // diagnostic: models jumping or climbing
             else name = args[a];
         }

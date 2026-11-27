@@ -29,6 +29,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         internal DoomerfallLocations Locations { get; set; }
         internal DoomerfallTownspeople Townspeople { get; set; }
         internal DoomerfallDoors Doors { get; set; }
+        internal DoomerfallHotkeys Hotkeys { get; set; }
+        internal DoomerfallAmmo Ammo { get; set; }
         bool holding;
 
         /// <summary>True in a flow session. StartGameBehaviour then waits for Doom before starting the game.</summary>
@@ -201,6 +203,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 bridge.LogLine("new game: Doom could not reach the start, the held character was dropped");
                 return;
             }
+            DoomerfallStartingGun.Give(Hotkeys, Ammo, bridge); // The gun of the highest gun skill, in place of Doom's starter pistol.
             start.FinishNewCharacterStart();
             bridge.LogLine("new game: quests and clock started, paused " + GameManager.IsGamePaused);
             var e = new DfbEvent { kind = Dfb.KIND_NEWGAME_GO, tic = (uint)Time.frameCount };

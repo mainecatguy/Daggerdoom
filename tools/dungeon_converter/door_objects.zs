@@ -3,6 +3,23 @@ version "4.10"
 // [DoomDaggerfall] Hinged Daggerfall doors. Active only on a converted map (MAP01 with DFPOINTS and DFDOORS lumps).
 // Timing follows DaggerfallActionDoor: 90 degrees in 1.5 s, linear, stays open until used again.
 
+// [Doomerfall] A converted dungeon's lumps: from the current map's cache file on a dungeon converted during play
+// (dd_treadmill.cpp), otherwise from the loaded packages, as before.
+class DFDungeonData
+{
+	clearscope static bool OnDungeonMap()
+	{
+		return Actor.DD_InRuntimeDungeon() || (level.MapName ~== "MAP01" && Wads.CheckNumForName("DFPOINTS", Wads.ns_global) >= 0);
+	}
+
+	clearscope static String Read(String name)
+	{
+		if (Actor.DD_InRuntimeDungeon()) return Actor.DD_RuntimeDungeonLump(name);
+		int lump = name == "DFPOINTS" ? Wads.CheckNumForName(name, Wads.ns_global) : Wads.CheckNumForFullName(name);
+		return lump >= 0 ? Wads.ReadLump(lump) : "";
+	}
+}
+
 class DFDoorVisual : Actor
 {
 	Default { +NOBLOCKMAP +NOGRAVITY +NOINTERACTION +INTERPOLATEANGLES +DONTSPLASH Radius 24; Height 70; }
@@ -43,6 +60,7 @@ class DFDoor : Actor
 	Array<DFDoorBlocker> links;
 	Array<double> linkX;
 	DFDoorVisual visual;
+	String visualName;			// a class named by model (runtime dungeons), in place of the slot number
 	double pivotX, pivotY, pivotZ, closedAngle, swung, rowY, centerX, centerY, bottom, top, linkRadius;
 	double swingDir;				// 1 unless a city gate leaf opens the other way
 	int moving;
@@ -80,7 +98,7 @@ class DFDoor : Actor
 			link.A_SetSize(linkRadius, top - bottom, false);
 			links.Push(link);
 		}
-		class<Actor> kind = String.Format("DFDoorVisual%d", slot); // generated per model by DoorExport.cs
+		class<Actor> kind = visualName.Length() ? visualName : String.Format("DFDoorVisual%d", slot); // generated per model by DoorExport.cs
 		visual = DFDoorVisual(Spawn(kind, (px, py, pz), NO_REPLACE));
 		checkPhase = abs(int(px) + int(py)) % 35;
 		Place(false);
@@ -297,9 +315,8 @@ class DFDoorHandler : EventHandler
 	// ids, so these survive a new conversion. Every door starts the map at its starting lock (WorldLoaded).
 	static int Stamp()
 	{
-		int lump = Wads.CheckNumForFullName("DFDOORS");
-		if (lump < 0) return 0;
-		String text = Wads.ReadLump(lump);
+		String text = DFDungeonData.Read("DFDOORS");
+		if (!text.Length()) return 0;
 		int h = -2128831035;	// FNV-1a
 		for (int i = 0; i < text.Length(); i++) h = (h ^ text.ByteAt(i)) * 16777619;
 		return h | 1;
@@ -354,12 +371,11 @@ class DFDoorHandler : EventHandler
 
 	override void WorldLoaded(WorldEvent e)
 	{
-		if (e.IsSaveGame || e.IsReopen || !(level.MapName ~== "MAP01")) return;
-		if (Wads.CheckNumForName("DFPOINTS", Wads.ns_global) < 0) return;
-		int lump = Wads.CheckNumForFullName("DFDOORS");
-		if (lump < 0) return;
+		if (e.IsSaveGame || e.IsReopen || !DFDungeonData.OnDungeonMap()) return;
+		String body = DFDungeonData.Read("DFDOORS");
+		if (!body.Length()) return;
 		Array<String> lines;
-		Wads.ReadLump(lump).Split(lines, "\n", TOK_SKIPEMPTY);
+		body.Split(lines, "\n", TOK_SKIPEMPTY);
 		Array<DFDoor> spawned;
 		foreach (text : lines)
 		{
@@ -367,6 +383,7 @@ class DFDoorHandler : EventHandler
 			text.Split(f, " ", TOK_SKIPEMPTY);
 			if (f.Size() < 11) continue;
 			let door = DFDoor(Actor.Spawn("DFDoor", (f[1].ToDouble(), f[2].ToDouble(), f[3].ToDouble()), NO_REPLACE));
+			if (f[0].Left(1) == "_") door.visualName = "DFDoorVisual" .. f[0];
 			door.Setup(f[0].ToInt(), f[1].ToDouble(), f[2].ToDouble(), f[3].ToDouble(), f[4].ToDouble(),
 				f[5].ToDouble(), f[6].ToDouble(), f[7].ToDouble(), f[8].ToDouble(), f[9].ToDouble(), f[10].ToDouble());
 			if (f.Size() > 11) door.swingDir = f[11].ToDouble();
@@ -377,7 +394,7 @@ class DFDoorHandler : EventHandler
 		}
 		// "DC <door> <control>" lines in DFPOINTS link each door to its sight-blocking control sectors.
 		Array<String> points;
-		Wads.ReadLump(Wads.CheckNumForName("DFPOINTS", Wads.ns_global)).Split(points, "\n", TOK_SKIPEMPTY);
+		DFDungeonData.Read("DFPOINTS").Split(points, "\n", TOK_SKIPEMPTY);
 		int linked = 0;
 		foreach (text : points)
 		{

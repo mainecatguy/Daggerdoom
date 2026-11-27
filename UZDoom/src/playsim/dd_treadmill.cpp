@@ -36,6 +36,7 @@
 #include "../../../bridge/doomerfall_bridge.h"
 #include "dd_treadmill.h"
 #include "dd_towncache.h"
+#include "dd_nature.h"
 #include "../dd_locations.h"
 #include "fs_files.h"
 #include "gi.h"
@@ -75,6 +76,7 @@ CVAR(Int, dd_tm_stitches, 0, CVAR_NOSAVE)
 CVAR(Int, dd_tm_nearest, -1, CVAR_NOSAVE)		// Nearest generated location group.
 CVAR(Int, dd_tm_neareststate, 0, CVAR_NOSAVE)	// Its DDTownCache::State.
 CVAR(Int, dd_tm_use, 0, CVAR_NOSAVE | CVAR_MOD)	// Test hook: one press of Use on a location door.
+CVAR(Bool, dd_natureflats, true, CVAR_NOSAVE)	// Wilderness nature flats; off for frame time comparisons. Applies to ground laid out after it changes.
 static int doorPressTic = -1;	// DDTreadmill_PressDoor. A press counts only on the next tic, in case no town door tick runs.
 CVAR(String, dd_tm_warp, "", CVAR_NOSAVE | CVAR_MOD)		// "tileX tileY": moves the player through the overworld handoff. The path fast travel can use.
 
@@ -232,6 +234,10 @@ namespace
 
 	// Doors between towns, building interiors, and dungeons.
 	constexpr int SPACE_BASE = 1000000, DUNGEON_SPACE = 17000000, DOOR_PREFETCH = 2;
+	// [Doomerfall] A dungeon converted during play: cache group DUNGEON_GROUP + location id (the low 20 bits of its map id,
+	// as DungeonSlot). It is also its space id, and its map is named like an interior (SpaceMapName).
+	constexpr int DUNGEON_GROUP = 30000000;
+	int DungeonGroup(int mapId) { return DUNGEON_GROUP + (mapId & 0xFFFFF); }
 	constexpr double USE_REACH = 96, DOOR_CANCEL = 768, EXIT_STEP = 31.5;	// 128 Daggerfall units of reach. The step is three player radii. A door still converting is dropped only past the prefetch range.
 	struct DoorSpot { int kind, target, index; double x, y, z, nx, ny; };
 	struct ReturnPoint { bool valid = false; FString map; double x = 0, y = 0, z = 0, yaw = 0; };
@@ -255,6 +261,7 @@ namespace
 	std::unordered_map<int64_t, std::vector<uint64_t>> buckets;
 	std::unordered_set<uint64_t> expected;	// Records and seeds that currently have a live actor.
 	std::unordered_map<uint64_t, DVector3> itemSpots;	// Where each map item stood (world units), so a take's tombstone belongs to its place.
+	bool resumedSnapshot;	// The current space came back from a save's snapshot; its record only refills the cache.
 	std::deque<PendingChunk> pending;
 	uint64_t nextDynamic;
 	bool resumePending;
@@ -576,6 +583,7 @@ namespace
 
 	// Records anything that vanished since the last check, such as a picked-up item.
 	DVector3 ToLocal(double x, double y, double z);
+	void SpawnNatureChunk(FLevelLocals *Level, int cx, int cy);	// [Doomerfall] nature flats, below
 
 	void Reconcile(FLevelLocals *Level)
 	{
@@ -1035,6 +1043,7 @@ namespace
 			{
 				BuildSeeds(p.cx, p.cy, p.seeds);
 				SpawnFlats(Level, p.cx, p.cy);
+				SpawnNatureChunk(Level, p.cx, p.cy);
 				auto b = buckets.find(ChunkKey(p.cx, p.cy));
 				if (b != buckets.end()) p.recs = b->second;
 				p.prepared = true;
@@ -1300,11 +1309,33 @@ namespace
 		return text;
 	}
 
+	// [Doomerfall] The town entry for a dungeon converted during play, from its cache file's DDDUNGN.
+	int TownForRuntimeDungeon(int group, const DDTownCache::EntryPtr &entry)
+	{
+		const auto *info = entry ? entry->Find("DDDUNGN") : nullptr;
+		if (!info || !entry->Find("MAPWAD")) return -1;
+		Town t;
+		FString text((const char *)info->data(), info->size());
+		for (auto &line : text.Split("\n"))
+		{
+			SpaceExit e;
+			if (sscanf(line.GetChars(), "mapid %d", &t.dungeonMapId) == 1) continue;
+			if (sscanf(line.GetChars(), "exit %lf %lf %lf %lf %lf", &e.x, &e.y, &e.z, &e.nx, &e.ny) == 5) t.exits.push_back(e);
+		}
+		if (DungeonGroup(t.dungeonMapId) != group) return -1;
+		PlaceSpace(t, group, DungeonSlot(t.dungeonMapId), FStringf("D%d", t.dungeonMapId));
+		t.map = SpaceMapName(group);
+		DD_DebugPrintf("DDTM runtime dungeon %d is %s, %d exits\n", t.dungeonMapId, t.map.GetChars(), int(t.exits.size()));
+		towns.push_back(std::move(t));
+		return int(towns.size()) - 1;
+	}
+
 	// The town entry for an interior, built from its cache file.
 	int TownForSpace(int id, const DDTownCache::EntryPtr &entry)
 	{
 		for (size_t i = 0; i < towns.size(); i++)
 			if (towns[i].space && towns[i].spaceId == id) return int(i);
+		if (id >= DUNGEON_GROUP) return TownForRuntimeDungeon(id, entry);
 		const auto *info = entry ? entry->Find("DDTOWN") : nullptr;
 		if (!info) return -1;
 		Town t;
@@ -1374,6 +1405,114 @@ namespace
 			DD_LightsTextureName(name, id->second);
 		}
 		return id->second;
+	}
+
+	//--------------------------------------------------------------------
+	// [Doomerfall] Wilderness nature flats (dd_nature.cpp). Client-side actors, so a save never holds them: each chunk of
+	// the overworld, and the ground around a generated town, gets its flats from the same rule whenever it is shown.
+	//--------------------------------------------------------------------
+	PClassActor *natureClass;
+	std::unordered_map<int, std::vector<DDNatureFlat>> natureCache;	// key north * WORLD_W + px
+	std::unordered_map<int64_t, std::vector<TObjPtr<AActor *>>> natureActors;	// by overworld chunk
+	std::vector<TObjPtr<AActor *>> townNature;
+	int natureSpawned;
+
+	const std::vector<DDNatureFlat> &NatureOf(int px, int north)
+	{
+		const int key = north * WORLD_W + px;
+		auto found = natureCache.find(key);
+		if (found != natureCache.end()) return found->second;
+		if (natureCache.size() >= 16) natureCache.clear();
+		static std::vector<float> raw;
+		const float *heights;
+		short rect[4];
+		bool hasRect = false;
+		auto loc = locRects.find(key);
+		if (loc != locRects.end())
+		{
+			heights = BlendedPixel(px, north, loc->second).data();
+			rect[0] = loc->second.x0; rect[1] = loc->second.x1; rect[2] = loc->second.y0; rect[3] = loc->second.y1;
+			hasRect = true;
+		}
+		else
+		{
+			raw.resize(size_t(PIXEL_TILES + 1) * (PIXEL_TILES + 1));
+			for (int x = 0; x <= PIXEL_TILES; x++)
+				for (int y = 0; y <= PIXEL_TILES; y++) raw[size_t(x) * (PIXEL_TILES + 1) + y] = RawHeight(px, north, x, y);
+			heights = raw.data();
+		}
+		std::vector<DDNatureFlat> &out = natureCache[key];
+		DDNature_Layout(px, north, heights, int(SmallAt(px, WORLD_H - 1 - north)), hasRect ? rect : nullptr, out);
+		return out;
+	}
+
+	// The flats whose tile corner lies in global tiles [gx0, gx1) x [gy0, gy1), and on the town's ground if one is given.
+	void SpawnNature(FLevelLocals *Level, int gx0, int gx1, int gy0, int gy1, const Town *town, std::vector<TObjPtr<AActor *>> &into)
+	{
+		if (!natureClass) natureClass = PClass::FindActor("DFNatureFlat");
+		if (!natureClass || !dd_natureflats || !DDNature_Load()) return;
+		const bool winter = DDTownCache::IsWinter();
+		for (int north = std::max(gy0 / PIXEL_TILES, 0); north <= std::min((gy1 - 1) / PIXEL_TILES, WORLD_H - 1); north++)
+			for (int px = std::max(gx0 / PIXEL_TILES, 0); px <= std::min((gx1 - 1) / PIXEL_TILES, WORLD_W - 1); px++)
+			{
+				const int archive = DDNature_Archive(px, north, winter);
+				FTextureID tex[32];
+				for (int r = 0; r < 32; r++) tex[r] = FlatTexture(FStringf("dfflat/F%03dR%02d.png", archive, r).GetChars());
+				for (const DDNatureFlat &f : NatureOf(px, north))
+				{
+					const int gx = px * PIXEL_TILES + f.x, gy = north * PIXEL_TILES + f.y;
+					if (gx < gx0 || gx >= gx1 || gy < gy0 || gy >= gy1 || (town && !town->Near(gx, gy, town->margin))) continue;
+					float sx, sy;
+					if (!tex[f.record].isValid() || !DDNature_Scale(archive, f.record, sx, sy)) continue;
+					const double z = (SampleVertex(gx, gy) + Z_BASE) / DOOM_PER_DF - f.sink;
+					AActor *mo = Spawn(Level, natureClass, ToLocal(gx * 256.0, gy * 256.0, z), NO_REPLACE);
+					if (!mo) continue;
+					mo->picnum = tex[f.record];
+					mo->Scale = DVector2(sx, sy);
+					into.emplace_back();
+					into.back() = mo;
+					natureSpawned++;
+				}
+			}
+	}
+
+	void SpawnNatureChunk(FLevelLocals *Level, int cx, int cy)
+	{
+		auto &into = natureActors[ChunkKey(cx, cy)];
+		if (into.empty()) SpawnNature(Level, cx * CHUNK_TILES, (cx + 1) * CHUNK_TILES, cy * CHUNK_TILES, (cy + 1) * CHUNK_TILES, nullptr, into);
+	}
+
+	// After a shift: flats in chunks that left the window go, and the rest move with it.
+	void ShiftNature(const DVector3 &delta)
+	{
+		for (auto it = natureActors.begin(); it != natureActors.end();)
+		{
+			const bool keep = ChunkInWindow(int(uint32_t(it->first)), int(it->first >> 32));
+			for (auto &ptr : it->second)
+			{
+				AActor *mo = ptr.Get();
+				if (!mo) continue;
+				if (!keep) { mo->Destroy(); continue; }
+				FLinkContext ctx;
+				mo->UnlinkFromWorld(&ctx);
+				mo->SetXYZ(mo->Pos() - delta);
+				mo->LinkToWorld(&ctx);
+				mo->Prev -= delta;
+			}
+			it = keep ? std::next(it) : natureActors.erase(it);
+		}
+	}
+
+	// A generated town's ground: the flats within its walkable margin.
+	void SpawnTownNature(FLevelLocals *Level, const Town &t)
+	{
+		townNature.clear();
+		if (t.space || t.rects.empty()) return;
+		int x0 = std::numeric_limits<int>::max(), x1 = std::numeric_limits<int>::min(), y0 = x0, y1 = x1;
+		for (const TileRect &r : t.rects) { x0 = std::min(x0, r.x0); x1 = std::max(x1, r.x1); y0 = std::min(y0, r.y0); y1 = std::max(y1, r.y1); }
+		natureSpawned = 0;
+		SpawnNature(Level, x0 - t.margin, x1 + t.margin, y0 - t.margin, y1 + t.margin, &t, townNature);
+		DD_DebugPrintf("DDNATURE town %s flats=%d\n", t.map.GetChars(), natureSpawned);
 	}
 
 	// Fresh entry to a generated location: its billboards and gates. Saves restore these as ordinary actors.
@@ -1826,8 +1965,13 @@ namespace
 	{
 		for (size_t i = 0; i < towns.size(); i++)
 			if (towns[i].space && towns[i].dungeonMapId == mapId) return int(i);
-		return -1;
+		if (!runtimeTowns) return -1;
+		const int group = DungeonGroup(mapId);	// [Doomerfall] Converted during play.
+		return DDTownCache::Status(group) == DDTownCache::State::Ready ? TownForSpace(group, DDTownCache::Get(group)) : -1;
 	}
+
+	// The cache group a town door needs: an interior's space id, or a dungeon's runtime group.
+	int DoorGroup(const DoorSpot &d) { return d.kind == 0 ? d.target : DungeonGroup(d.target); }
 
 	// Goes through a town door. False means the destination is not ready yet.
 	bool EnterDoor(FLevelLocals *Level, AActor *pmo, const DoorSpot &d, const double *dungeonStart = nullptr)
@@ -1913,23 +2057,24 @@ namespace
 		{
 			std::vector<std::pair<double, int>> near;
 			for (const DoorSpot &d : townDoors)
-				if (d.kind == 0)
+				if (d.kind == 0 || DungeonTown(d.target) < 0)	// [Doomerfall] and dungeons not converted yet
 				{
 					const double dist = (DVector2(d.x, d.y) - pmo->Pos().XY()).Length();
-					if (dist < 768) near.push_back({ dist, d.target });
+					if (dist < 768) near.push_back({ dist, DoorGroup(d) });
 				}
 			std::sort(near.begin(), near.end());
 			DDTownCache::BeginScan();
 			int requested = 0, lastId = -1;
 			for (auto &n : near)
 				if (n.second != lastId && requested < DOOR_PREFETCH) { DDTownCache::Request(n.second, n.first + 1); lastId = n.second; requested++; }
-			if (pendingDoor >= 0 && townDoors[pendingDoor].kind == 0) DDTownCache::Request(townDoors[pendingDoor].target, 0);	// Last, so the pressed door outranks prefetching.
+			if (pendingDoor >= 0) DDTownCache::Request(DoorGroup(townDoors[pendingDoor]), 0);
+			if (dungeonRequest >= 0) DDTownCache::Request(DungeonGroup(dungeonRequest), 0);	// New Game or a load into a dungeon not converted yet	// Last, so the pressed door outranks prefetching.
 		}
 		if (pendingDoor >= 0)
 		{
 			const DoorSpot d = townDoors[pendingDoor];
 			if ((DVector2(d.x, d.y) - pmo->Pos().XY()).Length() > DOOR_CANCEL) { Printf(PRINT_HIGH, "You left the door.\n"); pendingDoor = -1; }
-			else if (DDTownCache::Status(d.target) == DDTownCache::State::Failed) { Printf(PRINT_HIGH, "This door will not open.\n"); pendingDoor = -1; }
+			else if (DDTownCache::Status(DoorGroup(d)) == DDTownCache::State::Failed) { Printf(PRINT_HIGH, "This door will not open.\n"); pendingDoor = -1; }
 			else if (EnterDoor(Level, pmo, d)) pendingDoor = -1;
 			return;
 		}
@@ -1943,10 +2088,10 @@ namespace
 		}
 		if (best < 0) { if (fresh) DD_UseWall(pmo->player); return; }	// Use on a building's wall names it, as Daggerfall's Info does.
 		const DoorSpot d = townDoors[best];
-		if (d.kind == 1 && DungeonTown(d.target) < 0) { Printf(PRINT_HIGH, "This dungeon is not available yet.\n"); return; }
+		if (d.kind == 1 && DungeonTown(d.target) < 0 && !runtimeTowns) { Printf(PRINT_HIGH, "This dungeon is not available yet.\n"); return; }
 		if (EnterDoor(Level, pmo, d)) return;
 		pendingDoor = best;
-		DDTownCache::Request(d.target, 0);
+		DDTownCache::Request(DoorGroup(d), 0);
 		Printf(PRINT_HIGH, "Opening...\n");
 	}
 
@@ -1992,12 +2137,22 @@ namespace
 		return count;
 	}
 
+	// After a load: a kept actor is expected again, and a map item gets back where it stood (not in the save), so a take
+	// after the load still has its spot.
+	void ExpectLoaded(AActor *mo)
+	{
+		const uint64_t id = mo->ddRecordId;
+		expected.insert(id);
+		if (IsMapItemId(id)) itemSpots.emplace(id, ToWorld(mo->SpawnPoint, originX, originY));
+	}
+
 	void StartTown(FLevelLocals *Level, int index)
 	{
 		if (multiplayer || !LoadWorld()) return;
 		currentTown = index;
 		townActive = true;
 		dd_tm_intown = 1;
+		resumedSnapshot = false;
 		expected.clear();
 		pending.clear();
 		const Town &t = towns[index];
@@ -2039,6 +2194,7 @@ namespace
 		if (t.space) DD_DebugPrintf("DDTM place %s map %s %s: map items %d, replaced by rows %d, restored %d, missing classes %d\n", t.place.GetChars(), t.map.GetChars(),
 			firstVisit ? "first visit" : "revisit", mapItems, replaced, restored, missingClassCount);
 		if (t.group >= 0 || (t.space && t.spaceId < DUNGEON_SPACE)) SpawnTownContents(Level, t.space);
+		SpawnTownNature(Level, t);
 		FinishHandoff(Level);
 		if (FindArg("-ddtmverify")) VerifySeam(Level, t);
 		DD_DebugPrintf("DDTOWN active %s restored=%d records=%d\n", t.map.GetChars(), restored, int(table.size()));
@@ -2126,10 +2282,15 @@ namespace
 			useHeld = true;
 			PinHomeTown(towns[town]);
 			LoadTownDoors(towns[town]);
+			SpawnTownNature(Level, towns[town]);	// never saved, so laid out again
 			expected.clear();
 			auto it = Level->GetThinkerIterator<AActor>();
 			while (AActor *mo = it.Next())
-				if (mo->ddRecordId && !IsOwned(mo)) expected.insert(mo->ddRecordId);
+				if (mo->ddRecordId && !IsOwned(mo)) ExpectLoaded(mo);
+			// The save keeps no world table, so without Daggerfall's record leaving would forget what is gone (taken
+			// pickups). The snapshot stands; the record only refills the cache behind it (DDTreadmill_ApplyPlace).
+			resumedSnapshot = towns[town].space;
+			if (DDPlaceKey place; resumedSnapshot && DD_BridgeHasSession() && DDTreadmill_CurrentSpace(place)) DD_LocationsEntered(place);
 			DD_DebugPrintf("DDTOWN resumed %s records=%d\n", Level->MapName.GetChars(), int(table.size()));
 			return;
 		}
@@ -2141,8 +2302,10 @@ namespace
 		expected.clear();
 		auto it = Level->GetThinkerIterator<AActor>();
 		while (AActor *mo = it.Next())
-			if (mo->ddRecordId && !IsOwned(mo)) expected.insert(mo->ddRecordId);
+			if (mo->ddRecordId && !IsOwned(mo)) ExpectLoaded(mo);
 		SettleActors(Level, false);
+		for (int cy = originY / CHUNK_TILES; cy < (originY + CELLS) / CHUNK_TILES; cy++)	// nature is never saved
+			for (int cx = originX / CHUNK_TILES; cx < (originX + CELLS) / CHUNK_TILES; cx++) SpawnNatureChunk(Level, cx, cy);
 		DDTreadmill_Active = true;
 		int drawn = 0;
 		for (auto &t : tris) drawn += t.sec->GetTexture(sector_t::floor) == baseFloor;
@@ -2408,8 +2571,9 @@ void DDTreadmill_ApplyPlace(FLevelLocals *Level, const DDPlaceKey &place, const 
 		auto it = Level->GetThinkerIterator<AActor>();
 		while (AActor *mo = it.Next())
 			if (!mo->player && mo->ddRecordId && !IsOwned(mo) && recorded.count(mo->ddRecordId)) live++;
-		if (live > 0)
+		if (live > 0 || resumedSnapshot)	// Resumed: the snapshot stands even when only map items differ (a take).
 		{
+			resumedSnapshot = false;
 			int stored = 0;
 			for (const DDPlaceFact &f : facts)
 			{
@@ -2686,6 +2850,8 @@ void DD_BodiesBeginMap(FLevelLocals *Level);
 void DDTreadmill_BeginMap(FLevelLocals *Level)
 {
 	DD_BodiesBeginMap(Level);	// monster movement width (dd_monsters.cpp)
+	natureActors.clear();	// [Doomerfall] the old map's nature flats went with it
+	townNature.clear();
 	DDTreadmill_WideNodes = false;
 	static const bool hasTowns = fileSystem.CheckNumForName("DDTOWN") >= 0 || fileSystem.CheckNumForName("DDGROUPS") >= 0;
 	if (!hasTowns || !Level->isPrimaryLevel()) return;
@@ -2694,6 +2860,7 @@ void DDTreadmill_BeginMap(FLevelLocals *Level)
 }
 
 bool DDTreadmill_RuntimeTowns() { return runtimeTowns; }
+const std::vector<DDNatureFlat> *DDTreadmill_NatureOf(int px, int north) { return DDNature_Load() && !smallMap.empty() ? &NatureOf(px, north) : nullptr; }	// dd_nature_dump
 // Where the player is, for Daggerfall's world look (dd_weather.cpp): 0 none, 1 exterior, 2 building interior, 3 dungeon.
 int DDTreadmill_Place() { return DDTreadmill_Active ? 1 : !townActive || currentTown < 0 ? 0 : !towns[currentTown].space ? 1 : towns[currentTown].spaceId < DUNGEON_SPACE ? 2 : 3; }
 bool DDTreadmill_OnDaggerfallMap() { return DDTreadmill_Active || townActive; }
@@ -2709,7 +2876,8 @@ level_info_t *DDTreadmill_FindLevelInfo(const char *mapname)
 	upper.ToUpper();
 	auto found = runtimeInfoByName.find(upper.GetChars());
 	if (found != runtimeInfoByName.end()) return found->second;
-	level_info_t *base = FindLevelInfo("DDTOWN", false);
+	level_info_t *base = SpaceOfMap(mapname) >= DUNGEON_GROUP ? FindLevelInfo("DDDUNGN", false) : nullptr;	// [Doomerfall] runtime dungeon
+	if (!base) base = FindLevelInfo("DDTOWN", false);
 	if (!base) return nullptr;
 	runtimeInfos.push_back(*base);
 	level_info_t *info = &runtimeInfos.back();
@@ -2730,6 +2898,40 @@ bool DDTreadmill_OpenTownMap(const char *mapname, FileSys::FileReader &reader)
 	if (!wad) return false;
 	mapEntry = entry;
 	return reader.OpenMemory(wad->data(), wad->size());
+}
+
+// [Doomerfall] With name null: whether mapname is a dungeon converted during play and its cache file is loaded. Otherwise
+// also copies that dungeon's lump (cache names hold 8 characters; DFPOINTS is inside its map WAD) and says if it exists.
+bool DDTreadmill_RuntimeLump(const char *mapname, const char *name, FString *out)
+{
+	if (SpaceOfMap(mapname) < DUNGEON_GROUP || !mapEntry || !mapEntry->Find("DDDUNGN")) return false;
+	if (!name) return true;
+	if (stricmp(name, "DFPOINTS") == 0)
+	{
+		const auto *wad = mapEntry->Find("MAPWAD");
+		if (!wad || wad->size() < 12) return false;
+		const uint8_t *w = wad->data();
+		int32_t count, dir;
+		memcpy(&count, w + 4, 4);
+		memcpy(&dir, w + 8, 4);
+		for (int32_t i = 0; i < count && dir >= 0 && size_t(dir) + 16 * size_t(i + 1) <= wad->size(); i++)
+		{
+			const uint8_t *e = w + dir + 16 * i;
+			int32_t pos, size;
+			memcpy(&pos, e, 4);
+			memcpy(&size, e + 4, 4);
+			if (strnicmp((const char *)e + 8, "DFPOINTS", 8) || pos < 0 || size < 0 || size_t(pos) + size_t(size) > wad->size()) continue;
+			if (out) *out = FString((const char *)w + pos, size);
+			return true;
+		}
+		return false;
+	}
+	char key[9] = {};
+	strncpy(key, name, 8);
+	const auto *body = mapEntry->Find(key);
+	if (!body) return false;
+	if (out) *out = FString((const char *)body->data(), body->size());
+	return true;
 }
 
 bool DDTreadmill_MapMesh(const char *mapname, const uint8_t *&data, size_t &size, int &key)
@@ -2825,6 +3027,7 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 			if (d.kind != 0 && d.target == wanted)
 			{
 				if (EnterDoor(Level, pmo, d, dungeonRequestHasStart ? dungeonRequestStart : nullptr)) return;
+				if (runtimeTowns && DDTownCache::Status(DoorGroup(d)) != DDTownCache::State::Failed) { dungeonRequest = wanted; return; }	// [Doomerfall] Converting.
 				break;
 			}
 		DD_DebugPrintf("DDTRAVEL no door to dungeon %d in %s\n", wanted, Level->MapName.GetChars());
@@ -2910,6 +3113,7 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 	RewriteGrid();	// Before the move, so actors find their floors on the new terrain.
 	const int64_t rewriteNs = NsSince(rewriteStart);
 	MoveActors(Level, DVector3(dx * double(SPACING), dy * double(SPACING), 0), oldX, oldY);
+	ShiftNature(DVector3(dx * double(SPACING), dy * double(SPACING), 0));
 	if (runtimeTowns)	// Billboards in a chunk that left were destroyed with it, so its next entry spawns them again.
 		for (auto it = flatSpawned.begin(); it != flatSpawned.end();)
 			it = ChunkInWindow(int(uint32_t(*it)), int(*it >> 32)) ? std::next(it) : flatSpawned.erase(it);

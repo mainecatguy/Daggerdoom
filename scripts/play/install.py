@@ -31,21 +31,23 @@ set "DF=@DAGGER@"
 if not exist "%HERE%run\saves" mkdir "%HERE%run\saves"
 set BINDS=
 if not exist "%HERE%run\uzdoom.ini" set BINDS=--uzdoom-arg +bind --uzdoom-arg q --uzdoom-arg "netevent df_info" --uzdoom-arg +bind --uzdoom-arg i --uzdoom-arg "netevent df_inventory" --uzdoom-arg +bind --uzdoom-arg k --uzdoom-arg "netevent df_fast_travel" --uzdoom-arg +bind --uzdoom-arg j --uzdoom-arg "netevent df_journal" --uzdoom-arg +bind --uzdoom-arg z --uzdoom-arg "netevent df_rest"
-start "" "%HERE%doomerfall-launcher.exe" --nodraw --uzdoom "%HERE%uzdoom\uzdoom.exe" --dfu "%HERE%dfu\DaggerfallUnity.exe" --iwad "@IWAD@" --mod "@MODS@\DoomRL_Arsenal_1.1.5.pk3" --mod "@MODS@\DoomRL_Monsters_Beta_7.3.pk3" --mod "@MODS@\drlax_1.2b.pk3" --mod "%DATA%\ddruntime.pk3" --mod "%DATA%\overworld.pk3" --mod "%DATA%\privateershold.wad" --mod "%DATA%\privateershold_mesh.pk3" --mod "%DATA%\privateershold_doors.pk3" --mod "%HERE%dfitems.pk3" --mod "%HERE%doomerfall.pk3" --uzdoom-cwd "%HERE%run" --log "%HERE%run\launcher.log" --uzdoom-arg -dfflow --uzdoom-arg -config --uzdoom-arg "%HERE%run\uzdoom.ini" --uzdoom-arg -savedir --uzdoom-arg "%HERE%run\saves" --uzdoom-arg -dfbridgelog --uzdoom-arg "%HERE%run\uz.log" --uzdoom-arg -ddtowncache --uzdoom-arg "%DATA%\cache" --uzdoom-arg -ddconverter --uzdoom-arg "%DATA%\converter\DungeonConverter.exe" --uzdoom-arg -ddarena2 --uzdoom-arg "%DF%\ARENA2" --uzdoom-arg +vid_fullscreen --uzdoom-arg 0 --uzdoom-arg +wipetype --uzdoom-arg 0 --uzdoom-arg +i_pauseinbackground --uzdoom-arg 0 --uzdoom-arg +i_soundinbackground --uzdoom-arg 1 --uzdoom-arg +dd_dev --uzdoom-arg 1 --dfu-arg -dfflow --dfu-arg "%DF%" --dfu-arg -dfbridgelog --dfu-arg "%HERE%run\df.log" --dfu-arg -screen-fullscreen --dfu-arg 0 --dfu-arg -screen-width --dfu-arg 1280 --dfu-arg -screen-height --dfu-arg 800 %BINDS%
+start "" "%HERE%doomerfall-launcher.exe" --nodraw --uzdoom "%HERE%uzdoom\uzdoom.exe" --dfu "%HERE%dfu\DaggerfallUnity.exe" --iwad "@IWAD@" --mod "@MODS@\DoomRL_Arsenal_1.1.5.pk3" --mod "@MODS@\DoomRL_Monsters_Beta_7.3.pk3" --mod "@MODS@\drlax_1.2b.pk3" --mod "%DATA%\ddruntime.pk3" --mod "%DATA%\overworld.pk3" --mod "%DATA%\privateershold.wad" --mod "%DATA%\privateershold_mesh.pk3" --mod "%DATA%\privateershold_doors.pk3" --mod "%HERE%dfitems.pk3" --mod "%HERE%doomerfall.pk3" --mod "%HERE%doomerfall-drla.pk3" --uzdoom-cwd "%HERE%run" --log "%HERE%run\launcher.log" --uzdoom-arg -dfflow --uzdoom-arg -config --uzdoom-arg "%HERE%run\uzdoom.ini" --uzdoom-arg -savedir --uzdoom-arg "%HERE%run\saves" --uzdoom-arg -dfbridgelog --uzdoom-arg "%HERE%run\uz.log" --uzdoom-arg -ddtowncache --uzdoom-arg "%DATA%\cache" --uzdoom-arg -ddconverter --uzdoom-arg "%DATA%\converter\DungeonConverter.exe" --uzdoom-arg -ddarena2 --uzdoom-arg "%DF%\ARENA2" --uzdoom-arg +vid_fullscreen --uzdoom-arg 0 --uzdoom-arg +wipetype --uzdoom-arg 0 --uzdoom-arg +i_pauseinbackground --uzdoom-arg 0 --uzdoom-arg +i_soundinbackground --uzdoom-arg 1 --uzdoom-arg +dd_dev --uzdoom-arg 1 --dfu-arg -dfflow --dfu-arg "%DF%" --dfu-arg -dfbridgelog --dfu-arg "%HERE%run\df.log" --dfu-arg -screen-fullscreen --dfu-arg 0 --dfu-arg -screen-width --dfu-arg 1280 --dfu-arg -screen-height --dfu-arg 800 %BINDS%
 '''
 
 # What to try, for the owner. One line each, written into play.bat as rem lines.
 TRY = [
-    "What to try in this build (integration at 9cfd017). If a key does nothing, bind it in Options, Customize Controls, Doomerfall Controls.",
-    " 1. Z opens the rest window: HP comes back three times as fast as in Daggerfall, and a level earned shows You have reached level N on waking.",
-    " 2. Raise Jumping to 25, 50, 75 or 100: a popup names the perk you earned (only Jumping has perks so far).",
-    " 3. The character sheet has seven weapon skills; start a few different classes and compare their sheets.",
-    " 4. A gun in two skills (a plasma pistol or laser shotgun) uses whichever of its skills is higher.",
-    " 5. Outdoors, look for fog, a foggy sky, winter textures, and lit windows at night.",
-    " 6. Ammo of every tier comes in the same sizes: a Silver clip is 10 bullets, like a Regular one.",
-    " 7. Locked doors: Use a locked door with lockpicks in your inventory to try a pick. Magic locks cannot be picked.",
-    " 8. In fullscreen Doom, the mouse is free in Daggerfall menus: you get a cursor and can click.",
-    " 9. Your hits show as gold damage numbers over monsters; turn them off in Options, HUD Options, Show damage numbers.",
+    "What to try in this build (integration at 399b9c24). If a key does nothing, bind it in Options, Customize Controls, Doomerfall Controls.",
+    " 1. Dungeons: walk to the dungeon door of any town; 'Opening...' shows for up to ~10 s on the first visit, then you are inside. Try a crypt, and Privateer's Hold. Tilted-door dungeons and loading a save inside a freshly converted dungeon are unverified.",
+    " 2. New Game has no DRLA class menu and no class kit; the fist is on hotkey 1.",
+    " 3. The Light Carbine (a semi-automatic Battle Rifle, +20% damage) drops from Battle Rifle monsters about half the time.",
+    " 4. Drop a pile of one ammo type: it shows Doom's clip, shells, rocket or cell sprite, and stays that way after leaving and coming back.",
+    " 5. A gun's Info text lists its weapon types (Automatics for the chaingun, minigun, autocannon, assault rifle chaingun).",
+    " 6. The travel map shows a danger word only for dungeons.",
+    " 7. Privateer's Hold: the hall at the top of the cave stairs holds battle rifle Former Humans; monsters are held still while you arrive.",
+    " 8. Pick up a Doom item, leave and come back or reload: it stays gone.",
+    " 9. Climb the steep stairs in Privateer's Hold: one continuous climb.",
+    "10. Outdoors, trees, rocks and plants stand where Daggerfall puts them, the same every visit (the forest past a town map's edge is still missing from a look back).",
+    "11. Z rests, J is the journal, K is fast travel, I is the inventory, Q inspects.",
 ]
 
 
@@ -170,6 +172,7 @@ def main():
     if not args.keep_data:
         make_data(build_dir, target)
     subprocess.check_call([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), str(target / "doomerfall.pk3")])
+    subprocess.check_call([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), "--drla", str(target / "doomerfall-drla.pk3")])  # DRLA is always loaded here.
     shutil.copy2(launcher / "doomerfall-launcher.exe", target / "doomerfall-launcher.exe")
 
     play = PLAY.replace("@DAGGER@", str(GAME / "DAGGER")).replace("@IWAD@", str(GAME / "wads" / "DOOM2.WAD")).replace("@MODS@", str(GAME.parent / "GameMods"))

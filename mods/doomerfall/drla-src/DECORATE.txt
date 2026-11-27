@@ -1,0 +1,24 @@
+// Doomerfall's player when DRLA is loaded (built into doomerfall-drla.pk3, loaded only with DRLA and doomerfall.pk3).
+// The Doom player is a normal character with no class effects; Daggerfall's class is the only class (owner, 2026-11-25).
+//
+// DoomRLPlayer is DRLA's generic player, the parent of its classes: stock PLAY sprites, its step, armor and death states,
+// and DRLA's base "Holy" damage factor (0.2, which every class keeps or lowers). It carries no perk item and no class
+// damage factor. Its start list is replaced here to drop its 40 bullets and 5 shells, so the kit is exactly DRLA's
+// no-class start: RLSpecialStarter finds no perk item and gives the pistol loadout (RLPistol, 60 bullets), as DRLA's
+// own "no perks" option does.
+ACTOR DoomerfallPlayer : DoomRLPlayer
+{
+  Player.DisplayName "Doomerfall"
+  Tag "Doomerfall"
+  // DRLA's infrastructure items, as every DRLA class lists them, without the class's perk item.
+  Player.StartItem "RLSpecialStarter"
+  Player.StartItem "RLSpecialItemDropper"
+  Player.StartItem "RLStatusBarHUDStyleChanger"
+  Player.StartItem "RLFullscreenHUDStyleChanger"
+  Player.StartItem "RLWipeAssemblies"
+  Player.StartItem "RLArmorSpecial"
+  Player.StartItem "RLBootsRemover"
+  Player.StartItem "RLArmorRemover"
+  Player.StartItem "RLFist"
+  Player.StartItem "RLStamina", 100
+}

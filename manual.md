@@ -47,6 +47,14 @@ by itself inside Doom (after you wake up, or when you arrive):
 
 You are back in Doom with the new attributes in effect.
 
+## Attributes
+
+What your attributes do now. They use your current value, so spells and effects that fortify or drain an attribute
+count while they last.
+
+- **Agility:** you reload and switch weapons faster: up to 40% faster at 100 (20% at 50). You also get a chance to
+  dodge damage completely: 15% at 100 (7.5% at 50). Agility above 100 counts as 100.
+
 ## Weapon skills
 
 Doomerfall adds seven weapon skills to your character sheet: the gun skills **Shotguns**, **Automatics**,
@@ -54,7 +62,7 @@ Doomerfall adds seven weapon skills to your character sheet: the gun skills **Sh
 Impish) are gone: you can no longer calm monsters by speaking to them.
 
 - Most weapons belong to one of these skills; a few belong to two (see "Weapons that belong to two skills"). Shotguns covers shotguns, Automatics covers chainguns, miniguns and
-  other rapid-fire guns, Explosives covers rocket, missile and grenade launchers, and Pistols covers every pistol,
+  other rapid-fire guns, including the Assault Rifle Chaingun, Assault Rifle Minigun and Autocannon, Explosives covers rocket, missile and grenade launchers, and Pistols covers every pistol,
   revolver and Uzi, including plasma pistols and pistols that fire shotgun shells. Rifles covers ballistic
   semi-automatic and single-shot rifles that are not explosives, energy weapons, shotguns or pistols.
 - No rifle counts as a pistol.
@@ -89,6 +97,38 @@ every class, replaced by other skills, for example Running for the Assassin and 
   Streetwise, Mercantile or Medical, and Critical Strike becomes a weapon skill or Running.
 - An older save loads at the same level, with the same progress towards the next level. The class lists change to the
   new ones, but your skill values are kept as they were.
+
+### No Doom class
+
+Your Daggerfall class is your only class. New Game goes straight from Doom's menu to Daggerfall's character creation,
+with no Doom Roguelike Arsenal class menu, and your Doom character has no DRLA class perk (no Marine Ammochain and the
+like). You start with fists and a gun chosen by your best gun skill (below). Perks come from your skills.
+
+### Your starting gun
+
+When guns are in the game, a new character starts with the most basic gun of their highest gun skill, instead of the
+pistol. The pistol's usual starting bullets (60 with the Doom Roguelike Arsenal, 50 without) set the ammo:
+
+| Highest skill | Starting gun | Starting ammo |
+|---|---|---|
+| Pistols | Pistol | 60 bullets (50) |
+| Rifles | Light Carbine | 60 bullets (50) |
+| Automatics | Chaingun | 60 bullets (50) |
+| Shotguns | Shotgun | 20 shells (16) |
+| Explosives | Rocket launcher | 12 rockets (10) |
+| Melee | Chainsaw | none |
+
+- With the Doom Roguelike Arsenal you get its version of the gun; without it, stock Doom's. The Light Carbine is the
+  same either way.
+- Only these six skills count. Hand-to-Hand, Energy Weapons and Daggerfall's old weapon skills don't. Energy weapons
+  as starting guns come later.
+- Your skill values decide, whether or not the skill is one of your class skills. A class with none of the six as a
+  class skill gets the gun of whichever of them rolled highest.
+- **A tie gives you every tied gun.** Ammo of one kind is not doubled: Pistols and Rifles tied at 30 give a pistol, a
+  Light Carbine and 60 bullets. The first gun in the table's order is in your hands; the others are on their number
+  keys.
+- Each starting gun goes on its usual number key (pistol 2, shotgun 3, chaingun and Light Carbine 4, rocket launcher
+  5, chainsaw on 1 after your fists).
 
 ## Perks
 
@@ -125,12 +165,34 @@ whichever of its skills is higher, never both at once.
   take items as usual, and pressing 1 again moves on to them.
 - Raising your fists only lowers your gun. Press the gun's key to raise it again, with its magazine as you left it.
 
+### Seeing a gun's skills
+
+Select **Info** on a gun in your inventory to see which weapon skills it counts as. The description starts with the
+gun's name and its types, for example "Plasma Rifle. Type: Energy" or "Laser Shotgun. Types: Energy, Shotgun". A gun
+with two types uses whichever of those skills is higher (above). Doom Roguelike Arsenal guns also show a short
+description from the arsenal's own notes, and every gun shows its material and weight.
+
+- The types are Pistol, Shotgun, Automatic, Explosive, Rifle, Energy, Melee and Hand-to-Hand, one for each weapon
+  skill.
+- "Types: none" means the gun belongs to no weapon skill yet.
+- A gun's types appear once its picture has loaded in the inventory. Until then the description shows only its name.
+
+## Light Carbine
+
+The Light Carbine is a semi-automatic rifle: one shot per trigger pull, with a little more damage per shot than the
+Battle Rifle (+20%). Otherwise it handles like the Battle Rifle: same accuracy, 20-round magazine, bullets and reload.
+It is always in the game. Former Humans, Former Commandos, Elite Former Humans and Former Cyborgs that carry a battle
+rifle drop a Light Carbine about half the time instead of a Battle Rifle.
+
 ## Ammo pickups
 
 Ammo comes in material tiers, from Regular through Steel, Silver and on up to Daedric. Higher tiers hit harder and
 are rarer, but a pickup of any tier holds the same amount as a Regular one: a clip is 10 bullets, a box of bullets 50,
 4 shells, a box of shells 20, 1 rocket, a box of rockets 5, a cell 20 and a cell pack 100. Ammo a monster drops holds
 half (at least 1). A shop pack of any tier holds 80 bullets, 20 shells, 8 rockets or 100 cells.
+
+Health, ammo and other pickups lying in a place are always the same ones each time you come. A pickup you take is
+gone for good: it does not come back when you leave and return, or when you load a save.
 
 ## Resting
 

@@ -26,7 +26,8 @@ BAD = re.compile(r'Script error, "doomerfall\.pk3|doomerfall\.pk3:zscript/\S+, l
 # (work/notes/20261126-003658.md), not from the tool: "all ballistic semi-automatic weapons that are not explosives,
 # energy weapons, shotguns or pistols"; heavy single-shot rifles count; the Elephant Gun is a rifle.
 OWNER_RIFLES = {'RLMarksmanRifle', 'RLHighPowerMarksmanRifle', 'RLAssaultRifleBattleRifle', 'RLSniperRifle',
-                'RLElephantGun', 'RLAntiMaterielRifle', 'RLGaussRifle'}
+                'RLElephantGun', 'RLAntiMaterielRifle', 'RLGaussRifle',
+                'DoomerfallLightCarbine'}  # the carbine is Doomerfall's own rifle (owner, 2026-11-26)
 # Named by the owner or the research as not rifles: Automatics (the three Assault/Master guns by owner ruling, the
 # automatic and burst rifles), the Steel Beast (shotgun), the Railgun and energy rifles (energy), rifle-family pistols.
 NOT_RIFLES = {'RLAssaultRifleChaingun', 'RLAssaultRifleMinigun', 'RLAutocannon', 'RLSteelBeast', 'RLRailgun',
@@ -93,7 +94,7 @@ def main():
     checks.append(('stock: no script errors', not any(BAD.search(l) for l in stock), None))
     checks.append(('stock: E1M1 started and the test finished', any('RIFLETAG done' in l for l in stock), None))
     checks.append(('stock: weapon classes were listed', bool(weapons), weapons))
-    checks.append(('stock: nothing is tagged without DRLA', tagged == [], tagged))
+    checks.append(('stock: only the Light Carbine is tagged without DRLA', tagged == ['DoomerfallLightCarbine'], tagged))
 
     drla = run(a.exe, a.work, a.iwad, [os.path.join(a.mods, f) for f in DRLA] + [mod], 'drla', 60)
     weapons, tagged, held = parse(drla)

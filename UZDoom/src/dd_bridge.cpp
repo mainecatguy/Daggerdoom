@@ -775,6 +775,14 @@ int DD_BridgeSkillLive(int slot)
 	return s && slot >= 0 && slot < DFB_SHEET_SKILLS_LIVE - DFB_SHEET_SKILLS_BASE ? s[DFB_SHEET_SKILLS_LIVE + slot] : -1;
 }
 
+// Daggerfall's live value of one attribute (DFCareer.Stats: 0 Strength .. 6 Speed, 7 Luck) for ZScript
+// (Actor.DD_SheetStat), or -1 without a valid character, so a Doom-only game reads -1.
+int DD_BridgeStatLive(int stat)
+{
+	const int32_t *s = DD_BridgeSheet();
+	return s && stat >= 0 && stat < DFB_SHEET_SKILLS_BASE - DFB_SHEET_STATS_LIVE ? s[DFB_SHEET_STATS_LIVE + stat] : -1;
+}
+
 // One line in the bridge log (-dfbridgelog) and the console, for the other dd_*.cpp files.
 void DD_BridgeLog(const char *text) { Log("%s", text); }
 
@@ -2091,6 +2099,7 @@ void NgSendArrived(bool ok)
 		arrivalSave = false;
 		Log("save: dropped the autosave for a map change, a New Game or plain load is arriving");
 	}
+	if (ok) DD_ItemsSendStarter(); // Daggerfall gives the starting guns from it: a New Game's and a plain load's.
 	dfb_event e{};
 	e.kind = DFB_KIND_NEWGAME_ARRIVED;
 	e.tic = gametic;
@@ -2153,8 +2162,7 @@ void PlainArrived()
 	else if (DDTreadmill_PlayerSpace(x, y, z, yaw, target))
 		Log("plain load: Doom player at %.1f,%.1f,%.1f yaw %.1f in space %d, %.1f units from the save", x, y, z, yaw, target,
 			sqrt((x - plainWorld.start_x) * (x - plainWorld.start_x) + (y - plainWorld.start_y) * (y - plainWorld.start_y)));
-	DD_ItemsSendStarter();
-	NgSendArrived(true);
+	NgSendArrived(true); // Sends the starter gun facts first.
 	ngState = NgWaitGo;
 }
 

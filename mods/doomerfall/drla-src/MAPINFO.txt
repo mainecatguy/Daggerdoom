@@ -1,0 +1,11 @@
+// Bridged games have one Doom player class, with no DRLA class effects (DECORATE.txt). This pk3 is loaded only in
+// bridged games with DRLA, after DRLA and DRLA X, so it replaces their class list there. Standalone UZDoom with DRLA
+// never loads it and keeps DRLA's classes. New Game in a bridged game skips any class menu (UZDoom menu/doommenu.cpp)
+// and starts the first class in this list.
+gameinfo
+{
+	PlayerClasses = "DoomerfallPlayer"
+}
+// DRLA's PDA class page draws its portrait by class index (scripts/PDA_LIB.ach DRLA_ClassIcon, 5 entries), so index 0
+// would show the Marine portrait. graphics/PPDAMAR1.png and PPDAMAR2.png (its two animation frames, animdefs.txt), 1x1 transparent images, blank it. The Marine is not
+// selectable in bridged games, and standalone DRLA never loads this pk3.

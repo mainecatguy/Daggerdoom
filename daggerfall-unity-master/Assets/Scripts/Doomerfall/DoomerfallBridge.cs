@@ -152,6 +152,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             gameObject.AddComponent<DoomerfallEndurance>().Init(this, sync);  // max HP from Endurance and level
             DoomerfallHpFormulaTest.Attach(this, sync); // test only: -dfhpformulatest
             sheet = new DoomerfallSheet(this, sync, Environment.GetCommandLineArgs());
+            DoomerfallAgilityTest.Attach(this, sync); // test only: -dfagilitytest
             faces = new DoomerfallFaces(this);
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dffacetest") >= 0)
                 gameObject.AddComponent<DoomerfallFaceTest>().Init(this, sync); // Test only
@@ -196,9 +197,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DoomerfallWorldLevelTest.Attach(this); // test only: -dfworldleveltest N
             DoomerfallChangeAmmoTest.Attach(this, ammo); // test only: -dfchangeammotest
             DoomerfallMaterialDamageTest.Attach(this, ammo); // test only: -dfmaterialtest
+            DoomerfallAmmoPileTest.Attach(this, ammo); // test only: -dfammopiletest
+            DoomerfallStartingGunTest.Attach(this); // test only: -dfstartguntest <skills>
             newGame = gameObject.AddComponent<DoomerfallNewGame>();
             newGame.Init(this, sync, Environment.GetCommandLineArgs());
             newGame.Items = items;
+            newGame.Hotkeys = hotkeys;
+            newGame.Ammo = ammo;
             ui.NewGame = newGame;
             monsters = gameObject.AddComponent<DoomerfallMonsters>();
             monsters.Init(this, sync);
@@ -394,6 +399,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         break;
                     case Dfb.KIND_STARTER:
                         plainLoad.OnStarter(ev.doomItem.request, ev.doomItem.status, DoomerfallDoomItems.ClassOf(ev.doomItem));
+                        DoomerfallStartingGun.OnStarter(ev.doomItem.request, ev.doomItem.status, DoomerfallDoomItems.ClassOf(ev.doomItem));
                         break;
                     case Dfb.KIND_HELLO:
                         Log("hello from UZDoom (seq " + ev.seq + ")");

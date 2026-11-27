@@ -833,6 +833,8 @@ set (PCH_SOURCES
 	playsim/p_things.cpp
 	p_tick.cpp
 	playsim/dd_treadmill.cpp # [Doomerfall]
+	playsim/dd_nature.cpp # [Doomerfall]
+	playsim/dd_nature_test.cpp # [Doomerfall] test only (-ddnaturetest)
 	playsim/dd_towncache.cpp # [Doomerfall]
 	playsim/dd_lights.cpp # [Doomerfall]
 	playsim/dd_weather.cpp # [Doomerfall]

@@ -1,0 +1,158 @@
+version "4.0"
+
+// Test-only probe for tools/no_class/run_no_class.py. Never loaded by the game. Logs to the console log (+logfile):
+// the class list, each menu that opens, and a few seconds into each map the player's class, perk items and weapons.
+class NoClassProbe : StaticEventHandler
+{
+	int ticks;
+	ui String lastMenu;
+	ui int uiTicks;
+	bool listed;
+
+	override void WorldLoaded(WorldEvent e)
+	{
+		ticks = 0;
+		if (!listed)
+		{
+			listed = true;
+			String names = "";
+			for (int i = 0; i < PlayerClasses.Size(); i++) names = names .. " " .. PlayerClasses[i].Type.GetClassName();
+			Console.Printf("noclass probe: %d player classes:%s", PlayerClasses.Size(), names);
+		}
+	}
+
+	override void WorldTick()
+	{
+		ticks++;
+		if (ticks == 70 || ticks == 350) Report();
+		let pmo = players[consoleplayer].mo;
+		if (pmo && pmo.GetClassName() == 'DoomerfallPlayer' && level.MapName.Left(6) != "DDOVER") Check(pmo);
+	}
+
+	// The DRLA checks, once, in the first map the bridged player plays in (the dungeon): DRLA's own fist takes stamina and its
+	// regen script gives it back; DRLA's armor item is worn by Use and absorbs part of a hit. Doom-side only: in a bridge
+	// session the reduced hit is what goes to Daggerfall (DD_BridgeHpHit), and health stays Daggerfall's.
+	int phase, phaseTick, staminaLow, drains, refills, punches, hitBare, hitArmored, armorBefore, armorAfter;
+	bool checked;
+
+	void Check(PlayerPawn pmo)
+	{
+		if (checked || ticks < 105) return;
+		let player = pmo.player;
+		int st = Count(pmo, "RLStamina");
+		if (phase == 0)
+		{
+			phase = 1; phaseTick = ticks; staminaLow = st;
+			Console.Printf("noclass probe: check start map %s stamina %d armor %d", level.MapName, st, ArmorAmount(pmo));
+			String fistName = "RLFist";  // By a runtime name: the probe also loads without DRLA.
+			class<Weapon> fistType = fistName;
+			if (fistType) pmo.A_SelectWeapon(fistType);
+		}
+		else if (phase == 1)  // Kick with DRLA's fist for 6 s, as holding Alt Fire would (each kick takes 10 RLStamina; a punch takes 1,
+		                      // which its regen outpaces).
+		{
+			if (st < lastStamina) drains++;
+			staminaLow = min(staminaLow, st);
+			if (player.ReadyWeapon && player.ReadyWeapon.GetClassName() == 'RLFist' && (player.WeaponState & WF_WEAPONREADY))
+			{
+				pmo.FireWeaponAlt(null);
+				punches++;
+			}
+			if (ticks - phaseTick >= 210)
+			{
+				phase = 2; phaseTick = ticks;
+				Console.Printf("noclass probe: stamina after %d kicks: %d drains, low %d", punches, drains, staminaLow);
+			}
+		}
+		else if (phase == 2)  // Stop kicking; DRLA's RLStaminaRegen script should refill it.
+		{
+			if (st > lastStamina) refills++;
+			if ((ticks - phaseTick) % 70 == 0) Console.Printf("noclass probe: refill tic %d stamina %d", ticks - phaseTick, st);
+			if (st >= 100 || ticks - phaseTick >= 700)
+			{
+				Console.Printf("noclass probe: stamina refill %d steps to %d in %d tics", refills, st, ticks - phaseTick);
+				phase = 3; phaseTick = ticks;
+			}
+		}
+		else if (phase == 3)  // A 20-point hit with no armor worn.
+		{
+			hitBare = pmo.DamageMobj(null, null, 20, 'None');
+			class<Inventory> pickup = PickupName();
+			if (pickup) pmo.GiveInventory(pickup, 1);
+			phase = 4; phaseTick = ticks;
+		}
+		else if (phase == 4)  // Use the armor item, as the player's Use Item key would; DRLA asks for a second use to put it on.
+		{
+			class<Inventory> pickup = PickupName();
+			let item = pickup ? pmo.FindInventory(pickup) : null;
+			if (ArmorAmount(pmo) <= 0 && item && (ticks - phaseTick) % 35 == 1) pmo.UseInventory(item);
+			if (ArmorAmount(pmo) > 0 || ticks - phaseTick >= 175)
+			{
+				armorBefore = ArmorAmount(pmo);
+				let armor = BasicArmor(pmo.FindInventory("BasicArmor"));
+				String typ = "none";
+				if (armor) typ = armor.ArmorType;
+				Console.Printf("noclass probe: armor worn %d type %s save %d%%", armorBefore, typ, armor ? int(armor.SavePercent * 100 + 0.5) : 0);
+				hitArmored = pmo.DamageMobj(null, null, 20, 'None');
+				armorAfter = ArmorAmount(pmo);
+				Console.Printf("noclass probe: hit 20 bare -> %d, armored -> %d, armor %d -> %d", hitBare, hitArmored, armorBefore, armorAfter);
+				checked = true;
+			}
+		}
+		lastStamina = st;
+	}
+	int lastStamina;
+
+	static class<Inventory> PickupName()
+	{
+		String n = "RLGreenArmorPickup";
+		return n;
+	}
+
+	static int ArmorAmount(Actor pmo)
+	{
+		let armor = pmo.FindInventory("BasicArmor");
+		return armor ? armor.Amount : 0;
+	}
+
+	clearscope void Report()
+	{
+		let pmo = players[consoleplayer].mo;
+		if (!pmo) return;
+		String perks = "", weapons = "";
+		for (Inventory i = pmo.Inv; i; i = i.Inv)
+		{
+			String n = i.GetClassName();
+			if (n.IndexOf("Perk") >= 0) perks = perks .. " " .. n;
+			if (i is "Weapon") weapons = weapons .. " " .. n;
+		}
+		let held = players[consoleplayer].ReadyWeapon;
+		Console.Printf("noclass probe: map %s tick %d class %s perks [%s ] weapons [%s ] ready %s stamina %d armorspecial %d clips %d",
+			level.MapName, ticks, pmo.GetClassName(), perks, weapons, held ? held.GetClassName() : 'none',
+			Count(pmo, "RLStamina"), Count(pmo, "RLArmorSpecial"), Count(pmo, "Clip"));
+		String key = "$PDA_CLASS_" .. pmo.GetClassName() .. "_NAME";
+		int pw, ph;
+		[pw, ph] = TexMan.GetSize(TexMan.CheckForTexture("PPDAMAR1", TexMan.Type_Any));
+		Console.Printf("noclass probe: pda name \"%s\" portrait %dx%d", StringTable.Localize(key), pw, ph);
+	}
+
+	clearscope static int Count(Actor pmo, String name)
+	{
+		class<Inventory> c = name;
+		return c ? pmo.CountInv(c) : -1;
+	}
+
+	override void UiTick()
+	{
+		// World ticks stop while the bridge holds Doom (New Game trip, arrival wait), so also report from here.
+		if (++uiTicks % 175 == 0 && gamestate == GS_LEVEL) Report();
+		let m = Menu.GetCurrentMenu();
+		String n = "none";
+		if (m is "ListMenu") n = ListMenu(m).mDesc.mMenuName;
+		else if (m is "OptionMenu") n = OptionMenu(m).mDesc.mMenuName;
+		else if (m) n = m.GetClassName();
+		if (n == lastMenu) return;
+		lastMenu = n;
+		Console.Printf("noclass probe: menu %s", n);
+	}
+}
