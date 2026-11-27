@@ -46,8 +46,9 @@ class DoomerfallAmmoTiers : StaticEventHandler
 			loadedTier = f.Size() > 0 ? f[0].ToInt() : -1;
 			loadedType = f.Size() > 1 ? f[1].ToInt() : -1;
 			loadedTags = f.Size() > 2 ? f[2] : "";
-			if (loadedTier < 0 || loadedTier >= TIERNAMES.Size() || loadedType < 0 || loadedType >= AMMOICONS.Size()) loadedTier = -1;
-			DDLog.Debug(String.Format("Doomerfall: loaded ammo %s", loadedTier < 0 ? "none" : String.Format("%s %s", TIERNAMES[loadedTier], AMMONAMES[loadedType])));
+			if (loadedTier < 0 || loadedTier >= TIERCOUNT || loadedType < 0 || loadedType >= AMMOICONS.Size()) loadedTier = -1;
+			loadedName = loadedTier < 0 ? "" : AmmoName(loadedType, loadedTier);
+			DDLog.Debug(String.Format("Doomerfall: loaded ammo %s", loadedTier < 0 ? "none" : loadedName));
 		}
 		else if (e.Name.Left(11) == "dfa_reload:" && consoleplayer >= 0)
 		{
@@ -117,11 +118,20 @@ class DoomerfallAmmoTiers : StaticEventHandler
 	// The ammo loaded in the ready gun, shown at the bottom of the screen: the tier's tinted pickup sprite, its name, and
 	// its tags (none exist yet: Silver's creature bonus and the quiet tag are backlog items). Daggerfall clears it with
 	// the weapon (fists, or a gun with no reserve ammo).
-	static const String TIERNAMES[] = { "Regular", "Steel", "Silver", "Moonstone", "Dwemer", "Adamantium", "Orichalcum", "Mithril", "Ebony", "Daedric" };
-	static const String AMMONAMES[] = { "bullets", "shotgun shells", "rockets", "energy cells" };
+	const TIERCOUNT = 10;
 	static const String AMMOICONS[] = { "CLIPA0", "SHELA0", "ROCKA0", "CELLA0" };
+
+	// The ammo's name, as Daggerfall's inventory gives it: the plain name for Regular ("Bullets"), else the material
+	// first ("Silver Bullets") (owner, 2026-11-26). Each DFAmmo class's Tag holds it, so the look label, pickup message
+	// and this HUD agree, and pickups in older saves get it from the class default.
+	static clearscope String AmmoName(int type, int tier)
+	{
+		static const String TypeNames[] = { "Clip", "Shell", "Rocket", "Cell" };
+		class<Actor> cls = String.Format("DFAmmo_%s_%d", TypeNames[type], tier);
+		return cls ? GetDefaultByType(cls).GetTag() : "";
+	}
 	int loadedTier, loadedType;
-	String loadedTags;
+	String loadedTags, loadedName;
 
 	override void RenderOverlay(RenderEvent e)
 	{
@@ -131,7 +141,7 @@ class DoomerfallAmmoTiers : StaticEventHandler
 		int scale = DoomerfallText.Scale();
 		int fh = SmallFont.GetHeight() * scale;
 		int bottom = min(StatusBar.GetTopOfStatusBar(), int(Screen.GetHeight() * 0.85)) - fh * 3; // Above "Sneaking".
-		String text = String.Format("%s %s", TIERNAMES[loadedTier], AMMONAMES[loadedType]);
+		String text = loadedName;
 		int textW = SmallFont.StringWidth(text) * scale;
 		int x = Screen.GetWidth() * 3 / 4;
 		TextureID icon = TexMan.CheckForTexture(AMMOICONS[loadedType], TexMan.Type_Sprite);
@@ -346,7 +356,32 @@ class DoomerfallAmmoTiers : StaticEventHandler
 		}
 		Console.PrintfEx(PRINT_LOG, "DFAMMO size %s%s %s -> %d rounds", box ? "large " : "small ", TypeNames[type], dropped ? "dropped" : "placed",
 			DoomerfallAmmoPickup.Rounds(type, box, dropped));
+		if (dropped && lootSeed != 0) LuckDrop(plain, type, box, seed);
 		plain.Destroy();
+	}
+
+	// ---- Luck (card attributes/04, owner 2026-11-26) -------------------------------------------------------------
+	// Daggerfall's live Luck makes monsters' ammo drops more frequent: each ammo drop from a monster's fixed loot roll
+	// has a Luck in 100 chance (Luck above 100 counts as 100) to come with one more ordinary drop of the same ammo and
+	// size, so +1% drops at Luck 1 and +100% at 100. Its own stream: a hash of the drop's seed with its own salt, so
+	// it draws from no random stream and the fixed loot (what drops, its tier, any jackpot) is the same at every Luck.
+	// The same drop gets the same number every game, so a luckier character gets every extra drop a less lucky one does.
+	const LuckStat = 7; // DFCareer.Stats.Luck
+	const LuckSalt = 0x4c75636b;
+
+	void LuckDrop(Inventory plain, int type, bool box, int seed)
+	{
+		static const String TypeNames[] = { "Clip", "Shell", "Rocket", "Cell" };
+		int luck = Actor.DD_SheetStat(LuckStat);
+		if (luck <= 0) return;
+		int luckSeed = Mix(seed, LuckSalt);
+		if (Unit(luckSeed, 1) * 100 >= min(luck, 100)) return;
+		int tier = RollTier(areaLevel, Unit(luckSeed, 3), Unit(luckSeed, 4));
+		let p = SpawnTier(plain, type, tier, box, true);
+		if (p == null) return;
+		double angle = Unit(luckSeed, 5) * 360;
+		p.vel = plain.vel + (cos(angle) * 2, sin(angle) * 2, 2);
+		DDLog.Debug(String.Format("DFAMMO luck drop %s tier %d at %.0f %.0f luck %d", TypeNames[type], tier, plain.pos.x, plain.pos.y, luck));
 	}
 
 	static Inventory SpawnTier(Actor at, int type, int tier, bool box, bool dropped)
@@ -396,9 +431,7 @@ class DoomerfallAmmoPickup : Inventory abstract
 
 	override String PickupMessage()
 	{
-		static const String TypeNames[] = { "bullets", "shotgun shells", "rockets", "energy cells" };
-		static const String TierNames[] = { "Regular", "Steel", "Silver", "Moonstone", "Dwemer", "Adamantium", "Orichalcum", "Mithril", "Ebony", "Daedric" };
-		return String.Format("Picked up %d %s %s.", Amount, TierNames[tier], TypeNames[ammoType]);
+		return String.Format("Picked up %d %s.", Amount, GetTag());
 	}
 
 	override bool TryPickup(in out Actor toucher)
@@ -421,43 +454,43 @@ class DoomerfallAmmoRocket : DoomerfallAmmoPickup abstract { Default { Doomerfal
 class DoomerfallAmmoCell : DoomerfallAmmoPickup abstract { Default { DoomerfallAmmoPickup.AmmoType 3; } States { Spawn: CELL A -1; Stop; } }
 
 // One class per ammo type and tier, so the treadmill table and saves keep the tier.
-class DFAmmo_Clip_0 : DoomerfallAmmoClip { Default { DoomerfallAmmoPickup.Tier 0; } }
-class DFAmmo_Clip_1 : DoomerfallAmmoClip { Default { DoomerfallAmmoPickup.Tier 1; } }
-class DFAmmo_Clip_2 : DoomerfallAmmoClip { Default { DoomerfallAmmoPickup.Tier 2; } }
-class DFAmmo_Clip_3 : DoomerfallAmmoClip { Default { DoomerfallAmmoPickup.Tier 3; } }
-class DFAmmo_Clip_4 : DoomerfallAmmoClip { Default { DoomerfallAmmoPickup.Tier 4; } }
-class DFAmmo_Clip_5 : DoomerfallAmmoClip { Default { DoomerfallAmmoPickup.Tier 5; } }
-class DFAmmo_Clip_6 : DoomerfallAmmoClip { Default { DoomerfallAmmoPickup.Tier 6; } }
-class DFAmmo_Clip_7 : DoomerfallAmmoClip { Default { DoomerfallAmmoPickup.Tier 7; } }
-class DFAmmo_Clip_8 : DoomerfallAmmoClip { Default { DoomerfallAmmoPickup.Tier 8; } }
-class DFAmmo_Clip_9 : DoomerfallAmmoClip { Default { DoomerfallAmmoPickup.Tier 9; } }
-class DFAmmo_Shell_0 : DoomerfallAmmoShell { Default { DoomerfallAmmoPickup.Tier 0; } }
-class DFAmmo_Shell_1 : DoomerfallAmmoShell { Default { DoomerfallAmmoPickup.Tier 1; } }
-class DFAmmo_Shell_2 : DoomerfallAmmoShell { Default { DoomerfallAmmoPickup.Tier 2; } }
-class DFAmmo_Shell_3 : DoomerfallAmmoShell { Default { DoomerfallAmmoPickup.Tier 3; } }
-class DFAmmo_Shell_4 : DoomerfallAmmoShell { Default { DoomerfallAmmoPickup.Tier 4; } }
-class DFAmmo_Shell_5 : DoomerfallAmmoShell { Default { DoomerfallAmmoPickup.Tier 5; } }
-class DFAmmo_Shell_6 : DoomerfallAmmoShell { Default { DoomerfallAmmoPickup.Tier 6; } }
-class DFAmmo_Shell_7 : DoomerfallAmmoShell { Default { DoomerfallAmmoPickup.Tier 7; } }
-class DFAmmo_Shell_8 : DoomerfallAmmoShell { Default { DoomerfallAmmoPickup.Tier 8; } }
-class DFAmmo_Shell_9 : DoomerfallAmmoShell { Default { DoomerfallAmmoPickup.Tier 9; } }
-class DFAmmo_Rocket_0 : DoomerfallAmmoRocket { Default { DoomerfallAmmoPickup.Tier 0; } }
-class DFAmmo_Rocket_1 : DoomerfallAmmoRocket { Default { DoomerfallAmmoPickup.Tier 1; } }
-class DFAmmo_Rocket_2 : DoomerfallAmmoRocket { Default { DoomerfallAmmoPickup.Tier 2; } }
-class DFAmmo_Rocket_3 : DoomerfallAmmoRocket { Default { DoomerfallAmmoPickup.Tier 3; } }
-class DFAmmo_Rocket_4 : DoomerfallAmmoRocket { Default { DoomerfallAmmoPickup.Tier 4; } }
-class DFAmmo_Rocket_5 : DoomerfallAmmoRocket { Default { DoomerfallAmmoPickup.Tier 5; } }
-class DFAmmo_Rocket_6 : DoomerfallAmmoRocket { Default { DoomerfallAmmoPickup.Tier 6; } }
-class DFAmmo_Rocket_7 : DoomerfallAmmoRocket { Default { DoomerfallAmmoPickup.Tier 7; } }
-class DFAmmo_Rocket_8 : DoomerfallAmmoRocket { Default { DoomerfallAmmoPickup.Tier 8; } }
-class DFAmmo_Rocket_9 : DoomerfallAmmoRocket { Default { DoomerfallAmmoPickup.Tier 9; } }
-class DFAmmo_Cell_0 : DoomerfallAmmoCell { Default { DoomerfallAmmoPickup.Tier 0; } }
-class DFAmmo_Cell_1 : DoomerfallAmmoCell { Default { DoomerfallAmmoPickup.Tier 1; } }
-class DFAmmo_Cell_2 : DoomerfallAmmoCell { Default { DoomerfallAmmoPickup.Tier 2; } }
-class DFAmmo_Cell_3 : DoomerfallAmmoCell { Default { DoomerfallAmmoPickup.Tier 3; } }
-class DFAmmo_Cell_4 : DoomerfallAmmoCell { Default { DoomerfallAmmoPickup.Tier 4; } }
-class DFAmmo_Cell_5 : DoomerfallAmmoCell { Default { DoomerfallAmmoPickup.Tier 5; } }
-class DFAmmo_Cell_6 : DoomerfallAmmoCell { Default { DoomerfallAmmoPickup.Tier 6; } }
-class DFAmmo_Cell_7 : DoomerfallAmmoCell { Default { DoomerfallAmmoPickup.Tier 7; } }
-class DFAmmo_Cell_8 : DoomerfallAmmoCell { Default { DoomerfallAmmoPickup.Tier 8; } }
-class DFAmmo_Cell_9 : DoomerfallAmmoCell { Default { DoomerfallAmmoPickup.Tier 9; } }
+class DFAmmo_Clip_0 : DoomerfallAmmoClip { Default { DoomerfallAmmoPickup.Tier 0; Tag "Bullets"; } }
+class DFAmmo_Clip_1 : DoomerfallAmmoClip { Default { DoomerfallAmmoPickup.Tier 1; Tag "Steel Bullets"; } }
+class DFAmmo_Clip_2 : DoomerfallAmmoClip { Default { DoomerfallAmmoPickup.Tier 2; Tag "Silver Bullets"; } }
+class DFAmmo_Clip_3 : DoomerfallAmmoClip { Default { DoomerfallAmmoPickup.Tier 3; Tag "Moonstone Bullets"; } }
+class DFAmmo_Clip_4 : DoomerfallAmmoClip { Default { DoomerfallAmmoPickup.Tier 4; Tag "Dwemer Bullets"; } }
+class DFAmmo_Clip_5 : DoomerfallAmmoClip { Default { DoomerfallAmmoPickup.Tier 5; Tag "Adamantium Bullets"; } }
+class DFAmmo_Clip_6 : DoomerfallAmmoClip { Default { DoomerfallAmmoPickup.Tier 6; Tag "Orichalcum Bullets"; } }
+class DFAmmo_Clip_7 : DoomerfallAmmoClip { Default { DoomerfallAmmoPickup.Tier 7; Tag "Mithril Bullets"; } }
+class DFAmmo_Clip_8 : DoomerfallAmmoClip { Default { DoomerfallAmmoPickup.Tier 8; Tag "Ebony Bullets"; } }
+class DFAmmo_Clip_9 : DoomerfallAmmoClip { Default { DoomerfallAmmoPickup.Tier 9; Tag "Daedric Bullets"; } }
+class DFAmmo_Shell_0 : DoomerfallAmmoShell { Default { DoomerfallAmmoPickup.Tier 0; Tag "Shells"; } }
+class DFAmmo_Shell_1 : DoomerfallAmmoShell { Default { DoomerfallAmmoPickup.Tier 1; Tag "Steel Shells"; } }
+class DFAmmo_Shell_2 : DoomerfallAmmoShell { Default { DoomerfallAmmoPickup.Tier 2; Tag "Silver Shells"; } }
+class DFAmmo_Shell_3 : DoomerfallAmmoShell { Default { DoomerfallAmmoPickup.Tier 3; Tag "Moonstone Shells"; } }
+class DFAmmo_Shell_4 : DoomerfallAmmoShell { Default { DoomerfallAmmoPickup.Tier 4; Tag "Dwemer Shells"; } }
+class DFAmmo_Shell_5 : DoomerfallAmmoShell { Default { DoomerfallAmmoPickup.Tier 5; Tag "Adamantium Shells"; } }
+class DFAmmo_Shell_6 : DoomerfallAmmoShell { Default { DoomerfallAmmoPickup.Tier 6; Tag "Orichalcum Shells"; } }
+class DFAmmo_Shell_7 : DoomerfallAmmoShell { Default { DoomerfallAmmoPickup.Tier 7; Tag "Mithril Shells"; } }
+class DFAmmo_Shell_8 : DoomerfallAmmoShell { Default { DoomerfallAmmoPickup.Tier 8; Tag "Ebony Shells"; } }
+class DFAmmo_Shell_9 : DoomerfallAmmoShell { Default { DoomerfallAmmoPickup.Tier 9; Tag "Daedric Shells"; } }
+class DFAmmo_Rocket_0 : DoomerfallAmmoRocket { Default { DoomerfallAmmoPickup.Tier 0; Tag "Rockets"; } }
+class DFAmmo_Rocket_1 : DoomerfallAmmoRocket { Default { DoomerfallAmmoPickup.Tier 1; Tag "Steel Rockets"; } }
+class DFAmmo_Rocket_2 : DoomerfallAmmoRocket { Default { DoomerfallAmmoPickup.Tier 2; Tag "Silver Rockets"; } }
+class DFAmmo_Rocket_3 : DoomerfallAmmoRocket { Default { DoomerfallAmmoPickup.Tier 3; Tag "Moonstone Rockets"; } }
+class DFAmmo_Rocket_4 : DoomerfallAmmoRocket { Default { DoomerfallAmmoPickup.Tier 4; Tag "Dwemer Rockets"; } }
+class DFAmmo_Rocket_5 : DoomerfallAmmoRocket { Default { DoomerfallAmmoPickup.Tier 5; Tag "Adamantium Rockets"; } }
+class DFAmmo_Rocket_6 : DoomerfallAmmoRocket { Default { DoomerfallAmmoPickup.Tier 6; Tag "Orichalcum Rockets"; } }
+class DFAmmo_Rocket_7 : DoomerfallAmmoRocket { Default { DoomerfallAmmoPickup.Tier 7; Tag "Mithril Rockets"; } }
+class DFAmmo_Rocket_8 : DoomerfallAmmoRocket { Default { DoomerfallAmmoPickup.Tier 8; Tag "Ebony Rockets"; } }
+class DFAmmo_Rocket_9 : DoomerfallAmmoRocket { Default { DoomerfallAmmoPickup.Tier 9; Tag "Daedric Rockets"; } }
+class DFAmmo_Cell_0 : DoomerfallAmmoCell { Default { DoomerfallAmmoPickup.Tier 0; Tag "Energy Cells"; } }
+class DFAmmo_Cell_1 : DoomerfallAmmoCell { Default { DoomerfallAmmoPickup.Tier 1; Tag "Steel Energy Cells"; } }
+class DFAmmo_Cell_2 : DoomerfallAmmoCell { Default { DoomerfallAmmoPickup.Tier 2; Tag "Silver Energy Cells"; } }
+class DFAmmo_Cell_3 : DoomerfallAmmoCell { Default { DoomerfallAmmoPickup.Tier 3; Tag "Moonstone Energy Cells"; } }
+class DFAmmo_Cell_4 : DoomerfallAmmoCell { Default { DoomerfallAmmoPickup.Tier 4; Tag "Dwemer Energy Cells"; } }
+class DFAmmo_Cell_5 : DoomerfallAmmoCell { Default { DoomerfallAmmoPickup.Tier 5; Tag "Adamantium Energy Cells"; } }
+class DFAmmo_Cell_6 : DoomerfallAmmoCell { Default { DoomerfallAmmoPickup.Tier 6; Tag "Orichalcum Energy Cells"; } }
+class DFAmmo_Cell_7 : DoomerfallAmmoCell { Default { DoomerfallAmmoPickup.Tier 7; Tag "Mithril Energy Cells"; } }
+class DFAmmo_Cell_8 : DoomerfallAmmoCell { Default { DoomerfallAmmoPickup.Tier 8; Tag "Ebony Energy Cells"; } }
+class DFAmmo_Cell_9 : DoomerfallAmmoCell { Default { DoomerfallAmmoPickup.Tier 9; Tag "Daedric Energy Cells"; } }

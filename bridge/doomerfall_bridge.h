@@ -110,9 +110,9 @@ extern "C" {
    building door); Daggerfall answers with the name it knows, without running any interaction or changing any state. */
 #define DFB_KIND_LOOK          93  /* UZ to DF; payload: dfb_info_request, target DFB_INFO_NPC, _TOWNSPERSON, _PILE, _BUILDING or _DOOM_GUN */
 #define DFB_KIND_LOOK_TEXT     94  /* DF to UZ; the label for that request, empty for none; payload: dfb_info_text; DFB_INFO_MORE as on INFO_TEXT */
-/* A message Daggerfall shows on Doom's HUD by itself, not as an answer, such as a level-up. Doom shows it once no
-   Daggerfall menu is open. */
-#define DFB_KIND_HUD_TEXT      95  /* DF to UZ; payload: dfb_info_text, request 0; DFB_INFO_MORE as on INFO_TEXT */
+/* A message Daggerfall shows on its HUD by itself, not as an answer: every AddHUDText, PopupMessage and
+   SetMidScreenText outside an Info or Use capture, and the level-up line. Doom shows it once no Daggerfall menu is open. */
+#define DFB_KIND_HUD_TEXT      95  /* DF to UZ; payload: dfb_info_text, request = ms Daggerfall holds the line, 0 for its default; DFB_INFO_MORE as on INFO_TEXT */
 
 /* Doom items held by Daggerfall. A Doom item is named by the Doom world pickup class the player took. Daggerfall
    keeps the record in its inventory and save; Doom draws the sprite and applies the item when it is used. */
@@ -123,7 +123,7 @@ extern "C" {
 #define DFB_KIND_DOOM_ITEM_ART_REQUEST 144 /* DF to UZ; send the sprite and name for this class; payload: dfb_doom_item */
 #define DFB_KIND_DOOM_ITEM_ART     145  /* UZ to DF; DFB_ITEM_ART_SLOT holds the answer, or status DFB_ITEM_GONE for no such class; payload: dfb_doom_item */
 #define DFB_ITEM_ART_SLOT   5u   /* bulk slot written by UZ: one dfb_item_art header, then width * height BGRA pixels, top row first */
-#define DFB_ITEM_ART_HEADER 144u
+#define DFB_ITEM_ART_HEADER 464u
 #define DFB_KIND_DOOM_ITEM_GUN_STATE 146 /* UZ to DF; one state line (status amount, cls class) the gun in the next DOOM_ITEM_TAKE with this request carried, such as a DRLA modded pickup's mods */
 #define DFB_KIND_DOOM_ITEM_ID      147  /* UZ to DF; the floor item's lasting id (map item, or a drop from a fixed loot roll), sent just before the DOOM_ITEM_TAKE with this request when it has one; Daggerfall seeds the item's rolls (gun material) with it; payload: dfb_item_take, mode 0 */
 /* In DFB_KIND_DOOM_ITEM_TAKE, status DFB_DOOM_ITEM_GUN marks a gun, DFB_DOOM_ITEM_ARMOR armor (Weapons & Armor tab),
@@ -151,6 +151,7 @@ extern "C" {
 #define DFB_GUN_ADOPT  1u  /* cls is empty; keep the ready gun as the active one and take the rest */
 #define DFB_GUN_CLEAR  2u  /* cls is empty; take every gun */
 #define DFB_GUN_SELECT 3u  /* Doom already holds cls as the active gun; raise it */
+#define DFB_GUN_FIST   4u  /* cls is empty; raise the fist (given if missing); the active gun stays in Doom, lowered */
 
 /* Climbing. Doom runs the climb with the DFB_SHEET_CLIMB_* chances and reports each skill roll it made. */
 #define DFB_KIND_CLIMB_USES    170  /* UZ to DF; Daggerfall tallies this many Climbing skill uses; payload: dfb_climb_uses */
@@ -392,12 +393,21 @@ typedef struct dfb_face
 #define DFB_UI_LOAD_GAME   8u  /* Daggerfall's own Load window, from Doom's title; a save loaded there has no Doom half (DFB_KIND_PLAIN_LOAD) */
 #define DFB_UI_JOURNAL     9u  /* Daggerfall's quest journal; dfb_ui_command.context is Doom's DFB_WORLD_* (travel from it only outdoors) */
 #define DFB_UI_REST       10u  /* Daggerfall's rest window; dfb_ui_command.context is DFB_REST_* bits from Doom's state */
+#define DFB_UI_CHARACTER  11u  /* Daggerfall's character sheet; context is Doom's DFB_WORLD_* (its journal travels only outdoors) */
+#define DFB_UI_SPELLBOOK  12u  /* Daggerfall's spellbook, refused with Daggerfall's own message when none is carried */
 
 #define DFB_REST_MONSTERS_NEAR 1u /* a hostile Doom monster sees the player or is within Daggerfall's resting distance */
 #define DFB_REST_NOT_GROUNDED  2u /* Doom's player is in the air or swimming */
 
 #define DFB_UI_CLOSED      0u
 #define DFB_UI_OPENED      1u
+/* Open, and a Daggerfall text box takes typing: Doom sends every key unchanged, and its own controls do not close
+   the menu. Daggerfall sends DFB_UI_OPENED again when the text box goes away. */
+#define DFB_UI_TYPING      2u
+
+/* On a close: game time passed while the menu was open (a rest, loiter or rented room), so people stand elsewhere now.
+   Daggerfall sent its fresh townsfolk and NPC lists just before this close; Doom holds its view until it has placed them. */
+#define DFB_UI_CLOSED_TIME_PASSED 1u
 
 #define DFB_UI_REASON_NONE     0u
 #define DFB_UI_REASON_USER     1u  /* the player closed it in Daggerfall */
@@ -428,7 +438,7 @@ typedef struct dfb_face
 #define DFB_DF_PHASE_PLAY    3
 #define DFB_DF_PHASE_DEAD    4
 #define DFB_UZ_PHASE_BOOT    0
-#define DFB_UZ_PHASE_LOADING 1
+#define DFB_UZ_PHASE_LOADING 1   /* a loading hold (UZDoom dd_loading.cpp); Daggerfall pauses while it lasts */
 #define DFB_UZ_PHASE_PLAY    2
 #define DFB_UZ_PHASE_PAUSED  3
 #define DFB_UZ_PHASE_SAVING  4
@@ -468,6 +478,8 @@ typedef struct dfb_ui_command
 	uint32_t ui_id;
 	uint32_t context;
 	int64_t sent_ns;
+	uint32_t screen_width;   /* UI_OPEN: Doom's screen in pixels, the size it shows the surface at; Daggerfall draws its */
+	uint32_t screen_height;  /* UI at that size (within DFB_SURFACE_MAX_W/H) so its text is not upscaled. 0: unknown */
 } dfb_ui_command;
 
 typedef struct dfb_ui_input
@@ -486,7 +498,7 @@ typedef struct dfb_ui_state
 	uint32_t reason;
 	uint32_t surface_width;
 	uint32_t surface_height;
-	uint32_t pad;
+	uint32_t flags;           /* DFB_UI_CLOSED_*, on a close */
 } dfb_ui_state;
 
 typedef struct dfb_ui_result
@@ -648,7 +660,9 @@ typedef struct dfb_door
 	uint32_t pad;
 } dfb_door;
 
-/* Header of DFB_ITEM_ART_SLOT. tag is the item's display name, UTF-8, terminated. */
+/* Header of DFB_ITEM_ART_SLOT. tag is the item's display name, UTF-8, terminated. For a weapon, types names the weapon
+   skills it counts as ("Energy, Shotgun"; empty for none) and brief is a short description from the mod's data (empty
+   when it has none), both UTF-8 and terminated, for Daggerfall's item description. */
 typedef struct dfb_item_art
 {
 	uint32_t request;
@@ -657,6 +671,8 @@ typedef struct dfb_item_art
 	uint32_t pad;
 	char cls[64];
 	char tag[64];
+	char types[64];
+	char brief[256];
 } dfb_item_art;
 
 typedef struct dfb_climb_uses

@@ -57,6 +57,7 @@ namespace DDTownCache
 		uint64_t useClock;
 
 		int running = -1;
+		bool runningWinter;	// [Doomerfall] the season the running conversion is for
 		Clock::time_point runStart;
 #ifdef _WIN32
 		HANDLE process, job;
@@ -129,6 +130,8 @@ namespace DDTownCache
 				if (fread(h.name, 1, 8, f) != 8 || fread(&h.raw, 4, 1, f) != 1 || fread(&h.packed, 4, 1, f) != 1) return fail();
 			}
 			auto entry = std::make_shared<Entry>();
+			const std::wstring stem = path.stem().wstring();
+			entry->winter = !stem.empty() && stem.back() == L'W';
 			std::vector<uint8_t> packed;
 			for (auto &h : heads)
 			{
@@ -242,6 +245,7 @@ namespace DDTownCache
 			CloseHandle(pi.hThread);
 			process = pi.hProcess;
 			running = group;
+			runningWinter = Winter(group);
 			runStart = Clock::now();
 			return true;
 #else
@@ -263,6 +267,13 @@ namespace DDTownCache
 			const double ms = std::chrono::duration<double, std::milli>(Clock::now() - runStart).count();
 			Slot &slot = slots[group];
 			std::error_code ec;
+			if (runningWinter != Winter(group))	// [Doomerfall] the season changed during the conversion: convert again
+			{
+				fs::remove_all(cacheDir / "work" / ("T" + std::to_string(group)), ec);
+				slot.state = State::Missing;
+				DD_DebugPrintf("DDTCONV group=%d finished in the previous season, converting again\n", group);
+				return;
+			}
 			if (code == 0 && fs::exists(FileFor(group), ec))
 			{
 				DD_DebugPrintf("DDTCONV group=%d ok ms=%.0f bytes=%llu\n", group, ms, (unsigned long long)fs::file_size(FileFor(group), ec));
@@ -286,6 +297,12 @@ namespace DDTownCache
 				if (slot.state != State::Reading || slot.reading.wait_for(std::chrono::seconds(0)) != std::future_status::ready) continue;
 				activeReads--;
 				slot.entry = slot.reading.get();
+				if (slot.entry && slot.entry->winter != Winter(kv.first))	// [Doomerfall] the season changed during the read
+				{
+					slot.entry = nullptr;
+					slot.state = State::Missing;
+					continue;
+				}
 				if (slot.entry)
 				{
 					slot.state = State::Ready;
@@ -358,7 +375,8 @@ namespace DDTownCache
 	}
 
 	// Daggerfall's season (dd_weather.cpp). Places loaded from now on use the other texture set; loaded data is dropped
-	// unless a map holds it, so the next area load picks the new season (the current one keeps its look).
+	// unless a map holds it, so the next area load picks the new season. The treadmill re-requests the town in view or
+	// underfoot and swaps it in once ready (dd_treadmill.cpp: ScanLocations, RefreshTownSeason).
 	void SetWinter(bool on)
 	{
 		if (on == winter) return;
@@ -368,6 +386,7 @@ namespace DDTownCache
 		DD_DebugPrintf("DDTCACHE season %s: places load with %s textures from now on\n", on ? "winter" : "summer", on ? "winter" : "summer");
 	}
 
+	bool IsWinter() { return winter; }	// [Doomerfall] the season the nature flats use (dd_nature.cpp)
 	void Pin(int group) { pinned = group; }
 	bool Converting() { return running >= 0; }
 	void BeginScan() { wanted.clear(); }

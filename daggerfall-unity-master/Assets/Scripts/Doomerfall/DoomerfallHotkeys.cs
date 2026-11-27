@@ -30,9 +30,17 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         internal sealed class Square
         {
             public ulong uid;
-            public char kind;       // 'g' gun, 'a' armor, 'c' consumable (keeps its square when it runs out)
+            public char kind;       // 'g' gun, 'a' armor, 'c' consumable (keeps its square when it runs out), 'f' the fist
             public string identity; // What a consumable square takes next: "doom:<class>" or "df:<group>:<template>:<recipe>"
         }
+
+        // The fist is always on key 1, first plain square (owner, 2026-11-26). It is not a Daggerfall item: Doom keeps it,
+        // so it never shows in the inventory. Its square cannot be assigned over or removed, and it is not saved.
+        internal const int FistKey = 1, FistSquare = 0;
+        internal const string FistName = "Fist";
+        internal const string FistMessage = "The fist is always on hotkey 1.";
+        static bool IsFist(int key, int square) { return key == FistKey && square == FistSquare; }
+        static Square NewFist() { return new Square { uid = 0, kind = 'f', identity = null }; }
 
         internal static DoomerfallHotkeys Instance { get; private set; }
         DoomerfallBridge bridge;
@@ -65,12 +73,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             Instance = this;
             bridge = owner;
             sync = positionSync;
+            table[FistKey, FistSquare] = NewFist();
             SaveLoadManager.DoomerfallSaveExtra = SaveText;
             SaveLoadManager.DoomerfallLoadExtra = LoadText;
             SaveLoadManager.OnStartLoad += OnStartLoad;
             StartGameBehaviour.OnNewGame += OnNewGame;
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfhotkeystest") >= 0)
                 gameObject.AddComponent<DoomerfallHotkeysTest>().Init(this);
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dffisttest") >= 0)
+                gameObject.AddComponent<DoomerfallFistTest>().Init(this, owner);
         }
 
         void OnDestroy()
@@ -89,6 +100,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         void ResetState()
         {
             Array.Clear(table, 0, table.Length);
+            table[FistKey, FistSquare] = NewFist();
             activeKey = activeSquare = -1;
             activeItem = null;
             loadedActiveUid = 0;
@@ -125,7 +137,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 for (int q = 0; q < Squares; q++)
                 {
                     Square sq = table[k, q];
-                    if (sq != null)
+                    if (sq != null && sq.kind != 'f')
                         s.AppendFormat("square {0} {1} {2} {3} {4}\n", k, q, sq.uid, sq.kind, sq.identity ?? "-");
                 }
             s.Append(DoomerfallAmmo.SaveTiers()).Append('\n'); // The tier Doom's counter of each ammo type stands for.
@@ -136,6 +148,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             ResetState();
             string[] tiers = null;
+            List<Square> older = new List<Square>();
             if (!string.IsNullOrEmpty(text))
                 foreach (string line in text.Split('\n'))
                 {
@@ -150,11 +163,17 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                             activeKey = int.Parse(f[2]);
                             activeSquare = int.Parse(f[3]);
                         }
-                        else if (f[0] == "square" && f.Length >= 6)
-                            table[int.Parse(f[1]), int.Parse(f[2])] = new Square { uid = ulong.Parse(f[3]), kind = f[4][0], identity = f[5] == "-" ? null : f[5] };
+                        else if (f[0] == "square" && f.Length >= 6 && f[4][0] != 'f')
+                        {
+                            int k = int.Parse(f[1]), q = int.Parse(f[2]);
+                            Square sq = new Square { uid = ulong.Parse(f[3]), kind = f[4][0], identity = f[5] == "-" ? null : f[5] };
+                            if (IsFist(k, q)) older.Add(sq); // A save from before the fist rule: placed after the other squares.
+                            else table[k, q] = sq;
+                        }
                     }
                     catch (Exception e) { Log("bad save line \"" + line + "\": " + e.Message); }
                 }
+            foreach (Square sq in older) MoveOffFist(sq);
             DropDuplicates();
             DoomerfallAmmo.LoadTiers(tiers); // An older save has none: every type loads Regular.
             ItemCollection items = GameManager.Instance.PlayerEntity.Items;
@@ -180,12 +199,41 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return n + " " + s;
         }
 
+        // A save from before the fist rule held an item on the fist's square: it moves to the next free plain square of
+        // key 1 (pressing 1 again reaches it), else it loses its hotkey and stays in the inventory.
+        void MoveOffFist(Square sq)
+        {
+            bool wasActive = activeKey == FistKey && activeSquare == FistSquare;
+            for (int q = 0; q < 3; q++)
+                if (!IsFist(FistKey, q) && table[FistKey, q] == null)
+                {
+                    table[FistKey, q] = sq;
+                    if (wasActive) activeSquare = q;
+                    Log(string.Format("load: item {0} was on the fist's square; moved to key {1} square {2}", sq.uid, FistKey, q));
+                    return;
+                }
+            if (wasActive) activeKey = activeSquare = -1;
+            Log(string.Format("load: item {0} was on the fist's square and key {1} is full; it has no hotkey now", sq.uid, FistKey));
+        }
+
+        // Squares the player set. The fist does not count.
         int CountSquares()
         {
             int n = 0;
-            foreach (Square sq in table) if (sq != null) n++;
+            foreach (Square sq in table) if (sq != null && sq.kind != 'f') n++;
             return n;
         }
+
+        // True when no square of this key holds anything but the fist.
+        bool KeyFree(int key)
+        {
+            for (int q = 0; q < Squares; q++)
+                if (table[key, q] != null && table[key, q].kind != 'f') return false;
+            return true;
+        }
+
+        // The first plain square of a key that is not the fist's.
+        static int FirstSquare(int key) { return key == FistKey ? FistSquare + 1 : 0; }
 
         internal string Describe()
         {
@@ -195,8 +243,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 for (int q = 0; q < Squares; q++)
                     if (table[k, q] != null)
                     {
-                        DaggerfallUnityItem item = items.GetItem(table[k, q].uid);
-                        s.AppendFormat("[{0}.{1} {2}] ", k, q, item != null ? item.ItemName : "missing");
+                        DaggerfallUnityItem item = table[k, q].kind == 'f' ? null : items.GetItem(table[k, q].uid);
+                        s.AppendFormat("[{0}.{1} {2}] ", k, q, table[k, q].kind == 'f' ? FistName : item != null ? item.ItemName : "missing");
                     }
             return s.ToString();
         }
@@ -231,6 +279,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         // cleared, so assigning moves it. Other items of the same kind keep their squares.
         internal void Assign(int key, int square, DaggerfallUnityItem item)
         {
+            if (IsFist(key, square))
+            {
+                Log(string.Format("refused \"{0}\" on key {1} square {2}: the fist's square", item.ItemName, key, square));
+                return;
+            }
             for (int k = 0; k < Keys; k++)
                 for (int q = 0; q < Squares; q++)
                     if ((k != key || q != square) && table[k, q] != null && table[k, q].uid == item.UID)
@@ -250,7 +303,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             {
                 int k = (n + 1) % Keys;
                 for (int q = 0; q < Squares; q++)
-                    if (table[k, q] != null && !seen.Add(table[k, q].uid))
+                    if (table[k, q] != null && table[k, q].kind != 'f' && !seen.Add(table[k, q].uid))
                     {
                         Log(string.Format("load: item {0} is already on an earlier hotkey", table[k, q].uid));
                         Clear(k, q);
@@ -261,6 +314,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         internal void Clear(int key, int square)
         {
+            if (IsFist(key, square))
+                return; // The fist cannot be unbound.
             table[key, square] = null;
             Log(string.Format("cleared key {0} square {1}", key, square));
         }
@@ -268,7 +323,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         // The item a square uses now, or null. A consumable that ran out takes the next item of the same kind.
         internal DaggerfallUnityItem Resolve(Square sq)
         {
-            if (sq == null) return null;
+            if (sq == null || sq.kind == 'f') return null;
             ItemCollection items = GameManager.Instance.PlayerEntity.Items;
             DaggerfallUnityItem item = items.GetItem(sq.uid);
             if (item != null || sq.kind != 'c') return item;
@@ -336,13 +391,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 Log(string.Format("took \"{0}\", which has no Doom weapon slot; left in the inventory", gun.DoomClass));
                 return;
             }
-            for (int q = 0; q < Squares; q++)
-                if (table[slot, q] != null)
-                {
-                    Log(string.Format("took \"{0}\"; key {1} already has hotkeys, so it stays in the inventory", gun.DoomClass, slot));
-                    return;
-                }
-            Assign(slot, 0, gun);
+            if (!KeyFree(slot)) // The fist on key 1 does not count: a slot-1 melee gun goes on the next square.
+            {
+                Log(string.Format("took \"{0}\"; key {1} already has hotkeys, so it stays in the inventory", gun.DoomClass, slot));
+                return;
+            }
+            Assign(slot, FirstSquare(slot), gun);
             pendingDraw = gun;
             pendingDrawKey = slot;
             TryPendingDraw();
@@ -355,10 +409,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return;
             DoomerfallDoomItem gun = pendingDraw;
             pendingDraw = null;
-            if (!GameManager.Instance.PlayerEntity.Items.Contains(gun.UID) || table[pendingDrawKey, 0] == null || table[pendingDrawKey, 0].uid != gun.UID)
+            int q = FirstSquare(pendingDrawKey);
+            if (!GameManager.Instance.PlayerEntity.Items.Contains(gun.UID) || table[pendingDrawKey, q] == null || table[pendingDrawKey, q].uid != gun.UID)
                 return;
             Log(string.Format("key {0} was free: drawing the new \"{1}\"", pendingDrawKey, gun.DoomClass));
-            DrawGun(gun, pendingDrawKey, 0);
+            DrawGun(gun, pendingDrawKey, q);
         }
 
         // ---- Plain Daggerfall load (DoomerfallPlainLoad) ----
@@ -406,13 +461,31 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     items.AddItem(new DoomerfallAmmoItem(ammoType, DoomerfallAmmoTiers.Regular, ammo));
                 how = string.Format("no Doom gun in the inventory: gave the starter \"{0}\" and {1} Regular {2}", pistolClass, ammo,
                     ammoType >= 0 && ammoType < DoomerfallAmmo.Types.Length ? DoomerfallAmmo.Types[ammoType].lowerName : "(no ammo type)");
-                bool keyFree = slot >= 0 && slot < Keys;
-                for (int q = 0; keyFree && q < Squares; q++)
-                    if (table[slot, q] != null) keyFree = false;
-                if (keyFree) { Assign(slot, 0, plainDraw); plainKey = slot; plainSquare = 0; }
+                if (slot >= 0 && slot < Keys && KeyFree(slot)) { plainKey = slot; plainSquare = FirstSquare(slot); Assign(slot, plainSquare, plainDraw); }
             }
             Log(string.Format("plain load: {0} Doom gun(s) in the inventory; drawing \"{1}\" ({2}); Doom keeps only its fist first",
                 guns, plainDraw != null ? plainDraw.ItemName : "nothing", how ?? "no starter pistol known"));
+            Begin(Dfb.GUN_CLEAR, null, -1, -1);
+            Send(Dfb.KIND_GUN_EQUIP, request, Dfb.GUN_CLEAR, "");
+        }
+
+        // A bridged New Game's starting guns (DoomerfallStartingGun), already in the inventory. Each goes on the first free
+        // plain square of its weapon slot key. Doom keeps only its fist, then the first gun is drawn.
+        internal void BeginStartKit(IList<DoomerfallDoomItem> guns, IList<int> slots)
+        {
+            ResetState(); // A new character: only the fist, and nothing adopted counts.
+            adoptWanted = false; // Doom's new game guns are not the player's.
+            plainDraw = null;
+            plainKey = plainSquare = -1;
+            for (int i = 0; i < guns.Count; i++)
+            {
+                int k = slots[i], q = FirstSquare(k >= 0 && k < Keys ? k : 0);
+                while (k >= 0 && k < Keys && q < 3 && table[k, q] != null) q++;
+                bool placed = k >= 0 && k < Keys && q < 3;
+                if (placed) Assign(k, q, guns[i]);
+                if (i == 0) { plainDraw = guns[i]; plainKey = placed ? k : -1; plainSquare = placed ? q : 0; }
+            }
+            Log(string.Format("new game: starting guns given, table {0}; Doom keeps only its fist first", Describe()));
             Begin(Dfb.GUN_CLEAR, null, -1, -1);
             Send(Dfb.KIND_GUN_EQUIP, request, Dfb.GUN_CLEAR, "");
         }
@@ -452,6 +525,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 int q = first + (start - first + n) % count;
                 Square sq = table[key, q];
                 if (sq == null) continue;
+                if (sq.kind == 'f') { RaiseFist(key, q); return; }
                 DaggerfallUnityItem item = Resolve(sq);
                 if (item == null) { grey = grey ?? sq; continue; }
                 Use(key, q, item);
@@ -462,7 +536,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             Log(string.Format("press key {0} modifier {1}: {2}", key, mod, what));
         }
 
-        void Use(int key, int square, DaggerfallUnityItem item)
+        internal void Use(int key, int square, DaggerfallUnityItem item)
         {
             Log(string.Format("press key {0} square {1}: \"{2}\"", key, square, item.ItemName));
             PlayerEntity player = GameManager.Instance.PlayerEntity;
@@ -476,6 +550,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 GameManager.Instance.PlayerEffectManager.DrinkPotion(item);
                 player.Items.RemoveOne(item);
             }
+            else if (DoomerfallShields.Banned(item) && !item.IsEquipped)
+                DaggerfallUI.AddHUDText(DoomerfallShields.EquipMessage); // no shields for now
             else if (item.ItemGroup == ItemGroups.Armor)
             {
                 if (item.IsEquipped)
@@ -487,13 +563,24 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 {
                     List<DaggerfallUnityItem> off = player.ItemEquipTable.EquipItem(item, true, false);
                     if (off != null) foreach (DaggerfallUnityItem o in off) player.UpdateEquippedArmorValues(o, false);
-                    player.UpdateEquippedArmorValues(item, true);
+                    if (item.IsEquipped) player.UpdateEquippedArmorValues(item, true); // only what was really equipped
                 }
                 DaggerfallUI.AddHUDText(item.ItemName + (item.IsEquipped ? " equipped." : " removed."));
             }
         }
 
         // ---- Guns ----
+
+        // Doom raises its fist. The active gun stays in Doom, lowered, so its key raises it again with GUN_SELECT.
+        void RaiseFist(int key, int square)
+        {
+            if (request != 0)
+                return; // One swap at a time, as DrawGun.
+            activeKey = key;
+            activeSquare = square;
+            Log(string.Format("press key {0} square {1}: the fist", key, square));
+            Send(Dfb.KIND_GUN_EQUIP, Begin(Dfb.GUN_FIST, null, key, square), Dfb.GUN_FIST, "");
+        }
 
         void DrawGun(DoomerfallDoomItem gun, int key, int square)
         {
@@ -559,7 +646,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 adopted.Add(item);
             }
             else if (requestFlags == Dfb.GUN_CLEAR && plainDraw != null)
-                Log(string.Format("plain load: Doom put away its new game gun \"{0}\"; not added", cls));
+                Log(string.Format("plain load or New Game kit: Doom put away its new game gun \"{0}\"; not added", cls));
             else
                 Log(string.Format("Doom held an unexpected gun \"{0}\" (state \"{1}\"); not added", cls, state));
         }
@@ -634,7 +721,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 for (int q = 0; q < Squares; q++)
                 {
                     Square sq = table[k, q];
-                    if (sq != null && sq.kind != 'c' && !items.Contains(sq.uid))
+                    if (sq != null && sq.kind != 'c' && sq.kind != 'f' && !items.Contains(sq.uid))
                         Clear(k, q);
                 }
             if (request != 0 || GameManager.IsGamePaused)

@@ -323,7 +323,8 @@ namespace DaggerfallConnect.Arena2
                 {
                     newItem = new DaggerfallUnityItem((ItemGroups)itemGroup, groupIndex);
                 }
-                playerEntity.Items.AddItem(newItem);
+                if (!DaggerfallWorkshop.Game.Doomerfall.DoomerfallShields.Banned(newItem)) // [Doomerfall] no shields
+                    playerEntity.Items.AddItem(newItem);
             }
             // Adjust reputation
             else if (effect.StartsWith("r"))

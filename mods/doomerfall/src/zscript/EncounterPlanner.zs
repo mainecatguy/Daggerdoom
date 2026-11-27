@@ -47,6 +47,7 @@ class DoomerfallEncounterRng
 	const P_AWARE = 26;
 	const P_SIDE = 27;
 	const P_MOVE = 28;
+	const P_START = 29;
 
 	int key, purpose, index;
 
@@ -108,6 +109,7 @@ class DoomerfallEncounterRng
 class DoomerfallEncounterTheme
 {
 	String name;
+	String seedName;         // seedas=<row>: whose fitting gene settings this row uses (FitRank); default its own name
 	bool known;
 	Array<int> kinds;
 	Array<String> classes;   // lower-case patterns
@@ -347,6 +349,8 @@ class DoomerfallEncounterPlanner play
 		theme.tierlean = data.ThemeGet(theme.name, "tierlean");
 		theme.titan = data.ThemeGet(theme.name, "titan");
 		theme.only = data.ThemeGet(theme.name, "only") == "1" && theme.HasMonsters();
+		theme.seedName = data.ThemeGet(theme.name, "seedas");
+		if (theme.seedName == "") theme.seedName = theme.name;
 	}
 
 	// Section 4.1: for each theme and gene a fixed set of about 9 of the 13 settings is "fitting". Returns the
@@ -357,7 +361,7 @@ class DoomerfallEncounterPlanner play
 		int fit = clamp(int(data.Value("theme_fitting_settings", 9)), 0, SETTINGS);
 		Array<int> perm;
 		for (int k = 0; k < SETTINGS; k++) perm.Push(k);
-		let r = DoomerfallEncounterRng.Make(DoomerfallEncounterRng.StringHash(theme.name.MakeLower()), DoomerfallEncounterRng.P_THEMESET * 16 + gene);
+		let r = DoomerfallEncounterRng.Make(DoomerfallEncounterRng.StringHash(theme.seedName.MakeLower()), DoomerfallEncounterRng.P_THEMESET * 16 + gene);
 		for (int k = SETTINGS - 1; k > 0; k--)
 		{
 			int j = r.Next(k + 1);

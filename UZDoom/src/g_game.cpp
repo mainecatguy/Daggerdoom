@@ -126,6 +126,7 @@ void G_DoSaveGame (bool okForQuicksave, bool forceQuicksave, FString filename, c
 // Doomerfall: synchronized saves on Daggerfall maps. All do nothing outside a bridge save.
 bool DD_BridgeSaveBegin(const char *filename, const char *description);
 bool DD_BridgeAutosaveHold();
+bool DD_LoadingActive(); // Doomerfall: a long operation holds the game (dd_loading.cpp)
 bool DD_BridgeAutosaveBegin(const char *filename, const char *description);
 FString DD_BridgeSaveWritePath(const FString &filename);
 bool DD_BridgeSaveAddFiles(TArray<FCompressedBuffer> &content, TArray<FString> &names);
@@ -2311,6 +2312,10 @@ void G_SaveGame (const char *filename, const char *description, bool quick)
 	else if (netgame && net_limitsaves && !players[consoleplayer].settings_controller)
 	{
 		Printf("Only settings controllers can save the game\n");
+	}
+	else if (DD_LoadingActive()) // Doomerfall: no save of any kind while a long operation holds the game
+	{
+		Printf(PRINT_HIGH, "Cannot save while loading.\n");
 	}
 	else if (!quick && DD_BridgeSaveBegin(filename, description)) // Doomerfall: quick keys stay as they are for now
 	{

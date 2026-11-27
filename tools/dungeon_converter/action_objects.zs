@@ -370,12 +370,11 @@ class DFActionHandler : EventHandler
 
 	override void WorldLoaded(WorldEvent e)
 	{
-		if (e.IsSaveGame || e.IsReopen || !(level.MapName ~== "MAP01")) return;
-		if (Wads.CheckNumForName("DFPOINTS", Wads.ns_global) < 0) return;
+		if (e.IsSaveGame || e.IsReopen || !DFDungeonData.OnDungeonMap()) return;
 		SpawnFlats();
 		SpawnLights();
-		int lump = Wads.CheckNumForFullName("DFACTIONS");
-		if (lump < 0) return;
+		String body = DFDungeonData.Read("DFACTIONS");
+		if (!body.Length()) return;
 
 		Array<DFDoor> doors;
 		let doorIt = ThinkerIterator.Create("DFDoor");
@@ -383,7 +382,7 @@ class DFActionHandler : EventHandler
 		while (found = DFDoor(doorIt.Next())) doors.Push(found);
 
 		Array<String> lines;
-		Wads.ReadLump(lump).Split(lines, "\n", TOK_SKIPEMPTY);
+		body.Split(lines, "\n", TOK_SKIPEMPTY);
 		double cellSize = 16;
 		int cellCount = 0;
 		foreach (text : lines)
@@ -422,10 +421,10 @@ class DFActionHandler : EventHandler
 	// DFDFLATS: texture x y z scaleX scaleY [npc id]. The center of the picture is on the position.
 	void SpawnFlats()
 	{
-		int lump = Wads.CheckNumForFullName("DFDFLATS");
-		if (lump < 0) return;
+		String body = DFDungeonData.Read("DFDFLATS");
+		if (!body.Length()) return;
 		Array<String> rows;
-		Wads.ReadLump(lump).Split(rows, "\n", TOK_SKIPEMPTY);
+		body.Split(rows, "\n", TOK_SKIPEMPTY);
 		int spawned = 0, outside = 0, missing = 0;
 		foreach (row : rows)
 		{
@@ -465,11 +464,11 @@ class DFActionHandler : EventHandler
 	// lights show, as Daggerfall Unity's dungeon ambient does. Both are engine cvars (dd_lights.cpp).
 	void SpawnLights()
 	{
-		int lump = Wads.CheckNumForFullName("DFDLIGHTS");
-		if (lump < 0 || CVarOr('dd_lights', 1) == 0) return;
+		String body = DFDungeonData.Read("DFDLIGHTS");
+		if (!body.Length() || CVarOr('dd_lights', 1) == 0) return;
 		double scale = CVarOr('dd_light_range', 0.4);
 		Array<String> rows;
-		Wads.ReadLump(lump).Split(rows, "\n", TOK_SKIPEMPTY);
+		body.Split(rows, "\n", TOK_SKIPEMPTY);
 		int spawned = 0;
 		foreach (row : rows)
 		{
@@ -494,6 +493,7 @@ class DFActionHandler : EventHandler
 		a.id = f[1].ToInt(); a.kind = f[2].ToInt(); a.flag = f[3].ToInt(); a.trigger = f[4].ToInt();
 		a.nextId = f[5].ToInt(); a.doorId = f[6].ToInt();
 		int visual = f[7].ToInt();
+		String visualName = f[7].Left(1) == "_" ? f[7] : "";	// named by model or texture (runtime dungeons)
 		a.pivot = at; a.yaw = f[11].ToDouble();
 		a.travel = (f[12].ToDouble(), f[13].ToDouble(), f[14].ToDouble());
 		a.spin = (f[15].ToDouble(), f[16].ToDouble(), f[17].ToDouble());
@@ -509,7 +509,7 @@ class DFActionHandler : EventHandler
 		a.cellHalf = cellSize / 2;
 		if (visual >= 0)
 		{
-			class<Actor> type = String.Format(a.kind == 2 ? "DFActionFlat%d" : "DFActionVisual%d", visual);
+			class<Actor> type = visualName.Length() ? (a.kind == 2 ? "DFActionFlat" : "DFActionVisual") .. visualName : String.Format(a.kind == 2 ? "DFActionFlat%d" : "DFActionVisual%d", visual);
 			if (type) a.visual = Actor.Spawn(type, at, NO_REPLACE);
 		}
 		return a;

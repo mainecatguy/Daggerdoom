@@ -456,6 +456,8 @@ namespace DaggerfallWorkshop.Game.Items
                 newItem = new DaggerfallUnityItem(ItemGroups.Armor, groupIndex);
             else
                 newItem = CreateItem(ItemGroups.Armor, customItemTemplates[groupIndex - enumArray.Length]);
+            if (Doomerfall.DoomerfallShields.Banned(newItem))
+                return CreateRandomArmor(playerLevel, gender, race); // [Doomerfall] no shields: roll again among the other armor
 
             ApplyArmorSettings(newItem, gender, race, FormulaHelper.RandomArmorMaterial(playerLevel));
 

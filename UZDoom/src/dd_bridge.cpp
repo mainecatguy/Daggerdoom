@@ -22,6 +22,7 @@
 #include "am_map.h"
 #include "bitmap.h"
 #include "c_bind.h"
+#include "c_console.h"
 #include "c_cvars.h"
 #include "c_dispatch.h"
 #include "d_event.h"
@@ -76,6 +77,10 @@ void DD_LookFrame(dfb_session *session);
 bool DD_TownsfolkEvent(const dfb_event &e);
 void DD_TownsfolkFrame(dfb_session *session, uint32_t context);
 void DD_TownsfolkResync();
+void DD_ResyncBegin(); // dd_resync.cpp
+bool DD_ResyncHolding();
+int64_t DD_ResyncStartNs();
+bool DD_ResyncFreeze(FLevelLocals *Level);
 void DD_TownsfolkDied(dfb_session *session, AActor *mo);
 void DD_ClimbFrame(dfb_session *session);
 void DD_FacesFrame(dfb_session *session);
@@ -89,6 +94,11 @@ bool DD_SetupNetEvent(const char *name);
 bool DD_SetupReady(int64_t now);
 double DD_SetupAgeMs(int64_t now);
 double DD_SetupReadyMs();
+void DD_LoadingLevelLoaded();	// dd_loading.cpp: a long operation holds the game
+bool DD_LoadingActive();
+void DD_LoadingFramePresented();
+void DD_LoadingFrozenTic();
+double DD_LoadingAgeMs();
 void DD_LightsSetCity(bool on);	// playsim/dd_lights.cpp
 bool DD_WeatherText(const char *text);	// playsim/dd_weather.cpp
 bool DFMesh_WindowText(const char *text);	// rendering/hwrenderer/scene/hw_dfmesh.cpp
@@ -247,6 +257,7 @@ dfb_new_game ngWorld;
 bool ngPlain;
 dfb_plain_load plainWorld;
 int64_t ngDeadline, ngTravelAt;
+constexpr double NgLoadingMaxMs = 180000.0; // the longest a New Game or plain load waits for a dungeon conversion (seen: 90 s on a loaded PC)
 constexpr int64_t NgStallNs = 30000000000LL; // Daggerfall stalls for seconds while it builds a new character's world.
 FString campaignId, loadCampaign; // Keeps each character's auto and quick slots apart.
 void HandleNewGameGo();
@@ -376,6 +387,8 @@ constexpr int64_t UiOpenTimeoutNs = 5000000000LL;
 constexpr int64_t UiMinFrameNs = 8000000; // Paused Doom has no tic wait, so keep it near 120 Hz.
 
 UiState uiState = UiClosed;
+bool uiTyping; // DFB_UI_TYPING: a Daggerfall text box takes typing, so every key goes to it unchanged.
+int uiKeySentAs[256]; // The key each held key's press was sent as, so its release matches even if typing changed between.
 uint32_t uiId;
 bool uiSavedPause, uiHasFrame;
 int64_t uiOpenedNs, uiLastInputSeen, uiLastFrameNs;
@@ -410,7 +423,7 @@ void SendUiCommand(uint16_t kind, uint32_t id, uint32_t context = 0)
 	dfb_event e{};
 	e.kind = kind;
 	e.tic = gametic;
-	const dfb_ui_command body{ id, context, dfb_now_ns() };
+	const dfb_ui_command body{ id, context, dfb_now_ns(), uint32_t(screen ? screen->GetWidth() : 0), uint32_t(screen ? screen->GetHeight() : 0) };
 	memcpy(e.payload, &body, sizeof(body));
 	dfb_send(session, &e);
 }
@@ -430,6 +443,7 @@ void OpenUi(uint32_t id, uint32_t context = 0)
 	EnsureUiTextures();
 	uiId = id;
 	uiState = UiOpening;
+	memset(uiKeySentAs, 0, sizeof(uiKeySentAs));
 	uiHasFrame = false;
 	uiOpenedNs = dfb_now_ns();
 	uiLastInputSeen = 0;
@@ -445,6 +459,7 @@ void FinishUi(const char *why)
 {
 	if (uiState == UiClosed) return;
 	uiState = UiClosed;
+	uiTyping = false;
 	uiHasFrame = false;
 	pauseext = uiSavedPause;
 	char input[96], age[96], upload[96];
@@ -465,8 +480,11 @@ void HandleUiState(const dfb_event &e)
 	dfb_ui_state body;
 	memcpy(&body, e.payload, sizeof(body));
 	if (uiState == UiClosed || body.ui_id != uiId) return;
-	if (body.state == DFB_UI_OPENED)
+	if (body.state == DFB_UI_OPENED || body.state == DFB_UI_TYPING)
 	{
+		if (uiTyping != (body.state == DFB_UI_TYPING)) Log("ui: text entry %s", uiTyping ? "ended" : "started");
+		uiTyping = body.state == DFB_UI_TYPING;
+		if (uiState == UiOpen) return;
 		uiState = UiOpen;
 		Log("ui: Daggerfall opened menu %u at %ux%u, %.1f ms after the request", body.ui_id, body.surface_width,
 			body.surface_height, (dfb_now_ns() - uiOpenedNs) / 1e6);
@@ -480,6 +498,7 @@ void HandleUiState(const dfb_event &e)
 		ngDeadline = dfb_now_ns() + 20000000000LL;
 	}
 	FinishUi(body.reason < 5 ? reasons[body.reason] : "unknown");
+	if (body.flags & DFB_UI_CLOSED_TIME_PASSED) DD_ResyncBegin(); // People moved with the clock: hold the view (dd_resync.cpp).
 }
 
 void HandleUiResult(const dfb_event &e)
@@ -573,6 +592,8 @@ const char *UiCommandName(uint32_t id)
 	if (id == DFB_UI_TALK) return "+use";
 	if (id == DFB_UI_JOURNAL) return "netevent df_journal";
 	if (id == DFB_UI_REST) return "netevent df_rest";
+	if (id == DFB_UI_CHARACTER) return "netevent df_character";
+	if (id == DFB_UI_SPELLBOOK) return "netevent df_spellbook";
 	return id == DFB_UI_INVENTORY || id == DFB_UI_LOOT ? "netevent df_inventory" : id == DFB_UI_MAP ? "togglemap" : "netevent df_fast_travel";
 }
 
@@ -645,14 +666,17 @@ bool IsOpenMenuKey(long long lParam)
 	if ((lParam >> 24) & 1) key |= 0x80;
 	const FString &bound = Bindings.GetBinding(key);
 	if (uiId == DFB_UI_DAGGERFALL) return false; // No Doom control opened it. The player answers it in Daggerfall.
+	if (uiTyping) return false; // The key is a letter for the text box.
+	if (uiId == DFB_UI_SPELLBOOK && key == 0x0E) return false; // Backspace is Daggerfall's own spellbook key: it closes the book, and still types in its text boxes.
 	return bound.CompareNoCase(UiCommandName(uiId)) == 0;
 }
 
 // In Daggerfall's map screens, the keys the player bound to Doom's movement pan the view. Daggerfall's maps pan
-// with the arrow keys, so those keys are sent as arrows. Every other key, and every other menu, is sent unchanged.
+// with the arrow keys, so those keys are sent as arrows. Every other key, every other menu, and every key while a
+// text box (such as the map's Find) takes typing, is sent unchanged.
 int MapPanKey(int vk, long long lParam)
 {
-	if (uiId != DFB_UI_MAP && uiId != DFB_UI_TRAVEL_MAP) return vk;
+	if (uiTyping || (uiId != DFB_UI_MAP && uiId != DFB_UI_TRAVEL_MAP)) return vk;
 	int key = int((lParam >> 16) & 0xFF);
 	if ((lParam >> 24) & 1) key |= 0x80;
 	const FString &bound = Bindings.GetBinding(key);
@@ -661,6 +685,17 @@ int MapPanKey(int vk, long long lParam)
 	if (bound.CompareNoCase("+moveleft") == 0) return 0x25;
 	if (bound.CompareNoCase("+moveright") == 0) return 0x27;
 	return vk;
+}
+
+// The key Daggerfall gets for a press or release. A release is sent as its press was, even if text entry started or
+// ended while the key was held, so Daggerfall never keeps a key held.
+int UiKey(uint64_t wParam, long long lParam, bool down)
+{
+	const int vk = SidedVirtualKey(wParam, lParam);
+	int &sent = uiKeySentAs[vk & 0xFF];
+	const int key = down || !sent ? MapPanKey(vk, lParam) : sent;
+	sent = down ? key : 0;
+	return key;
 }
 }
 
@@ -775,6 +810,14 @@ int DD_BridgeSkillLive(int slot)
 	return s && slot >= 0 && slot < DFB_SHEET_SKILLS_LIVE - DFB_SHEET_SKILLS_BASE ? s[DFB_SHEET_SKILLS_LIVE + slot] : -1;
 }
 
+// Daggerfall's live value of one attribute (DFCareer.Stats: 0 Strength .. 6 Speed, 7 Luck) for ZScript
+// (Actor.DD_SheetStat), or -1 without a valid character, so a Doom-only game reads -1.
+int DD_BridgeStatLive(int stat)
+{
+	const int32_t *s = DD_BridgeSheet();
+	return s && stat >= 0 && stat < DFB_SHEET_SKILLS_BASE - DFB_SHEET_STATS_LIVE ? s[DFB_SHEET_STATS_LIVE + stat] : -1;
+}
+
 // The same for the permanent (base) value, which perks follow (Actor.DD_SheetSkillBase).
 int DD_BridgeSkillBase(int slot)
 {
@@ -854,16 +897,17 @@ bool DD_BridgeNetEvent(const char *name)
 	}
 	if (!session) return false;
 	const bool inventory = !strcmp(name, "df_inventory"), journal = !strcmp(name, "df_journal"), rest = !strcmp(name, "df_rest");
-	if (!inventory && !journal && !rest && strcmp(name, "df_fast_travel")) return false;
+	const uint32_t window = !strcmp(name, "df_character") ? DFB_UI_CHARACTER : !strcmp(name, "df_spellbook") ? DFB_UI_SPELLBOOK : DFB_UI_NONE;
+	if (!inventory && !journal && !rest && !window && strcmp(name, "df_fast_travel")) return false;
 	if (uiState != UiClosed)
 	{
 		SendUiCommand(DFB_KIND_UI_CLOSE, uiId);
 		return true;
 	}
 	if (!UiCanOpen()) return true;
-	if (inventory)
+	if (inventory || window) // Character sheet and spellbook: Daggerfall's own windows, with its own refusals.
 	{
-		OpenUi(DFB_UI_INVENTORY);
+		OpenUi(inventory ? DFB_UI_INVENTORY : window, inventory ? 0 : ownState.world_context); // The sheet's journal travels only from outdoors.
 		return true;
 	}
 	if (journal) // Daggerfall refuses travel from the journal's map unless Doom is outdoors, as below.
@@ -929,11 +973,11 @@ bool DD_BridgeUiWndProc(unsigned int message, unsigned long long wParam, long lo
 			SendUiCommand(DFB_KIND_UI_CLOSE, uiId);
 			return true;
 		}
-		SendUiInput(DFB_UI_INPUT_KEY_DOWN, MapPanKey(SidedVirtualKey(wParam, lParam), lParam));
+		SendUiInput(DFB_UI_INPUT_KEY_DOWN, UiKey(wParam, lParam, true));
 		return true;
 	case WmSysKeyUp:
 	case WmKeyUp:
-		SendUiInput(DFB_UI_INPUT_KEY_UP, MapPanKey(SidedVirtualKey(wParam, lParam), lParam));
+		SendUiInput(DFB_UI_INPUT_KEY_UP, UiKey(wParam, lParam, false));
 		return true;
 	case WmChar:
 		if (wParam >= 32) SendUiInput(DFB_UI_INPUT_CHAR, int(wParam));
@@ -1109,6 +1153,33 @@ int DD_BridgeDamageBonus(AActor *source, AActor *target, int damage)
 	return scaled;
 }
 
+// P_DamageMobj (after armor, the very last step before the player's health would drop) and P_PoisonDamage (after its
+// damage factors; it subtracts health itself, and DD_BridgeHpThink then reports that already scaled drop unchanged):
+// the owner's Willpower rule (2026-11-26), a final modifier to all damage the bridged player takes. Health that
+// scripts set directly (costs such as DRLA's Soul Shatter, set-to-N effects) is not damage and is not scaled.
+// Daggerfall's live Willpower, values above 100 counting as 100: x1.2 at 0, x1 at 50, x0.8 at 100, linear between,
+// which is exactly (300 - Willpower) / 250, done in integers. The remainder carries to the next hit, so many small
+// hits scale by the exact factor. Unchanged without a session or a character, for other players, and when `keep`
+// is set: telefrags (they must stay at or above TELEFRAG_DAMAGE) and kill calls such as A_Die, which must still kill.
+int DD_BridgeWillpowerDamage(player_t *player, int damage, bool keep)
+{
+	constexpr int WillpowerStat = 2; // DFCareer.Stats.Willpower
+	if (!session || keep || damage <= 0 || !HpIsBridgedPlayer(player)) return damage;
+	const int will = DD_BridgeStatLive(WillpowerStat);
+	if (will < 0) return damage;
+	static int carry; // 0..249, in 1/250 points
+	const int64_t units = int64_t(damage) * (300 - std::min(will, 100)) + carry;
+	const int result = int(units / 250);
+	carry = int(units % 250);
+	static int logged;
+	if (logged < 1000) // a debug log line per hit, capped
+	{
+		logged++;
+		Log("willpower: tic %d player takes %d -> %d (willpower %d)", gametic, damage, result, will);
+	}
+	return result;
+}
+
 // P_GiveBody. True means the heal was reported instead of applied; *accepted is what P_GiveBody returns.
 bool DD_BridgeHpHeal(player_t *player, int num, int max, bool *accepted)
 {
@@ -1193,6 +1264,7 @@ constexpr int64_t AutosaveHoldNs = 60000000000LL;
 // instead of making a second one in play. The screen keeps the last frame from before the change until it ends.
 bool arrivalPending, arrivalQueued, saveIsArrival, arrivalSave;
 int64_t arrivalAtNs;
+int arrivalReadyTic = -1; // gametic when a frozen arrival's setup was first seen done (-1: not yet)
 constexpr int64_t ArrivalWaitNs = 2000000000LL, ArrivalHoldNs = 12000000000LL;
 // While the change waits for its setup the playsim is frozen (DD_BridgeArrivalFreeze); a long hold says "Loading".
 int arrivalFrozenTics;
@@ -1226,7 +1298,7 @@ FString WhereForLog()
 
 bool SaveReady()
 {
-	return uiState == UiClosed && !flowHold && !DDTreadmill_HandoffPending() && peerSeen && !peerStale && peerState.df_phase == DFB_DF_PHASE_PLAY;
+	return uiState == UiClosed && !flowHold && !DD_LoadingActive() && !DDTreadmill_HandoffPending() && peerSeen && !peerStale && peerState.df_phase == DFB_DF_PHASE_PLAY;
 }
 
 fs::path SavePath(const char *utf8) { return fs::path(std::u8string(reinterpret_cast<const char8_t *>(utf8))); }
@@ -1349,6 +1421,13 @@ void PumpArrival(int64_t now)
 	const bool handoff = DDTreadmill_HandoffPending();
 	if (handoff && now - arrivalAtNs <= ArrivalWaitNs) return; // The new map's first tic finishes the change.
 	if (!handoff && !DD_SetupReady(now)) return; // Bounded by the gate's own timeout.
+	// The last setup answer (often the dungeon's monster spawn) is applied in a tic. Hold one more frozen tic after it,
+	// so what it made is held still, like everything else, before the first frame of play.
+	if (!handoff && arrivalFrozenTics > 0)
+	{
+		if (arrivalReadyTic < 0) arrivalReadyTic = gametic;
+		if (gametic <= arrivalReadyTic) return;
+	}
 	arrivalPending = false;
 	ArrivalFreezeEnd(handoff ? "the handoff wait ran out" : "setup was done or timed out");
 	if (!arrivalSave) return; // Autosaves are off: the wait only kept the map still until its setup was done.
@@ -1441,6 +1520,7 @@ void DD_BridgeArrivalAutosave(bool save)
 	arrivalSave = save;
 	arrivalPending = true;
 	arrivalQueued = false;
+	arrivalReadyTic = -1;
 	arrivalAtNs = dfb_now_ns();
 }
 
@@ -1458,9 +1538,11 @@ bool DD_BridgeArrivalFrozen()
 bool DD_BridgeArrivalFreeze(FLevelLocals *Level)
 {
 	if (Level != primaryLevel) return false;
+	if (DD_ResyncFreeze(Level)) return true; // After a rest: frozen until Daggerfall's people are placed.
 	if (!DD_BridgeArrivalFrozen())
 	{
 		if (arrivalPending && dfb_now_ns() - arrivalAtNs > ArrivalHoldNs) ArrivalFreezeEnd("the hold limit");
+		if (DD_LoadingActive()) { DD_LoadingFrozenTic(); return true; } // A long operation (dd_loading.cpp). A level load drops every hold.
 		return false;
 	}
 	const int64_t now = dfb_now_ns();
@@ -1477,12 +1559,15 @@ int DD_BridgeArrivalFrozenTics() { return arrivalFrozenTics; }
 // G_DoLoadLevel, after the map's WorldLoaded handlers: autosaves wait for this map's setup (dd_setup.cpp).
 void DD_BridgeLevelLoaded(bool fromSave)
 {
+	DD_LoadingLevelLoaded();
 	if (session && !netgame) DD_SetupLevelLoaded(fromSave);
 }
 
 // D_DoomLoop: true while a map change's autosave runs, so the screen keeps showing the frame from before the change.
 bool DD_BridgeHoldFrame()
 {
+	if (DD_LoadingActive()) return true; // A long operation shows the message at once (dd_loading.cpp).
+	if (session && DD_ResyncHolding()) return true;
 	if (!session || dfb_now_ns() - arrivalAtNs > ArrivalHoldNs) return false;
 	return arrivalPending || (saveStartPending && arrivalQueued) || (saveState != SaveIdle && saveIsArrival);
 }
@@ -1491,9 +1576,10 @@ bool DD_BridgeHoldFrame()
 // or the arrival autosave) shows a loading message, drawn each frame so the window stays live.
 void DD_BridgeDrawLoading()
 {
-	if (dfb_now_ns() - arrivalAtNs < LoadingAfterNs) return;
+	const bool held = DD_LoadingActive();
+	if (!held && (DD_ResyncHolding() ? dfb_now_ns() - DD_ResyncStartNs() < LoadingAfterNs : dfb_now_ns() - arrivalAtNs < LoadingAfterNs)) return;
 	static int64_t shownFor = 0;
-	if (shownFor != arrivalAtNs) Log("arrival: showing the loading message, %.1f ms after the map loaded", (dfb_now_ns() - arrivalAtNs) / 1e6);
+	if (!held && shownFor != arrivalAtNs) Log("arrival: showing the loading message, %.1f ms after the map loaded", (dfb_now_ns() - arrivalAtNs) / 1e6);
 	shownFor = arrivalAtNs;
 	static const char text[] = "Loading...";
 	screen->BeginFrame();
@@ -1502,9 +1588,13 @@ void DD_BridgeDrawLoading()
 	ClearRect(twod, 0, 0, twod->GetWidth(), twod->GetHeight(), -1, 0); // opaque black
 	DrawText(twod, BigFont, CR_UNTRANSLATED, (twod->GetWidth() - BigFont->StringWidth(text) * CleanXfac) / 2,
 		(twod->GetHeight() - BigFont->GetHeight() * CleanYfac) / 2, text, DTA_CleanNoMove, true, TAG_DONE);
+	DD_BridgeDrawUi(); // A Daggerfall window, the console and menus still work during a long wait, so the player can quit.
+	C_DrawConsole();
+	M_Drawer();
 	twod->End();
 	screen->Update();
 	twod->OnFrameDone();
+	if (held) DD_LoadingFramePresented();
 }
 
 // G_SaveGame, for a save from the menu or console. True means the bridge took it, or refused it with a message.
@@ -1523,7 +1613,7 @@ bool SaveStart(const char *filename, const char *description, bool isAuto)
 	if (saveState != SaveIdle) { Printf("A save is already in progress.\n"); return true; }
 	if (gamestate != GS_LEVEL || players[consoleplayer].health <= 0 || !SaveReady())
 	{
-		Printf(PRINT_HIGH, "Cannot save right now. Daggerfall is not ready.\n");
+		Printf(PRINT_HIGH, DD_LoadingActive() ? "Cannot save while loading.\n" : "Cannot save right now. Daggerfall is not ready.\n");
 		Log("save: refused before starting, Daggerfall phase %u, stale %d", peerState.df_phase, int(peerStale));
 		return true;
 	}
@@ -2096,6 +2186,15 @@ void NgFreeze(bool on)
 
 void NgSendArrived(bool ok)
 {
+	// A New Game or plain load arrival may be told while its arrival wait still runs (NgDoor). Daggerfall then starts
+	// before the wait ends, so the arrival autosave must stay dropped as when it was told after the wait: the flow makes
+	// its own save once both games run (PumpNewGameSave). The wait itself still runs until setup is done.
+	if (arrivalPending && arrivalSave)
+	{
+		arrivalSave = false;
+		Log("save: dropped the autosave for a map change, a New Game or plain load is arriving");
+	}
+	if (ok) DD_ItemsSendStarter(); // Daggerfall gives the starting guns from it: a New Game's and a plain load's.
 	dfb_event e{};
 	e.kind = DFB_KIND_NEWGAME_ARRIVED;
 	e.tic = gametic;
@@ -2158,8 +2257,7 @@ void PlainArrived()
 	else if (DDTreadmill_PlayerSpace(x, y, z, yaw, target))
 		Log("plain load: Doom player at %.1f,%.1f,%.1f yaw %.1f in space %d, %.1f units from the save", x, y, z, yaw, target,
 			sqrt((x - plainWorld.start_x) * (x - plainWorld.start_x) + (y - plainWorld.start_y) * (y - plainWorld.start_y)));
-	DD_ItemsSendStarter();
-	NgSendArrived(true);
+	NgSendArrived(true); // Sends the starter gun facts first.
 	ngState = NgWaitGo;
 }
 
@@ -2174,6 +2272,7 @@ void PumpNewGame(int64_t now)
 	}
 	if (ngState >= NgLoading)
 	{
+		if (DD_LoadingActive() && DD_LoadingAgeMs() < NgLoadingMaxMs) ngDeadline = std::max(ngDeadline, now + 5000000000LL); // A dungeon still converting is not stuck.
 		if (now > ngDeadline) { NgFail("the start location did not load"); return; }
 		if (gamestate == GS_LEVEL) NgFreeze(true);
 	}
@@ -2279,7 +2378,12 @@ void PumpNewGame(int64_t now)
 		return;
 	case NgDoor:
 	{
-		if (gamestate != GS_LEVEL || gameaction != ga_nothing || DDTreadmill_HandoffPending() || primaryLevel->maptime < 2) return;
+		// The arrival wait holds maptime at 1 until setup is done, and the dungeon's monster spawn waits for Daggerfall's
+		// list, which a held character sends only after this arrival. So a frozen arrival counts as arrived, once the place
+		// record is in: Daggerfall's start clears its queued replies (DoomerfallLocations.ForgetWorld), so the record must
+		// not still be on its way when Daggerfall starts.
+		if (gamestate != GS_LEVEL || gameaction != ga_nothing || DDTreadmill_HandoffPending() ||
+			(primaryLevel->maptime < 2 && (!DD_BridgeArrivalFrozen() || DD_LocationsWaiting()))) return;
 		double x, y, z, yaw;
 		const DDPlayerArea area = DDTreadmill_PlayerWorld(x, y, z, yaw);
 		if (ngPlain)
@@ -2576,7 +2680,8 @@ void DD_BridgeFrame()
 	ownState.uz_heartbeat++;
 	ownState.uz_tic = gametic;
 	ownState.demo_value = gametic;
-	ownState.uz_phase = (paused || pauseext) ? DFB_UZ_PHASE_PAUSED
+	// A loading hold (dd_loading.cpp) also pauses Daggerfall (DoomerfallLoadingPause.cs), so its clock stays put.
+	ownState.uz_phase = DD_LoadingActive() ? DFB_UZ_PHASE_LOADING : (paused || pauseext) ? DFB_UZ_PHASE_PAUSED
 		: gamestate == GS_LEVEL ? DFB_UZ_PHASE_PLAY : DFB_UZ_PHASE_BOOT;
 	dfb_publish_state(session, &ownState, sizeof(ownState));
 

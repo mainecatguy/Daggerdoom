@@ -47,6 +47,29 @@ by itself inside Doom (after you wake up, or when you arrive):
 
 You are back in Doom with the new attributes in effect.
 
+## Attributes
+
+What your attributes do now. They use your current value, so spells and effects that fortify or drain an attribute
+count while they last.
+
+- **Strength:** your melee hits do more damage: +1% per point, so +50% at 50 and double damage at 100. Melee means
+  your fists and kicks and weapons that use the Melee skill, such as the chainsaw, the Ripper and the Energysaw.
+  Shots fired from a gun never get it, even if they land after you switch to your fists. Strength above 100 counts
+  as 100.
+- **Agility:** you reload and switch weapons faster: up to 40% faster at 100 (20% at 50). You also get a chance to
+  dodge damage completely: 15% at 100 (7.5% at 50). Agility above 100 counts as 100.
+- **Speed:** how fast you walk and run in Doom. 50 is normal speed; 0 is 25% slower and 100 is 25% faster. It does
+  not change how fast you climb or how high you jump. Speed above 100 counts as 100.
+- **Endurance:** raises your maximum HP (see Health).
+- **Willpower:** changes the damage you take in combat and from the environment (monsters, your own explosions,
+  harmful floors, crushers, falls): 20% less at 100, normal at 50, 20% more at 0. It is applied last, after armor and
+  resistances. Willpower above 100 counts as 100. It also affects your ability to cast spells.
+- **Luck:** monsters drop ammo more often: each ammo drop has a Luck-in-100 chance to come with a second one, so about
+  twice as many ammo drops at 100 (half again as many at 50). It never changes what else a place's monsters drop. Luck above 100
+  counts as 100. Luck keeps all its usual Daggerfall effects too.
+- **Intelligence** and **Personality:** work as in Daggerfall (Intelligence sets your spell points; Personality helps
+  when talking, trading and dealing with people).
+
 ## Weapon skills
 
 Doomerfall adds seven weapon skills to your character sheet: the gun skills **Shotguns**, **Automatics**,
@@ -54,8 +77,8 @@ Doomerfall adds seven weapon skills to your character sheet: the gun skills **Sh
 Impish) are gone: you can no longer calm monsters by speaking to them.
 
 - Most weapons belong to one of these skills; a few belong to two (see "Weapons that belong to two skills"). Shotguns covers shotguns, Automatics covers chainguns, miniguns and
-  other rapid-fire guns, Explosives covers rocket, missile and grenade launchers, and Pistols covers every pistol,
-  revolver and Uzi, including plasma pistols and pistols that fire shotgun shells. Rifles covers ballistic
+  other rapid-fire guns, including the Uzi and its variants (except the Plasma Uzi, which is still a Pistol and an Energy Weapon), the Assault Rifle Chaingun, Assault Rifle Minigun and Autocannon, Explosives covers rocket, missile and grenade launchers, and Pistols covers every pistol
+  and revolver, including plasma pistols and pistols that fire shotgun shells. Rifles covers ballistic
   semi-automatic and single-shot rifles that are not explosives, energy weapons, shotguns or pistols.
 - No rifle counts as a pistol.
 - **Energy Weapons** covers guns that use cells (plasma rifles, lasers, railguns, BFGs) and energy guns that recharge
@@ -91,6 +114,38 @@ every class, replaced by other skills, for example Running for the Assassin and 
 - An older save loads at the same level, with the same progress towards the next level. The class lists change to the
   new ones, but your skill values are kept as they were.
 
+### No Doom class
+
+Your Daggerfall class is your only class. New Game goes straight from Doom's menu to Daggerfall's character creation,
+with no Doom Roguelike Arsenal class menu, and your Doom character has no DRLA class perk (no Marine Ammochain and the
+like). You start with fists and a gun chosen by your best gun skill (below). Perks come from your skills.
+
+### Your starting gun
+
+When guns are in the game, a new character starts with the most basic gun of their highest gun skill, instead of the
+pistol. The pistol's usual starting bullets (60 with the Doom Roguelike Arsenal, 50 without) set the ammo:
+
+| Highest skill | Starting gun | Starting ammo |
+|---|---|---|
+| Pistols | Pistol | 60 bullets (50) |
+| Rifles | Light Carbine | 60 bullets (50) |
+| Automatics | Chaingun | 60 bullets (50) |
+| Shotguns | Shotgun | 20 shells (16) |
+| Explosives | Rocket launcher | 12 rockets (10) |
+| Melee | Chainsaw | none |
+
+- With the Doom Roguelike Arsenal you get its version of the gun; without it, stock Doom's. The Light Carbine is the
+  same either way.
+- Only these six skills count. Hand-to-Hand, Energy Weapons and Daggerfall's old weapon skills don't. Energy weapons
+  as starting guns come later.
+- Your skill values decide, whether or not the skill is one of your class skills. A class with none of the six as a
+  class skill gets the gun of whichever of them rolled highest.
+- **A tie gives you every tied gun.** Ammo of one kind is not doubled: Pistols and Rifles tied at 30 give a pistol, a
+  Light Carbine and 60 bullets. The first gun in the table's order is in your hands; the others are on their number
+  keys.
+- Each starting gun goes on its usual number key (pistol 2, shotgun 3, chaingun and Light Carbine 4, rocket launcher
+  5, chainsaw on 1 after your fists).
+
 ## Perks
 
 A skill earns a **perk** when it reaches 25, 50, 75 and 100.
@@ -117,8 +172,8 @@ Uzi is a Pistol, not an Automatic.
 - **100:** automatic guns use only 1 ammo for every 4 shots.
 - The bonuses add up: a burst shot at 100 does 1.6 x 1.3, about twice the damage.
 - Only hits from the automatic gun itself get these bonuses. A rocket, grenade or exploding barrel that goes off while
-  you hold an automatic gets nothing. A shot from an automatic gun keeps its bonus even if you switch weapons before
-  it lands.
+  you hold an automatic gets nothing. A shot from an automatic gun keeps its bonus even if you switch weapons, or
+  save and load, before it lands, and so does anything the shot sets off (its explosion or fragments).
 - These only work in the Daggerfall world. Your current skill counts, so an effect that lowers or raises the skill
   changes them too.
 
@@ -174,17 +229,69 @@ whichever of its skills is higher, never both at once.
   revolver).
 - **Shotguns and Energy Weapons:** energy shotguns, such as the laser shotgun, plasma shotguns and the nuclear plasma
   shotgun.
+- **Pistols and Automatics:** the Grammaton Cleric Beretta, dual pistols with single, burst and full-auto modes.
 - No other pair counts: a pistol that fires shotgun shells is only a Pistol, and an automatic shotgun is only a
   Shotgun.
 - If both skills are equal, the gun uses its main skill: Pistols for an energy pistol, Energy Weapons for an energy
   shotgun.
+
+## Your fists
+
+- You always have your fists. Press **1** to raise them, and they use your Hand-to-Hand skill.
+- Fists are not an item, so they never show in your inventory and can't be dropped, sold or lost.
+- Fists always take the first square of hotkey 1. You can't remove or replace them there. Key 1's other squares
+  take items as usual, and pressing 1 again moves on to them.
+- Raising your fists only lowers your gun. Press the gun's key to raise it again, with its magazine as you left it.
+
+### Seeing a gun's skills
+
+Select **Info** on a gun in your inventory to see which weapon skills it counts as. The description starts with the
+gun's name and its types, for example "Plasma Rifle. Type: Energy" or "Laser Shotgun. Types: Energy, Shotgun". A gun
+with two types uses whichever of those skills is higher (above). Doom Roguelike Arsenal guns also show a short
+description from the arsenal's own notes, and every gun shows its material and weight.
+
+- The types are Pistol, Shotgun, Automatic, Explosive, Rifle, Energy, Melee and Hand-to-Hand, one for each weapon
+  skill.
+- "Types: none" means the gun belongs to no weapon skill yet.
+- A gun's types appear once its picture has loaded in the inventory. Until then the description shows only its name.
+
+## No shields (for now)
+
+Shields are out of the game until they work in Doom's combat. Shops don't sell them, enemies and treasure don't
+drop them, and no new character starts with one. A shield in an older save stays in your inventory, where you can
+carry, drop or sell it, but you can't equip it ("Shields cannot be used."). If it was in your hand, loading the save
+takes it off. A shield on a hotkey only shows the same message.
+
+Two quest rewards are still shields for now, so their quests keep working: Auriel's Shield and Spell Breaker. You can
+get and carry them, but not equip them.
+
+## Light Carbine
+
+The Light Carbine is a semi-automatic rifle: one shot per trigger pull, with a little more damage per shot than the
+Battle Rifle (+20%). Otherwise it handles like the Battle Rifle: same accuracy, 20-round magazine, bullets and reload.
+It is always in the game. Former Humans, Former Commandos, Elite Former Humans and Former Cyborgs that carry a battle
+rifle drop a Light Carbine about half the time instead of a Battle Rifle.
 
 ## Ammo pickups
 
 Ammo comes in material tiers, from Regular through Steel, Silver and on up to Daedric. Higher tiers hit harder and
 are rarer, but a pickup of any tier holds the same amount as a Regular one: a clip is 10 bullets, a box of bullets 50,
 4 shells, a box of shells 20, 1 rocket, a box of rockets 5, a cell 20 and a cell pack 100. Ammo a monster drops holds
-half (at least 1). A shop pack of any tier holds 80 bullets, 20 shells, 8 rockets or 100 cells.
+half (at least 1).
+
+**Shops are where you buy ammo.** General stores, weapon smiths and armorers always have Regular bullets, shells,
+rockets and energy cells, and restock them whenever Daggerfall restocks the shop. A typical general store holds about
+300 bullets, 120 shells, 30 rockets and 300 cells, and an armorer about half that. Each shop has its own habits, which
+stay the same in every game. Some carry far more of one kind, an occasional one deals almost only in a single kind, a
+few are big depots and some are nearly empty. Better shops stock more. Regular ammo costs 1 gold a bullet, 3 a shell,
+10 a rocket and 10 a cell, before the shop's own prices. Weapon smiths also sometimes stock higher tiers, in packs of
+80 bullets, 20 shells, 8 rockets or 100 cells.
+
+Regular ammo has no material, so it goes by its plain name: Bullets, Shells, Rockets, Energy Cells. Every other tier
+puts its material first, such as Silver Bullets.
+
+Health, ammo and other pickups lying in a place are always the same ones each time you come. A pickup you take is
+gone for good: it does not come back when you leave and return, or when you load a save.
 
 ## Resting
 
@@ -199,6 +306,8 @@ It works as in Daggerfall:
 - **Resting restores HP three times as fast as in Daggerfall.** Fatigue and magicka come back at Daggerfall's rates.
   Resting also trains Medical.
 - When you wake up, Daggerfall checks your skills, and you may level up (see Levelling up).
+- People keep living while you rest or loiter. When the window closes, everyone is already where the new hour puts
+  them, so nobody jumps to a new place after you look up.
 
 You cannot rest:
 
@@ -207,6 +316,20 @@ You cannot rest:
 - while **falling, climbing or swimming**.
 - **outdoors inside a town's walls** (camping in town is a crime, and the guards come), or **inside a building**
   unless you rented a room there, own it, or belong to a guild that lets members rest in its hall.
+
+## Character sheet and spellbook
+
+Press **P** for Daggerfall's character sheet and **Backspace** for your spellbook (rebind them in Options, Customize
+Controls, Doomerfall Controls as **Open Character Sheet** and **Open Spellbook**). Like the other keys, they are set for
+you only on a fresh install. Doom stays frozen while either is open.
+
+- The character sheet works as in Daggerfall. Its **Spellbook**, **Inventory** and **Logbook** buttons open those windows
+  on top of it, and closing them takes you back to the sheet.
+- The spellbook works as in Daggerfall: browse your spells and their effects, sort, rename and delete them. Backspace,
+  Escape or **Exit** closes it.
+- You need a spellbook in your inventory. Without one, you are told "You have no spellbook!"
+- **You cannot cast spells yet.** Choosing a spell in the spellbook, however you opened it (Backspace, the character
+  sheet, the spellbook in your inventory, or the level-up sheet), says so and does nothing else.
 
 ## Locked doors
 
@@ -229,6 +352,11 @@ A door you have picked open reads **Door**.
 - When you go through a door into or out of a dungeon or building, or walk out of a town, the game pauses until the
   new place is ready (and autosaved, if autosaves are on). A long wait shows **Loading...**. Nothing in the new place moves or
   attacks you until play resumes.
+- The first time you open a dungeon's door, or start or load a game inside a dungeon you have not visited, the game
+  builds that dungeon first. This can take from a few seconds to over a minute on a busy PC. The game shows
+  **Loading...** and pauses until it is done: nothing in the place moves or attacks you, Use does nothing, and you
+  cannot save. Daggerfall's clock stops too, so poison, disease and other timed effects do not run during the wait.
+  The menu and console still work, so you can quit. A very large dungeon army can also show **Loading...** for a second or two as you enter.
 
 ## Damage numbers
 

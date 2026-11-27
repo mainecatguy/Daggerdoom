@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 
 struct FLevelLocals;
 struct level_info_t;
@@ -17,6 +18,16 @@ bool DDTreadmill_OnDaggerfallMap();	// A generated Daggerfall map (overworld, to
 void DDTreadmill_BeginMap(FLevelLocals *Level);
 void DDTreadmill_Tick(FLevelLocals *Level);
 bool DDTreadmill_MeshOffset(double &x, double &y, double &z);
+// [Doomerfall] Distant terrain view. Doom x = globalTileX * 192 + offX (y likewise), Doom z = height + offZ.
+// [x0, x1) x [y0, y1) are the global tiles the running map draws itself. False off Daggerfall exteriors.
+struct DDHorizonFrame { double offX, offY, offZ; int x0, x1, y0, y1; };
+bool DDTreadmill_HorizonFrame(DDHorizonFrame &f);
+float DDTreadmill_HorizonHeight(int gx, int gy);	// Doom height in the overworld's frame at a global tile vertex.
+// Distant nature flats (dd_nature.cpp's layout) of one map pixel as render data: tile corner, Doom units below the
+// ground, texture index and sprite scale. Appends nothing when nature is off or its data is missing.
+struct DDHorizonFlat { int gx, gy; float sink; int texture; float sx, sy; };
+void DDTreadmill_HorizonFlats(int px, int north, std::vector<DDHorizonFlat> &out);
+bool DDTreadmill_HorizonMapHasFlat(int gx, int gy);	// The running map spawns this tile corner's flat as an actor.
 enum DDPlayerArea { DD_AREA_NONE, DD_AREA_EXTERIOR, DD_AREA_INTERIOR, DD_AREA_DUNGEON };	// Same values as the bridge's DFB_WORLD_*.
 DDPlayerArea DDTreadmill_PlayerWorld(double &x, double &y, double &z, double &yawDegrees);	// Position is Daggerfall world units, set only for DD_AREA_EXTERIOR.
 bool DDTreadmill_WorldToLocal(double x, double y, double &doomX, double &doomY);	// Outdoors only: Daggerfall world units to Doom.

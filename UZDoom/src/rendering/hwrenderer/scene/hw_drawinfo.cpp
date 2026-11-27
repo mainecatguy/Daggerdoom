@@ -40,6 +40,7 @@
 #include "actorinlines.h"
 #include "g_levellocals.h"
 #include "hw_dfmesh.h" // [Doomerfall]
+#include "hw_ddhorizon.h" // [Doomerfall]
 
 EXTERN_CVAR(Float, r_visibility)
 CVAR(Bool, gl_bandedswlight, false, CVAR_ARCHIVE)
@@ -550,6 +551,7 @@ void HWDrawInfo::RenderScene(FRenderState &state)
 	const bool dfMeshView = DFMesh_HideCollider(Level);
 	if (dfMeshView) DFMesh_Draw(state);
 	else DFMesh_DrawLod(Level, state);
+	DDHorizon_Draw(this, state);	// [Doomerfall] distant terrain beyond the map
 	if (!dfMeshView) drawlists[GLDL_PLAINWALLS].DrawWalls(this, state, false);
 	if (!dfMeshView) drawlists[GLDL_PLAINFLATS].DrawFlats(this, state, false);
 

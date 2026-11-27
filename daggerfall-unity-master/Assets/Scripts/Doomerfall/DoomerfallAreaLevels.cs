@@ -55,14 +55,47 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         // DragonsDen, BarbarianStronghold, VolcanicCaves, ScorpionNest, Cemetery.
         static readonly double[] TypeLean = { -0.5, 0, 0, -0.5, 0.5, -1.5, -1.5, 1, 1.5, 1, -1, 0, -1, 1, 2, 0, 1.5, -0.5, 0 };
 
-        // Main quest dungeons with a fixed level, set by where they come in the main quest (owner, 2026-11-24), applied
-        // after ranking. Every new character wakes up in Privateer's Hold. The proposed levels for the other main quest
-        // dungeons wait on the owner (work/notes/20261124-202353.md); area_level.py's OVERRIDES must match this table.
-        static readonly Dictionary<int, int> Overrides = new Dictionary<int, int> { { 187853213, 1 } };
+        // Main quest dungeons: a fixed level that rises in main quest order, applied after ranking, and a story encounter
+        // theme where noted (a row name in doomerfall_encounters.txt's theme table, sent to Doom in place of the dungeon
+        // type's name; null keeps the type). A place keeps the level of its first main quest visit. Owner-approved table,
+        // 2026-11-26 (work/notes/20261124-202353.md, "Proposed table"). area_level.py's OVERRIDES must match the levels.
+        static readonly KeyValuePair<int, KeyValuePair<int, string>>[] MainQuest =
+        {
+            Row(187853213, 1, "PlainHumanoid"), // Privateer's Hold: every new character wakes up here; plain Former Humans only
+            Row(701948302, 5, null),            // Scourg Barrow
+            Row(728811286, 5, null),            // Shedungent
+            Row(9570447, 8, null),              // Castle Necromoghan
+            Row(43196334, 10, null),            // Direnni Tower
+            Row(325404, 10, null),              // Castle Faallem (Missing Prince uses this or Fhojum)
+            Row(5585279, 10, null),             // Fortress of Fhojum
+            Row(2352284, 10, null),             // Tristore Laboratory
+            Row(336619236, 17, "Humanoid"),     // Castle Llugwych (the Blades)
+            Row(207828842, 17, null),           // Lysandus' Tomb
+            Row(19021260, 21, "Humanoid"),      // Orsinium (orcs)
+            Row(83032363, 24, "Humanoid"),      // Woodborne Hall
+            Row(1001, 30, null),                // Mantellan Crux
+            Row(1291010263, 3, "Humanoid"),     // Castle Daggerfall (the city of Daggerfall's dungeon)
+            Row(630439035, 14, "Humanoid"),     // Castle Wayrest
+            Row(6634853, 14, "Humanoid"),       // Castle Sentinel
+        };
 
-        // Main quest dungeons with a story encounter theme: a row name in doomerfall_encounters.txt's theme table, sent to
-        // Doom in place of the dungeon type's name. Privateer's Hold is pirates, so humanoid (owner, 2026-11-24).
-        static readonly Dictionary<int, string> StoryThemes = new Dictionary<int, string> { { 187853213, "Humanoid" } };
+        static KeyValuePair<int, KeyValuePair<int, string>> Row(int mapId, int level, string theme)
+        {
+            return new KeyValuePair<int, KeyValuePair<int, string>>(mapId, new KeyValuePair<int, string>(level, theme));
+        }
+
+        static readonly Dictionary<int, int> Overrides = new Dictionary<int, int>();
+        static readonly Dictionary<int, string> StoryThemes = new Dictionary<int, string>();
+
+        static DoomerfallAreaLevels()
+        {
+            foreach (KeyValuePair<int, KeyValuePair<int, string>> row in MainQuest)
+            {
+                Overrides[row.Key] = row.Value.Key;
+                if (row.Value.Value != null)
+                    StoryThemes[row.Key] = row.Value.Value;
+            }
+        }
 
         /// <summary>The story encounter theme of a main quest dungeon by MapId, or null to use its dungeon type.</summary>
         internal static string StoryTheme(int mapId)

@@ -1,0 +1,11 @@
+// Light Carbine (zscript/DoomerfallLightCarbine.zs). The sounds are DRLA's Battle Rifle sounds, copied from DoomRL
+// Arsenal 1.1.5 by owner permission (2026-11-26) and renamed so they never clash with DRLA's own lumps.
+doomerfall/carbine/fire1		DFLCF1
+doomerfall/carbine/fire2		DFLCF2
+doomerfall/carbine/fire3		DFLCF3
+$random doomerfall/carbine/fire { doomerfall/carbine/fire1 doomerfall/carbine/fire2 doomerfall/carbine/fire3 }
+$limit doomerfall/carbine/fire 0
+doomerfall/carbine/unload		DFLCUNLD
+doomerfall/carbine/load			DFLCLOAD
+doomerfall/carbine/pickup		DFLCGET
+doomerfall/carbine/raise		DFLCUP

@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x519c1db4b6714c6bULL
+#define DFB_SCHEMA_HASH 0x25bd54b4feb278bcULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -81,7 +81,7 @@ static_assert((DFB_KIND_DOOM_ITEM_USED) == (143), DFB_STALE);
 static_assert((DFB_KIND_DOOM_ITEM_ART_REQUEST) == (144), DFB_STALE);
 static_assert((DFB_KIND_DOOM_ITEM_ART) == (145), DFB_STALE);
 static_assert((DFB_ITEM_ART_SLOT) == (5u), DFB_STALE);
-static_assert((DFB_ITEM_ART_HEADER) == (144u), DFB_STALE);
+static_assert((DFB_ITEM_ART_HEADER) == (464u), DFB_STALE);
 static_assert((DFB_KIND_DOOM_ITEM_GUN_STATE) == (146), DFB_STALE);
 static_assert((DFB_KIND_DOOM_ITEM_ID) == (147), DFB_STALE);
 static_assert((DFB_DOOM_ITEM_GUN) == (1u), DFB_STALE);
@@ -102,6 +102,7 @@ static_assert((DFB_GUN_GIVE) == (0u), DFB_STALE);
 static_assert((DFB_GUN_ADOPT) == (1u), DFB_STALE);
 static_assert((DFB_GUN_CLEAR) == (2u), DFB_STALE);
 static_assert((DFB_GUN_SELECT) == (3u), DFB_STALE);
+static_assert((DFB_GUN_FIST) == (4u), DFB_STALE);
 static_assert((DFB_KIND_CLIMB_USES) == (170), DFB_STALE);
 static_assert((DFB_KIND_AMMO) == (171), DFB_STALE);
 static_assert((DFB_KIND_AMMO_ADD) == (172), DFB_STALE);
@@ -266,10 +267,14 @@ static_assert((DFB_UI_DAGGERFALL) == (7u), DFB_STALE);
 static_assert((DFB_UI_LOAD_GAME) == (8u), DFB_STALE);
 static_assert((DFB_UI_JOURNAL) == (9u), DFB_STALE);
 static_assert((DFB_UI_REST) == (10u), DFB_STALE);
+static_assert((DFB_UI_CHARACTER) == (11u), DFB_STALE);
+static_assert((DFB_UI_SPELLBOOK) == (12u), DFB_STALE);
 static_assert((DFB_REST_MONSTERS_NEAR) == (1u), DFB_STALE);
 static_assert((DFB_REST_NOT_GROUNDED) == (2u), DFB_STALE);
 static_assert((DFB_UI_CLOSED) == (0u), DFB_STALE);
 static_assert((DFB_UI_OPENED) == (1u), DFB_STALE);
+static_assert((DFB_UI_TYPING) == (2u), DFB_STALE);
+static_assert((DFB_UI_CLOSED_TIME_PASSED) == (1u), DFB_STALE);
 static_assert((DFB_UI_REASON_NONE) == (0u), DFB_STALE);
 static_assert((DFB_UI_REASON_USER) == (1u), DFB_STALE);
 static_assert((DFB_UI_REASON_REFUSED) == (2u), DFB_STALE);
@@ -373,13 +378,17 @@ static_assert(std::is_same<decltype(dfb_area::area_seq), uint32_t>::value, DFB_S
 static_assert(offsetof(dfb_area, sent_ns) == 16, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_area::sent_ns), int64_t>::value, DFB_STALE);
 
-static_assert(sizeof(dfb_ui_command) == 16, DFB_STALE);
+static_assert(sizeof(dfb_ui_command) == 24, DFB_STALE);
 static_assert(offsetof(dfb_ui_command, ui_id) == 0, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_ui_command::ui_id), uint32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_ui_command, context) == 4, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_ui_command::context), uint32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_ui_command, sent_ns) == 8, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_ui_command::sent_ns), int64_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_ui_command, screen_width) == 16, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_ui_command::screen_width), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_ui_command, screen_height) == 20, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_ui_command::screen_height), uint32_t>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_ui_input) == 24, DFB_STALE);
 static_assert(offsetof(dfb_ui_input, type) == 0, DFB_STALE);
@@ -404,8 +413,8 @@ static_assert(offsetof(dfb_ui_state, surface_width) == 12, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_ui_state::surface_width), uint32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_ui_state, surface_height) == 16, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_ui_state::surface_height), uint32_t>::value, DFB_STALE);
-static_assert(offsetof(dfb_ui_state, pad) == 20, DFB_STALE);
-static_assert(std::is_same<decltype(dfb_ui_state::pad), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_ui_state, flags) == 20, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_ui_state::flags), uint32_t>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_ui_result) == 48, DFB_STALE);
 static_assert(offsetof(dfb_ui_result, ui_id) == 0, DFB_STALE);
@@ -609,7 +618,7 @@ static_assert(std::is_same<decltype(dfb_door::flags), uint32_t>::value, DFB_STAL
 static_assert(offsetof(dfb_door, pad) == 28, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_door::pad), uint32_t>::value, DFB_STALE);
 
-static_assert(sizeof(dfb_item_art) == 144, DFB_STALE);
+static_assert(sizeof(dfb_item_art) == 464, DFB_STALE);
 static_assert(offsetof(dfb_item_art, request) == 0, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_item_art::request), uint32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_item_art, width) == 4, DFB_STALE);
@@ -622,6 +631,10 @@ static_assert(offsetof(dfb_item_art, cls) == 16, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_item_art::cls), char[64]>::value, DFB_STALE);
 static_assert(offsetof(dfb_item_art, tag) == 80, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_item_art::tag), char[64]>::value, DFB_STALE);
+static_assert(offsetof(dfb_item_art, types) == 144, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_item_art::types), char[64]>::value, DFB_STALE);
+static_assert(offsetof(dfb_item_art, brief) == 208, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_item_art::brief), char[256]>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_climb_uses) == 8, DFB_STALE);
 static_assert(offsetof(dfb_climb_uses, uses) == 0, DFB_STALE);

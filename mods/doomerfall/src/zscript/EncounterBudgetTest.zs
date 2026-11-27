@@ -38,6 +38,7 @@ class DoomerfallEncounterBudgetTest : StaticEventHandler
 		}
 		// The hooks (6.6) on a copy of the level 30 plan.
 		Hooks();
+		StartRoom();
 		Console.Printf("ENCBUD time ms=%d", MSTime() - t0);
 		Console.Printf("ENCBUD done");
 	}
@@ -87,6 +88,38 @@ class DoomerfallEncounterBudgetTest : StaticEventHandler
 			req.placements.Push(p);
 		}
 		return req;
+	}
+
+	// The PlainHumanoid start room: Privateer's Hold's facts with placement 0 in the room the cave opens into, 1 at the
+	// real position of the room on the floor below (near in a straight line, far on foot, outside the radius) and 2 just
+	// outside the radius; 4 and 6 at the two placements of the hall with stairs (top of the stair, hall floor) and 7 at
+	// the next placement on the hall's level (p2, 339 units from the hall floor one). Prints each placement's role and
+	// classes, then a Move with every placement but the start rooms full (it must not land there).
+	static void StartRoom()
+	{
+		for (int s = 0; s < 13; s++)
+		{
+			let req = Fake(1506, "PlainHumanoid", 1, 42, true);
+			req.locationId = 50050;
+			req.regionIndex = 17;
+			req.seedOffset = s;
+			req.placements[0].x = 563; req.placements[0].y = 1419; req.placements[0].z = 960;
+			req.placements[1].x = 458; req.placements[1].y = 1292; req.placements[1].z = 576;
+			req.placements[2].x = 510; req.placements[2].y = 1672 - 420; req.placements[2].z = 960;
+			req.placements[4].x = 1206.8; req.placements[4].y = 572.2; req.placements[4].z = 768;
+			req.placements[6].x = 851.2; req.placements[6].y = 1049.2; req.placements[6].z = 381.5;
+			req.placements[7].x = 992.2; req.placements[7].y = 1357.5; req.placements[7].z = 392;
+			let p = DoomerfallEncounterPlanner.Plan(req);
+			for (int i = 0; p && i < p.placements.Size(); i++)
+			{
+				String cls = "";
+				for (int k = 0; k < p.placements[i].mooks.Size(); k++) cls = cls .. (k ? "," : "") .. p.placements[i].mooks[k].m.cls.GetClassName();
+				Console.Printf("ENCBUD startroom seed=%d p=%d role=%s classes=%s", s, i, p.placements[i].role, cls);
+			}
+			Array<bool> full;
+			for (int i = 0; p && i < p.placements.Size(); i++) full.Push(i != 0 && i != 4 && i != 6);
+			if (p) Console.Printf("ENCBUD startmove seed=%d to=%d", s, DoomerfallEncounterPlanner.Move(p, 1, 500, full));
+		}
 	}
 
 	static String Hex(int hi, int lo) { return String.Format("%08x%08x", hi, lo); }

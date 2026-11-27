@@ -1,6 +1,6 @@
 // Doomerfall: the popup for one hotkey, drawn like Daggerfall's inventory. Five item slots: three for the plain key,
 // one for Ctrl, one for Alt. Clicking a slot puts the hovered item there. The REMOVE button under a slot clears it.
-// A slot whose consumable ran out shows a grey X until the player has more of it.
+// A slot whose consumable ran out shows a grey X until the player has more of it. Key 1's first slot is always the fist.
 //
 // Everything is cut at runtime from the inventory's own pictures (INVE00I0.IMG, and INVE01I0.IMG for a highlighted
 // button), as DaggerfallInventoryWindow and ItemListScroller do: a stone panel with bevelled edges, the item list's
@@ -114,6 +114,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 remove.OnMouseLeave += (sender) => sender.BackgroundTexture = removeNotSelected;
                 removes[q] = remove;
             }
+            if (key == DoomerfallHotkeys.FistKey) // The fist's square: not an item, so a word instead of a picture.
+            {
+                TextLabel fist = DaggerfallUI.AddTextLabel(DaggerfallUI.DefaultFont, Vector2.zero, DoomerfallHotkeys.FistName.ToUpper(), slots[DoomerfallHotkeys.FistSquare]);
+                fist.HorizontalAlignment = HorizontalAlignment.Center;
+                fist.VerticalAlignment = VerticalAlignment.Middle;
+            }
             ParentPanel.OnMouseClick += Parent_OnMouseClick;
             Refresh();
         }
@@ -177,8 +183,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     icon.BackgroundTexture = null;
                     slots[q].ToolTipText = string.Empty;
                 }
-                greyed[q].Enabled = sq != null && assigned == null;
-                removes[q].Enabled = sq != null;
+                bool fist = sq != null && sq.kind == 'f';
+                if (fist) slots[q].ToolTipText = DoomerfallHotkeys.FistMessage;
+                greyed[q].Enabled = sq != null && assigned == null && !fist;
+                removes[q].Enabled = sq != null && !fist;
                 if (sq == null)
                     removes[q].BackgroundTexture = removeNotSelected;
             }
@@ -195,6 +203,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             if (DoomerfallHotkeys.Instance == null)
                 return;
+            if (key == DoomerfallHotkeys.FistKey && (int)sender.Tag == DoomerfallHotkeys.FistSquare)
+            {
+                DaggerfallUI.MessageBox(DoomerfallHotkeys.FistMessage);
+                return;
+            }
             DoomerfallHotkeys.Instance.Assign(key, (int)sender.Tag, item);
             Refresh();
         }

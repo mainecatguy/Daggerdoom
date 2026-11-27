@@ -579,7 +579,10 @@ namespace DaggerfallWorkshop.Game
                         if (GameManager.Instance.PlayerEntity.Items.Contains(Items.ItemGroups.MiscItems, (int)Items.MiscItems.Spellbook))
                             uiManager.PushWindow(dfSpellBookWindow);
                         else
+                        {
                             AddHUDText(TextManager.Instance.GetLocalizedText("noSpellbook"));
+                            Doomerfall.DoomerfallUi.NoSpellbook(TextManager.Instance.GetLocalizedText("noSpellbook")); // Doomerfall: its HUD is hidden
+                        }
                     }
                     break;
                 case DaggerfallUIMessages.dfuiOpenUseMagicItemWindow:
@@ -761,12 +764,12 @@ namespace DaggerfallWorkshop.Game
                 Instance.dfHUD.LargeHUD.HeadTexture = null;
         }
 
-        /// <summary>Doomerfall: sees each HUD message while set (message, true for mid-screen). Null outside a bridge session.</summary>
-        public static Action<string, bool> DoomerfallHudText;
+        /// <summary>Doomerfall: sees each HUD message while set (message, true for mid-screen, seconds it holds). Null outside a bridge session.</summary>
+        public static Action<string, bool, float> DoomerfallHudText;
 
         public static void AddHUDText(string message)
         {
-            DoomerfallHudText?.Invoke(message, false);
+            DoomerfallHudText?.Invoke(message, false, 1.0f);
             if (Instance.dfHUD != null)
             {
                 Instance.dfHUD.PopupText.AddText(message);
@@ -775,7 +778,7 @@ namespace DaggerfallWorkshop.Game
 
         public static void AddHUDText(string message, float delay)
         {
-            DoomerfallHudText?.Invoke(message, false);
+            DoomerfallHudText?.Invoke(message, false, delay);
             if (Instance.dfHUD != null)
             {
                 Instance.dfHUD.PopupText.AddText(message, delay);
@@ -784,6 +787,8 @@ namespace DaggerfallWorkshop.Game
 
         public static void AddHUDText(TextFile.Token[] tokens, float delay)
         {
+            if (DoomerfallHudText != null)
+                foreach (string line in TextFile.GetTokenLines(tokens) ?? new string[0]) DoomerfallHudText(line, false, delay);
             if (Instance.dfHUD != null)
             {
                 Instance.dfHUD.PopupText.AddText(tokens, delay);
@@ -792,7 +797,7 @@ namespace DaggerfallWorkshop.Game
 
         public static void SetMidScreenText(string message, float delay = 1.5f)
         {
-            DoomerfallHudText?.Invoke(message, true);
+            DoomerfallHudText?.Invoke(message, true, delay);
             if (Instance.dfHUD != null)
             {
                 Instance.dfHUD.SetMidScreenText(message, delay);
@@ -830,7 +835,7 @@ namespace DaggerfallWorkshop.Game
 
         public void PopupMessage(string text)
         {
-            DoomerfallHudText?.Invoke(text, false);
+            DoomerfallHudText?.Invoke(text, false, 1.0f);
             if (dfHUD != null)
                 dfHUD.PopupText.AddText(text);
         }

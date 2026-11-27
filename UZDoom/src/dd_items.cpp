@@ -24,10 +24,12 @@
 #include "gstrings.h"
 #include "gamestate.h"
 #include "info.h"
+#include "p_3dfloors.h"
 #include "p_linetracedata.h"
 #include "p_local.h"
 #include "printf.h"
 #include "c_dispatch.h"
+#include "vm.h"
 
 #ifdef _WIN32
 extern "C" __declspec(dllimport) short __stdcall GetKeyState(int key); // Avoids windows.h in this file.
@@ -167,8 +169,31 @@ double AimScore(AActor *pmo, player_t *player, AActor *item)
 	return to.Z < 0 && -to.Z <= FloorDrop && flatFacing > MinAim ? flatFacing - 1 : -HUGE_VAL;
 }
 
-// The pile, container, or (with `doomItems`) Doom pickup that Use would take, or null.
-AActor *ItemInView(player_t *player, bool doomItems, bool touchToo = false)
+// True when a solid 3D floor lies between the player's eye and the item: it is on another storey of a converted
+// dungeon. Doom's sight check lets this through for an item lying on the 3D floor's top within the player's own sector,
+// and the floor-ahead rule in AimScore ignores where the player faces, so a clip on the storey above showed a label.
+// The slab must lie between the two heights both where the item is and where the player stands, so an item on a
+// ledge or platform seen from an open room still counts.
+bool SlabBetween(sector_t *sector, const DVector2 &at, double eye, AActor *item)
+{
+	for (F3DFloor *rover : sector->e->XFloor.ffloors)
+	{
+		if (!(rover->flags & FF_EXISTS) || !(rover->flags & FF_SOLID)) continue;
+		const double top = rover->top.plane->ZatPoint(at), bottom = rover->bottom.plane->ZatPoint(at);
+		if (eye <= bottom && item->Z() >= top - 1) return true;
+		if (eye >= top && item->Top() <= bottom + 1) return true;
+	}
+	return false;
+}
+
+bool OtherStorey(player_t *player, AActor *item)
+{
+	return SlabBetween(item->Sector, item->Pos().XY(), player->viewz, item) && SlabBetween(player->mo->Sector, player->mo->Pos().XY(), player->viewz, item);
+}
+
+// The pile, container, or (with `doomItems`) Doom pickup that Use would take, or null. With `look` (the label only),
+// items on another storey are left out; Use and Info still choose as before.
+AActor *ItemInView(player_t *player, bool doomItems, bool touchToo = false, bool look = false)
 {
 	AActor *pmo = player->mo, *best = nullptr;
 	double bestScore = -HUGE_VAL;
@@ -178,7 +203,7 @@ AActor *ItemInView(player_t *player, bool doomItems, bool touchToo = false)
 		const bool pile = IsWorldPile(mo);
 		if (!pile && (!doomItems || !(mo->flags & MF_SPECIAL) || !(touchToo ? DD_PickupVisible(mo) : DD_PickupNeedsUse(mo)))) continue;
 		const double score = AimScore(pmo, player, mo);
-		if (score > bestScore && P_CheckSight(pmo, mo, SF_IGNOREVISIBILITY))
+		if (score > bestScore && P_CheckSight(pmo, mo, SF_IGNOREVISIBILITY) && !(look && OtherStorey(player, mo)))
 		{
 			bestScore = score;
 			best = mo;
@@ -362,9 +387,25 @@ FString CleanTag(const char *tag)
 	return out;
 }
 
-// The item's tag, or its pickup message when it has none (DRLA's RLBlurSphere says "Partial Invisibility").
+// The item's name: the Doomerfall mod's rule (zscript/DoomerfallLook.zs DoomerfallItemName.Of: its tag, the tag of the
+// stock item it replaces, its pickup message cut to the noun, its class name). Without the mod, its tag or pickup message.
 FString ItemName(AActor *mo)
 {
+	static VMFunction *rule = nullptr;
+	static bool looked = false;
+	if (!looked)
+	{
+		PClass::FindFunction(&rule, "DoomerfallItemName", "Of");
+		looked = true;
+	}
+	if (rule)
+	{
+		FString answer;
+		VMValue params[] = { mo };
+		VMReturn ret(&answer);
+		VMCall(rule, params, 1, &ret, 1);
+		if (answer.IsNotEmpty()) return CleanTag(answer.GetChars());
+	}
 	const char *tag = mo->GetTag("");
 	if (!tag[0] && mo->IsKindOf(NAME_Inventory))
 	{
@@ -373,6 +414,21 @@ FString ItemName(AActor *mo)
 		if (tag[0] == '$') tag = GStrings.GetString(tag + 1);
 	}
 	return CleanTag(tag[0] ? tag : mo->GetClass()->TypeName.GetChars());
+}
+
+// A gun's types or brief description for Daggerfall's item description (zscript/DoomerfallWeaponTypes.zs), or "" for
+// an item that is not a gun or when the Doomerfall mod is not loaded. Daggerfall holds DRLA guns by their pickup class.
+FString WeaponText(const char *what, PClassActor *cls)
+{
+	FString answer;
+	VMFunction *f = nullptr;
+	PClass::FindFunction(&f, "DoomerfallWeaponTypes", what);
+	PClassActor *weapon = IsGun(cls) ? WeaponOf(cls) : nullptr;
+	if (!f || !weapon) return answer;
+	VMValue params[] = { (void *)weapon };
+	VMReturn ret(&answer);
+	VMCall(f, params, 1, &ret, 1);
+	return answer;
 }
 
 // Writes the sprite and name of one class to the art slot. Larger sprites are shrunk to fit the slot.
@@ -404,6 +460,8 @@ void SendArt(uint32_t request, const FString &name)
 	header.height = h;
 	strncpy(header.cls, name.GetChars(), sizeof(header.cls) - 1);
 	strncpy(header.tag, ItemName(GetDefaultByType(cls)).GetChars(), sizeof(header.tag) - 1);
+	strncpy(header.types, WeaponText("Types", cls).GetChars(), sizeof(header.types) - 1);
+	strncpy(header.brief, WeaponText("Brief", cls).GetChars(), sizeof(header.brief) - 1);
 	memcpy(buffer.Data(), &header, sizeof(header));
 	const uint8_t *src = bmp.GetPixels();
 	uint8_t *dst = buffer.Data() + DFB_ITEM_ART_HEADER;
@@ -896,7 +954,7 @@ void DD_ItemsResync()
 	sentLevel = -2;
 }
 
-// Plain Daggerfall load (no Doom half): tells Daggerfall the starter gun, the loaded mods' pistol (DRLA's RLPistol, else
+// New Game and plain Daggerfall load arrivals (NgSendArrived): tells Daggerfall the starter gun, the loaded mods' pistol (DRLA's RLPistol, else
 // stock Pistol) by its world pickup class, its weapon slot, and the player class's start amount of its reserve ammo.
 void DD_ItemsSendStarter()
 {
@@ -955,7 +1013,7 @@ bool DD_PickupNeedsUse(AActor *special)
 AActor *DD_LookItem(player_t *player, bool &world, uint64_t &id, FString &name)
 {
 	if (!useRules || !DD_BridgeHasSession() || !player || !player->mo) return nullptr;
-	AActor *best = ItemInView(player, true, true);
+	AActor *best = ItemInView(player, true, true, true);
 	if (!best) return nullptr;
 	world = IsWorldPile(best) || IsWorldContainer(best);
 	if (world) id = strtoull(best->StringVar(FName("dfId")).GetChars(), nullptr, 16);

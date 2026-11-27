@@ -145,6 +145,8 @@ def main():
                 raise SystemExit(f"{world_dir} needs DDWORLD and DDLOCS. Run the converter with --world --out <dir>, or pass --raw-world.")
             z.write(os.path.join(world_dir, "DDWORLD"), "DDWORLD")
             z.write(os.path.join(world_dir, "DDLOCS"), "DDLOCS")
+            if os.path.isfile(os.path.join(world_dir, "DDNATURE")):  # wilderness nature layout data (dd_nature.cpp)
+                z.write(os.path.join(world_dir, "DDNATURE"), "DDNATURE")
         else:
             z.writestr("DDWORLD", world_lump(woods))
         z.writestr("DDWLDCFG", config)

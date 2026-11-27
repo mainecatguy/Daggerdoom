@@ -217,7 +217,7 @@ namespace DaggerfallWorkshop
                         for (int j = 0; j < enumArray.Length; ++j)
                         {
                             ItemTemplate itemTemplate = itemHelper.GetItemTemplate(itemGroup, j);
-                            if (itemTemplate.rarity <= shopQuality)
+                            if (itemTemplate.rarity <= shopQuality && !Game.Doomerfall.DoomerfallShields.Banned(itemGroup, itemTemplate.index)) // [Doomerfall] no shields
                             {
                                 int stockChance = chanceMod * 5 * (21 - itemTemplate.rarity) / 100;
                                 if (Dice100.SuccessRoll(stockChance))
@@ -286,7 +286,7 @@ namespace DaggerfallWorkshop
                     }
                 }
             }
-            Game.Doomerfall.DoomerfallAmmoTiers.StockShop(buildingType, shopQuality, items); // [Doomerfall] tiered Doom ammo
+            Game.Doomerfall.DoomerfallAmmoTiers.StockShop(buildingData, items); // [Doomerfall] Doom ammo
             Game.Doomerfall.DoomerfallLockpick.StockShop(buildingType, shopQuality, items); // [Doomerfall] lockpicks
         }
 

@@ -14,12 +14,15 @@ class AMHarness : EventHandler
 	const CHANGERUN = @CHANGERUN@; // The change run: the change ammo key, the automatic change, and the magazine unload.
 	const MATERIALRUN = @MATERIALRUN@; // The material run: an Iron and a Daedric copy of one gun scale damage by their material.
 	const SIZERUN = @SIZERUN@; // The sizes run: each pickup size, and monster drops, give Doom's amounts in both games.
+	const SHOPRUN = @SHOPRUN@; // The shop run: Daggerfall buys a general store's ammo (-dfshopammotest), Doom fires it.
 	const SAVED = 10;
 	vector3 dropSpot;
+	Actor lookItem;
 	Array<Inventory> sized;
 	Array<String> sizedWhat;
 	Array<Actor> victims;
 	int touchIndex;
+	int shopClip, shopCell, buttons;
 
 	// A spot whose seeded roll (DoomerfallAmmoTiers.Convert) gives this tier, and no jackpot.
 	vector3 SpotFor(int type, int want, int k)
@@ -219,6 +222,8 @@ class AMHarness : EventHandler
 		vector3 door = (DOORDATA[0], DOORDATA[1], DOORDATA[2]);
 		vector2 normal = (DOORDATA[3], DOORDATA[4]);
 		timer++;
+		// Holding fire: the player's own fire routine, as the attack button calls it, each tic the gun is ready.
+		if (SHOPRUN && buttons && (players[0].WeaponState & WF_WEAPONREADY) && PlayerPawn(players[0].mo)) PlayerPawn(players[0].mo).FireWeapon(null);
 		if (LOADRUN && phase == SAVED) { phase = 20; timer = 0; Report("loaded"); }
 		if (LOADRUN && phase < SAVED) return;
 		if (!LOADRUN && !EQUIPRUN && phase < SAVED) WatchDaggerfall(p);
@@ -248,6 +253,7 @@ class AMHarness : EventHandler
 			if (CHANGERUN) phase = 50;
 			if (MATERIALRUN) phase = 80;
 			if (SIZERUN) phase = 90;
+			if (SHOPRUN) phase = 110;
 			break;
 		case 2: // A box of bullets by touch. Stock ClipBox, not DRLA's spawner, so the amount is known.
 		{
@@ -346,7 +352,14 @@ class AMHarness : EventHandler
 			Next();
 			break;
 		}
-		case 44:
+		case 44: // Meanwhile a Regular, then a Silver clip lies just ahead, out of touch reach, for the look label ("look:" in the log).
+			if (timer == 20 || timer == 70)
+			{
+				if (lookItem) lookItem.Destroy();
+				lookItem = Actor.Spawn(timer == 20 ? "DFAmmo_Clip_0" : "DFAmmo_Clip_2", p.Vec3Angle(56, p.angle), NO_REPLACE);
+				Console.Printf("AMLOOK %s ahead", lookItem ? lookItem.GetClassName() : 'none');
+			}
+			if (timer == 120 && lookItem) lookItem.Destroy();
 			if (timer == 140) { Report("after tier pickups"); phase = 7; timer = 0; }
 			break;
 		case 50: // Daggerfall's test hook (-dfchangeammotest) adds tiered bullets and a DRLA pistol on key 4.
@@ -526,6 +539,36 @@ class AMHarness : EventHandler
 			}
 			touchIndex++;
 			break;
+		case 110: // Wait for Daggerfall's purchase of a general store's bullets and cells to reach Doom's counters.
+			if (timer == 1) { shopClip = p.CountInv("Clip"); shopCell = p.CountInv("Cell"); Report("before shop purchase"); }
+			if (timer > LIMIT) { Report("shop purchase never arrived"); phase = 7; timer = 0; break; }
+			if (timer % 35 == 0) Report("waiting for shop purchase");
+			// The purchase may land before this phase starts; the player starts with 60 bullets and no cells.
+			if (p.CountInv("Clip") > 60 && p.CountInv("Cell") >= 20) { Report("after shop purchase"); Next(); }
+			break;
+		case 111: // Fire the bought bullets from a chaingun, then the bought cells from a plasma rifle, holding fire.
+		case 112:
+		{
+			String gun = phase == 111 ? "Chaingun" : "PlasmaRifle";
+			String ammo = phase == 111 ? "Clip" : "Cell";
+			if (timer == 1)
+			{
+				p.GiveInventory(gun, 1);
+				let w = Weapon(p.FindInventory(gun));
+				if (w) players[0].PendingWeapon = w;
+				Console.Printf("AMSHOP select %s: %s", gun, w ? "given" : "MISSING");
+			}
+			if (timer == 70) { shopClip = p.CountInv(ammo); Console.Printf("AMSHOP fire %s ready=%s %s=%d", gun, players[0].ReadyWeapon ? String.Format("%s", players[0].ReadyWeapon.GetClassName()) : "none", ammo, shopClip); buttons = BT_ATTACK; }
+			if (timer == 140)
+			{
+				buttons = 0;
+				int left = p.CountInv(ammo);
+				Console.Printf("AMSHOP fired %s: %s %d -> %d, %s", gun, ammo, shopClip, left, left < shopClip ? "spent" : "NOT SPENT");
+				Report(String.Format("after firing %s", gun));
+				if (phase == 112) { phase = 7; timer = 0; } else Next();
+			}
+			break;
+		}
 		case SAVED:
 			if (timer > 35 * 8) Finish("saved");
 			break;

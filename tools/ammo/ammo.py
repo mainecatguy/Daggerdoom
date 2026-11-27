@@ -19,7 +19,9 @@ material: (-dfmaterialtest) an Iron and a Daedric Shotgun on keys 3 and 4, shell
 materialload: loads that autosave and checks the Daedric bonus again.
 sizes:    touches small and large pickups of each type at several tiers, and monster drops; each must give stock
           Doom's amount (the same for every tier) in Doom and in Daggerfall's inventory.
-tiers:    tiered drops and pickups; with -dfshoptest, checks that shop packs of every tier hold Regular's amount.
+tiers:    tiered drops and pickups; with -dfshoptest, checks shop stacks (higher tiers in Regular-sized packs).
+shop:     (-dfshopammotest) seeded general store ammo across 2,000 stores, then buys a general store's ammo through
+          Daggerfall's trade window and fires the bullets and cells in Doom.
 check:    DOOM.WAD E1M1 with no bridge, stock and with the DRLA set.
 """
 import argparse
@@ -40,13 +42,14 @@ argv, sys.argv = sys.argv, sys.argv[:1]
 import install  # noqa: E402  (only for its registry isolation)
 sys.argv = argv
 
-REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\ammosizefix")  # Was review\ammo, ammo-pickup, ammo-equip, ammo-tiers, ammo-change, weapon-material-damage, then ammosize, for earlier ammo runs.
-SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\doom-items")  # Data, sprite package, and demo items.
+REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\verify-ammoname-stage")  # Was review\shop-ammo (left locked by two test games), earlier review\ammosizefix, earlier review\ammo, ammo-pickup, ammo-equip, ammo-tiers, ammo-change, weapon-material-damage, then ammosize, for earlier ammo runs.
+SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\runtime-dungeons")  # Data and sprite package (the runtime dungeon run).
+CACHE_SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\ammosizefix") / "data" / "cache"  # The town cache with the test door.
 BUILD = Path(r"D:\dev\DoomDaggerfall-build")
-UZ_BUILD = BUILD / "merge-skillcore" / "uzdoom" / "Release"  # Integration's latest engine build (earlier runs: the *-ammosize and *-items trees).
+UZ_BUILD = BUILD / "verify-ammoname" / "uzdoom" / "Release"  # Integration's latest engine build (earlier runs: the *-ammosize and *-items trees).
 SOUND = BUILD / "uzdoom-launcher" / "Release"
-BRIDGE_DLL = BUILD / "merge-skillcore" / "bridge" / "Release" / "doomerfall_bridge.dll"
-LAUNCHER = BUILD / "merge-skillcore" / "launcher" / "Release" / "doomerfall-launcher.exe"
+BRIDGE_DLL = BUILD / "verify-ammoname" / "bridge" / "Release" / "doomerfall_bridge.dll"
+LAUNCHER = BUILD / "verify-ammoname" / "launcher" / "Release" / "doomerfall-launcher.exe"
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
 MODS = GAME.parent / "GameMods"
@@ -69,13 +72,13 @@ def lumps(path):
         return {name: zlib.decompress(f.read(packed)) if raw else b"" for name, raw, packed in heads}
 
 
-def harness(load, equip=False, tiers=False, change=False, material=False, sizes=False):
+def harness(load, equip=False, tiers=False, change=False, material=False, sizes=False, shop=False):
     cache = REVIEW / "data" / "cache" / f"T{GROUP:05d}.ddt"
     for other in cache.parent.glob("T*.ddt"):
         other.unlink()
-    shutil.copy(SOURCE / "data" / "cache" / cache.name, cache)
+    shutil.copy(CACHE_SOURCE / cache.name, cache)
     door = next(l.split() for l in lumps(cache)["DDDOORS"].decode().splitlines() if l.startswith("1 187853213"))
-    text = (HERE / "harness.zs").read_text().replace("@DOOR@", ", ".join(door[3:8])).replace("@LOADRUN@", "1" if load else "0").replace("@EQUIPRUN@", "1" if equip else "0").replace("@TIERRUN@", "1" if tiers else "0").replace("@CHANGERUN@", "1" if change else "0").replace("@MATERIALRUN@", "1" if material else "0").replace("@SIZERUN@", "1" if sizes else "0")
+    text = (HERE / "harness.zs").read_text().replace("@DOOR@", ", ".join(door[3:8])).replace("@LOADRUN@", "1" if load else "0").replace("@EQUIPRUN@", "1" if equip else "0").replace("@TIERRUN@", "1" if tiers else "0").replace("@CHANGERUN@", "1" if change else "0").replace("@MATERIALRUN@", "1" if material else "0").replace("@SIZERUN@", "1" if sizes else "0").replace("@SHOPRUN@", "1" if shop else "0")
     path = REVIEW / "run" / "harness.pk3"
     with zipfile.ZipFile(path, "w") as z:
         z.writestr("zscript.txt", text)
@@ -88,7 +91,8 @@ def copy_uzdoom():
         shutil.rmtree(REVIEW / "uzdoom")
     shutil.copytree(UZ_BUILD, REVIEW / "uzdoom", ignore=shutil.ignore_patterns("*.pdb", "*.ini"))
     for dll in ("sndfile.dll", "soft_oal.dll"):
-        shutil.copy2(SOUND / dll, REVIEW / "uzdoom" / dll)
+        if (SOUND / dll).exists():  # Test runs use -nosound; only the demo needs them.
+            shutil.copy2(SOUND / dll, REVIEW / "uzdoom" / dll)
 
 
 def assemble():
@@ -113,6 +117,7 @@ def assemble():
     shutil.copy2(LAUNCHER, REVIEW / "doomerfall-launcher.exe")
     shutil.copy2(SOURCE / "dfitems.pk3", REVIEW / "dfitems.pk3")
     subprocess.check_call([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), str(REVIEW / "doomerfall.pk3")])
+    subprocess.check_call([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), "--drla", str(REVIEW / "doomerfall-drla.pk3")])
     print("assembled", REVIEW)
 
 
@@ -142,7 +147,8 @@ def run(name):
     change = name in ("change", "changeload")
     material = name in ("material", "materialload")
     sizes = name == "sizes"
-    if name in ("take", "equip", "tiers", "change", "material", "sizes"):
+    shop = name == "shop"
+    if name in ("take", "equip", "tiers", "change", "material", "sizes", "shop"):
         for old in saves.glob("*.zds"):
             old.unlink()
     autosaves = sorted(saves.glob("auto*.zds"), key=lambda p: p.stat().st_mtime)
@@ -156,12 +162,12 @@ def run(name):
           "+logfile", name, "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{GROUP:05d}"]
     if load:
         uz += ["-dfloadtest", f"resume:{autosaves[-1]}"]
-    df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), *(["-dfequiptest"] if equip else ["-dfshoptest"] if tiers else ["-dfchangeammotest"] if change else ["-dfmaterialtest"] if material else [] if sizes else ["-dfammotest"]), "-dfarealevel", "1" if sizes else "20", "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
+    df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), *(["-dfequiptest"] if equip else ["-dfshoptest"] if tiers else ["-dfchangeammotest"] if change else ["-dfmaterialtest"] if material else [] if sizes else ["-dfshopammotest"] if shop else ["-dfammotest"]), "-dfarealevel", "1" if sizes else "20", "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
     timeout = 240 if sizes else 180 if change and not load else 120  # The reload checks add about 35 s; the sizes run touches about 25 pickups 2 s apart.
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
                "--uzdoom-cwd", str(runs), "--log", str(launcher)]
-    for mod in [MODS / n for n in DRLA] + [REVIEW / "data" / n for n in DATA] + [REVIEW / "dfitems.pk3", REVIEW / "doomerfall.pk3", harness(load, equip, tiers, change, material, sizes)]:
+    for mod in [MODS / n for n in DRLA] + [REVIEW / "data" / n for n in DATA] + [REVIEW / "dfitems.pk3", REVIEW / "doomerfall.pk3", REVIEW / "doomerfall-drla.pk3", harness(load, equip, tiers, change, material, sizes, shop)]:
         command += ["--mod", str(mod)]
     for arg in uz:
         command += ["--uzdoom-arg", arg]
@@ -184,14 +190,14 @@ def run(name):
         proc.wait()
     print("stopped:", reason)
     for line in read(console).splitlines():
-        if re.match(r"AM[A-Z]+ ", line) or "loaded ammo" in line or "ammo unload" in line or "change ammo" in line or "DFAMMO jackpot" in line or "DFAMMO size" in line or "DFAMMO reload" in line or "DFAMMO redraw" in line or "ammo add" in line or "ready weapon" in line or "damage bonus" in line or "Script error" in line or any(k in line for k in FATAL):
+        if re.match(r"AM[A-Z]+ ", line) or "loaded ammo" in line or "ammo unload" in line or "change ammo" in line or "DFAMMO jackpot" in line or "DFAMMO size" in line or "DFAMMO reload" in line or "DFAMMO redraw" in line or "AMSHOP" in line or "ammo add" in line or "ready weapon" in line or "damage bonus" in line or "Script error" in line or any(k in line for k in FATAL):
             print("uz", line[:220])
     for line in read(uz_log).splitlines():
         if re.search(r"save|load test", line, re.I):
             print("uz-bridge", line[:200])
     df_body = read(df_log)
     for line in df_body.splitlines():
-        if ("ammo" in line and "area level" not in line) or "damage bonus" in line or "equiptest" in line or re.search(r"\bsave\b|load", line):
+        if (("ammo" in line and "area level" not in line) or "shopammo" in line) or "damage bonus" in line or "equiptest" in line or re.search(r"\bsave\b|load", line):
             print("df", line[:300])
     doom, dagger = counts_doom(read(console)), counts_df(df_body)
     print("final Doom:", doom)
@@ -238,6 +244,11 @@ def run(name):
         size_checks(read(console), df_body)
     if tiers and not load:
         pack_checks(df_body)
+        # The look label for a Regular, then a Silver clip just ahead: the plain name, then the material (card ammoname 01).
+        looks = re.findall(r'^look: "(.*)"', read(console), re.M)
+        print("look labels:", looks, "PASS" if "Bullets" in looks and "Silver Bullets" in looks else "FAIL")
+    if shop:
+        shop_checks(read(console), df_body)
     print("MATCH" if doom and all(doom.get(c) == dagger.get(c) for c in CLASSES) else "MISMATCH")
 
 
@@ -292,7 +303,8 @@ def size_checks(body, df_body):
         # A harness toss is "dropped by Toss_<plain class>"; a real monster drop names the monster.
         kinds.append((m.group(1) or "drop:" + m.group(2), (m.group(1) or m.group(2).split("Toss_")[-1]) in LARGE, m.group(2) is not None, int(m.group(3)), int(m.group(4)), int(m.group(5))))
     counts = [dict(re.findall(r"(\w+)=(\d+)", l)) for l in body.splitlines() if l.startswith("AMCOUNT before touches") or l.startswith("AMCOUNT after touch")]
-    takes = re.findall(r"ammo: picked up (\w+) ([\w ]+?) x(\d+)( \(loaded tier, goes to Doom\))?", df_body)
+    takes = [(split_name(n)[0], split_name(n)[1], x, loaded) for n, x, loaded in
+             re.findall(r"ammo: picked up ([\w ]+?) x(\d+)( \(loaded tier, goes to Doom\))?", df_body)]
     print("pickups", len(kinds), "| Daggerfall takes", len(takes), "| count lines", len(counts))
     ok_all = bool(kinds) and len(takes) == len(kinds)
     for i, (what, large, dropped, tier, amount, type_) in enumerate(kinds):
@@ -314,21 +326,74 @@ def size_checks(body, df_body):
           f" higher tiers touched: {', '.join(TIER_NAMES[t] for t in tiers) or 'NONE'})")
 
 
-SHOP_PACK = {"bullets": 80, "shotgun shells": 20, "rockets": 8, "energy cells": 100}  # A Regular shop pack, for every tier.
+SHOP_PACK = {"Bullets": 80, "Shells": 20, "Rockets": 8, "Energy Cells": 100}  # A Regular shop pack, for every tier.
+
+
+def split_name(name):
+    """Daggerfall's ammo name as (tier, kind): Regular has only the plain name ("Bullets"), other tiers put the material
+    first ("Silver Bullets")."""
+    first, _, rest = name.partition(" ")
+    return (first, rest) if first in TIER_NAMES[1:] and rest else ("Regular", name)
+
+
+DOOM_UNIT = {"Bullets": 10, "Shells": 4, "Rockets": 1, "Energy Cells": 20}  # Regular shop stock comes in these.
 
 
 def pack_checks(df_body):
-    """Every tiered stack on a restocked shelf (-dfshoptest) is a whole number of Regular-sized packs: 2-4 for
-    Regular, 1-2 for other tiers (DoomerfallAmmoTiers.StockShop)."""
-    stacks = re.findall(r"\[(\w+) ([a-z ]+?) x(\d+) \d+ gold\]", " ".join(l for l in df_body.splitlines() if "shoptest:" in l))
+    """Every higher-tier stack on a restocked shelf (-dfshoptest) is 1-2 Regular-sized packs; Regular stock is a whole
+    number of Doom's small pickups, set by the shop's seed (DoomerfallShopAmmo)."""
+    stacks = [split_name(n) + (x,) for n, x in
+              re.findall(r"\[([A-Za-z ]+?) x(\d+) \d+ gold\]", " ".join(l for l in df_body.splitlines() if "shoptest:" in l))]
     ok_all, higher = bool(stacks), 0
     for tier, kind, count in stacks:
-        packs, rest = divmod(int(count), SHOP_PACK.get(kind, 0) or 1)
-        ok = kind in SHOP_PACK and rest == 0 and packs in ((2, 3, 4) if tier == "Regular" else (1, 2))
+        size = (DOOM_UNIT if tier == "Regular" else SHOP_PACK).get(kind, 0) or 1
+        packs, rest = divmod(int(count), size)
+        ok = kind in SHOP_PACK and rest == 0 and (packs >= 1 if tier == "Regular" else packs in (1, 2))
         higher += tier != "Regular"
         ok_all &= ok
-        print(f"  shelf {tier:10} {kind:15} x{count:>4} = {packs} pack(s) of {SHOP_PACK.get(kind)}{' + ' + str(rest) if rest else ''} {'PASS' if ok else 'FAIL'}")
+        print(f"  shelf {tier:10} {kind:15} x{count:>4} = {packs} x {size}{' + ' + str(rest) if rest else ''} {'PASS' if ok else 'FAIL'}")
     print("packs:", "PASS" if ok_all and higher else "FAIL", f"({len(stacks)} stacks, {higher} of higher tiers)")
+
+
+SHELF_NAME = {"bullets": "Bullets", "shotgun shells": "Shells", "rockets": "Rockets", "energy cells": "Energy Cells"}
+SHOP_AVERAGE = {"bullets": 300, "shotgun shells": 120, "rockets": 30, "energy cells": 300}  # The card's general store ballpark.
+
+
+def shop_checks(console, df_body):
+    """-dfshopammotest: across many seeded general stores, each ammo type averages about the card's amount (within 15%)
+    and stores vary; a real general store shelf lists all four types; buying them through Daggerfall's trade window puts
+    them in the inventory, Doom's counters rise, and Doom fires bullets and cells."""
+    ok = True
+    for kind, want in SHOP_AVERAGE.items():
+        m = re.search(rf"shopammo: stats {kind}: mean (\d+(?:\.\d+)?) min (\d+) max (\d+) sd (\d+(?:\.\d+)?)", df_body)
+        good = bool(m) and abs(float(m.group(1)) - want) <= 0.15 * want and int(m.group(2)) < want / 2 and int(m.group(3)) > want * 2
+        ok &= good
+        print(f"  stats {kind:15} {m.group(0).split(': ', 2)[-1] if m else 'missing'} (want mean ~{want}, varied) {'PASS' if good else 'FAIL'}")
+    shelf = re.search(r"shopammo: general store shelf: (.*)", df_body)
+    listed = shelf and all(f"{SHELF_NAME[k]} x" in shelf.group(1) for k in SHOP_AVERAGE)
+    ok &= bool(listed)
+    print("  shelf lists all four types:", "PASS" if listed else "FAIL")
+    bought = re.search(r"shopammo: bought .*", df_body)
+    gains = re.findall(r"(bullets|shotgun shells|rockets|energy cells) \+(-?\d+)", bought.group(0)) if bought else []
+    paid = re.search(r"bought for (\d+) gold", bought.group(0)) if bought else None
+    gained = len(gains) == 4 and all(int(n) > 0 for _, n in gains) and paid and int(paid.group(1)) > 0
+    # Daggerfall's buy price at quality 10 is 2 x value x the region's price adjustment, then mercantile and personality
+    # move it a little. (Stock pricing clamps each unit to at least 1 gold.)
+    priced = re.search(r"bought for (\d+) gold of base value (\d+), region price (\d+)/1000", bought.group(0)) if bought else None
+    if priced:
+        paid_n, base, region = map(int, priced.groups())
+        expect = 2 * base * region / 1000
+        fair = 0.5 * expect <= paid_n <= 1.5 * expect
+        print(f"  price: paid {paid_n}, Daggerfall's formula before mercantile {expect:.0f}", "PASS" if fair else "FAIL")
+        gained = gained and fair
+    ok &= bool(gained)
+    print("  bought into inventory:", bought.group(0)[:200] if bought else "missing", "PASS" if gained else "FAIL")
+    spent = re.findall(r"AMSHOP fired (\w+): (\w+) (\d+) -> (\d+), (.*)", console)
+    fired = len(spent) == 2 and all(int(b) < int(a) and int(a) > 0 for _, _, a, b, _ in spent)
+    ok &= fired
+    for row in spent:
+        print("  fired", *row)
+    print("shop:", "PASS" if ok and fired else "FAIL")
 
 
 def check():
@@ -350,7 +415,7 @@ def check():
 
 
 ap = argparse.ArgumentParser()
-ap.add_argument("command", choices=("assemble", "uzdoom", "sizes", "take", "load", "equip", "equipload", "tiers", "tierload", "change", "changeload", "material", "materialload", "check"))
+ap.add_argument("command", choices=("assemble", "uzdoom", "sizes", "shop", "take", "load", "equip", "equipload", "tiers", "tierload", "change", "changeload", "material", "materialload", "check"))
 args = ap.parse_args()
 if args.command == "assemble":
     assemble()

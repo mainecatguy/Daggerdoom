@@ -1,7 +1,10 @@
 """Tests that Doom's movement keys pan Daggerfall's map screens, with both real games on quiet_run's private desktop.
 
-usage: mapkeys.py assemble | default | rebound | check
+usage: mapkeys.py [--review DIR] assemble | default | rebound | find | check
 default: Doom's default bindings (W, S, A, D). rebound: W unbound and I bound to +forward.
+find: types into the travel map's Find box through Doom (every letter, digits, space, Backspace, and Doom's menu key),
+finds the town the player is in, then checks the movement keys pan the map again and the menu key closes it.
+--review: the folder to assemble into and run from (default review/mapkeys).
 Each run opens, through the real commands, the town's exterior automap, the travel map, and Privateer's Hold's
 dungeon automap, and posts key presses to Doom's window. Daggerfall's -dfmapkeystest logs each map view, and the
 harness logs the Doom player's position, which must not change while a menu is open.
@@ -28,12 +31,12 @@ import install  # noqa: E402  (only for its registry isolation)
 sys.argv = argv
 
 REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\mapkeys")
-SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\doom-items")  # Data, converter and sprite package.
+SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\ammoname")  # Data, converter and sprite package.
 BUILD = Path(r"D:\dev\DoomDaggerfall-build")
-UZ_BUILD = BUILD / "uzdoom-newgameesc" / "Release"  # Configured from this worktree by an earlier task in this lane.
+UZ_BUILD = BUILD / "uzdoom-ammopile" / "Release"  # Configured from this worktree by an earlier task in this lane.
 SOUND = BUILD / "uzdoom-launcher" / "Release"
-BRIDGE_DLL = BUILD / "bridge-newgameesc" / "Release" / "doomerfall_bridge.dll"
-LAUNCHER = BUILD / "launcher-newgameesc" / "Release" / "doomerfall-launcher.exe"
+BRIDGE_DLL = BUILD / "bridge-ammopile" / "Release" / "doomerfall_bridge.dll"
+LAUNCHER = BUILD / "launcher-ammopile" / "Release" / "doomerfall-launcher.exe"
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
 MODS = GAME.parent / "GameMods"
@@ -42,7 +45,8 @@ DATA = ["ddruntime.pk3", "overworld.pk3", "privateershold.wad", "privateershold_
 GROUP = 7154
 FATAL = ("DIED WITH FATAL", "VM execution aborted", "Execution could not continue", "Unable to open map")
 TEST_MARK = 0x8000
-VK = {"W": 0x57, "S": 0x53, "A": 0x41, "D": 0x44, "I": 0x49, "TAB": 0x09, "K": 0x4B, "ESC": 0x1B, "RET": 0x0D}
+VK = {"W": 0x57, "S": 0x53, "A": 0x41, "D": 0x44, "I": 0x49, "TAB": 0x09, "K": 0x4B, "ESC": 0x1B, "RET": 0x0D, "BACK": 0x08}
+CHAR_VK = {**{c: ord(c.upper()) for c in "abcdefghijklmnopqrstuvwxyz0123456789"}, " ": 0x20, "'": 0xDE, "-": 0xBD, ".": 0xBE}
 
 
 def read(path):
@@ -57,7 +61,7 @@ def lumps(path):
         return {name: zlib.decompress(f.read(packed)) if raw else b"" for name, raw, packed in heads}
 
 
-def harness():
+def harness(find=False):
     cache = REVIEW / "data" / "cache" / f"T{GROUP:05d}.ddt"
     for other in cache.parent.glob("T*.ddt"):
         if other != cache:
@@ -66,7 +70,7 @@ def harness():
     door = next(l.split() for l in lumps(cache)["DDDOORS"].decode().splitlines() if l.startswith("1 187853213"))
     path = REVIEW / "run" / "harness.pk3"
     with zipfile.ZipFile(path, "w") as z:
-        z.writestr("zscript.txt", (HERE / "harness.zs").read_text().replace("@DOOR@", ", ".join(door[3:8])))
+        z.writestr("zscript.txt", (HERE / "harness.zs").read_text().replace("@DOOR@", ", ".join(door[3:8])).replace("@FIND@", "true" if find else "false"))
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "MKHarness" }\n')
     return path
 
@@ -90,6 +94,7 @@ def assemble():
     shutil.copy2(LAUNCHER, REVIEW / "doomerfall-launcher.exe")
     shutil.copy2(SOURCE / "dfitems.pk3", REVIEW / "dfitems.pk3")
     subprocess.check_call([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), str(REVIEW / "doomerfall.pk3")])
+    subprocess.check_call([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), "--drla", str(REVIEW / "doomerfall-drla.pk3")])
     write_demo()
     print("assembled", REVIEW)
 
@@ -103,12 +108,13 @@ def write_demo():
         "rem Map keys. Starts outside Privateer's Hold with DRLA. Tab opens Daggerfall's map, K the travel map.\r\n"
         "rem In a map, your Doom forward, back and strafe keys (W S A D by default) pan the view.\r\n"
         "rem Travel map: in a region, right-click to zoom, then pan; unzoomed, the keys step between a region's map parts.\r\n"
+        "rem Travel map Find (in a region): every key goes to the box while you type a place name, W A S D included.\r\n"
         "set \"HERE=%~dp0\"\r\n"
         "if not exist \"%HERE%play\" mkdir \"%HERE%play\"\r\n"
         "set BINDS=\r\n"
         "if not exist \"%HERE%play\\uzdoom.ini\" set BINDS=--uzdoom-arg +bind --uzdoom-arg i --uzdoom-arg \"netevent df_inventory\" --uzdoom-arg +bind --uzdoom-arg k --uzdoom-arg \"netevent df_fast_travel\"\r\n"
         f"start \"\" \"%HERE%doomerfall-launcher.exe\" --nodraw --uzdoom \"%HERE%uzdoom\\uzdoom.exe\" --dfu \"%HERE%dfu\\DaggerfallUnity.exe\" --iwad \"{GAME / 'wads' / 'DOOM2.WAD'}\" {mods} {data} "
-        "--mod \"%HERE%dfitems.pk3\" --mod \"%HERE%doomerfall.pk3\" --uzdoom-cwd \"%HERE%play\" --log \"%HERE%play\\launcher.log\" "
+        "--mod \"%HERE%dfitems.pk3\" --mod \"%HERE%doomerfall.pk3\" --mod \"%HERE%doomerfall-drla.pk3\" --uzdoom-cwd \"%HERE%play\" --log \"%HERE%play\\launcher.log\" "
         "--uzdoom-arg -config --uzdoom-arg \"%HERE%play\\uzdoom.ini\" --uzdoom-arg -savedir --uzdoom-arg \"%HERE%play\\saves\" --uzdoom-arg -dfbridgelog --uzdoom-arg \"%HERE%play\\uz.log\" "
         "--uzdoom-arg -ddtowncache --uzdoom-arg \"%HERE%data\\cache\" --uzdoom-arg -ddconverter --uzdoom-arg \"%HERE%data\\converter\\DungeonConverter.exe\" "
         f"--uzdoom-arg -ddarena2 --uzdoom-arg \"{dagger}\\ARENA2\" --uzdoom-arg -skill --uzdoom-arg 3 --uzdoom-arg +map --uzdoom-arg DDT{GROUP:05d} --uzdoom-arg +vid_fullscreen --uzdoom-arg 0 --uzdoom-arg +i_pauseinbackground --uzdoom-arg 0 "
@@ -168,7 +174,6 @@ class Doom:
             info.append((h, buf.value))
         print("  Doom windows:", info, "desktops:", names)
         self.hwnd = next((h for h, c in info if "doom" in c.lower()), None) or next((h for h, c in info if not c.startswith(("NV", "IME", "MSCTF", "Default IME"))), found[0])
-
     def down(self, vk):
         scan = self.user.MapVirtualKeyW(vk, 0)
         if not self.user.PostMessageW(self.hwnd, 0x100, vk, 1 | (scan << 16)):
@@ -177,6 +182,17 @@ class Doom:
     def up(self, vk):
         scan = self.user.MapVirtualKeyW(vk, 0)
         self.user.PostMessageW(self.hwnd, 0x101, vk, 1 | (scan << 16) | (3 << 30))
+
+    def tap(self, vk):
+        self.down(vk)
+        time.sleep(0.04)
+        self.up(vk)
+        time.sleep(0.06)
+
+    def type(self, text):
+        """Key presses only: Doom's own message loop makes the characters, as for a real keyboard (no Shift)."""
+        for c in text:
+            self.tap(CHAR_VK[c])
 
     def hold(self, vk, seconds):
         self.down(vk)
@@ -319,7 +335,7 @@ class Run:
         command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                    "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
                    "--uzdoom-cwd", str(self.dir), "--log", str(self.launcher)]
-        for mod in [MODS / n for n in DRLA] + [REVIEW / "data" / n for n in DATA] + [REVIEW / "dfitems.pk3", REVIEW / "doomerfall.pk3", harness()]:
+        for mod in [MODS / n for n in DRLA] + [REVIEW / "data" / n for n in DATA] + [REVIEW / "dfitems.pk3", REVIEW / "doomerfall.pk3", REVIEW / "doomerfall-drla.pk3", harness(self.name == "find")]:
             command += ["--mod", str(mod)]
         for arg in uz:
             command += ["--uzdoom-arg", arg]
@@ -327,7 +343,7 @@ class Run:
             command += ["--dfu-arg", arg]
         self.proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
-            self.drive()
+            self.drive_find() if self.name == "find" else self.drive()
         except Exception as e:  # noqa: BLE001  (report and stop the games)
             self.case(False, f"driver error: {e}")
         finally:
@@ -377,14 +393,84 @@ class Run:
             return
         self.wait(self.console, "MKDONE", 5)
 
+    def box_text(self):
+        view = self.view("DaggerfallInputMessageBox") or ""
+        m = re.match(r"text '(.*?)'(?: here '.*')?$", view)
+        return m.group(1) if m else None
+
+    def drive_find(self):
+        doom = self.opened("DaggerfallExteriorAutomapWindow", 90)
+        if not doom or not self.closed(doom, "TAB", 1):
+            return
+        window = "DaggerfallTravelMapWindow"
+        doom = self.opened(window, 20)
+        if not doom:
+            return
+        doom.click(20, 190)  # I'm At: the player's region on the world map.
+        time.sleep(0.5)
+        doom.tap(VK["RET"])  # Open the region.
+        time.sleep(1.0)
+        region = self.view(window) or ""
+        here = re.search(r"here '(.*)'", region)
+        print("  region:", region)
+        doom.click(25, 180)  # Find.
+        if not self.wait(self.views, r"top DaggerfallInputMessageBox ", 3):
+            print("  the Find button click did not open the box; pressing Daggerfall's Find shortcut, F")
+            doom.tap(CHAR_VK["f"])
+        if not self.wait(self.views, r"top DaggerfallInputMessageBox ", 5):
+            self.case(False, "the Find box opened")
+            return
+        self.case(self.wait(self.uz_log, r"ui: text entry started", 3), "Doom heard that a text box takes typing")
+        # k is Doom's travel map key here, so it would close the menu if Doom still read it as a control.
+        for text in ("abcdefghijklmnopqrstuvwxyz", "0123456789 wasd k"):
+            doom.type(text)
+            time.sleep(0.6)
+            got = self.box_text()
+            self.case(got == text, f"Find box took '{text}' (has '{got}')")
+            for _ in text:
+                doom.tap(VK["BACK"])
+            time.sleep(0.6)
+            got = self.box_text()
+            self.case(got == "", f"Backspace erased it (has '{got}')")
+        if not here:
+            self.case(False, "Daggerfall named the town the player is in")
+            return
+        name = here.group(1).lower()
+        doom.type(name)
+        time.sleep(0.6)
+        got = self.box_text()
+        self.case(got == name, f"Find box took the town's name '{name}' (has '{got}')")
+        doom.tap(VK["RET"])
+        time.sleep(1.0)
+        found = self.view(window) or ""
+        print("  after Find:", found)
+        self.case("found True selected True" in found, f"Find found '{name}' ({found})")
+        self.case(self.wait(self.uz_log, r"ui: text entry ended", 3), "Doom heard that typing ended")
+        fwd, back, left, right = self.keys
+        # After the crosshair flashes on the found place, Daggerfall asks whether to travel there, over the map. The
+        # movement keys are Doom's map controls again: each must reach Daggerfall as the arrow that pans the map
+        # (the default and rebound runs show those arrows pan it).
+        self.wait(self.views, r"top DaggerfallMessageBox ", 6)
+        arrows = {fwd: "UpArrow", back: "DownArrow", left: "LeftArrow", right: "RightArrow"}
+        for key, arrow in arrows.items():
+            mark = len(read(self.views))
+            doom.hold(VK[key], 0.5)
+            later = read(self.views)[mark:]
+            held = re.findall(r"keys ([A-Za-z,]*) player", later)
+            self.case(any(h == arrow + "," for h in held), f"after the Find box closed, {key} reached Daggerfall as {arrow} (held: {held})")
+        if self.closed(doom, "K", 2):
+            self.case(True, "after the Find box closed, Doom's travel map key closes the menu again")
+        self.wait(self.console, "MKDONE", 5)
+
     def summary(self):
-        for stage, what in ((0, "exterior automap"), (1, "travel map"), (2, "dungeon automap")):
+        stages = ((0, "exterior automap"), (1, "travel map"), (2, "dungeon automap"))
+        for stage, what in stages[:2] if self.name == "find" else stages:
             ok, before, after = self.menu_still(stage)
             self.case(ok, f"Doom's player did not move while the {what} was open ({before} | {after})")
         seen = self.keys_seen()
-        fwd = self.keys[0]
-        self.case(not any(k in s for s in seen for k in ("W,", "A,", "S,", "D,")) or self.name == "rebound" and seen and all(k not in s for s in seen for k in ("A,", "S,", "D,")),
-                  f"Daggerfall saw arrow keys, never the raw movement keys (held sets seen: {sorted(seen)})")
+        if self.name != "find":  # The Find box gets the raw keys by design.
+            self.case(not any(k in s for s in seen for k in ("W,", "A,", "S,", "D,")) or self.name == "rebound" and seen and all(k not in s for s in seen for k in ("A,", "S,", "D,")),
+                      f"Daggerfall saw arrow keys, never the raw movement keys (held sets seen: {sorted(seen)})")
         for line in read(self.console).splitlines():
             if line.startswith(("MKSTAGE", "MKREADY", "MKDONE")) or "Script error" in line or any(k in line for k in FATAL):
                 print("uz", line[:200])
@@ -413,12 +499,16 @@ def check():
 
 
 ap = argparse.ArgumentParser()
-ap.add_argument("command", choices=("assemble", "default", "rebound", "check"))
+ap.add_argument("command", choices=("assemble", "default", "rebound", "find", "check"))
+ap.add_argument("--review", type=Path, default=REVIEW)
 args = ap.parse_args()
+REVIEW = args.review
 if args.command == "assemble":
     assemble()
 elif args.command == "check":
     check()
+elif args.command == "find":
+    Run("find", [], ("W", "S", "A", "D")).go()
 elif args.command == "default":
     Run("default", [], ("W", "S", "A", "D")).go()
 else:

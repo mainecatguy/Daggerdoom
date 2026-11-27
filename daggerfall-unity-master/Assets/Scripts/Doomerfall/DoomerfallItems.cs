@@ -253,11 +253,19 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 DaggerfallBillboard billboard = loot.GetComponent<DaggerfallBillboard>();
                 if (billboard)
                     size = billboard.Summary.Size;
+                int archive, record;
+                if (DoomerfallAmmoPileArt.TryGet(loot, out archive, out record))
+                    size = Vector2.zero;   // Doom draws the ammo sprite at its own size.
+                else
+                {
+                    archive = loot.TextureArchive;
+                    record = loot.TextureRecord;
+                }
                 rows.Add(new DfbWorldItem
                 {
                     id = id,
-                    archive = loot.TextureArchive,
-                    record = loot.TextureRecord,
+                    archive = archive,
+                    record = record,
                     itemCount = loot.Items.Count,
                     x = local.x * units,
                     y = local.z * units,
@@ -267,7 +275,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 });
                 hash = (hash ^ id) * 1099511628211UL;
                 hash = (hash ^ (ulong)(uint)loot.Items.Count) * 1099511628211UL;
-                hash = (hash ^ (ulong)(uint)(loot.TextureArchive << 16 | loot.TextureRecord)) * 1099511628211UL;
+                hash = (hash ^ (ulong)(uint)(archive << 16 | record)) * 1099511628211UL;
             }
             foreach (int instance in gone)
                 roster.Remove(instance);

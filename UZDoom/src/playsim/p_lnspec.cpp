@@ -1513,6 +1513,7 @@ FUNC(LS_Thing_Remove)
 FUNC(LS_Thing_Destroy)
 // Thing_Destroy (tid, extreme, tag)
 {
+	extern bool DD_KillCall; // [Doomerfall] p_interaction.cpp: Willpower leaves this kill lethal
 	AActor *actor;
 
 	if (arg0 == 0 && arg2 == 0)
@@ -1528,7 +1529,7 @@ FUNC(LS_Thing_Destroy)
 		{
 			AActor *temp = iterator.Next ();
 			if (actor->flags & MF_SHOOTABLE && Level->SectorHasTag(actor->Sector, arg2))
-				P_DamageMobj (actor, NULL, it, arg1 ? TELEFRAG_DAMAGE : actor->health, NAME_None);
+				{ DD_KillCall = true; P_DamageMobj (actor, NULL, it, arg1 ? TELEFRAG_DAMAGE : actor->health, NAME_None); DD_KillCall = false; } // [Doomerfall]
 			actor = temp;
 		}
 	}
@@ -1541,7 +1542,7 @@ FUNC(LS_Thing_Destroy)
 		{
 			AActor *temp = iterator.Next ();
 			if (actor->flags & MF_SHOOTABLE && (arg2 == 0 || Level->SectorHasTag(actor->Sector, arg2)))
-				P_DamageMobj (actor, NULL, it, arg1 ? TELEFRAG_DAMAGE : actor->health, NAME_None);
+				{ DD_KillCall = true; P_DamageMobj (actor, NULL, it, arg1 ? TELEFRAG_DAMAGE : actor->health, NAME_None); DD_KillCall = false; } // [Doomerfall]
 			actor = temp;
 		}
 	}

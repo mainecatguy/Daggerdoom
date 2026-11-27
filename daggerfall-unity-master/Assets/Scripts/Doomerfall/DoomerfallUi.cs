@@ -220,11 +220,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         IUserInterfaceWindow lastTop;
         RenderTexture scaled;
         uint openId;
-        bool waitingForWindow, windowOpen, travelArriving, showingTravelMap;
+        bool waitingForWindow, windowOpen, travelArriving, showingTravelMap, typing;
         DaggerfallRestWindow restWindow; // DFB_UI_REST: Daggerfall's rest window, kept while popups cover it
         float travelWaitUntil, nextAskAt;
         uint closeReason;
-        int waitFrames, hudFrames, pending, surfaceWidth, surfaceHeight;
+        ulong openGameSeconds;  // Daggerfall's clock when the menu opened, to tell a rest or loiter at the close
+        bool traveled;
+        int waitFrames, hudFrames, pending, surfaceWidth, surfaceHeight, basisWidth, basisHeight;
         uint frameId;
         byte[] pixels;
         readonly Queue<long> capturedTimes = new Queue<long>(), inputTimes = new Queue<long>();
@@ -303,6 +305,16 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             {
                 hudFrames = 0;
             }
+
+            // Text boxes update after this script, so last frame's is the newest word. While one takes typing,
+            // Doom sends it every key unchanged, such as the movement keys it otherwise turns into map panning.
+            bool nowTyping = windowOpen && TextBox.LastTypingFrame >= Time.frameCount - 1;
+            if (nowTyping != typing)
+            {
+                typing = nowTyping;
+                SendState(typing ? Dfb.UI_TYPING : Dfb.UI_OPENED, 0);
+                bridge.LogLine("ui: text entry " + (typing ? "started" : "ended"));
+            }
         }
 
         // Daggerfall can open a window by itself, such as a quest's message or prompt, and pauses behind it. Nobody
@@ -338,11 +350,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return;
             openId = id;
             closeReason = 0;
+            openGameSeconds = DaggerfallUnity.Instance.WorldTime.Now.ToSeconds();
+            traveled = false;
             waitFrames = hudFrames = 0;
             showingTravelMap = id == Dfb.UI_TRAVEL_MAP;
             bool creating = id == Dfb.UI_NEW_GAME && DoomerfallNewGame.HoldsNewCharacter;
             bool loading = id == Dfb.UI_LOAD_GAME && DoomerfallNewGame.HoldsNewCharacter && PlainLoad;
-            if ((id != Dfb.UI_TRAVEL_MAP && id != Dfb.UI_INVENTORY && id != Dfb.UI_MAP && id != Dfb.UI_LOOT && id != Dfb.UI_TALK && id != Dfb.UI_DAGGERFALL && id != Dfb.UI_JOURNAL && id != Dfb.UI_REST && !creating && !loading) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
+            if ((id != Dfb.UI_TRAVEL_MAP && id != Dfb.UI_INVENTORY && id != Dfb.UI_MAP && id != Dfb.UI_LOOT && id != Dfb.UI_TALK && id != Dfb.UI_DAGGERFALL && id != Dfb.UI_JOURNAL && id != Dfb.UI_REST && id != Dfb.UI_CHARACTER && id != Dfb.UI_SPELLBOOK && !creating && !loading) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
             {
                 Finish(Dfb.UI_REASON_REFUSED);
                 return;
@@ -356,6 +370,25 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 // Clicking a quest's place opens the travel map. Doom follows that travel only from outdoors, as with K.
                 message = DaggerfallUIMessages.dfuiOpenQuestJournalWindow;
                 showingTravelMap = doomContext == Dfb.WORLD_EXTERIOR;
+            }
+            // Daggerfall's own windows, opened as its keys open them; the spellbook keeps Daggerfall's checks (SpellbookRefused).
+            if (id == Dfb.UI_CHARACTER)
+            {
+                // Its Logbook button opens the journal, so travel from there follows the journal's rule.
+                message = DaggerfallUIMessages.dfuiOpenCharacterSheetWindow;
+                showingTravelMap = doomContext == Dfb.WORLD_EXTERIOR;
+            }
+            if (id == Dfb.UI_SPELLBOOK)
+            {
+                message = DaggerfallUIMessages.dfuiOpenSpellBookWindow;
+                // Without a spellbook Daggerfall answers on its HUD, which Doom does not show, so Doom shows the same line.
+                if (!GameManager.Instance.PlayerEntity.Items.Contains(DaggerfallWorkshop.Game.Items.ItemGroups.MiscItems, (int)DaggerfallWorkshop.Game.Items.MiscItems.Spellbook))
+                {
+                    DoomerfallInfo.SendText(bridge, 0, TextManager.Instance.GetLocalizedText("noSpellbook"), false, Dfb.KIND_HUD_TEXT);
+                    bridge.LogLine("ui: spellbook refused, the player carries no spellbook");
+                    Finish(Dfb.UI_REASON_RESULT);
+                    return;
+                }
             }
             if (id == Dfb.UI_REST)
             {
@@ -451,6 +484,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         internal DoomerfallPlainLoad PlainLoad { get; set; }
         internal DoomerfallItems Items { get; set; }
         internal DoomerfallTalk Talk { get; set; }
+        internal DoomerfallTownspeople Townspeople { get; set; }
+        internal DoomerfallNpcs Npcs { get; set; }
 
         /// <summary>The wizard is closing because a character was made, or the Load window because a save was chosen,
         /// not because the player backed out.</summary>
@@ -464,11 +499,34 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         /// Says so the way Doom's travel key does, and returns true so the travel map does not start one.</summary>
         public static bool RefuseJournalTravel()
         {
-            if (!instance || instance.openId != Dfb.UI_JOURNAL || instance.showingTravelMap)
+            if (!instance || (instance.openId != Dfb.UI_JOURNAL && instance.openId != Dfb.UI_CHARACTER) || instance.showingTravelMap)
                 return false;
             DaggerfallUI.MessageBox("You cannot travel from indoors.");
             instance.bridge.LogLine("ui: travel from the journal refused, Doom is indoors");
             return true;
+        }
+
+        /// <summary>Choosing a spell in Daggerfall's spellbook. Casting from Doom is not built yet (backlog
+        /// magic-casting-and-self-spells), so in a bridge session every route to the spellbook (its key, the character
+        /// sheet, the inventory's spellbook item, the level-up sheet) readies and casts nothing, and says so (owner,
+        /// 2026-11-27: the menu first, casting with the casting card).</summary>
+        public static bool HoldsSpellChoice()
+        {
+            if (!instance)
+                return false;
+            DaggerfallUI.MessageBox("You cannot cast spells yet.");
+            instance.bridge.LogLine("ui: spell choice held, casting from Doom is not built yet");
+            return true;
+        }
+
+        /// <summary>Daggerfall refused its spellbook from inside a Doom menu (the character sheet's Spellbook button) with a
+        /// line on its hidden HUD, so the same line shows in the menu.</summary>
+        public static void NoSpellbook(string text)
+        {
+            if (!instance || !instance.windowOpen)
+                return;
+            DaggerfallUI.MessageBox(text);
+            instance.bridge.LogLine("ui: spellbook refused inside the menu, the player carries no spellbook");
         }
 
         /// <summary>Daggerfall's Load window is showing in Doom (DFB_UI_LOAD_GAME).</summary>
@@ -495,7 +553,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             uint id = openId;
             openId = 0;
-            waitingForWindow = windowOpen = false;
+            waitingForWindow = windowOpen = typing = false;
             restWindow = null;
             if (id == Dfb.UI_NEW_GAME && NewGame)
                 NewGame.CreationClosed(reason == Dfb.UI_REASON_RESULT);
@@ -511,10 +569,27 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DoomerfallInput.End();
             if (DaggerfallUI.Instance)
                 DaggerfallUI.Instance.CustomRenderTarget = null;
-            SendState(Dfb.UI_CLOSED, reason, id);
+            uint flags = reason != Dfb.UI_REASON_REFUSED && TimePassed(id) ? Dfb.UI_CLOSED_TIME_PASSED : 0;
+            if (flags != 0)
+            {
+                // People moved while the clock ran. Their lists go first, so Doom has them when it reads the close.
+                if (Townspeople) Townspeople.PublishNow();
+                if (Npcs) Npcs.PublishNow();
+                bridge.LogLine(string.Format("ui: {0} game minutes passed in menu {1}; sent the people lists before the close",
+                    (DaggerfallUnity.Instance.WorldTime.Now.ToSeconds() - openGameSeconds) / 60, id));
+            }
+            SendState(Dfb.UI_CLOSED, reason, id, flags);
             bridge.LogLine("ui: menu " + id + " closed, reason " + reason);
             if (reason != Dfb.UI_REASON_REFUSED)
                 LogWorldState("after");
+        }
+
+        // A rest, a loiter or a rented room ran the clock. A journey has its own arrival, and a load its own world.
+        bool TimePassed(uint id)
+        {
+            if (id == Dfb.UI_NEW_GAME || id == Dfb.UI_LOAD_GAME || traveled || !GameManager.HasInstance || GameManager.Instance.SaveLoadManager.LoadInProgress)
+                return false;
+            return DaggerfallUnity.Instance.WorldTime.Now.ToSeconds() >= openGameSeconds + 60;
         }
 
         // Evidence that a chosen destination changed nothing: same place, same gold, same game time.
@@ -536,7 +611,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bridge.LogLine(string.Format("ui: inventory {0}: {1} carried, {2} in wagon: {3}", when, carried.Count, game.PlayerEntity.WagonItems.Count, items));
         }
 
-        void SendState(uint state, uint reason, uint id = 0)
+        void SendState(uint state, uint reason, uint id = 0, uint flags = 0)
         {
             var e = new DfbEvent
             {
@@ -549,6 +624,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     reason = reason,
                     surfaceWidth = (uint)surfaceWidth,
                     surfaceHeight = (uint)surfaceHeight,
+                    flags = flags,
                 },
             };
             bridge.Send(ref e);
@@ -563,6 +639,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             GameManager game = GameManager.Instance;
             StreamingWorld world = game.StreamingWorld;
             travelArriving = true;
+            traveled = true;
             travelWaitUntil = Time.realtimeSinceStartup + TravelSettleSeconds;
             closeReason = Dfb.UI_REASON_RESULT;
             // Placement only sets this when a location has a facing to give. Otherwise the player keeps Doom's.
@@ -625,6 +702,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         // Keeps the aspect ratio when the Daggerfall window is larger than the shared surface.
         void ChooseSurfaceSize()
         {
+            basisWidth = Screen.width;
+            basisHeight = Screen.height;
             float scale = Mathf.Min(1f, Mathf.Min((float)Dfb.SURFACE_MAX_W / Screen.width, (float)Dfb.SURFACE_MAX_H / Screen.height));
             surfaceWidth = Mathf.Max(1, Mathf.FloorToInt(Screen.width * scale));
             surfaceHeight = Mathf.Max(1, Mathf.FloorToInt(Screen.height * scale));
@@ -637,6 +716,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
             if (surfaceWidth != Screen.width || surfaceHeight != Screen.height)
                 scaled = new RenderTexture(surfaceWidth, surfaceHeight, 0, RenderTextureFormat.ARGB32);
+            bridge.LogLine(string.Format("ui: surface {0}x{1} for a {2}x{3} window", surfaceWidth, surfaceHeight, Screen.width, Screen.height));
         }
 
         /// <summary>Doom's mouse position in Unity screen pixels, with the origin at the bottom left.</summary>
@@ -665,14 +745,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 RenderTexture source = target.TargetTexture;
                 if (source.width != Screen.width || source.height != Screen.height)
                     continue; // Resized this frame; the texture is recreated on the next update.
+                if (source.width != basisWidth || source.height != basisHeight)
+                    ChooseSurfaceSize(); // The window was resized for Doom's screen (DoomerfallWindow.MatchDoom).
                 if (scaled)
                     Graphics.Blit(source, scaled);
-                else if (source.width != surfaceWidth || source.height != surfaceHeight)
-                {
-                    ChooseSurfaceSize();
-                    if (scaled)
-                        Graphics.Blit(source, scaled);
-                }
                 pending++;
                 capturedTimes.Enqueue(DfbNative.dfb_now_ns());
                 inputTimes.Enqueue(DoomerfallInput.LastInputNs);

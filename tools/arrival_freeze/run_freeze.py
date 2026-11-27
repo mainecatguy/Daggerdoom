@@ -1,7 +1,8 @@
 """The arrival freeze (goal 20261126-154857) with both real games, minimized.
 
 usage: run_freeze.py normal | slow | lost | nosave | use | demo   [--root DIR]
-normal: enters Privateer's Hold from its town; the map change waits for the place record as usual (too short for a frame since the door arm was removed: see work/notes/20261126-lockpick-rethink.md).
+normal: enters Privateer's Hold from its town; the map change waits for the place record and the dungeon's monster spawn
+        ("monsters" in the setup gate, work/notes/20261126-185032.md), so the monsters are held from their first tic.
 slow:   the same, with -dfsetuptest 2500: setup also waits 2.5 s for a fake answer (a slow Daggerfall).
 lost:   -dfsetuptest lost: the fake answer never comes, so the setup gate's 5 s timeout ends the wait.
 use:    -dfsetuptest 2500 -dffreezeuse: Use is pressed on every frozen frame (dd_tm_use). It must be dropped: the
@@ -30,6 +31,7 @@ SETUP = {"normal": None, "slow": "2500", "lost": "lost", "nosave": "2500", "use"
 # One tic of the setup spawns the dungeon's monsters and blocks the loop for ~150-250 ms here (it did before this goal);
 # "responsive" here means no stall near Windows' 5 s "not responding" mark.
 MAX_GAP_MS = 1000
+ARMY = 73  # Privateer's Hold's planned mooks on a first visit (DDENC spawned 73 mooks)
 
 
 def harness(path, demo, use=False):
@@ -104,6 +106,11 @@ def run(mode):
         presses = re.findall(r"arrivaltest: use presses=(\d+)", bridge)
         print("use presses during the freeze:", presses)
         ok = ok and len(results) == 1 and bool(presses) and int(presses[0]) > 0
+    # The whole army (Privateer's Hold, this install's data) came inside the freeze and was held: seen on a frozen frame
+    # and unchanged when the freeze ended. In normal mode the spawn is the last thing setup waits for; the freeze keeps
+    # one more frozen tic after it (PumpArrival), so the harness sees them there.
+    if mode in ("normal", "slow", "nosave", "use"):
+        ok = ok and any(int(r[1]) == ARMY for r in results)
     if mode in ("slow", "lost", "nosave", "use"):
         ok = ok and any(float(r[8]) >= (4500 if mode == "lost" else 2000) for r in results)
     print(f"{mode} {'PASS' if ok else 'FAIL'} | stopped: {reason} | freezes {len(results)}")

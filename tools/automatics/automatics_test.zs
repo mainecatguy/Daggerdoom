@@ -82,6 +82,17 @@ class AutoPerkTest : EventHandler
 		if (w.AmmoType1 && !w.AmmoType2) { let m = p.mo.FindInventory(w.AmmoType1); m.Amount = 300; } // stock: reserve is the ammo it fires
 	}
 
+	// DRLA guns spawn recoil and reload helper actors (not projectiles) aimed at the player while firing: they must
+	// never count as shots. Logged so the test knows they really appeared.
+	override void WorldThingSpawned(WorldEvent e)
+	{
+		let m = e.Thing;
+		if (!m) return;
+		String n = m.GetClassName();
+		if (!m.bMissile && m.target && m.target.player && n.IndexOf("Recoil") >= 0)
+			Console.Printf("AUTOTEST helper %s trigger=%d", m.GetClassName(), m.target.player.attackdown);
+	}
+
 	override void WorldThingDamaged(WorldEvent e)
 	{
 		if (e.Thing && e.Thing.player) Console.Printf("AUTOTEST player hurt %d by %s tic %d", e.Damage, e.Inflictor ? e.Inflictor.GetClassName() : 'None', level.maptime);
@@ -164,7 +175,7 @@ class AutoPerkTest : EventHandler
 	bool srcStartSet;
 	bool SourceTick(PlayerInfo p)
 	{
-		static const String names[] = { "earlier", "barrel", "fragment", "own" };
+		static const String names[] = { "earlier", "barrel", "fragment", "own", "close" };
 		let mo = p.mo;
 		if (phase == 90) // hold the Chaingun
 		{
@@ -177,7 +188,7 @@ class AutoPerkTest : EventHandler
 			if (!srcStartSet) { srcStart = mo.pos; srcStartSet = true; }
 			mo.SetOrigin(srcStart, false); mo.vel = (0, 0, 0); // blasts push the player; E1M1 has a step ~130 units east
 			mo.angle = 0; mo.pitch = 0;
-			target = Actor.Spawn("AutoTestTarget", mo.Vec3Angle(110, 0));
+			target = Actor.Spawn("AutoTestTarget", mo.Vec3Angle(names[src] == "close" ? 60 : 110, 0)); // close: point blank
 			targetHits = 0; targetLost = 0;
 			Console.Printf("AUTOTEST src %s begin", names[src]);
 			phase = 91; t = 0;
@@ -189,7 +200,7 @@ class AutoPerkTest : EventHandler
 		if (t == 0)
 		{
 			if (n == "earlier") mo.SpawnPlayerMissile("PlasmaBall");
-			else if (n == "own") mo.SpawnPlayerMissile("PlasmaBall");
+			else if (n == "own" || n == "close") mo.SpawnPlayerMissile("PlasmaBall");
 			else if (n == "barrel")
 			{
 				let b = Actor.Spawn("ExplosiveBarrel", target.Vec3Offset(40, 50, 0));

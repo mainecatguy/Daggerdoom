@@ -852,11 +852,16 @@ class Actor : Thinker native
 	native void RestoreDamage();
 	native clearscope int SpawnHealth() const;
 	native int DD_HealthCheckLimit(int health); // [Doomerfall] see A_JumpIfHealthLower
+	native clearscope static Name DD_StateLabel(State st); // [Doomerfall] the label a state is declared under (the nearest one before it in its class), or 'None'
 	native clearscope int DD_LootSeed(); // [Doomerfall] fixed loot seed of a drop (dd_lootrng.cpp), folded to 32 bits; 0 on stock actors
+	native void DD_TakeLootId(Actor from); // [Doomerfall] take over another item loot identity (dd_lootrng.cpp)
 	native double DD_MoveRadius(); // [Doomerfall] narrowest width against level geometry: a monster's squeeze width on Daggerfall maps, otherwise radius
 	native static double DD_MonsterMoveScale(); // [Doomerfall] 10.5 / 16 on Daggerfall maps, otherwise 1
+	native clearscope static bool DD_InRuntimeDungeon(); // [Doomerfall] the current map is a dungeon converted during play (dd_treadmill.cpp)
+	native clearscope static String DD_RuntimeDungeonLump(String name); // [Doomerfall] that dungeon's lump from its cache file, or ""
 	native static bool DD_OnDaggerfallMap(); // [Doomerfall] a generated location, the overworld, or a converted dungeon
 	native clearscope static int DD_SheetSkill(int slot); // [Doomerfall] Daggerfall's live value of a skill (DFCareer.Skills slot), or -1 without a Daggerfall character
+	native clearscope static int DD_SheetStat(int stat); // [Doomerfall] Daggerfall's live value of an attribute (DFCareer.Stats: 0 Strength, 6 Speed), or -1 without a Daggerfall character
 	native clearscope static int DD_SheetSkillBase(int slot); // [Doomerfall] the same for the permanent (base) value, which perks follow
 	native clearscope static int DD_SheetValue(int index); // [Doomerfall] one DFB_SHEET_* value of Daggerfall's character sheet, or -1 without a Daggerfall character
 	native clearscope static int DD_PlayerFlags(); // [Doomerfall] Daggerfall's falling damage exemptions (1 Slowfall, 2 outdoor water), 0 without a bridge session

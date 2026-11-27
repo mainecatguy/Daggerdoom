@@ -78,6 +78,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         internal DoomerfallSheet Sheet { get { return sheet; } }
         DoomerfallTownspeople townspeople;
         DoomerfallGuards guards;
+        DoomerfallLoadingPause loadingPause;
         bool textFrame;
         uint ownSize, peerSize, nextPing = 1;
         ulong pingsAnswered, pongsReceived, unknownKinds;
@@ -152,7 +153,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             hp = new DoomerfallHp(this, sync, Environment.GetCommandLineArgs());
             gameObject.AddComponent<DoomerfallEndurance>().Init(this, sync);  // max HP from Endurance and level
             DoomerfallHpFormulaTest.Attach(this, sync); // test only: -dfhpformulatest
+            DoomerfallAttributesTest.Attach(this, sync); // test only: -dfattrtest
             sheet = new DoomerfallSheet(this, sync, Environment.GetCommandLineArgs());
+            DoomerfallAgilityTest.Attach(this, sync); // test only: -dfagilitytest
+            DoomerfallWillpowerTest.Attach(this, sync); // test only: -dfwillpowertest
+            DoomerfallLuckTest.Attach(this, sync); // test only: -dflucktest
             faces = new DoomerfallFaces(this);
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dffacetest") >= 0)
                 gameObject.AddComponent<DoomerfallFaceTest>().Init(this, sync); // Test only
@@ -189,6 +194,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             hotkeys.Init(this, sync);
             DoomerfallAmmo.Register();
             DoomerfallLockpick.Register();
+            DoomerfallShields.Register(this); // no shields for now
             ammo =gameObject.AddComponent<DoomerfallAmmo>();
             ammo.Init(this, sync);
             damageBonus.Ammo = ammo;
@@ -197,12 +203,18 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfammotest") >= 0)
                 gameObject.AddComponent<DoomerfallAmmoTest>().Init(this, ammo);
             DoomerfallShopStockTest.Attach(this); // test only: -dfshoptest
+            DoomerfallShieldsTest.Attach(this, sync); // test only: -dfshieldtest
+            DoomerfallShopAmmoTest.Attach(this, ammo); // test only: -dfshopammotest
             DoomerfallWorldLevelTest.Attach(this); // test only: -dfworldleveltest N
             DoomerfallChangeAmmoTest.Attach(this, ammo); // test only: -dfchangeammotest
             DoomerfallMaterialDamageTest.Attach(this, ammo); // test only: -dfmaterialtest
+            DoomerfallAmmoPileTest.Attach(this, ammo); // test only: -dfammopiletest
+            DoomerfallStartingGunTest.Attach(this); // test only: -dfstartguntest <skills>
             newGame = gameObject.AddComponent<DoomerfallNewGame>();
             newGame.Init(this, sync, Environment.GetCommandLineArgs());
             newGame.Items = items;
+            newGame.Hotkeys = hotkeys;
+            newGame.Ammo = ammo;
             ui.NewGame = newGame;
             monsters = gameObject.AddComponent<DoomerfallMonsters>();
             monsters.Init(this, sync);
@@ -219,6 +231,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             npcs.Init(this, sync);
             info = gameObject.AddComponent<DoomerfallInfo>();
             info.Init(this, sync);
+            DoomerfallHudMessages.Install(this); // Daggerfall's HUD messages go to Doom's HUD
+            DoomerfallHudMessagesTest.Attach(this, sync); // test only: -dfhudtest
             doors = gameObject.AddComponent<DoomerfallDoors>();
             doors.Init(this, sync, info);
             save.Doors = doors;
@@ -229,6 +243,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             ui.Talk = talk;
             townspeople = gameObject.AddComponent<DoomerfallTownspeople>();
             townspeople.Init(this, sync);
+            talk.Townspeople = townspeople;
+            ui.Townspeople = townspeople;
+            ui.Npcs = npcs;
             info.Items = items;
             info.Townspeople = townspeople;
             save.Townspeople = townspeople;
@@ -399,6 +416,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         break;
                     case Dfb.KIND_STARTER:
                         plainLoad.OnStarter(ev.doomItem.request, ev.doomItem.status, DoomerfallDoomItems.ClassOf(ev.doomItem));
+                        DoomerfallStartingGun.OnStarter(ev.doomItem.request, ev.doomItem.status, DoomerfallDoomItems.ClassOf(ev.doomItem));
                         break;
                     case Dfb.KIND_HELLO:
                         Log("hello from UZDoom (seq " + ev.seq + ")");
@@ -410,6 +428,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         sync.OnTransitionEvent(ev.transition.action, ev.transition.seq, ev.transition.doorX, ev.transition.doorZ, ev.transition.target);
                         break;
                     case Dfb.KIND_UI_OPEN:
+                        string resized = DoomerfallWindow.MatchDoom(ev.uiCommand.screenWidth, ev.uiCommand.screenHeight);
+                        if (resized != null)
+                            Log(resized);
                         ui.OnOpen(ev.uiCommand.uiId, ev.uiCommand.context);
                         break;
                     case Dfb.KIND_UI_CLOSE:
@@ -548,6 +569,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 peerStale = !alive;
                 Log(alive ? "UZDoom heartbeat resumed" : "UZDoom heartbeat stale (logged only, gameplay unchanged)");
             }
+            if (loadingPause == null)
+                loadingPause = new DoomerfallLoadingPause(this);
+            // Doom does not publish while a hold blocks its main thread (a big dungeon spawn), so a LOADING state stays held
+            // well past the 1 s heartbeat limit; only a dead Doom (no state for 60 s) releases it without a fresh phase.
+            loadingPause.Tick(age >= 0 && age < 60000000000L && peer.uzPhase == Dfb.UZ_PHASE_LOADING);
+            DoomerfallLoadingPauseTest.Tick(this, loadingPause.Held);
 
             if (alive && now >= nextPingNs)
             {

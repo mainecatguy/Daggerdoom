@@ -35,6 +35,27 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             host.AddComponent<DoomerfallWindow>();
         }
 
+        /// <summary>
+        /// Sizes the window, and so the UI Daggerfall draws for Doom, to the screen Doom shows it on, within the shared
+        /// surface's limit and keeping Doom's aspect ratio. Daggerfall Unity draws its art at the classic 320x200 scale
+        /// but its text at the window's own resolution, so a smaller window would leave the text upscaled and blocky in Doom.
+        /// Returns a log line when the size changes, else null.
+        /// </summary>
+        internal static string MatchDoom(uint doomWidth, uint doomHeight)
+        {
+            if (doomWidth == 0 || doomHeight == 0)
+                return null;
+            float scale = Mathf.Min(1f, Mathf.Min((float)Dfb.SURFACE_MAX_W / doomWidth, (float)Dfb.SURFACE_MAX_H / doomHeight));
+            int width = Mathf.Max(1, Mathf.FloorToInt(doomWidth * scale)), height = Mathf.Max(1, Mathf.FloorToInt(doomHeight * scale));
+            if (width == Screen.width && height == Screen.height)
+                return null;
+            var settings = DaggerfallUnity.Settings; // In memory only, as at start.
+            settings.ResolutionWidth = width;
+            settings.ResolutionHeight = height;
+            Screen.SetResolution(width, height, FullScreenMode.Windowed);
+            return string.Format("ui: window {0}x{1} resized to {2}x{3} for Doom's {4}x{5} screen", Screen.width, Screen.height, width, height, doomWidth, doomHeight);
+        }
+
         static int Size(string[] args, string name, int fallback)
         {
             int at = Array.IndexOf(args, name), value;

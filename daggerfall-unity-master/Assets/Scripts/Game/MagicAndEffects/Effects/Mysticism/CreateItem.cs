@@ -27,6 +27,7 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
 
         DaggerfallListPickerWindow itemPicker;
         static int lastSelectedIndex = 0;
+        bool noBuckler; // [Doomerfall] no shields: the Steel Buckler is left out of the list
 
         enum CreateItemSelection
         {
@@ -68,8 +69,10 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
             itemPicker = new DaggerfallListPickerWindow(uiManager);
             itemPicker.OnItemPicked += ItemPicker_OnItemPicked;
             itemPicker.AllowCancel = false;
+            noBuckler = Doomerfall.DoomerfallShields.Active;
             foreach (CreateItemSelection item in Enum.GetValues(typeof(CreateItemSelection)))
             {
+                if (noBuckler && item == CreateItemSelection.SteelBuckler) continue;
                 itemPicker.ListBox.AddItem(TextManager.Instance.GetLocalizedText(item.ToString()));
             }
             itemPicker.ListBox.SelectIndex(lastSelectedIndex);
@@ -120,7 +123,9 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
         {
             lastSelectedIndex = index;
             //Add selected item to inventory with time limit
-            DaggerfallUnityItem item = CreateTempItem((CreateItemSelection)index);
+            CreateItemSelection selection = (CreateItemSelection)index;
+            if (noBuckler && selection >= CreateItemSelection.SteelBuckler) selection++; // [Doomerfall] list without the Steel Buckler
+            DaggerfallUnityItem item = CreateTempItem(selection);
             if (item != null)
                 GameManager.Instance.PlayerEntity.Items.AddItem(item);
 

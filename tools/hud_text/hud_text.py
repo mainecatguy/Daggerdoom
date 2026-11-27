@@ -71,7 +71,7 @@ def write_demo():
     (REVIEW / "play.bat").write_text(
         "@echo off\r\n"
         "rem Town start with DRLA in a 1280x800 window. Crouch (C): \"Sneaking\" shows one size larger than before.\r\n"
-        "rem The loaded ammo label (bottom right, e.g. \"Regular bullets\") and Climbing/Slipping are one size larger too.\r\n"
+        "rem The loaded ammo label (bottom right, e.g. \"Bullets\") and Climbing/Slipping are one size larger too.\r\n"
         "rem Pick something up: Doom's own pickup message (top left) is the same size as before.\r\n"
         "rem Doomerfall's labels follow the dd_hudtextstep setting (console): 1 = one size up (new default), 0 = the old size.\r\n"
         "set \"HERE=%~dp0\"\r\n"

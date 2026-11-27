@@ -77,7 +77,7 @@ Random events aim for Bayesian surprise: outcomes that meaningfully change what 
 - Every category gets monotonically better with area level: the chance of getting a given tier or better never falls.
 - Lower tier items are always more common. At best, a lower tier can be only slightly less common than the tier above it.
 - Daedric is the best tier, and its own check is the only way to get it. It reaches 1 in 40 at area level 20 and 1 in 20 at area level 30.
-- Ammo uses the same tiers. Iron ammo is called Regular ammo. The ammo tier table and drop rules are in `work/queue/ammotiers/04.opus.ammo-material-tiers.md`.
+- Ammo uses the same tiers. Iron ammo is called Regular ammo, and its items carry only the plain name ("Bullets", not "Regular Bullets"; owner, 2026-11-26). The ammo tier table and drop rules are in `work/queue/ammotiers/04.opus.ammo-material-tiers.md`.
 
 The approved odds are in `work/notes/20261123-material-tier-proposal.md`.
 

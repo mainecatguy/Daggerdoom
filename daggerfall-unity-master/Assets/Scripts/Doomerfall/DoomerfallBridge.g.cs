@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x519c1db4b6714c6bUL;
+        public const ulong SchemaHash = 0x25bd54b4feb278bcUL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -73,7 +73,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_INFO_NAME = 92;  // UZ to DF; a monster's Doom name, sent just before its DFB_KIND_INFO; payload: dfb_info_text
         public const ushort KIND_LOOK = 93;  // UZ to DF; payload: dfb_info_request, target DFB_INFO_NPC, _TOWNSPERSON, _PILE, _BUILDING or _DOOM_GUN
         public const ushort KIND_LOOK_TEXT = 94;  // DF to UZ; the label for that request, empty for none; payload: dfb_info_text; DFB_INFO_MORE as on INFO_TEXT
-        public const ushort KIND_HUD_TEXT = 95;  // DF to UZ; payload: dfb_info_text, request 0; DFB_INFO_MORE as on INFO_TEXT
+        public const ushort KIND_HUD_TEXT = 95;  // DF to UZ; payload: dfb_info_text, request = ms Daggerfall holds the line, 0 for its default; DFB_INFO_MORE as on INFO_TEXT
         public const ushort KIND_DOOM_ITEM_TAKE = 140;  // UZ to DF; the player pressed Use on a Doom item, which waits for the answer; payload: dfb_doom_item
         public const ushort KIND_DOOM_ITEM_RESULT = 141;  // DF to UZ; status DFB_ITEM_TAKEN, DFB_ITEM_TOO_HEAVY, or DFB_ITEM_REFUSED; payload: dfb_doom_item
         public const ushort KIND_DOOM_ITEM_USE = 142;  // DF to UZ; the player used this item in Daggerfall's inventory; payload: dfb_doom_item
@@ -81,7 +81,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_DOOM_ITEM_ART_REQUEST = 144;  // DF to UZ; send the sprite and name for this class; payload: dfb_doom_item
         public const ushort KIND_DOOM_ITEM_ART = 145;  // UZ to DF; DFB_ITEM_ART_SLOT holds the answer, or status DFB_ITEM_GONE for no such class; payload: dfb_doom_item
         public const uint ITEM_ART_SLOT = 5;  // bulk slot written by UZ: one dfb_item_art header, then width * height BGRA pixels, top row first
-        public const uint ITEM_ART_HEADER = 144;
+        public const uint ITEM_ART_HEADER = 464;
         public const ushort KIND_DOOM_ITEM_GUN_STATE = 146;  // UZ to DF; one state line (status amount, cls class) the gun in the next DOOM_ITEM_TAKE with this request carried, such as a DRLA modded pickup's mods
         public const ushort KIND_DOOM_ITEM_ID = 147;  // UZ to DF; the floor item's lasting id (map item, or a drop from a fixed loot roll), sent just before the DOOM_ITEM_TAKE with this request when it has one; Daggerfall seeds the item's rolls (gun material) with it; payload: dfb_item_take, mode 0
         public const uint DOOM_ITEM_GUN = 1;
@@ -102,6 +102,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint GUN_ADOPT = 1;  // cls is empty; keep the ready gun as the active one and take the rest
         public const uint GUN_CLEAR = 2;  // cls is empty; take every gun
         public const uint GUN_SELECT = 3;  // Doom already holds cls as the active gun; raise it
+        public const uint GUN_FIST = 4;  // cls is empty; raise the fist (given if missing); the active gun stays in Doom, lowered
         public const ushort KIND_CLIMB_USES = 170;  // UZ to DF; Daggerfall tallies this many Climbing skill uses; payload: dfb_climb_uses
         public const ushort KIND_AMMO = 171;  // UZ to DF; status is Doom's count; request is the last AMMO_ADD Doom applied
         public const ushort KIND_AMMO_ADD = 172;  // DF to UZ; status is a signed 32-bit delta to add (Doom's count stops at 0)
@@ -266,10 +267,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint UI_LOAD_GAME = 8;  // Daggerfall's own Load window, from Doom's title; a save loaded there has no Doom half (DFB_KIND_PLAIN_LOAD)
         public const uint UI_JOURNAL = 9;  // Daggerfall's quest journal; dfb_ui_command.context is Doom's DFB_WORLD_* (travel from it only outdoors)
         public const uint UI_REST = 10;  // Daggerfall's rest window; dfb_ui_command.context is DFB_REST_* bits from Doom's state
+        public const uint UI_CHARACTER = 11;  // Daggerfall's character sheet; context is Doom's DFB_WORLD_* (its journal travels only outdoors)
+        public const uint UI_SPELLBOOK = 12;  // Daggerfall's spellbook, refused with Daggerfall's own message when none is carried
         public const uint REST_MONSTERS_NEAR = 1;  // a hostile Doom monster sees the player or is within Daggerfall's resting distance
         public const uint REST_NOT_GROUNDED = 2;  // Doom's player is in the air or swimming
         public const uint UI_CLOSED = 0;
         public const uint UI_OPENED = 1;
+        public const uint UI_TYPING = 2;
+        public const uint UI_CLOSED_TIME_PASSED = 1;
         public const uint UI_REASON_NONE = 0;
         public const uint UI_REASON_USER = 1;  // the player closed it in Daggerfall
         public const uint UI_REASON_REFUSED = 2;  // Daggerfall could not open it here
@@ -293,7 +298,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const int DF_PHASE_PLAY = 3;
         public const int DF_PHASE_DEAD = 4;
         public const int UZ_PHASE_BOOT = 0;
-        public const int UZ_PHASE_LOADING = 1;
+        public const int UZ_PHASE_LOADING = 1;  // a loading hold (UZDoom dd_loading.cpp); Daggerfall pauses while it lasts
         public const int UZ_PHASE_PLAY = 2;
         public const int UZ_PHASE_PAUSED = 3;
         public const int UZ_PHASE_SAVING = 4;
@@ -323,7 +328,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         // Native size of every generated struct, for the attach check.
         public static readonly Type[] StructTypes = { typeof(DfbFaces), typeof(DfbFace), typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbPlainLoad), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbWorldContainer), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbInfoRequest), typeof(DfbInfoText), typeof(DfbDoomItem), typeof(DfbDoor), typeof(DfbItemArt), typeof(DfbClimbUses), typeof(DfbNpcUse), typeof(DfbNpcUseResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbEncounterArea), typeof(DfbEncounterText), typeof(DfbPlace), typeof(DfbPlaceName), typeof(DfbPlaceFact), typeof(DfbPlacePlan), typeof(DfbNpc), typeof(DfbTownsfolk), typeof(DfbTownsperson), typeof(DfbTownspersonDeath), typeof(DfbGuardSpawn), typeof(DfbGuardDeath), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
-        public static readonly int[] StructSizes = { 8, 16, 64, 24, 24, 16, 24, 24, 48, 32, 48, 48, 32, 16, 48, 40, 16, 48, 32, 48, 48, 32, 144, 8, 24, 16, 32, 32, 48, 48, 32, 48, 48, 32, 16, 32, 40, 24, 40, 8, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
+        public static readonly int[] StructSizes = { 8, 16, 64, 24, 24, 24, 24, 24, 48, 32, 48, 48, 32, 16, 48, 40, 16, 48, 32, 48, 48, 32, 464, 8, 24, 16, 32, 32, 48, 48, 32, 48, 48, 32, 16, 32, 40, 24, 40, 8, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
     }
 
     static class DfbBytes
@@ -460,12 +465,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public long sentNs;
     }
 
-    [StructLayout(LayoutKind.Explicit, Size = 16)]
+    [StructLayout(LayoutKind.Explicit, Size = 24)]
     struct DfbUiCommand
     {
         [FieldOffset(0)] public uint uiId;
         [FieldOffset(4)] public uint context;
         [FieldOffset(8)] public long sentNs;
+        [FieldOffset(16)] public uint screenWidth;  // UI_OPEN: Doom's screen in pixels, the size it shows the surface at; Daggerfall draws its
+        [FieldOffset(20)] public uint screenHeight;  // UI at that size (within DFB_SURFACE_MAX_W/H) so its text is not upscaled. 0: unknown
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 24)]
@@ -486,7 +493,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(8)] public uint reason;
         [FieldOffset(12)] public uint surfaceWidth;
         [FieldOffset(16)] public uint surfaceHeight;
-        [FieldOffset(20)] public uint pad;
+        [FieldOffset(20)] public uint flags;  // DFB_UI_CLOSED_*, on a close
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 48)]
@@ -748,7 +755,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(28)] public uint pad;
     }
 
-    [StructLayout(LayoutKind.Explicit, Size = 144)]
+    [StructLayout(LayoutKind.Explicit, Size = 464)]
     struct DfbItemArt
     {
         [FieldOffset(0)] public uint request;
@@ -822,6 +829,146 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DfbBytes.Write(destination, 40, 8, tag5);
             DfbBytes.Write(destination, 48, 8, tag6);
             DfbBytes.Write(destination, 56, 8, tag7);
+        }
+        [FieldOffset(144)] public ulong types0;
+        [FieldOffset(152)] public ulong types1;
+        [FieldOffset(160)] public ulong types2;
+        [FieldOffset(168)] public ulong types3;
+        [FieldOffset(176)] public ulong types4;
+        [FieldOffset(184)] public ulong types5;
+        [FieldOffset(192)] public ulong types6;
+        [FieldOffset(200)] public ulong types7;
+
+        // Copies up to 64 bytes in. The rest of the field becomes zero.
+        public void SetTypes(byte[] source, int count)
+        {
+            types0 = (ulong)DfbBytes.Read(source, count, 0, 8);
+            types1 = (ulong)DfbBytes.Read(source, count, 8, 8);
+            types2 = (ulong)DfbBytes.Read(source, count, 16, 8);
+            types3 = (ulong)DfbBytes.Read(source, count, 24, 8);
+            types4 = (ulong)DfbBytes.Read(source, count, 32, 8);
+            types5 = (ulong)DfbBytes.Read(source, count, 40, 8);
+            types6 = (ulong)DfbBytes.Read(source, count, 48, 8);
+            types7 = (ulong)DfbBytes.Read(source, count, 56, 8);
+        }
+
+        // Copies all 64 bytes out.
+        public void CopyTypes(byte[] destination)
+        {
+            DfbBytes.Write(destination, 0, 8, types0);
+            DfbBytes.Write(destination, 8, 8, types1);
+            DfbBytes.Write(destination, 16, 8, types2);
+            DfbBytes.Write(destination, 24, 8, types3);
+            DfbBytes.Write(destination, 32, 8, types4);
+            DfbBytes.Write(destination, 40, 8, types5);
+            DfbBytes.Write(destination, 48, 8, types6);
+            DfbBytes.Write(destination, 56, 8, types7);
+        }
+        [FieldOffset(208)] public ulong brief0;
+        [FieldOffset(216)] public ulong brief1;
+        [FieldOffset(224)] public ulong brief2;
+        [FieldOffset(232)] public ulong brief3;
+        [FieldOffset(240)] public ulong brief4;
+        [FieldOffset(248)] public ulong brief5;
+        [FieldOffset(256)] public ulong brief6;
+        [FieldOffset(264)] public ulong brief7;
+        [FieldOffset(272)] public ulong brief8;
+        [FieldOffset(280)] public ulong brief9;
+        [FieldOffset(288)] public ulong brief10;
+        [FieldOffset(296)] public ulong brief11;
+        [FieldOffset(304)] public ulong brief12;
+        [FieldOffset(312)] public ulong brief13;
+        [FieldOffset(320)] public ulong brief14;
+        [FieldOffset(328)] public ulong brief15;
+        [FieldOffset(336)] public ulong brief16;
+        [FieldOffset(344)] public ulong brief17;
+        [FieldOffset(352)] public ulong brief18;
+        [FieldOffset(360)] public ulong brief19;
+        [FieldOffset(368)] public ulong brief20;
+        [FieldOffset(376)] public ulong brief21;
+        [FieldOffset(384)] public ulong brief22;
+        [FieldOffset(392)] public ulong brief23;
+        [FieldOffset(400)] public ulong brief24;
+        [FieldOffset(408)] public ulong brief25;
+        [FieldOffset(416)] public ulong brief26;
+        [FieldOffset(424)] public ulong brief27;
+        [FieldOffset(432)] public ulong brief28;
+        [FieldOffset(440)] public ulong brief29;
+        [FieldOffset(448)] public ulong brief30;
+        [FieldOffset(456)] public ulong brief31;
+
+        // Copies up to 256 bytes in. The rest of the field becomes zero.
+        public void SetBrief(byte[] source, int count)
+        {
+            brief0 = (ulong)DfbBytes.Read(source, count, 0, 8);
+            brief1 = (ulong)DfbBytes.Read(source, count, 8, 8);
+            brief2 = (ulong)DfbBytes.Read(source, count, 16, 8);
+            brief3 = (ulong)DfbBytes.Read(source, count, 24, 8);
+            brief4 = (ulong)DfbBytes.Read(source, count, 32, 8);
+            brief5 = (ulong)DfbBytes.Read(source, count, 40, 8);
+            brief6 = (ulong)DfbBytes.Read(source, count, 48, 8);
+            brief7 = (ulong)DfbBytes.Read(source, count, 56, 8);
+            brief8 = (ulong)DfbBytes.Read(source, count, 64, 8);
+            brief9 = (ulong)DfbBytes.Read(source, count, 72, 8);
+            brief10 = (ulong)DfbBytes.Read(source, count, 80, 8);
+            brief11 = (ulong)DfbBytes.Read(source, count, 88, 8);
+            brief12 = (ulong)DfbBytes.Read(source, count, 96, 8);
+            brief13 = (ulong)DfbBytes.Read(source, count, 104, 8);
+            brief14 = (ulong)DfbBytes.Read(source, count, 112, 8);
+            brief15 = (ulong)DfbBytes.Read(source, count, 120, 8);
+            brief16 = (ulong)DfbBytes.Read(source, count, 128, 8);
+            brief17 = (ulong)DfbBytes.Read(source, count, 136, 8);
+            brief18 = (ulong)DfbBytes.Read(source, count, 144, 8);
+            brief19 = (ulong)DfbBytes.Read(source, count, 152, 8);
+            brief20 = (ulong)DfbBytes.Read(source, count, 160, 8);
+            brief21 = (ulong)DfbBytes.Read(source, count, 168, 8);
+            brief22 = (ulong)DfbBytes.Read(source, count, 176, 8);
+            brief23 = (ulong)DfbBytes.Read(source, count, 184, 8);
+            brief24 = (ulong)DfbBytes.Read(source, count, 192, 8);
+            brief25 = (ulong)DfbBytes.Read(source, count, 200, 8);
+            brief26 = (ulong)DfbBytes.Read(source, count, 208, 8);
+            brief27 = (ulong)DfbBytes.Read(source, count, 216, 8);
+            brief28 = (ulong)DfbBytes.Read(source, count, 224, 8);
+            brief29 = (ulong)DfbBytes.Read(source, count, 232, 8);
+            brief30 = (ulong)DfbBytes.Read(source, count, 240, 8);
+            brief31 = (ulong)DfbBytes.Read(source, count, 248, 8);
+        }
+
+        // Copies all 256 bytes out.
+        public void CopyBrief(byte[] destination)
+        {
+            DfbBytes.Write(destination, 0, 8, brief0);
+            DfbBytes.Write(destination, 8, 8, brief1);
+            DfbBytes.Write(destination, 16, 8, brief2);
+            DfbBytes.Write(destination, 24, 8, brief3);
+            DfbBytes.Write(destination, 32, 8, brief4);
+            DfbBytes.Write(destination, 40, 8, brief5);
+            DfbBytes.Write(destination, 48, 8, brief6);
+            DfbBytes.Write(destination, 56, 8, brief7);
+            DfbBytes.Write(destination, 64, 8, brief8);
+            DfbBytes.Write(destination, 72, 8, brief9);
+            DfbBytes.Write(destination, 80, 8, brief10);
+            DfbBytes.Write(destination, 88, 8, brief11);
+            DfbBytes.Write(destination, 96, 8, brief12);
+            DfbBytes.Write(destination, 104, 8, brief13);
+            DfbBytes.Write(destination, 112, 8, brief14);
+            DfbBytes.Write(destination, 120, 8, brief15);
+            DfbBytes.Write(destination, 128, 8, brief16);
+            DfbBytes.Write(destination, 136, 8, brief17);
+            DfbBytes.Write(destination, 144, 8, brief18);
+            DfbBytes.Write(destination, 152, 8, brief19);
+            DfbBytes.Write(destination, 160, 8, brief20);
+            DfbBytes.Write(destination, 168, 8, brief21);
+            DfbBytes.Write(destination, 176, 8, brief22);
+            DfbBytes.Write(destination, 184, 8, brief23);
+            DfbBytes.Write(destination, 192, 8, brief24);
+            DfbBytes.Write(destination, 200, 8, brief25);
+            DfbBytes.Write(destination, 208, 8, brief26);
+            DfbBytes.Write(destination, 216, 8, brief27);
+            DfbBytes.Write(destination, 224, 8, brief28);
+            DfbBytes.Write(destination, 232, 8, brief29);
+            DfbBytes.Write(destination, 240, 8, brief30);
+            DfbBytes.Write(destination, 248, 8, brief31);
         }
     }
 

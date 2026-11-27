@@ -20,18 +20,31 @@ from pathlib import Path
 
 def _option(name):
     """--review DIR uses another staged folder (e.g. review\\newgame-restart). --inside-quiet: this whole script already
-    runs under quiet_run.py, so the launcher starts directly on the same private desktop, where Doom's window is visible."""
+    runs under quiet_run.py, so the launcher starts directly on the same private desktop, where Doom's window is visible.
+    --drla loads the DRLA set first. --dfu-flag F adds one Daggerfall argument (repeatable). --wait-df TEXT keeps both games running after arrival (and
+    after a load test) until Daggerfall's bridge log holds TEXT that many times (TEXT*N; N defaults to 1)."""
     if name not in sys.argv:
         return None
     at = sys.argv.index(name)
-    value = sys.argv[at + 1] if name == "--review" else "1"
-    del sys.argv[at:at + (2 if name == "--review" else 1)]
+    takes = name in ("--review", "--dfu-flag", "--uz-flag", "--wait-df", "--limit")
+    value = sys.argv[at + 1] if takes else "1"
+    del sys.argv[at:at + (2 if takes else 1)]
     return value
 
 
 REVIEW = Path(_option("--review") or r"D:\dev\DoomDaggerfall-loop\review\new-game")
 DATA = REVIEW / "data" if (REVIEW / "data").exists() else REVIEW.parent / "combined-bridge" / "data"
 INSIDE_QUIET = _option("--inside-quiet") == "1"
+DRLA = _option("--drla") == "1"  # --drla: load the DRLA set, as the play folder does.
+DFU_FLAGS = []
+while "--dfu-flag" in sys.argv:
+    DFU_FLAGS.append(_option("--dfu-flag"))
+LIMIT = _option("--limit")  # --limit S: the whole run's time limit in seconds, for a long conversion wait.
+UZ_FLAGS = []  # --uz-flag F adds one UZDoom argument (repeatable), such as -ddloadingtest.
+while "--uz-flag" in sys.argv:
+    UZ_FLAGS.append(_option("--uz-flag"))
+_wait = _option("--wait-df")
+WAIT_DF, WAIT_COUNT = (_wait.rsplit("*", 1)[0], int(_wait.rsplit("*", 1)[1])) if _wait and "*" in _wait else (_wait, 1)
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 IWAD = r"D:\dev\DoomDaggerfall\GameResources\wads\DOOM2.WAD"
 DAGGER = r"D:\dev\DoomDaggerfall\GameResources\DAGGER"
@@ -156,15 +169,20 @@ def main():
                "-ddconverter", str(DATA / "converter" / "DungeonConverter.exe"), "-ddarena2", DAGGER + r"\ARENA2",
                "+logfile", f"log-{name}.txt", "+vid_fullscreen", "0", "+wipetype", "0", "+screenshot_dir", str(run / f"shots-{name}"),
                "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"]
+    uz_args += UZ_FLAGS
     if load:
         uz_args += ["-dfloadtest", f"{load}:{run / 'saves' / (name + '.zds')}"]
-    dfu_args = ["-dfbridgelog", str(df_log), "-dfflow", DAGGER, "-screen-fullscreen", "0", "-screen-width", "1280", "-screen-height", "800"]
+    dfu_args = ["-dfbridgelog", str(df_log), "-dfflow", DAGGER, "-screen-fullscreen", "0", "-screen-width", "1280", "-screen-height", "800"] + DFU_FLAGS
+    waited = lambda: not WAIT_DF or read(df_log).count(WAIT_DF) >= WAIT_COUNT  # noqa: E731
     command = [sys.executable, QUIET, "--timeout", str(TIMEOUT), "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", IWAD,
                "--uzdoom-cwd", str(run), "--log", str(launcher)]
+    if DRLA:  # As the play folder: DRLA, DRLA Monsters and DRLA X first.
+        for mod in ("DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3"):
+            command += ["--mod", str(Path(r"D:\dev\DoomDaggerfall\GameMods") / mod)]
     for mod in ("ddruntime.pk3", "overworld.pk3", "privateershold.wad", "privateershold_mesh.pk3", "privateershold_doors.pk3"):
         command += ["--mod", str(DATA / mod)]
-    for mod in ("dfitems.pk3", "doomerfall.pk3"):  # Present in folders staged from current integration.
+    for mod in ("dfitems.pk3", "doomerfall.pk3", "doomerfall-drla.pk3"):  # Present in folders staged from current integration.
         if (REVIEW / mod).exists():
             command += ["--mod", str(REVIEW / mod)]
     for arg in uz_args:
@@ -173,6 +191,8 @@ def main():
         command += ["--dfu-arg", arg]
 
     limit = 85 if load in ("again", "restart") else TIMEOUT  # Two characters are made in this run.
+    limit += 40 if WAIT_DF else 0  # Time for the waited-for lines after arrival or a load.
+    limit = int(LIMIT) if LIMIT else limit
     command[command.index("--timeout") + 1] = str(limit)
     if INSIDE_QUIET:
         command = command[command.index("--") + 1:]
@@ -187,7 +207,7 @@ def main():
             if any(k in read(console) for k in FATAL):
                 result = "fatal"
                 break
-            if goal in uz and not load:
+            if goal in uz and not load and waited():
                 result = "reached"
                 time.sleep(2.5)  # Both games run together briefly before the check.
                 break
@@ -195,7 +215,7 @@ def main():
                 result = "second character reached"
                 time.sleep(2.5)
                 break
-            if load and re.search(r"load test: (PASS|FAIL)", uz):
+            if load and re.search(r"load test: (PASS|FAIL)", uz) and waited():
                 result = re.search(r"load test: (PASS|FAIL)", uz).group(1)
                 break
             if load == "restart" and not confirmed and "asking to confirm New Game" in uz:
@@ -227,6 +247,8 @@ def main():
         subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True)
     print("result:", result, "| last window:", last)
     pattern = r"new game|flow:|load test|campaign|top window is (DaggerfallVid|CreateCharSummary)|FAILED|error"
+    if WAIT_DF:
+        print("waited for", repr(WAIT_DF), "x", WAIT_COUNT, "| found", read(df_log).count(WAIT_DF))
     for path in (uz_log, df_log):
         lines = [l for l in read(path).splitlines() if re.search(pattern, l)]
         print(f"--- {path.name}: {len(lines)} lines")

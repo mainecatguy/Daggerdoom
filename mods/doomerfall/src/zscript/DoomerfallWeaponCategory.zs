@@ -3,8 +3,9 @@
 //
 // Precedence when signs overlap:
 //   Unarmed > Melee > Pistol > Explosive > Energy > Shotgun > Precision > Automatic.
-// Pistol second follows the Pistols goal (owner, 2026-11-26: DRLA's pistol-type guns are pistols), so pistol-token
-// Uzis, Storm (shotgun-token) pistols and cell-fed pistols are Pistols. The order of the rest is the proposal's
+// Pistol second follows the Pistols goal (owner, 2026-11-26: DRLA's pistol-type guns are pistols), so Storm
+// (shotgun-token) pistols and cell-fed pistols are Pistols. The pistol-token Uzis are not (owner, 2026-11-27: they are
+// Automatics; IsOwnerAutomatic). The order of the rest is the proposal's
 // lean, not yet an owner decision: DRLA's Autoshotgun (shotgun and rapid-fire tokens) is a Shotgun, and a cell-fed
 // shotgun or Plasma Rifle is Energy rather than Shotgun or Automatic.
 //
@@ -24,8 +25,9 @@
 // the pistol token (checked in GameMods/ExtractedData).
 // Rifles (owner, 2026-11-26: "all ballistic semi-automatic weapons that are not explosives, energy weapons, shotguns
 // or pistols") is skill slot 8, but no category maps to it yet. Precision (DRLA's single-shot rifle token) is not a
-// clean rifle list: the Assault Rifle Chaingun, Assault Rifle Minigun and Autocannon carry it and are Automatics by
-// the owner's rule, and the Sniper Rifle lacks it. Doomerfall's own rifle tag (DoomerfallRifleTag.IsRifle) says which
+// clean rifle list: the Assault Rifle Chaingun, Assault Rifle Minigun and Autocannon carry it but are Automatics by
+// the owner's rule (IsOwnerAutomatic, checked where the token would make them Precision), and the Sniper Rifle
+// lacks it. Doomerfall's own rifle tag (DoomerfallRifleTag.IsRifle) says which
 // guns are rifles; it changes no category or skill yet.
 // DRLA gives its tokens only while the gun is held (the gun's Select state gives them, lowering takes them), so a
 // DRLA gun that is not the held one is known by ammo only and may read as Other until it is selected.
@@ -78,7 +80,8 @@ class DoomerfallWeaponCategory abstract
 
 	// A weapon's two categories: its first, and a second one (or Other) where it truly fits two skills. Owner,
 	// 2026-11-26 (gamedesign/decisions/20261126-two-skill-weapons-owner.md): the pairs are a Pistol or Shotgun that is
-	// also an Energy Weapon. An energy pistol is Pistol then Energy; an energy shotgun (cell-fed, or on the recharging
+	// also an Energy Weapon, plus one gun the owner named: DRLA's Grammaton Cleric Beretta (dual pistols with single,
+	// burst and full-auto modes) is Pistol then Automatic (owner, 2026-11-27: "Dual tag is pistol and automatic"). An energy pistol is Pistol then Energy; an energy shotgun (cell-fed, or on the recharging
 	// list) is Energy then Shotgun. Other overlaps (a Storm pistol's shotgun token, the Autoshotgun's rapid-fire token,
 	// a missile pistol's rockets) stay one category, as before. Stock Doom has no such gun, but a mod's cell-fed
 	// subclass of Pistol, Shotgun or SuperShotgun gets both without DRLA.
@@ -86,18 +89,54 @@ class DoomerfallWeaponCategory abstract
 	{
 		if (!w) return Other, Other;
 		let owner = w.Owner;
-		bool held = owner && owner.player && owner.player.ReadyWeapon == w;
+		int tokens = 0;
+		if (owner && owner.player && owner.player.ReadyWeapon == w)
+		{
+			if (HasToken(owner, "RLPistolTypeWeapon")) tokens |= TokPistol;
+			if (HasToken(owner, "RLShotgunTypeWeapon")) tokens |= TokShotgun;
+			if (HasToken(owner, "RLSingleShotRifleTypeWeapon")) tokens |= TokSingleShotRifle;
+			if (HasToken(owner, "RLRapidfireTypeWeapon")) tokens |= TokRapidfire;
+			if (HasToken(owner, "RLMeleeTypeWeapon")) tokens |= TokMelee;
+		}
+		int first, second; // ZScript passes on only the first value of "return BothWithTokens(...)".
+		[first, second] = BothWithTokens(w, tokens);
+		return first, second;
+	}
+
+	// Both's answer for a gun class that need not be held or even exist, as a gun in Daggerfall's inventory: the same
+	// rules, with DRLA's tokens read from DoomerfallWeaponTokens (what each gun's Select state gives) instead of the
+	// player's inventory. tools/weapon_types/run_weapontypes_test.py checks it gives Both's answer for every held gun.
+	clearscope static int, int BothOfClass(class<Weapon> wc)
+	{
+		if (!wc) return Other, Other;
+		int first, second;
+		[first, second] = BothWithTokens(GetDefaultByType(wc), DoomerfallWeaponTokens.Of(wc));
+		return first, second;
+	}
+
+	// DRLA's type tokens as bits (DoomerfallWeaponTokens and tools/weapon_types/derive_weapon_tokens.py use them).
+	const TokPistol = 1;
+	const TokShotgun = 2;
+	const TokSingleShotRifle = 4;
+	const TokRapidfire = 8;
+	const TokMelee = 16;
+
+	// The rules of Both, for a weapon (or a weapon class's defaults) and the DRLA tokens it gives while held.
+	private clearscope static int, int BothWithTokens(readonly<Weapon> w, int tokens)
+	{
 		if (w is "Fist" || IsClass(w, "RLFist")) return Unarmed, Other;
-		if (w.bMeleeWeapon || w is "Chainsaw" || IsClass(w, "RLDragonslayer") || (held && HasToken(owner, "RLMeleeTypeWeapon"))) return Melee, Other;
+		if (w.bMeleeWeapon || w is "Chainsaw" || IsClass(w, "RLDragonslayer") || (tokens & TokMelee)) return Melee, Other;
 		// ZScript names are case-insensitive: these must not be called energy or shotgun, or they hide the enum values.
 		bool isEnergy = AmmoIs(w, "Cell") || IsEnergyGun(w);
-		if (w is "Pistol" || (held && HasToken(owner, "RLPistolTypeWeapon"))) return Pistol, isEnergy ? Energy : Other;
+		if (w is "Pistol" || ((tokens & TokPistol) && !IsOwnerAutomatic(w)))
+			return Pistol, isEnergy ? Energy : IsClass(w, "RLGrammatonClericBeretta") ? Automatic : Other;
 		if (AmmoIs(w, "RocketAmmo")) return Explosive, Other;
-		bool isShotgun = w is "Shotgun" || w is "SuperShotgun" || (held && HasToken(owner, "RLShotgunTypeWeapon"));
+		bool isShotgun = w is "Shotgun" || w is "SuperShotgun" || (tokens & TokShotgun);
 		if (isEnergy) return Energy, isShotgun ? Shotgun : Other;
 		if (isShotgun) return Shotgun, Other;
-		if (held && HasToken(owner, "RLSingleShotRifleTypeWeapon")) return Precision, Other;
-		if (w is "Chaingun" || (held && HasToken(owner, "RLRapidfireTypeWeapon"))) return Automatic, Other;
+		if ((tokens & TokSingleShotRifle) && !IsOwnerAutomatic(w)) return Precision, Other;
+		if (IsOwnerAutomatic(w)) return Automatic, Other;
+		if (w is "Chaingun" || (tokens & TokRapidfire)) return Automatic, Other;
 		return Other, Other;
 	}
 
@@ -127,13 +166,29 @@ class DoomerfallWeaponCategory abstract
 		return c && owner.FindInventory(c);
 	}
 
-	private clearscope static bool IsClass(Weapon w, String name)
+	private clearscope static bool IsClass(readonly<Weapon> w, String name)
 	{
 		class<Actor> c = name; // Null when that mod is not loaded.
 		return c && w is c;
 	}
 
-	private clearscope static bool IsEnergyGun(Weapon w)
+	// DRLA guns the owner ruled Automatics although a DRLA token says otherwise: the single-shot rifle token
+	// (2026-11-26: "Those all sound like automatics") or the pistol token (the Uzi family, 2026-11-27: "It's an
+	// Automatic. That's miscategorized."). The cell-fed Plasma Uzi is not listed: it stays Pistol + Energy until the
+	// owner says what it should be. Looked up at run time, so this list does nothing without DRLA.
+	private clearscope static bool IsOwnerAutomatic(readonly<Weapon> w)
+	{
+		static const String automatics[] = {
+			"RLAssaultRifleChaingun", "RLAssaultRifleMinigun", "RLAutocannon",
+			"RLUzi", "RLHighPowerUzi", "RLStormUzi", "RLBurstCannonUzi", "RLAssaultRifleUzi",
+			"RLDemolitionAmmoUzi", "RLNanoManufactureAmmoUzi"
+		};
+		for (int i = 0; i < automatics.Size(); i++)
+			if (IsClass(w, automatics[i])) return true;
+		return false;
+	}
+
+	private clearscope static bool IsEnergyGun(readonly<Weapon> w)
 	{
 		// DRLA energy guns with no Cell ammo (they recharge or make their own ammo), from GameMods/ExtractedData.
 		// Looked up at run time, so this list does nothing without DRLA.
@@ -153,7 +208,7 @@ class DoomerfallWeaponCategory abstract
 		return false;
 	}
 
-	private clearscope static bool AmmoIs(Weapon w, String base)
+	private clearscope static bool AmmoIs(readonly<Weapon> w, String base)
 	{
 		class<Inventory> b = base;
 		if (!b) return false;

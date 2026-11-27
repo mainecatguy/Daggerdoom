@@ -53,6 +53,9 @@ namespace DaggerfallWorkshop.Game.UserInterface
         readonly static char minus = CultureInfo.CurrentCulture.NumberFormat.NegativeSign[0];
         readonly static char dot = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator[0];
 
+        /// <summary>Doomerfall: the last frame any text box took typing.</summary>
+        public static int LastTypingFrame { get; private set; } = -1;
+
         public int MaxCharacters
         {
             get { return maxCharacters; }
@@ -177,6 +180,7 @@ namespace DaggerfallWorkshop.Game.UserInterface
             // Do nothing if read only or using focus and does not have focus
             if (readOnly || (UseFocus && !HasFocus()))
                 return;
+            LastTypingFrame = Time.frameCount; // Doomerfall: while a text box takes typing, Doom sends it every key
 
             // SDF fonts can have different widths to classic so need to recalc cursor position any time this changes
             bool sdfState = font.IsSDFCapable;

@@ -1003,6 +1003,18 @@ namespace DaggerfallWorkshop.Game
             finally { currentMode = mode; }
         }
 
+        // Doomerfall: Doom's Use on a townsperson Doom draws, through a stand-in for Daggerfall's wanderer. Always talk
+        // (Grab mode), at Doom's distance, so a far one gets "too far away". Pickpocketing townspeople is not enabled.
+        public void DoomerfallTalkToMobileNpc(MobilePersonNPC npc, float distance)
+        {
+            PlayerActivateModes mode = currentMode;
+            currentMode = PlayerActivateModes.Grab;
+            RaycastHit hit = new RaycastHit();
+            hit.distance = distance;
+            try { ActivateMobileNPC(hit, npc); }
+            finally { currentMode = mode; }
+        }
+
         void DisableEmptyCorpseContainer(GameObject go)
         {
             if (go)

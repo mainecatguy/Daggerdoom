@@ -227,6 +227,8 @@ static partial class Program
             }
             flatArchives.Remove(199);
             npcArchives.Remove(199);
+            // Wilderness nature, which the engine lays out around every exterior (dd_nature.cpp).
+            flatArchives.UnionWith(Enumerable.Range(NatureArchiveFirst, NatureArchiveCount));
             // Townspeople: MobilePersonBillboard's walking and idle archives, drawn by Doom from Daggerfall's live list.
             var mobileArchives = new HashSet<int>(Enumerable.Range(381, 19).Concat(Enumerable.Range(451, 6)));
             flatArchives.UnionWith(mobileArchives);
@@ -235,12 +237,15 @@ static partial class Program
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outFile)));
             string temp = outFile + ".tmp";
             if (File.Exists(temp)) File.Delete(temp);
-            int meshImages = 0, flatImages = 0, windowMasks = 0;
+            int meshImages = 0, flatImages = 0, windowMasks = 0, fontGlyphs = 0, sdfGlyphs = 0;
             var npcAnimation = new StringBuilder();
             using (var zip = ZipFile.Open(temp, ZipArchiveMode.Create))
             {
                 void Text(string name, string body) { using var s = new StreamWriter(zip.CreateEntry(name, CompressionLevel.Fastest).Open()); s.Write(body); }
                 using (var s = zip.CreateEntry("DDGROUPS", CompressionLevel.Fastest).Open()) { index.Position = 0; index.CopyTo(s); }
+                fontGlyphs = FontExport.Write(zip, arena2); // Daggerfall's HUD font for Doom's HUD messages
+                string sdfFonts = FontExport.FindSdfFolder(args); // and the smooth one Daggerfall Unity draws by default
+                sdfGlyphs = FontExport.WriteSdf(zip, sdfFonts == null ? null : Path.Combine(sdfFonts, "FONT0003-SDF.asset"), FontExport.ClassicHeight(arena2, "FONT0003.FNT"), "dffont3sdf");
                 foreach (string path in Directory.GetFiles(arena2, "TEXTURE.*").OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
                 {
                     if (!int.TryParse(Path.GetExtension(path).TrimStart('.'), out int archive)) continue;
@@ -266,7 +271,6 @@ static partial class Program
                         AppendAnimation(npcAnimation, f => $"dfflat/F{animatedArchive:D3}R{animatedRecord:D2}{(f > 0 ? $"_f{f}" : "")}.png", frames, mobile ? (record == 5 || record == 15 ? 1 : 4) : BillboardFps(archive)); // MobilePersonBillboard's idle and walk speeds
                     }
                 }
-                if (npcAnimation.Length > 0) Text("ANIMDEFS", npcAnimation.ToString());
                 Text("DFMOBILE", mobileScales.ToString());
                 var home = maps.GetLocation(WorldTerrain.Places[(207, 213)].RegionIndex, WorldTerrain.Places[(207, 213)].LocationIndex);
                 var scene = new Scene(arena2, home, 0, 0);
@@ -278,17 +282,21 @@ static partial class Program
                     Text($"models/dfdoors/gate{slot}.obj", scene.GateObj(slot));
                     modeldef += $"Model DFDoorVisual{slot}{(char)10}{{{(char)10}Path \"models/dfdoors\"{(char)10}DONTCULLBACKFACES{(char)10}Model 0 \"gate{slot}.obj\"{(char)10}FrameIndex DFDR A 0 0{(char)10}}}{(char)10}";
                 }
-                Text("MODELDEF", modeldef);
+                var catalogModels = new StringBuilder(modeldef);
+                string catalogClasses = WriteDungeonCatalog(zip, arena2, maps, blocks, arch, npcAnimation, catalogModels);
+                if (npcAnimation.Length > 0) Text("ANIMDEFS", npcAnimation.ToString());
+                Text("MODELDEF", catalogModels.ToString());
                 // One map entry is the template for every generated location. The engine gives each its own copy.
-                Text("MAPINFO", "GameInfo\n{\n\tAddEventHandlers = \"DFRuntimeHandler\"\n}\nmap DDTOWN \"Daggerfall Location\"\n{\n\tpixelratio = 1.0\n\tsky1 = \"DFSKY\"\n\tkeepfullinventory\n}\n");
+                Text("MAPINFO", "GameInfo\n{\n\tAddEventHandlers = \"DFRuntimeHandler\", \"DFDoorHandler\", \"DFActionHandler\"\n}\nmap DDTOWN \"Daggerfall Location\"\n{\n\tpixelratio = 1.0\n\tsky1 = \"DFSKY\"\n\tkeepfullinventory\n}\nmap DDDUNGN \"Daggerfall Dungeon\"\n{\n\tpixelratio = 1.0\n\tkeepfullinventory\n\tUsePlayerStartZ\n}\n");
                 string doors = File.ReadAllText(Path.Combine(SourceDirectory(), "door_objects.zs"));
                 doors = doors.Substring(doors.IndexOf((char)10) + 1);
-                Text("zscript.zs", RuntimeScript + doors + "class DFDoorVisual0 : DFDoorVisual {}" + (char)10 + "class DFDoorVisual1 : DFDoorVisual {}" + (char)10);
+                string actionScript = string.Join((char)10, File.ReadAllLines(Path.Combine(SourceDirectory(), "action_objects.zs")).Where(line => !line.StartsWith("version ")));
+                Text("zscript.zs", RuntimeScript + doors + "class DFDoorVisual0 : DFDoorVisual {}" + (char)10 + "class DFDoorVisual1 : DFDoorVisual {}" + (char)10 + actionScript + (char)10 + catalogClasses);
             }
             File.Move(temp, outFile, true);
             // A readable list for choosing test locations. It names game content, so it stays beside the package, outside the repository.
             File.WriteAllLines(Path.ChangeExtension(outFile, ".groups.tsv"), groups.Select((g, id) => $"{id}\t{g.Count}\t{g.Max(p => p.BlocksWide * p.BlocksHigh)}\t{string.Join("; ", g.Select(p => $"{p.Region}/{p.Name} {p.Type} {p.BlocksWide}x{p.BlocksHigh}"))}"));
-            Console.WriteLine($"runtime assets: {groups.Count} groups ({tooLarge} over the map limit), {meshImages} mesh textures, {windowMasks} window masks, {flatImages} billboards, {new FileInfo(outFile).Length / 1048576} MiB, {clock.ElapsedMilliseconds} ms");
+            Console.WriteLine($"runtime assets: {groups.Count} groups ({tooLarge} over the map limit), {meshImages} mesh textures, {windowMasks} window masks, {flatImages} billboards, {fontGlyphs} font glyphs, {sdfGlyphs} SDF font glyphs, {new FileInfo(outFile).Length / 1048576} MiB, {clock.ElapsedMilliseconds} ms");
             return 0;
         }
 
@@ -303,6 +311,14 @@ class DFCityFlat : Actor
 
 // A Daggerfall NPC. It blocks nothing and takes no damage. args[0] and args[1] hold the low and high halves of its id.
 class DFNpc : DFCityFlat {}
+
+// Wilderness nature (trees, rocks, plants), laid out by the engine as Daggerfall Unity does. Client-side, so it is never
+// saved: the same flats come back from the same rule on every visit.
+class DFNatureFlat : Actor
+{
+	Default { +CLIENTSIDE +NOINTERACTION +NOBLOCKMAP +NOGRAVITY +DONTSPLASH +NOTONAUTOMAP Radius 1; Height 1; }
+	States { Spawn: PLAY A -1; Stop; }
+}
 
 // A townsperson Daggerfall generated. The engine moves it from Daggerfall's list; ddRecordId holds its id.
 class DFTownsperson : DFCityFlat {}
@@ -455,7 +471,7 @@ class DFRuntimeHandler : EventHandler
 
         // ---- Visual scene ----
 
-        sealed class Scene
+        internal sealed class Scene
         {
             public readonly List<(V3 a, V3 b, V3 c)> Colliders = new List<(V3, V3, V3)>();
             public readonly List<int> ColliderOwners = new List<int>(); // building id per collider triangle, or -1 for walls, gates, and props
@@ -922,8 +938,13 @@ class DFRuntimeHandler : EventHandler
                     ("DFGATES", Encoding.ASCII.GetBytes(string.Join((char)10, GatePlacements) + (char)10)), ("DDTOWN", Encoding.ASCII.GetBytes(townInfo)),
                     ("DDDOORS", Encoding.ASCII.GetBytes(string.Join((char)10, DoorLines) + (char)10)),
                 };
-                var packed = new byte[entries.Length][];
-                System.Threading.Tasks.Parallel.For(0, entries.Length, i =>
+                WriteDdt(path, entries);
+            }
+
+            public static void WriteDdt(string path, IList<(string name, byte[] data)> entries)
+            {
+                var packed = new byte[entries.Count][];
+                System.Threading.Tasks.Parallel.For(0, entries.Count, i =>
                 {
                     var body = new MemoryStream();
                     using (var z = new ZLibStream(body, CompressionLevel.Fastest, true)) z.Write(entries[i].data);
@@ -934,8 +955,8 @@ class DFRuntimeHandler : EventHandler
                 using (var w = new BinaryWriter(File.Create(temp)))
                 {
                     w.Write(Encoding.ASCII.GetBytes("DDT3"));
-                    w.Write(entries.Length);
-                    for (int i = 0; i < entries.Length; i++)
+                    w.Write(entries.Count);
+                    for (int i = 0; i < entries.Count; i++)
                     {
                         w.Write(Encoding.ASCII.GetBytes(entries[i].name.PadRight(8, '\0')));
                         w.Write(entries[i].data.Length);

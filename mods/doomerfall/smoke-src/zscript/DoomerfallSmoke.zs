@@ -31,7 +31,17 @@ class DoomerfallSmoke_Menus : StaticEventHandler
 		for (int i = 0; i < d.mItems.Size(); i++)
 		{
 			let it = d.mItems[i];
-			Console.Printf("MENUDUMP %s: %d [%s] %s", n, i, it.GetClassName(), OptionMenuItem(it) ? OptionMenuItem(it).mLabel : "");
+			String keys = "";
+			let ctl = OptionMenuItemControlBase(it);
+			if (ctl != null)
+			{
+				int k1, k2, unused;
+				Name cmd;
+				[cmd, unused] = ctl.GetAction();
+				[k1, k2] = ctl.mBindings.GetKeysForCommand(cmd);
+				keys = String.Format(" {%s} keys=%s", cmd,KeyBindings.NameKeys(k1, k2, false));
+			}
+			Console.Printf("MENUDUMP %s: %d [%s] %s%s", n, i, it.GetClassName(), OptionMenuItem(it) ? OptionMenuItem(it).mLabel : "", keys);
 		}
 	}
 }
