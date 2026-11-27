@@ -8,7 +8,7 @@
 //   Agility    mods/doomerfall/src/zscript/DoomerfallAgility.zs      reload/switch x (1 + 0.4 AGI / 100), evade 15% AGI / 100
 //   Endurance  DoomerfallEndurance.MaxHealth                         50 + END + (level - 1) x END / 15
 //   Speed      mods/doomerfall/src/zscript/DoomerfallAttributes.zs   move speed x (0.75 + SPD / 200)
-//   Luck       mods/doomerfall/src/zscript/DoomerfallAmmo.zs LuckDrop each monster ammo drop: Luck in 100 for a second one
+//   Luck       mods/doomerfall/src/zscript/DoomerfallAmmo.zs WorldThingDied  each monster death: Luck / 2 % chance (0-50%) to drop one ammo pickup
 // All use the live value (fortify and drain count). Every one but Endurance counts values above 100 as 100.
 
 using System;
@@ -153,10 +153,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     };
                 case DFCareer.Stats.Luck:
                     return new[] {
-                        "In Doomerfall, each ammo drop from a monster has a",
-                        "Luck in 100 chance to come with a second one.",
+                        "In Doomerfall, every monster that dies, whoever",
+                        "killed it, may drop ammo: a Luck / 2 % chance,",
+                        "25% at 50, 50% at 100; summoned ones never drop.",
                         "Luck keeps its Daggerfall effects. " + Over100,
-                        yours + N(v) + "% chance of a second drop.",
+                        yours + N(v / 2.0) + "% chance a kill drops ammo.",
                     };
                 default:
                     return new string[0];

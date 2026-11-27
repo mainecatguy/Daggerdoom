@@ -32,7 +32,7 @@ EXPECT = [
     "Yours (33): +13.2% handling, 4.95% dodge.",           # 0.4*33, 0.15*33
     "Yours (55): " + str(round(50 + 55 + 4 * 55 / 15)) + " max HP at level 5.",  # 119.67 -> 120
     "Yours (80): +15% move speed.",                        # 0.75 + 80/200 = 1.15
-    "100% chance of a second drop.",                       # Luck above 100 counts as 100 (or capped at 100)
+    "50% chance a kill drops ammo.",                       # Luck / 2; Luck above 100 counts as 100 (or capped at 100)
     "in combat and from the environment:",                 # Willpower scales only Doom's damage, as manual.md says
 ]
 
