@@ -26,7 +26,7 @@ def main():
     out, data = Path(a.out), Path(a.data)
     out.mkdir(parents=True, exist_ok=True)
     pairs = list(zip(a.pixels[0::2], a.pixels[1::2]))
-    lines = ["wait 175", "turn180", "wait 35"]
+    lines = ["wait 175", "vid_setsize 1280 720", "turn180", "wait 35"]	# after the map loads: a private desktop renders 320x200 otherwise
     for mx, my in pairs + [pairs[0]]:
         gx, gy = mx * 128 + 16, (499 - my) * 128 + 64
         lines += [f'dd_tm_warp "{gx} {gy}"', "wait 350"]

@@ -5,7 +5,7 @@
 // Writes into <dir>:
 //   unity.txt         Mathf.PerlinNoise, UnityEngine.Random and Unity.Mathematics.Random samples
 //   pixel_X_Y.txt     one wilderness map pixel per climate: climate, archive, tile types, and the flats LayoutNature makes
-//   shot_X_Y.png      the view from tile (16, 64) of that pixel, facing east, at noon in summer
+//   shot_X_Y.png      the view from the middle of tile (16, 64) of that pixel, facing east, at noon in summer
 //   report.txt        what was chosen, or the error
 
 using System;
@@ -111,18 +111,22 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             yield return null;
             while (world.IsInit && Time.realtimeSinceStartup < giveUp)
                 yield return null;
-            yield return new WaitForSecondsRealtime(2f);
             DaggerfallTerrain terrain = null;
-            foreach (DaggerfallTerrain t in FindObjectsOfType<DaggerfallTerrain>())
-                if (t.MapPixelX == mx && t.MapPixelY == my)
-                    terrain = t;
+            while (terrain == null && Time.realtimeSinceStartup < giveUp)
+            {
+                yield return new WaitForSecondsRealtime(1f);
+                foreach (DaggerfallTerrain t in FindObjectsOfType<DaggerfallTerrain>())
+                    if (t.MapPixelX == mx && t.MapPixelY == my && t.MapData.tilemapSamples != null)
+                        terrain = t;
+            }
+            yield return new WaitForSecondsRealtime(2f);
             if (terrain == null) { report.AppendLine($"  terrain {mx},{my} not loaded"); yield break; }
             File.WriteAllText(Path.Combine(dir, $"pixel_{mx}_{my}.txt"), Layout(terrain));
 
-            // Stand at tile (16, 64), facing east.
+            // Stand in the middle of tile (16, 64), where Doom's dd_tm_warp puts the player, facing east.
             Terrain unityTerrain = terrain.GetComponent<Terrain>();
             float tile = unityTerrain.terrainData.size.x / MapsFile.WorldMapTileDim;
-            Vector3 at = terrain.transform.position + new Vector3(16 * tile, 0, 64 * tile);
+            Vector3 at = terrain.transform.position + new Vector3(16.5f * tile, 0, 64.5f * tile);
             at.y = unityTerrain.SampleHeight(at) + terrain.transform.position.y + 1.0f;
             GameManager.Instance.PlayerObject.transform.position = at;
             GameManager.Instance.PlayerMotor.FixStanding();
