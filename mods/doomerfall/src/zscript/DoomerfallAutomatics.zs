@@ -76,7 +76,7 @@ class DoomerfallAutomatics : StaticEventHandler
 		let victim = e.Thing;
 		let src = e.DamageSource;
 		if (e.Damage <= 0 || !victim || victim.player || victim.health <= 0 || !src || !src.player || src.player.mo != src) return;
-		if (!IsAutomatic(src.player.ReadyWeapon)) return;
+		if (!IsAutomatic(src.player.ReadyWeapon) || !e.Inflictor || !e.Inflictor.bIsPuff) return; // the gun's own bullets only
 		int step = Rule(AutoSunderBp), cap = Rule(AutoSunderMaxBp);
 		if (step <= 0 || cap <= 0) return;
 		let s = DoomerfallSunder(victim.FindInventory("DoomerfallSunder"));
@@ -186,7 +186,9 @@ class DoomerfallAutomaticsPerks : Inventory
 	override void ModifyDamage(int damage, Name damageType, out int newdamage, bool passive, Actor inflictor, Actor source, int flags)
 	{
 		// Active: source is the actor being hit. The player's own hits on others only.
-		if (passive || damage <= 0 || !owner || !owner.player || source == owner) return;
+		// Only the gun's own bullets: hitscan damage arrives with its puff as inflictor. Rockets, barrels and other
+		// projectiles that land while an Automatics gun is held get nothing.
+		if (passive || damage <= 0 || !owner || !owner.player || source == owner || !inflictor || !inflictor.bIsPuff) return;
 		let w = owner.player.ReadyWeapon;
 		if (!DoomerfallAutomatics.IsAutomatic(w)) return;
 		Sync();
