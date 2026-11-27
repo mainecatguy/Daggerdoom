@@ -314,8 +314,8 @@ typedef struct dfb_face
 } dfb_face;
 
 #define DFB_SHEET_SLOT   0u
-#define DFB_SHEET_FORMAT_VERSION 6  /* 3: skill slots 4-6 are the gun skills, 7-12 unused; 4: slot 7 is Pistols; 5: slot 8 is Rifles; 6: slots 9-10 are Energy Weapons and Melee */
-#define DFB_SHEET_INTS   155
+#define DFB_SHEET_FORMAT_VERSION 7  /* 3: skill slots 4-6 are the gun skills, 7-12 unused; 4: slot 7 is Pistols; 5: slot 8 is Rifles; 6: slots 9-10 are Energy Weapons and Melee; 7: Automatics perk rules */
+#define DFB_SHEET_INTS   162
 #define DFB_SHEET_FORMAT 0    /* DFB_SHEET_FORMAT_VERSION */
 #define DFB_SHEET_EPOCH  1
 #define DFB_SHEET_VALID  2    /* 1 when this describes the current, fully loaded character */
@@ -361,6 +361,15 @@ typedef struct dfb_face
 #define DFB_CLIMB_GRASP    1   /* grab a wall while airborne; base 40 */
 #define DFB_CLIMB_CONTINUE 2   /* keep climbing; base 50 */
 #define DFB_CLIMB_REGAIN   3   /* regain a hold while slipping; base 20 */
+/* Automatics skill rules (work/backlog/skills-in-doom.md), from the live Automatics skill. Daggerfall decides
+   them and Doom applies them to guns whose skill is Automatics. 0 means that rule is off. */
+#define DFB_SHEET_AUTO_DAMAGE_BP      155  /* damage bonus in 1/10000ths (+0% to +60% by skill) */
+#define DFB_SHEET_AUTO_BURST_BP       156  /* burst fire: this much more damage ... */
+#define DFB_SHEET_AUTO_BURST_SHOTS    157  /* ... on the first this many shots of a burst ... */
+#define DFB_SHEET_AUTO_BURST_RESET_MS 158  /* ... which restarts this long after the last shot */
+#define DFB_SHEET_AUTO_SHOTS_PER_AMMO 159  /* one ammo per this many shots; 1 or 0 is normal use */
+#define DFB_SHEET_AUTO_SUNDER_BP      160  /* each hit makes the enemy take this much more damage from all sources ... */
+#define DFB_SHEET_AUTO_SUNDER_MAX_BP  161  /* ... permanently, up to this much */
 
 /* Daggerfall screens Doom can ask for. Add new menus here. */
 #define DFB_UI_NONE        0u
