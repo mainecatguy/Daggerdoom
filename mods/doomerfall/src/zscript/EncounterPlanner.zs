@@ -167,7 +167,7 @@ class DoomerfallEncounterPlan
 	bool civilWar;
 	int regionCellX, regionCellY;
 	int regionKind;         // the region's favourite kind, -1 when none
-	int regionAfford;       // centipoints: the dearest single monster the budget can buy at this area level
+	int regionAfford;       // centipoints: the dearest favourite or stand-in class counted as purchasable (chosen rule)
 	DoomerfallArmy a, b;    // b only in a Civil War
 	Array<String> warnings;
 
@@ -413,10 +413,10 @@ class DoomerfallEncounterPlanner play
 		double cell = max(1., data.Value("region_cell", 48));
 		result.regionCellX = int(floor(req.worldX / cell));
 		result.regionCellY = int(floor(req.worldY / cell));
-		// Purchasable: the dearest single monster the budget can buy at this area level. The largest budget a placement
-		// gets is a strong boss at boss_share_max times the average (6.1, 6.4), and its leader may take 3/4 of that
-		// (BossLeader). Above this no rule of the budget can buy one.
-		result.regionAfford = int(data.AveragePoints(clamp(req.areaLevel, 0, 30)) * data.Value("boss_share_max", 8) * 75 + 0.5);
+		// A chosen rule, not a limit of the budget (giant rooms, hordes and bosses can buy dearer monsters): the
+		// favourite counts as purchasable when an ordinary encounter (region_afford times the level's average, 6.1) can
+		// buy one, so it can show up in ordinary packs. The stand-in must meet the same bound.
+		result.regionAfford = int(data.AveragePoints(clamp(req.areaLevel, 0, 30)) * data.Value("region_afford", 1) * 100 + 0.5);
 		Array<int> kinds;
 		for (int k = 0; k < data.kindName.Size(); k++)
 		{
@@ -721,9 +721,9 @@ class DoomerfallEncounterPlanner play
 		result.warnings.Push(String.Format("theme %s: no %smonster from the theme is in the pool", theme.name, civil ? "Civil War safe " : ""));
 	}
 
-	// The region's favourite kind is guaranteed. When the area level cannot purchase any class of it (no class costs
-	// result.regionAfford or less), an affordable stand-in is added instead (owner, 2026-11-26), even if another role
-	// already holds an unpurchasable class of the kind. A purchasable kind is handled exactly as before.
+	// The region's favourite kind is guaranteed. When no class of it counts as purchasable (costs result.regionAfford
+	// or less), a stand-in within that bound is added instead (owner, 2026-11-26), even if another role already holds
+	// a dearer class of the kind. A purchasable kind is handled exactly as before.
 	private void GuaranteeRegion(DoomerfallArmy army, bool civil, DoomerfallEncounterRng r)
 	{
 		if (result.regionKind < 0) return;

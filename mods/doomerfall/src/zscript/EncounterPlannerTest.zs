@@ -60,8 +60,23 @@ class DoomerfallEncounterPlanTest : StaticEventHandler
 	// rule's; no Dragon's Den or Vampire Haunt (they are counted at 120 each).
 	private int Ladder()
 	{
+		int bestX, bestY;
+		DearestFavouriteCell(bestX, bestY);
+		Console.Printf("ENCPLAN ladder cell=%d,%d", bestX, bestY);
+		static const String types[] = { "OrcStronghold", "Prison", "Mine", "NaturalCave", "DesecratedTemple", "RuinedCastle",
+			"SpiderNest", "GiantStronghold", "Cemetery", "BarbarianStronghold", "Crypt" };
+		static const int levels[] = { 0, 1, 2, 3, 4, 5, 7, 10, 15, 20, 30 };
+		for (int k = 0; k < 11; k++) Run(3790 + k * 7, types[k], bestX * 48 + 2 + k * 4, bestY * 48 + 2 + k * 4, levels[k]);
+		return 11;
+	}
+
+	// The region cell (of 20 x 10) whose favourite kind's cheapest uncapped class is dearest. Also used by the budget test.
+	static void DearestFavouriteCell(out int bestX, out int bestY)
+	{
 		let pool = DoomerfallEncounterPool.Get();
-		int bestX = 0, bestY = 0, bestCost = -1;
+		int bestCost = -1;
+		bestX = 0;
+		bestY = 0;
 		for (int cy = 0; cy < 10; cy++)
 		{
 			for (int cx = 0; cx < 20; cx++)
@@ -82,12 +97,6 @@ class DoomerfallEncounterPlanTest : StaticEventHandler
 				if (cheapest > bestCost) { bestCost = cheapest; bestX = cx; bestY = cy; }
 			}
 		}
-		Console.Printf("ENCPLAN ladder cell=%d,%d", bestX, bestY);
-		static const String types[] = { "OrcStronghold", "Prison", "Mine", "NaturalCave", "DesecratedTemple", "RuinedCastle",
-			"SpiderNest", "GiantStronghold", "Cemetery", "BarbarianStronghold", "Crypt" };
-		static const int levels[] = { 0, 1, 2, 3, 4, 5, 7, 10, 15, 20, 30 };
-		for (int k = 0; k < 11; k++) Run(3790 + k * 7, types[k], bestX * 48 + 2 + k * 4, bestY * 48 + 2 + k * 4, levels[k]);
-		return 11;
 	}
 
 	private void Run(int index, String type, double x, double y, int level)

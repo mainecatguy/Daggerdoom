@@ -36,6 +36,7 @@ class DoomerfallEncounterBudgetTest : StaticEventHandler
 			Run(1003 + k * 13, "DragonsDen", 25 + k % 6, 24, true, false);
 			Run(1004 + k * 13, "Crypt", k % 31, 5 + k % 60, k % 7 != 0, false);
 		}
+		RegionRuns();
 		// The hooks (6.6) on a copy of the level 30 plan.
 		Hooks();
 		Console.Printf("ENCBUD time ms=%d", MSTime() - t0);
@@ -175,6 +176,46 @@ class DoomerfallEncounterBudgetTest : StaticEventHandler
 				pl.reserveMonster ? "" .. pl.reserveMonster.cls.GetClassName() : "none", pl.budget, pl.spent, pl.mooks.Size(), int(at.walk),
 				int(at.treasure), int(at.fitRadius), membersOk, fitsOk, Hex(at.idHi, at.idLo),
 				last >= 0 ? Hex(pl.mooks[0].idHi, pl.mooks[0].idLo) : "-", last >= 0 ? Hex(pl.mooks[last].idHi, pl.mooks[last].idLo) : "-", list);
+		}
+	}
+
+	// The regional stand-in in the budget's output: dungeons at every level in the cell with the dearest favourite.
+	// One "ENCBUD region" line each: what the army holds for the favourite and how many of each were actually bought.
+	private void RegionRuns()
+	{
+		int cx, cy;
+		DoomerfallEncounterPlanTest.DearestFavouriteCell(cx, cy);
+		let d = DoomerfallEncounterPool.Get().data;
+		static const String types[] = { "OrcStronghold", "Mine", "RuinedCastle", "Crypt" };
+		static const int counts[] = { 10, 20, 40 };
+		for (int lvl = 0; lvl <= 30; lvl++)
+		{
+			for (int c = 0; c < 3; c++)
+			{
+				int index = 2000 + lvl * 3 + c;
+				let req = Fake(index, types[(lvl + c) % 4], lvl, counts[c], true);
+				req.worldX = cx * 48 + 4 + c * 12;
+				req.worldY = cy * 48 + 4 + lvl;
+				let p = DoomerfallEncounterPlanner.Plan(req);
+				if (!p || p.regionKind < 0) continue;
+				DoomerfallMonster standIn = null;
+				Array<DoomerfallMonster> st;   // the stand-in and its DRLA family variants
+				for (int i = 0; i < p.a.entries.Size(); i++)
+					if (p.a.entries[i].role == "standin") { st.Push(p.a.entries[i].m); if (!standIn) standIn = p.a.entries[i].m; }
+				int sMooks = 0, sPts = 0, fMooks = 0, fPts = 0;
+				for (int i = 0; i < p.placements.Size(); i++)
+				{
+					for (int k = 0; k < p.placements[i].mooks.Size(); k++)
+					{
+						let m = p.placements[i].mooks[k];
+						if (st.Find(m.m) != st.Size()) { sMooks++; sPts += m.cost; }
+						if (m.m.kind == p.regionKind) { fMooks++; fPts += m.cost; }
+					}
+				}
+				Console.Printf("ENCBUD region idx=%d level=%d n=%d kind=%s how=%s afford=%d avg=%d standin=%s standinkind=%s standinmooks=%d standinpts=%d favmooks=%d favpts=%d spent=%d",
+					index, lvl, counts[c], d.kindName[p.regionKind], p.a.regionHow, p.regionAfford, p.avgPoints,
+					standIn ? "" .. standIn.cls.GetClassName() : "-", standIn ? d.kindName[standIn.kind] : "-", sMooks, sPts, fMooks, fPts, p.spentPoints);
+			}
 		}
 	}
 

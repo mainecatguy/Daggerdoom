@@ -178,7 +178,37 @@ def check(name, lines, out, checks, stock):
                        f'Move gave it to {pr["moveto"]}; spent + leftover = pool ({pr["totalafter"]} + {pr["leftover"]} = {pr["pool"]})', ok))
     mf = other.get('movefull')
     checks.append((f'{name}: Move with every placement full drops and reports the points', bool(mf) and mf['to'] == '-1' and mf['dropped'] == '500'))
+    check_region(name, out, checks)
     return out, plans, places
+
+
+def check_region(name, out, checks):
+    """Regional stand-in in the budget's output (dungeons at every level in the cell with the dearest favourite)."""
+    rows = [kv(l[len('ENCBUD region '):]) for l in out if l.startswith('ENCBUD region ')]
+    st = [r for r in rows if r['how'] == 'standin']
+    fav = [r for r in rows if r['how'] != 'standin']
+    unbought = [r['idx'] for r in st if int(r['standinmooks']) == 0]
+    shares = sorted(1000 * int(r['standinpts']) // max(1, int(r['spent'])) for r in st)
+    favkept = [r for r in st if int(r['favmooks']) > 0]
+    levels = sorted({int(r['level']) for r in st})
+    fav_unbought = [r['idx'] for r in fav if int(r['favmooks']) == 0]
+    print(f'{name}: region runs: {len(rows)} dungeons, favourite {rows[0]["kind"] if rows else "-"}; stand-in at levels {levels}; '
+          f'stand-in share of points (per mille) min/median/max '
+          f'{shares[0] if shares else "-"}/{shares[len(shares) // 2] if shares else "-"}/{shares[-1] if shares else "-"}; '
+          f'{len(favkept)}/{len(st)} stand-in dungeons still spawn the favourite through another role; '
+          f'{len(fav_unbought)}/{len(fav)} favourite dungeons bought no favourite')
+    for r in st[:6] + favkept[:4]:
+        print(f'  idx {r["idx"]} L{r["level"]} n={r["n"]} {r["how"]} {r["standin"]} x{r["standinmooks"]} '
+              f'({r["standinpts"]}/{r["spent"]}), favourite x{r["favmooks"]}')
+    # The regional guarantee is a share of the army that squads draw from, not a promise to spawn: the favourite itself
+    # goes unbought in some dungeons too. So a stand-in must be bought at least about as often as the favourite is
+    # (within 10 points), and in at least 75% of its dungeons.
+    st_rate = 1 - len(unbought) / max(1, len(st))
+    fav_rate = 1 - len(fav_unbought) / max(1, len(fav))
+    checks.append((f'{name}: region runs: stand-ins are actually bought in {len(st) - len(unbought)}/{len(st)} stand-in dungeons '
+                   f'({st_rate:.0%}), the favourite in {len(fav) - len(fav_unbought)}/{len(fav)} favourite dungeons ({fav_rate:.0%}); '
+                   f'unbought {unbought[:5]}', len(rows) > 60 and len(st) > 0 and len(fav) > 0 and st_rate >= 0.75
+                   and st_rate >= fav_rate - 0.10))
 
 
 def summary(plans, places):
