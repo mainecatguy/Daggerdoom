@@ -649,7 +649,7 @@ const char *UiCommandName(uint32_t id)
 	if (id == DFB_UI_SPELLBOOK) return "netevent df_spellbook";
 	if (id == DFB_UI_STATUS) return "netevent df_status";
 	if (id == DFB_UI_TRANSPORT) return "netevent df_transport";
-	return id == DFB_UI_INVENTORY || id == DFB_UI_LOOT ? "netevent df_inventory" : id == DFB_UI_MAP ? "togglemap" : "netevent df_fast_travel";
+	return id == DFB_UI_INVENTORY || id == DFB_UI_LOOT ? "netevent df_inventory" : id == DFB_UI_MAP ? "netevent df_map" : "netevent df_fast_travel";
 }
 
 void RunUiTest(int64_t now)
@@ -724,7 +724,8 @@ bool IsOpenMenuKey(long long lParam)
 	if (uiTyping) return false; // The key is a letter for the text box.
 	if (uiId == DFB_UI_SPELLBOOK && key == 0x0E) return false; // Backspace is Daggerfall's own spellbook key: it closes the book, and still types in its text boxes.
 	if (uiId == DFB_UI_STATUS) return false; // Daggerfall's Status key pages from the status box to health and then closes it (StatusKeyAsEnter).
-	return bound.CompareNoCase(UiCommandName(uiId)) == 0;
+	// The tween menu's key (Doom's togglemap, Tab) also closes every window opened from it.
+	return bound.CompareNoCase(UiCommandName(uiId)) == 0 || bound.CompareNoCase("togglemap") == 0;
 }
 
 // In Daggerfall's status boxes, Doom's Status key is sent as Enter, the boxes' own proceed key, as Daggerfall's Status key is.
@@ -805,8 +806,20 @@ bool DD_BridgeToggleMap()
 	double x, y, z, yaw;
 	const DDPlayerArea area = DDTreadmill_PlayerWorld(x, y, z, yaw);
 	if (area == DD_AREA_NONE) return false;
-	if (UiCanOpen()) OpenUi(DFB_UI_MAP, uint32_t(area));
+	if (!UiCanOpen()) return true;
+	// The Doomerfall mod's tween menu (zscript/DoomerfallTweenMenu.zs) offers the map with the other windows.
+	if (PClass::FindClass("DoomerfallTweenMenu")) C_DoCommand("openmenu DoomerfallTweenMenu");
+	else OpenUi(DFB_UI_MAP, uint32_t(area));
 	return true;
+}
+
+// netevent df_map: Daggerfall's map of the current area, or Doom's own map on a regular Doom map.
+static void OpenMap()
+{
+	double x, y, z, yaw;
+	const DDPlayerArea area = DDTreadmill_PlayerWorld(x, y, z, yaw);
+	if (area == DD_AREA_NONE) AM_ToggleMap();
+	else OpenUi(DFB_UI_MAP, uint32_t(area));
 }
 
 bool DD_BridgeHasSession() { return session != nullptr; }
@@ -979,14 +992,19 @@ bool DD_BridgeNetEvent(const char *name)
 	const bool inventory = !strcmp(name, "df_inventory"), journal = !strcmp(name, "df_journal"), rest = !strcmp(name, "df_rest");
 	const uint32_t window = !strcmp(name, "df_character") ? DFB_UI_CHARACTER : !strcmp(name, "df_spellbook") ? DFB_UI_SPELLBOOK
 		: !strcmp(name, "df_status") ? DFB_UI_STATUS : DFB_UI_NONE;
-	const bool transport = !strcmp(name, "df_transport");
-	if (!inventory && !journal && !rest && !window && !transport && strcmp(name, "df_fast_travel")) return false;
+	const bool transport = !strcmp(name, "df_transport"), map = !strcmp(name, "df_map");
+	if (!inventory && !journal && !rest && !window && !transport && !map && strcmp(name, "df_fast_travel")) return false;
 	if (uiState != UiClosed)
 	{
 		SendUiCommand(DFB_KIND_UI_CLOSE, uiId);
 		return true;
 	}
 	if (!UiCanOpen()) return true;
+	if (map)
+	{
+		OpenMap();
+		return true;
+	}
 	if (inventory || window) // Character sheet, spellbook and status: Daggerfall's own windows, with its own refusals.
 	{
 		OpenUi(inventory ? DFB_UI_INVENTORY : window, inventory ? 0 : ownState.world_context); // The sheet's journal travels only from outdoors.

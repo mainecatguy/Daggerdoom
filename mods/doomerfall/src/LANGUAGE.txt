@@ -1,0 +1,7 @@
+// Texts of the converted Skyrim UI menus (zscript/DoomerfallSwfMenu.zs): a SWF text "$KEY" reads SKYUI_KEY.
+[enu default]
+SKYUI_SKILLS = "CHARACTER";
+SKYUI_MAGIC = "MAGIC";
+SKYUI_ITEMS = "INVENTORY";
+SKYUI_MAP = "MAP";
+SKYUI_LEVEL = "LEVEL";

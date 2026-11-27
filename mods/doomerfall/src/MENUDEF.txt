@@ -22,6 +22,7 @@ OptionMenu "DoomerfallControlsMenu"
 	Control "Open Journal", "netevent df_journal"
 	Control "Open Character Sheet", "netevent df_character"
 	Control "Open Spellbook", "netevent df_spellbook"
+	Control "Open Map", "netevent df_map" // Tab (Doom's Automap control) opens the tween menu, which also offers it.
 	Control "Open Transport", "netevent df_transport"
 	Control "Rest", "netevent df_rest"
 	Control "Info", "netevent df_info"

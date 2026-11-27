@@ -1,0 +1,3 @@
+# Skyrim UI menus converted into the Doomerfall pk3 by scripts/doomerfall/build_pk3.py (tools/skyrim_ui/convert.py).
+# <swf file> <exported root symbol> <name: graphics/skyrimui/<name>/ and skyrimui/<name>.txt in the pk3>
+tweenmenu.swf TweenMenuObj tweenmenu
