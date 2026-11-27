@@ -1,6 +1,10 @@
 """Loads a plain Daggerfall save (no Doom half) in a paired session through the launcher, minimized.
 
-  run_plain_load.py <save> [save]   <save>: nogun or gun. With "save", Doom's load test then saves, changes, and reloads.
+  run_plain_load.py <save> [save] [--root DIR] [--source FOLDER-OR-ZDS]
+  <save>: nogun or gun. With "save", Doom's load test then saves, changes, and reloads.
+  --root: an install folder (scripts/play/install.py) to run instead of the plainsaves review folder.
+  --source: the Daggerfall save to copy, a save folder or a Doomerfall .zds bundle. From a bundle only Daggerfall's own
+  files are taken (no Doomerfall*.json), so it is a plain save. A New Game bundle gives one inside Privateer's Hold.
 
 Both test saves are copies of one source save, written to the test folder's private portable saves; the source is only
 read. "nogun" is the copy as it is. "gun" adds a DRLA shotgun (a Doom item) to the inventory. The test flags open
@@ -13,11 +17,13 @@ import shutil
 import subprocess
 import sys
 import time
+import zipfile
 from pathlib import Path
 
-REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\plainsaves")
+REVIEW = Path(sys.argv[sys.argv.index("--root") + 1]) if "--root" in sys.argv else Path(r"D:\dev\DoomDaggerfall-loop\review\plainsaves")
 DATA = REVIEW / "data"
-SOURCE = Path(r"C:\Users\Patrick\AppData\LocalLow\Daggerfall Workshop\Daggerfall Unity\Saves\SAVE0")  # read only
+SOURCE = Path(sys.argv[sys.argv.index("--source") + 1]) if "--source" in sys.argv else \
+    Path(r"C:\Users\Patrick\AppData\LocalLow\Daggerfall Workshop\Daggerfall Unity\Saves\SAVE0")  # read only
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 IWAD = r"D:\dev\DoomDaggerfall\GameResources\wads\DOOM2.WAD"
 DAGGER = r"D:\dev\DoomDaggerfall\GameResources\DAGGER"
@@ -35,7 +41,18 @@ def make_save(kind):
     target = REVIEW / "dfu" / "PortableAppdata" / "Saves" / folder
     if target.exists():
         shutil.rmtree(target)
-    shutil.copytree(SOURCE, target)
+    if SOURCE.suffix.lower() == ".zds":
+        target.mkdir(parents=True)
+        prefix = "doomerfall/daggerfall/"
+        with zipfile.ZipFile(SOURCE) as z:
+            for entry in z.namelist():
+                leaf = entry[len(prefix):]
+                if entry.startswith(prefix) and leaf and not leaf.startswith("Doomerfall"):
+                    (target / leaf).parent.mkdir(parents=True, exist_ok=True)
+                    (target / leaf).write_bytes(z.read(entry))
+            (target / "Screenshot.jpg").write_bytes(z.read("savepic.png"))  # the Load window reads one; PNG bytes load fine
+    else:
+        shutil.copytree(SOURCE, target)
     info = json.loads((target / "SaveInfo.txt").read_text())
     info["saveName"] = name
     (target / "SaveInfo.txt").write_text(json.dumps(info, indent=4))
@@ -52,8 +69,9 @@ def make_save(kind):
 
 
 def main():
-    kind = sys.argv[1]
-    load = sys.argv[2] if len(sys.argv) > 2 else ""
+    args = [a for i, a in enumerate(sys.argv[1:], 1) if not a.startswith("--") and sys.argv[i - 1] not in ("--root", "--source")]
+    kind = args[0]
+    load = args[1] if len(args) > 1 else ""
     save_name = make_save(kind)
     name = f"{kind}{'-' + load if load else ''}"
     run = REVIEW / "test-run"
@@ -105,7 +123,7 @@ def main():
     finally:
         subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True)
     print("result:", result)
-    pattern = r"plain load|starter|hotkeys:|ammo: (plain|after load|add|equip)|load test|save \d+: wrote|FAILED|error|DDPLAINLOAD|DDNEWGAME"
+    pattern = r"plain load|starter|hotkeys:|ammo: (plain|after load|add|equip)|load test|save \d+: wrote|FAILED|error|DDPLAINLOAD|DDNEWGAME|setup:|arrival|save:|committed"
     for path in (uz_log, df_log, console):
         lines = [l for l in read(path).splitlines() if re.search(pattern, l)]
         print(f"--- {path.name}: {len(lines)} lines")

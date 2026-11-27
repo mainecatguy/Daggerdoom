@@ -31,6 +31,7 @@ SETUP = {"normal": None, "slow": "2500", "lost": "lost", "nosave": "2500", "use"
 # One tic of the setup spawns the dungeon's monsters and blocks the loop for ~150-250 ms here (it did before this goal);
 # "responsive" here means no stall near Windows' 5 s "not responding" mark.
 MAX_GAP_MS = 1000
+ARMY = 73  # Privateer's Hold's planned mooks on a first visit (DDENC spawned 73 mooks)
 
 
 def harness(path, demo, use=False):
@@ -105,8 +106,13 @@ def run(mode):
         presses = re.findall(r"arrivaltest: use presses=(\d+)", bridge)
         print("use presses during the freeze:", presses)
         ok = ok and len(results) == 1 and bool(presses) and int(presses[0]) > 0
-    if mode == "normal":  # the dungeon's spawn ran inside the freeze (monsters seen frozen, or spawned on its last tics)
-        ok = ok and any(int(r[1]) + int(r[3]) > 0 for r in results)
+    # The whole army (Privateer's Hold, this install's data) came inside the freeze. In normal mode the spawn is the last
+    # thing setup waits for, so it lands on the last frozen tic: the harness counts those monsters as spawned (inside the
+    # freeze, after its last snapshot), not as snapshotted and checked unchanged; the slower modes show them held.
+    if mode == "normal":
+        ok = ok and any(int(r[1]) + int(r[3]) == ARMY for r in results)
+    if mode in ("slow", "nosave", "use"):
+        ok = ok and any(int(r[1]) == ARMY for r in results)
     if mode in ("slow", "lost", "nosave", "use"):
         ok = ok and any(float(r[8]) >= (4500 if mode == "lost" else 2000) for r in results)
     print(f"{mode} {'PASS' if ok else 'FAIL'} | stopped: {reason} | freezes {len(results)}")
