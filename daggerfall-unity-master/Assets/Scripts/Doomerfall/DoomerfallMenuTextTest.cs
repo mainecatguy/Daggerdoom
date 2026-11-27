@@ -2,7 +2,7 @@
 // the text Doom shows can be compared with Daggerfall Unity's. Gives the player Casual Pants (the item in the owner's
 // screenshot), and whenever the inventory is the top window, fills its info panel with that item, as hovering would.
 // With a folder, once the inventory is open it also shows the character sheet, a shop (trade) window and the talk
-// window in turn, and saves Daggerfall Unity's own render of each (the UI render target Doom is sent) to
+// window, then the merchant, guild, repair and witches' coven popups in turn, and saves Daggerfall Unity's own render of each (the UI render target Doom is sent) to
 // <folder>/dfu-<name>.png, logging each step to <folder>/dfu-steps.txt.
 // Starts itself; no hook in game classes. Used by tools/menu_text/menu_text.py --menutext.
 
@@ -10,6 +10,8 @@ using System;
 using System.Collections;
 using System.IO;
 using System.Reflection;
+using DaggerfallConnect.Arena2;
+using DaggerfallWorkshop.Game.Guilds;
 using DaggerfallWorkshop.Game.Items;
 using DaggerfallWorkshop.Game.UserInterface;
 using DaggerfallWorkshop.Game.UserInterfaceWindows;
@@ -55,7 +57,34 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             yield return Show("charactersheet", () => new DaggerfallCharacterSheetWindow(DaggerfallUI.UIManager));
             yield return Show("shop", () => new DaggerfallTradeWindow(DaggerfallUI.UIManager, null, DaggerfallTradeWindow.WindowModes.Buy));
             yield return Show("talk", () => new DaggerfallTalkWindow(DaggerfallUI.UIManager));
+            // The NPC popups whose painted words DoomerfallPopupText redraws, each alone over the inventory.
+            DaggerfallUI.UIManager.PopWindow();
+            yield return Popup("merchant", () => new DaggerfallMerchantServicePopupWindow(DaggerfallUI.UIManager, Npc(0),
+                DaggerfallMerchantServicePopupWindow.Services.Sell));
+            yield return Popup("guild", () => new DaggerfallGuildServicePopupWindow(DaggerfallUI.UIManager,
+                Npc((int)GuildNpcServices.MG_Training), FactionFile.GuildGroups.MagesGuild, MagesGuildFaction));
+            yield return Popup("repair", () => new DaggerfallMerchantRepairPopupWindow(DaggerfallUI.UIManager, Npc(0)));
+            yield return Popup("coven", () => new DaggerfallWitchesCovenPopupWindow(DaggerfallUI.UIManager, Npc(0)));
             Step("done");
+        }
+
+        const int MagesGuildFaction = 40;
+
+        IEnumerator Popup(string name, Func<IUserInterfaceWindow> make)
+        {
+            yield return Show(name, make);
+            if (!(DaggerfallUI.UIManager.TopWindow is DaggerfallInventoryWindow))
+                DaggerfallUI.UIManager.PopWindow();
+        }
+
+        StaticNPC Npc(int factionId)
+        {
+            var npc = new GameObject("DoomerfallMenuTextTestNpc").AddComponent<StaticNPC>();
+            FieldInfo field = typeof(StaticNPC).GetField("npcData", BindingFlags.Instance | BindingFlags.NonPublic);
+            object data = field.GetValue(npc);
+            typeof(StaticNPC.NPCData).GetField("factionID").SetValue(data, factionId);
+            field.SetValue(npc, data);
+            return npc;
         }
 
         IEnumerator Show(string name, Func<IUserInterfaceWindow> make)
