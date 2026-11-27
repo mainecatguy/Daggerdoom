@@ -104,16 +104,17 @@ function Save-Work {
     }
 }
 
-# Collects raw agent reports in the main checkout for the orchestrator to triage, without duplicates.
+# Collects raw agent reports in the main checkout for the note taker (take_notes.ps1), one new file per round,
+# <run>-r<round>-<lane>.md, so a filed report is never rewritten. An item already reported this run is skipped.
 function Add-AgentReports($Items, $Kind) {
-    $new = @($Items | ForEach-Object { ([string]$_ -replace '\s+', ' ').Trim() } | Where-Object { $_ })
+    $new = @($Items | ForEach-Object { ([string]$_ -replace '\s+', ' ').Trim() } | Where-Object { $_ -and -not $script:Reported.ContainsKey("$Kind|$_") })
     if (-not $new.Count) { return }
-    $lines = if (Test-Path $ReportsFile) { @([IO.File]::ReadAllLines($ReportsFile)) } else { @("# Agent reports from run $Stamp ($(Split-Path $GoalFile -Leaf))", '') }
-    foreach ($q in $new) {
-        if (-not @($lines | Where-Object { $_.EndsWith("] [$Kind] $q") }).Count) { $lines += "- [$Stamp] [$Kind] $q" }
-    }
-    New-Item -ItemType Directory -Force (Split-Path $ReportsFile -Parent) | Out-Null
-    Write-Text $ReportsFile (($lines -join "`n") + "`n")
+    $file = Join-Path $ReportsDir ("$Stamp-r$round" + $(if ($Lane) { "-$Lane" }) + '.md')
+    $lines = @()
+    if (-not (Test-Path -LiteralPath $file)) { $lines += "# Agent reports from run $Stamp round $round ($(Split-Path $GoalFile -Leaf))", '' }
+    foreach ($q in $new) { $script:Reported["$Kind|$q"] = $true; $lines += "- [$Stamp] [$Kind] $q" }
+    New-Item -ItemType Directory -Force $ReportsDir | Out-Null
+    [IO.File]::AppendAllText($file, (($lines -join "`n") + "`n"), (New-Object Text.UTF8Encoding($false)))
 }
 
 # Stats cover the worker agent and its subagents, not the verifier or reviewer. A failed read leaves blanks.
@@ -248,9 +249,9 @@ RepoGit $Worktree switch -q -c $Branch $Base | Out-Null
 
 $Goal = [IO.File]::ReadAllText($GoalFile)
 $QuestionsFile = Join-Path $Repo 'work\questions.md'
-# One file per run, so parallel lanes never rewrite each other's reports. The orchestrator deletes each once triaged.
+# One file per run and round (Add-AgentReports). The note taker moves each to triaged\ once filed.
 $ReportsDir = Join-Path $Repo 'work\agent-reports'
-$ReportsFile = Join-Path $ReportsDir ("$Stamp" + $(if ($Lane) { "-$Lane" }) + '.md')
+$Reported = @{}
 # Only triaged questions. Untriaged reports stay out of the prompt to keep it small; triage removes duplicates.
 $OpenQuestions = if (Test-Path $QuestionsFile) { [IO.File]::ReadAllText($QuestionsFile) } else { '' }
 if (-not $OpenQuestions) { $OpenQuestions = 'None.' }
@@ -330,6 +331,12 @@ try {
 }
 catch { $result = 'error'; $outcome = "Stopped: $($_.Exception.Message)" }
 finally { try { Save-Work } catch { Write-Warning 'Could not save final work.' } }
+# Blocked cards and harness stops reach the manager through the note taker.
+try {
+    if ($result -eq 'blocked') { Add-AgentReports @($outcome) 'blocked' }
+    elseif ($result -eq 'error') { Add-AgentReports @($outcome) 'harness' }
+}
+catch { Write-Warning "Could not write the final report line: $($_.Exception.Message)" }
 
 # --- Morning report and run metrics ---
 $commits = @(RepoGit $Worktree log --oneline "${Base}..$Branch")
