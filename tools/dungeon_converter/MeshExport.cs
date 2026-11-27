@@ -57,7 +57,7 @@ static partial class Program
         int[] table = tableAt >= 0 ? args[tableAt + 1].Split(',').Select(int.Parse).ToArray() : ClassicTextureTable(location);
         // --runtime-dungeon: the package loads beside ddruntime.pk3, which already holds the door runtime and two gate models.
         runtimeDungeon = args.Contains("--runtime-dungeon");
-        dungeonInfo = new StringBuilder($"map MAP01\nmapid {location.MapTableData.MapId}\n");
+        dungeonInfo = new StringBuilder($"map {OutputMapName}\nmapid {location.MapTableData.MapId}\n");
         Console.WriteLine($"climate {location.Climate.WorldClimate} base {location.Climate.ClimateType} texture table {string.Join(",", table)}");
 
         var blocks = new BlocksFile(Path.Combine(arena2, "BLOCKS.BSA"), FileUsage.UseMemory, true);
@@ -129,7 +129,7 @@ static partial class Program
                         var pivot = ToDoom(position);
                         // Unity swings about the door's own Y axis, which points down on a flipped door, so the swing reverses.
                         double closed = -phi / toRad;
-                        doorPlacements.Add(FormattableString.Invariant($"{doorModel.Slot} {pivot.X:F3} {pivot.Y:F3} {pivot.Z:F3} {closed:F3} {doorModel.X0:F3} {doorModel.X1:F3} {doorModel.Y0:F3} {doorModel.Y1:F3} {doorModel.Z0:F3} {doorModel.Z1:F3} {(flipped ? -1 : 1)} {DoorLockValues[(obj.Resources.ModelResource.TriggerFlag_StartingLock >> 4) & 15]} {(long)block.Position + obj.Position}"));
+                        doorPlacements.Add(FormattableString.Invariant($"{doorModel.Token} {pivot.X:F3} {pivot.Y:F3} {pivot.Z:F3} {closed:F3} {doorModel.X0:F3} {doorModel.X1:F3} {doorModel.Y0:F3} {doorModel.Y1:F3} {doorModel.Z0:F3} {doorModel.Z1:F3} {(flipped ? -1 : 1)} {DoorLockValues[(obj.Resources.ModelResource.TriggerFlag_StartingLock >> 4) & 15]} {(long)block.Position + obj.Position}"));
                         continue;
                     }
                     foreach (var sub in mesh.SubMeshes)
@@ -172,7 +172,7 @@ static partial class Program
             var body = new MemoryStream();
             var writer = new BinaryWriter(body);
             writer.Write(Encoding.ASCII.GetBytes("DFM1"));
-            writer.Write(Encoding.ASCII.GetBytes("MAP01\0\0\0"));
+            writer.Write(Encoding.ASCII.GetBytes(OutputMapName.PadRight(8, '\0').Substring(0, 8)));
             writer.Write(keys.Count); writer.Write(keys.Count); writer.Write(batches.Values.Sum(b => b.Count) / 8);
             foreach (var k in keys)
                 writer.Write(Encoding.ASCII.GetBytes($"dfmesh/a{k.archive:D3}r{k.record:D2}.png".PadRight(32, '\0')));
@@ -188,7 +188,7 @@ static partial class Program
             using (var s = zip.CreateEntry("DFMESH", CompressionLevel.Fastest).Open()) { body.Position = 0; body.CopyTo(s); }
             // Daggerfall has square pixels. Doom's default 1.2 vertical stretch would distort the real mesh.
             using (var s = new StreamWriter(zip.CreateEntry("MAPINFO", CompressionLevel.Fastest).Open()))
-                s.Write($"map MAP01 \"{location.Name}\"\n{{\n\tpixelratio = 1.0\n{(runtimeDungeon ? "\tkeepfullinventory\n\tUsePlayerStartZ\n" : "")}}}\n");
+                s.Write($"map {OutputMapName} \"{location.Name}\"\n{{\n\tpixelratio = 1.0\n{(runtimeDungeon ? "\tkeepfullinventory\n\tUsePlayerStartZ\n" : "")}}}\n");
 
             var animdefs = new StringBuilder();
             foreach (var k in keys)

@@ -19,6 +19,7 @@ static partial class Program
         public int Flag, Axis, Duration, Magnitude, Sound;
         public V3 Position;
         public readonly List<int> Previous = new List<int>();
+        public string VisualToken; // the visual as DFACTIONS names it, when it is not the slot number
         public int Door = -1, Visual = -1, Kind, FlatArchive, FlatRecord, LockValue;
         public double Yaw, X0, X1, Y0, Y1, Z0, Z1;
     }
@@ -303,6 +304,7 @@ static partial class Program
                 }
             }
             r.Visual = model.Slot;
+            r.VisualToken = model.Token;
             (r.X0, r.X1, r.Y0, r.Y1, r.Z0, r.Z1) = (model.X0, model.X1, model.Y0, model.Y1, model.Z0, model.Z1);
             return;
         }
@@ -340,6 +342,7 @@ static partial class Program
             int slot = package.Flats.IndexOf((r.FlatArchive, r.FlatRecord));
             if (slot < 0) { slot = package.Flats.Count; package.Flats.Add((r.FlatArchive, r.FlatRecord)); }
             r.Visual = slot;
+            if (catalogNames) r.VisualToken = $"_a{r.FlatArchive:D3}r{r.FlatRecord:D2}";
         }
     }
 
@@ -353,7 +356,7 @@ static partial class Program
             int trigger = Enum.IsDefined(typeof(DFBlock.RdbTriggerFlags), (DFBlock.RdbTriggerFlags)r.Trigger) ? (int)r.Trigger : 0;
             double cx = (r.X0 + r.X1) / 2, cy = (r.Y0 + r.Y1) / 2;
             text.Append(FormattableString.Invariant(
-                $"A {r.Id} {r.Kind} {r.Flag} {trigger} {r.Next} {r.Door} {r.Visual} {r.Position.X:F3} {r.Position.Y:F3} {r.Position.Z:F3} {r.Yaw:F3} {move.X:F3} {move.Y:F3} {move.Z:F3} {spin.X:F3} {spin.Y:F3} {spin.Z:F3} {tics} {(forwardOnly ? 1 : 0)} {cx:F3} {cy:F3} 0 {r.X0:F3} {r.X1:F3} {r.Y0:F3} {r.Y1:F3} {r.Z0:F3} {r.Z1:F3} {r.Sound} {r.Axis} {r.Magnitude} {r.LockValue} {(r.TrapdoorTile ? 1 : 0)} {r.LoadId}\n"));
+                $"A {r.Id} {r.Kind} {r.Flag} {trigger} {r.Next} {r.Door} {r.VisualToken ?? r.Visual.ToString()} {r.Position.X:F3} {r.Position.Y:F3} {r.Position.Z:F3} {r.Yaw:F3} {move.X:F3} {move.Y:F3} {move.Z:F3} {spin.X:F3} {spin.Y:F3} {spin.Z:F3} {tics} {(forwardOnly ? 1 : 0)} {cx:F3} {cy:F3} 0 {r.X0:F3} {r.X1:F3} {r.Y0:F3} {r.Y1:F3} {r.Z0:F3} {r.Z1:F3} {r.Sound} {r.Axis} {r.Magnitude} {r.LockValue} {(r.TrapdoorTile ? 1 : 0)} {r.LoadId}\n"));
             if (r.Kind == 1)
             {
                 bool special = package.SpecialCells.ContainsKey(r.Model) && (IsSpecialDoorFlag(r.Flag) || r.TrapdoorTile);
