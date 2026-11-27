@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0xb51760797467b42dULL
+#define DFB_SCHEMA_HASH 0x2002bbd4e0f6b246ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -199,8 +199,8 @@ static_assert((DFB_FACES_FORMAT_VERSION) == (1u), DFB_STALE);
 static_assert((DFB_FACES_MAX) == (3u), DFB_STALE);
 static_assert((DFB_FACE_MAX_SIDE) == (64u), DFB_STALE);
 static_assert((DFB_SHEET_SLOT) == (0u), DFB_STALE);
-static_assert((DFB_SHEET_FORMAT_VERSION) == (7), DFB_STALE);
-static_assert((DFB_SHEET_INTS) == (162), DFB_STALE);
+static_assert((DFB_SHEET_FORMAT_VERSION) == (8), DFB_STALE);
+static_assert((DFB_SHEET_INTS) == (168), DFB_STALE);
 static_assert((DFB_SHEET_FORMAT) == (0), DFB_STALE);
 static_assert((DFB_SHEET_EPOCH) == (1), DFB_STALE);
 static_assert((DFB_SHEET_VALID) == (2), DFB_STALE);
@@ -250,6 +250,12 @@ static_assert((DFB_SHEET_AUTO_BURST_RESET_MS) == (158), DFB_STALE);
 static_assert((DFB_SHEET_AUTO_SHOTS_PER_AMMO) == (159), DFB_STALE);
 static_assert((DFB_SHEET_AUTO_SUNDER_BP) == (160), DFB_STALE);
 static_assert((DFB_SHEET_AUTO_SUNDER_MAX_BP) == (161), DFB_STALE);
+static_assert((DFB_SHEET_SHOT_DAMAGE_BP) == (162), DFB_STALE);
+static_assert((DFB_SHEET_SHOT_RELOAD_BP) == (163), DFB_STALE);
+static_assert((DFB_SHEET_SHOT_PELLET_BP) == (164), DFB_STALE);
+static_assert((DFB_SHEET_SHOT_KNOCK_BP) == (165), DFB_STALE);
+static_assert((DFB_SHEET_SHOT_SLAM_DAMAGE) == (166), DFB_STALE);
+static_assert((DFB_SHEET_SHOT_COLLIDE_DAMAGE) == (167), DFB_STALE);
 static_assert((DFB_UI_NONE) == (0u), DFB_STALE);
 static_assert((DFB_UI_TRAVEL_MAP) == (1u), DFB_STALE);
 static_assert((DFB_UI_INVENTORY) == (2u), DFB_STALE);

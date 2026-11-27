@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0xb51760797467b42dUL;
+        public const ulong SchemaHash = 0x2002bbd4e0f6b246UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -199,8 +199,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint FACES_MAX = 3;  // Daggerfall's HUD shows at most three faces
         public const uint FACE_MAX_SIDE = 64;
         public const uint SHEET_SLOT = 0;
-        public const int SHEET_FORMAT_VERSION = 7;  // 3: skill slots 4-6 are the gun skills, 7-12 unused; 4: slot 7 is Pistols; 5: slot 8 is Rifles; 6: slots 9-10 are Energy Weapons and Melee; 7: Automatics perk rules
-        public const int SHEET_INTS = 162;
+        public const int SHEET_FORMAT_VERSION = 8;  // 3: skill slots 4-6 are the gun skills, 7-12 unused; 4: slot 7 is Pistols; 5: slot 8 is Rifles; 6: slots 9-10 are Energy Weapons and Melee; 7: Automatics perk rules; 8: Shotguns perk rules
+        public const int SHEET_INTS = 168;
         public const int SHEET_FORMAT = 0;  // DFB_SHEET_FORMAT_VERSION
         public const int SHEET_EPOCH = 1;
         public const int SHEET_VALID = 2;  // 1 when this describes the current, fully loaded character
@@ -250,6 +250,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const int SHEET_AUTO_SHOTS_PER_AMMO = 159;  // one ammo per this many shots; 1 or 0 is normal use
         public const int SHEET_AUTO_SUNDER_BP = 160;  // each hit makes the enemy take this much more damage from all sources ...
         public const int SHEET_AUTO_SUNDER_MAX_BP = 161;  // ... permanently, up to this much
+        public const int SHEET_SHOT_DAMAGE_BP = 162;  // damage bonus in 1/10000ths (+0% to +75% by skill)
+        public const int SHEET_SHOT_RELOAD_BP = 163;  // reloads take this much less time, in 1/10000ths
+        public const int SHEET_SHOT_PELLET_BP = 164;  // this many more pellets per shot, in 1/10000ths
+        public const int SHEET_SHOT_KNOCK_BP = 165;  // knockback strength, 10000 = the 75 perk's
+        public const int SHEET_SHOT_SLAM_DAMAGE = 166;  // most extra damage an enemy knocked into a wall takes
+        public const int SHEET_SHOT_COLLIDE_DAMAGE = 167;  // most damage a knocked enemy and what it hits each take
         public const uint UI_NONE = 0;
         public const uint UI_TRAVEL_MAP = 1;
         public const uint UI_INVENTORY = 2;
