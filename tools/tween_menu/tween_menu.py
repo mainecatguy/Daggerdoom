@@ -90,7 +90,7 @@ class Paired:
     def __init__(self):
         self.dir = REVIEW / "run-paired"
         self.dir.mkdir(parents=True, exist_ok=True)
-        self.uz_log, self.console, self.launcher = self.dir / "uz.log", self.dir / "console.txt", self.dir / "launcher.log"
+        self.uz_log, self.console, self.launcher = self.dir / "uz.log", self.dir / "log-tweenmenu.txt", self.dir / "launcher.log"
         self.results = []
 
     def case(self, ok, what):
@@ -118,7 +118,11 @@ class Paired:
 
     def click_stage(self, x, y):
         """A click at a point of the menu's 1280x720 stage, fitted into Doom's screen as DDSwfMovie does."""
-        w, h = map(int, re.findall(r"TWEENTEST menu DoomerfallTweenMenu screen (\d+)x(\d+)", read(self.console))[-1])
+        import ctypes
+        from ctypes import wintypes
+        r = wintypes.RECT()
+        self.doom.user.GetClientRect(self.doom.hwnd, ctypes.byref(r))
+        w, h = r.right, r.bottom
         s = min(w / 1280, h / 720)
         lp = int((h - 720 * s) / 2 + y * s) << 16 | int((w - 1280 * s) / 2 + x * s)
         u = self.doom.user
@@ -129,27 +133,33 @@ class Paired:
         u.PostMessageW(self.doom.hwnd, 0x202, 0, lp)
         time.sleep(0.5)
 
+    # The bridge log (uz.log) is written at once; Doom's console log only when Doom exits. The test pk3 presses Tab
+    # again only after Doom has run unpaused for 3 seconds with no menu, so each next opening proves Doom resumed.
+    OPENED = r"ui: tween menu opened"
+
+    def opened(self, n, seconds=30):
+        return self.wait_count(self.uz_log, self.OPENED, n, seconds)
+
     def round(self, n, choose, name, close_vk, close_name):
-        opened = self.wait_count(self.console, r"Doomerfall: tween menu opened", n, 90 if n == 1 else 30)
-        self.case(opened, f"#{n}: Doom's togglemap (Tab) opens the tween menu over the frozen game")
-        if not opened:
-            return False
         if n == 1:
+            ok = self.opened(1, 120)
+            self.case(ok, "#1: Doom's togglemap (Tab) opens the tween menu")
+            if not ok:
+                return False
             self.doom = self.driver()
         time.sleep(0.6)  # The open animation.
         before = self.count(self.uz_log, r"Daggerfall opened menu %d at" % MENU[name])
         choose()
         shown = self.wait_count(self.uz_log, r"Daggerfall opened menu %d at" % MENU[name], before + 1, 20)
-        chose = re.findall(r"tween menu chose (\w+)", read(self.console))
-        self.case(shown, f"#{n}: the menu's choice opens Daggerfall's {name} window (chose {chose[-1:] if chose else None})")
+        self.case(shown, f"#{n}: the menu's choice opens Daggerfall's {name} window")
         time.sleep(1.5)
         closes = self.count(self.uz_log, r"ui: closed \(")
         self.doom.press(close_vk)
         closed = self.wait_count(self.uz_log, r"ui: closed \(", closes + 1, 10)
         self.case(closed, f"#{n}: {close_name} closes the {name} window")
-        resumed = self.wait_count(self.console, r"TWEENTEST doom resumed", n, 15)
-        self.case(resumed, f"#{n}: Doom resumes after the window closes")
-        return shown and closed
+        resumed = self.opened(n + 1)
+        self.case(resumed, f"#{n}: Doom resumes after the window closes (Tab opens the menu again)")
+        return shown and closed and resumed
 
     def go(self):
         for path in (self.uz_log, self.console, self.launcher):
@@ -157,7 +167,7 @@ class Paired:
         test_pk3(self.dir / "tweentest.pk3")
         uz = ["-noactivate", "-config", str(self.dir / "uz.ini"), "-savedir", str(self.dir / "saves"), "-dfbridgelog", str(self.uz_log), "-nosound", "-noautoload", "-skill", "3",
               "-ddtowncache", str(REVIEW / "data" / "cache"), "-ddconverter", str(REVIEW / "data" / "converter" / "DungeonConverter.exe"), "-ddarena2", str(GAME / "DAGGER" / "ARENA2"),
-              "+logfile", str(self.console), "+vid_fullscreen", "0", "+wipetype", "0", "+m_use_mouse", "1",
+              "+logfile", "tweenmenu",  # UZDoom writes log-tweenmenu.txt "+vid_fullscreen", "0", "+wipetype", "0", "+m_use_mouse", "1",
               "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{GROUP:05d}"]
         df = ["-dfbridgelog", str(self.dir / "df.log"), "-dfsynctest", str(GAME / "DAGGER"), "-dfspellbooktest", str(self.dir / "spellbook.log"),
               "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "400"]
@@ -190,19 +200,26 @@ class Paired:
         if not self.round(1, lambda: (self.doom.press(VK_UP), self.doom.press(VK_UP)), "character", VK_TAB, "Tab"):
             return
         # Keyboard: Left then Enter; Escape closes the window.
-        self.round(2, lambda: (self.doom.press(VK_LEFT), self.doom.press(VK_RETURN)), "spellbook", VK_ESCAPE, "Escape")
-        # Mouse: a click on ITEMS (right of the centre) and on MAP (below it).
-        self.round(3, lambda: self.click_stage(640 + 260, 360), "inventory", VK_ESCAPE, "Escape")
-        self.round(4, lambda: self.click_stage(640, 360 + 115), "map", VK_TAB, "Tab")
-        # Tab and Escape close the menu itself; Doom resumes, so the test key opens it again.
+        if not self.round(2, lambda: (self.doom.press(VK_LEFT), self.doom.press(VK_RETURN)), "spellbook", VK_ESCAPE, "Escape"):
+            return
+        # Right twice for the inventory, Down twice for the map.
+        if not self.round(3, lambda: (self.doom.press(0x27), self.doom.press(0x27)), "inventory", VK_ESCAPE, "Escape"):
+            return
+        if not self.round(4, lambda: (self.doom.press(0x28), self.doom.press(0x28)), "map", VK_TAB, "Tab"):
+            return
+        # Tab and Escape close the menu itself without opening anything; Doom resumes, so the test key opens it again.
         for n, (vk, name) in enumerate(((VK_TAB, "Tab"), (VK_ESCAPE, "Escape")), 5):
-            opened = self.wait_count(self.console, r"Doomerfall: tween menu opened", n, 30)
             time.sleep(0.6)
-            closes = self.count(self.console, r"Doomerfall: tween menu closed")
+            windows = self.count(self.uz_log, r"Daggerfall opened menu")
             self.doom.press(vk)
-            closed = self.wait_count(self.console, r"Doomerfall: tween menu closed", closes + 1, 5)
-            resumed = self.wait_count(self.console, r"TWEENTEST doom resumed", n, 15)
-            self.case(opened and closed and resumed, f"#{n}: {name} closes the tween menu and Doom resumes")
+            resumed = self.opened(n + 1)
+            self.case(resumed and self.count(self.uz_log, r"Daggerfall opened menu") == windows, f"#{n}: {name} closes the tween menu and Doom resumes")
+        # Probe only (not a case): posted mouse messages did not reach Doom's menu in an earlier run on the private desktop.
+        time.sleep(0.6)
+        before = self.count(self.uz_log, r"Daggerfall opened menu 2 at")
+        self.click_stage(640 + 260, 360)
+        got = self.wait_count(self.uz_log, r"Daggerfall opened menu 2 at", before + 1, 10)
+        print("INFO posted mouse click on INVENTORY", "opened the inventory" if got else "did nothing (posted mouse input not seen)")
 
 
 def check():
@@ -210,13 +227,13 @@ def check():
     runs.mkdir(parents=True, exist_ok=True)
     ok = True
     for label, mods in (("stock", []), ("drla", [str(MODS / n) for n in DRLA])):
-        log = runs / f"check-{label}.txt"
+        log = runs / f"log-check-{label}.txt"  # UZDoom's name for +logfile check-<label>
         log.unlink(missing_ok=True)
         shots = runs / f"shots-{label}"
         shutil.rmtree(shots, ignore_errors=True)
         command = [sys.executable, QUIET, "--timeout", "60" if mods else "30", "--cwd", str(runs), "--", str(REVIEW / "uzdoom" / "uzdoom.exe"), "-iwad", str(GAME / "wads" / "DOOM.WAD"),
                    "-config", str(runs / f"check-{label}.ini"), "-noautoload", "-file", *mods, str(REVIEW / "doomerfall.pk3"), *([str(REVIEW / "doomerfall-drla.pk3")] if mods else []),
-                   "+logfile", str(log), "+screenshot_dir", str(shots), "+vid_fullscreen", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0",
+                   "+logfile", f"check-{label}", "+screenshot_dir", str(shots), "+vid_fullscreen", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0",
                    "+map", "E1M1", "+wait 70;togglemap;wait 10;screenshot;togglemap;netevent df_map;openmenu DoomerfallTweenMenu;wait 35;screenshot;wait 10;quit"]
         code = subprocess.call(command)
         text = read(log)

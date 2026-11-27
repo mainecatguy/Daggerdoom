@@ -358,6 +358,8 @@ You cannot rest:
 
 ## Character sheet and spellbook
 
+**Tab** freezes the game under a four-way menu: Character (up), Magic (left), Inventory (right), Map (down); point and click, or press a direction twice (arrows or WASD), and Tab or Escape closes it or the window it opened.
+
 Press **P** for Daggerfall's character sheet and **Backspace** for your spellbook (rebind them in Options, Customize
 Controls, Doomerfall Controls as **Open Character Sheet** and **Open Spellbook**). Like the other keys, they are set for
 you only on a fresh install. Doom stays frozen while either is open.

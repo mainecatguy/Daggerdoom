@@ -36,7 +36,7 @@ class TweenTest_Events : StaticEventHandler
 // Runs togglemap from menu code, the only place a ZScript may run a console command, and closes at once.
 class TweenTestKey : GenericMenu
 {
-	override void Ticker()
+	override void Drawer() // Not Ticker: the engine lets only menu event and draw calls run commands.
 	{
 		Close();
 		let run = new("OptionMenuItemSafeCommand");

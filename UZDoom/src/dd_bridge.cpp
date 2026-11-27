@@ -808,7 +808,11 @@ bool DD_BridgeToggleMap()
 	if (area == DD_AREA_NONE) return false;
 	if (!UiCanOpen()) return true;
 	// The Doomerfall mod's tween menu (zscript/DoomerfallTweenMenu.zs) offers the map with the other windows.
-	if (PClass::FindClass("DoomerfallTweenMenu")) C_DoCommand("openmenu DoomerfallTweenMenu");
+	if (PClass::FindClass("DoomerfallTweenMenu"))
+	{
+		Log("ui: tween menu opened");
+		C_DoCommand("openmenu DoomerfallTweenMenu");
+	}
 	else OpenUi(DFB_UI_MAP, uint32_t(area));
 	return true;
 }
