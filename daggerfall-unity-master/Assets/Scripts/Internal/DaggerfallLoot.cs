@@ -149,9 +149,16 @@ namespace DaggerfallWorkshop
 
         public void StockShopShelf(PlayerGPS.DiscoveredBuilding buildingData)
         {
+            if (Game.Doomerfall.DoomerfallShopLedger.Restock(this, buildingData))   // [Doomerfall] the shelf is a ledger in a bridge session
+                return;
             stockedDate = CreateStockedDate(DaggerfallUnity.Instance.WorldTime.Now);
             items.Clear();
+            AddShopDelivery(buildingData, items);
+        }
 
+        /// <summary>Rolls one classic shop delivery into a collection without clearing it.</summary>
+        public void AddShopDelivery(PlayerGPS.DiscoveredBuilding buildingData, ItemCollection into)
+        {
             DFLocation.BuildingTypes buildingType = buildingData.buildingType;
             int shopQuality = buildingData.quality;
             Game.Entity.PlayerEntity playerEntity = GameManager.Instance.PlayerEntity;
@@ -162,7 +169,7 @@ namespace DaggerfallWorkshop
             {
                 case DFLocation.BuildingTypes.Alchemist:
                     itemGroups = DaggerfallLootDataTables.itemGroupsAlchemist;
-                    RandomlyAddPotionRecipe(25, items);
+                    RandomlyAddPotionRecipe(25, into);
                     break;
                 case DFLocation.BuildingTypes.Armorer:
                     itemGroups = DaggerfallLootDataTables.itemGroupsArmorer;
@@ -178,8 +185,8 @@ namespace DaggerfallWorkshop
                     break;
                 case DFLocation.BuildingTypes.GeneralStore:
                     itemGroups = DaggerfallLootDataTables.itemGroupsGeneralStore;
-                    items.AddItem(ItemBuilder.CreateItem(ItemGroups.Transportation, (int)Transportation.Horse));
-                    items.AddItem(ItemBuilder.CreateItem(ItemGroups.Transportation, (int)Transportation.Small_cart));
+                    into.AddItem(ItemBuilder.CreateItem(ItemGroups.Transportation, (int)Transportation.Horse));
+                    into.AddItem(ItemBuilder.CreateItem(ItemGroups.Transportation, (int)Transportation.Small_cart));
                     break;
                 case DFLocation.BuildingTypes.PawnShop:
                     itemGroups = DaggerfallLootDataTables.itemGroupsPawnShop;
@@ -208,7 +215,7 @@ namespace DaggerfallWorkshop
                         qualityMod++;
                         for (int j = 0; j <= qualityMod; ++j)
                         {
-                            items.AddItem(ItemBuilder.CreateRandomBook());
+                            into.AddItem(ItemBuilder.CreateRandomBook());
                         }
                     }
                     else
@@ -247,7 +254,7 @@ namespace DaggerfallWorkshop
                                         if (DaggerfallUnity.Settings.PlayerTorchFromItems && item.IsOfTemplate(ItemGroups.UselessItems2, (int)UselessItems2.Oil))
                                             item.stackCount = Random.Range(5, 20 + 1);  // Shops stock 5-20 bottles
                                     }
-                                    items.AddItem(item);
+                                    into.AddItem(item);
                                 }
                             }
                         }
@@ -279,14 +286,14 @@ namespace DaggerfallWorkshop
                                         ItemBuilder.ApplyArmorSettings(item, playerEntity.Gender, playerEntity.Race, material);
                                     }
 
-                                    items.AddItem(item);
+                                    into.AddItem(item);
                                 }
                             }
                         }
                     }
                 }
             }
-            Game.Doomerfall.DoomerfallAmmoTiers.StockShop(buildingType, shopQuality, items); // [Doomerfall] tiered Doom ammo
+            Game.Doomerfall.DoomerfallAmmoTiers.StockShop(buildingType, shopQuality, into); // [Doomerfall] tiered Doom ammo
         }
 
         public void StockHouseContainer(PlayerGPS.DiscoveredBuilding buildingData)
