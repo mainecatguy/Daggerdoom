@@ -27,7 +27,7 @@ BAD = re.compile(r'Script error, "doomerfall\.pk3|doomerfall\.pk3:zscript/\S+, l
 FAMILIES = {'Standard', 'Nightmare', 'Technophobia', 'Armageddon'}
 TITANS = {'EX', 'BlackWhite'}
 HUMANOID = {'ZombieMan', 'ShotgunGuy', 'ChaingunGuy'}
-PLAIN = re.compile(r'^(Zombieman|ShotgunGuy|ChaingunGuy|RLFormerHuman\w*|RLFormerSergeant\w*|RLFormerCommando\w*)$', re.I)
+PLAIN = {'Zombieman', 'ShotgunGuy', 'ChaingunGuy', 'RLFormerHumanPistol', 'RLFormerSergeantShotgun', 'RLFormerCommandoChaingun'}
 STOCK17 = {'ZombieMan', 'ShotgunGuy', 'ChaingunGuy', 'DoomImp', 'Demon', 'Spectre', 'LostSoul', 'Cacodemon', 'HellKnight',
            'BaronOfHell', 'Arachnotron', 'PainElemental', 'Revenant', 'Fatso', 'Archvile', 'Cyberdemon', 'SpiderMastermind'}
 
@@ -211,7 +211,7 @@ def check_setup(name, lines, out, checks, stock=False):
                 bad.append(f'{d["idx"]}{d["side"]} empty')
             for e in ents:
                 seen.add(e[1])
-                if not PLAIN.match(e[1]) or 'stealthy' in pool.get(e[1], {}).get('traits', 'stealthy'):
+                if e[1] not in PLAIN or 'stealthy' in pool.get(e[1], {}).get('traits', 'stealthy'):
                     bad.append(f'{d["idx"]}{d["side"]} {e[1]}')
         elif l.startswith('ENCPLAN warn ') and typ == 'PlainHumanoid':
             bad.append(l)

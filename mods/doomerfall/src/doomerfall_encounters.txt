@@ -491,6 +491,6 @@ theme RuinedCastle        kinds=HellKnight,BaronOfHell,ZombieMan,ShotgunGuy,Chai
 # Story themes (main quest dungeons).
 theme Humanoid            kinds=ZombieMan,ShotgunGuy,ChaingunGuy placement=chokepoints awareness=sentries only=1
 # Plain Former Humans for the first dungeon (Privateer's Hold, owner 2026-11-26): the stock zombieman, shotgunner and
-# chaingunner and DRLA's standard versions of them; no Elite, Stealth (invisible), Cyborg, Captain, Armageddon or
-# Colourful Hell variants.
-theme PlainHumanoid       classes=Zombieman,ShotgunGuy,ChaingunGuy,RLFormerHuman*,RLFormerSergeant*,RLFormerCommando* placement=chokepoints awareness=sentries only=1
+# chaingunner and DRLA's base classes for them (pistol zombieman, shotgun sergeant, chaingun commando). No weapon
+# variants (battle rifle, combat shotgun), Elite, Stealth (invisible), Cyborg, Captain, Armageddon or Colourful Hell.
+theme PlainHumanoid       classes=Zombieman,ShotgunGuy,ChaingunGuy,RLFormerHumanPistol,RLFormerSergeantShotgun,RLFormerCommandoChaingun placement=chokepoints awareness=sentries only=1
