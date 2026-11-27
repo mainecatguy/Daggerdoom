@@ -40,10 +40,10 @@ DRLA_SAMPLES.update({
     # Automatics by the owner's ruling (2026-11-26), although they carry DRLA's single-shot rifle token.
     'RLAssaultRifleChaingun': 'Automatic', 'RLAssaultRifleMinigun': 'Automatic', 'RLAutocannon': 'Automatic',
     # The Uzi family (owner 2026-11-27: "It's an Automatic. That's miscategorized."), although DRLA gives it the
-    # pistol token. The cell-fed Plasma Uzi then is Energy, like the Plasma Rifle.
+    # pistol token. The cell-fed Plasma Uzi stays Pistol + Energy until the owner decides (question 20261127-081504).
     'RLUzi': 'Automatic', 'RLHighPowerUzi': 'Automatic', 'RLStormUzi': 'Automatic', 'RLBurstCannonUzi': 'Automatic',
     'RLAssaultRifleUzi': 'Automatic', 'RLDemolitionAmmoUzi': 'Automatic', 'RLNanoManufactureAmmoUzi': 'Automatic',
-    'RLPlasmaUzi': 'Energy',
+    'RLPlasmaUzi': 'Pistol, Energy',
 })
 PISTOL_BRIEF = 'Your trusty 10mm pistol. It may be nice, but better find something stronger.'
 PLASMA_PISTOL_BRIEF = 'Experiments into creating scalar plasma weapon technology resulted in the Plasma Pistol.'

@@ -172,13 +172,13 @@ class DoomerfallWeaponCategory abstract
 
 	// DRLA guns the owner ruled Automatics although a DRLA token says otherwise: the single-shot rifle token
 	// (2026-11-26: "Those all sound like automatics") or the pistol token (the Uzi family, 2026-11-27: "It's an
-	// Automatic. That's miscategorized."). The Uzis skip the Pistol rule and then follow the usual order, so the
-	// cell-fed Plasma Uzi is Energy like the Plasma Rifle. Looked up at run time, so this list does nothing without DRLA.
+	// Automatic. That's miscategorized."). The cell-fed Plasma Uzi is not listed: it stays Pistol + Energy until the
+	// owner says what it should be. Looked up at run time, so this list does nothing without DRLA.
 	private clearscope static bool IsOwnerAutomatic(readonly<Weapon> w)
 	{
 		static const String automatics[] = {
 			"RLAssaultRifleChaingun", "RLAssaultRifleMinigun", "RLAutocannon",
-			"RLUzi", "RLHighPowerUzi", "RLStormUzi", "RLBurstCannonUzi", "RLAssaultRifleUzi", "RLPlasmaUzi",
+			"RLUzi", "RLHighPowerUzi", "RLStormUzi", "RLBurstCannonUzi", "RLAssaultRifleUzi",
 			"RLDemolitionAmmoUzi", "RLNanoManufactureAmmoUzi"
 		};
 		for (int i = 0; i < automatics.Size(); i++)

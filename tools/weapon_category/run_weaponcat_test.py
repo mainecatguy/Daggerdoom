@@ -48,8 +48,8 @@ DRLA_EXPECT.update(RIFLES)
 # although they carry DRLA's single-shot rifle token. They must never get the Rifles slot.
 NOT_RIFLES = {'RLAssaultRifleChaingun': 'automatic', 'RLAssaultRifleMinigun': 'automatic', 'RLAutocannon': 'automatic'}
 DRLA_EXPECT.update(NOT_RIFLES)
-# The Uzi family (owner 2026-11-27): Automatics although DRLA gives them its pistol token. The cell-fed Plasma Uzi then
-# follows the usual order and is Energy, like the Plasma Rifle (one skill, not a Pistol-Energy pair).
+# The Uzi family (owner 2026-11-27): Automatics although DRLA gives them its pistol token. The cell-fed Plasma Uzi stays
+# Pistol + Energy (below) until the owner decides what it should be.
 UZIS = {'RLUzi': 'automatic', 'RLHighPowerUzi': 'automatic', 'RLStormUzi': 'automatic', 'RLBurstCannonUzi': 'automatic',
         'RLAssaultRifleUzi': 'automatic', 'RLDemolitionAmmoUzi': 'automatic', 'RLNanoManufactureAmmoUzi': 'automatic'}
 DRLA_EXPECT.update(UZIS)
@@ -65,12 +65,12 @@ DRLA_EXPECT.update(MELEE_ENERGY)
 # Weapons in two skills (owner 2026-11-26, gamedesign/decisions/20261126-two-skill-weapons-owner.md): a Pistol or
 # Shotgun that is also an Energy Weapon. Every other sample's second category is 'other'. Energy pistols are pistols
 # first; energy shotguns are energy first. A missile pistol stays a pistol only.
-TWO_SKILL = {'RLPlasmaPistol': 'energy', 'RLNuclearPlasmaPistol': 'energy', 'RLBlaster': 'energy',
+TWO_SKILL = {'RLPlasmaPistol': 'energy', 'RLNuclearPlasmaPistol': 'energy', 'RLBlaster': 'energy', 'RLPlasmaUzi': 'energy',
              'RLBaronBlaster': 'energy', 'RLStormNuclearPlasmaPistol': 'energy',
              'RLNanoShrapnelPlasmaShotgun': 'shotgun', 'RLLaserShotgun': 'shotgun', 'RLPlasmaShotgun': 'shotgun',
              'RLNuclearPlasmaShotgun': 'shotgun', 'RLHeavyPlasmaShotgun': 'shotgun'}
 DRLA_EXPECT.update({'RLLaserShotgun': 'energy', 'RLPlasmaShotgun': 'energy', 'RLNuclearPlasmaShotgun': 'energy',
-                    'RLHeavyPlasmaShotgun': 'energy', 'RLBlaster': 'pistol', 'RLPlasmaUzi': 'energy',
+                    'RLHeavyPlasmaShotgun': 'energy', 'RLBlaster': 'pistol', 'RLPlasmaUzi': 'pistol',
                     'RLBaronBlaster': 'pistol', 'RLStormNuclearPlasmaPistol': 'pistol', 'RLMiniMissilePistol': 'pistol'})
 SLOT ={'shotgun': 4, 'automatic': 5, 'explosive': 6, 'pistol': 7, 'energy': 9, 'melee': 10, 'unarmed': 30}
 RIFLES_SLOT = 8
