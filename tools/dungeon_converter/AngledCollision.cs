@@ -663,6 +663,13 @@ static partial class Program
                 int la = Math.Abs(a.x - v.x) + Math.Abs(a.y - v.y), lb = Math.Abs(b.x - v.x) + Math.Abs(b.y - v.y);
                 bool turn = (a.x == v.x) != (b.x == v.x);
                 if (!turn || la > StairStep * cell || lb > StairStep * cell) continue;
+                // A lone corner between two fixed chain ends goes onto the straight line between them. The weighted point
+                // would leave a shallow V-notch there, which the square player box shakes in instead of stopping.
+                if (n == 1 && n + 2 == p.Count)
+                {
+                    smooth[v] = (Math.Round((a.x + b.x) / 2.0 * 8) / 8, Math.Round((a.y + b.y) / 2.0 * 8) / 8);
+                    continue;
+                }
                 smooth[v] = (Math.Round((a.x + 2 * v.x + b.x) / 4.0 * 8) / 8, Math.Round((a.y + 2 * v.y + b.y) / 4.0 * 8) / 8);
             }
         }
