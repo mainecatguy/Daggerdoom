@@ -80,7 +80,8 @@ class DoomerfallWeaponCategory abstract
 
 	// A weapon's two categories: its first, and a second one (or Other) where it truly fits two skills. Owner,
 	// 2026-11-26 (gamedesign/decisions/20261126-two-skill-weapons-owner.md): the pairs are a Pistol or Shotgun that is
-	// also an Energy Weapon. An energy pistol is Pistol then Energy; an energy shotgun (cell-fed, or on the recharging
+	// also an Energy Weapon, plus one gun the owner named: DRLA's Grammaton Cleric Beretta (dual pistols with single,
+	// burst and full-auto modes) is Pistol then Automatic (owner, 2026-11-27: "Dual tag is pistol and automatic"). An energy pistol is Pistol then Energy; an energy shotgun (cell-fed, or on the recharging
 	// list) is Energy then Shotgun. Other overlaps (a Storm pistol's shotgun token, the Autoshotgun's rapid-fire token,
 	// a missile pistol's rockets) stay one category, as before. Stock Doom has no such gun, but a mod's cell-fed
 	// subclass of Pistol, Shotgun or SuperShotgun gets both without DRLA.
@@ -127,7 +128,8 @@ class DoomerfallWeaponCategory abstract
 		if (w.bMeleeWeapon || w is "Chainsaw" || IsClass(w, "RLDragonslayer") || (tokens & TokMelee)) return Melee, Other;
 		// ZScript names are case-insensitive: these must not be called energy or shotgun, or they hide the enum values.
 		bool isEnergy = AmmoIs(w, "Cell") || IsEnergyGun(w);
-		if (w is "Pistol" || ((tokens & TokPistol) && !IsOwnerAutomatic(w))) return Pistol, isEnergy ? Energy : Other;
+		if (w is "Pistol" || ((tokens & TokPistol) && !IsOwnerAutomatic(w)))
+			return Pistol, isEnergy ? Energy : IsClass(w, "RLGrammatonClericBeretta") ? Automatic : Other;
 		if (AmmoIs(w, "RocketAmmo")) return Explosive, Other;
 		bool isShotgun = w is "Shotgun" || w is "SuperShotgun" || (tokens & TokShotgun);
 		if (isEnergy) return Energy, isShotgun ? Shotgun : Other;

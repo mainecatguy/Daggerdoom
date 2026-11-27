@@ -210,6 +210,7 @@ whichever of its skills is higher, never both at once.
   revolver).
 - **Shotguns and Energy Weapons:** energy shotguns, such as the laser shotgun, plasma shotguns and the nuclear plasma
   shotgun.
+- **Pistols and Automatics:** the Grammaton Cleric Beretta, dual pistols with single, burst and full-auto modes.
 - No other pair counts: a pistol that fires shotgun shells is only a Pistol, and an automatic shotgun is only a
   Shotgun.
 - If both skills are equal, the gun uses its main skill: Pistols for an energy pistol, Energy Weapons for an energy

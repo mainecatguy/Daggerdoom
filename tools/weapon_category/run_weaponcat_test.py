@@ -68,10 +68,13 @@ DRLA_EXPECT.update(MELEE_ENERGY)
 TWO_SKILL = {'RLPlasmaPistol': 'energy', 'RLNuclearPlasmaPistol': 'energy', 'RLBlaster': 'energy', 'RLPlasmaUzi': 'energy',
              'RLBaronBlaster': 'energy', 'RLStormNuclearPlasmaPistol': 'energy',
              'RLNanoShrapnelPlasmaShotgun': 'shotgun', 'RLLaserShotgun': 'shotgun', 'RLPlasmaShotgun': 'shotgun',
-             'RLNuclearPlasmaShotgun': 'shotgun', 'RLHeavyPlasmaShotgun': 'shotgun'}
+             'RLNuclearPlasmaShotgun': 'shotgun', 'RLHeavyPlasmaShotgun': 'shotgun',
+             # Owner 2026-11-27: "Grammaton Cleric Beretta - Dual tag is pistol and automatic."
+             'RLGrammatonClericBeretta': 'automatic'}
 DRLA_EXPECT.update({'RLLaserShotgun': 'energy', 'RLPlasmaShotgun': 'energy', 'RLNuclearPlasmaShotgun': 'energy',
                     'RLHeavyPlasmaShotgun': 'energy', 'RLBlaster': 'pistol', 'RLPlasmaUzi': 'pistol',
-                    'RLBaronBlaster': 'pistol', 'RLStormNuclearPlasmaPistol': 'pistol', 'RLMiniMissilePistol': 'pistol'})
+                    'RLBaronBlaster': 'pistol', 'RLStormNuclearPlasmaPistol': 'pistol', 'RLMiniMissilePistol': 'pistol',
+                    'RLGrammatonClericBeretta': 'pistol'})
 SLOT ={'shotgun': 4, 'automatic': 5, 'explosive': 6, 'pistol': 7, 'energy': 9, 'melee': 10, 'unarmed': 30}
 RIFLES_SLOT = 8
 

@@ -44,6 +44,8 @@ DRLA_SAMPLES.update({
     'RLUzi': 'Automatic', 'RLHighPowerUzi': 'Automatic', 'RLStormUzi': 'Automatic', 'RLBurstCannonUzi': 'Automatic',
     'RLAssaultRifleUzi': 'Automatic', 'RLDemolitionAmmoUzi': 'Automatic', 'RLNanoManufactureAmmoUzi': 'Automatic',
     'RLPlasmaUzi': 'Pistol, Energy',
+    # Owner 2026-11-27: "Grammaton Cleric Beretta - Dual tag is pistol and automatic."
+    'RLGrammatonClericBeretta': 'Pistol, Automatic',
 })
 PISTOL_BRIEF = 'Your trusty 10mm pistol. It may be nice, but better find something stronger.'
 PLASMA_PISTOL_BRIEF = 'Experiments into creating scalar plasma weapon technology resulted in the Plasma Pistol.'
