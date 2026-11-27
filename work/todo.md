@@ -16,7 +16,7 @@ Owner decisions from earlier runs are recorded in `CHANGELOG.md`, `architecture.
 
 ### Queued (owner, 2026-11-25)
 
-- `lockpick` cards 03 and 04 (approved by the owner 2026-11-26): door lock state in the location record instead of a separate ledger; the arrival autosave waits until level setup is done (general fix, report back if the approach is wrong). Card 02 (Doom owns the live lock) is verified on `overnight/lockpick`; merge after 03 and 04. Card 05 (approved by the owner 2026-11-26): pause the game during the arrival setup wait.
+- Arrival wait covers the dungeon's monster spawn (owner, 2026-11-26: "fix this tonight"). Since the door arm was removed (lockpick rethink, merged), a normal dungeon entry's setup is done in milliseconds, so the arrival freeze ends before `DDENC spawned`. Monsters then appear about 0.1 s into visible play, and the arrival autosave is written before they exist. `run_freeze.py normal` fails. First find why Daggerfall's monster list arrives about 5 s late in the New Game flow. Then register the encounter spawn with the setup gate: `DD_SetupWait("monsters")` on bridged dungeon entry and `DD_SetupDone` after `SpawnEncounters` in `dd_monsters.cpp`. A trial of exactly that worked on normal entries (a ~440 ms hold, spawn inside the freeze) but hit the 5 s gate timeout in New Game. Done when: `run_freeze.py normal` passes with the 73 monsters held; a New Game arrival does not wait for the gate timeout; the paired lockpick take/load/entry/newgame runs still pass. Details: `work/notes/20261126-lockpick-rethink.md`, Finding 3.
 
 
 ### Skills (owner, 2026-11-25; rules in `work/backlog/skills-in-doom.md`)

@@ -130,6 +130,8 @@ spawn in visible play, and the arrival autosave is taken before they exist. Load
 
 ## Questions for the owner
 
+Answered 2026-11-26: merge now, and fix the monster spawn as a todo item tonight (work/todo.md).
+
 - Should the arrival wait (card 05's freeze, and the arrival autosave) also wait for the dungeon's encounter spawn? It
   holds monsters still at spawn and puts them into the arrival autosave. The cost: in the New Game flow Daggerfall
   sends the monster list about 5 s late, so that arrival would show "Loading..." for 5 s unless that delay is found
