@@ -56,6 +56,7 @@ def assemble():
     REVIEW.mkdir(parents=True, exist_ok=True)
     if REVIEW != DEFAULT_REVIEW and not (REVIEW / "data").exists() and (DEFAULT_REVIEW / "data" / "converter").exists():
         shutil.copytree(DEFAULT_REVIEW / "data", REVIEW / "data")
+        shutil.copy2(DEFAULT_REVIEW / "dfitems.pk3", REVIEW / "dfitems.pk3")
     if not (REVIEW / "data" / "converter").exists() or "--fresh-data" in sys.argv:
         install.make_data(BUILD / "shoplvl-data", REVIEW)   # data, town cache and dfitems.pk3 from this checkout's converter
     for name, source in (("uzdoom", UZ_BUILD), ("dfu", REPO / "daggerfall-unity-master" / "Builds" / "Windows64")):
@@ -72,7 +73,7 @@ def assemble():
     shutil.copy2(BRIDGE_BUILD / "doomerfall_bridge.dll", plugins / "doomerfall_bridge.dll")
     (REVIEW / "dfu" / "Portable.txt").write_text("")
     install.isolate_registry(REVIEW / "dfu")
-    write_demo()
+    write_demo(args.demo_building, args.nth)
     print("assembled", REVIEW)
 
 
@@ -103,10 +104,10 @@ def launch_args(play, uz_extra, df_extra, stock_mods=False):
     return args
 
 
-def write_demo():
-    door = building_doors("GeneralStore")[0]
+def write_demo(kind="GeneralStore", nth=0):
+    door = building_doors(kind)[nth]
     start = f"""version "4.14"
-// Demo only: starts the player a few steps from a general store door, facing it.
+// Demo only: starts the player a few steps from a {kind} door, facing it.
 class SLDemoStart : StaticEventHandler
 {{
 	bool done;
@@ -125,29 +126,38 @@ class SLDemoStart : StaticEventHandler
         z.writestr("zscript.txt", start)
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "SLDemoStart" }\n')
     play = Path("%HERE%play")
-    args = launch_args(play, ["-dfbridgelog", str(play / "uz.log")], ["-dfbridgelog", str(play / "df.log"), "-screen-width", "1280", "-screen-height", "800", "-dfmute"])
+    df = ["-dfbridgelog", str(play / "df.log"), "-screen-width", "1280", "-screen-height", "800", "-dfmute"]
+    if kind != "GeneralStore":
+        df += ["-dfbuildingleveltest", str(play / "buildings.log")]
+    args = launch_args(play, ["-dfbridgelog", str(play / "uz.log")], df)
     args = [a.replace(str(REVIEW) + "\\", "%HERE%") for a in args]
     i = args.index("--uzdoom-cwd")
     args[i:i] = ["--mod", "%HERE%demo_start.pk3", "--log", "%HERE%play\\launcher.log"]
     quoted = " ".join(f'"{a}"' if (" " in a or "%" in a or "\\" in a) else a for a in args)
+    if kind == "GeneralStore":
+        about = ("rem Shop shelves roll at the shop's level. Town start with DRLA, facing a general store. Go in and Use a shelf.\r\n"
+                 "rem Daggerfall writes the shop's level for each restock to play\\df.log (\"shop restock: ... at shop level N\").\r\n"
+                 "rem Shelves restock once per day: wait or rest a day and Use a shelf again for a fresh roll.\r\n")
+    else:
+        about = (f"rem Houses and guild halls roll loot at a level from their own quality. Town start with DRLA, facing a {kind}.\r\n"
+                 "rem Go into any building: play\\buildings.log gets one line per building with the level things roll at\r\n"
+                 "rem (current) and the level enemies are made at (danger). Gothway Garden's Mages Guild is quality 17: level 24.\r\n"
+                 "rem In the Mages Guild, Buy Magic Items to see level 24 stock; house containers roll at the house's level.\r\n")
     (REVIEW / "play.bat").write_text(
-        "@echo off\r\n"
-        "rem Shop shelves roll at the shop's level. Town start with DRLA, facing a general store. Go in and Use a shelf.\r\n"
-        "rem Daggerfall writes the shop's level for each restock to play\\df.log (\"shop restock: ... at shop level N\").\r\n"
-        "rem Shelves restock once per day: wait or rest a day and Use a shelf again for a fresh roll.\r\n"
+        "@echo off\r\n" + about +
         "set \"HERE=%~dp0\"\r\n"
         "if not exist \"%HERE%play\" mkdir \"%HERE%play\"\r\n"
         f"start \"\" \"%HERE%doomerfall-launcher.exe\" {quoted}\r\n",
         newline="")
 
 
-def run(name, building, rates, stock_mods, building_levels=False):
+def run(name, building, rates, stock_mods, building_levels=False, nth=0):
     runs = REVIEW / "run" / name
     if runs.exists():
         shutil.rmtree(runs)
     (runs / "saves").mkdir(parents=True)
     uz_log, df_log, console = runs / "uz.log", runs / "df.log", runs / f"log-{name}.txt"
-    door = building_doors(building)[0]
+    door = building_doors(building)[nth]
     text = (REPO / "tools" / "shop_menu" / "harness.zs").read_text().replace("@DOOR@", ", ".join(door[3:8]))
     harness = runs / "harness.pk3"
     with zipfile.ZipFile(harness, "w") as z:
@@ -197,6 +207,8 @@ ap.add_argument("--building", default="GeneralStore", help="Daggerfall building 
 ap.add_argument("--rates", action="store_true")
 ap.add_argument("--stock-mods", action="store_true")
 ap.add_argument("--buildinglevels", action="store_true")
+ap.add_argument("--nth", type=int, default=0, help="which door of that building type (0 = first), for run and the demo")
+ap.add_argument("--demo-building", default="GeneralStore", help="assemble: building type the demo starts facing")
 ap.add_argument("--review", help="demo folder to assemble into or run from (default: the shop shelves demo)")
 ap.add_argument("--fresh-data", action="store_true", help="assemble: remake the data even if present")
 args = ap.parse_args()
@@ -205,4 +217,4 @@ if args.review:
 if args.command == "assemble":
     assemble()
 else:
-    run(args.name, args.building, args.rates, args.stock_mods, args.buildinglevels)
+    run(args.name, args.building, args.rates, args.stock_mods, args.buildinglevels, args.nth)
