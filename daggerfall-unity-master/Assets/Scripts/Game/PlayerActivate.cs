@@ -586,28 +586,7 @@ namespace DaggerfallWorkshop.Game
                     // If entering an open home, show greeting
                     if (hitBuilding && buildingGreetingsEnabled)
                     {
-                        const int houseGreetingsTextId = 256;
-
-                        DaggerfallMessageBox mb = null;
-
-                        PlayerGPS.DiscoveredBuilding buildingData;
-                        GameManager.Instance.PlayerGPS.GetDiscoveredBuilding(building.buildingKey, out buildingData);
-
-                        if (buildingUnlocked &&
-                            buildingType >= DFLocation.BuildingTypes.House1 &&
-                            buildingType <= DFLocation.BuildingTypes.House4 &&
-                            buildingData.factionID != (int)FactionFile.FactionIDs.The_Thieves_Guild &&
-                            buildingData.factionID != (int)FactionFile.FactionIDs.The_Dark_Brotherhood &&
-                            !DaggerfallBankManager.IsHouseOwned(building.buildingKey))
-                        {
-                            if (!isBrokenIn)
-                            {
-                                string greetingText = DaggerfallUnity.Instance.TextProvider.GetRandomText(houseGreetingsTextId);
-                                mb = DaggerfallUI.MessageBox(greetingText);
-                            }
-                        }
-                        else
-                            mb = PresentShopQuality(building);
+                        DaggerfallMessageBox mb = PresentBuildingGreeting(building.buildingKey, buildingType, buildingUnlocked, isBrokenIn);
 
                         if (mb != null)
                         {
@@ -1382,8 +1361,38 @@ namespace DaggerfallWorkshop.Game
             return false;
         }
 
+        // The greeting for entering a building from outside: an open home's greeting, or a shop's quality level.
+        // Public so Doomerfall shows the same message when the player enters through Doom (DoomerfallTransition).
+        public DaggerfallMessageBox PresentBuildingGreeting(int buildingKey, DFLocation.BuildingTypes buildingType, bool buildingUnlocked, bool isBrokenIn)
+        {
+            const int houseGreetingsTextId = 256;
+
+            DaggerfallMessageBox mb = null;
+
+            PlayerGPS.DiscoveredBuilding buildingData;
+            GameManager.Instance.PlayerGPS.GetDiscoveredBuilding(buildingKey, out buildingData);
+
+            if (buildingUnlocked &&
+                buildingType >= DFLocation.BuildingTypes.House1 &&
+                buildingType <= DFLocation.BuildingTypes.House4 &&
+                buildingData.factionID != (int)FactionFile.FactionIDs.The_Thieves_Guild &&
+                buildingData.factionID != (int)FactionFile.FactionIDs.The_Dark_Brotherhood &&
+                !DaggerfallBankManager.IsHouseOwned(buildingKey))
+            {
+                if (!isBrokenIn)
+                {
+                    string greetingText = DaggerfallUnity.Instance.TextProvider.GetRandomText(houseGreetingsTextId);
+                    mb = DaggerfallUI.MessageBox(greetingText);
+                }
+            }
+            else
+                mb = PresentShopQuality(buildingKey);
+
+            return mb;
+        }
+
         // Display a shop quality level
-        private DaggerfallMessageBox PresentShopQuality(StaticBuilding building)
+        private DaggerfallMessageBox PresentShopQuality(int buildingKey)
         {
             const int qualityLevel1TextId = 266;    // "Incense and soft music soothe your nerves"
             const int qualityLevel2TextId = 267;    // "The shop is better appointed than many"
@@ -1398,7 +1407,7 @@ namespace DaggerfallWorkshop.Game
 
             // Get detailed building data from directory
             BuildingSummary buildingSummary;
-            if (!buildingDirectory.GetBuildingSummary(building.buildingKey, out buildingSummary))
+            if (!buildingDirectory.GetBuildingSummary(buildingKey, out buildingSummary))
                 return null;
 
             // Do nothing if not a shop

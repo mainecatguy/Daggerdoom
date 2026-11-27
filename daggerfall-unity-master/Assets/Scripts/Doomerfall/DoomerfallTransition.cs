@@ -22,7 +22,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         uint want = Dfb.WORLD_EXTERIOR, seq;
         double doorX, doorZ;
         int target;
-        bool pending, attempted, teleported;
+        bool pending, attempted, teleported, greet;
         float deadline, startedAt;
 
         internal DoomerfallTransition(DoomerfallBridge owner)
@@ -47,6 +47,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             doorZ = z;
             target = targetId;
             pending = true;
+            // Daggerfall greets a player who walks in, not one a load puts inside (DFB_KIND_TRANSITION is sent for both).
+            greet = action == Dfb.TRANSITION_ENTER_BUILDING && !bridge.PositionSync.LoadRunning;
             attempted = teleported = false;
             deadline = 0; // Starts at the first update, because Daggerfall may still be loading its world.
         }
@@ -164,8 +166,36 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             enter.IsPlayerInsideOpenShop = RMBLayout.IsShop(building.buildingType) && PlayerActivate.IsBuildingOpen(building.buildingType);
             enter.IsPlayerInsideTavern = RMBLayout.IsTavern(building.buildingType);
             enter.IsPlayerInsideResidence = RMBLayout.IsResidence(building.buildingType);
+            bool unlocked = true;
+            bool greeting = greet && PlayerActivate.buildingGreetingsEnabled && Unlocked(game, world, bestDoor.buildingKey, out unlocked);
             enter.TransitionInterior(bestOwner.transform, bestDoor, false, false);
+            if (greeting)
+                Greet(game, bestDoor.buildingKey, building.buildingType, unlocked);
             return true;
+        }
+
+        // Daggerfall's own lock rule for the building, read before the transition while its exterior directory is current.
+        static bool Unlocked(GameManager game, StreamingWorld world, int buildingKey, out bool unlocked)
+        {
+            unlocked = true;
+            BuildingDirectory directory = world.GetCurrentBuildingDirectory();
+            BuildingSummary summary;
+            if (!directory || !directory.GetBuildingSummary(buildingKey, out summary))
+                return false;
+            unlocked = game.PlayerActivate.BuildingIsUnlocked(summary);
+            return true;
+        }
+
+        // The message Daggerfall shows on walking in (PlayerActivate.PresentBuildingGreeting): an open home's greeting or a
+        // shop's quality, as a message box that Doom shows (DoomerfallUi asks for it) or as HUD text, per Daggerfall's
+        // ShopQualityPresentation setting. Daggerfall shows it before the player steps in; here the player is already in.
+        // Doom does not lock building doors yet, so entering one Daggerfall holds locked counts as breaking in, the only
+        // way in Daggerfall to be inside it: a shop still shows its quality, a home gives no greeting.
+        void Greet(GameManager game, int buildingKey, DFLocation.BuildingTypes type, bool unlocked)
+        {
+            DaggerfallWorkshop.Game.UserInterfaceWindows.DaggerfallMessageBox box = game.PlayerActivate.PresentBuildingGreeting(buildingKey, type, true, !unlocked);
+            bridge.LogLine(string.Format("transition {0}: greeting for building {1} type {2}, unlocked {3}: {4}", seq, buildingKey, type, unlocked,
+                box != null ? "message box" : "none or HUD text"));
         }
 
         void Finish(GameManager game, uint actual)
