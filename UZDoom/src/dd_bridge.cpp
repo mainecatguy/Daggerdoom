@@ -573,6 +573,8 @@ const char *UiCommandName(uint32_t id)
 	if (id == DFB_UI_TALK) return "+use";
 	if (id == DFB_UI_JOURNAL) return "netevent df_journal";
 	if (id == DFB_UI_REST) return "netevent df_rest";
+	if (id == DFB_UI_CHARACTER) return "netevent df_character";
+	if (id == DFB_UI_SPELLBOOK) return "netevent df_spellbook";
 	return id == DFB_UI_INVENTORY || id == DFB_UI_LOOT ? "netevent df_inventory" : id == DFB_UI_MAP ? "togglemap" : "netevent df_fast_travel";
 }
 
@@ -832,16 +834,17 @@ bool DD_BridgeNetEvent(const char *name)
 	}
 	if (!session) return false;
 	const bool inventory = !strcmp(name, "df_inventory"), journal = !strcmp(name, "df_journal"), rest = !strcmp(name, "df_rest");
-	if (!inventory && !journal && !rest && strcmp(name, "df_fast_travel")) return false;
+	const uint32_t window = !strcmp(name, "df_character") ? DFB_UI_CHARACTER : !strcmp(name, "df_spellbook") ? DFB_UI_SPELLBOOK : DFB_UI_NONE;
+	if (!inventory && !journal && !rest && !window && strcmp(name, "df_fast_travel")) return false;
 	if (uiState != UiClosed)
 	{
 		SendUiCommand(DFB_KIND_UI_CLOSE, uiId);
 		return true;
 	}
 	if (!UiCanOpen()) return true;
-	if (inventory)
+	if (inventory || window) // Character sheet and spellbook: Daggerfall's own windows, with its own refusals.
 	{
-		OpenUi(DFB_UI_INVENTORY);
+		OpenUi(inventory ? DFB_UI_INVENTORY : window, inventory ? 0 : ownState.world_context); // The sheet's journal travels only from outdoors.
 		return true;
 	}
 	if (journal) // Daggerfall refuses travel from the journal's map unless Doom is outdoors, as below.

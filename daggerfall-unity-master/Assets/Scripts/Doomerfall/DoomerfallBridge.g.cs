@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0xaa7356f6b902ceafUL;
+        public const ulong SchemaHash = 0xda13cdd1f973cba8UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -253,6 +253,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint UI_LOAD_GAME = 8;  // Daggerfall's own Load window, from Doom's title; a save loaded there has no Doom half (DFB_KIND_PLAIN_LOAD)
         public const uint UI_JOURNAL = 9;  // Daggerfall's quest journal; dfb_ui_command.context is Doom's DFB_WORLD_* (travel from it only outdoors)
         public const uint UI_REST = 10;  // Daggerfall's rest window; dfb_ui_command.context is DFB_REST_* bits from Doom's state
+        public const uint UI_CHARACTER = 11;  // Daggerfall's character sheet; context is Doom's DFB_WORLD_* (its journal travels only outdoors)
+        public const uint UI_SPELLBOOK = 12;  // Daggerfall's spellbook, refused with Daggerfall's own message when none is carried
         public const uint REST_MONSTERS_NEAR = 1;  // a hostile Doom monster sees the player or is within Daggerfall's resting distance
         public const uint REST_NOT_GROUNDED = 2;  // Doom's player is in the air or swimming
         public const uint UI_CLOSED = 0;

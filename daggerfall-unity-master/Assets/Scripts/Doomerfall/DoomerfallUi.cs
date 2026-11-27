@@ -342,7 +342,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             showingTravelMap = id == Dfb.UI_TRAVEL_MAP;
             bool creating = id == Dfb.UI_NEW_GAME && DoomerfallNewGame.HoldsNewCharacter;
             bool loading = id == Dfb.UI_LOAD_GAME && DoomerfallNewGame.HoldsNewCharacter && PlainLoad;
-            if ((id != Dfb.UI_TRAVEL_MAP && id != Dfb.UI_INVENTORY && id != Dfb.UI_MAP && id != Dfb.UI_LOOT && id != Dfb.UI_TALK && id != Dfb.UI_DAGGERFALL && id != Dfb.UI_JOURNAL && id != Dfb.UI_REST && !creating && !loading) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
+            if ((id != Dfb.UI_TRAVEL_MAP && id != Dfb.UI_INVENTORY && id != Dfb.UI_MAP && id != Dfb.UI_LOOT && id != Dfb.UI_TALK && id != Dfb.UI_DAGGERFALL && id != Dfb.UI_JOURNAL && id != Dfb.UI_REST && id != Dfb.UI_CHARACTER && id != Dfb.UI_SPELLBOOK && !creating && !loading) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
             {
                 Finish(Dfb.UI_REASON_REFUSED);
                 return;
@@ -356,6 +356,25 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 // Clicking a quest's place opens the travel map. Doom follows that travel only from outdoors, as with K.
                 message = DaggerfallUIMessages.dfuiOpenQuestJournalWindow;
                 showingTravelMap = doomContext == Dfb.WORLD_EXTERIOR;
+            }
+            // Daggerfall's own windows, opened as its keys open them; the spellbook keeps Daggerfall's checks (SpellbookRefused).
+            if (id == Dfb.UI_CHARACTER)
+            {
+                // Its Logbook button opens the journal, so travel from there follows the journal's rule.
+                message = DaggerfallUIMessages.dfuiOpenCharacterSheetWindow;
+                showingTravelMap = doomContext == Dfb.WORLD_EXTERIOR;
+            }
+            if (id == Dfb.UI_SPELLBOOK)
+            {
+                message = DaggerfallUIMessages.dfuiOpenSpellBookWindow;
+                // Without a spellbook Daggerfall answers on its HUD, which Doom does not show, so Doom shows the same line.
+                if (!GameManager.Instance.PlayerEntity.Items.Contains(DaggerfallWorkshop.Game.Items.ItemGroups.MiscItems, (int)DaggerfallWorkshop.Game.Items.MiscItems.Spellbook))
+                {
+                    DoomerfallInfo.SendText(bridge, 0, TextManager.Instance.GetLocalizedText("noSpellbook"), false, Dfb.KIND_HUD_TEXT);
+                    bridge.LogLine("ui: spellbook refused, the player carries no spellbook");
+                    Finish(Dfb.UI_REASON_RESULT);
+                    return;
+                }
             }
             if (id == Dfb.UI_REST)
             {
@@ -464,7 +483,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         /// Says so the way Doom's travel key does, and returns true so the travel map does not start one.</summary>
         public static bool RefuseJournalTravel()
         {
-            if (!instance || instance.openId != Dfb.UI_JOURNAL || instance.showingTravelMap)
+            if (!instance || (instance.openId != Dfb.UI_JOURNAL && instance.openId != Dfb.UI_CHARACTER) || instance.showingTravelMap)
                 return false;
             DaggerfallUI.MessageBox("You cannot travel from indoors.");
             instance.bridge.LogLine("ui: travel from the journal refused, Doom is indoors");
