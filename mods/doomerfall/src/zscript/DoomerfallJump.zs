@@ -11,7 +11,7 @@
 // Jumping skill: jump height +1% per point to +100% at 100, plus 25% from 25 on; one extra jump in mid-air at 50,
 // two at 100; no falling damage from 75. Below 75 Jumping does not reduce falling damage (the owner has not chosen a
 // curve yet). Nothing here runs unless the engine sends dfi_rules:1 and Daggerfall has a character, so Doom maps
-// and Doom-only games are unchanged.
+// and Doom-only games are unchanged (JumpZ is not touched there).
 class DoomerfallJumpState
 {
 	bool airborne;
@@ -20,6 +20,7 @@ class DoomerfallJumpState
 	int airJumpsLeft;
 	bool wasNoGravity;
 	Vector3 lastPos;
+	Vector3 lastVel;   // velocity at the end of the last tic, which the move since then used
 }
 
 class DoomerfallJump : StaticEventHandler
@@ -34,6 +35,10 @@ class DoomerfallJump : StaticEventHandler
 	int skill;                     // Jumping's permanent value, or -1 without a Daggerfall character
 	int testSkill;                 // set only by tools/jumping (test probe, demo pk3); -1 means unused
 	DoomerfallJumpState st[MAXPLAYERS];
+	// JumpZ: this handler writes it only while active, and only scales what it found, so a map's or mod's own change
+	// is kept. jumpZSet is the value it last wrote; anything else in JumpZ is someone else's base.
+	bool jumpZScaled[MAXPLAYERS];
+	double jumpZBase[MAXPLAYERS], jumpZSet[MAXPLAYERS];
 
 	override void OnRegister() { skill = -1; testSkill = -1; }
 
@@ -74,15 +79,37 @@ class DoomerfallJump : StaticEventHandler
 			if (!playeringame[i]) continue;
 			let mo = players[i].mo;
 			if (!mo) continue;
-			// Jump height is velocity squared, so the height factor's square root scales the jump velocity.
-			double jumpZ = Active() ? mo.default.JumpZ * sqrt(HeightFactor(JumpSkill())) : mo.default.JumpZ;
-			if (mo.JumpZ != jumpZ) mo.JumpZ = jumpZ;
+			ScaleJumpZ(i, mo);
 			if (!Active()) { st[i] = null; continue; }
 			if (!st[i]) { st[i] = new("DoomerfallJumpState"); Reset(mo, st[i]); }
 			Think(players[i], mo, st[i]);
 			st[i].wasNoGravity = mo.bNoGravity;
 			st[i].lastPos = mo.pos;
+			st[i].lastVel = mo.vel;
 		}
+	}
+
+	// Jump height is velocity squared, so the height factor's square root scales the jump velocity.
+	void ScaleJumpZ(int i, PlayerPawn mo)
+	{
+		if (!Active())
+		{
+			// Put back what was there, once, unless someone else has written JumpZ since.
+			if (jumpZScaled[i] && mo.JumpZ == jumpZSet[i]) mo.JumpZ = jumpZBase[i];
+			jumpZScaled[i] = false;
+			return;
+		}
+		double scale = sqrt(HeightFactor(JumpSkill()));
+		if (!jumpZScaled[i])
+		{
+			// A save loaded in a new session holds the scaled value: recognize it from the default so it is not
+			// scaled twice. Any other value is the base (the default, or a map's or mod's own change).
+			jumpZBase[i] = mo.JumpZ == mo.default.JumpZ * scale ? mo.default.JumpZ : mo.JumpZ;
+			jumpZScaled[i] = true;
+		}
+		else if (mo.JumpZ != jumpZSet[i]) jumpZBase[i] = mo.JumpZ; // someone else wrote JumpZ: that is the new base
+		jumpZSet[i] = jumpZBase[i] * scale;
+		if (mo.JumpZ != jumpZSet[i]) mo.JumpZ = jumpZSet[i];
 	}
 
 	void Reset(PlayerPawn mo, DoomerfallJumpState s)
@@ -91,6 +118,7 @@ class DoomerfallJump : StaticEventHandler
 		s.groundZ = mo.pos.z;
 		s.fallStartZ = mo.pos.z;
 		s.lastPos = mo.pos;
+		s.lastVel = mo.vel;
 	}
 
 	void Think(PlayerInfo p, PlayerPawn mo, DoomerfallJumpState s)
@@ -98,9 +126,11 @@ class DoomerfallJump : StaticEventHandler
 		// A teleport or a map window shift moves the player farther in one tic than their speed allows. As in
 		// Daggerfall's transitions, the fall starts over from the new place.
 		double moved = (mo.pos - s.lastPos).Length();
-		bool jumped = moved > mo.vel.Length() * 2 + 64;
+		// The move used last tic's velocity (a landing has already zeroed vel.z), plus gravity.
+		bool jumped = moved > max(s.lastVel.Length(), mo.vel.Length()) * 2 + 64;
 		// Not falling: dead, flying, no-clipping, held on a climb (no gravity), or in water (Daggerfall: no falling
-		// damage on landing in water).
+		// damage on landing in water). Doom's maps have no water volume for Daggerfall's outdoor sea and lakes yet, so a
+		// fall onto them counts as ground; only swimmable water (dungeon pools) is exempt.
 		if (jumped || p.health <= 0 || p.playerstate != PST_LIVE || (p.cheats & CF_NOCLIP2) || mo.bFly || mo.bNoGravity ||
 			mo.waterlevel > 0)
 		{

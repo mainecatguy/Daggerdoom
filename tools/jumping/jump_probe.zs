@@ -10,6 +10,7 @@ class DoomerfallJumpTest : StaticEventHandler
 {
 	static const int levels[] = { 0, 25, 50, 75, 100 };
 	const LevelCount = 5;
+	const HighDropUnits = 2400.0; // 80 m
 	const DropUnits = 270.0;   // 9 m: Daggerfall's rule gives 5 * (9 - 5) = 20 HP
 	const Settle = 70;
 
@@ -41,7 +42,7 @@ class DoomerfallJumpTest : StaticEventHandler
 		if (!mo || !j) return;
 		if (phase == 0) { if (j.rules && j.skill >= 0 && ++t > 140) { phase = 1; t = 0; Console.Printf("JUMPTEST start real Jumping=%d", j.skill); } return; }
 		t++;
-		int lv = levels[li];
+		int lv = li < LevelCount ? levels[li] : 100;
 		if (phase == 1) // settle on the ground at this level
 		{
 			j.testSkill = lv;
@@ -75,7 +76,8 @@ class DoomerfallJumpTest : StaticEventHandler
 			Console.Printf("JUMPTEST jump level=%d firstrise=%.1f totalrise=%.1f airjumps=%d landdz=%.1f falldamage=%d", lv, firstRise,
 				maxZ - z0, airJumps, mo.pos.z - z0, damage);
 			// Drop from 9 m (less if the ceiling is low).
-			double h = min(DropUnits, mo.ceilingz - mo.pos.z - mo.height - 8);
+			// At 75 (immune) also an 80 m drop, so a very fast landing is still seen as a landing (DFJUMP land ... immune).
+			double h = min(lv == 75 ? HighDropUnits : DropUnits, mo.ceilingz - mo.pos.z - mo.height - 8);
 			z0 = mo.pos.z; damage = 0; hpBefore = p.health;
 			mo.SetOrigin(mo.pos + (0, 0, h), false);
 			mo.vel = (0, 0, 0);
@@ -124,12 +126,18 @@ class DoomerfallJumpTest : StaticEventHandler
 			mo.GiveBody(1000);
 			li++;
 			phase = 1; t = 0;
-			if (li >= LevelCount)
-			{
-				j.testSkill = -1;
-				finished = true;
-				Console.Printf("JUMPTEST done");
-			}
+			if (li >= LevelCount) { phase = 7; t = 0; }
+		}
+		if (phase == 7) // a mod changes JumpZ while active: it is kept as the base and scaled (x1.5 at 100)
+		{
+			if (t == 1) { j.testSkill = 100; return; }
+			if (t == 10) { mo.JumpZ = 10; return; }
+			if (t < 30) return;
+			Console.Printf("JUMPTEST modjumpz got=%.3f want=15.000", mo.JumpZ);
+			mo.JumpZ = mo.default.JumpZ * 1.5; // back to what the handler set from the default
+			j.testSkill = -1;
+			finished = true;
+			Console.Printf("JUMPTEST done");
 		}
 	}
 

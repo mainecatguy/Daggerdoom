@@ -36,7 +36,7 @@ def main():
           "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+logfile", "console.log"]
     df = ["-dfbridgelog", os.path.join(run, "df.log"), "-dfsynctest", os.path.join(GAME, "DAGGER"), "-screen-fullscreen", "0",
           "-screen-width", "1280", "-screen-height", "800"]
-    cmd = [sys.executable, QUIET, "--timeout", "260", "--", os.path.join(play, "doomerfall-launcher.exe"), "--minimized", "--nodraw",
+    cmd = [sys.executable, QUIET, "--timeout", "330", "--", os.path.join(play, "doomerfall-launcher.exe"), "--minimized", "--nodraw",
            "--uzdoom", os.path.join(play, "uzdoom", "uzdoom.exe"), "--dfu", os.path.join(play, "dfu", "DaggerfallUnity.exe"),
            "--iwad", os.path.join(GAME, "wads", "DOOM2.WAD")]
     for m in mods:
@@ -51,15 +51,20 @@ def main():
     print("exit", r.returncode, "(124 is the expected timeout: the launcher keeps running)")
 
     lines = []
+    global all_lines
     for name in ("log-console-log.txt", "console.log", "uz.log", "df.log"):
         p = os.path.join(run, name)
         if os.path.exists(p):
             for l in open(p, errors="replace"):
                 if re.search(r"JUMPTEST|DFJUMP|FATAL|Script error", l):
                     print(name, ":", l.rstrip())
+                    all_lines.append(l)
                     if name in ("log-console-log.txt", "console.log") and "JUMPTEST" in l:
                         lines.append(l)
     sys.exit(check(lines))
+
+
+all_lines = []
 
 
 def factor(s):
@@ -92,6 +97,11 @@ def check(lines):
         if dmg != want or want != rule: fails.append(f"{kind} at {s}: fell {fell}, damage {dmg}, expected {want}, rule {rule}")
         if hp0 - hp1 != dmg: fails.append(f"{kind} at {s}: HP went {hp0}->{hp1}, not down by {dmg}")
     if sum(1 for m in falls if m.group(1) == "drop") != 5: fails.append("missing drop lines")
+    mj = [re.search(r"modjumpz got=([\d.]+)", l) for l in lines]
+    mj = [m for m in mj if m]
+    if not mj or abs(float(mj[0].group(1)) - 15) > 0.01: fails.append("a mod's JumpZ change was not kept and scaled")
+    if not any(re.search(r"DFJUMP land fell=(2\d{3}|[3-9]\d{3})\.\d damage=0 \(immune", l) for l in all_lines):
+        fails.append("no landing seen for the 80 m drop")
     if not any(m.group(1) == "ledge" and int(m.group(4)) > 0 for m in falls): fails.append("no ledge fall that hurt")
     for f in fails:
         print("FAIL", f)

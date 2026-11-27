@@ -109,7 +109,7 @@ In Daggerfall's world, falls hurt, by Daggerfall's own rule:
 - A fall is measured from where you left the ground to where you land. The first **5 metres** are free; every metre
   past that costs **5 HP**. A 9 metre drop costs 20 HP, a 15 metre drop 50 HP. Armor does not help.
 - A jump that lands where it started never hurts, however high it goes, double and triple jumps included.
-- Landing in water does not hurt. Grabbing a wall while climbing starts the fall over from there.
+- Grabbing a wall while climbing starts the fall over from there.
 
 Your **Jumping** skill (the permanent value on your character sheet) changes how you jump:
 
