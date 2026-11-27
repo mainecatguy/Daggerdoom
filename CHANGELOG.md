@@ -12,6 +12,7 @@ What is done on the project, newest first. Agents do not need to read this unles
 - **Roughest spots:** some walls still bend where they stayed tied to the grid, and false walls and openings remain.
 
 ## 2026-11-26
+- **Ammo tiers same size (on `integration`):** every tier's pickup and shop pack holds Regular's amount (clip 10, shop pack 80 bullets); only odds differ. Verified on `verify/ammosizefix`: startup 1337, E1M1 stock and DRLA, `ammo.py sizes` (34 PASS), `ammo.py tiers` (packs PASS, counts MATCH). Notes: `work/notes/20261126-180338.md`.
 
 - **Two-skill weapons (on `integration`):** energy pistols are Pistol + Energy and energy shotguns Energy + Shotgun; `DoomerfallWeaponCategory.SkillSlotOf` uses the higher live skill (new read-only `Actor.DD_SheetSkill`, so UZDoom must be rebuilt). Verified on `verify/skillcore7`: startup 1337, weapon category test (73 PASS), paired two-skill check, class card test (74 ok). Notes: `work/notes/20261126-174427.md`.
 
