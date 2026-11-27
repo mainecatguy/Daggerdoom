@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0xa26fdb0b2d855367ULL
+#define DFB_SCHEMA_HASH 0x6fc147d27ab985d4ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -258,6 +258,7 @@ static_assert((DFB_REST_NOT_GROUNDED) == (2u), DFB_STALE);
 static_assert((DFB_UI_CLOSED) == (0u), DFB_STALE);
 static_assert((DFB_UI_OPENED) == (1u), DFB_STALE);
 static_assert((DFB_UI_TYPING) == (2u), DFB_STALE);
+static_assert((DFB_UI_CLOSED_TIME_PASSED) == (1u), DFB_STALE);
 static_assert((DFB_UI_REASON_NONE) == (0u), DFB_STALE);
 static_assert((DFB_UI_REASON_USER) == (1u), DFB_STALE);
 static_assert((DFB_UI_REASON_REFUSED) == (2u), DFB_STALE);
@@ -392,8 +393,8 @@ static_assert(offsetof(dfb_ui_state, surface_width) == 12, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_ui_state::surface_width), uint32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_ui_state, surface_height) == 16, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_ui_state::surface_height), uint32_t>::value, DFB_STALE);
-static_assert(offsetof(dfb_ui_state, pad) == 20, DFB_STALE);
-static_assert(std::is_same<decltype(dfb_ui_state::pad), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_ui_state, flags) == 20, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_ui_state::flags), uint32_t>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_ui_result) == 48, DFB_STALE);
 static_assert(offsetof(dfb_ui_result, ui_id) == 0, DFB_STALE);

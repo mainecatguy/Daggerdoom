@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0xa26fdb0b2d855367UL;
+        public const ulong SchemaHash = 0x6fc147d27ab985d4UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -258,6 +258,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint UI_CLOSED = 0;
         public const uint UI_OPENED = 1;
         public const uint UI_TYPING = 2;
+        public const uint UI_CLOSED_TIME_PASSED = 1;
         public const uint UI_REASON_NONE = 0;
         public const uint UI_REASON_USER = 1;  // the player closed it in Daggerfall
         public const uint UI_REASON_REFUSED = 2;  // Daggerfall could not open it here
@@ -474,7 +475,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(8)] public uint reason;
         [FieldOffset(12)] public uint surfaceWidth;
         [FieldOffset(16)] public uint surfaceHeight;
-        [FieldOffset(20)] public uint pad;
+        [FieldOffset(20)] public uint flags;  // DFB_UI_CLOSED_*, on a close
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 48)]

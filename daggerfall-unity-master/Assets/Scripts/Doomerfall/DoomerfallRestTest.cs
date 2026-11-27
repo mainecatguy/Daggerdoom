@@ -3,12 +3,14 @@
 // end of even a short rest runs. With "level" it also earns the character exactly one level (as -dfleveluptest), without
 // running the check itself, so the rest's own check must grant it. Logs, each time it changes, the top window and the
 // player's health, fatigue, magicka, level and game time, so a test can follow the rest from Doom.
+// With -dfresttestroom it also rents a room for a day in the first tavern entered.
 // Starts itself from the flag; no game class calls it.
 
 using System;
 using System.IO;
 using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop.Game.Formulas;
+using DaggerfallWorkshop.Game.Serialization;
 using UnityEngine;
 
 namespace DaggerfallWorkshop.Game.Doomerfall
@@ -18,7 +20,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         string path, last;
         DoomerfallPositionSync sync;
         float readyAt;
-        bool done, level;
+        bool done, level, room, rented;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void StartIfRequested()
@@ -32,6 +34,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DoomerfallRestTest test = host.AddComponent<DoomerfallRestTest>();
             test.path = args[at + 1];
             test.level = at + 2 < args.Length && args[at + 2] == "level";
+            test.room = Array.IndexOf(args, "-dfresttestroom") >= 0; // Also rent a room in the first tavern entered.
             File.WriteAllText(test.path, "rest test: started\n");
         }
 
@@ -42,7 +45,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         void LateUpdate()
         {
-            try { Prepare(); }
+            try { Prepare(); RentRoom(); }
             catch (Exception e) { Write("prepare error " + e.GetType().Name + " " + e.Message); done = true; }
             string line;
             try { line = Describe(); }
@@ -96,6 +99,29 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
             Write(string.Format("earned level {0} -> formula {1} after {2} skill points; the rest's skill check must grant it", current,
                 FormulaHelper.CalculatePlayerLevel(player.StartingLevelUpSkillSum, player.CurrentLevelUpSkillSum), raised));
+        }
+
+        // As DaggerfallTavernWindow's rental, for one day, so Daggerfall's own rest check allows a rest here.
+        void RentRoom()
+        {
+            if (!room || rented || !GameManager.HasInstance)
+                return;
+            PlayerEnterExit enter = GameManager.Instance.PlayerEnterExit;
+            if (!enter.IsPlayerInsideBuilding || !enter.Interior || enter.BuildingDiscoveryData.buildingType != DaggerfallConnect.DFLocation.BuildingTypes.Tavern)
+                return;
+            rented = true;
+            int mapId = GameManager.Instance.PlayerGPS.CurrentLocation.MapTableData.MapId;
+            int key = enter.BuildingDiscoveryData.buildingKey;
+            GameManager.Instance.PlayerEntity.RentedRooms.Add(new RoomRental_v1
+            {
+                name = enter.BuildingDiscoveryData.displayName,
+                mapID = mapId,
+                buildingKey = key,
+                allocatedBedIndex = 0,
+                expiryTime = DaggerfallUnity.Instance.WorldTime.Now.ToSeconds() + (ulong)DaggerfallWorkshop.Utility.DaggerfallDateTime.SecondsPerDay,
+            });
+            SaveLoadManager.StateManager.AddPermanentScene(DaggerfallInterior.GetSceneName(mapId, key));
+            Write("rented a room in building " + key);
         }
 
         static string Describe()

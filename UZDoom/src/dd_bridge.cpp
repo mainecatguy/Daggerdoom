@@ -77,6 +77,10 @@ void DD_LookFrame(dfb_session *session);
 bool DD_TownsfolkEvent(const dfb_event &e);
 void DD_TownsfolkFrame(dfb_session *session, uint32_t context);
 void DD_TownsfolkResync();
+void DD_ResyncBegin(); // dd_resync.cpp
+bool DD_ResyncHolding();
+int64_t DD_ResyncStartNs();
+bool DD_ResyncFreeze(FLevelLocals *Level);
 void DD_TownsfolkDied(dfb_session *session, AActor *mo);
 void DD_ClimbFrame(dfb_session *session);
 void DD_FacesFrame(dfb_session *session);
@@ -494,6 +498,7 @@ void HandleUiState(const dfb_event &e)
 		ngDeadline = dfb_now_ns() + 20000000000LL;
 	}
 	FinishUi(body.reason < 5 ? reasons[body.reason] : "unknown");
+	if (body.flags & DFB_UI_CLOSED_TIME_PASSED) DD_ResyncBegin(); // People moved with the clock: hold the view (dd_resync.cpp).
 }
 
 void HandleUiResult(const dfb_event &e)
@@ -1507,6 +1512,7 @@ bool DD_BridgeArrivalFrozen()
 bool DD_BridgeArrivalFreeze(FLevelLocals *Level)
 {
 	if (Level != primaryLevel) return false;
+	if (DD_ResyncFreeze(Level)) return true; // After a rest: frozen until Daggerfall's people are placed.
 	if (!DD_BridgeArrivalFrozen())
 	{
 		if (arrivalPending && dfb_now_ns() - arrivalAtNs > ArrivalHoldNs) ArrivalFreezeEnd("the hold limit");
@@ -1535,6 +1541,7 @@ void DD_BridgeLevelLoaded(bool fromSave)
 bool DD_BridgeHoldFrame()
 {
 	if (DD_LoadingActive()) return true; // A long operation shows the message at once (dd_loading.cpp).
+	if (session && DD_ResyncHolding()) return true;
 	if (!session || dfb_now_ns() - arrivalAtNs > ArrivalHoldNs) return false;
 	return arrivalPending || (saveStartPending && arrivalQueued) || (saveState != SaveIdle && saveIsArrival);
 }
@@ -1544,7 +1551,7 @@ bool DD_BridgeHoldFrame()
 void DD_BridgeDrawLoading()
 {
 	const bool held = DD_LoadingActive();
-	if (!held && dfb_now_ns() - arrivalAtNs < LoadingAfterNs) return;
+	if (!held && (DD_ResyncHolding() ? dfb_now_ns() - DD_ResyncStartNs() < LoadingAfterNs : dfb_now_ns() - arrivalAtNs < LoadingAfterNs)) return;
 	static int64_t shownFor = 0;
 	if (!held && shownFor != arrivalAtNs) Log("arrival: showing the loading message, %.1f ms after the map loaded", (dfb_now_ns() - arrivalAtNs) / 1e6);
 	shownFor = arrivalAtNs;

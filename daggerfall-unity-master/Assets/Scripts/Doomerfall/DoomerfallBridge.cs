@@ -234,6 +234,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             ui.Talk = talk;
             townspeople = gameObject.AddComponent<DoomerfallTownspeople>();
             townspeople.Init(this, sync);
+            ui.Townspeople = townspeople;
+            ui.Npcs = npcs;
             info.Items = items;
             info.Townspeople = townspeople;
             save.Townspeople = townspeople;

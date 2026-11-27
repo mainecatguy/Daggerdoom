@@ -43,6 +43,7 @@ uint32_t acceptedGeneration;
 double acceptedOx, acceptedOz, originX, originZ;
 int listTic;
 bool listPending, everListed, wantList, scalesLoaded, acceptedIndoors, indoors;
+bool snapList; // The pending list comes after a menu ran the clock (dd_resync.cpp): place everyone at once.
 uint32_t currentContext;
 
 bool IsTownspersonId(uint64_t id) { return (id >> 61) == DFB_TOWNSPERSON_TAG; }
@@ -184,9 +185,12 @@ bool DD_TownsfolkRefuseDamage(AActor *target, AActor *source)
 void DD_TownsfolkTick(FLevelLocals *Level)
 {
 	if (!everListed) return;
+	bool snap = false;
 	if (listPending)
 	{
 		listPending = false;
+		snap = snapList;
+		snapList = false;
 		rows.swap(accepted);
 		accepted.clear();
 		originX = acceptedOx;
@@ -211,7 +215,7 @@ void DD_TownsfolkTick(FLevelLocals *Level)
 			mo->Destroy();
 			continue;
 		}
-		Place(mo, at, false, row->second.z);
+		Place(mo, at, snap, row->second.z);
 		ChooseSprite(mo, row->second, camera, row->second.vx != 0 || row->second.vy != 0);
 	}
 	int spawned = 0;
@@ -231,6 +235,16 @@ void DD_TownsfolkTick(FLevelLocals *Level)
 	}
 	if (spawned) DD_DebugPrintf("DDTOWNSFOLK spawned %d, listed %d\n", spawned, int(rows.size()));
 }
+
+// dd_resync.cpp, when a menu that ran the clock closes: the list Daggerfall sent before the close is pending now, and
+// is placed without walking. False if there is none.
+bool DD_TownsfolkSnapPending()
+{
+	snapList = listPending;
+	return listPending;
+}
+
+bool DD_TownsfolkSettled() { return !listPending && !snapList; }
 
 bool DD_TownsfolkEvent(const dfb_event &e)
 {
@@ -275,7 +289,7 @@ void DD_TownsfolkFrame(dfb_session *session, uint32_t context)
 		currentContext = context;
 		accepted.clear();
 		rows.clear();
-		listPending = false;
+		listPending = snapList = false;
 		wantList = context == DFB_WORLD_EXTERIOR || context == DFB_WORLD_INTERIOR;
 	}
 	if (wantList && gamestate == GS_LEVEL)
@@ -290,7 +304,7 @@ void DD_TownsfolkResync()
 {
 	rows.clear();
 	accepted.clear();
-	listPending = false;
+	listPending = snapList = false;
 	killed.clear();
 	wantList = currentContext == DFB_WORLD_EXTERIOR || currentContext == DFB_WORLD_INTERIOR;
 }
