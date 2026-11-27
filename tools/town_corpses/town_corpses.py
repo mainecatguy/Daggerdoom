@@ -1,6 +1,6 @@
 """Daggerfall townspeople and guards leave corpses in Doom, drawn from Daggerfall's own files at run time.
 
-usage: town_corpses.py assemble <source review folder> | run NAME (kill | guard | load | guardload) [--pack] | check
+usage: town_corpses.py assemble <source review folder> | run NAME (kill | guard | load | guardload | guardreload) [--pack] | check
 assemble builds review\\town-corpses from a paired review folder (data, dfitems.pk3, portable Daggerfall Unity) with
 this checkout's UZDoom (D:\\dev\\DoomDaggerfall-build\\uzdoom-corpses), launcher, bridge, Daggerfall Unity build and
 doomerfall.pk3, and writes the demo play.bat.
@@ -8,6 +8,7 @@ run kill: town start with DRLA; kill the nearest townsperson (test only), screen
 and of the corpse, leave town and walk back, list the corpses again, autosave.
 run guard: the same at noon with Daggerfall's -dfguardtest: enter the Gothway tavern, kill one of the guard bots
 Daggerfall sends in, screenshots, go out and back in, list the corpses again, autosave.
+run guardreload: load the guard autosave with -dfguardtest, kill one of the new guards, list the corpses (two).
 run load / guardload: load that autosave in a fresh launch and list the corpses. --pack first puts a stand-in texture pack image
 for the human corpse (TEXTURE.380 record 1) in Daggerfall Unity's StreamingAssets/Textures, and removes it after.
 The stand-in is drawn here (a plain shape), not taken from the game.
@@ -181,7 +182,7 @@ def run(name, mode, pack):
     if pack:
         make_pack()
     timeout = 100 if mode.endswith("load") else 150
-    df = ["-dfmute"] + ([] if mode.endswith("load") else ["-dftownhour", "12"]) + (["-dfguardtest"] if mode == "guard" else [])
+    df = ["-dfmute"] + ([] if mode.endswith("load") else ["-dftownhour", "12"]) + (["-dfguardtest"] if mode in ("guard", "guardreload") else [])
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--"] + launch_args(runs, uz, df, False)
     command = [str(saves) if a == str(runs / "saves") else a for a in command]
     proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

@@ -24,7 +24,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         readonly List<GameObject> pending = new List<GameObject>();
         readonly Dictionary<ulong, GameObject> copies = new Dictionary<ulong, GameObject>();
         readonly Dictionary<ulong, int> corpses = new Dictionary<ulong, int>(); // EnemyDeath's corpse texture, taken at spawn
-        ulong serial;
+        // Guard ids end up in saves (a kept corpse is keyed by its guard's id), so the serial starts from the clock: a new
+        // session never reuses an id an earlier session saved.
+        ulong serial = (ulong)System.DateTime.UtcNow.Ticks;
 
         internal void Init(DoomerfallBridge owner, DoomerfallPositionSync positionSync)
         {
@@ -112,15 +114,17 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return default(MobileEnemy);
         }
 
-        // The corpse image of that guard, taken from its Daggerfall copy when it was sent. False if this sent no such guard.
-        internal bool CorpseOf(ulong id, out int archive, out int record)
+        // The corpse image of that guard, taken from its Daggerfall copy when it was sent. A guard this session did not
+        // send (none should outlive a load, but in case) lies as the city watch.
+        internal void CorpseOf(ulong id, out int archive, out int record)
         {
-            archive = record = 0;
             int texture;
             if (!corpses.TryGetValue(id, out texture))
-                return false;
+            {
+                MobileEnemy watch = CityWatch();
+                texture = watch.CorpseTexture;
+            }
             EnemyBasics.ReverseCorpseTexture(texture, out archive, out record);
-            return true;
         }
 
         internal void OnDeath(ulong id)

@@ -7,6 +7,8 @@ version "4.14"
 //   guard  (with Daggerfall's -dfguardtest) enter the Gothway tavern; once Daggerfall's guards come in as bots, kill one
 //          (test only), list corpses, ask for screenshots, go out and back in, list again, and autosave.
 //   guardload  as load, for the guard run's autosave inside the tavern.
+//   guardreload  as guardload with Daggerfall's -dfguardtest: after listing the saved corpse, kill one of the new
+//          guards Daggerfall sends in and list again (a new session's guard must not reuse a saved guard's id).
 class TCHarness : StaticEventHandler
 {
 	static const double DOORDATA[] = { @DOOR@ };
@@ -96,6 +98,7 @@ class TCHarness : StaticEventHandler
 			if (mode.IndexOf("load") >= 0)
 			{
 				Corpses("loaded");
+				if (mode == "guardreload") { landed = true; phase = 30; timer = 0; break; }
 				let c = FirstCorpse();
 				if (c) LookAt(p, c);
 				phase = 20;
@@ -183,7 +186,7 @@ class TCHarness : StaticEventHandler
 			let gc = FirstCorpse();
 			if (gc) LookAt(p, gc);
 			Console.Printf("TCSHOT gcorpse");
-			phase = 32;
+			phase = mode == "guardreload" ? 5 : 32;
 			timer = 0;
 			break;
 		case 32:	// Out through the way in (a landing faces away from its door), then back in.

@@ -466,7 +466,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     return;
                 }
             }
-            else if ((id >> 61) != Dfb.GUARD_TAG || !guards.CorpseOf(id, out archive, out record))
+            else if ((id >> 61) == Dfb.GUARD_TAG)
+                guards.CorpseOf(id, out archive, out record);
+            else
             {
                 bridge.LogLine("corpse: " + key + " is no Daggerfall person this keeps");
                 return;
