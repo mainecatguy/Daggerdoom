@@ -34,7 +34,7 @@ import common as c
 WINDOWS = {
     "inventory": "netevent df_inventory",
     "travelmap": "netevent df_fast_travel",
-    "automap": "togglemap",
+    "automap": "netevent df_map",  # togglemap (Tab) opens the tween menu in a paired game
     "journal": "netevent df_journal",
     "rest": "netevent df_rest",
 }

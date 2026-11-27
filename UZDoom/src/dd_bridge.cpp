@@ -491,8 +491,15 @@ void SendUiInput(uint32_t type, int a = 0, int b = 0)
 	dfb_send(session, &e);
 }
 
+// The tween menu pauses play, so a window opened before the level clock moves again was chosen in that menu.
+int tweenMaptime = -1;
+bool uiFromTween;
+
 void OpenUi(uint32_t id, uint32_t context = 0)
 {
+	uiFromTween = tweenMaptime >= 0 && tweenMaptime == primaryLevel->maptime
+		&& (id == DFB_UI_CHARACTER || id == DFB_UI_SPELLBOOK || id == DFB_UI_INVENTORY || id == DFB_UI_MAP);
+	tweenMaptime = -1;
 	EnsureUiTextures();
 	uiId = id;
 	uiState = UiOpening;
@@ -724,8 +731,8 @@ bool IsOpenMenuKey(long long lParam)
 	if (uiTyping) return false; // The key is a letter for the text box.
 	if (uiId == DFB_UI_SPELLBOOK && key == 0x0E) return false; // Backspace is Daggerfall's own spellbook key: it closes the book, and still types in its text boxes.
 	if (uiId == DFB_UI_STATUS) return false; // Daggerfall's Status key pages from the status box to health and then closes it (StatusKeyAsEnter).
-	// The tween menu's key (Doom's togglemap, Tab) also closes every window opened from it.
-	return bound.CompareNoCase(UiCommandName(uiId)) == 0 || bound.CompareNoCase("togglemap") == 0;
+	// The tween menu's key (Doom's togglemap, Tab) also closes the window chosen in that menu.
+	return bound.CompareNoCase(UiCommandName(uiId)) == 0 || (uiFromTween && bound.CompareNoCase("togglemap") == 0);
 }
 
 // In Daggerfall's status boxes, Doom's Status key is sent as Enter, the boxes' own proceed key, as Daggerfall's Status key is.
@@ -811,6 +818,7 @@ bool DD_BridgeToggleMap()
 	if (PClass::FindClass("DoomerfallTweenMenu"))
 	{
 		Log("ui: tween menu opened");
+		tweenMaptime = primaryLevel->maptime;
 		C_DoCommand("openmenu DoomerfallTweenMenu");
 	}
 	else OpenUi(DFB_UI_MAP, uint32_t(area));

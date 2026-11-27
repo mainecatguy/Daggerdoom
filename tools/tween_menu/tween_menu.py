@@ -167,7 +167,7 @@ class Paired:
         test_pk3(self.dir / "tweentest.pk3")
         uz = ["-noactivate", "-config", str(self.dir / "uz.ini"), "-savedir", str(self.dir / "saves"), "-dfbridgelog", str(self.uz_log), "-nosound", "-noautoload", "-skill", "3",
               "-ddtowncache", str(REVIEW / "data" / "cache"), "-ddconverter", str(REVIEW / "data" / "converter" / "DungeonConverter.exe"), "-ddarena2", str(GAME / "DAGGER" / "ARENA2"),
-              "+logfile", "tweenmenu",  # UZDoom writes log-tweenmenu.txt "+vid_fullscreen", "0", "+wipetype", "0", "+m_use_mouse", "1",
+              "+logfile", "tweenmenu", "+vid_fullscreen", "0", "+wipetype", "0", "+m_use_mouse", "1",
               "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{GROUP:05d}"]
         df = ["-dfbridgelog", str(self.dir / "df.log"), "-dfsynctest", str(GAME / "DAGGER"), "-dfspellbooktest", str(self.dir / "spellbook.log"),
               "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "400"]
