@@ -1171,6 +1171,7 @@ constexpr int64_t AutosaveHoldNs = 60000000000LL;
 // instead of making a second one in play. The screen keeps the last frame from before the change until it ends.
 bool arrivalPending, arrivalQueued, saveIsArrival, arrivalSave;
 int64_t arrivalAtNs;
+int arrivalReadyTic = -1; // gametic when a frozen arrival's setup was first seen done (-1: not yet)
 constexpr int64_t ArrivalWaitNs = 2000000000LL, ArrivalHoldNs = 12000000000LL;
 // While the change waits for its setup the playsim is frozen (DD_BridgeArrivalFreeze); a long hold says "Loading".
 int arrivalFrozenTics;
@@ -1327,6 +1328,13 @@ void PumpArrival(int64_t now)
 	const bool handoff = DDTreadmill_HandoffPending();
 	if (handoff && now - arrivalAtNs <= ArrivalWaitNs) return; // The new map's first tic finishes the change.
 	if (!handoff && !DD_SetupReady(now)) return; // Bounded by the gate's own timeout.
+	// The last setup answer (often the dungeon's monster spawn) is applied in a tic. Hold one more frozen tic after it,
+	// so what it made is held still, like everything else, before the first frame of play.
+	if (!handoff && arrivalFrozenTics > 0)
+	{
+		if (arrivalReadyTic < 0) arrivalReadyTic = gametic;
+		if (gametic <= arrivalReadyTic) return;
+	}
 	arrivalPending = false;
 	ArrivalFreezeEnd(handoff ? "the handoff wait ran out" : "setup was done or timed out");
 	if (!arrivalSave) return; // Autosaves are off: the wait only kept the map still until its setup was done.
@@ -1419,6 +1427,7 @@ void DD_BridgeArrivalAutosave(bool save)
 	arrivalSave = save;
 	arrivalPending = true;
 	arrivalQueued = false;
+	arrivalReadyTic = -1;
 	arrivalAtNs = dfb_now_ns();
 }
 
