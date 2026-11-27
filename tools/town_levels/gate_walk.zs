@@ -127,7 +127,7 @@ class TLGateWalk : StaticEventHandler
 				p.angle = atan2(-away.y, -away.x);
 				if (++tics > 1500) { Console.Printf("TLDONE FAIL never re-entered the town map"); done = true; }
 			}
-			else { Console.Printf("TLBACKIN tic %d", level.maptime); wait = level.maptime + 105; phase = 9; }
+			else { Console.Printf("TLBACKIN tic %d", level.maptime); wait = level.maptime + 280; phase = 9; }
 			break;
 		case 9:
 			if (players[0].mo) players[0].mo.vel.xy = (0, 0);

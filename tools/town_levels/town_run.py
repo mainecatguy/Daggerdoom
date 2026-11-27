@@ -90,6 +90,9 @@ def town_centre(group):
 
 def assemble():
     REVIEW.mkdir(parents=True, exist_ok=True)
+    cache, kept = REVIEW / "data" / "cache", REVIEW / "cache-kept"
+    if cache.exists() and not kept.exists():   # converted towns survive a re-assemble
+        shutil.move(str(cache), str(kept))
     for name in ("uzdoom", "dfu", "data"):
         if (REVIEW / name).exists():
             shutil.rmtree(REVIEW / name)
@@ -98,6 +101,10 @@ def assemble():
         if f.is_file() and f.suffix.lower() in (".exe", ".pk3", ".dll"):
             shutil.copy2(f, REVIEW / "uzdoom" / f.name)
     shutil.copytree(BASE / "data", REVIEW / "data")
+    if kept.exists():
+        if cache.exists():
+            shutil.rmtree(cache)
+        shutil.move(str(kept), str(cache))
     shutil.copy2(LAUNCHER_BUILD / "doomerfall-launcher.exe", REVIEW / "doomerfall-launcher.exe")
     for name in EXTRA:
         shutil.copy2(BASE / name, REVIEW / name)
@@ -182,7 +189,7 @@ def run(name, stock_mods, start):
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "TLGateWalk" }\n')
     uz = ["-noactivate", "-nosound", "-noautoload", "-dfbridgelog", str(uz_log), "+logfile", name, "+wipetype", "0",
           "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"]
-    df = ["-dfbridgelog", str(df_log), "-dfworldleveltest", "1", "-dftownlevellog", "-screen-width", "640", "-screen-height", "360"]
+    df = ["-dfbridgelog", str(df_log), "-dfworldleveltest", "1", "-dfworldleveltestontown", "-dftownlevellog", "-screen-width", "640", "-screen-height", "360"]
     args = launch_args(runs, group, uz, df, stock_mods) + ["--mod", str(harness), "--minimized", "--log", str(runs / "launcher.log")]
     timeout = 220
     proc = subprocess.Popen([sys.executable, QUIET, "--timeout", str(timeout), "--", str(REVIEW / "doomerfall-launcher.exe")] + args,

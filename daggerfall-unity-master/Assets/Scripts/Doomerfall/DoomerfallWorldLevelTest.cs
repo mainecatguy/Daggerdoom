@@ -29,6 +29,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DoomerfallBridge bridge;
         int playerLevel;
         bool levelSet, done;
+        float onTownSince = -1;
 
         internal static void Attach(DoomerfallBridge owner)
         {
@@ -56,6 +57,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 bridge.LogLine("worldleveltest: player level set to " + playerLevel);
             }
             if (Time.frameCount < 600 || !DoomerfallAreaLevels.IsFinished)
+                return;
+            // -dfworldleveltestontown: wait until Doom has reported a town's own map for 3 seconds (the town level applies
+            // only there, and the town harness moves the player into the city just after the map starts).
+            if (DoomerfallAreaLevels.DoomTownMap != 1)
+                onTownSince = -1;
+            else if (onTownSince < 0)
+                onTownSince = Time.unscaledTime;
+            if ((onTownSince < 0 || Time.unscaledTime - onTownSince < 3) && Array.IndexOf(Environment.GetCommandLineArgs(), "-dfworldleveltestontown") >= 0)
                 return;
             done = true;
             player.Level = playerLevel; // in case a load replaced the player since
