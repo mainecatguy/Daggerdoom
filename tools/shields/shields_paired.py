@@ -102,6 +102,8 @@ def main():
     checks.append(("no shield found anywhere", "FOUND SHIELD" not in log))
     checks.append(("quest random armor rerolls the 4 shield indexes", "4 of the armor group indexes" in log))
     checks.append(("equipping a shield is refused", "shield test: equip refused True" in log))
+    checks.append(("a hotkey press on a shield is refused and armor is unchanged (pressed twice)",
+                   "shield test: hotkey refused True, armor unchanged True" in log))
     before = re.search(r"before save: equipped (\w+), armor ([-\d,]+)", log)
     after = re.search(r"after load: loaded (\w+), shields carried (\d+), left hand (\w+), armor ([-\d,]+)", log)
     checks.append(("the older-save shield was equipped before saving", bool(before) and before.group(1) == "True"))

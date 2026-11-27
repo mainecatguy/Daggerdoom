@@ -137,6 +137,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             player.Items.AddItem(shield);
             bool refused = player.ItemEquipTable.EquipItem(shield) == null && !player.ItemEquipTable.IsEquipped(shield);
             Log("equip refused " + refused);
+            string armorBefore = string.Join(",", player.ArmorValues);
+            DoomerfallHotkeys hotkeys = bridge.GetComponent<DoomerfallHotkeys>();
+            hotkeys.Use(2, 1, shield);
+            hotkeys.Use(2, 1, shield);
+            Log(string.Format("hotkey refused {0}, armor unchanged {1}", !player.ItemEquipTable.IsEquipped(shield),
+                armorBefore == string.Join(",", player.ArmorValues)));
 
             // 4. An older save with the shield equipped.
             ulong[] table = player.ItemEquipTable.SerializeEquipTable();
