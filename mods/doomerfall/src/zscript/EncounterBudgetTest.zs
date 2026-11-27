@@ -90,8 +90,9 @@ class DoomerfallEncounterBudgetTest : StaticEventHandler
 		return req;
 	}
 
-	// The PlainHumanoid start room: Privateer's Hold's facts with placement 0 in the room the cave opens into, 1 on the
-	// floor below (its real neighbour, outside the radius) and 2 just outside the radius. Prints each placement's role and
+	// The PlainHumanoid start room: Privateer's Hold's facts with placement 0 in the room the cave opens into, 1 at the
+	// real position of the room on the floor below (near in a straight line, far on foot, outside the radius) and 2 just
+	// outside the radius. Prints each placement's role and
 	// classes, then a Move with every placement but the start room full (it must not land there).
 	static void StartRoom()
 	{

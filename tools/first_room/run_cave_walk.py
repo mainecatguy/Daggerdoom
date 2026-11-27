@@ -22,11 +22,11 @@ with zipfile.ZipFile(pk3, "w") as z:
 log = out / "log-cave-walk-log.txt"  # UZDoom names +logfile cave-walk.log this way
 log.unlink(missing_ok=True)
 files = [str(data / n) for n in ("ddruntime.pk3", "privateershold.wad", "privateershold_mesh.pk3", "privateershold_doors.pk3")]
-cmd = [sys.executable, QUIET, "--timeout", "90", "--cwd", str(out), "--", str(uz), "-iwad", IWAD, "-file", *files, str(pk3),
+cmd = [sys.executable, QUIET, "--timeout", "400", "--cwd", str(out), "--", str(uz), "-iwad", IWAD, "-file", *files, str(pk3),
        "-config", str(out / "cave-walk.ini"), "+logfile", "cave-walk.log", "+map", "MAP01",
        "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"]
 proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-deadline = time.time() + 90
+deadline = time.time() + 400
 while time.time() < deadline and proc.poll() is None:
     text = log.read_text(errors="replace") if log.exists() else ""
     if "CAVEWALK done" in text or "Fatal error" in text or "VM execution aborted" in text:

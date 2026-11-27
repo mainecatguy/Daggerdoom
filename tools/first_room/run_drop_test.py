@@ -1,7 +1,8 @@
 """Checks that the start room's battle rifle Former Humans drop battle rifles with the DRLA set from play_drlax.bat.
 
-usage: run_drop_test.py <uzdoom.exe> <output folder>
-Packs drop_test.zs into a pk3, runs DOOM2 MAP01 with DRLA Arsenal, Monsters and DRLAX on a private desktop (quiet_run),
+usage: run_drop_test.py <uzdoom.exe> <output folder> <doomerfall.pk3>
+Packs drop_test.zs into a pk3, runs DOOM2 MAP01 with DRLA Arsenal, Monsters, DRLAX and doomerfall.pk3 (the game's own
+event handlers, such as the ammo conversion, are loaded) on a private desktop (quiet_run),
 and passes when all three kinds died and three RLBattleRiflePickup lie on the floor."""
 import re
 import time
@@ -14,7 +15,7 @@ QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 IWAD = r"D:\dev\DoomDaggerfall\GameResources\wads\DOOM2.WAD"
 MODS = [Path(r"D:\dev\DoomDaggerfall\GameMods") / n for n in ("DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3")]
 
-uz, out = Path(sys.argv[1]), Path(sys.argv[2])
+uz, out, game = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
 out.mkdir(parents=True, exist_ok=True)
 pk3 = out / "first_room_drop_test.pk3"
 with zipfile.ZipFile(pk3, "w") as z:
@@ -22,7 +23,7 @@ with zipfile.ZipFile(pk3, "w") as z:
     z.writestr("mapinfo.txt", 'GameInfo { AddEventHandlers = "FirstRoomDropTest" }\n')
 log = out / "log-drop-test-log.txt"  # UZDoom names +logfile drop-test.log this way
 log.unlink(missing_ok=True)
-cmd = [sys.executable, QUIET, "--timeout", "40", "--cwd", str(out), "--", str(uz), "-iwad", IWAD, "-file", *map(str, MODS), str(pk3),
+cmd = [sys.executable, QUIET, "--timeout", "40", "--cwd", str(out), "--", str(uz), "-iwad", IWAD, "-file", *map(str, MODS), str(game), str(pk3),
        "-config", str(out / "drop-test.ini"), "+logfile", "drop-test.log", "-warp", "1", "-skill", "3",
        "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"]
 proc = subprocess.Popen(cmd)
