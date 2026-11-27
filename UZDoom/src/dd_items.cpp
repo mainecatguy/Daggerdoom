@@ -24,6 +24,7 @@
 #include "gstrings.h"
 #include "gamestate.h"
 #include "info.h"
+#include "p_3dfloors.h"
 #include "p_linetracedata.h"
 #include "p_local.h"
 #include "printf.h"
@@ -168,6 +169,21 @@ double AimScore(AActor *pmo, player_t *player, AActor *item)
 	return to.Z < 0 && -to.Z <= FloorDrop && flatFacing > MinAim ? flatFacing - 1 : -HUGE_VAL;
 }
 
+// True when a solid 3D floor lies between the player's eye and the item: it is on another storey of a converted
+// dungeon. Doom's sight check lets this through for an item lying on the 3D floor's top within the player's own sector,
+// and the floor-ahead rule in AimScore ignores where the player faces, so a clip on the storey above showed a label.
+bool OtherStorey(player_t *player, AActor *item)
+{
+	for (F3DFloor *rover : item->Sector->e->XFloor.ffloors)
+	{
+		if (!(rover->flags & FF_EXISTS) || !(rover->flags & FF_SOLID)) continue;
+		const double top = rover->top.plane->ZatPoint(item), bottom = rover->bottom.plane->ZatPoint(item);
+		if (player->viewz <= bottom && item->Z() >= top - 1) return true;
+		if (player->viewz >= top && item->Top() <= bottom + 1) return true;
+	}
+	return false;
+}
+
 // The pile, container, or (with `doomItems`) Doom pickup that Use would take, or null.
 AActor *ItemInView(player_t *player, bool doomItems, bool touchToo = false)
 {
@@ -179,7 +195,7 @@ AActor *ItemInView(player_t *player, bool doomItems, bool touchToo = false)
 		const bool pile = IsWorldPile(mo);
 		if (!pile && (!doomItems || !(mo->flags & MF_SPECIAL) || !(touchToo ? DD_PickupVisible(mo) : DD_PickupNeedsUse(mo)))) continue;
 		const double score = AimScore(pmo, player, mo);
-		if (score > bestScore && P_CheckSight(pmo, mo, SF_IGNOREVISIBILITY))
+		if (score > bestScore && P_CheckSight(pmo, mo, SF_IGNOREVISIBILITY) && !OtherStorey(player, mo))
 		{
 			bestScore = score;
 			best = mo;
@@ -363,9 +379,25 @@ FString CleanTag(const char *tag)
 	return out;
 }
 
-// The item's tag, or its pickup message when it has none (DRLA's RLBlurSphere says "Partial Invisibility").
+// The item's name: the Doomerfall mod's rule (zscript/DoomerfallLook.zs DoomerfallItemName.Of: its tag, the tag of the
+// stock item it replaces, its pickup message cut to the noun, its class name). Without the mod, its tag or pickup message.
 FString ItemName(AActor *mo)
 {
+	static VMFunction *rule = nullptr;
+	static bool looked = false;
+	if (!looked)
+	{
+		PClass::FindFunction(&rule, "DoomerfallItemName", "Of");
+		looked = true;
+	}
+	if (rule)
+	{
+		FString answer;
+		VMValue params[] = { mo };
+		VMReturn ret(&answer);
+		VMCall(rule, params, 1, &ret, 1);
+		if (answer.IsNotEmpty()) return CleanTag(answer.GetChars());
+	}
 	const char *tag = mo->GetTag("");
 	if (!tag[0] && mo->IsKindOf(NAME_Inventory))
 	{
