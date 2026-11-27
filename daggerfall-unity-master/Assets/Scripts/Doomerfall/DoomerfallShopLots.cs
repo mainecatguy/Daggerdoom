@@ -485,13 +485,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return 0;
         }
 
-        /// <summary>The chance (0-1) that one Doom gun roll at this shop keeps a gun of this tier.</summary>
-        internal static float KeepChance(string tier, int quality, int weaponChance)
-        {
-            int rarity = RarityOf(tier);
-            return rarity > quality ? 0f : Mathf.Clamp(weaponChance * 5 * (21 - rarity) / 100, 0, 100) / 100f;
-        }
-
         static void RollDoomGuns(PlayerGPS.DiscoveredBuilding building, List<DaggerfallUnityItem> into)
         {
             int chance = WeaponChance(building.buildingType);
@@ -522,15 +515,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     return item;
                 }
             }
-            return null;
-        }
-
-        /// <summary>Tier of a Doom gun item for sale, or null.</summary>
-        internal static string TierOf(DoomerfallDoomItem item)
-        {
-            foreach (Gun g in Guns())
-                if (g.pickup == item.DoomClass)
-                    return g.tier;
             return null;
         }
 

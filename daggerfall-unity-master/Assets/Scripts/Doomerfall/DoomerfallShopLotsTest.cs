@@ -33,6 +33,21 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         void Log(string s) { bridge.LogLine("shoplots: " + s); }
 
+        /// <summary>The chance (0-1) that one Doom gun roll keeps a gun of this tier: Daggerfall's stock rule.</summary>
+        static float KeepChance(string tier, int quality, int weaponChance)
+        {
+            int rarity = DoomerfallShopLots.RarityOf(tier);
+            return rarity > quality ? 0f : Mathf.Clamp(weaponChance * 5 * (21 - rarity) / 100, 0, 100) / 100f;
+        }
+
+        static string TierOf(DoomerfallDoomItem item)
+        {
+            foreach (DoomerfallShopLots.Gun g in DoomerfallShopLots.Guns())
+                if (g.pickup == item.DoomClass)
+                    return g.tier;
+            return null;
+        }
+
         void Update()
         {
             if (done || !GameManager.HasInstance || GameManager.Instance.PlayerEntity == null || GameManager.Instance.PlayerGPS == null || Time.frameCount < 600)
@@ -182,7 +197,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             // Expected tier shares among stocked guns at a weapon smith: guns of a tier x their keep chance.
             int chance = DoomerfallShopLots.WeaponChance(DFLocation.BuildingTypes.WeaponSmith);
             string[] tiers = { "common", "uncommon", "rare", "veryrare", "legendary" };
-            double[] weight = tiers.Select(t => guns.Count(g => g.tier == t) * (double)DoomerfallShopLots.KeepChance(t, Quality, chance)).ToArray();
+            double[] weight = tiers.Select(t => guns.Count(g => g.tier == t) * (double)KeepChance(t, Quality, chance)).ToArray();
             double total = weight.Sum();
             Dictionary<string, int> got = tiers.ToDictionary(t => t, t => 0);
             int stocked = 0;
@@ -190,7 +205,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 foreach (DaggerfallUnityItem i in s.lot.items)
                 {
                     DoomerfallDoomItem d = i as DoomerfallDoomItem;
-                    string t = d != null ? DoomerfallShopLots.TierOf(d) : null;
+                    string t = d != null ? TierOf(d) : null;
                     if (t != null) { got[t]++; stocked++; }
                 }
             bool pass = stocked > 30;
@@ -201,7 +216,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 double obs = stocked > 0 ? (double)got[tiers[k]] / stocked : 0;
                 if (Math.Abs(obs - p) > 4 * sd + 0.005) pass = false;
                 line.AppendFormat(" {0} {1:F1}% (expected {2:F1}%, keep chance per roll {3:F1}%, {4} guns in set);", tiers[k], 100 * obs, 100 * p,
-                    100 * DoomerfallShopLots.KeepChance(tiers[k], Quality, chance), guns.Count(g => g.tier == tiers[k]));
+                    100 * KeepChance(tiers[k], Quality, chance), guns.Count(g => g.tier == tiers[k]));
             }
             Log(string.Format("{0} Doom guns at weapon smiths (quality {1}) by tier, {2} stocked:{3}", pass ? "PASS" : "FAIL", Quality, stocked, line));
             int top = 0;
