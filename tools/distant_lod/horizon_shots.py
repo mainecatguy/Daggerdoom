@@ -104,7 +104,8 @@ def main():
         for i in range(4):
             shot = os.path.join(WORK, f"{args.name}_{tag}_{i}.png").replace("\\", "/")
             shots.append(shot)
-            lines.append(f'netevent hzview {i}; wait 25; screenshot \\"{shot}\\"; wait 4')
+            # The turn is sent twice and given 50 tics: a shot once came out with the previous view's image.
+            lines.append(f'netevent hzview {i}; wait 25; netevent hzview {i}; wait 25; screenshot \\"{shot}\\"; wait 10')
 
     views("a")
     if over:
@@ -117,7 +118,8 @@ def main():
     with open(cfg, "w", newline="\n") as f:
         for i, l in enumerate(lines):
             f.write(f'alias hzstep{i} "{l}; hzstep{i + 1}"\n')
-        f.write(f'alias hzstep{len(lines)} "quit"\nwait 140; hzstep0\n')
+        # 12 s before the first shot: a nearby town's mesh streams in from the cache and would change the window.
+        f.write(f'alias hzstep{len(lines)} "quit"\nwait 420; hzstep0\n')
 
     log = os.path.join(WORK, f"log-{args.name}.txt")
     if os.path.exists(log):
@@ -142,6 +144,11 @@ def main():
     missing = [s for s in shots if not os.path.exists(s)]
     print("shots", len(shots) - len(missing), "of", len(shots), "in", WORK)
     if over and not missing:
+        # A shot that repeats the previous view's image means the turn had not applied: the comparison is invalid.
+        for tag in (0, 4):
+            for i in range(1, 4):
+                if compare(shots[tag + i - 1], shots[tag + i]).startswith("mean 0.00"):
+                    print(f"INVALID: shot {shots[tag + i]} is the same image as the previous view")
         for i in range(4):
             print(f"view {i}: shifted vs unshifted window, same world point: {compare(shots[i], shots[4 + i])}")
 
