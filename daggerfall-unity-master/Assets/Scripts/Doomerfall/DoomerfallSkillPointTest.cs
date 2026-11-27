@@ -2,6 +2,7 @@
 // skills enough uses and running Daggerfall's own skill check (PlayerEntity.RaiseSkills, which rest and fast travel call).
 // Round 1 raises Climbing alone; round 2, a few seconds later, raises Climbing and Running in the same check. Logs each
 // round and the skill values, so a test can match them to Doom's log (HUD messages and "ui sound" lines).
+// With "prime" after the file it runs no check itself; see Prime.
 // Starts itself from the flag; no game class calls it.
 
 using System;
@@ -20,6 +21,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DoomerfallPositionSync sync;
         float nextAt;
         int round;
+        bool prime;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void StartIfRequested()
@@ -30,7 +32,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return;
             GameObject host = new GameObject("DoomerfallSkillPointTest");
             DontDestroyOnLoad(host);
-            host.AddComponent<DoomerfallSkillPointTest>().path = args[at + 1];
+            DoomerfallSkillPointTest test = host.AddComponent<DoomerfallSkillPointTest>();
+            test.path = args[at + 1];
+            test.prime = at + 2 < args.Length && args[at + 2] == "prime";
             File.WriteAllText(args[at + 1], "skill point test: started\n");
         }
 
@@ -47,17 +51,22 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 sync = FindObjectOfType<DoomerfallPositionSync>();
             PlayerEntity player = GameManager.Instance.PlayerEntity;
             if (!sync || !sync.InGame || sync.LoadRunning || sync.Phase != Dfb.DF_PHASE_PLAY || GameManager.Instance.SaveLoadManager.LoadInProgress || player == null ||
-                !(DaggerfallUI.UIManager.TopWindow is UserInterfaceWindows.DaggerfallHUD))
+                !(prime || DaggerfallUI.UIManager.TopWindow is UserInterfaceWindows.DaggerfallHUD))
             {
                 nextAt = 0;
                 return;
             }
             if (nextAt == 0)
-                nextAt = Time.realtimeSinceStartup + (round == 0 ? FirstDelay : RoundGap);
+                nextAt = Time.realtimeSinceStartup + (prime ? 0.01f : round == 0 ? FirstDelay : RoundGap);
             if (Time.realtimeSinceStartup < nextAt)
                 return;
             nextAt = 0;
             round++;
+            if (prime)
+            {
+                Prime(player);
+                return;
+            }
             try { Raise(player, round == 1 ? new[] { DFCareer.Skills.Climbing } : new[] { DFCareer.Skills.Climbing, DFCareer.Skills.Running }); }
             catch (Exception e) { Write("error " + e.GetType().Name + " " + e.Message); round = 2; }
         }
@@ -74,6 +83,19 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             player.TimeOfLastSkillIncreaseCheck = 0;
             player.RaiseSkills();
             Write(string.Format("round {0}: skill check ran, {1} -> {2} (ready to level up {3})", round, before, Values(player, skills), player.ReadyToLevelUp));
+        }
+
+        // "prime": only gives Climbing its uses and clears the six-hour wait, so the next real rest or fast travel raises it
+        // through Daggerfall's own skill check. Also takes the player to a quarter of their health, so Rest Until Healed rests.
+        void Prime(PlayerEntity player)
+        {
+            round = 2;
+            player.SetCurrentLevelUpSkillSum();
+            player.StartingLevelUpSkillSum = player.CurrentLevelUpSkillSum + 28 - 15 * player.Level;
+            player.TallySkill(DFCareer.Skills.Climbing, 20000);
+            player.TimeOfLastSkillIncreaseCheck = 0;
+            player.CurrentHealth = Math.Max(1, player.MaxHealth / 4);
+            Write("primed: " + Values(player, new[] { DFCareer.Skills.Climbing }) + ", the next rest or fast travel raises it");
         }
 
         static string Values(PlayerEntity player, DFCareer.Skills[] skills)

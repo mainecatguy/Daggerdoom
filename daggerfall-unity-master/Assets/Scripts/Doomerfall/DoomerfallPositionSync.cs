@@ -301,6 +301,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             travelHoldUntilNs = DfbNative.dfb_now_ns() + TravelHoldNs;
         }
 
+        /// <summary>True from a fast travel (or ship teleport) until Doom reports it has arrived on the new map pixel.</summary>
+        internal bool TravelHolding { get { return travelHold; } }
+
         internal void EndTravelHold()
         {
             travelHold = false;

@@ -125,7 +125,9 @@ class Doomerfall_Events : StaticEventHandler
 	ui void DrawDaggerfallText()
 	{
 		int now = MSTime();
-		double dt = hudLastMs ? (now - hudLastMs) / 1000.0 : 0;
+		// Capped as Unity caps PopupText's Time.deltaTime (the project's maximum timestep, 1/3 s), so a map load does not
+		// expire lines that arrived just before it, such as a skill point message on arrival from fast travel.
+		double dt = hudLastMs ? min((now - hudLastMs) / 1000.0, 1.0 / 3) : 0;
 		hudLastMs = now;
 		if (hudRows.Size())
 		{

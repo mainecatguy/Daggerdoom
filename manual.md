@@ -38,7 +38,7 @@ travel**. Daggerfall checks your skills at most once every 6 game hours.
 
 When a skill goes up by a point, you hear Daggerfall's fanfare and the top of the screen says **"Your <skill> skill
 has improved."** If several skills go up at once, the fanfare plays once and each skill gets its own message. This
-happens when you close the message at the end of a rest, or when you arrive from fast travel.
+happens when you close the message at the end of a rest, or once you have arrived from fast travel.
 
 When you have earned a level, Doom's HUD says **"You have reached level N"**, and Daggerfall's character sheet opens
 by itself inside Doom (after you wake up, or when you arrive):

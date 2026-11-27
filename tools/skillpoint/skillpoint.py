@@ -89,9 +89,14 @@ def write_demo():
         newline="")
 
 
+HEALED_BUTTON = (160, 75)  # The rest window's Rest Until Healed (tools/rest).
+MESSAGE_CLICK = (160, 100)
+
+
 class Run:
-    def __init__(self):
-        self.dir = REVIEW / "run"
+    def __init__(self, mode=None):
+        self.mode = mode
+        self.dir = REVIEW / (f"run-{mode}" if mode else "run")
         self.dir.mkdir(parents=True, exist_ok=True)
         self.uz_log, self.df_log, self.console = self.dir / "uz.log", self.dir / "df.log", self.dir / "log-skillpoint.txt"
         self.launcher, self.views = self.dir / "launcher.log", self.dir / "skillpoint.log"
@@ -117,11 +122,13 @@ class Run:
             path.unlink(missing_ok=True)
         uz = ["-noactivate", "-config", str(self.dir / "uz.ini"), "-savedir", str(self.dir / "saves"), "-dfbridgelog", str(self.uz_log), "-nosound", "-noautoload", "-skill", "3",
               "-ddtowncache", str(REVIEW / "data" / "cache"), "-ddconverter", str(REVIEW / "data" / "converter" / "DungeonConverter.exe"), "-ddarena2", str(GAME / "DAGGER" / "ARENA2"),
+              *(["-dfuitest", "1", "+dd_ui_test_menu", "10" if self.mode == "rest" else "1",
+                 "+screenshot_dir", str(self.dir / "shots")] if self.mode else []),
               "+logfile", "skillpoint", "+vid_fullscreen", "0", "+wipetype", "0",
               "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{GROUP:05d}"]
         df = ["-dfbridgelog", str(self.df_log), "-dfsynctest", str(GAME / "DAGGER"), "-dfskillpointtest", str(self.views),
-              "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "400"]
-        command = [sys.executable, QUIET, "--timeout", "180", "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
+              *(["prime"] if self.mode else []), "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "400"]
+        command = [sys.executable, QUIET, "--timeout", "300" if self.mode else "180", "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                    "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
                    "--uzdoom-cwd", str(self.dir), "--log", str(self.launcher)]
         for mod in [MODS / n for n in DRLA] + [REVIEW / "data" / n for n in DATA] + [REVIEW / "dfitems.pk3", REVIEW / "doomerfall.pk3", REVIEW / "doomerfall-drla.pk3"]:
@@ -141,7 +148,19 @@ class Run:
                 self.proc.wait()
         self.summary()
 
+    def doom(self):
+        # tools/levelup's window driver; that script runs its command line on import, so only its definitions are loaded.
+        path = REPO / "tools" / "levelup" / "levelup.py"
+        ns = {"__file__": str(path), "__name__": "levelup_driver"}
+        exec(compile(read(path).split("\nap = argparse.ArgumentParser()")[0], str(path), "exec"), ns)
+        doom = ns["Doom"](self.launcher)
+        size = re.findall(r"opened menu \d+ at (\d+)x(\d+)", read(self.uz_log))
+        doom.surface = (int(size[-1][0]), int(size[-1][1]))
+        return doom
+
     def drive(self):
+        if self.mode:
+            return self.drive_real()
         sound = r"ui sound %d from Daggerfall" % CLIP
         for n, skills in ((1, ["Climbing"]), (2, ["Climbing", "Running"])):
             if not self.wait(self.views, r"round %d: skill check ran" % n, 150 if n == 1 else 30):
@@ -160,6 +179,75 @@ class Run:
             self.case(messages, f"round {n}: Doom's HUD showed Daggerfall's message for each: " + ", ".join(f"'Your {s} skill has improved.'" for s in skills))
             self.case(heard and count == n and sent == n and "no such clip" not in read(self.uz_log),
                       f"round {n}: Doom played Daggerfall's skill point sound (clip {CLIP}) once for the check: {count} played, {sent} sent so far")
+
+    def drive_real(self):
+        """A real rest (Rest Until Healed) or fast travel (row 3 of the region's list, as tools/levelup) runs the check."""
+        sound = r"ui sound %d from Daggerfall" % CLIP
+        if not self.wait(self.views, r"primed:", 150):
+            self.case(False, "the test never primed Climbing (game not ready)")
+            return
+        menu = 10 if self.mode == "rest" else 1
+        if not self.wait(self.uz_log, r"Daggerfall opened menu %d at" % menu, 90):
+            self.case(False, f"Doom never showed menu {menu}")
+            return
+        time.sleep(1.5)
+        doom = self.doom()
+        if self.mode == "rest":
+            doom.click(HEALED_BUTTON)
+            if not self.wait(self.df_log, r"top window is DaggerfallMessageBox", 90):
+                self.case(False, "the rest never finished")
+                return
+            time.sleep(0.5)
+            if re.search(sound, read(self.uz_log)):
+                self.case(False, "the sound played before the rest-finished message was closed")
+            doom.click(MESSAGE_CLICK)
+        else:
+            doom.click((20, 190))  # I'm At.
+            doom.press(0x0D)  # Open the region.
+            doom.press(0x4C)  # The location list.
+            time.sleep(1.0)
+            doom.double_click((100, 64 + 3 * 6))
+            if self.wait(self.df_log, r"top window is DaggerfallMessageBox", 5):
+                time.sleep(0.3)
+                doom.press(0x59)  # Yes.
+            if self.wait(self.df_log, r"top window is DaggerfallTravelPopUp", 5):
+                time.sleep(0.4)
+                doom.press(0x42)  # Begin.
+            if not self.wait(self.df_log, r"travel: arrived at world", 90):
+                self.case(False, "the fast travel never arrived")
+                return
+        heard = self.wait(self.uz_log, sound, 90)
+        shown =self.wait(self.console, r"Your Climbing skill has improved\.", 10)
+        time.sleep(2.0)
+        rose = re.search(r"hud: top \d+ ms: Your Climbing skill has improved\.", read(self.df_log))
+        uz = read(self.uz_log)
+        count = len(re.findall(sound, uz))
+        self.case(rose, f"the {self.mode}'s own skill check raised Climbing (Daggerfall's RaiseSkills message in df.log)")
+        self.case(shown, "Doom's HUD showed 'Your Climbing skill has improved.'")
+        self.case(heard and count == 1, f"Doom played the skill point sound once ({count})")
+        at = uz.find(sound)
+        if self.mode == "rest":
+            # Daggerfall's rest pops to its HUD before its skill check, so the sound is sent once the rest-finished message
+            # has closed; Doom gets it in the same pump as the menu's close (both lines within a few ms).
+            df = read(self.df_log)
+            box = df.rfind("top window is DaggerfallMessageBox")
+            hud = df.find("top window is DaggerfallHUD", box)
+            sent = df.find("skill point: sound", box)
+            t_sound = re.search(r"([\d.]+) ui sound", uz)
+            t_close = re.findall(r"([\d.]+) ui: closed", uz)
+            gap = abs(float(t_sound.group(1)) - float(t_close[-1])) if t_sound and t_close else None
+            self.case(heard and 0 <= box < hud < sent and gap is not None and gap < 0.1,
+                      f"the sound was sent after the rest-finished message closed, and Doom played it with the menu's close ({gap} s apart)")
+        else:
+            placed = uz.find("travel: Daggerfall placed the player")
+            reached = re.search(r"([\d.]+) travel: Doom reached pixel", read(self.df_log))
+            sent = re.search(r"([\d.]+) skill point: sound", read(self.df_log))
+            self.case(heard and 0 <= placed < at and reached and sent and float(sent.group(1)) >= float(reached.group(1)),
+                      f"the sound was sent after Doom arrived (Doom reached pixel at {reached and reached.group(1)}, sound sent at {sent and sent.group(1)})")
+            print("  uz.log from the placement to the sound:")
+            for line in uz[placed:at + 60].splitlines()[:40]:
+                if "heartbeat" not in line and "tic=" not in line:
+                    print("   ", line[:170])
 
     def summary(self):
         for line in read(self.views).splitlines():
@@ -200,10 +288,11 @@ def check():
 
 ap = argparse.ArgumentParser()
 ap.add_argument("command", choices=("assemble", "run", "check"))
+ap.add_argument("mode", nargs="?", choices=("rest", "travel"))
 args = ap.parse_args()
 if args.command == "assemble":
     assemble()
 elif args.command == "check":
     check()
 else:
-    Run().go()
+    Run(args.mode).go()

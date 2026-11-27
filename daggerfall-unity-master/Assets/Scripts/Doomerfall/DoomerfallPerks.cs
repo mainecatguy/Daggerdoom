@@ -65,7 +65,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DoomerfallPositionSync sync;
         readonly short[] known = new short[DaggerfallSkills.Count];
         readonly List<string> pending = new List<string>();
-        bool hasBaseline;
+        bool hasBaseline, soundPending;
 
         public void Init(DoomerfallBridge owner, DoomerfallPositionSync positionSync)
         {
@@ -87,6 +87,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         void Reset()
         {
             hasBaseline = false;
+            soundPending = false;
             pending.Clear();
         }
 
@@ -126,6 +127,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 known[i] = now;
             }
             if (rose)
+                soundPending = true;
+            // Fast travel runs the skill check before Doom has loaded the arrival map, and a map load stops every sound,
+            // so the sound waits until Doom has arrived. A rest's check runs at the HUD and plays at once.
+            if (soundPending && !sync.TravelHolding)
                 SkillPointSound();
             if (!hasBaseline)
                 bridge.LogLine("perks: watching skills from here");
@@ -144,6 +149,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         void SkillPointSound()
         {
+            soundPending = false;
             bridge.SendText("uisnd " + (int)SkillPointClip);
             bridge.LogLine("skill point: sound " + (int)SkillPointClip + " sent to Doom");
         }
