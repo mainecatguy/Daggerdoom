@@ -56,6 +56,10 @@ def main():
         i = sys.argv.index("--area")
         area = int(sys.argv[i + 1])
         del sys.argv[i:i + 2]
+    if "--timeout" in sys.argv:  # Seconds per run (paired.py's default 240 can be short for area 30's ~1000 kills).
+        i = sys.argv.index("--timeout")
+        fd.TIMEOUT = int(sys.argv[i + 1])
+        del sys.argv[i:i + 2]
     stock = "--stock" in sys.argv  # Stock Doom monsters (no DRLA).
     if stock:
         sys.argv.remove("--stock")
