@@ -3,7 +3,12 @@
 // frame, holds +forward down (the player must not move), and measures the longest gap between frames (the window stays
 // live). 1.5 s into the hold it asks for a menu save and a quicksave; both must be refused. The result is logged when
 // the hold ends, before any map change it leads to. Lines start with "loadingtest:" in the bridge log.
+// -ddloadingblock <ms> (alone or with -ddloadingtest): once, 500 ms into the first hold, blocks the main thread for <ms>,
+// as a long dungeon spawn does, so Doom publishes nothing for that time. Daggerfall must stay paused through it; a block
+// longer than 60 s stands in for a dead Doom, which must release Daggerfall.
 
+#include <chrono>
+#include <thread>
 #include <unordered_map>
 
 #include "../../bridge/doomerfall_bridge.h"
@@ -22,6 +27,7 @@ EXTERN_CVAR(Int, dd_tm_use)
 #include "printf.h"
 
 FARG_ADVANCED(ddloadingtest, "Doomerfall", "", "Loading hold test only: logs whether anything moved or saved while a long operation held the game.");
+FARG_ADVANCED(ddloadingblock, "Doomerfall", "<ms>", "Loading hold test only: blocks the main thread once for <ms>, 500 ms into the first hold.");
 
 void DD_BridgeLog(const char *text);
 bool DD_LoadingActive();
@@ -120,9 +126,31 @@ void Finish(int64_t now)
 }
 }
 
+namespace
+{
+int blockMs = -1;	// -1 not read yet, 0 none or done
+
+// -ddloadingblock: the injected block. Logged before and after with the shared clock, so the checker can see whether
+// Daggerfall moved while Doom was blocked.
+void Block()
+{
+	if (blockMs < 0)
+	{
+		const char *ms = Args->CheckValue(FArg_ddloadingblock);
+		blockMs = ms ? atoi(ms) : 0;
+	}
+	if (blockMs <= 0 || !DD_LoadingActive() || DD_LoadingAgeMs() < 500) return;
+	Log(FStringf("blocking the main thread for %d ms, %.0f ms into the hold", blockMs, DD_LoadingAgeMs()));
+	std::this_thread::sleep_for(std::chrono::milliseconds(blockMs));
+	Log(FStringf("block ended, hold active %d", int(DD_LoadingActive())));
+	blockMs = 0;
+}
+}
+
 // From DD_BridgeTestFrame, once per bridge frame between tics.
 void DD_LoadingTestFrame(int64_t now)
 {
+	Block();
 	if (enabled < 0) enabled = Args->CheckParm(FArg_ddloadingtest) > 0;
 	if (!enabled) return;
 	const bool held = DD_LoadingActive() && gamestate == GS_LEVEL && primaryLevel;
