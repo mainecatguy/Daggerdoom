@@ -929,7 +929,8 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             {
                 DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
                 DaggerfallMessageBox messageBox = new DaggerfallMessageBox(uiManager, this);
-                messageBox.SetTextTokens((int)sender.Tag, playerEntity.Stats);
+                if (!Doomerfall.DoomerfallAttributeHelp.SetText(messageBox, (int)sender.Tag, playerEntity)) // Doomerfall: adds its rules in a bridge session
+                    messageBox.SetTextTokens((int)sender.Tag, playerEntity.Stats);
                 messageBox.ClickAnywhereToClose = true;
                 messageBox.Show();
             }
