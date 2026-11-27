@@ -170,7 +170,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             const int Buildings = 60, WarmUp = 60, Samples = 30;
             int withDaedric = 0, samples = 0, firstDelivery = 0;
-            int pieces = 0, daedricPieces = 0;
+            int pieces = 0, daedricPieces = 0, armor = 0, daedricArmor = 0, plate = 0;
             for (int b = 0; b < Buildings; b++)
             {
                 DaggerfallLoot[] shelves = MakeShelves();
@@ -183,10 +183,16 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         {
                             DaggerfallUnityItem item = s.Items.GetItem(i);
                             if (IsDaedric(item)) any = true;
-                            if (d == 1 && (item.ItemGroup == ItemGroups.Weapons || item.ItemGroup == ItemGroups.Armor))
+                            if (d == 1 && item.ItemGroup == ItemGroups.Weapons)
                             {
                                 pieces++;
                                 if (IsDaedric(item)) daedricPieces++;
+                            }
+                            if (d == 1 && item.ItemGroup == ItemGroups.Armor)
+                            {
+                                armor++;
+                                if (IsDaedric(item)) daedricArmor++;
+                                if (item.nativeMaterialValue >= 0x0200) plate++;
                             }
                         }
                     if (d == 1 && any) firstDelivery++;
@@ -194,9 +200,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 }
                 Free(shelves);
             }
-            Log(string.Format("level {0}: first stocking has a Daedric item in {1:F1}% of shops; Daedric share of weapons and armor on first stocking {2:F2}% ({3} of {4}; approved odds give {5:F2}%); after {6} days, a shop has a Daedric item on {7:F1}% of days ({8} shop-days)",
+            Log(string.Format("level {0}: first stocking has a Daedric item in {1:F1}% of shops; Daedric share of weapons on first stocking {2:F2}% ({3} of {4}; approved odds give {5:F2}%); after {6} days, a shop has a Daedric item on {7:F1}% of days ({8} shop-days)",
                 level, 100.0 * firstDelivery / Buildings, 100.0 * daedricPieces / Mathf.Max(1, pieces), daedricPieces, pieces, 100 * DoomerfallDrops.DaedricChance(level),
                 WarmUp, 100.0 * withDaedric / Mathf.Max(1, samples), samples));
+            Log(string.Format("level {0}: armor on first stocking: {1} pieces, {2} plate ({3:F1}%), {4} Daedric = {5:F2}% of armor, {6:F2}% of plate (approved odds {7:F2}%)",
+                level, armor, plate, 100.0 * plate / Mathf.Max(1, armor), daedricArmor, 100.0 * daedricArmor / Mathf.Max(1, armor), 100.0 * daedricArmor / Mathf.Max(1, plate),
+                100 * DoomerfallDrops.DaedricChance(level)));
         }
     }
 }

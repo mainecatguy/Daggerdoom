@@ -38,6 +38,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             int index = Mathf.Max(0, shelves.IndexOf(shelf));
             int location = GameManager.HasInstance && GameManager.Instance.PlayerGPS != null ? GameManager.Instance.PlayerGPS.CurrentMapID : 0;
             Restock(shelf, building, location, index, Mathf.Max(1, shelves.Count), Day(DaggerfallUnity.Instance.WorldTime.Now), WorldLevel.Current);
+            DoomerfallItems.RecordShelf(shelf);   // the Doom item ledger owns shelf state across re-entry, save, and load
             return true;
         }
 
@@ -79,6 +80,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     using (WorldLevel.ForShop(GameManager.Instance.PlayerEnterExit.BuildingDiscoveryData))
                         shelf.StockShopShelf(GameManager.Instance.PlayerEnterExit.BuildingDiscoveryData);
             PutOnShelves(sold, shelves);
+            foreach (DaggerfallLoot shelf in shelves)
+                DoomerfallItems.RecordShelf(shelf);
             return true;
         }
 
@@ -122,7 +125,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             for (int i = 0; i < items.Count; i++)
             {
                 DaggerfallUnityItem item = items.GetItem(i);
-                if (!item.IsQuestItem && Random.value < SellChance(item))
+                if (!item.IsQuestItem && item.ItemGroup != ItemGroups.Transportation && Random.value < SellChance(item))
                     gone.Add(item);
             }
             foreach (DaggerfallUnityItem item in gone)
@@ -144,10 +147,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             foreach (DaggerfallUnityItem item in goods)
             {
                 bool ammo = item is DoomerfallAmmoItem;
-                if (!ammo && shelf.Items.Count >= share)
-                    continue;
-                if (item.ItemGroup == ItemGroups.Transportation && shelf.Items.Contains(item.ItemGroup, item.TemplateIndex))
+                bool transport = item.ItemGroup == ItemGroups.Transportation;
+                if (transport && shelf.Items.Contains(item.ItemGroup, item.TemplateIndex))
                     continue;   // one horse, one cart
+                if (!ammo && !transport && shelf.Items.Count >= share)
+                    continue;   // a general store always has its horse and cart, as in Daggerfall's classic restock
                 shelf.Items.AddItem(item, ItemCollection.AddPosition.Back, !ammo);   // ammo joins a matching stack
             }
         }

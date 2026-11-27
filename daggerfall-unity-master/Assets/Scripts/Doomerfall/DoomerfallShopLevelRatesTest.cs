@@ -7,6 +7,7 @@
 using System;
 using System.Collections.Generic;
 using DaggerfallConnect;
+using DaggerfallWorkshop.Game.Formulas;
 using DaggerfallWorkshop.Game.Items;
 using UnityEngine;
 
@@ -84,7 +85,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 using (new WorldLevel.Scope(level))
                 {
                     seen = WorldLevel.Current;
-                    shelf.StockShopShelf(new PlayerGPS.DiscoveredBuilding { buildingType = type, quality = Quality });
+                    // One fresh classic delivery per sample with the approved material odds, as the shop ledger rolls it
+                    // (StockShopShelf on a reused shelf would go to the ledger and not restock again the same day).
+                    shelf.Items.Clear();
+                    FormulaHelper.DoomerfallMaterialRoll = DoomerfallDrops.RollMaterial;
+                    try { shelf.AddShopDelivery(new PlayerGPS.DiscoveredBuilding { buildingType = type, quality = Quality }, shelf.Items); }
+                    finally { FormulaHelper.DoomerfallMaterialRoll = null; }
                 }
                 bool c = false, m = false;
                 for (int i = 0; i < shelf.Items.Count; i++)
