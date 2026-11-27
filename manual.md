@@ -157,6 +157,9 @@ are rarer, but a pickup of any tier holds the same amount as a Regular one: a cl
 4 shells, a box of shells 20, 1 rocket, a box of rockets 5, a cell 20 and a cell pack 100. Ammo a monster drops holds
 half (at least 1). A shop pack of any tier holds 80 bullets, 20 shells, 8 rockets or 100 cells.
 
+Health, ammo and other pickups lying in a place are always the same ones each time you come. A pickup you take is
+gone for good: it does not come back when you leave and return, or when you load a save.
+
 ## Resting
 
 Press **Z** (rebind it in Options, Customize Controls, Doomerfall Controls as **Rest**) to open Daggerfall's rest

@@ -255,6 +255,7 @@ namespace
 	std::unordered_map<int64_t, std::vector<uint64_t>> buckets;
 	std::unordered_set<uint64_t> expected;	// Records and seeds that currently have a live actor.
 	std::unordered_map<uint64_t, DVector3> itemSpots;	// Where each map item stood (world units), so a take's tombstone belongs to its place.
+	bool resumedSnapshot;	// The current space came back from a save's snapshot; its record only refills the cache.
 	std::deque<PendingChunk> pending;
 	uint64_t nextDynamic;
 	bool resumePending;
@@ -1992,12 +1993,22 @@ namespace
 		return count;
 	}
 
+	// After a load: a kept actor is expected again, and a map item gets back where it stood (not in the save), so a take
+	// after the load still has its spot.
+	void ExpectLoaded(AActor *mo)
+	{
+		const uint64_t id = mo->ddRecordId;
+		expected.insert(id);
+		if (IsMapItemId(id)) itemSpots.emplace(id, ToWorld(mo->SpawnPoint, originX, originY));
+	}
+
 	void StartTown(FLevelLocals *Level, int index)
 	{
 		if (multiplayer || !LoadWorld()) return;
 		currentTown = index;
 		townActive = true;
 		dd_tm_intown = 1;
+		resumedSnapshot = false;
 		expected.clear();
 		pending.clear();
 		const Town &t = towns[index];
@@ -2129,7 +2140,11 @@ namespace
 			expected.clear();
 			auto it = Level->GetThinkerIterator<AActor>();
 			while (AActor *mo = it.Next())
-				if (mo->ddRecordId && !IsOwned(mo)) expected.insert(mo->ddRecordId);
+				if (mo->ddRecordId && !IsOwned(mo)) ExpectLoaded(mo);
+			// The save keeps no world table, so without Daggerfall's record leaving would forget what is gone (taken
+			// pickups). The snapshot stands; the record only refills the cache behind it (DDTreadmill_ApplyPlace).
+			resumedSnapshot = towns[town].space;
+			if (DDPlaceKey place; resumedSnapshot && DD_BridgeHasSession() && DDTreadmill_CurrentSpace(place)) DD_LocationsEntered(place);
 			DD_DebugPrintf("DDTOWN resumed %s records=%d\n", Level->MapName.GetChars(), int(table.size()));
 			return;
 		}
@@ -2141,7 +2156,7 @@ namespace
 		expected.clear();
 		auto it = Level->GetThinkerIterator<AActor>();
 		while (AActor *mo = it.Next())
-			if (mo->ddRecordId && !IsOwned(mo)) expected.insert(mo->ddRecordId);
+			if (mo->ddRecordId && !IsOwned(mo)) ExpectLoaded(mo);
 		SettleActors(Level, false);
 		DDTreadmill_Active = true;
 		int drawn = 0;
@@ -2408,8 +2423,9 @@ void DDTreadmill_ApplyPlace(FLevelLocals *Level, const DDPlaceKey &place, const 
 		auto it = Level->GetThinkerIterator<AActor>();
 		while (AActor *mo = it.Next())
 			if (!mo->player && mo->ddRecordId && !IsOwned(mo) && recorded.count(mo->ddRecordId)) live++;
-		if (live > 0)
+		if (live > 0 || resumedSnapshot)	// Resumed: the snapshot stands even when only map items differ (a take).
 		{
+			resumedSnapshot = false;
 			int stored = 0;
 			for (const DDPlaceFact &f : facts)
 			{
