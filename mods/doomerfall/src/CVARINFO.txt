@@ -16,3 +16,5 @@ server noarchive int dd_civilwar_test = 0;
 server noarchive bool dd_weaponcat_test = false;
 // Test hook: list the guns Doomerfall tags as rifles (zscript/DoomerfallRifleTagTest.zs).
 server noarchive bool dd_rifletag_test = false;
+// Test hook: weapon types for Daggerfall's item description (zscript/DoomerfallWeaponTypesTest.zs).
+server noarchive bool dd_weapontypes_test = false;

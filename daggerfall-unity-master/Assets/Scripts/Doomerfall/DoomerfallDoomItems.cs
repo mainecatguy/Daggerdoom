@@ -119,15 +119,56 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             get { return IsGun ? GunName(Material, DoomClass) : DoomerfallDoomItems.NameFor(DoomClass); }
         }
 
-        // Daggerfall's misc item text for most Doom items. A gun's info names its material.
+        // Daggerfall's misc item text for most Doom items. A gun's info starts with its Doom name and the weapon skills it
+        // counts as, then a brief description where the gun's mod has one (todo: weapontypes 01), then its material.
+        // Doom sends the types and description with the gun's sprite; until they arrive the info starts with the name.
         public TextFile.Token[] GetInfoTokens()
         {
             if (!IsGun)
                 return DaggerfallUnity.Instance.TextProvider.GetRSCTokens(1003); // ItemHelper.GetItemInfo's miscTextId
-            return DaggerfallUnity.Instance.TextProvider.CreateTokens(TextFile.Formatting.JustifyCenter,
-                ItemName,
-                string.Format("Material: {0}", MaterialName),
-                string.Format("Weight: {0:0.##} kilograms", weightInKg));
+            List<string> lines = new List<string>();
+            string types, brief;
+            if (DoomerfallDoomItems.TryGetWeaponText(DoomClass, out types, out brief))
+            {
+                lines.Add(TypesLine(DoomerfallDoomItems.NameFor(DoomClass), types));
+                lines.AddRange(Wrap(brief, InfoLineChars));
+            }
+            else
+                lines.Add(ItemName);
+            lines.Add(string.Format("Material: {0}", MaterialName));
+            lines.Add(string.Format("Weight: {0:0.##} kilograms", weightInKg));
+            return DaggerfallUnity.Instance.TextProvider.CreateTokens(TextFile.Formatting.JustifyCenter, lines.ToArray());
+        }
+
+        const int InfoLineChars = 44; // Keeps the info box inside Daggerfall's 320-pixel screen.
+
+        // "Plasma Rifle. Types: Energy", or "Types: none" for a gun in no weapon skill.
+        internal static string TypesLine(string doomName, string types)
+        {
+            return string.Format("{0}. Types: {1}", doomName, string.IsNullOrEmpty(types) ? "none" : types);
+        }
+
+        // Words in lines of at most width characters (a longer word gets a line of its own).
+        internal static List<string> Wrap(string text, int width)
+        {
+            List<string> lines = new List<string>();
+            if (string.IsNullOrEmpty(text))
+                return lines;
+            StringBuilder line = new StringBuilder();
+            foreach (string word in text.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (line.Length > 0 && line.Length + 1 + word.Length > width)
+                {
+                    lines.Add(line.ToString());
+                    line.Length = 0;
+                }
+                if (line.Length > 0)
+                    line.Append(' ');
+                line.Append(word);
+            }
+            if (line.Length > 0)
+                lines.Add(line.ToString());
+            return lines;
         }
         public override string LongName { get { return ItemName; } }
         public override bool IsStackable() { return false; }
@@ -164,6 +205,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             public Texture2D texture;
             public string tag;
+            public string types, brief; // A weapon's, for its item description; empty for other items.
             public int width, height;
             public bool requested;
         }
@@ -458,6 +500,18 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return cls;
         }
 
+        // A gun's weapon types and brief description, false until Doom has sent them with its sprite.
+        internal static bool TryGetWeaponText(string cls, out string types, out string brief)
+        {
+            types = brief = null;
+            Art known;
+            if (instance == null || !instance.art.TryGetValue(cls, out known) || string.IsNullOrEmpty(known.tag))
+                return false;
+            types = known.types;
+            brief = known.brief;
+            return true;
+        }
+
         internal static bool TryGetImage(string cls, out ImageData image)
         {
             image = default(ImageData);
@@ -556,10 +610,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             texture.Apply(false, false); // Kept readable: tiered ammo tints a copy (DoomerfallAmmoTiers.Tinted). Icons are small.
             known.texture = texture;
             known.tag = Text(slot, 80, 64);
+            known.types = Text(slot, 144, 64); // dfb_item_art.types
+            known.brief = Text(slot, 208, 256); // dfb_item_art.brief
             float scale = Mathf.Min(1f, (float)MaxIconSize / Mathf.Max(width, height));
             known.width = Mathf.Max(1, Mathf.RoundToInt(width * scale));
             known.height = Mathf.Max(1, Mathf.RoundToInt(height * scale));
-            bridge.LogLine(string.Format("doomitems: art for \"{0}\" is {1}x{2}, shown {3}x{4}, name \"{5}\"", cls, width, height, known.width, known.height, known.tag));
+            bridge.LogLine(string.Format("doomitems: art for \"{0}\" is {1}x{2}, shown {3}x{4}, name \"{5}\", types \"{6}\", brief {7} chars", cls, width, height, known.width, known.height, known.tag, known.types, known.brief.Length));
             RefreshInventory();
             if (testFolder != null)
                 WriteTestPicture(cls);
@@ -578,7 +634,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 bool doom = image.texture == art[cls].texture;
                 System.IO.Directory.CreateDirectory(testFolder);
                 System.IO.File.WriteAllBytes(System.IO.Path.Combine(testFolder, cls + ".png"), image.texture.EncodeToPNG());
-                bridge.LogLine(string.Format("doomitems: inventory picture for \"{0}\" named \"{1}\" weighs {2} kg: {3}x{4} texture, doom sprite {5}", cls, item.ItemName, item.weightInKg, image.width, image.height, doom));
+                bridge.LogLine(string.Format("doomitems: inventory picture for \"{0}\" named \"{1}\" weighs {2} kg: {3}x{4} texture, doom sprite {5}, info \"{6}\"", cls, item.ItemName, item.weightInKg, image.width, image.height, doom,
+                    string.Join(" / ", Array.FindAll(Array.ConvertAll(item.GetInfoTokens(), t => t.text), t => !string.IsNullOrEmpty(t)))));
                 return;
             }
         }
