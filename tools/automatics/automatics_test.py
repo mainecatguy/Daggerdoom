@@ -21,7 +21,7 @@ from save_handshake_test import Event, DfState  # noqa: E402
 IWAD = Path(r"D:\dev\DoomDaggerfall\GameResources\wads\DOOM.WAD")
 MODS = Path(r"D:\dev\DoomDaggerfall\GameMods")
 DRLA = ["DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3"]
-SHEET_INTS, SHEET_FORMAT_VERSION = 162, 7
+SHEET_INTS, SHEET_FORMAT_VERSION = 177, 10
 # DRLA guns that spin up: the harness cannot hold a real trigger (a console +attack does not reach a game on the
 # private desktop), so each pull fires only a short string of shots. They are checked with fewer shots.
 SPINUP = {"RLChaingun", "RLMinigun"}

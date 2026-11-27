@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x68c12c63adfaad7aUL;
+        public const ulong SchemaHash = 0x38b14661e0e54c35UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -200,8 +200,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint FACES_MAX = 3;  // Daggerfall's HUD shows at most three faces
         public const uint FACE_MAX_SIDE = 64;
         public const uint SHEET_SLOT = 0;
-        public const int SHEET_FORMAT_VERSION = 7;  // 3: skill slots 4-6 are the gun skills, 7-12 unused; 4: slot 7 is Pistols; 5: slot 8 is Rifles; 6: slots 9-10 are Energy Weapons and Melee; 7: Automatics perk rules
-        public const int SHEET_INTS = 162;
+        public const int SHEET_FORMAT_VERSION = 10;  // 3: skill slots 4-6 are the gun skills, 7-12 unused; 4: slot 7 is Pistols; 5: slot 8 is Rifles; 6: slots 9-10 are Energy Weapons and Melee; 7: Automatics perk rules; 8: Explosives perk rules; 9: Shotguns perk rules; 10: Energy Weapons perk rules
+        public const int SHEET_INTS = 177;
         public const int SHEET_FORMAT = 0;  // DFB_SHEET_FORMAT_VERSION
         public const int SHEET_EPOCH = 1;
         public const int SHEET_VALID = 2;  // 1 when this describes the current, fully loaded character
@@ -251,6 +251,21 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const int SHEET_AUTO_SHOTS_PER_AMMO = 159;  // one ammo per this many shots; 1 or 0 is normal use
         public const int SHEET_AUTO_SUNDER_BP = 160;  // each hit makes the enemy take this much more damage from all sources ...
         public const int SHEET_AUTO_SUNDER_MAX_BP = 161;  // ... permanently, up to this much
+        public const int SHEET_EXPL_DAMAGE_BP = 162;  // damage bonus in 1/10000ths (+0% to +60% by skill)
+        public const int SHEET_EXPL_SELF_CUT_BP = 163;  // the player's own splash damage is cut by this much (95% at 25, 99% at 75)
+        public const int SHEET_EXPL_DIRECT_BP = 164;  // more damage to the enemy a shot hits directly (50; amount open, so 0)
+        public const int SHEET_EXPL_CHAIN_BP = 165;  // an enemy the explosives kill explodes for this much of its maximum health ...
+        public const int SHEET_EXPL_CHAIN_RADIUS = 166;  // ... in this radius (map units), each chained generation at half the last
+        public const int SHEET_SHOT_DAMAGE_BP = 167;  // damage bonus in 1/10000ths (+0% to +75% by skill)
+        public const int SHEET_SHOT_RELOAD_BP = 168;  // reloads take this much less time, in 1/10000ths
+        public const int SHEET_SHOT_PELLET_BP = 169;  // this many more pellets per shot, in 1/10000ths
+        public const int SHEET_SHOT_KNOCK_BP = 170;  // knockback strength, 10000 = the 75 perk's
+        public const int SHEET_SHOT_SLAM_DAMAGE = 171;  // most extra damage an enemy knocked into a wall takes
+        public const int SHEET_SHOT_COLLIDE_DAMAGE = 172;  // most damage a knocked enemy and what it hits each take
+        public const int SHEET_ENERGY_DAMAGE_BP = 173;  // damage bonus in 1/10000ths (+0% to +50% by skill)
+        public const int SHEET_ENERGY_SPLASH_BP = 174;  // a hit that is not an explosion also deals this much of its damage ...
+        public const int SHEET_ENERGY_SPLASH_RADIUS = 175;  // ... to every other enemy within this many map units
+        public const int SHEET_ENERGY_SPEED_BP = 176;  // the guns' projectiles fly this much faster, in 1/10000ths
         public const uint UI_NONE = 0;
         public const uint UI_TRAVEL_MAP = 1;
         public const uint UI_INVENTORY = 2;

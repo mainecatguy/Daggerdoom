@@ -21,5 +21,6 @@ server noarchive bool dd_weapontypes_test = false;
 // Test hook: Light Carbine checks (zscript/DoomerfallLightCarbineTest.zs). 1 fires and reloads it; 2 kills Battle
 // Rifle monsters and counts their drops.
 server noarchive int dd_carbine_test = 0;
-// Log every Automatics perk event instead of the first 200 (zscript/DoomerfallAutomatics.zs). Logging only.
+// Log every gun perk event instead of the first 200 of each (zscript/DoomerfallAutomatics.zs, DoomerfallEnergy.zs,
+// zscript/DoomerfallExplosives.zs). Logging only.
 server noarchive bool dd_perklog = false;

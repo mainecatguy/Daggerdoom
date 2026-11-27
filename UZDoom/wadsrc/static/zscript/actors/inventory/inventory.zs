@@ -1191,6 +1191,9 @@ class Inventory : Actor
 
 	virtual Vector2 ModifyBob(Vector2 Bob, double ticfrac) {return Bob;}
 
+	// Doomerfall: lets an item on the player change how many pellets a spread shot fires (StateProvider.DD_Pellets).
+	virtual int ModifyPellets(Weapon weap, int pellets) { return pellets; }
+
 	virtual Vector3, Vector3 ModifyBob3D(Vector3 Translation, Vector3 Rotation, double ticfrac) {return Translation, Rotation;}
 
 

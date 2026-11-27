@@ -31,9 +31,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             public int level;
             public string text;
             public bool built;
-            public Perk(string skill, int level, string text, bool built = false)
+            public string notYet; // a built perk with a part still to come: said after the text
+            public Perk(string skill, int level, string text, bool built = false, string notYet = null)
             {
-                this.skill = skill; this.level = level; this.text = text; this.built = built;
+                this.skill = skill; this.level = level; this.text = text; this.built = built; this.notYet = notYet;
             }
         }
 
@@ -44,20 +45,26 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             new Perk("Jumping", 75, "Falling no longer hurts you.", true),
             new Perk("Jumping", 100, "Triple jump: jump twice more in mid-air.", true),
 
-            new Perk("Shotguns", 25, "Shotguns reload about 35% faster."),
-            new Perk("Shotguns", 50, "Shotguns fire more pellets."),
-            new Perk("Shotguns", 75, "Shotgun blasts knock enemies back hard and stagger them, and an enemy slammed into a wall takes extra damage."),
-            new Perk("Shotguns", 100, "Shotguns fire even more pellets and reload faster still."),
+            new Perk("Shotguns", 25, "Shotguns reload about 35% faster.", true),
+            new Perk("Shotguns", 50, "Shotguns fire 50% more pellets.", true),
+            new Perk("Shotguns", 75, "Shotgun blasts knock enemies back and stagger them. The more pellets hit, the harder the shove, and big enemies move less. An enemy slammed into a wall takes up to 200 extra damage.", true),
+            new Perk("Shotguns", 100, "Shotguns fire twice the pellets, and the knockback and wall slam are twice as strong (up to 400 damage).", true),
 
             new Perk("Automatics", 25, "Burst fire: the first 3 shots of a burst do 30% more damage. The bonus comes back 0.3 seconds after you stop firing.", true),
             new Perk("Automatics", 50, "Every second shot from an automatic weapon uses no ammo.", true),
             new Perk("Automatics", 75, "Each hit from an automatic weapon makes the enemy take 1% more damage from everything, up to 15%. It never wears off.", true),
             new Perk("Automatics", 100, "Automatic weapons use only 1 ammo for every 4 shots.", true),
 
-            new Perk("Explosives", 25, "Your own explosions hurt you 50% less."),
+            new Perk("Explosives", 25, "Your own explosions hurt you 95% less.", true),
             new Perk("Explosives", 50, "Explosives do extra damage to the enemy they hit directly."),
-            new Perk("Explosives", 75, "Your own explosions no longer hurt you."),
-            new Perk("Explosives", 100, "Inpulsa's Broken Heart: enemies your explosives kill explode for a quarter of their health. Those blasts chain, each at half the strength of the one before."),
+            new Perk("Explosives", 75, "Your own explosions hurt you 99% less.", true),
+            new Perk("Explosives", 100, "Inpulsa's Broken Heart: enemies your explosives kill explode for a quarter of their maximum health. Those blasts chain, each at half the strength of the one before, and never hurt you.", true),
+
+            // Owner: each popup lists all of its level's effects, burn included (burn arrives with perks cards 07 and 08).
+            new Perk("EnergyWeapons", 25, "Plasma burn: enemies your energy weapons hit burn for 50% of the hit's damage over 3 seconds, and burn stacks without limit. Hits that do not explode also deal 20% of their damage to other enemies nearby, never to you. Energy projectiles fly 15% faster.", true, "Plasma burn does not work yet."),
+            new Perk("EnergyWeapons", 50, "Plasma burn rises to 100% of the hit's damage, and each hit turns 20% of the enemy's remaining burn into instant damage. Energy projectiles fly 30% faster.", true, "Plasma burn does not work yet."),
+            new Perk("EnergyWeapons", 75, "Plasma burn rises to 125%, and each hit turns 40% of the enemy's remaining burn into instant damage. Energy projectiles fly 45% faster.", true, "Plasma burn does not work yet."),
+            new Perk("EnergyWeapons", 100, "Plasma burn rises to 150%. The burn a hit turns into instant damage also bursts out, never hurting you, and sets nearby enemies burning for 40% of it. Energy projectiles fly 60% faster.", true, "Plasma burn does not work yet."),
         };
 
         DoomerfallBridge bridge;
@@ -97,7 +104,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 if (PerkText[i].level != level || !Enum.IsDefined(typeof(DFCareer.Skills), PerkText[i].skill))
                     continue;
                 if ((DFCareer.Skills)Enum.Parse(typeof(DFCareer.Skills), PerkText[i].skill) == skill)
-                    return PerkText[i].built ? PerkText[i].text : PerkText[i].text + " (This perk does not work yet.)";
+                    return !PerkText[i].built ? PerkText[i].text + " (This perk does not work yet.)" :
+                        PerkText[i].notYet != null ? PerkText[i].text + " (" + PerkText[i].notYet + ")" : PerkText[i].text;
             }
             return null;
         }
