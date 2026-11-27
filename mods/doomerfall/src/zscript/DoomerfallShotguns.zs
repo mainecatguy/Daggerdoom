@@ -190,8 +190,7 @@ class DoomerfallShotguns : StaticEventHandler
 		if (!mo || mo.health <= 0) return;
 		int dmg = int(round(most * strength));
 		Log(String.Format("%s %s speed share %.3f damage %d (most %d)", what, mo.GetClassName(), strength, dmg, most));
-		// The rule's amount exactly: no shooter's damage boosts (NO_ENHANCE: DRLA items, other perks) on top.
-		if (dmg > 0) mo.DamageMobj(null, shooter, dmg, 'None', DMG_THRUSTLESS | DMG_NO_ENHANCE);
+		if (dmg > 0) mo.DamageMobj(null, shooter, dmg, 'None', DMG_THRUSTLESS);
 	}
 }
 

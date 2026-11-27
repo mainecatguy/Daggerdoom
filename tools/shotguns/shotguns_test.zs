@@ -243,6 +243,18 @@ class ShotPerkTest : EventHandler
 			if (target.InStateSequence(target.CurState, target.FindState("Pain"))) painSeen = true;
 			if (level.maptime - fireTic >= 45)
 			{
+				// Outgoing damage boosts on the player right now (items' ModifyDamage), as a collision with no
+				// inflictor would see them: the harness reports them instead of expecting the bare amount.
+				if (c == "collide" && target2)
+				{
+					for (let i = mo.Inv; i; i = i.Inv)
+					{
+						int nd = 1000;
+						i.ModifyDamage(1000, 'None', nd, false, null, target2, DMG_THRUSTLESS);
+						if (nd != 1000) Console.Printf("SHOTTEST boostitem %s 1000 -> %d", i.GetClassName(), nd);
+					}
+					Console.Printf("SHOTTEST boost %d", mo.GetModifiedDamage('None', 1000, false, null, target2, DMG_THRUSTLESS));
+				}
 				Console.Printf("SHOTTEST knock %s %s sub=%d moved=%.1f pain=%d hits=%d lost=%d lost2=%d", c, guns[gun], sub, (target.pos.XY - spotStart.XY).Length(), painSeen, hits, lost, lost2);
 				target.Destroy(); if (target2) target2.Destroy();
 				if (++sub < 2) { phase = 3; wait = 0; } else { gun++; phase = 2; }

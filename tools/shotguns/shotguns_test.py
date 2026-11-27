@@ -254,7 +254,15 @@ def analyse(name, lines, checks, report):
             if cfg == "collide":
                 kinds = sorted(s.group(1) for s in sl)
                 ok = kinds == ["collide", "collided"] and all(abs(int(s.group(4)) - 200 * float(s.group(3))) <= 1 and float(s.group(3)) > 0 for s in sl)
-                ok = ok and int(h.group(8)) == next(int(s.group(4)) for s in sl if s.group(1) == "collided")
+                # The second target takes the collision amount times any outgoing boost on the player (items'
+                # ModifyDamage, measured by the harness on 1000 at the same moment; DRLA can add one).
+                boost = next((int(m.group(1)) for l in L if (m := re.search(r"SHOTTEST boost (\d+)", l))), 1000)
+                items = [l.split("SHOTTEST boostitem ")[1] for l in L if "SHOTTEST boostitem " in l]
+                collided = next((int(s.group(4)) for s in sl if s.group(1) == "collided"), 0)
+                ok = ok and abs(int(h.group(8)) - collided * boost / 1000) <= 1
+                if boost != 1000:
+                    report.append(f"{gun}{' heavy' if sub else ''} collide: outgoing boost on the player x{boost / 1000:.3f} "
+                                  f"({', '.join(items) or 'no single item'}): collision {collided}, second target lost {h.group(8)}")
                 check(f"{tag}: knocked into the second target, both take collision damage once", ok, [s.group(0) for s in sl])
             elif sub and not sl:  # a heavy enemy may stop before the wall
                 check(f"{tag}: heavy enemy stopped short of the wall, no slam (moved {h.group(4)})", float(h.group(4)) < 40, h.group(0))
