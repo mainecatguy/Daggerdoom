@@ -440,6 +440,19 @@ class AMHarness : EventHandler
 				sized.Push(null);
 				sizedWhat.Push(String.Format("%s %.0f %.0f %.0f", PLAIN[k], at.x, at.y, at.z));
 			}
+			// Drops: these script-spawned zombies count as summoned, and summoned monsters drop nothing (owner rule,
+			// dd_lootrng.cpp), so every size is also tossed as Doom's drop code does it (TOSSED, set before the converter
+			// judges it a tic later), at Regular and at Ebony.
+			for (int k = 0; k < 16; k++)
+			{
+				int j = k % 8, want = k < 8 ? 0 : 8;
+				vector3 at = SpotFor(TYPES[j], want, PLAIN.Size() + k);
+				if (at == (0, 0, 0)) { Console.Printf("AMSIZE no spot for tossed %s tier %d", PLAIN[j], want); continue; }
+				let t = Inventory(Actor.Spawn(PLAIN[j], at, NO_REPLACE));
+				if (t) t.bTOSSED = true;
+				sized.Push(null);
+				sizedWhat.Push(String.Format("%s %.0f %.0f %.0f tossed", PLAIN[j], at.x, at.y, at.z));
+			}
 			for (int i = 0; i < 10; i++)
 			{
 				// Eight stock Zombiemen (their clip drop goes through DRLA's RLClipSpawner), two of DRLA's replacements.
@@ -462,7 +475,7 @@ class AMHarness : EventHandler
 				sizedWhat[k].Split(f, " ");
 				sized[k] = PickupNear((f[1].ToDouble(), f[2].ToDouble(), f[3].ToDouble()), 24, none);
 				let s = DoomerfallAmmoPickup(sized[k]);
-				Console.Printf("AMSIZE placed %s -> %s tier %d amount %d type %d", f[0], s ? String.Format("%s", s.GetClassName()) : "none", s ? s.tier : -1, s ? s.Amount : 0, s ? s.ammoType : -1);
+				Console.Printf(f.Size() > 4 ? "AMSIZE dropped by Toss_%s -> %s tier %d amount %d type %d" : "AMSIZE placed %s -> %s tier %d amount %d type %d", f[0], s ? String.Format("%s", s.GetClassName()) : "none", s ? s.tier : -1, s ? s.Amount : 0, s ? s.ammoType : -1);
 			}
 			// DRLA replaces Zombieman with a spawner that removes itself: kill the monsters standing where they spawned.
 			Array<Actor> spots;

@@ -289,7 +289,8 @@ def size_checks(body, df_body):
     a pickup of the loaded tier raises Doom's counter by the same amount."""
     kinds = []
     for m in re.finditer(r"AMSIZE (?:placed (\w+)|dropped by (\w+)) -> \w+ tier (-?\d+) amount (\d+) type (-?\d+)", body):
-        kinds.append((m.group(1) or "drop:" + m.group(2), m.group(1) in LARGE, m.group(2) is not None, int(m.group(3)), int(m.group(4)), int(m.group(5))))
+        # A harness toss is "dropped by Toss_<plain class>"; a real monster drop names the monster.
+        kinds.append((m.group(1) or "drop:" + m.group(2), (m.group(1) or m.group(2).split("Toss_")[-1]) in LARGE, m.group(2) is not None, int(m.group(3)), int(m.group(4)), int(m.group(5))))
     counts = [dict(re.findall(r"(\w+)=(\d+)", l)) for l in body.splitlines() if l.startswith("AMCOUNT before touches") or l.startswith("AMCOUNT after touch")]
     takes = re.findall(r"ammo: picked up (\w+) ([\w ]+?) x(\d+)( \(loaded tier, goes to Doom\))?", df_body)
     print("pickups", len(kinds), "| Daggerfall takes", len(takes), "| count lines", len(counts))
@@ -309,7 +310,7 @@ def size_checks(body, df_body):
     drops = sum(k[2] for k in kinds)
     regular_drop = any(k[2] and k[3] == 0 and k[4] == 5 and k[5] == 0 for k in kinds)  # A Regular dropped clip: 5 bullets.
     tiers = sorted({k[3] for k in kinds if k[3] > 0})
-    print("sizes:", "PASS" if ok_all and regular_drop and tiers else "FAIL", f"({drops} monster drops, {'a' if regular_drop else 'NO'} Regular dropped clip of 5,"
+    print("sizes:", "PASS" if ok_all and regular_drop and tiers else "FAIL", f"({drops} drops, {'a' if regular_drop else 'NO'} Regular dropped clip of 5,"
           f" higher tiers touched: {', '.join(TIER_NAMES[t] for t in tiers) or 'NONE'})")
 
 
