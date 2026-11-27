@@ -288,6 +288,11 @@ class DoomerfallClimb : StaticEventHandler
 		if (forward <= 0) mo.vel = (0, 0, 0);
 		else if (top > mo.pos.z) mo.vel = (0, 0, min(s.speed, top - mo.pos.z));
 		else mo.vel = (-n * s.speed, 0);
+		if (forward > 0 && --s.rollTics <= 0) // crossing is climbing: same continue rolls
+		{
+			s.rollTics = ContinueTics;
+			if (!Roll(mo, s, 2)) Slip(mo, s);
+		}
 		return true;
 	}
 
