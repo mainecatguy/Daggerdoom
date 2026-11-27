@@ -1,5 +1,5 @@
-// Doomerfall test only (-dftransporttest <file> [none]): once the game runs, gives the player a horse, a cart and a
-// small ship (or, with "none", takes any away), and logs, each time it changes, the top window, the transport mode, what
+// Doomerfall test only (-dftransporttest <file> [none|large]): once the game runs, gives the player a horse, a cart and a
+// small ship (a large ship with "large"; with "none", takes any away), and logs, each time it changes, the top window, the transport mode, what
 // the player owns, the map pixel, and the transport window's panel in Daggerfall's 320x200 layout, so a test can follow
 // the transport menu from Doom.
 // Starts itself from the flag; no game class calls it.
@@ -23,7 +23,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         string path, last;
         DoomerfallPositionSync sync;
         float readyAt;
-        bool done, none;
+        bool done, none, large;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void StartIfRequested()
@@ -37,6 +37,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DoomerfallTransportTest test = host.AddComponent<DoomerfallTransportTest>();
             test.path = args[at + 1];
             test.none = at + 2 < args.Length && args[at + 2] == "none";
+            test.large = at + 2 < args.Length && args[at + 2] == "large";
             File.WriteAllText(test.path, "transport test: started\n");
         }
 
@@ -87,8 +88,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (none)
                 DaggerfallBankManager.ResetShip();
             else
-                DaggerfallBankManager.AssignShipToPlayer(ShipType.Small);
-            Write(none ? "prepared: no horse, cart or ship" : "prepared: horse, cart and small ship");
+                DaggerfallBankManager.AssignShipToPlayer(large ? ShipType.Large : ShipType.Small);
+            Write(none ? "prepared: no horse, cart or ship" : large ? "prepared: horse, cart and large ship" : "prepared: horse, cart and small ship");
         }
 
         static string Describe()
