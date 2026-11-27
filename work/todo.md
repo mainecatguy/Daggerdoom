@@ -12,18 +12,29 @@ Work that is ready to do automatically, in priority order. Every item here is ap
 
 ## Ready
 
+### Top priority (owner, 2026-11-26)
+
+1. (`dungeonsupport` 01 merged 2026-11-27.)
+2. (Merged 2026-11-27.) `storeammo` 01 (`work/queue/storeammo/01.opus.general-stores-sell-ammo.md`), approved by the owner, 2026-11-26:
+   shops sell Doom ammo and restock it often; "basically an unplayable game rn until that happens".
+3. (`loadscreen` 01 merged 2026-11-27.)
+4. (`magicmenu` 01 merged 2026-11-27.)
+5. `tabmenu` 01 (`work/queue/tabmenu/01.opus.tab-tween-menu.md`), approved by the owner, 2026-11-27: Tab opens the
+   Skyrim-style tween menu to the character sheet, magic, map and inventory. After `magicmenu` 01.
+
 Owner decisions from earlier runs are recorded in `CHANGELOG.md`, `architecture.md` and `gamedesign/decisions.md`.
 
 ### Queued (owner, 2026-11-25)
 
-- Arrival wait covers the dungeon's monster spawn (owner, 2026-11-26: "fix this tonight"). Since the door arm was removed (lockpick rethink, merged), a normal dungeon entry's setup is done in milliseconds, so the arrival freeze ends before `DDENC spawned`. Monsters then appear about 0.1 s into visible play, and the arrival autosave is written before they exist. `run_freeze.py normal` fails. First find why Daggerfall's monster list arrives about 5 s late in the New Game flow. Then register the encounter spawn with the setup gate: `DD_SetupWait("monsters")` on bridged dungeon entry and `DD_SetupDone` after `SpawnEncounters` in `dd_monsters.cpp`. A trial of exactly that worked on normal entries (a ~440 ms hold, spawn inside the freeze) but hit the 5 s gate timeout in New Game. Done when: `run_freeze.py normal` passes with the 73 monsters held; a New Game arrival does not wait for the gate timeout; the paired lockpick take/load/entry/newgame runs still pass. Details: `work/notes/20261126-lockpick-rethink.md`, Finding 3.
 
 ### Skills (owner, 2026-11-25; rules in `work/backlog/skills-in-doom.md`)
 
 In order. Lanes `skillresearch`, `skillcore`, `skillperks`, `skillmenu`, `levelup` in `work/queue`.
-- `lightcarbine` 01 (owner, 2026-11-26): the Light Carbine (semi-auto Battle Rifle, +20% damage) in the Doomerfall mod, working without DRLA; half of the assault-rifle monsters' Battle Rifle drops become carbines.
-- `startgun` 01 (owner, 2026-11-26): a new character's starting gun follows the highest weapon skill and replaces the starter pistol. After `skillcore` 01, 03, 04 and `lightcarbine` 01.
 - `skillperks` 01 to 05: Jumping (adds fall damage first), Automatics, Explosives, Shotguns, then Pistols (no rifles).
+  (2026-11-27: 01 and 02 merged. 03 Explosives and 04 Shotguns ran out of budget, work on
+  agent/skillperks-20261127-024745 and -033904. `shotsource` 01 merged 2026-11-27: continue 03 on it.)
+- `killdrops` 01 (`work/queue/killdrops/01.opus.luck-ammo-drop-chance.md`), approved by the owner, 2026-11-27: Luck gives
+  a 0-50% chance (Luck/2) for a kill to drop ammo; the old Luck-in-100 extra-ammo rule goes.
 - `skillperks` 06, 07, 08, approved by the owner, 2026-11-26, in order: 06 Energy Weapons perks before burn
   (scaling, splash, projectile speed); 07 a general burn damage system with a separate fire effect; 08 burn on energy
   weapons (burn, conversion, explosion). After `skillcore` 01 and 05.
@@ -38,60 +49,53 @@ In order. Lanes `skillresearch`, `skillcore`, `skillperks`, `skillmenu`, `levelu
   with Skill XP.
 
 ### Input (owner, 2026-11-26)
-- `noclass` 01 (`work/queue/noclass/01.opus.no-drla-class.md`), approved by the owner, 2026-11-26: no DRLA class menu and no DRLA class perks in bridged games. Then `noclass` 02 (owner, 2026-11-26): the fist always on hotkey 1, not unbindable, not in the Daggerfall inventory.
+(noclass 01 and 02 merged 2026-11-26.)
 
 
-- `dmgnumbers` 01 (`work/queue/dmgnumbers/01.opus.damage-numbers.md`), owner, 2026-11-26: "show damage numbers"
-  option over hit enemies, off by default, on by default with a dev flag. Check for an existing one first.
 
 ### Ammo (owner, 2026-11-26)
 
-- `ammopile` 01 (`work/queue/ammopile/01.opus.ammo-pile-look.md`), approved by the owner, 2026-11-26: dropped ammo
-  looks like that ammo and is remembered; mixed piles use the loot pile graphic.
-- `ammoname` 01 (`work/queue/ammoname/01.opus.plain-regular-ammo-name.md`), owner, 2026-11-26, not urgent: run it at night while the owner sleeps. Regular ammo is just "Bullets", "Rockets", "Energy Cells", no "Regular".
 
 ### Fixes and small features (owner, 2026-11-26)
-- `takenpickups` 01 (`work/queue/takenpickups/01.opus.daggerfall-remembers-taken-pickups.md`), approved by the
-  owner, 2026-11-26: Doom reports taken seeded pickups by ID and Daggerfall keeps them gone.
-- `weapontypes` 01 (`work/queue/weapontypes/01.opus.weapon-types-in-description.md`), approved by the owner,
-  2026-11-26: weapon descriptions show name and types ("Plasma Rifle. Types: Energy, Automatic"). After `rifletag` 01
-  and `skillcore` 05.
 
 ### Overworld (owner, 2026-11-26)
-- `terrainflats` 01 (`work/queue/terrainflats/01.opus.overworld-terrain-objects.md`), approved by the owner,  2026-11-26: Daggerfall's terrain objects in the overworld, town surroundings and dungeon exteriors, procedural and  never saved.
-- `distantlod` 01 (`work/queue/distantlod/01.opus.distant-terrain-lod.md`), approved by the owner, 2026-11-26:  distant terrain view in the wilderness and dungeon exteriors.
 
 ### Movement and maps (owner, 2026-11-26)
 
-- `climb` 03 (`work/queue/climb/03.opus.climb-steep-stairs.md`), approved by the owner, 2026-11-26: climbing stays
-  engaged on steep stair-like surfaces such as Privateer's Hold's cliff.
 - `dungeonedges` 01 (`work/queue/dungeonedges/01.opus.diagonal-and-ramp-collision.md`), approved by the owner,
-  2026-11-26: diagonal edges and ramps instead of jagged grid steps in dungeon collision.
+  2026-11-26: diagonal edges and ramps instead of jagged grid steps in dungeon collision. (2026-11-27: owner accepts the improvement. Next: a real paired walk on a quiet machine. Run 3 beats the old map overall in Privateer's Hold (distance 16,969 vs 15,097, snags 19 vs 22, jitter 191 vs
+  342) but one heading at 931,1490 has one extra slow tic; accept? Then a real paired walk on a quiet machine. Work on
+  `overnight/dungeonedges`, notes `work/notes/20261127-035402.md`.)
+- `collisionmetric` 01 (`work/queue/collisionmetric/01.opus.collision-fidelity-metric.md`), approved by the owner,
+  2026-11-27: the collision fidelity metric that gates all converter collision changes. After `dungeonedges` 01 merges.
+- `collisionshape` 01 (`work/queue/collisionshape/01.opus.grid-shape-refactor.md`), approved by the owner,
+  2026-11-27: grid-shape refactor (byte-identical output), then better grid shapes judged by the metric. After
+  `collisionmetric` 01.
 
 ### Attributes and fixes (owner, 2026-11-26)
 
-- `attributes` 01 to 04 (`work/queue/attributes/`), approved by the owner, 2026-11-26, in order: Strength and Speed
-  (and the manual's Attributes section), Agility, Willpower, Luck.
-- `weatherseam` 01 (`work/queue/weatherseam/01.opus.streamed-terrain-texture-and-light.md`), approved by the owner,
-  2026-11-26: streamed-in terrain keeps the snow ground texture and natural lighting.
-- `maptextinput` 01 (`work/queue/maptextinput/01.opus.daggerfall-text-boxes-get-keys.md`), approved by the owner,
-  2026-11-26: Daggerfall text boxes get all keys (map Find).
-- `restsync` 01 (`work/queue/restsync/01.opus.hold-view-after-rest.md`), approved by the owner, 2026-11-26: hold the
-  Doom view after rest or loiter until NPCs are in place.
+
+### Visual parity (owner, 2026-11-26: "take this as a task to queue up and get started on")
+
 
 ### Bugs from play (owner, 2026-11-26)
 
-- `outdoortalk` 01 (`work/queue/outdoortalk/01.opus.talk-to-outdoor-npcs.md`), approved by the owner, 2026-11-26: talking to generic outdoor NPCs works.
-- `menubackdrop` 01 (`work/queue/menubackdrop/01.opus.doom-view-behind-menus.md`), approved by the owner, 2026-11-26: the Doom view shows behind small Daggerfall menus.
-- `looklabel` 01 (`work/queue/looklabel/01.opus.item-names-in-look-labels.md`), approved by the owner, 2026-11-26: look labels show item names; no phantom "You got a pickup" label.
+
+### More from the owner (2026-11-26)
+
+- `townscorpse` 01 (`work/queue/townscorpse/01.opus.daggerfall-deaths-and-corpses.md`), approved by the owner, 2026-11-26: killed townspeople, guards and other Daggerfall entities die with Daggerfall's animation and leave corpses, read from Daggerfall's files. (2026-11-27: waiting on the owner about outdoor watchmen; everything else built, work on `overnight/townscorpse`.)
+
+### Shops (owner, 2026-11-26)
+
+- `shoplevels` 01 (`work/queue/shoplevels/01.opus.shop-level-table.md`), approved by the owner, 2026-11-26: the shop level table by quality band.
+- `shoplevels` 02 (`work/queue/shoplevels/02.opus.shelves-use-shop-level.md`), approved by the owner, 2026-11-26: shelves roll at the shop's level.
+- `shoplevels` 03 (`work/queue/shoplevels/03.opus.town-danger-level.md`), approved by the owner, 2026-11-26: town danger level (higher of terrain and class) on the town's Doom map; never affects shop quality.
+- `shoplevels` 04 (`work/queue/shoplevels/04.opus.building-wealth-levels.md`), approved by the owner, 2026-11-26: houses and guild halls take wealth from their own quality.
+- `shoplevels` 05 (`work/queue/shoplevels/05.opus.ledger-shelves.md`), approved by the owner, 2026-11-26: shelves are a ledger, seeded restocks; Daedric findable and slow to rotate out.
+- `shoplevels` 06 (`work/queue/shoplevels/06.opus.shop-identity.md`), approved by the owner, 2026-11-26: fixed shop identity: lean, breadth, rhythm, suppliers.
+- `shoplevels` 07 (`work/queue/shoplevels/07.opus.story-lots-and-exceptions.md`), approved by the owner, 2026-11-26: story lots (Doom guns by tier, worn items) and rare exceptions.
 
 ### Encounters (owner, 2026-11-26)
-
-- `mainquestlevels` 01 (`work/queue/mainquestlevels/01.opus.main-quest-levels.md`), approved by the owner,
-  2026-11-26: main quest dungeon level overrides in quest order; no invisible enemies in Privateer's Hold; plain
-  Former Humans only there.
-- `mainquestlevels` 02 (owner, 2026-11-26, "take a card"): Privateer's Hold's first enemy room (just outside the
-  starting cave) holds Former Humans who drop battle rifles, no chaingunners. Runs after 01 in the same lane.
 
 - **On hold for the owner's go-ahead (owner, 2026-11-26: ready, but run it when it won't waste tokens; do not start
   until the owner says).** `monsterdps` 01 (`work/queue/monsterdps/01.opus.monster-dps.md`), approved by the owner, 2026-11-26: measure damage
@@ -127,3 +131,10 @@ In order. Lanes `skillresearch`, `skillcore`, `skillperks`, `skillmenu`, `levelu
 ### Loading screen for long operations (owner, 2026-11-24)
 
 Long operations must not block the main thread so that Windows shows the program as not responding. Build one generic way to run them: pause the game, show a loading message, keep the window responsive, and resume when the work is done. First use: re-entering a dungeon, where planning and spawning a cleared level-30 dungeon takes about 1.9 s (location record notes `work/notes/20261124-190017.md`). The owner accepts that wait once it shows the message and pauses. No card yet; the orchestrator writes one in `work/queue`. Then find the other long operations (bundled save and load, which blocks Daggerfall for 2-3 s, and map and town building) and list them in the card.
+
+### Downtime work (owner, 2026-11-26: "Lower priority, but do during downtime")
+
+- `traveloptions` 01 (`work/queue/traveloptions/01.opus.transport-menu.md`), approved by the owner, 2026-11-26: transport menu: foot, horse, cart, ship (downtime).
+- `menufont` 01 (`work/queue/menufont/01.opus.daggerfall-menu-font.md`), approved by the owner, 2026-11-26: Daggerfall font in menus, texture packs for text (downtime).
+- `signs` 01 (`work/queue/signs/01.opus.readable-signs.md`), approved by the owner, 2026-11-26: readable signs placed as in Daggerfall (downtime).
+<!-- merge check (orchestrator): when merging traveloptions 01, board each ship (small and the large one at 5,5) and screenshot that the player lands on deck; the KIND_TRAVEL event sends no height (report 20261127-113137). Owner 2026-11-27: if it works, fine; if not, merge the rest and put ship boarding in the backlog. -->

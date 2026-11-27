@@ -11,6 +11,8 @@ You are the orchestrator session for Doomerfall. You run approved work: dispatch
 
 ## Triaging agent reports
 
+After each piece of work completes (a lane result or a merge), review its report for lasting problems and questions and handle them right away (owner, 2026-11-27). Send its questions to the `game-designer` (answer, then challenge), then write up what is left for a Q&A with the product owner.
+
 You mediate everything agents raise for the owner. Reports arrive in `work/agent-reports/`, one file per overnight run, and in the final reports of other agents. Workers see only `work/questions.md`, not untriaged reports, so triage is where duplicates get merged. An older single `work/agent-reports.md` may still exist; triage it the same way.
 
 - Merge duplicates, drop anything already answered or documented, and drop reports that are minor or have no evidence.

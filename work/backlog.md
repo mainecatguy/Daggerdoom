@@ -16,6 +16,7 @@ This is a one-line-per-item index. Open an item's file only when you need its de
 - [Guard variety](backlog/guard-variety.md): More kinds of Doom guards than one Doomguy bot type.
 - [Turn off Daggerfall's resets and respawns](backlog/turn-off-daggerfall-resets.md): Total persistence, no vanilla resets.
 - [Lightweight location record](backlog/location-record.md): Rebuild places from the seed and store only dead, wounded and awake mooks, used-up things and doors, in one Daggerfall copy. Replaces location ledger cards 2-3.
+- [Save size and load time](backlog/save-size-and-load-time.md): Measure load time with many cleared dungeons; segment world facts only if needed.
 - [Rebuild load](backlog/rebuild-load.md): A save survives a broken Doom snapshot by rebuilding from Daggerfall's ledger. Stage 4 of the location state plan.
 - [Quest reward scaling](backlog/quest-reward-scaling.md): Future design for how quest rewards scale.
 - [Persistent Info toggle (on hold)](backlog/persistent-info-toggle.md): On hold until play-tested.
@@ -58,6 +59,7 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [Audit and fix dungeons](backlog/audit-and-fix-dungeons.md): Convert main quest and sample dungeons, fix breakage.
 - [Support main quest dungeon quest steps](backlog/support-main-quest-dungeon-quest-steps.md): Reverse engineer and support their quest steps.
 - [Investigate sealed 5-block graveyards](backlog/investigate-sealed-5-block-graveyards.md): Check two dungeons with disconnected blocks.
+- [Advanced climbing](backlog/advanced-climbing.md): Daggerfall Unity's advanced climbing in Doom (owner, 2026-11-26).
 - [Climbing, levitation, and steep surfaces](backlog/climbing-levitation-and-steep-surfaces.md): Match DF slope limits, climbing, and levitation.
 - [Exhaustion rework](backlog/exhaustion-rework.md): Slow and collapse instead of passing out or dying.
 - [Dungeon actions: text and riddles](backlog/dungeon-action-text-and-riddles.md): Types 11 and 12 only log today. Defines the shared trigger route.
@@ -70,14 +72,21 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 
 ## Inventory
 
+- [Skyrim-style UI and SWF support](backlog/skyrimify-ui.md): Restyle menus after Skyrim; SWF support in both engines (owner, 2026-11-27).
 - [Rethink the inventory window](backlog/rethink-inventory.md): Daggerfall's tabs fit Doom gear poorly. Design chat with the owner first.
 - [Doom weapon equipping and hotkeys](backlog/doom-weapon-equipping-and-hotkeys.md): Assign Doom weapons, items, and spells to hotkeys.
 - [Hotkey check uses plain squares only](backlog/hotkeys-plain-squares.md): A taken gun should fill its key when the plain squares are empty; today Ctrl and Alt also block it. Low value, waits on tokens.
 - [Inventory translation](backlog/inventory-translation.md): Translate DF items and DRLA gear both ways.
-- [Shield support](backlog/shield-support.md): Shields are out of the game until there is a plan for them in Doom combat.
 - [Ammunition system](backlog/ammunition-system.md): Add material-tiered ammo as real inventory items.
+- [Shield support](backlog/shield-support.md): Shields are removed for now; plan how they work in Doom.
+- [Armor as damage reduction](backlog/armor-damage-reduction.md): Card ready; approved formula and table (owner, 2026-11-27).
+- [Physical resistance from Frost](backlog/physical-resistance.md): Card ready; Frost sources at 1/5, cap 25%.
+- [Damage types and resistances](backlog/damage-types-and-resistances.md): Card ready; Thermal, Shock, Poison, Magic, Physical mapping.
+- [Relabel Fire as Thermal](backlog/thermal-relabel.md): Card ready; player-facing Fire damage and resistance become Thermal.
+- [Revisit area-level armor](backlog/area-level-armor-revisit.md): Monsters ideally deal the same damage at any level; later.
 - [What DRLA armor does](backlog/drla-armor-role.md): Decide its role beside Daggerfall armor.
 - [Energy cells are hard to find](backlog/energy-cell-scarcity.md): Cell pickups become other ammo outside jackpots, 20% kept (owner, 2026-11-26).
+- [Shop salvage lots](backlog/shop-salvage-lots.md): Shop lots from the nearest dungeon's genome. Later.
 - [Area loot identity](backlog/area-loot-identity.md): Fixed per-dungeon lean on which kinds of gear drop. Never changes tier odds or fixed loot.
 - [Better floor gun label](backlog/floor-gun-label.md): Plain Doom name shows for a few frames before Daggerfall's; revisit (owner, 2026-11-26).
 - [DRLA recipes as Daggerfall rewards](backlog/drla-recipes-as-daggerfall-rewards.md): Make PDA recipes an item Daggerfall can award, only when DRLA is loaded.
@@ -85,7 +94,6 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [Doom items replace most weapon loot](backlog/doom-weapons-in-weapon-loot.md): 80% of weapon rolls, including 5% modpacks and 1% recipes. Revisit the rate later.
 - [DRLA rarity tiers](backlog/drla-rarity-tiers.md): Five tiers, rarer per weapon in each tier. Proposal needs the owner's yes.
 - [DRLA drops from a fixed Daggerfall seed](backlog/drla-fixed-drop-seed.md): Same drop every rebuild, so drops need no storage. Waits on the lightweight location record.
-- [Doom weapon prices](backlog/doom-weapon-prices.md): Daggerfall base price times material times rarity.
 - [Doom weapons have a Daggerfall material](backlog/doom-weapon-materials.md): Material metadata on Doom weapons, rolled with the approved odds.
 - [Weapon material damage bonus](backlog/weapon-material-damage-bonus.md): Daggerfall's hit chance bonus becomes a damage modifier, through the existing damage bonus path.
 - [Weapon damage bonus coverage test](backlog/weapon-damage-bonus-coverage-test.md): Check every weapon's direct and indirect damage gets the bonus. Part of mod compatibility checks.
@@ -95,6 +103,8 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 ## Collision and combat polish
 
 - [Remaining collision mismatches](backlog/remaining-collision-mismatches.md): Reduce false walls and openings in parity tests.
+- [45-degree refit fix](backlog/collision-45-degree-refit.md): Make the angled refit succeed on 45-degree staircases. Needs the metric.
+- [Other collision improvement ideas](backlog/collision-improvement-ideas.md): Dual contouring, split at stacked conflicts, adaptive cells, posts, steep slopes, towns, and more.
 - [Weapon collision with the Daggerfall mesh](backlog/weapon-collision-with-the-daggerfall-mesh.md): Make shots hit the visible mesh.
 - [Monsters at doors](backlog/monsters-at-doors.md): Decide door opening and oversized monster behavior.
 - [Locked doors with Daggerfall's requirements](backlog/locked-doors-with-daggerfalls-requirements.md): Use DF's real lock data and rules in Doom.
@@ -120,6 +130,7 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [Rename Automatics to "Automatic Weapons"](backlog/automatic-weapons-label.md): Player-facing label (owner, 2026-11-26).
 - [Review Willpower's Daggerfall effects](backlog/willpower-effects-review.md): Magic resist saving throws and others still work (owner, 2026-11-26).
 - [Dodging skill in Doom](backlog/dodging-skill.md): Needs a Doom definition, or removal (owner, 2026-11-26).
+- [DRLAX extended classes in the skill tree](backlog/drlax-classes-skill-tree.md): Revisit DRLAX classes for skills and perks (owner, 2026-11-26).
 - [Original weapon skills in Doom](backlog/original-weapon-skills.md): Short Blade, Long Blade, Axe, Blunt, Archery stay; make them work.
 - [Brutal Doom and a melee mod](backlog/brutal-melee-mods.md): Later, after mod compatibility research.
 - [Rifles skill](backlog/rifles-skill.md): New skill for rifles (was Marksmanship); no rifle counts as a pistol (owner, 2026-11-26). Later.
@@ -151,3 +162,6 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [Review native Doom monster drops](backlog/review-native-doom-monster-drops.md): Doom monsters keep native drops for now. Decide later whether to keep them.
 - [Sort out keybinds](backlog/sort-out-keybinds.md): Resolve Doom, DF, and Doomerfall key conflicts.
 - [Graceful save and load screen](backlog/graceful-save-and-load-screen.md): Stop showing "paused" during saves and loads.
+- [Spell Breaker becomes a ring](backlog/spellbreaker-ring.md): the quest artifact shield turns into a ring while shields are out.
+- [Report triage](backlog/report-triage.md): agent-report questions and oversights are not being triaged (93 files, 318 items); triage them and make it routine.
+- [Horseback riding](backlog/horseback-riding.md): riding a horse or cart changes Doom movement; effects, speeds and mounted combat open.

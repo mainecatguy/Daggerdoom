@@ -38,6 +38,14 @@ Unlike Daggerfall, the world never changes around the player to accommodate them
 
 Things that exist in the world appear to the player as if they really exist in the world. They don't disappear, pop out of existence, or appear from nowhere (owner, 2026-11-24). This goes with "World Persistence" above: what exists stays, and what moves goes somewhere the player could follow. For example, rounds emptied from a magazine go back to the inventory instead of vanishing. Small questions that follow clearly from this principle don't need the owner.
 
+## World logic (design principle)
+
+The player can be superhumanly powerful, whether as a space marine, a wizard or a warrior, and the world allows magic and Doom technology. But outside of cheats, nothing happens that makes no physical sense in that world (owner, 2026-11-27).
+
+## Systemic cause and effect (design principle)
+
+Systems have inputs and outputs, and they are allowed to interact with each other. We generally favor making the game more like an immersive sim, and eventually more like a roguelike (owner, 2026-11-27).
+
 ## Maps
 
 On Daggerfall maps, only Daggerfall's automap is shown. Doom's automap is never shown there. Doom's automap is used only on a map that comes from Doom, which will only be possible through the Oblivion gates system, not yet built (owner, 2026-11-24).

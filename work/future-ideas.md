@@ -16,3 +16,10 @@ Ideas for after the initial release. These are not planned or approved work. If 
 - **Salvaging and scrapping guns:** DRLA's Technician can scrap a modded gun into a mod pack. Today it is blocked with Doom's drop paths (it uses the same DRLA token as the gun drop), because scrapping would destroy a gun Daggerfall still holds. As a feature, scrapping would go through Daggerfall: remove the gun item, then give the mod pack (owner, 2026-11-24: a long-term item).
 - **Keep lift, platform and lever chain states between visits:** today they reset on each visit by design (owner, 2026-11-25), while hinged doors keep their position. The obstacle is QA, not code (about 2 bits per object in the place record): a wrong saved state, such as a one-way platform stuck at its end with its trigger used, would softlock a dungeon permanently in the save. Before this, build automated checks that every main quest dungeon (Mantellan Crux, Privateer's Hold, and the others) stays completable from any saved state.
 - **2x zoom key:** a zoom key for guns, not tied to Archery (owner, 2026-11-25: plan for the future).
+
+- **Shadow Realm** (owner, 2026-11-26): a realm the player can enter that converts all the towns and friendly areas to
+  Doom maps whose level is set as a Daggerfall dungeon's would be. "So, if you want to blast your way through
+  daggerfall, you can by going to the shadow realm."
+- **Shopkeepers tell you about their shop** (owner, 2026-11-26: "could be cool as a future item but right now no"): a
+  line on entry or from the shopkeeper about the shop's delivery day and specialty ("The caravan from Sentinel comes on
+  Turdas"). Part E of `work/notes/20261126-shop-surprise-proposal.md`.
