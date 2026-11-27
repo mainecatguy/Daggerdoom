@@ -245,7 +245,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (enter && enter.IsPlayerInsideDungeon && game.PlayerGPS.HasCurrentLocation
                 && ForLocation(game.PlayerGPS.CurrentLocation, out level) && level.dungeon > 0)
                 return level.dungeon;
-            if (!enter || !enter.IsPlayerInside)
+            // Outdoors only. An interior being laid out (PlayerEnterExit sets interior before DoLayout, and
+            // IsPlayerInside only after it) counts as indoors, so building loot keeps the terrain level.
+            bool building = enter && (enter.IsPlayerInside || (enter.Interior && enter.Interior.gameObject.activeInHierarchy));
+            if (!building)
             {
                 int town = TownAt(game.PlayerGPS.WorldX, game.PlayerGPS.WorldZ);
                 if (town > 0)
