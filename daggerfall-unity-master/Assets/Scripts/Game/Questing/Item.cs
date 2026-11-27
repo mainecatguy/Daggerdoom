@@ -355,7 +355,8 @@ namespace DaggerfallWorkshop.Game.Questing
                 if (itemSubClass == -1)
                 {
                     Array enumArray = DaggerfallUnity.Instance.ItemHelper.GetEnumArray((ItemGroups)itemClass);
-                    itemSubClass = UnityEngine.Random.Range(0, enumArray.Length);
+                    do itemSubClass = UnityEngine.Random.Range(0, enumArray.Length);
+                    while (Doomerfall.DoomerfallShields.BannedGroupIndex((ItemGroups)itemClass, itemSubClass)); // [Doomerfall] no shields
                 }
 
                 // Create item

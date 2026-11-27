@@ -74,6 +74,7 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [Doom weapon equipping and hotkeys](backlog/doom-weapon-equipping-and-hotkeys.md): Assign Doom weapons, items, and spells to hotkeys.
 - [Hotkey check uses plain squares only](backlog/hotkeys-plain-squares.md): A taken gun should fill its key when the plain squares are empty; today Ctrl and Alt also block it. Low value, waits on tokens.
 - [Inventory translation](backlog/inventory-translation.md): Translate DF items and DRLA gear both ways.
+- [Shield support](backlog/shield-support.md): Shields are out of the game until there is a plan for them in Doom combat.
 - [Ammunition system](backlog/ammunition-system.md): Add material-tiered ammo as real inventory items.
 - [What DRLA armor does](backlog/drla-armor-role.md): Decide its role beside Daggerfall armor.
 - [Energy cells are hard to find](backlog/energy-cell-scarcity.md): Cell pickups become other ammo outside jackpots, 20% kept (owner, 2026-11-26).

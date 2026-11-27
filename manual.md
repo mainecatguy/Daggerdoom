@@ -235,6 +235,16 @@ description from the arsenal's own notes, and every gun shows its material and w
 - "Types: none" means the gun belongs to no weapon skill yet.
 - A gun's types appear once its picture has loaded in the inventory. Until then the description shows only its name.
 
+## No shields (for now)
+
+Shields are out of the game until they work in Doom's combat. Shops don't sell them, enemies and treasure don't
+drop them, and no new character starts with one. A shield in an older save stays in your inventory, where you can
+carry, drop or sell it, but you can't equip it ("Shields cannot be used."). If it was in your hand, loading the save
+takes it off. A shield on a hotkey only shows the same message.
+
+Two quest rewards are still shields for now, so their quests keep working: Auriel's Shield and Spell Breaker. You can
+get and carry them, but not equip them.
+
 ## Light Carbine
 
 The Light Carbine is a semi-automatic rifle: one shot per trigger pull, with a little more damage per shot than the

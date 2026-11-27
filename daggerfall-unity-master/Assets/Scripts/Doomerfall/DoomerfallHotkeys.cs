@@ -536,7 +536,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             Log(string.Format("press key {0} modifier {1}: {2}", key, mod, what));
         }
 
-        void Use(int key, int square, DaggerfallUnityItem item)
+        internal void Use(int key, int square, DaggerfallUnityItem item)
         {
             Log(string.Format("press key {0} square {1}: \"{2}\"", key, square, item.ItemName));
             PlayerEntity player = GameManager.Instance.PlayerEntity;
@@ -550,6 +550,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 GameManager.Instance.PlayerEffectManager.DrinkPotion(item);
                 player.Items.RemoveOne(item);
             }
+            else if (DoomerfallShields.Banned(item) && !item.IsEquipped)
+                DaggerfallUI.AddHUDText(DoomerfallShields.EquipMessage); // no shields for now
             else if (item.ItemGroup == ItemGroups.Armor)
             {
                 if (item.IsEquipped)
@@ -561,7 +563,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 {
                     List<DaggerfallUnityItem> off = player.ItemEquipTable.EquipItem(item, true, false);
                     if (off != null) foreach (DaggerfallUnityItem o in off) player.UpdateEquippedArmorValues(o, false);
-                    player.UpdateEquippedArmorValues(item, true);
+                    if (item.IsEquipped) player.UpdateEquippedArmorValues(item, true); // only what was really equipped
                 }
                 DaggerfallUI.AddHUDText(item.ItemName + (item.IsEquipped ? " equipped." : " removed."));
             }

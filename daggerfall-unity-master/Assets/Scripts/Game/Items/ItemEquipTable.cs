@@ -93,7 +93,7 @@ namespace DaggerfallWorkshop.Game.Items
         /// <returns>True when item equipped, otherwise false.</returns>
         public List<DaggerfallUnityItem> EquipItem(DaggerfallUnityItem item, bool alwaysEquip = true, bool playEquipSounds = true)
         {
-            if (item == null)
+            if (item == null || Doomerfall.DoomerfallShields.Banned(item)) // [Doomerfall] no shields
                 return null;
 
             // Get slot for this item
