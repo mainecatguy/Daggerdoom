@@ -25,7 +25,8 @@
 // Rifles (owner, 2026-11-26: "all ballistic semi-automatic weapons that are not explosives, energy weapons, shotguns
 // or pistols") is skill slot 8, but no category maps to it yet. Precision (DRLA's single-shot rifle token) is not a
 // clean rifle list: the Assault Rifle Chaingun, Assault Rifle Minigun and Autocannon carry it and are Automatics by
-// the owner's rule, and the Sniper Rifle lacks it. Doomerfall's own rifle tag (todo: rifletag 01) defines Rifles.
+// the owner's rule, and the Sniper Rifle lacks it. Doomerfall's own rifle tag (DoomerfallRifleTag.IsRifle) says which
+// guns are rifles; it changes no category or skill yet.
 // DRLA gives its tokens only while the gun is held (the gun's Select state gives them, lowering takes them), so a
 // DRLA gun that is not the held one is known by ammo only and may read as Other until it is selected.
 class DoomerfallWeaponCategory abstract

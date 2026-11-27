@@ -9,3 +9,5 @@ server noarchive bool dd_encounter_budgettest = false;
 server noarchive int dd_civilwar_test = 0;
 // Test hook: report the weapon category of sample guns (zscript/DoomerfallWeaponCategoryTest.zs).
 server noarchive bool dd_weaponcat_test = false;
+// Test hook: list the guns Doomerfall tags as rifles (zscript/DoomerfallRifleTagTest.zs).
+server noarchive bool dd_rifletag_test = false;
