@@ -356,7 +356,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             showingTravelMap = id == Dfb.UI_TRAVEL_MAP;
             bool creating = id == Dfb.UI_NEW_GAME && DoomerfallNewGame.HoldsNewCharacter;
             bool loading = id == Dfb.UI_LOAD_GAME && DoomerfallNewGame.HoldsNewCharacter && PlainLoad;
-            if ((id != Dfb.UI_TRAVEL_MAP && id != Dfb.UI_INVENTORY && id != Dfb.UI_MAP && id != Dfb.UI_LOOT && id != Dfb.UI_TALK && id != Dfb.UI_DAGGERFALL && id != Dfb.UI_JOURNAL && id != Dfb.UI_REST && id != Dfb.UI_CHARACTER && id != Dfb.UI_SPELLBOOK && !creating && !loading) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
+            if ((id != Dfb.UI_TRAVEL_MAP && id != Dfb.UI_INVENTORY && id != Dfb.UI_MAP && id != Dfb.UI_LOOT && id != Dfb.UI_TALK && id != Dfb.UI_DAGGERFALL && id != Dfb.UI_JOURNAL && id != Dfb.UI_REST && id != Dfb.UI_CHARACTER && id != Dfb.UI_SPELLBOOK && id != Dfb.UI_STATUS && !creating && !loading) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
             {
                 Finish(Dfb.UI_REASON_REFUSED);
                 return;
@@ -389,6 +389,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     Finish(Dfb.UI_REASON_RESULT);
                     return;
                 }
+            }
+            if (id == Dfb.UI_STATUS)
+            {
+                // Daggerfall's Status key: its location and time box, then its health box (DaggerfallUI.DisplayStatusInfo).
+                message = DaggerfallUIMessages.dfuiStatusInfo;
+                PlayerEnterExit enter = GameManager.Instance.PlayerEnterExit;
+                uint actual = enter.IsPlayerInsideDungeon ? Dfb.WORLD_DUNGEON : enter.IsPlayerInside ? Dfb.WORLD_INTERIOR : Dfb.WORLD_EXTERIOR;
+                bridge.LogLine(string.Format("ui: status in Daggerfall area {0}, Doom area {1}, at {2}", actual, doomContext, DaggerfallUnity.Instance.WorldTime.Now.MinTimeString()));
             }
             if (id == Dfb.UI_REST)
             {

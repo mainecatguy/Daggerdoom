@@ -312,6 +312,13 @@ you only on a fresh install. Doom stays frozen while either is open.
 - **You cannot cast spells yet.** Choosing a spell in the spellbook, however you opened it (Backspace, the character
   sheet, the spellbook in your inventory, or the level-up sheet), says so and does nothing else.
 
+## Status: where you are, the time and your health
+
+Press **L** (Options, Customize Controls, Doomerfall Controls, **Status**) for Daggerfall's status message, indoors or
+outdoors: where you are and the date and time, then, on the next press, your health ("You are healthy.", or the
+diseases and poisons you suffer). Press L or Enter, or click, to go from the first message to the second and to close
+it; Escape closes it. Doom stays frozen while it is open.
+
 ## Locked doors
 
 Some dungeon doors are locked. Look at one: it reads **Locked.**, or "This is a magically held lock..." for a magic one.
