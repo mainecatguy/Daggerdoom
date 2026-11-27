@@ -62,7 +62,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return result;
         }
 
-        // A trade window's price for a basket or sale item. Daggerfall prices one unit, rounding down after the regional
+        // A trade window's buy price for a basket item (buying only; selling keeps Daggerfall's per-unit formula). Daggerfall prices one unit, rounding down after the regional
         // price adjustment, then multiplies by the stack: a 1-gold bullet would cost nothing in any region priced under
         // 100%. Doom ammo is priced as the whole stack's value instead, so the regional price applies without rounding
         // each round away. Every other item keeps Daggerfall's formula.
