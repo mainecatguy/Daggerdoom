@@ -168,7 +168,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint TAKE_GRAB = 0;  // Daggerfall's Grab interaction
         public const uint TAKE_STEAL = 1;  // Daggerfall's Steal interaction; the player is crouching
         public const uint INFO_NPC = 1;  // dfb_info_request.id is an NPC id
-        public const uint INFO_BUILDING = 2;  // world_x and world_z are the point on the building Doom's view ray hit
+        public const uint INFO_BUILDING = 2;  // world_x and world_z are the point on the building Doom's view ray hit; for DFB_KIND_INFO, id is the ray's length to it in Daggerfall units (0 if unknown)
         public const uint INFO_MONSTER = 3;  // a Doom monster, named by the DFB_KIND_INFO_NAME just before
         public const uint INFO_TOWNSPERSON = 4;  // DFB_KIND_LOOK: dfb_info_request.id is a townsperson id
         public const uint INFO_PILE = 5;  // DFB_KIND_LOOK: dfb_info_request.id is a world item (pile or container) id

@@ -135,6 +135,9 @@ void Send(dfb_session *session, uint16_t kind, const void *body, size_t size)
 	dfb_send(session, &e);
 }
 
+// The view ray's length to the point it hit, in Daggerfall units, for Daggerfall's reach checks (a bulletin board's).
+uint64_t RayLength(const FLineTraceData &trace) { return uint64_t(std::max(1.0, std::round(trace.Distance / DoomPerDf))); }
+
 void SendRequest(dfb_session *session, uint32_t target, uint64_t id, double x, double z)
 {
 	dfb_info_request r{};
@@ -209,7 +212,7 @@ void Press(dfb_session *session, player_t *player)
 	if (wall && area == DD_AREA_EXTERIOR)
 	{
 		const DVector3 &hit = trace.HitLocation;
-		SendRequest(session, DFB_INFO_BUILDING, 0, worldX + (hit.X - pmo->X()) / DoomPerDf, worldY + (hit.Y - pmo->Y()) / DoomPerDf);
+		SendRequest(session, DFB_INFO_BUILDING, RayLength(trace), worldX + (hit.X - pmo->X()) / DoomPerDf, worldY + (hit.Y - pmo->Y()) / DoomPerDf);
 	}
 	// Daggerfall shows the building's name first, then a door enters it. Daggerfall reads the request before the door event.
 	UseAsGrab(player);
@@ -254,7 +257,7 @@ void DD_InfoUseWall(dfb_session *session, player_t *player)
 	if (Pick(player, npc, distance, wall, trace) || !wall || trace.HitType != TRACE_HitWall) return;
 	AActor *pmo = player->mo;
 	const DVector3 &hit = trace.HitLocation;
-	SendRequest(session, DFB_INFO_BUILDING, 0, worldX + (hit.X - pmo->X()) / DoomPerDf, worldY + (hit.Y - pmo->Y()) / DoomPerDf);
+	SendRequest(session, DFB_INFO_BUILDING, RayLength(trace), worldX + (hit.X - pmo->X()) / DoomPerDf, worldY + (hit.Y - pmo->Y()) / DoomPerDf);
 }
 
 // The label under the crosshair (dd_look.cpp): the NPC, townsperson or living monster Use's NPC check would aim at

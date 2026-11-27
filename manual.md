@@ -381,6 +381,11 @@ A door you have picked open reads **Door**.
   cannot save. Daggerfall's clock stops too, so poison, disease and other timed effects do not run during the wait.
   The menu and console still work, so you can quit. A very large dungeon army can also show **Loading...** for a second or two as you enter.
 
+## Town notice boards
+
+Every walled town has a notice board beside each side of its gates, as in Daggerfall. Press Use (or Info) on one to
+read the town's name and its news or rumors. You must be within about 6 m.
+
 ## Damage numbers
 
 Turn on **Show damage numbers** in Options, HUD Options to see how much damage each of your hits does: a small gold

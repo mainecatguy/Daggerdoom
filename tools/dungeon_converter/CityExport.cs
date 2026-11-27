@@ -49,7 +49,7 @@ static partial class Program
         static bool Walkable(int x, int y) => sites.Any(s => x >= s.FlatX0 - walkMargin && x < s.FlatX1 + walkMargin && y >= s.FlatY0 - walkMargin && y < s.FlatY1 + walkMargin);
 
         // --winter: the location as Daggerfall draws it in winter (ClimateSwaps, TerrainMaterialProvider.GetClimateInfo).
-        static bool Winter;
+        static bool Winter, ListBoardPositions;
         static bool SnowyNature(int archive) => archive is (int)DFLocation.ClimateTextureSet.Nature_TemperateWoodland or (int)DFLocation.ClimateTextureSet.Nature_WoodlandHills
             or (int)DFLocation.ClimateTextureSet.Nature_HauntedWoodlands or (int)DFLocation.ClimateTextureSet.Nature_Mountains;
         static int NatureArchive(DFLocation l) => Winter && SnowyNature(l.Climate.NatureArchive) ? l.Climate.NatureArchive + 1 : l.Climate.NatureArchive;
@@ -69,6 +69,7 @@ static partial class Program
             // Daggerfall's winter season: ClimateSwaps' winter texture sets. Outdoors only: Daggerfall draws interiors in
             // summer all year (DaggerfallInterior's climateSeason) and dungeon blocks never swap for the season (RDBLayout).
             Winter = args.Contains("--winter") && groupId < SpaceBase;
+            ListBoardPositions = args.Contains("--list-board-positions");
             string ddtPath = Arg("--ddt", null);
             if (args.Contains("--list-buildings")) return ListBuildings(groupId, arena2);
             if (groupId >= SpaceBase) return RunInterior(groupId, ddtPath, outDir, arena2);
@@ -557,6 +558,11 @@ class DFRuntimeHandler : EventHandler
                 {
                     var p = Rotate(new V3(x * scale.X, y * scale.Y, z * scale.Z), rx, ry, rz) + position;
                     return Rotate(p, 0, parentYaw, 0) + parent;
+                }
+                if (ListBoardPositions && id == BulletinBoardModel) // diagnostic, BoardCensus.cs
+                {
+                    V3 c = Place(0, 0, 0), front = Place(0, 0, 1), bottom = Place(0, -51, 0);
+                    Console.WriteLine(FormattableString.Invariant($"BOARDPOS {(c.X - originX) * S:F1} {(c.Z - originZ) * S:F1} {bottom.Y * S:F1} {front.X - c.X:F4} {front.Z - c.Z:F4}"));
                 }
                 foreach (var sub in mesh.SubMeshes)
                 {

@@ -257,7 +257,7 @@ extern "C" {
 #define DFB_TAKE_STEAL     1u  /* Daggerfall's Steal interaction; the player is crouching */
 
 #define DFB_INFO_NPC       1u  /* dfb_info_request.id is an NPC id */
-#define DFB_INFO_BUILDING  2u  /* world_x and world_z are the point on the building Doom's view ray hit */
+#define DFB_INFO_BUILDING  2u  /* world_x and world_z are the point on the building Doom's view ray hit; for DFB_KIND_INFO, id is the ray's length to it in Daggerfall units (0 if unknown) */
 #define DFB_INFO_MONSTER   3u  /* a Doom monster, named by the DFB_KIND_INFO_NAME just before */
 #define DFB_INFO_TOWNSPERSON 4u /* DFB_KIND_LOOK: dfb_info_request.id is a townsperson id */
 #define DFB_INFO_PILE      5u  /* DFB_KIND_LOOK: dfb_info_request.id is a world item (pile or container) id */
