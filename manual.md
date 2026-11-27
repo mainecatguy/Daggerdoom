@@ -71,7 +71,7 @@ Impish) are gone: you can no longer calm monsters by speaking to them.
   maker cannot make Enhances Skill items for the weapon skills.
 - A character imported from a classic Daggerfall save starts the weapon skills untrained; their old language values
   and practice are not carried over.
-- The gun skills do not change how guns behave yet.
+- Automatics changes how its guns behave (see "Automatics" below). The other gun skills do not yet.
 
 ### Class skills
 
@@ -101,6 +101,22 @@ A skill earns a **perk** when it reaches 25, 50, 75 and 100.
 - Loading a save does not show perks you already have.
 - So far, Jumping and the gun skills (Shotguns, Automatics and Explosives) have perks. The window says when a perk
   does not work yet.
+
+### Automatics
+
+Automatics covers chainguns, miniguns and other rapid-fire guns, such as the stock chaingun and the Battle Rifle. The
+Uzi is a Pistol, not an Automatic.
+
+- **Damage:** automatic guns do more damage as the skill rises, up to 60% more at 100.
+- **25, burst fire:** the first 3 shots of each burst do 30% more damage. Let go of the trigger for a moment (0.3
+  seconds) and the next burst gets the bonus again, so short bursts hit harder than holding the trigger down.
+- **50:** every second shot uses no ammo.
+- **75:** each hit makes the enemy take 1% more damage from everything, yours and anyone else's, up to 15%. It never
+  wears off for that enemy.
+- **100:** automatic guns use only 1 ammo for every 4 shots.
+- The bonuses add up: a burst shot at 100 does 1.6 x 1.3, about twice the damage.
+- These only work in the Daggerfall world. Your current skill counts, so an effect that lowers or raises the skill
+  changes them too.
 
 ## Weapons that belong to two skills
 

@@ -829,6 +829,15 @@ DEFINE_ACTION_FUNCTION(AActor, DD_SheetSkill)
 	ACTION_RETURN_INT(DD_BridgeSkillLive(slot));
 }
 
+int DD_BridgeSheetValue(int index); // [Doomerfall] dd_bridge.cpp
+
+DEFINE_ACTION_FUNCTION(AActor, DD_SheetValue)
+{
+	PARAM_PROLOGUE;
+	PARAM_INT(index);
+	ACTION_RETURN_INT(DD_BridgeSheetValue(index));
+}
+
 // Why does this exist twice?
 DEFINE_ACTION_FUNCTION_NATIVE(AActor, GetSpawnHealth, SpawnHealth)
 {

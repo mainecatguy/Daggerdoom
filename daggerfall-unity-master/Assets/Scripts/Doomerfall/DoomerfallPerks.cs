@@ -49,9 +49,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             new Perk("Shotguns", 75, "Shotgun blasts knock enemies back hard and stagger them, and an enemy slammed into a wall takes extra damage."),
             new Perk("Shotguns", 100, "Shotguns fire even more pellets and reload faster still."),
 
-            new Perk("Automatics", 25, "Burst fire: the first 3 shots of a burst do 30% more damage. The bonus comes back 0.3 seconds after you stop firing."),
-            new Perk("Automatics", 50, "Every second shot from an automatic weapon uses no ammo."),
-            new Perk("Automatics", 100, "Automatic weapons use only 1 ammo for every 4 shots."),
+            new Perk("Automatics", 25, "Burst fire: the first 3 shots of a burst do 30% more damage. The bonus comes back 0.3 seconds after you stop firing.", true),
+            new Perk("Automatics", 50, "Every second shot from an automatic weapon uses no ammo.", true),
+            new Perk("Automatics", 75, "Each hit from an automatic weapon makes the enemy take 1% more damage from everything, up to 15%. It never wears off.", true),
+            new Perk("Automatics", 100, "Automatic weapons use only 1 ammo for every 4 shots.", true),
 
             new Perk("Explosives", 25, "Your own explosions hurt you 50% less."),
             new Perk("Explosives", 50, "Explosives do extra damage to the enemy they hit directly."),
