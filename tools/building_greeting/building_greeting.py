@@ -72,6 +72,11 @@ def assemble():
     bridge = SOURCE / "dfu" / "DaggerfallUnity_Data" / "Plugins" / "x86_64" / "doomerfall_bridge.dll"
     shutil.copytree(REPO / "daggerfall-unity-master" / "Builds" / "Windows64", REVIEW / "dfu", ignore=shutil.ignore_patterns("Player*.log", "*.pdb"))
     shutil.copy2(bridge, REVIEW / "dfu" / "DaggerfallUnity_Data" / "Plugins" / "x86_64" / "doomerfall_bridge.dll")
+    # -dfsynctest needs a portable install: the marker and the stage's settings, without its logs and saves.
+    shutil.copy2(SOURCE / "dfu" / "Portable.txt", REVIEW / "dfu" / "Portable.txt")
+    (REVIEW / "dfu" / "PortableAppdata").mkdir()
+    for name in ("settings.ini", "KeyBinds.txt"):
+        shutil.copy2(SOURCE / "dfu" / "PortableAppdata" / name, REVIEW / "dfu" / "PortableAppdata" / name)
     for name in ("doomerfall-launcher.exe", "dfitems.pk3", "doomerfall.pk3", "doomerfall-drla.pk3"):
         shutil.copy2(SOURCE / name, REVIEW / name)
     shutil.copytree(SOURCE / "data", REVIEW / "data", ignore=shutil.ignore_patterns("S*.ddt", "S*.wad"))
@@ -134,11 +139,11 @@ def run(mode):
     with zipfile.ZipFile(harness, "w") as z:
         z.writestr("zscript.txt", (HERE / "harness.zs").read_text().replace("@DOOR@", ", ".join(door[3:8])))
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "BGHarness" }\n')
-    console, uz_log, df_log = runs / "console.txt", runs / "uz.log", runs / "df.log"
+    console, uz_log, df_log = runs / "log-console.txt", runs / "uz.log", runs / "df.log"
     w, h = 1280, 800
     uz = ["-config", str(runs / "uzdoom.ini"), "-savedir", str(runs / "saves"), "-dfbridgelog", str(uz_log), "-noautoload", "-skill", "3", "-ddqa", str(runs / "qa"),
           "-ddtowncache", str(REVIEW / "data" / "cache"), "-ddconverter", str(REVIEW / "data" / "converter" / "DungeonConverter.exe"), "-ddarena2", str(ARENA2),
-          "+logfile", str(console), "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0",
+          "+logfile", "console", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0",
           "-width", str(w + DOOM_BORDER[0]), "-height", str(h + DOOM_BORDER[1]), "+vid_fullscreen", "0", "+win_w", str(w + DOOM_BORDER[0]), "+win_h", str(h + DOOM_BORDER[1]),
           "+vid_scalemode", "0", "+vid_scalefactor", "1", "+map", f"DDT{GROUP:05d}"]
     df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), "-screen-fullscreen", "0", "-screen-width", str(w), "-screen-height", str(h)]
@@ -183,7 +188,7 @@ def run(mode):
         if re.search(r"transition \d+:|^.*hud: |ui: ", line):
             print("df:", line[:300])
     for line in read(uz_log).splitlines():
-        if re.search(r"(?i)ui |menu|transition", line):
+        if "heartbeat=" not in line and re.search(r"(?i)ui|menu|transition", line):
             print("uz:", line[:240])
     print("screens:", ", ".join(p.name for p in sorted(runs.glob(f"{mode}-*.png"))) or "none")
 
@@ -196,7 +201,7 @@ def wad():
         log.unlink(missing_ok=True)
         ini.unlink(missing_ok=True)
         command = [sys.executable, QUIET, "--timeout", "30", "--cwd", str(runs), "--", str(REVIEW / "uzdoom" / "uzdoom.exe"), "-iwad", str(GAME / "wads" / "DOOM.WAD"),
-                   "-config", str(ini), "-noautoload", "-skill", "3", "-file", *mods, str(REVIEW / "doomerfall.pk3"), "+logfile", str(log),
+                   "-config", str(ini), "-noautoload", "-skill", "3", "-file", *mods, str(REVIEW / "doomerfall.pk3"), "+logfile", f"wad-{label}",
                    "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+vid_fullscreen", "0", "+map", "E1M1", "+wait 140;quit"]
         code = subprocess.call(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         lines = read(log).splitlines()
