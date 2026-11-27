@@ -80,6 +80,25 @@ def build_map():
         line(c, d, top, tc, outer)
         line(d, e, top, tc, outer)
 
+    # Rows of floors rising toward +x: a staircase far too steep to walk (32-unit risers, 12-unit treads, like
+    # Privateer's Hold's cliff) and a wall with a 64-unit ledge before a taller wall.
+    def row(y1, y2, cols):
+        xs = [c[0] for c in cols]
+        vs = [(vertex(x, y1), vertex(x, y2)) for x in xs]
+        secs = [sector(f) for _, f in cols[:-1]]
+        for i, s in enumerate(secs):
+            c = ((xs[i] + xs[i + 1]) / 2, (y1 + y2) / 2)
+            line(vs[i][0], vs[i][1], s, c, secs[i - 1] if i else outer)
+            line(vs[i][0], vs[i + 1][0], s, c, outer)
+            line(vs[i][1], vs[i + 1][1], s, c, outer)
+        last = len(secs) - 1
+        line(vs[-1][0], vs[-1][1], secs[last], ((xs[-2] + xs[-1]) / 2, (y1 + y2) / 2), outer)
+
+    row(350, 430, [(800 + 12 * i, 32 * (i + 1)) for i in range(10)] + [(920, 320), (1000, 0)])
+    row(620, 700, [(800, 96), (864, 192), (1000, 0)])
+    row(880, 960, [(800, 96), (824, 192), (1000, 0)])  # a 24-unit ledge: wider than a stair tread, still stood on
+    row(100, 180, [(150, 96), (186, 100), (190, 192), (300, 0)])  # a 40-unit ledge with a raised strip at the back
+
     out = ['namespace = "zdoom";',
            'thing { x = 400.0; y = 512.0; angle = 0; type = 1; skill1 = true; skill2 = true; skill3 = true; skill4 = true; skill5 = true; single = true; }']
     for x, y in verts:

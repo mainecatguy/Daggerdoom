@@ -11,7 +11,8 @@ class DoomerfallClimbState
 	int pushTics;      // tics pushing forward into a climbable surface while not climbing
 	bool climbing;
 	bool slipping;
-	int rollTics;      // tics until the next continue or regain roll
+	bool crossing;     // crossing a stair tread to the next surface (CrossNarrowLedge)
+	int rollTics;     // tics until the next continue or regain roll
 	double speed;      // climb speed in units per tic, fixed when the climb starts, as in Daggerfall
 	Vector2 normal;    // horizontal normal of the surface, pointing out toward the player
 	bool savedNoGravity;
@@ -29,6 +30,7 @@ class DoomerfallClimb : StaticEventHandler
 	const Touch = 12.0;        // how far beyond the player's radius a surface still counts as touching
 	const StillMove = 2.0;     // moving less than this per tic while pushing counts as blocked
 	const Hug = 1.0;           // velocity into the wall while climbing, which keeps contact
+	const NarrowLedge = 16.0;  // a stair tread this deep or less with a climbable surface behind it does not end a climb
 	const UsesEvery = 35;
 
 	bool rules;
@@ -106,13 +108,14 @@ class DoomerfallClimb : StaticEventHandler
 	// The climbable surface in direction ang, touching the player, between Doom's step height and the player's head.
 	// Walls, 3D floor sides, and planes of 70 degrees or steeper count. Actors (doors, monsters) and ceilings do not.
 	Vector2 found;    // the surface normal FindSurface found (an out Vector2 parameter breaks the JIT)
+	double foundDist; // and the player's distance from it along that normal
 
-	bool FindSurface(PlayerPawn mo, double ang, double offz)
+	bool FindSurface(PlayerPawn mo, double ang, double offz, double extra = 0)
 	{
 		FLineTraceData t;
 		Vector2 n = (0, 0);
 		found = n;
-		double reach = mo.radius + Touch;
+		double reach = mo.radius + Touch + extra;
 		if (!mo.LineTrace(ang, reach * 2, 0, TRF_THRUACTORS, offz, data: t)) return false;
 		if (t.HitType == FLineTraceData.TRACE_HitWall && t.HitLine)
 		{
@@ -134,7 +137,8 @@ class DoomerfallClimb : StaticEventHandler
 		// Touching: the player's center is within radius plus a little of the surface, measured along its normal.
 		Vector2 dir = (cos(ang), sin(ang));
 		found = n;
-		return t.Distance * max(0.05, -(dir dot n)) <= reach;
+		foundDist = t.Distance * max(0.05, -(dir dot n));
+		return foundDist <= reach;
 	}
 
 	// Doom's top ground speed for this run state, in units per tic: thrust / (1 - friction) on normal ground.
@@ -166,6 +170,7 @@ class DoomerfallClimb : StaticEventHandler
 		if (s.climbing) DDLog.Debug(String.Format("DFCLIMB stop z=%.1f", mo.pos.z));
 		s.climbing = false;
 		s.slipping = false;
+		s.crossing = false;
 		s.pushTics = 0;
 	}
 
@@ -202,28 +207,17 @@ class DoomerfallClimb : StaticEventHandler
 		double wallAng = atan2(-s.normal.y, -s.normal.x);
 		if (!FindSurface(mo, wallAng, mo.MaxStepHeight - 4))
 		{
-			TopOrLetGo(mo, s);
+			if (s.crossing && (s.slipping || cmd.forwardmove < 0)) CrossingFallOrDescend(mo, s);
+			else TopOrLetGo(mo, s, cmd.forwardmove, cmd.sidemove);
 			return;
 		}
 		Vector2 n = found;
 		s.normal = n;
+		s.crossing = false;
 
 		if (s.slipping)
 		{
-			if (mo.pos.z <= mo.floorz) { EndClimb(mo, s); return; }
-			mo.vel.xy = -n * Hug;
-			if (--s.rollTics <= 0)
-			{
-				if (Roll(mo, s, 3))
-				{
-					s.slipping = false;
-					s.rollTics = ContinueTics;
-					mo.bNoGravity = true;
-					mo.vel.z = 0; // Daggerfall: regaining a hold clears the fall.
-					DDLog.Debug(String.Format("DFCLIMB regain z=%.1f", mo.pos.z));
-				}
-				else s.rollTics = RegainTics;
-			}
+			SlipStep(mo, s, n);
 			return;
 		}
 
@@ -262,10 +256,86 @@ class DoomerfallClimb : StaticEventHandler
 		else if (!ground) s.pushTics = 0; // Daggerfall: a failed airborne grab restarts the wait; on the ground it rerolls.
 	}
 
-	// The surface ended. Near the top, carry the player over onto the ledge, as Daggerfall's forward push does.
-	void TopOrLetGo(PlayerPawn mo, DoomerfallClimbState s)
+	// A stair tread (at most NarrowLedge deep, under half the player's width) with another climbable surface right
+	// behind it, as on a staircase far too steep to walk such as Privateer's Hold's cliff, does not end the climb.
+	// Forward rises to the tread at climb speed, then crosses it to that surface, so Doom's step-up adds no free height.
+	// No input stays put. False when there is no such tread; then the climb tops out or lets go as on any wall.
+	bool CrossNarrowLedge(PlayerPawn mo, DoomerfallClimbState s, int forward)
 	{
 		Vector2 n = s.normal;
+		if (!FindSurface(mo, atan2(-n.y, -n.x), mo.MaxStepHeight - 4, NarrowLedge + mo.radius)) return false;
+		Vector2 next = found;
+		double far = foundDist;
+		// The tread: the floor just in front of that surface, at most step height above the feet (the trace passed over
+		// anything taller); a floor far below the feet is a gap. Its depth runs back from that surface over all floor a
+		// player could walk on (no step over Doom's step height) to the edge of the surface just climbed: a drop of more
+		// than a step, which must be where the player was touching. Uneven or sloped floor counts toward the depth.
+		Vector2 at = mo.pos.xy - n * (far - 1);
+		double top = mo.GetZAt(at.x, at.y, 0, GZF_ABSOLUTEPOS);
+		if (top > mo.pos.z + mo.MaxStepHeight || top < mo.pos.z - 2 * mo.MaxStepHeight) return false;
+		double d = far - 1, prev = top;
+		bool edge = false;
+		for (; d > far - NarrowLedge - 4; d -= 2)
+		{
+			at = mo.pos.xy - n * (d - 2);
+			double z = mo.GetZAt(at.x, at.y, 0, GZF_ABSOLUTEPOS);
+			if (z < prev - mo.MaxStepHeight) { edge = true; break; }
+			if (z > prev + mo.MaxStepHeight) return false;
+			prev = z;
+		}
+		if (!edge || far - d > NarrowLedge || d > mo.radius + Touch) return false;
+		s.normal = next;
+		s.crossing = true;
+		if (forward <= 0) mo.vel = (0, 0, 0);
+		else if (top > mo.pos.z) mo.vel = (0, 0, min(s.speed, top - mo.pos.z));
+		else mo.vel = (-n * s.speed, 0);
+		if (forward > 0 && --s.rollTics <= 0) // crossing is climbing: same continue rolls
+		{
+			s.rollTics = ContinueTics;
+			if (!Roll(mo, s, 2)) { Slip(mo, s); mo.vel = (0, 0, 0); } // a failed roll falls from here
+		}
+		return true;
+	}
+
+	// Mid-crossing with no surface in touch: a slip falls (with Daggerfall's regain rolls) until it lands, and Back
+	// climbs straight down until the feet reach a floor. Neither tops out over the tread.
+	void CrossingFallOrDescend(PlayerPawn mo, DoomerfallClimbState s)
+	{
+		if (s.slipping) { SlipStep(mo, s, (0, 0)); return; } // no push toward the tread, or Doom's step-up lifts onto it
+		if (mo.pos.z <= mo.floorz) { EndClimb(mo, s); return; }
+		mo.vel = (0, 0, -s.speed);
+		if (--s.rollTics <= 0)
+		{
+			s.rollTics = ContinueTics;
+			if (!Roll(mo, s, 2)) { Slip(mo, s); mo.vel = (0, 0, 0); }
+		}
+	}
+
+	// One tic of a slip: falling beside the surface, with a regain roll every RegainTics, until the feet land.
+	void SlipStep(PlayerPawn mo, DoomerfallClimbState s, Vector2 n)
+	{
+		if (mo.pos.z <= mo.floorz) { EndClimb(mo, s); return; }
+		mo.vel.xy = -n * Hug;
+		if (--s.rollTics <= 0)
+		{
+			if (Roll(mo, s, 3))
+			{
+				s.slipping = false;
+				s.rollTics = ContinueTics;
+				mo.bNoGravity = true;
+				mo.vel.z = 0; // Daggerfall: regaining a hold clears the fall.
+				DDLog.Debug(String.Format("DFCLIMB regain z=%.1f", mo.pos.z));
+			}
+			else s.rollTics = RegainTics;
+		}
+	}
+
+	// The surface ended. Near the top, carry the player over onto the ledge, as Daggerfall's forward push does.
+	void TopOrLetGo(PlayerPawn mo, DoomerfallClimbState s, int forward, int sidemove)
+	{
+		Vector2 n = s.normal;
+		// Only rising past a surface's top (or holding still) reaches a tread; strafing off a surface ends as before.
+		if (!s.slipping && forward >= 0 && sidemove == 0 && CrossNarrowLedge(mo, s, forward)) return;
 		Vector2 ahead = mo.pos.xy - n * (mo.radius + 8);
 		double top = mo.GetZAt(ahead.x, ahead.y, 0, GZF_ABSOLUTEPOS);
 		bool atTop = top > mo.pos.z - 1 && top <= mo.pos.z + mo.MaxStepHeight;
