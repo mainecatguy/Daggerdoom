@@ -345,7 +345,7 @@ class DoomerfallAmmoTiers : StaticEventHandler
 			DDLog.Debug(String.Format("DFAMMO drop %s tier %d at %.0f %.0f level %d", TypeNames[type], tier, plain.pos.x, plain.pos.y, areaLevel));
 		}
 		Console.PrintfEx(PRINT_LOG, "DFAMMO size %s%s %s -> %d rounds", box ? "large " : "small ", TypeNames[type], dropped ? "dropped" : "placed",
-			DoomerfallAmmoPickup.Rounds(type, 0, box, dropped));
+			DoomerfallAmmoPickup.Rounds(type, box, dropped));
 		plain.Destroy();
 	}
 
@@ -355,7 +355,7 @@ class DoomerfallAmmoTiers : StaticEventHandler
 		class<Actor> cls = String.Format("DFAmmo_%s_%d", TypeNames[type], tier);
 		if (cls == null) return null;
 		let p = Inventory(Actor.Spawn(cls, at.pos, NO_REPLACE));
-		if (p) p.Amount = DoomerfallAmmoPickup.Rounds(type, tier, box, dropped);
+		if (p) p.Amount = DoomerfallAmmoPickup.Rounds(type, box, dropped);
 		return p;
 	}
 }
@@ -375,27 +375,22 @@ class DoomerfallAmmoPickup : Inventory abstract
 		Inventory.MaxAmount 0x7fffffff;
 	}
 
-	// Rounds in one pickup (owner, 2026-11-24): Regular gives stock Doom's amounts, from id Software's p_inter.c
-	// (clipammo {10, 4, 20, 1}; a large pickup is five of them; a dropped clip is half). A dropped pickup of any size is
-	// half, at least one, as UZDoom's Ammo.ModifyDropAmount does. This is the only place pickup amounts are decided:
-	// Daggerfall receives the count with dfa_take.
-	static int Rounds(int type, int tier, bool box = false, bool dropped = false)
+	// Rounds in one pickup: stock Doom's amounts, from id Software's p_inter.c (clipammo {10, 4, 20, 1}; a large pickup
+	// is five of them; a dropped clip is half). A dropped pickup of any size is half, at least one, as UZDoom's
+	// Ammo.ModifyDropAmount does. Every tier gives the same as Regular: higher tiers are rarer, not smaller (owner,
+	// 2026-11-26). This is the only place pickup amounts are decided: Daggerfall receives the count with dfa_take.
+	static int Rounds(int type, bool box = false, bool dropped = false)
 	{
 		static const int Small[] = { 10, 4, 1, 20 };  // Clip, 4 shotgun shells, rocket, energy cell.
 		static const int Large[] = { 50, 20, 5, 100 }; // Box of bullets, box of shells, box of rockets, cell pack.
-		// Each tier's amount in eighths of Regular's: the owner's stack multipliers (DoomerfallAmmoTiers.cs stackMul),
-		// relative to Regular's 2x. Steel 3/4, Silver 1/2, Moonstone 3/8, ... Daedric 1/8.
-		static const int TierEighths[] = { 8, 6, 4, 3, 4, 3, 2, 2, 2, 1 };
 		int n = box ? Large[type] : Small[type];
-		if (dropped) n = max(1, n / 2);
-		// Rounded half away from zero, at least one (my proposal, awaiting the owner).
-		return max(1, (n * TierEighths[tier] + 4) / 8);
+		return dropped ? max(1, n / 2) : n;
 	}
 
 	override void BeginPlay()
 	{
 		Super.BeginPlay();
-		Amount = Rounds(ammoType, tier); // A small placed pickup; the converter (SpawnTier) and the treadmill set the real size.
+		Amount = Rounds(ammoType); // A small placed pickup; the converter (SpawnTier) and the treadmill set the real size.
 		A_SetTranslation(String.Format("DFAmmoTier%d", tier));
 	}
 

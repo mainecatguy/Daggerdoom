@@ -1,5 +1,5 @@
 // Doomerfall: ammo material tiers (owner, 2026-11-24, card ammotiers/04). Each tier is a Daggerfall material with
-// its own name, damage bonus, price, weight, and stack size, as multiples of each ammo type's base values. Runs only
+// its own name, damage bonus, price and weight, as multiples of each ammo type's base values. Runs only
 // in a bridge session.
 //
 // A tiered stack is told apart by its template index, which Daggerfall saves and stacks by: Regular keeps the plain
@@ -23,7 +23,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             public WeaponMaterialTypes material; // The Daggerfall material this tier maps to.
             public double bonus;                 // Damage bonus as a fraction, 0.2 is +20%.
             public int priceMul;                 // Price per round, as a multiple of the base price.
-            public float weightMul, stackMul;
+            public float weightMul;
             public Color32 dark, light;          // The material's colour ramp (Daggerfall's metal dye), darkest and lightest.
         }
 
@@ -33,30 +33,29 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         // table (ImageProcessing.GetMetalColorTable) in ART_PAL.COL, the palette of Daggerfall's item pictures.
         internal static readonly Tier[] Tiers =
         {
-            T("Regular",    WeaponMaterialTypes.Iron,       0.00,  3, 1.0f, 2.00f,  44,  44,  45, 119, 119, 119),
-            T("Steel",      WeaponMaterialTypes.Steel,      0.20,  5, 1.0f, 1.50f,  44,  44,  44, 220, 220, 220),
-            T("Silver",     WeaponMaterialTypes.Silver,     0.10,  7, 1.0f, 1.00f,  94,  94, 109, 254, 255, 199),
-            T("Moonstone",  WeaponMaterialTypes.Elven,      0.35, 14, 0.5f, 0.75f, 110, 110, 110, 254, 255, 199),
-            T("Dwemer",     WeaponMaterialTypes.Dwarven,    0.50, 15, 2.0f, 1.00f,  58,  51,  25, 255, 246, 103),
-            T("Adamantium", WeaponMaterialTypes.Adamantium, 0.60, 28, 1.0f, 0.75f,  19,  19,  19,  75,  75,  85),
-            T("Orichalcum", WeaponMaterialTypes.Orcish,     0.70, 32, 1.0f, 0.50f,  23,  23,  23,  92, 127,  54),
-            T("Mithril",    WeaponMaterialTypes.Mithril,    0.40, 40, 0.1f, 0.50f,  19,  19,  19,  62, 105, 167),
-            T("Ebony",      WeaponMaterialTypes.Ebony,      1.00, 45, 2.0f, 0.50f,  19,  19,  19, 119, 119, 119),
-            T("Daedric",    WeaponMaterialTypes.Daedric,    1.00, 75, 1.0f, 0.25f,  83,  32,  10, 198,  95,  31),
+            T("Regular",    WeaponMaterialTypes.Iron,       0.00,  3, 1.0f,  44,  44,  45, 119, 119, 119),
+            T("Steel",      WeaponMaterialTypes.Steel,      0.20,  5, 1.0f,  44,  44,  44, 220, 220, 220),
+            T("Silver",     WeaponMaterialTypes.Silver,     0.10,  7, 1.0f,  94,  94, 109, 254, 255, 199),
+            T("Moonstone",  WeaponMaterialTypes.Elven,      0.35, 14, 0.5f, 110, 110, 110, 254, 255, 199),
+            T("Dwemer",     WeaponMaterialTypes.Dwarven,    0.50, 15, 2.0f,  58,  51,  25, 255, 246, 103),
+            T("Adamantium", WeaponMaterialTypes.Adamantium, 0.60, 28, 1.0f,  19,  19,  19,  75,  75,  85),
+            T("Orichalcum", WeaponMaterialTypes.Orcish,     0.70, 32, 1.0f,  23,  23,  23,  92, 127,  54),
+            T("Mithril",    WeaponMaterialTypes.Mithril,    0.40, 40, 0.1f,  19,  19,  19,  62, 105, 167),
+            T("Ebony",      WeaponMaterialTypes.Ebony,      1.00, 45, 2.0f,  19,  19,  19, 119, 119, 119),
+            T("Daedric",    WeaponMaterialTypes.Daedric,    1.00, 75, 1.0f,  83,  32,  10, 198,  95,  31),
         };
 
-        static Tier T(string name, WeaponMaterialTypes material, double bonus, int price, float weight, float stack,
+        static Tier T(string name, WeaponMaterialTypes material, double bonus, int price, float weight,
             byte dr, byte dg, byte db, byte lr, byte lg, byte lb)
         {
-            return new Tier { name = name, material = material, bonus = bonus, priceMul = price, weightMul = weight, stackMul = stack,
+            return new Tier { name = name, material = material, bonus = bonus, priceMul = price, weightMul = weight,
                 dark = new Color32(dr, dg, db, 255), light = new Color32(lr, lg, lb, 255) };
         }
 
-        // Rounds in one vendor pack at a 1x stack size (a Regular pack is twice this). Shop stock only: pickups and drops
-        // in Doom give stock Doom's amounts, which DoomerfallAmmoPickup.Rounds (DoomerfallAmmo.zs) decides and sends here
-        // with each take, scaled by the same stackMul relative to Regular's. Shop packs are unchanged until the owner
-        // decides whether they should follow Doom's amounts too.
-        internal static readonly int[] ShopPackBase = { 40, 10, 4, 50 };
+        // Rounds in one vendor pack. Every tier's pack holds the same as Regular's: higher tiers are rarer, not smaller
+        // (owner, 2026-11-26). Shop stock only: pickups and drops in Doom give stock Doom's amounts, which
+        // DoomerfallAmmoPickup.Rounds (DoomerfallAmmo.zs) decides and sends here with each take.
+        internal static readonly int[] ShopPack = { 80, 20, 8, 100 };
 
         internal static int Template(int type, int tier)
         {
@@ -79,10 +78,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         internal static string Name(int type, int tier) { return Tiers[tier].name + " " + DoomerfallAmmo.Types[type].lowerName; }
         internal static int Price(int type, int tier) { return DoomerfallAmmo.Types[type].basePrice * Tiers[tier].priceMul; }
         internal static float Weight(int type, int tier) { return DoomerfallAmmo.Types[type].baseWeightKg * Tiers[tier].weightMul; }
-        internal static int Stack(int type, int tier)
-        {
-            return Math.Max(1, (int)Math.Round(ShopPackBase[type] * Tiers[tier].stackMul, MidpointRounding.AwayFromZero));
-        }
+        internal static int Stack(int type) { return ShopPack[type]; }
 
         // An ammo's tags (such as reduced_noise), shown as player state while it is loaded (owner, 2026-11-24). None exist
         // yet: Silver's creature bonus and the quiet tag are backlog items. They show under Doom's loaded ammo icon.
@@ -106,7 +102,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 string.Format("{0} ({1})", Name(type, tier), count),
                 what,
                 string.Format("Each round weighs {0:0.###} kg and is worth {1} gold.", Weight(type, tier), Price(type, tier)),
-                string.Format("One pack holds {0}.", Stack(type, tier)));
+                string.Format("One pack holds {0}.", Stack(type)));
         }
 
         // ---- Colour tints ------------------------------------------------------------------------------------------
@@ -175,7 +171,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     if (chance <= 0 || UnityEngine.Random.Range(0, 100) >= chance)
                         continue;
                     int stacks = tier == Regular ? UnityEngine.Random.Range(2, 5) : UnityEngine.Random.Range(1, 3);
-                    items.AddItem(new DoomerfallAmmoItem(type, tier, stacks * Stack(type, tier)));
+                    items.AddItem(new DoomerfallAmmoItem(type, tier, stacks * Stack(type)));
                 }
             }
         }
