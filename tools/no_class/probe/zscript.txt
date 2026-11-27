@@ -6,6 +6,7 @@ class NoClassProbe : StaticEventHandler
 {
 	int ticks;
 	ui String lastMenu;
+	ui int uiTicks;
 	bool listed;
 
 	override void WorldLoaded(WorldEvent e)
@@ -26,7 +27,7 @@ class NoClassProbe : StaticEventHandler
 		if (ticks == 70 || ticks == 350) Report();
 	}
 
-	void Report()
+	clearscope void Report()
 	{
 		let pmo = players[consoleplayer].mo;
 		if (!pmo) return;
@@ -43,7 +44,7 @@ class NoClassProbe : StaticEventHandler
 			Count(pmo, "RLStamina"), Count(pmo, "RLArmorSpecial"), Count(pmo, "Clip"));
 	}
 
-	static int Count(Actor pmo, String name)
+	clearscope static int Count(Actor pmo, String name)
 	{
 		class<Inventory> c = name;
 		return c ? pmo.CountInv(c) : -1;
@@ -51,6 +52,8 @@ class NoClassProbe : StaticEventHandler
 
 	override void UiTick()
 	{
+		// World ticks stop while the bridge holds Doom (New Game trip, arrival wait), so also report from here.
+		if (++uiTicks % 175 == 0 && gamestate == GS_LEVEL) Report();
 		let m = Menu.GetCurrentMenu();
 		String n = "none";
 		if (m is "ListMenu") n = ListMenu(m).mDesc.mMenuName;

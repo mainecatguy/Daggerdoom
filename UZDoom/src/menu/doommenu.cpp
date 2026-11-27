@@ -154,7 +154,7 @@ bool DD_BridgeEndGame(); // Doomerfall
 bool DD_BridgeBlocksMainMenu(); // Doomerfall
 void DD_BridgeAbandonCharacter(); // Doomerfall
 
-// Doomerfall: the difficulty prompt after character creation, with one fixed class for now.
+// Doomerfall: the difficulty prompt after character creation, with the first class (DoomerfallPlayer with DRLA).
 void M_DDOpenSkillMenu()
 {
 	NewGameStartupInfo.hasPlayerClass = PlayerClasses.Size() > 0;

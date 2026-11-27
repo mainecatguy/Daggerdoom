@@ -1,4 +1,4 @@
-"""No DRLA class in bridged games: drives Doom's real main menu (Escape, then Enter on New Game) and reads the probe's log.
+"""No DRLA class in bridged games: drives Doom's real main menu (opened by +menu_main, then Enter on New Game) and reads the probe's log.
 
 Run the whole script under quiet_run.py, so the keys reach Doom's window on the same private desktop:
   python D:\\dev\\DoomDaggerfall\\scripts\\overnight\\quiet_run.py --timeout 120 -- python tools\\no_class\\run_no_class.py <mode> <stage>
@@ -24,7 +24,7 @@ import run_new_game as ng  # noqa: E402  (window, key and character-creation hel
 MODS = Path(r"D:\dev\DoomDaggerfall\GameMods")
 DRLA = [str(MODS / f) for f in ("DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3")]
 WADS = Path(r"D:\dev\DoomDaggerfall\GameResources\wads")
-BG = ["+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+vid_fullscreen", "0", "+wipetype", "0"]
+BG = ["+menu_main", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+vid_fullscreen", "0", "+wipetype", "0"]
 VK_ESC, VK_ENTER = 0x1B, 0x0D
 
 
@@ -65,12 +65,12 @@ def fatal(console):
 
 
 def open_new_game(hwnd, console, until, deadline):
-    """Escape opens the main menu at the title; Enter takes its first item, New Game. Repeats until `until()`."""
+    """+menu_main opened the main menu at the title (posted keys reach Doom only as menu input, so Escape cannot open it).
+    Enter takes its first item, New Game. Repeats until `until()`."""
     while time.time() < deadline and not until() and not fatal(console):
         seen = menus(console)
-        top = seen[-1] if seen else "none"
-        ng.key(hwnd, VK_ENTER if top == "MainMenu" else VK_ESC)
-        time.sleep(1.2)
+        if seen and seen[-1] == "MainMenu": ng.key(hwnd, VK_ENTER)
+        time.sleep(1.0)
 
 
 def standalone(stage, run):
@@ -79,7 +79,7 @@ def standalone(stage, run):
     cmd = [str(stage / "uzdoom" / "uzdoom.exe"), "-iwad", str(WADS / "DOOM.WAD"), "-file", *DRLA, probe_pk3(run), "-config", str(run / "standalone.ini"),
            "-noactivate", "-nosound", "+logfile", console.stem[4:], *BG]
     proc = subprocess.Popen(cmd, cwd=run)
-    deadline, ok = time.time() + 40, False
+    deadline, ok = time.time() + 60, False
     try:
         hwnd = None
         while time.time() < deadline and not hwnd and not fatal(console):
@@ -94,7 +94,7 @@ def standalone(stage, run):
                 time.sleep(1.5)
             while time.time() < deadline and not reports(console) and not fatal(console): time.sleep(0.5)
         r = reports(console)
-        ok = not fatal(console) and "DRLAX_PlayerClassProxyMenu" in menus(console) and bool(r) and r[-1][1] == "DoomRLMarine" and "RLAmmoChainPerk" in r[-1][2]
+        ok = not fatal(console) and "DRLAX_PlayerClassProxyMenu" in menus(console) and bool(r) and r[-1][1] == "DoomRLMarine" and "RLAmmochainPerk" in r[-1][2]
     finally:
         subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True)
     print("standalone:", "PASS" if ok else "FAIL", "| menus:", menus(console), "| reports:", reports(console)[-1:] or "none", "| fatal:", fatal(console))
@@ -107,7 +107,7 @@ def e1m1(stage, run):
         console = run / f"log-e1m1-{name}.txt"
         console.unlink(missing_ok=True)
         cmd = [str(stage / "uzdoom" / "uzdoom.exe"), "-iwad", str(WADS / "DOOM.WAD"), *(["-file", *files] if files else []), "-file", probe_pk3(run),
-               "-config", str(run / f"e1m1-{name}.ini"), "-noactivate", "-nosound", "-skill", "3", "+map", "E1M1", "+logfile", console.stem[4:], *BG]
+               "-config", str(run / f"e1m1-{name}.ini"), "-noactivate", "-nosound", "-skill", "3", "+map", "E1M1", "+logfile", console.stem[4:], *BG[1:]]
         proc = subprocess.Popen(cmd, cwd=run)
         deadline = time.time() + 45  # DRLA takes about 20 s to load.
         while time.time() < deadline and len(reports(console)) < 2 and not fatal(console): time.sleep(0.5)
@@ -126,7 +126,7 @@ def bridged(stage, run):
         p.unlink(missing_ok=True)
     (run / "saves").mkdir(parents=True, exist_ok=True)
     data = stage / "data"
-    uz_args = ["-noactivate", "-nosound", "-config", str(run / "bridged.ini"), "-savedir", str(run / "saves"), "-dfbridgelog", str(uz_log), "-dfflow",
+    uz_args = ["-noactivate", "-nosound", "-config", str(run / "bridged.ini"), "-savedir", str(run / "saves"), "-dfbridgelog", str(uz_log), "-dfflow", "-dfuitest", "0",  # 0: no menus opened, but only marked test clicks count.
                "-ddtowncache", str(data / "cache"), "-ddconverter", str(data / "converter" / "DungeonConverter.exe"), "-ddarena2", ng.DAGGER + r"\ARENA2",
                "+logfile", console.stem[4:], *BG]
     dfu_args = ["-dfbridgelog", str(df_log), "-dfflow", ng.DAGGER, "-dfmute", "-screen-fullscreen", "0", "-screen-width", "1280", "-screen-height", "800"]
