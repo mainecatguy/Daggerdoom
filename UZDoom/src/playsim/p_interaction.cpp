@@ -1231,7 +1231,7 @@ static int DamageMobj (AActor *target, AActor *inflictor, AActor *source, int da
 
 			int olddam = damage;
 
-			if (damage > 0 && source != NULL)
+			if (damage > 0 && source != NULL && !(flags & DMG_DD_DEALT)) // [Doomerfall] DMG_DD_DEALT
 			{
 				damage = int(damage * source->DamageMultiply);
 				damage = DD_BridgeDamageBonus(source, target, damage); // [Doomerfall] Daggerfall's damage bonus; unchanged at 0

@@ -10,7 +10,9 @@
 // How: each burning monster has one record holding a ring of 15 slots, one per 0.2 s step of the next 3 s. Apply adds
 // damage/15 to every slot, so any number of stacks costs 15 additions and fixed memory. Every 7 tics one slot is paid
 // out with DamageMobj (damage type 'Fire', so a monster's Fire damage factor applies; inflictor none, source the
-// applier, so kills are credited). Monsters show pain through the normal pain chance of each tick.
+// applier, so kills are credited; DMG_DD_DEALT, so the
+// applier's outgoing multipliers such as Daggerfall's damage bonus are not applied again: burn is already a share of a
+// hit that had them). Monsters show pain through the normal pain chance of each tick.
 //
 // The fire look is separate (DoomerfallBurnLook.zs) and runs only while dd_burn_look is on; removing that file and its
 // two lines in WorldTick (the Enabled check and the Draw call) leaves the damage unchanged.
@@ -120,11 +122,11 @@ class DoomerfallBurn : EventHandler
 			r.head = (r.head + 1) % Slots;
 			int whole = int(due);
 			r.carry = due - whole;
-			if (whole > 0) v.DamageMobj(null, r.source, whole, 'Fire', DMG_THRUSTLESS);
+			if (whole > 0) v.DamageMobj(null, r.source, whole, 'Fire', DMG_THRUSTLESS | DMG_DD_DEALT);
 			if (v && v.health > 0 && r.Total() <= 0)
 			{
 				// Every slot paid: pay the last fraction with its chance and stop burning.
-				if (r.carry > 0 && frandom[DoomerfallBurn](0, 1) < r.carry) v.DamageMobj(null, r.source, 1, 'Fire', DMG_THRUSTLESS);
+				if (r.carry > 0 && frandom[DoomerfallBurn](0, 1) < r.carry) v.DamageMobj(null, r.source, 1, 'Fire', DMG_THRUSTLESS | DMG_DD_DEALT);
 				records.Delete(i);
 			}
 		}

@@ -5,6 +5,7 @@
 //
 //   25+   the hit enemy burns for BurnBp of the hit's damage over 3 s, stacking without limit.
 //   50+   first, ConvertBp of the enemy's remaining burn is taken and dealt at once (so a hit never converts its own burn).
+//         Dealt with DMG_DD_DEALT: the hit that sized the burn already had the player's multipliers.
 //   100   that converted amount also bursts out: other live, unfriendly monsters within BurstRadius that the hit enemy can
 //         see start burning for BurstBp of it. Their burn is ordinary burn: a later direct hit converts it, so bursts
 //         spread but never chain by themselves. Never the player.
@@ -30,7 +31,7 @@ class DoomerfallEnergyBurn play
 				int amount = Round(taken);
 				int burstBp = DoomerfallEnergy.Rule(EnergyBurstBp), radius = DoomerfallEnergy.Rule(EnergyBurstRadius);
 				let burst = Actor.Spawn("DoomerfallEnergyBurst", victim.pos + (0, 0, victim.height / 2));
-				int dealt = amount > 0 ? victim.DamageMobj(burst, src, amount, 'Fire', DMG_THRUSTLESS) : 0;
+				int dealt = amount > 0 ? victim.DamageMobj(burst, src, amount, 'Fire', DMG_THRUSTLESS | DMG_DD_DEALT) : 0;
 				int spread = 0;
 				if (burstBp > 0 && radius > 0 && burst) spread = Burst(burst, victim, src, taken * burstBp / 10000., radius);
 				DoomerfallEnergy.Log(String.Format("convert %s: took %.3f of its burn %.3f, dealt %d; burst %d enemies %.2f burn each tic %d",

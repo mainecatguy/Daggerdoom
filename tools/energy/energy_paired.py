@@ -15,6 +15,7 @@ the 25/50/75/100 perk text with all of each level's effects, burn included; hits
 from 50 later hits convert 20% / 40% of the burn, at 100 conversions burst into the neighbour. Wrap the whole script in quiet_run.py.
 Output goes to <play folder>/../energy-paired.
 """
+import math
 import re
 import shutil
 import subprocess
@@ -155,6 +156,10 @@ def analyse(out, text, dft, fatal):
         if cf:
             check("from 50 later hits convert the level's share of the burn", c["conv"] and all(
                 abs(float(x.group(2)) - cf * float(x.group(3))) <= 0.002 + 0.001 * float(x.group(3)) for x in c["conv"]),
+                f"skill {c['skill']}: {[x.group(0) for x in c['conv'][:3]]}")
+            # The character's Daggerfall damage bonus already sized the burn; converted damage must not get it again.
+            check("converted burn is dealt as the converted amount (no second damage bonus)", all(
+                int(x.group(4)) in {math.floor(float(x.group(2)) + 1e-9), math.ceil(float(x.group(2)) - 1e-9)} for x in c["conv"]),
                 f"skill {c['skill']}: {[x.group(0) for x in c['conv'][:3]]}")
         elif bf:
             check("at 25 no conversion", not c["conv"], f"skill {c['skill']}")

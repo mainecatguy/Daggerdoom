@@ -31,6 +31,7 @@ RULES = {  # 173 damage, 174/175 splash bp/radius, 176 speed
     "burn100": {177: 15000, 178: 4000, 179: 4000, 180: 128}}
 RULES["stress"] = RULES["burn100"]
 BURN = {"burn25": (0.5, 0, 0), "burn50": (1.0, 0.2, 0), "burn75": (1.25, 0.4, 0), "burn100": (1.5, 0.4, 0.4)}
+BURN_BONUS_BP = -2500  # Daggerfall's damage bonus during the burn sets (a -25% character)
 STRESS_VOLLEY_MS = 8.0  # a 40-hit volley, every hit converting and bursting into ~100 neighbours, must fit in this
 SPEED = {"speed25": 1.15, "speed": 1.6}
 BAD = re.compile(r'Script error, "(doomerfall|entest)\.pk3|(doomerfall|entest)\.pk3:zscript\S*, line \d+|\bFatal error|VM execution aborted', re.I)
@@ -61,6 +62,9 @@ class Peer:
         v[24 + 2] = 50  # live Willpower 50: neutral
         for k, x in RULES[cfg].items():
             v[k] = x
+        # Burn sets run with a Daggerfall damage penalty, so a second application of the player's outgoing multipliers to
+        # burn ticks or converted damage would show (they must be exactly the stated shares of the modified hit).
+        self.state.damage_bonus_bp = BURN_BONUS_BP if cfg.startswith("burn") else 0
         data = struct.pack(f"<{SHEET_INTS}i", *v)
         version = C.c_uint32()
         rc = self.b.dfb_bulk_write(self.s, 0, data, len(data), C.byref(version))
@@ -253,7 +257,7 @@ def burn_case(c, tag, check, report, name):
         check(f"{tag}: later hits convert burn", c["conv"])
         bad = [x.group(0) for x in c["conv"] if abs(float(x.group(2)) - conv * float(x.group(3))) > 0.002 + 0.001 * float(x.group(3))]
         check(f"{tag}: each conversion takes {conv:.0%} of the remaining burn", not bad, bad[:3])
-        bad = [x.group(0) for x in c["conv"] if int(x.group(4)) not in rounded(float(x.group(2)), 1) and int(x.group(4)) != 0]
+        bad = [x.group(0) for x in c["conv"] if int(x.group(4)) not in rounded(float(x.group(2)), 1)]
         check(f"{tag}: converted burn is dealt at once (chance rounding)", not bad, bad[:3])
     if burst:
         check(f"{tag}: conversions burst into the monsters nearby", any(int(x.group(5)) >= 1 for x in c["conv"]), [x.group(0) for x in c["conv"][:3]])
@@ -302,6 +306,11 @@ def main():
             checks.append(not any("energy:" in l for l in lines))
             print(f"{'PASS' if checks[-1] else 'FAIL'} nobridge: no perk activity without a Daggerfall character")
         analyse(name, lines, checks, report)
+        if bridged:
+            blog = (work / f"{name}-bridge.log").read_text(errors="replace") if (work / f"{name}-bridge.log").exists() else ""
+            ok = f"({BURN_BONUS_BP} bp)" in blog
+            checks.append(ok)
+            print(f"{'PASS' if ok else 'FAIL'} {name}: Daggerfall's damage bonus {BURN_BONUS_BP} bp was applied to hits during the burn sets")
     print("\n" + "\n".join(report))
     failed = checks.count(False)
     print(f"\n{len(checks) - failed} of {len(checks)} checks passed")

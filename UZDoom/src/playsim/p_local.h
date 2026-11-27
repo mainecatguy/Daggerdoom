@@ -449,6 +449,7 @@ enum EDmgFlags
 	DMG_EXPLOSION = 2048,
 	DMG_NO_ENHANCE = 4096,
 	DMG_RAILGUN = 8192,
+	DMG_DD_DEALT = 1 << 20, // [Doomerfall] damage already sized from a modified hit (burn): skip the source's outgoing multipliers
 };
 
 
