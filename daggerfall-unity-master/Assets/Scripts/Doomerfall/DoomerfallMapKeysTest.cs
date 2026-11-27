@@ -1,6 +1,7 @@
 // Doomerfall test only (-dfmapkeystest <file>): logs the view of whichever Daggerfall map screen is on top, each time
 // it changes, so a test can see Doom's movement keys pan it. Also logs which arrow and WASD keys Daggerfall holds
-// from Doom, and the hidden player's world position, which follows Doom's player.
+// from Doom, and the hidden player's world position, which follows Doom's player. When the travel map's Find box is on
+// top, logs the text typed into it.
 
 using System;
 using System.IO;
@@ -60,10 +61,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             else if (top is DaggerfallTravelMapWindow)
             {
                 Type t = typeof(DaggerfallTravelMapWindow);
-                view = string.Format("region {0} part {1} zoom {2} at {3}", t.GetField("selectedRegion", Field).GetValue(top), t.GetField("mapIndex", Field).GetValue(top),
-                    t.GetField("zoom", Field).GetValue(top), ((Vector2)t.GetField("zoomPosition", Field).GetValue(top)).ToString("F0"));
+                view = string.Format("region {0} part {1} zoom {2} at {3} found {4} selected {5}", t.GetField("selectedRegion", Field).GetValue(top), t.GetField("mapIndex", Field).GetValue(top),
+                    t.GetField("zoom", Field).GetValue(top), ((Vector2)t.GetField("zoomPosition", Field).GetValue(top)).ToString("F0"),
+                    t.GetField("findingLocation", Field).GetValue(top), t.GetField("locationSelected", Field).GetValue(top));
             }
+            else if (top is DaggerfallInputMessageBox)
+                view = "text '" + ((DaggerfallInputMessageBox)top).TextBox.Text + "'"; // The map's Find box, for the typing test.
             PlayerGPS gps = GameManager.Instance.PlayerGPS;
+            if (gps.HasCurrentLocation)
+                view += " here '" + gps.CurrentLocation.Name + "'";
             return string.Format("top {0} view {1} keys {2} player {3},{4}", top == null ? "none" : top.GetType().Name, view, keys, gps.WorldX, gps.WorldZ);
         }
 

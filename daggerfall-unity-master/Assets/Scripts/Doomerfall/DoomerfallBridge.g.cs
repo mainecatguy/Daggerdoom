@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0xaa7356f6b902ceafUL;
+        public const ulong SchemaHash = 0xa26fdb0b2d855367UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -257,6 +257,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint REST_NOT_GROUNDED = 2;  // Doom's player is in the air or swimming
         public const uint UI_CLOSED = 0;
         public const uint UI_OPENED = 1;
+        public const uint UI_TYPING = 2;
         public const uint UI_REASON_NONE = 0;
         public const uint UI_REASON_USER = 1;  // the player closed it in Daggerfall
         public const uint UI_REASON_REFUSED = 2;  // Daggerfall could not open it here

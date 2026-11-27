@@ -381,6 +381,9 @@ typedef struct dfb_face
 
 #define DFB_UI_CLOSED      0u
 #define DFB_UI_OPENED      1u
+/* Open, and a Daggerfall text box takes typing: Doom sends every key unchanged, and its own controls do not close
+   the menu. Daggerfall sends DFB_UI_OPENED again when the text box goes away. */
+#define DFB_UI_TYPING      2u
 
 #define DFB_UI_REASON_NONE     0u
 #define DFB_UI_REASON_USER     1u  /* the player closed it in Daggerfall */

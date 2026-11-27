@@ -376,6 +376,8 @@ constexpr int64_t UiOpenTimeoutNs = 5000000000LL;
 constexpr int64_t UiMinFrameNs = 8000000; // Paused Doom has no tic wait, so keep it near 120 Hz.
 
 UiState uiState = UiClosed;
+bool uiTyping; // DFB_UI_TYPING: a Daggerfall text box takes typing, so every key goes to it unchanged.
+int uiKeySentAs[256]; // The key each held key's press was sent as, so its release matches even if typing changed between.
 uint32_t uiId;
 bool uiSavedPause, uiHasFrame;
 int64_t uiOpenedNs, uiLastInputSeen, uiLastFrameNs;
@@ -430,6 +432,7 @@ void OpenUi(uint32_t id, uint32_t context = 0)
 	EnsureUiTextures();
 	uiId = id;
 	uiState = UiOpening;
+	memset(uiKeySentAs, 0, sizeof(uiKeySentAs));
 	uiHasFrame = false;
 	uiOpenedNs = dfb_now_ns();
 	uiLastInputSeen = 0;
@@ -445,6 +448,7 @@ void FinishUi(const char *why)
 {
 	if (uiState == UiClosed) return;
 	uiState = UiClosed;
+	uiTyping = false;
 	uiHasFrame = false;
 	pauseext = uiSavedPause;
 	char input[96], age[96], upload[96];
@@ -465,8 +469,11 @@ void HandleUiState(const dfb_event &e)
 	dfb_ui_state body;
 	memcpy(&body, e.payload, sizeof(body));
 	if (uiState == UiClosed || body.ui_id != uiId) return;
-	if (body.state == DFB_UI_OPENED)
+	if (body.state == DFB_UI_OPENED || body.state == DFB_UI_TYPING)
 	{
+		if (uiTyping != (body.state == DFB_UI_TYPING)) Log("ui: text entry %s", uiTyping ? "ended" : "started");
+		uiTyping = body.state == DFB_UI_TYPING;
+		if (uiState == UiOpen) return;
 		uiState = UiOpen;
 		Log("ui: Daggerfall opened menu %u at %ux%u, %.1f ms after the request", body.ui_id, body.surface_width,
 			body.surface_height, (dfb_now_ns() - uiOpenedNs) / 1e6);
@@ -645,14 +652,16 @@ bool IsOpenMenuKey(long long lParam)
 	if ((lParam >> 24) & 1) key |= 0x80;
 	const FString &bound = Bindings.GetBinding(key);
 	if (uiId == DFB_UI_DAGGERFALL) return false; // No Doom control opened it. The player answers it in Daggerfall.
+	if (uiTyping) return false; // The key is a letter for the text box.
 	return bound.CompareNoCase(UiCommandName(uiId)) == 0;
 }
 
 // In Daggerfall's map screens, the keys the player bound to Doom's movement pan the view. Daggerfall's maps pan
-// with the arrow keys, so those keys are sent as arrows. Every other key, and every other menu, is sent unchanged.
+// with the arrow keys, so those keys are sent as arrows. Every other key, every other menu, and every key while a
+// text box (such as the map's Find) takes typing, is sent unchanged.
 int MapPanKey(int vk, long long lParam)
 {
-	if (uiId != DFB_UI_MAP && uiId != DFB_UI_TRAVEL_MAP) return vk;
+	if (uiTyping || (uiId != DFB_UI_MAP && uiId != DFB_UI_TRAVEL_MAP)) return vk;
 	int key = int((lParam >> 16) & 0xFF);
 	if ((lParam >> 24) & 1) key |= 0x80;
 	const FString &bound = Bindings.GetBinding(key);
@@ -661,6 +670,17 @@ int MapPanKey(int vk, long long lParam)
 	if (bound.CompareNoCase("+moveleft") == 0) return 0x25;
 	if (bound.CompareNoCase("+moveright") == 0) return 0x27;
 	return vk;
+}
+
+// The key Daggerfall gets for a press or release. A release is sent as its press was, even if text entry started or
+// ended while the key was held, so Daggerfall never keeps a key held.
+int UiKey(uint64_t wParam, long long lParam, bool down)
+{
+	const int vk = SidedVirtualKey(wParam, lParam);
+	int &sent = uiKeySentAs[vk & 0xFF];
+	const int key = down || !sent ? MapPanKey(vk, lParam) : sent;
+	sent = down ? key : 0;
+	return key;
 }
 }
 
@@ -915,11 +935,11 @@ bool DD_BridgeUiWndProc(unsigned int message, unsigned long long wParam, long lo
 			SendUiCommand(DFB_KIND_UI_CLOSE, uiId);
 			return true;
 		}
-		SendUiInput(DFB_UI_INPUT_KEY_DOWN, MapPanKey(SidedVirtualKey(wParam, lParam), lParam));
+		SendUiInput(DFB_UI_INPUT_KEY_DOWN, UiKey(wParam, lParam, true));
 		return true;
 	case WmSysKeyUp:
 	case WmKeyUp:
-		SendUiInput(DFB_UI_INPUT_KEY_UP, MapPanKey(SidedVirtualKey(wParam, lParam), lParam));
+		SendUiInput(DFB_UI_INPUT_KEY_UP, UiKey(wParam, lParam, false));
 		return true;
 	case WmChar:
 		if (wParam >= 32) SendUiInput(DFB_UI_INPUT_CHAR, int(wParam));

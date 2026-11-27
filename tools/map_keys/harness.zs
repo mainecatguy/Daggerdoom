@@ -11,6 +11,7 @@ version "4.14"
 class MKHarness : StaticEventHandler // Static: it must keep its stage across the trip into the dungeon.
 {
 	static const double DOORDATA[] = { @DOOR@ };
+	const FIND_RUN = @FIND@;
 	int stage, timer, lastMs, walk;
 	bool done;
 	vector3 lastPos;
@@ -39,6 +40,7 @@ class MKHarness : StaticEventHandler // Static: it must keep its stage across th
 			break;
 		case 1:
 			if (!paused) break;
+			if (FIND_RUN) { stage = 3; Console.Printf("MKDONE"); done = true; break; } // The Find test stops after the travel map.
 			stage = 2;
 			timer = 0;
 			walk = 0;

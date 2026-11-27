@@ -220,7 +220,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         IUserInterfaceWindow lastTop;
         RenderTexture scaled;
         uint openId;
-        bool waitingForWindow, windowOpen, travelArriving, showingTravelMap;
+        bool waitingForWindow, windowOpen, travelArriving, showingTravelMap, typing;
         DaggerfallRestWindow restWindow; // DFB_UI_REST: Daggerfall's rest window, kept while popups cover it
         float travelWaitUntil, nextAskAt;
         uint closeReason;
@@ -302,6 +302,16 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             else
             {
                 hudFrames = 0;
+            }
+
+            // Text boxes update after this script, so last frame's is the newest word. While one takes typing,
+            // Doom sends it every key unchanged, such as the movement keys it otherwise turns into map panning.
+            bool nowTyping = windowOpen && TextBox.LastTypingFrame >= Time.frameCount - 1;
+            if (nowTyping != typing)
+            {
+                typing = nowTyping;
+                SendState(typing ? Dfb.UI_TYPING : Dfb.UI_OPENED, 0);
+                bridge.LogLine("ui: text entry " + (typing ? "started" : "ended"));
             }
         }
 
@@ -495,7 +505,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             uint id = openId;
             openId = 0;
-            waitingForWindow = windowOpen = false;
+            waitingForWindow = windowOpen = typing = false;
             restWindow = null;
             if (id == Dfb.UI_NEW_GAME && NewGame)
                 NewGame.CreationClosed(reason == Dfb.UI_REASON_RESULT);
