@@ -154,6 +154,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             sheet = new DoomerfallSheet(this, sync, Environment.GetCommandLineArgs());
             DoomerfallAgilityTest.Attach(this, sync); // test only: -dfagilitytest
             DoomerfallWillpowerTest.Attach(this, sync); // test only: -dfwillpowertest
+            DoomerfallLuckTest.Attach(this, sync); // test only: -dflucktest
             faces = new DoomerfallFaces(this);
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dffacetest") >= 0)
                 gameObject.AddComponent<DoomerfallFaceTest>().Init(this, sync); // Test only
