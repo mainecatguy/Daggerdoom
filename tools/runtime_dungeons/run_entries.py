@@ -53,6 +53,8 @@ def main():
     ap.add_argument("--timeout", type=int, default=75)
     ap.add_argument("--dfu-flag", action="append", default=[], help="one more Daggerfall argument (repeatable), such as -dfarealevel")
     ap.add_argument("--uz-flag", action="append", default=[], help="one more UZDoom argument (repeatable), such as -ddloadingtest")
+    ap.add_argument("--mod", action="append", default=[], type=Path, help="one more mod after the harness (repeatable), such as the kit's doomerfall.pk3 for the planner's army")
+    ap.add_argument("--clear", action="store_true", help="kill every monster on the first arrival, so the second entry is a cleared dungeon's re-entry")
     ap.add_argument("targets", nargs="+")
     args = ap.parse_args()
     cache = args.out / "cache"
@@ -96,6 +98,13 @@ def main():
         text = text.replace("@DOORS@", ", ".join(door[3:8])).replace("@EXITS@", ", ".join(v for e in exits for v in e) or "0, 0, 0, 0, 0")
         text = text.replace("@MODE@", "route").replace("const LIMIT = 35 * 14;", "const LIMIT = 35 * 90;")  # a runtime conversion took 7-47 s, depending on machine load
         text = text.replace("if (inside || level.maptime < 4) break;", 'if (inside || level.maptime < 4 || CVar.FindCVar("dd_sync_df_phase").GetInt() != 3) break;')
+        if args.clear:
+            kill_one = "{ a.DamageMobj(null, null, 100000, 'None'); st.killed = 1; break; }"
+            assert kill_one in text
+            text = text.replace('if (level.MapName ~== "MAP01")', "if (true)").replace(kill_one, "{ a.DamageMobj(null, null, 100000, 'None'); st.killed++; }")
+            text = text.replace('Actor.Spawn("Shell", p.pos + (Actor.AngleToVector(p.angle, 24), 0));',
+                                'Actor.Spawn("Shell", p.pos + (Actor.AngleToVector(p.angle, 24), 0)); Console.Printf("DTCLEAR before monsters=%d", CountMonsters(true));')
+            text = text.replace("if (st.leg == 0 && st.visits == 1)\n", 'if (st.leg == 0 && st.visits == 0) Console.Printf("DTCLEAR killed=%d left=%d", st.killed, CountMonsters(true));\n\t\t\t\tif (st.leg == 0 && st.visits == 1)\n', 1)
         import zipfile
         with zipfile.ZipFile(run / "harness.pk3", "w") as z:
             z.writestr("zscript.txt", text)
@@ -112,7 +121,7 @@ def main():
                    "--uzdoom", args.uzdoom, "--dfu", str(args.kit / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
                    "--uzdoom-cwd", str(run), "--log", str(run / "launcher.log")]
         for mod in (args.data / "ddruntime.pk3", args.kit / "data" / "overworld.pk3", args.data / "privateershold.wad", args.data / "privateershold_mesh.pk3",
-                    args.data / "privateershold_doors.pk3", run / "harness.pk3"):
+                    args.data / "privateershold_doors.pk3", run / "harness.pk3", *args.mod):
             command += ["--mod", str(mod)]
         for a in uz:
             command += ["--uzdoom-arg", a]
@@ -146,7 +155,7 @@ def main():
         ok = bool(reason == "finished" and arrive and df_in and returned and not refused and "DTFAIL" not in log)
         results.append(ok)
         print(f"{'PASS' if ok else 'FAIL'} group {group} dungeon {map_id} ({'prebuilt' if prebuilt else mode or 'cached'}): stopped {reason}, refused {refused}")
-        for l in arrive[:1] + df_in[:1] + df_out[-1:] + [l for l in log.splitlines() if l.startswith(("DTFAIL", "DTDONE", "DTRETURN")) or any(k in l for k in FATAL)][:4]:
+        for l in arrive[:1] + df_in[:1] + df_out[-1:] + [l for l in log.splitlines() if l.startswith(("DTFAIL", "DTDONE", "DTRETURN", "DTCLEAR", "DTPERSIST")) or any(k in l for k in FATAL)][:8]:
             print("   ", l[:200])
     print(f"{sum(results)}/{len(results)} passed")
     return 0 if all(results) else 1

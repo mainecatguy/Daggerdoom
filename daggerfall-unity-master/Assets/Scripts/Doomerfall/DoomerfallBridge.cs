@@ -77,6 +77,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         internal DoomerfallSheet Sheet { get { return sheet; } }
         DoomerfallTownspeople townspeople;
         DoomerfallGuards guards;
+        DoomerfallLoadingPause loadingPause;
         bool textFrame;
         uint ownSize, peerSize, nextPing = 1;
         ulong pingsAnswered, pongsReceived, unknownKinds;
@@ -543,6 +544,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 peerStale = !alive;
                 Log(alive ? "UZDoom heartbeat resumed" : "UZDoom heartbeat stale (logged only, gameplay unchanged)");
             }
+            if (loadingPause == null)
+                loadingPause = new DoomerfallLoadingPause(this);
+            loadingPause.Tick(alive && peer.uzPhase == Dfb.UZ_PHASE_LOADING);
 
             if (alive && now >= nextPingNs)
             {

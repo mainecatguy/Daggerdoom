@@ -2592,7 +2592,8 @@ void DD_BridgeFrame()
 	ownState.uz_heartbeat++;
 	ownState.uz_tic = gametic;
 	ownState.demo_value = gametic;
-	ownState.uz_phase = (paused || pauseext) ? DFB_UZ_PHASE_PAUSED
+	// A loading hold (dd_loading.cpp) also pauses Daggerfall (DoomerfallLoadingPause.cs), so its clock stays put.
+	ownState.uz_phase = DD_LoadingActive() ? DFB_UZ_PHASE_LOADING : (paused || pauseext) ? DFB_UZ_PHASE_PAUSED
 		: gamestate == GS_LEVEL ? DFB_UZ_PHASE_PLAY : DFB_UZ_PHASE_BOOT;
 	dfb_publish_state(session, &ownState, sizeof(ownState));
 
