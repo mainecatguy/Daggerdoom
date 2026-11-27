@@ -1171,6 +1171,7 @@ constexpr int64_t AutosaveHoldNs = 60000000000LL;
 // instead of making a second one in play. The screen keeps the last frame from before the change until it ends.
 bool arrivalPending, arrivalQueued, saveIsArrival, arrivalSave;
 int64_t arrivalAtNs;
+int arrivalReadyTic = -1; // gametic when a frozen arrival's setup was first seen done (-1: not yet)
 constexpr int64_t ArrivalWaitNs = 2000000000LL, ArrivalHoldNs = 12000000000LL;
 // While the change waits for its setup the playsim is frozen (DD_BridgeArrivalFreeze); a long hold says "Loading".
 int arrivalFrozenTics;
@@ -1327,6 +1328,13 @@ void PumpArrival(int64_t now)
 	const bool handoff = DDTreadmill_HandoffPending();
 	if (handoff && now - arrivalAtNs <= ArrivalWaitNs) return; // The new map's first tic finishes the change.
 	if (!handoff && !DD_SetupReady(now)) return; // Bounded by the gate's own timeout.
+	// The last setup answer (often the dungeon's monster spawn) is applied in a tic. Hold one more frozen tic after it,
+	// so what it made is held still, like everything else, before the first frame of play.
+	if (!handoff && arrivalFrozenTics > 0)
+	{
+		if (arrivalReadyTic < 0) arrivalReadyTic = gametic;
+		if (gametic <= arrivalReadyTic) return;
+	}
 	arrivalPending = false;
 	ArrivalFreezeEnd(handoff ? "the handoff wait ran out" : "setup was done or timed out");
 	if (!arrivalSave) return; // Autosaves are off: the wait only kept the map still until its setup was done.
@@ -1419,6 +1427,7 @@ void DD_BridgeArrivalAutosave(bool save)
 	arrivalSave = save;
 	arrivalPending = true;
 	arrivalQueued = false;
+	arrivalReadyTic = -1;
 	arrivalAtNs = dfb_now_ns();
 }
 
@@ -2074,6 +2083,14 @@ void NgFreeze(bool on)
 
 void NgSendArrived(bool ok)
 {
+	// A New Game or plain load arrival may be told while its arrival wait still runs (NgDoor). Daggerfall then starts
+	// before the wait ends, so the arrival autosave must stay dropped as when it was told after the wait: the flow makes
+	// its own save once both games run (PumpNewGameSave). The wait itself still runs until setup is done.
+	if (arrivalPending && arrivalSave)
+	{
+		arrivalSave = false;
+		Log("save: dropped the autosave for a map change, a New Game or plain load is arriving");
+	}
 	dfb_event e{};
 	e.kind = DFB_KIND_NEWGAME_ARRIVED;
 	e.tic = gametic;
@@ -2257,7 +2274,12 @@ void PumpNewGame(int64_t now)
 		return;
 	case NgDoor:
 	{
-		if (gamestate != GS_LEVEL || gameaction != ga_nothing || DDTreadmill_HandoffPending() || primaryLevel->maptime < 2) return;
+		// The arrival wait holds maptime at 1 until setup is done, and the dungeon's monster spawn waits for Daggerfall's
+		// list, which a held character sends only after this arrival. So a frozen arrival counts as arrived, once the place
+		// record is in: Daggerfall's start clears its queued replies (DoomerfallLocations.ForgetWorld), so the record must
+		// not still be on its way when Daggerfall starts.
+		if (gamestate != GS_LEVEL || gameaction != ga_nothing || DDTreadmill_HandoffPending() ||
+			(primaryLevel->maptime < 2 && (!DD_BridgeArrivalFrozen() || DD_LocationsWaiting()))) return;
 		double x, y, z, yaw;
 		const DDPlayerArea area = DDTreadmill_PlayerWorld(x, y, z, yaw);
 		if (ngPlain)

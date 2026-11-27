@@ -1,6 +1,6 @@
 // [Doomerfall] Level setup gate. Some systems finish setting up a freshly loaded map only after Daggerfall answers
 // (the place record brings dead monsters, taken items, and the doors' open state and lock changes; the encounter plan
-// spawns the dungeon's monsters once Daggerfall's list arrives). A save taken before that would keep the half-built map, and loading it would keep
+// spawns the dungeon's monsters once Daggerfall's list arrives: "monsters", dd_monsters.cpp). A save taken before that would keep the half-built map, and loading it would keep
 // it that way. Such a system calls DD_SetupWait when it asks and DD_SetupDone once its answer is applied; the arrival
 // autosave and held autosaves wait for DD_SetupReady. A missing answer never blocks saving for longer than SetupTimeoutNs.
 //
