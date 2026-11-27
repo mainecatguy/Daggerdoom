@@ -4,7 +4,7 @@ version "4.14"
 // ammo types, and waits while Daggerfall's -dfammopiletest hook drops five piles through its inventory window. It prints
 // the piles near the player (APPILE), leaves to town, comes back, prints them again, and autosaves inside. The load run
 // loads that save and prints them a third time.
-class APHarness : EventHandler
+class APHarness : StaticEventHandler
 {
 	static const double DOORDATA[] = { @DOOR@ };
 	static const double EXITDATA[] = { @EXIT@ };
@@ -57,8 +57,7 @@ class APHarness : EventHandler
 		vector3 door = (DOORDATA[0], DOORDATA[1], DOORDATA[2]);
 		vector2 normal = (DOORDATA[3], DOORDATA[4]);
 		timer++;
-		if (LOADRUN && phase == SAVED) { phase = 20; timer = 0; }
-		if (LOADRUN && phase < SAVED) return;
+		if (LOADRUN && phase == 0) { phase = 20; timer = 0; }	// Static: the route state lives across maps, not in the save.
 
 		switch (phase)
 		{
@@ -115,7 +114,8 @@ class APHarness : EventHandler
 		case SAVED:
 			if (timer > 35 * 3) Finish("saved");
 			break;
-		case 20: // Loaded.
+		case 20: // The load run starts in town, then the save puts it in the dungeon.
+			if (!inside || level.maptime < 8) { timer = 0; break; }
 			if (timer % 35 == 0) RemoveMonsters();
 			if (timer < 35 * 8) break;
 			spot = p.pos;

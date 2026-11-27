@@ -28,7 +28,7 @@ import install  # noqa: E402  (only for its registry isolation)
 sys.argv = argv
 
 REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\ammo-pile")
-SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\doom-items")  # Data, sprite package, and demo items.
+SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\ammosizefix")  # Data (with the newer dungeon) and sprite package, from the ammo size run.
 BUILD = Path(r"D:\dev\DoomDaggerfall-build")
 UZ_BUILD = BUILD / "uzdoom-ammopile" / "Release"
 SOUND = BUILD / "uzdoom-launcher" / "Release"
