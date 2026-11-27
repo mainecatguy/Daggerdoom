@@ -69,8 +69,8 @@ bulk supplies shops=GeneralStore count=6-10 items=UselessItems2:Torch,UselessIte
 townsfolk items=Jewellery:Ring,Jewellery:Amulet,Jewellery:Bracelet,Armor:Helm,Armor:Buckler,Paintings:*,Books:*,ReligiousItems:*,Clothing:*,Weapons:Dagger,Gems:*
 
 # Doom guns (guns enabled only). A shop whose Daggerfall stock includes weapons rolls this many Doom guns in each
-# regular-supply lot, each picked evenly from the loaded mod's guns (Resources/Doomerfall/WeaponValues.txt) and then
-# kept with Daggerfall's own stock rule: the gun's rarity must not exceed the shop's quality, and it stocks with
+# regular-supply lot from the loaded mod's guns (Resources/Doomerfall/WeaponValues.txt; any set, at the tier the file
+# gives it), each tier rolled first by gun_tier_weights, a gun picked evenly within it, and then kept with Daggerfall's own stock rule: the gun's rarity must not exceed the shop's quality, and it stocks with
 # chance (weapon chance of the shop) x 5 x (21 - rarity) / 100. Rarity comes from the gun's tier.
 setting gun_rolls 3
 # Tier weights common,uncommon,rare,veryrare,legendary: the tier is rolled first (falling by tier), then a gun in it.
@@ -81,7 +81,7 @@ gunrarity common=4 uncommon=8 rare=12 veryrare=16 legendary=20
 # windows of window_days; a window is an exception window with chance share (the same in every game, from the
 # building and the window number, never from the player). once = one shipment on the window's first day, on the
 # first shelf; window = every delivery in the window, on every shelf. An exception lot arrives even on a full shelf.
-# Plate and archery shipments wait on Shops 6 shop identity (owner question). Other mods' guns wait on a DPS tier.
+# Plate and archery shipments wait on Shops 6 shop identity (owner question).
 setting exception_share 0.04
 setting exception_window_days 7
 exception pawngun shops=PawnShop     mode=once   core=2 guns=1

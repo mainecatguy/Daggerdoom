@@ -35,8 +35,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
     {
         /// <summary>Guns mode: Doom guns are for sale. Always on today (owner: "currently they always are"); a guns-off option is backlog.</summary>
         internal static bool GunsEnabled = true;
-        /// <summary>The Doom weapon set the loaded mods use, as WeaponValues.txt names it. Only DRLA is stocked: other sets
-        /// need a tier from DPS (owner), which is not built (owner question), so they get no guns for sale.</summary>
+        /// <summary>The Doom weapon set the loaded mods use, as WeaponValues.txt names it (DRLA, Doom, Heretic, Hexen, Schism).
+        /// DRLA guns use DRLA's tiers; other sets use the tiers WeaponValues.txt infers for them (owner, 2026-11-27); a
+        /// tier from DPS is backlog (work/backlog/non-drla-gun-tiers.md).</summary>
         internal static string GunSet = "DRLA";
         /// <summary>False only in the ledger's stock-size test, which measures ordinary deliveries.</summary>
         internal static bool ExceptionsEnabled = true;
@@ -400,7 +401,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             LoadGuns();
             List<Gun> list;
-            return GunSet == "DRLA" && gunsBySet.TryGetValue(GunSet, out list) ? list : new List<Gun>();
+            return gunsBySet.TryGetValue(GunSet, out list) ? list : new List<Gun>();
         }
 
         internal static int RarityOf(string tier) { int r; return gunRarity.TryGetValue(tier, out r) ? r : 20; }

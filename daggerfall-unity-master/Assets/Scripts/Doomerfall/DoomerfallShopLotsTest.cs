@@ -1,7 +1,7 @@
 // Doomerfall test only (-dfshoplotstest): once Daggerfall is in a game, runs DoomerfallShopLedger with Shops 7 lots
 // over a simulated clock for many shops and logs a survey: lot template shares per shop type, pawn shops' lot kinds,
 // estate kits matching themselves, bulk lots identical, Doom guns by tier against the expected rate (and none with
-// guns off), two runs identical, and the rare exceptions' share and how each one breaks its shop's usual pattern.
+// guns off; other Doom sets at the tiers WeaponValues.txt gives them), two runs identical, and the rare exceptions' share and how each one breaks its shop's usual pattern.
 
 using System;
 using System.Collections.Generic;
@@ -55,7 +55,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             done = true;
             try { Run(); }
             catch (Exception e) { Log("FAILED with exception " + e); }
-            finally { DoomerfallShopLots.Observer = null; DoomerfallShopLots.GunsEnabled = true; }
+            finally { DoomerfallShopLots.Observer = null; DoomerfallShopLots.GunsEnabled = true; DoomerfallShopLots.GunSet = "DRLA"; }
         }
 
         sealed class Seen
@@ -80,6 +80,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             Estates(lots);
             Bulks(lots);
             Guns(lots, day0);
+            OtherSets(day0);
             Exceptions(lots, day0);
             Log(string.Format("done in {0:F1}s", Time.realtimeSinceStartup - started));
         }
@@ -194,25 +195,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 Log("FAIL no Doom guns loaded (WeaponValues.txt missing?)");
                 return;
             }
-            // Tier shares among stocked guns must fall by tier (owner: rarer by tier), over the tiers the shop's quality allows.
-            string[] tiers = DoomerfallShopLots.Tiers;
-            Dictionary<string, int> got = tiers.ToDictionary(t => t, t => 0);
-            int stocked = 0;
+            Dictionary<string, int> got = DoomerfallShopLots.Tiers.ToDictionary(t => t, t => 0);
             foreach (Seen s in lots.Where(s => s.lot.shop == DFLocation.BuildingTypes.WeaponSmith && s.lot.template == "regular"))
                 foreach (DaggerfallUnityItem i in s.lot.items)
                 {
                     DoomerfallDoomItem d = i as DoomerfallDoomItem;
                     string t = d != null ? TierOf(d) : null;
-                    if (t != null) { got[t]++; stocked++; }
+                    if (t != null) got[t]++;
                 }
-            List<string> allowed = tiers.Where(t => DoomerfallShopLots.RarityOf(t) <= Quality).ToList();
-            bool pass = stocked > 30;
-            for (int k = 1; k < allowed.Count; k++)
-                if (got[allowed[k]] >= got[allowed[k - 1]]) pass = false;
-            if (tiers.Any(t => !allowed.Contains(t) && got[t] > 0)) pass = false;
-            Log(string.Format("{0} Doom guns at weapon smiths (quality {1}) fall by tier, {2} stocked: {3} (tiers above quality: {4}, must be 0)", pass ? "PASS" : "FAIL", Quality, stocked,
-                string.Join(", ", tiers.Select(t => t + " " + (100.0 * got[t] / Math.Max(1, stocked)).ToString("F1") + "% (" + guns.Count(g => g.tier == t) + " guns in set)").ToArray()),
-                string.Join(", ", tiers.Where(t => !allowed.Contains(t)).ToArray())));
+            TierShares("DRLA", got, guns, 0);
             int top = 0;
             foreach (DaggerfallUnityItem i in lots.Where(s => s.lot.shop == DFLocation.BuildingTypes.WeaponSmith).SelectMany(s => s.lot.items))
                 if (i is DoomerfallDoomItem) { top = Math.Max(top, i.value); }
@@ -330,6 +321,61 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             Seen sample = ex.FirstOrDefault();
             Log(string.Format("{0} exception {1} at {2}: {3} lots, {4} show '{5}'; ordinary lots there showing it: {6} of {7}{8}", pass ? "PASS" : "FAIL", name, type,
                 ex.Count, exShows, what, ordShows, ordinary.Count, sample != null ? "; example: " + sample.lot.detail + ": " + string.Join(", ", sample.names) : ""));
+        }
+
+        /// <summary>Tier shares among stocked guns must fall by tier (owner: rarer by tier), over the tiers the shop's
+        /// quality allows and the set has guns in; tiers above the shop's quality must be 0.</summary>
+        void TierShares(string set, Dictionary<string, int> got, List<DoomerfallShopLots.Gun> guns, int foreign)
+        {
+            string[] tiers = DoomerfallShopLots.Tiers;
+            int stocked = got.Values.Sum();
+            List<string> allowed = tiers.Where(t => DoomerfallShopLots.RarityOf(t) <= Quality && guns.Any(g => g.tier == t)).ToList();
+            bool pass = stocked > 30 && foreign == 0;
+            for (int k = 1; k < allowed.Count; k++)
+                if (got[allowed[k]] >= got[allowed[k - 1]]) pass = false;
+            if (tiers.Any(t => DoomerfallShopLots.RarityOf(t) > Quality && got[t] > 0)) pass = false;
+            Log(string.Format("{0} {1} Doom guns at weapon smiths (quality {2}) fall by tier, {3} stocked: {4} (tiers above quality must be 0; guns from another set: {5})",
+                pass ? "PASS" : "FAIL", set, Quality, stocked,
+                string.Join(", ", tiers.Select(t => t + " " + (100.0 * got[t] / Math.Max(1, stocked)).ToString("F1") + "% (" + guns.Count(g => g.tier == t) + " guns in set)").ToArray()),
+                foreign));
+        }
+
+        /// <summary>Guns from sets other than DRLA use the tiers WeaponValues.txt infers for them (owner, 2026-11-27).</summary>
+        void OtherSets(int day0)
+        {
+            foreach (string set in new[] { "Doom", "Heretic", "Hexen", "Schism" })
+            {
+                DoomerfallShopLots.GunSet = set;
+                List<DoomerfallShopLots.Gun> guns = DoomerfallShopLots.Guns();
+                if (guns.Count == 0)
+                {
+                    Log("FAIL no " + set + " guns in WeaponValues.txt");
+                    continue;
+                }
+                Dictionary<string, int> got = DoomerfallShopLots.Tiers.ToDictionary(t => t, t => 0);
+                int foreign = 0;
+                DoomerfallShopLots.Observer = lot =>
+                {
+                    if (lot.template != "regular") return;
+                    foreach (DoomerfallDoomItem d in lot.items.OfType<DoomerfallDoomItem>())
+                    {
+                        string t = TierOf(d);
+                        if (t != null) got[t]++; else foreign++;
+                    }
+                };
+                for (int b = 0; b < Buildings; b++)
+                {
+                    DaggerfallLoot shelf = new GameObject("Doomerfall lots test shelf").AddComponent<DaggerfallLoot>();
+                    PlayerGPS.DiscoveredBuilding building = new PlayerGPS.DiscoveredBuilding { buildingType = DFLocation.BuildingTypes.WeaponSmith, quality = Quality, buildingKey = 7 + b };
+                    using (new WorldLevel.Scope(Level))
+                        for (int d = 1; d <= Days; d++)
+                            DoomerfallShopLedger.Restock(shelf, building, Location(DFLocation.BuildingTypes.WeaponSmith, b), 0, 1, day0 + d, Level, PlaceFor(b));
+                    Destroy(shelf.gameObject);
+                }
+                DoomerfallShopLots.Observer = null;
+                TierShares(set, got, guns, foreign);
+            }
+            DoomerfallShopLots.GunSet = "DRLA";
         }
     }
 }
