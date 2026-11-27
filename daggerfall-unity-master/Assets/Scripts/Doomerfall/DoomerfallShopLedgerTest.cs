@@ -173,19 +173,22 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return sig.ToString();
         }
 
-        /// <summary>180 days at one weapon smith: the stocked goods (not ammo, horse or cart) across all shelves stay at the
-        /// building's stock target, whatever the shelf count, and new non-ammo goods keep arriving to the end.</summary>
+        /// <summary>180 days at one weapon smith: on the shop's delivery days the stocked goods (not ammo, horse or cart)
+        /// across all shelves are refilled to the building's stock target, whatever the shelf count; they never exceed it;
+        /// and new non-ammo goods keep arriving to the end.</summary>
         void StockSize(int level, int quality, int count, int day0)
         {
             const int Days = 180, WarmUp = 30;
             DaggerfallLoot[] shelves = MakeShelves(count);
             int target = DoomerfallShopLedger.StockTarget(level), cap = count * ((target + count - 1) / count);
-            int min = int.MaxValue, max = 0, ammoMax = 0, lateArrivals = 0;
+            int min = int.MaxValue, max = 0, ammoMax = 0, lateArrivals = 0, deliveryMin = int.MaxValue, deliveryDays = 0;
+            int location = 7000 + level * 10 + count;
+            DoomerfallShopIdentity id = DoomerfallShopIdentity.For(location, new PlayerGPS.DiscoveredBuilding { buildingType = DFLocation.BuildingTypes.WeaponSmith, quality = quality, buildingKey = BuildingKey });
             long sum = 0, ammoSum = 0;
             HashSet<DaggerfallUnityItem> known = new HashSet<DaggerfallUnityItem>();
             for (int d = 1; d <= Days; d++)
             {
-                Day(shelves, 7000 + level * 10 + count, day0 + d, level, quality);
+                Day(shelves, location, day0 + d, level, quality);
                 int stocked = 0, ammo = 0;
                 foreach (DaggerfallLoot s in shelves)
                 {
@@ -201,15 +204,17 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 {
                     min = Mathf.Min(min, stocked); max = Mathf.Max(max, stocked); sum += stocked;
                     ammoMax = Mathf.Max(ammoMax, ammo); ammoSum += ammo;
+                    if (id.DeliversOn(day0 + d)) { deliveryMin = Mathf.Min(deliveryMin, stocked); deliveryDays++; }
                 }
             }
             Free(shelves);
             int n = Days - WarmUp;
-            // Since Shops 6 the target is a ceiling: the shop's rhythm and material budget decide how full it gets
-            // (big-delivery shops go sparse between deliveries), so only the ceiling and continued arrivals are checked.
-            bool pass = max <= cap && lateArrivals > 0;
-            Log(string.Format("{0} stock size: weapon smith level {1}, quality {2}, {3} shelves, target {4} (ceiling {5} with rounding): stocked goods per day {6}-{7}, mean {8:F1}; Doom ammo stacks (outside the target, first shelf) mean {9:F1}, max {10}; {11} new non-ammo items in the last 30 days",
-                pass ? "PASS" : "FAIL", level, quality, count, target, cap, min, max, (double)sum / n, (double)ammoSum / n, ammoMax, lateArrivals));
+            // Shops 6: goods arrive only on the shop's delivery days (the owner's "sparse stock between" for big deliveries),
+            // so the lower bound of 3/4 of the target is checked on those days, after the delivery.
+            bool pass = max <= cap && deliveryDays > 0 && deliveryMin >= target * 3 / 4 && lateArrivals > 0;
+            Log(string.Format("{0} stock size: weapon smith level {1}, quality {2}, {3} shelves, target {4} (cap {5} with rounding), {12} every {13} days: on {14} delivery days stocked goods at least {15} (need {16}); all days {6}-{7}, mean {8:F1}; Doom ammo stacks (outside the target, first shelf) mean {9:F1}, max {10}; {11} new non-ammo items in the last 30 days",
+                pass ? "PASS" : "FAIL", level, quality, count, target, cap, min, max, (double)sum / n, (double)ammoSum / n, ammoMax, lateArrivals,
+                id.Big ? "big delivery" : "trickle", id.Interval, deliveryDays, deliveryDays > 0 ? deliveryMin : 0, target * 3 / 4));
         }
 
         /// <summary>Replays DoomerfallShopLedger's sell-off for one day (same seed, same roll order) without touching the shelf.</summary>
@@ -273,7 +278,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 }
                 Free(shelves);
             }
-            Log(string.Format("level {0} (first stocking = after the 120-day warm-up of a never-stocked shelf, so long-lingering Daedric goods are over-represented; fresh-delivery odds are in -dfshoplevelrates and -dfshopidentitytest): first stocking has a Daedric item in {1:F1}% of shops; Daedric share of weapons on first stocking {2:F2}% ({3} of {4}; approved odds give {5:F2}%); after {6} days, a shop has a Daedric item on {7:F1}% of days ({8} shop-days)",
+            Log(string.Format("level {0} (first stocking = the shop's most recent delivery, up to 30 days back, and the sell-off since; fresh-arrival odds are in -dfshopidentitytest): first stocking has a Daedric item in {1:F1}% of shops; Daedric share of weapons on first stocking {2:F2}% ({3} of {4}; approved odds give {5:F2}%); after {6} days, a shop has a Daedric item on {7:F1}% of days ({8} shop-days)",
                 level, 100.0 * firstDelivery / Buildings, 100.0 * daedricPieces / Mathf.Max(1, pieces), daedricPieces, pieces, 100 * DoomerfallDrops.DaedricChance(level),
                 WarmUp, 100.0 * withDaedric / Mathf.Max(1, samples), samples));
             Log(string.Format("level {0}: armor on first stocking: {1} pieces, {2} plate ({3:F1}%), {4} Daedric = {5:F2}% of armor, {6:F2}% of plate (approved odds {7:F2}%)",

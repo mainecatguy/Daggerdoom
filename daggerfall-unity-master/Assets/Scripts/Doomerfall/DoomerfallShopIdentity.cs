@@ -96,6 +96,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return ((day - Phase) % Interval + Interval) % Interval == 0;
         }
 
+        /// <summary>The most recent delivery day on or before this day.</summary>
+        internal int LastDelivery(int day)
+        {
+            return day - ((day - Phase) % Interval + Interval) % Interval;
+        }
+
         /// <summary>The supplier of the delivery on this day (an index into SupplierShare), the same for every shelf.
         /// Returns SupplierShare.Length for the rare draw past the simulated tail (an unnamed one-off).</summary>
         internal int Supplier(int location, int buildingKey, int day)
