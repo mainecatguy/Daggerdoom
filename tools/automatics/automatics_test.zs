@@ -82,6 +82,17 @@ class AutoPerkTest : EventHandler
 		if (w.AmmoType1 && !w.AmmoType2) { let m = p.mo.FindInventory(w.AmmoType1); m.Amount = 300; } // stock: reserve is the ammo it fires
 	}
 
+	// DRLA guns spawn recoil and reload helper actors (not projectiles) aimed at the player while firing: they must
+	// never count as shots. Logged so the test knows they really appeared.
+	override void WorldThingSpawned(WorldEvent e)
+	{
+		let m = e.Thing;
+		if (!m) return;
+		String n = m.GetClassName();
+		if (!m.bMissile && m.target && m.target.player && n.IndexOf("Recoil") >= 0)
+			Console.Printf("AUTOTEST helper %s trigger=%d", m.GetClassName(), m.target.player.attackdown);
+	}
+
 	override void WorldThingDamaged(WorldEvent e)
 	{
 		if (e.Thing && e.Thing.player) Console.Printf("AUTOTEST player hurt %d by %s tic %d", e.Damage, e.Inflictor ? e.Inflictor.GetClassName() : 'None', level.maptime);

@@ -4,7 +4,7 @@
 // hit, so a rocket fired before a weapon switch still counts for the launcher. Doom only: the tag is an item in the
 // actor's inventory, so Doom's own saves keep it with the projectile. Daggerfall never sees it.
 //
-//   fired      an actor whose target is the player, spawned next to the player while the trigger is down or the gun
+//   fired      a projectile (MISSILE flag) whose target is the player, spawned next to the player while the trigger is down or the gun
 //              is mid-fire, is the held gun's shot (generation 0).
 //   spawned    an actor whose target is the player (A_SpawnItemEx, A_CustomMissile and the like set it to the player
 //              for anything a player's missile spawns), spawned near a tagged actor that is alive or was destroyed this
@@ -140,7 +140,8 @@ class DoomerfallShots : StaticEventHandler
 		double fromPlayer = m.Distance2D(pmo);
 		// A sibling fired in the same tic (a spray of shrapnel or pellets) is not a parent.
 		bool sibling = parent && parent.generation == 0 && parent.fireTic == level.maptime;
-		bool fired = firing && fromPlayer <= pmo.radius + m.radius + 64 && (!parent || sibling || fromPlayer <= best);
+		// Only a projectile is fired by the gun; its helper actors (DRLA's recoil and reload effects) are not shots.
+		bool fired = m.bMissile && firing && fromPlayer <= pmo.radius + m.radius + 64 && (!parent || sibling || fromPlayer <= best);
 
 		if (!fired && !parent) return null;
 		let tag = DoomerfallShotTag(Actor.Spawn("DoomerfallShotTag"));

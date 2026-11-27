@@ -89,7 +89,8 @@ class DoomerfallAutomatics : StaticEventHandler
 	override void WorldThingSpawned(WorldEvent e)
 	{
 		let m = e.Thing;
-		if (!m || !m.target || !m.target.player || m.target.player.mo != m.target) return;
+		// Projectiles only: a gun's helper actors (DRLA's recoil and reload effects) are not shots.
+		if (!m || !m.bMissile || !m.target || !m.target.player || m.target.player.mo != m.target) return;
 		let perks = DoomerfallAutomaticsPerks(m.target.FindInventory("DoomerfallAutomaticsPerks"));
 		if (!perks || !perks.TriggerDown()) return;
 		let tag = DoomerfallShots.Tag(m);
