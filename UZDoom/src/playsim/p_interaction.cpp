@@ -1089,6 +1089,7 @@ static int hasBuddha(player_t *player)
 // the damage was cancelled.
 bool DD_BridgeHpHit(player_t *player, int damage); // [Doomerfall] false outside a bridge session
 int DD_BridgeDamageBonus(AActor *source, AActor *target, int damage); // [Doomerfall] damage unchanged outside a bridge session
+int DD_BridgeWillpowerDamage(player_t *player, int damage, bool telefrag); // [Doomerfall] damage unchanged outside a bridge session
 bool DD_TownsfolkRefuseDamage(AActor *target, AActor *source); // [Doomerfall] dd_townsfolk.cpp
 
 static int DamageMobj (AActor *target, AActor *inflictor, AActor *source, int damage, FName mod, int flags, DAngle angle, bool& needevent)
@@ -1401,6 +1402,9 @@ static int DamageMobj (AActor *target, AActor *inflictor, AActor *source, int da
 				P_AutoUseHealth (player, damage - player->health + 1);
 			}
 		}
+
+		// [Doomerfall] Willpower, the last step; unchanged outside a bridge session. Reduced to 0 counts as no hit.
+		if (damage > 0 && (damage = DD_BridgeWillpowerDamage(player, damage, telefragDamage)) <= 0) return 0;
 
 		bool compat_voodoo_zombie = target->Level->i_compatflags2 & COMPATF2_VOODOO_ZOMBIES;
 
@@ -1860,6 +1864,7 @@ void P_PoisonDamage (player_t *player, AActor *source, int damage, bool playPain
 	damage = target->GetModifiedDamage(player->poisontype, damage, true, nullptr, source, 0, nullAngle);
 	// Modify with damage factors
 	damage = target->ApplyDamageFactor(player->poisontype, damage);
+	damage = DD_BridgeWillpowerDamage(player, damage, telefragDamage); // [Doomerfall] last step; unchanged outside a bridge session
 
 	if (damage <= 0)
 	{ // Damage was reduced to 0, so don't bother further.
