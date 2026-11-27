@@ -27,7 +27,7 @@ sys.path.insert(0, str(HERE.parent / "automatics"))
 import automatics_paired as ap  # noqa: E402
 pp, ng = ap.pp, ap.ng
 
-TIMEOUT = 200
+TIMEOUT = 260
 MAP = sys.argv[3] if len(sys.argv) > 3 and sys.argv[2] == "run" else "MAP01"
 STEPS = "20,26,50,75,100,20,26,50,75,100"
 HIT = re.compile(r"energy: hit (\S+) (direct|explosion): (\d+) -> (\d+) \(x([\d.]+)\)")
@@ -85,7 +85,7 @@ def run(play, out):
                 ng.click(hwnd, 160, 100)
                 clicked = opened
             whole = {int(x) for x in re.findall(r"PAIRED end \d+ skill=(\d+) ", text)}
-            if {20, 26, 50, 75, 100} <= whole and len(re.findall(r"PAIRED end \d+ skill=100 ", text)) >= 2:
+            if {26, 50, 75, 100} <= whole and min(whole) < 25 and len(re.findall(r"PAIRED end \d+ skill=100 ", text)) >= 2:
                 break
     finally:
         subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True)
@@ -118,7 +118,9 @@ def analyse(out, text, dft, fatal):
     done = [c for c in cycles if "end" in c and c["end"]["skill"] == c["skill"]]
     seen = sorted({c["skill"] for c in done})
     report.append(f"skills seen in whole cycles: {seen}")
-    check("cycles at 20, 26, 50, 75 and 100", all(s in seen for s in (20, 26, 50, 75, 100)), seen)
+    # Below 25: the character's starting skill or the 20 step (which lasts only a second before 26, so it rarely gets a
+    # whole cycle).
+    check("cycles below 25 and at 26, 50, 75 and 100", seen and seen[0] < 25 and all(s in seen for s in (26, 50, 75, 100)), seen)
     for c in done:
         want, e = rules(c["skill"]), c["end"]
         check("Doom read Daggerfall's rules for the skill", c["read"] == want, f"skill {c['skill']}: read {c['read']} want {want}")

@@ -3,7 +3,7 @@ version "4.10"
 // Paired-run harness for the Energy Weapons perks (tools/energy/energy_paired.py). Not part of the game.
 // Every cycle: the player stands at the start with DRLA's Plasma Rifle (the stock one without DRLA), faces the first
 // direction with room, a fresh target stands 128 units ahead and a test monster 40 units beside it (inside the splash
-// radius); the player fires 3 shots and 60 tics later the harness logs what Daggerfall's sheet said, the projectiles'
+// radius); the player fires 3 shots and 45 tics after the first the harness logs what Daggerfall's sheet said, the projectiles'
 // speed and what the target and its neighbour lost.
 
 class EnPairTarget : Actor
@@ -94,7 +94,7 @@ class EnPairHarness : EventHandler
 		}
 		t++;
 		if (shots < 3 && (p.WeaponState & WF_WEAPONREADY)) { mo.SetOrigin(start, false); mo.angle = dir; mo.pitch = 0; mo.FireWeapon(null); shots++; }
-		if (t == 90)
+		if (t == 45)
 		{
 			Console.Printf("PAIRED end %d skill=%d shots=%d lost=%d near=%d missiles=%d vel=%.3f default=%.3f", cycle, Actor.DD_SheetSkill(9), shots,
 				lost, nearLost, missiles, missiles ? speedSum / missiles : 0, defSpeed);
