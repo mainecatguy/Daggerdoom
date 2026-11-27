@@ -1,9 +1,9 @@
 """Shop levels 2: paired runs proving shelves restock at the shop's level, and a demo folder.
 
 usage: shelf_run.py assemble | run NAME [--building TYPE] [--rates] [--stock-mods]
-assemble copies the engines and data of an existing demo (BASE: UZDoom, launcher, bridge DLL, town data) and this
-checkout's Daggerfall Unity build into REVIEW, and writes play.bat. run walks into the first building of TYPE
-(default WeaponSmith) in the test town and presses Use on its shelves (tools/shop_menu/harness.zs, with Daggerfall's
+assemble copies this checkout's builds (UZDoom, launcher and bridge DLL from BUILD, Daggerfall Unity, doomerfall.pk3)
+and the town data and dfitems.pk3 of an existing demo (BASE) into REVIEW, and writes play.bat. run walks into the first building of TYPE
+(default GeneralStore; the test town has no other shop) in the test town and presses Use on its shelves (tools/shop_menu/harness.zs, with Daggerfall's
 -dfshoptest closing each window), then prints Daggerfall's "shop restock" lines: the level each shelf rolled at.
 --rates also passes -dfshoplevelrates (1,000 weapon smith and armorer shelves at several levels).
 """
@@ -25,13 +25,15 @@ sys.argv = argv
 
 REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\shop-shelf-levels")
 BASE = Path(r"D:\dev\DoomDaggerfall-loop\review\town-corpses")
+BUILD = Path(r"D:\dev\DoomDaggerfall-build")
+UZ_BUILD, BRIDGE_BUILD, LAUNCHER_BUILD = BUILD / "uzdoom-shoplvl" / "Release", BUILD / "bridge-shoplvl" / "Release", BUILD / "launcher-shoplvl" / "Release"
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
 MODS = GAME.parent / "GameMods"
 DRLA = ["DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3"]
 GROUP = 7154
 DUNGEON = ("ddruntime.pk3", "overworld.pk3", "privateershold.wad", "privateershold_mesh.pk3", "privateershold_doors.pk3")
-EXTRA = ("dfitems.pk3", "doomerfall.pk3", "doomerfall-drla.pk3")
+EXTRA = ("dfitems.pk3", "doomerfall.pk3")
 FATAL = ("DIED WITH FATAL", "VM execution aborted", "Execution could not continue", "Unable to open map")
 
 
@@ -51,17 +53,21 @@ def lumps(path):
 
 def assemble():
     REVIEW.mkdir(parents=True, exist_ok=True)
-    for name in ("uzdoom", "data"):
-        if not (REVIEW / name).exists():
-            shutil.copytree(BASE / name, REVIEW / name, ignore=shutil.ignore_patterns("*.ini"))
-    for name in ("doomerfall-launcher.exe",) + EXTRA:
-        shutil.copy2(BASE / name, REVIEW / name)
-    if (REVIEW / "dfu").exists():
-        shutil.rmtree(REVIEW / "dfu")
-    shutil.copytree(REPO / "daggerfall-unity-master" / "Builds" / "Windows64", REVIEW / "dfu", ignore=shutil.ignore_patterns("*.pdb", "*.ini"))
+    if not (REVIEW / "data").exists():
+        shutil.copytree(BASE / "data", REVIEW / "data")
+    for name, source in (("uzdoom", UZ_BUILD), ("dfu", REPO / "daggerfall-unity-master" / "Builds" / "Windows64")):
+        if (REVIEW / name).exists():
+            shutil.rmtree(REVIEW / name)
+        shutil.copytree(source, REVIEW / name, ignore=shutil.ignore_patterns("*.pdb", "*.ini"))
+    for dll in ("sndfile.dll", "soft_oal.dll"):
+        shutil.copy2(BASE / "uzdoom" / dll, REVIEW / "uzdoom" / dll)
+    shutil.copy2(LAUNCHER_BUILD / "doomerfall-launcher.exe", REVIEW / "doomerfall-launcher.exe")
+    shutil.copy2(BASE / "dfitems.pk3", REVIEW / "dfitems.pk3")
+    (REVIEW / "doomerfall-drla.pk3").unlink(missing_ok=True)
+    subprocess.check_call([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), str(REVIEW / "doomerfall.pk3")])
     plugins = REVIEW / "dfu" / "DaggerfallUnity_Data" / "Plugins" / "x86_64"
     plugins.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(BASE / "dfu" / "DaggerfallUnity_Data" / "Plugins" / "x86_64" / "doomerfall_bridge.dll", plugins / "doomerfall_bridge.dll")
+    shutil.copy2(BRIDGE_BUILD / "doomerfall_bridge.dll", plugins / "doomerfall_bridge.dll")
     (REVIEW / "dfu" / "Portable.txt").write_text("")
     install.isolate_registry(REVIEW / "dfu")
     write_demo()
@@ -80,8 +86,6 @@ def building_doors(kind):
 
 def launch_args(play, uz_extra, df_extra, stock_mods=False):
     mods = ([] if stock_mods else [MODS / n for n in DRLA]) + [REVIEW / "data" / n for n in DUNGEON] + [REVIEW / n for n in EXTRA]
-    if stock_mods:
-        mods = [m for m in mods if m.name != "doomerfall-drla.pk3"]
     uz = ["-config", str(play / "uzdoom.ini"), "-savedir", str(play / "saves"), "-skill", "3",
           "-ddtowncache", str(REVIEW / "data" / "cache"), "-ddconverter", str(REVIEW / "data" / "converter" / "DungeonConverter.exe"),
           "-ddarena2", str(GAME / "DAGGER" / "ARENA2"), "+vid_fullscreen", "0", "+i_pauseinbackground", "0"] + uz_extra + ["+map", f"DDT{GROUP:05d}"]
@@ -98,9 +102,9 @@ def launch_args(play, uz_extra, df_extra, stock_mods=False):
 
 
 def write_demo():
-    door = building_doors("WeaponSmith")[0]
+    door = building_doors("GeneralStore")[0]
     start = f"""version "4.14"
-// Demo only: starts the player a few steps from a weapon smith door, facing it.
+// Demo only: starts the player a few steps from a general store door, facing it.
 class SLDemoStart : StaticEventHandler
 {{
 	bool done;
@@ -126,7 +130,7 @@ class SLDemoStart : StaticEventHandler
     quoted = " ".join(f'"{a}"' if (" " in a or "%" in a or "\\" in a) else a for a in args)
     (REVIEW / "play.bat").write_text(
         "@echo off\r\n"
-        "rem Shop shelves roll at the shop's level. Town start with DRLA, facing a weapon smith. Go in and Use a shelf.\r\n"
+        "rem Shop shelves roll at the shop's level. Town start with DRLA, facing a general store. Go in and Use a shelf.\r\n"
         "rem Daggerfall writes the shop's level for each restock to play\\df.log (\"shop restock: ... at shop level N\").\r\n"
         "rem Shelves restock once per day: wait or rest a day and Use a shelf again for a fresh roll.\r\n"
         "set \"HERE=%~dp0\"\r\n"
@@ -183,7 +187,7 @@ def run(name, building, rates, stock_mods):
 ap = argparse.ArgumentParser()
 ap.add_argument("command", choices=("assemble", "run"))
 ap.add_argument("name", nargs="?", default="t")
-ap.add_argument("--building", default="WeaponSmith", help="Daggerfall building type to go into, as the converter lists it")
+ap.add_argument("--building", default="GeneralStore", help="Daggerfall building type to go into, as the converter lists it")
 ap.add_argument("--rates", action="store_true")
 ap.add_argument("--stock-mods", action="store_true")
 args = ap.parse_args()
