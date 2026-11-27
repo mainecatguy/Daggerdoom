@@ -1,10 +1,12 @@
 """Loads a plain Daggerfall save (no Doom half) in a paired session through the launcher, minimized.
 
-  run_plain_load.py <save> [save] [--root DIR] [--source FOLDER-OR-ZDS]
+  run_plain_load.py <save> [save] [--root DIR] [--source FOLDER-OR-ZDS] [--play-mods]
   <save>: nogun or gun. With "save", Doom's load test then saves, changes, and reloads.
   --root: an install folder (scripts/play/install.py) to run instead of the plainsaves review folder.
   --source: the Daggerfall save to copy, a save folder or a Doomerfall .zds bundle. From a bundle only Daggerfall's own
   files are taken (no Doomerfall*.json), so it is a plain save. A New Game bundle gives one inside Privateer's Hold.
+  --play-mods: also load what play.bat loads: the DRLA set, the root's dfitems.pk3 and doomerfall.pk3. Without
+  doomerfall.pk3 nothing answers Daggerfall's gun requests (DoomerfallGuns.zs), so its "hotkeys: request 1" times out.
 
 Both test saves are copies of one source save, written to the test folder's private portable saves; the source is only
 read. "nogun" is the copy as it is. "gun" adds a DRLA shotgun (a Doom item) to the inventory. The test flags open
@@ -28,6 +30,8 @@ QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 IWAD = r"D:\dev\DoomDaggerfall\GameResources\wads\DOOM2.WAD"
 DAGGER = r"D:\dev\DoomDaggerfall\GameResources\DAGGER"
 FATAL = ("Fatal", "FATAL", "VM execution aborted", "Script error")
+GAMEMODS = Path(r"D:\dev\DoomDaggerfall\GameMods")
+DRLA = ["DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3"]  # as play.bat
 TIMEOUT = 90
 SAVES = {"nogun": ("SAVE901", "PlainNoGun"), "gun": ("SAVE902", "PlainWithGun")}
 
@@ -92,8 +96,11 @@ def main():
     command = [sys.executable, QUIET, "--timeout", str(TIMEOUT), "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", IWAD,
                "--uzdoom-cwd", str(run), "--log", str(launcher)]
-    for mod in ("ddruntime.pk3", "overworld.pk3", "privateershold.wad", "privateershold_mesh.pk3", "privateershold_doors.pk3"):
-        command += ["--mod", str(DATA / mod)]
+    mods = [DATA / m for m in ("ddruntime.pk3", "overworld.pk3", "privateershold.wad", "privateershold_mesh.pk3", "privateershold_doors.pk3")]
+    if "--play-mods" in sys.argv:
+        mods = [GAMEMODS / m for m in DRLA] + mods + [REVIEW / "dfitems.pk3", REVIEW / "doomerfall.pk3"]
+    for mod in mods:
+        command += ["--mod", str(mod)]
     for arg in uz_args:
         command += ["--uzdoom-arg", arg]
     for arg in dfu_args:
