@@ -91,9 +91,9 @@ def mods():
 
 
 def write_demo():
-    door = building_door("WeaponSmith")
+    door = building_door("GeneralStore")  # town 7154 has no weaponsmith or pawn shop
     start = f"""version "4.14"
-// Demo only: starts the player a few steps from a weaponsmith's door, facing it.
+// Demo only: starts the player a few steps from a general store's door, facing it.
 class WVDemoStart : StaticEventHandler
 {{
 	bool done;
@@ -115,7 +115,7 @@ class WVDemoStart : StaticEventHandler
     dagger = GAME / "DAGGER"
     (REVIEW / "play.bat").write_text(
         "@echo off\r\n"
-        "rem Doom weapons have a gold value and a weight. You start in town facing a weaponsmith, with DRLA.\r\n"
+        "rem Doom weapons have a gold value and a weight. You start in town facing a general store (this town has no weaponsmith or pawn shop; fast travel to a city for those), with DRLA.\r\n"
         "rem Pick up a Doom gun (or use the one you have), go in with Use, Use the shopkeeper and choose Sell: Doom guns are listed with their price.\r\n"
         "rem Info (Q) on a gun in the inventory shows its weight. Pawn shops and general stores buy them too. The gun you are holding is not offered.\r\n"
         "rem E is Interact, Q is Info, I opens the inventory, K opens fast travel.\r\n"
@@ -206,7 +206,7 @@ def check():
 ap = argparse.ArgumentParser()
 ap.add_argument("command", choices=("assemble", "run", "check"))
 ap.add_argument("name", nargs="?", default="t")
-ap.add_argument("--building", default="WeaponSmith")
+ap.add_argument("--building", default="GeneralStore")
 args = ap.parse_args()
 if args.command == "assemble":
     assemble()

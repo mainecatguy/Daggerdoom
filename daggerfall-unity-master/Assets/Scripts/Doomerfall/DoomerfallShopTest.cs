@@ -192,6 +192,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     DoomerfallWeaponValues.Apply(gun);
                 }
                 Player.Items.AddItem(gun);
+                // The test town has no weaponsmith or pawn shop, so ask the trade window's own buy lists directly.
+                var buys = (Dictionary<DaggerfallConnect.DFLocation.BuildingTypes, List<ItemGroups>>)typeof(DaggerfallTradeWindow)
+                    .GetField("storeBuysItemType", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
+                foreach (var shop in new[] { DaggerfallConnect.DFLocation.BuildingTypes.WeaponSmith, DaggerfallConnect.DFLocation.BuildingTypes.PawnShop, DaggerfallConnect.DFLocation.BuildingTypes.Alchemist })
+                    Log(string.Format("{0} buys \"{1}\": {2}", shop, gun.ItemName, DoomerfallWeaponValues.SellsHere(gun, buys[shop])));
                 Log(string.Format("gave \"{0}\" ({1}, {2}): value {3}, {4} kg, shop price {5} at quality {6}", gun.ItemName, cls, gun.Material, gun.value, gun.weightInKg,
                     FormulaHelper.CalculateCost(gun.value, quality, gun.ConditionPercentage), quality));
             }
