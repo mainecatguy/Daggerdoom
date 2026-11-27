@@ -55,8 +55,9 @@ def assemble(source):
     (REVIEW / "dfu" / PLUGIN).parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source / "dfu" / PLUGIN, REVIEW / "dfu" / PLUGIN)
     shutil.copy2(source / "dfu" / "Portable.txt", REVIEW / "dfu")  # -dfsynctest needs a portable install
-    shutil.copytree(source / "dfu" / "PortableAppdata", REVIEW / "dfu" / "PortableAppdata", dirs_exist_ok=True,
-                    ignore=shutil.ignore_patterns("Player*.log", "Saves"))
+    if (source / "dfu" / "PortableAppdata").exists():  # an install.py folder makes it on first run
+        shutil.copytree(source / "dfu" / "PortableAppdata", REVIEW / "dfu" / "PortableAppdata", dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns("Player*.log", "Saves"))
     for name in ("doomerfall-launcher.exe", "dfitems.pk3"):
         shutil.copy2(source / name, REVIEW / name)
     build = REPO / "scripts" / "doomerfall" / "build_pk3.py"

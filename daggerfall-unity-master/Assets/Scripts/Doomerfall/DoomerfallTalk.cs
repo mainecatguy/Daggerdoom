@@ -13,7 +13,9 @@
 //
 // Use on a townsperson talks. Crouching Use (Steal) pickpockets them through Daggerfall's own Steal on a wanderer: once
 // per person (the stand-in keeps Daggerfall's PickpocketByPlayerAttempted), with its reach, roll, Pickpocket tally,
-// gold, and on a failure its Pickpocketing crime and city guards.
+// gold, and on a failure its Pickpocketing crime and city guards. Outdoors those guards are not relayed to Doom yet
+// (DoomerfallGuards relays interior guards only), so none appear. A stand-in, and with it the "already tried" mark, is
+// dropped on a load, a new game, or once MaxStandIns exist.
 
 using System.Collections.Generic;
 using DaggerfallWorkshop.Game.Entity;

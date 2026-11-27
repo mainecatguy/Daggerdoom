@@ -418,8 +418,9 @@ These skills work as in Daggerfall and improve as you use them:
 - **Mercantile:** press Use on a shopkeeper to buy and sell. Your Mercantile skill (against the merchant's) sets the
   prices, and every completed trade trains it.
 - **Pickpocket:** crouch (the screen shows **Sneaking**) and press Use on a person walking about town to try to pick
-  their pocket. Each person can be tried only once. If it works you may find a few gold pieces. If it fails, that is a
-  crime and the guards are called. Stealing from shop shelves and from containers in homes also uses Pickpocket.
+  their pocket. You get one try per person (the game may forget who you tried after you load a save or meet a great
+  many people). If it works you may find a few gold pieces. If it fails, the game records it as a crime, but no
+  guards come after you in the streets yet. Stealing from shop shelves and from containers in homes also uses Pickpocket.
 - **Medical:** every hour you rest heals you more with a higher Medical skill, and trains it (see Resting).
 - **Lockpicking:** see Locked doors. Doors of town buildings are never locked in Doomerfall yet.
 

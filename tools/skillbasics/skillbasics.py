@@ -114,7 +114,7 @@ def write_demo():
         "@echo off\r\n"
         "rem Interaction skills. Starts in a town with DRLA, during the day. Each of these is Daggerfall's own rule:\r\n"
         "rem - Crouch (Sneaking shows) and Use a townsperson: you try to pickpocket them, once per person (Pickpocket).\r\n"
-        "rem   A failure is a crime and calls the guards.\r\n"
+        "rem   A failure is recorded as a crime, but no guards appear in the streets yet.\r\n"
         "rem - Use a townsperson standing: talk. Asking in the polite tone uses Etiquette, the blunt tone Streetwise.\r\n"
         "rem - In a shop, buy or sell (Mercantile sets the prices and is practised by each trade).\r\n"
         "rem - Rest (Z) outside the town walls: each hour heals by Medical and practises it.\r\n"
