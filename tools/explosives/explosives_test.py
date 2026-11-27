@@ -10,7 +10,7 @@ logs what it changed (+set dd_perklog 1). Runs DOOM.WAD E1M1:
   nobridge doomerfall.pk3 only, no bridge session: nothing changes.
 Rule sets: off, dmg (+60%), self25 / self75 (own splash cut 95% / 99%), direct (+50% on the direct hit: a test value,
 the owner has not set the amount), chain (Inpulsa's Broken Heart: 25% of max health, radius 128).
-Cases: shot, pointblank, chain (A kills B kills an imp) and pack (a grid of up to 400 monsters a rocket cannot kill, 130 health left).
+Cases: shot, pointblank, switch (another gun up while the slowed rocket flies: still the launcher's hit), chain (A kills B kills an imp) and pack (a grid of up to 400 monsters a rocket cannot kill, 130 health left).
 """
 import ctypes as C, math, re, struct, subprocess, sys, time, uuid, zipfile
 from pathlib import Path
@@ -104,7 +104,7 @@ def cases_of(lines):
     for l in lines:
         if m := re.search(r"EXPTEST case (\w+) (\w+) (\w+) cat=(\w+) slot=(-?\d+)", l):
             cur = {"cfg": m.group(1), "kind": m.group(2), "gun": m.group(3), "cat": m.group(4), "slot": int(m.group(5)),
-                   "hits": [], "self": [], "blasts": [], "kills": [], "phurt": [], "tags": [], "worst": [], "lines": []}
+                   "hits": [], "self": [], "blasts": [], "kills": [], "phurt": [], "tags": [], "held": [], "worst": [], "lines": []}
             cases.append(cur)
         elif cur is None:
             continue
@@ -125,7 +125,9 @@ def cases_of(lines):
                 cur["kills"].append((k.group(1), k.group(2), int(k.group(3))))
             elif ph := re.search(r"EXPTEST player hurt (\d+) by (\S+)", l):
                 cur["phurt"].append((int(ph.group(1)), ph.group(2)))
-            elif "explosives: shot " in l:
+            elif hd := re.search(r"EXPTEST target hit held (\S+) slot (-?\d+)", l):
+                cur["held"].append((hd.group(1), int(hd.group(2))))
+            elif "shots: tag " in l:
                 cur["tags"].append(l)
     return cases
 
@@ -150,7 +152,7 @@ def analyse(name, lines, checks, report):
             continue
         check(f"{tag}: the gun is an Explosives gun (slot 6)", c["slot"] == 6, c["cat"])
         rocket_hurt = sum(d for d, inf in c["phurt"] if inf != "DoomerfallChainBlast")
-        if c["kind"] in ("shot", "pointblank"):
+        if c["kind"] in ("shot", "pointblank", "switch"):
             check(f"{tag}: the target was hit", e["thits"] > 0 and e["tlost"] > 0, e)
             check(f"{tag}: the shot's splash reached the player", rocket_hurt > 0 or c["self"], c["phurt"])
         if c["cfg"] == "off":
@@ -164,7 +166,11 @@ def analyse(name, lines, checks, report):
             check(f"{tag}: rounding", not bad, bad[:3])
             check(f"{tag}: the target lost what the hit lines say", sum(int(h.group(4)) for h in c["hits"] if h.group(1) == "ExpTestTarget") == e["tlost"],
                   (e["tlost"], [h.group(0) for h in c["hits"]]))
-            check(f"{tag}: no cut to the player's own splash", not c["self"] and rocket_hurt > 0, c["self"][:2])
+            if c["kind"] == "switch":
+                check(f"{tag}: another gun was up when the rocket hit", c["held"] and all(s != 6 for _, s in c["held"]), c["held"])
+                report.append(f"{name} {tag}: held at the hit {sorted(set(h for h, _ in c['held']))}, hits {[h.group(0)[12:] for h in c['hits']]}")
+            else:
+                check(f"{tag}: no cut to the player's own splash", not c["self"] and rocket_hurt > 0, c["self"][:2])
         elif c["cfg"] in ("self25", "self75"):
             cut = RULES[c["cfg"]][163]
             f = 1 - cut / 10000
@@ -181,7 +187,7 @@ def analyse(name, lines, checks, report):
             base = base_self.get((c["gun"], "shot"))
             report.append(f"{name} {tag}: own splash {sum(int(s.group(1)) for s in c['self'])} -> {rocket_hurt} (rules off: {base})")
             if c["kind"] == "pointblank":
-                check(f"{tag}: the point-blank rocket was recognised", any("point blank" in t or "fired" in t for t in c["tags"]), c["tags"])
+                check(f"{tag}: the point-blank rocket was recognised", any(" skill 6 gen 0 " in t for t in c["tags"]), c["tags"])
         elif c["cfg"] == "direct":
             fs = {(h.group(2), round(float(h.group(5)), 4)) for h in c["hits"]}
             check(f"{tag}: only the direct hit gets +50%", fs == {("direct", 1.5)}, fs)

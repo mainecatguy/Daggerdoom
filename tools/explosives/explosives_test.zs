@@ -5,6 +5,8 @@ version "4.10"
 // selects the gun, puts the player back at the start, places targets and fires one shot, then logs what everyone lost.
 //   shot        a target 100 units ahead: the rocket hits it directly and its splash reaches the player.
 //   pointblank  a target touching the player: the rocket explodes in its own spawn check.
+//   switch      as shot, but the rocket is slowed to a crawl and the player switches to another gun while it flies:
+//               the hit must still count for the launcher (the shared shot tag, DoomerfallShots).
 //   chain       monster A (1000 max health, 1 left) ahead, B (same) beside it, and a stock DoomImp (1 left) beside B:
 //               the rocket kills A, A's blast kills B, B's blast kills the imp.
 //   pack        a grid of up to 400 test monsters (4000 max health, 130 left), the rocket kills the first, and the chain
@@ -42,8 +44,8 @@ class ExpPerkTest : EventHandler
 
 	override void OnRegister()
 	{
-		static const String c[] = { "off", "dmg", "self25", "self75", "direct", "self25", "chain", "chain" };
-		static const String k[] = { "shot", "shot", "shot", "shot", "shot", "pointblank", "chain", "pack" };
+		static const String c[] = { "off", "dmg", "self25", "self75", "direct", "self25", "dmg", "chain", "chain" };
+		static const String k[] = { "shot", "shot", "shot", "shot", "shot", "pointblank", "switch", "chain", "pack" };
 		for (int i = 0; i < c.Size(); i++) { cfgs.Push(c[i]); kinds.Push(k[i]); }
 		static const String g[] = { "RocketLauncher", "RLRocketLauncher" };
 		for (int i = 0; i < g.Size(); i++) { class<Actor> kk = g[i]; if (kk) guns.Push(g[i]); }
@@ -75,7 +77,12 @@ class ExpPerkTest : EventHandler
 			if (e.Inflictor is "DoomerfallChainBlast") blastHurtPlayer++;
 			else if (phase == 4) playerLost += e.Damage;
 		}
-		if (target && e.Thing == target) { targetHits++; targetLost += e.Damage; }
+		if (target && e.Thing == target)
+		{
+			targetHits++; targetLost += e.Damage;
+			let held = players[consoleplayer].ReadyWeapon;
+			Console.Printf("EXPTEST target hit held %s slot %d", held ? held.GetClassName() : 'None', held ? DoomerfallWeaponCategory.SkillSlotOf(held) : -1);
+		}
 		if (phase == 4 && kinds[step] == "pack") return; // a kill line per monster would cost more than the chain
 		if (e.Thing && e.Thing.health <= 0 && !e.Thing.player)
 			Console.Printf("EXPTEST killed %s by %s tic %d", e.Thing.GetClassName(), inf, level.maptime);
@@ -102,13 +109,26 @@ class ExpPerkTest : EventHandler
 		for (int k = 0; k < gone.Size(); k++) { Console.Printf("EXPTEST armor %s", gone[k].GetClassName()); gone[k].Destroy(); }
 	}
 
+	// The switch case: slow the player's rockets in flight and put another gun up before they land.
+	void SlowAndSwitch(PlayerInfo p)
+	{
+		let it = ThinkerIterator.Create("Actor");
+		Actor a;
+		while (a = Actor(it.Next())) if (a.bMissile && a.target == p.mo) { a.vel *= 0.05; Console.Printf("EXPTEST slowed %s", a.GetClassName()); }
+		for (let i = p.mo.Inv; i; i = i.Inv)
+		{
+			let w = Weapon(i);
+			if (w && w != p.ReadyWeapon && DoomerfallWeaponCategory.SkillSlotOf(w) != 6) { p.PendingWeapon = w; Console.Printf("EXPTEST switch to %s", w.GetClassName()); break; }
+		}
+	}
+
 	void Place(PlayerInfo p, String kind)
 	{
 		let mo = p.mo;
 		StripArmor(mo);
 		pack.Clear();
 		target = null;
-		if (kind == "shot") target = Actor.Spawn("ExpTestTarget", mo.Vec3Angle(100, 0));
+		if (kind == "shot" || kind == "switch") target = Actor.Spawn("ExpTestTarget", mo.Vec3Angle(100, 0));
 		else if (kind == "pointblank") target = Actor.Spawn("ExpTestTarget", mo.Vec3Angle(57, 0));
 		else if (kind == "chain")
 		{
@@ -195,7 +215,8 @@ class ExpPerkTest : EventHandler
 			break;
 		case 4:
 			p.attackdown = false;
-			if (++t < (kind == "pack" ? 140 : 45)) break;
+			if (++t == 2 && kind == "switch") SlowAndSwitch(p);
+			if (t < (kind == "pack" ? 140 : kind == "switch" ? 150 : 45)) break;
 			int dead = 0;
 			for (int i = 0; i < pack.Size(); i++) if (pack[i] && pack[i].health <= 0) dead++;
 			Console.Printf("EXPTEST end %s %s %s target=%d/%d player=%d blasthurt=%d dead=%d/%d gap=%.1f", c, kind, guns[gun],

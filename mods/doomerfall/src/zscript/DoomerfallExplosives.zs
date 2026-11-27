@@ -12,11 +12,10 @@
 //                  player, and get no damage bonus. They wait in a queue and at most MaxBlastsPerTic go off in one tic,
 //                  so a big pack chains over a few tics instead of stalling one.
 //
-// Which shots are the gun's: a projectile the player fires next to them with an Explosives gun held (also one that
-// explodes in its own spawn check, point blank); a projectile spawned out in the world by one of those (a cluster
-// rocket's fragments); and the puff of a hitscan shot fired with an Explosives gun held. A shot keeps its tag after a
-// weapon switch. Barrels, other guns' shots and anything else get nothing. Fractional damage rounds with the chance of
-// the fraction.
+// Which shots are the gun's: the shared shot tag says (DoomerfallShots.zs). A rocket and everything it spawns (its
+// explosion actors, a cluster rocket's fragments) carry the gun that fired it, so a shot keeps its perks after a weapon
+// switch, and a rocket that explodes point blank counts too; a bullet's puff counts for the held gun. Barrels, other
+// guns' shots, the chain blasts and anything else get nothing. Fractional damage rounds with the chance of the fraction.
 class DoomerfallExplosives : StaticEventHandler
 {
 	// DFB_SHEET_* indices; must match bridge/doomerfall_bridge.h.
@@ -29,16 +28,10 @@ class DoomerfallExplosives : StaticEventHandler
 	const ExplChainRadius = 166;
 
 	const MaxBlastsPerTic = 16;
-	const FragmentReach = 128; // how far from a tagged shot a player-owned projectile may spawn and still be its fragment
 
 	clearscope static int Rule(int index)
 	{
 		return max(0, Actor.DD_SheetValue(index));
-	}
-
-	clearscope static bool IsExplosive(Weapon w)
-	{
-		return w && DoomerfallWeaponCategory.SkillSlotOf(w) == SkillExplosives;
 	}
 
 	// damage * factor, rounding the fraction up with its chance; at least minimum.
@@ -65,58 +58,15 @@ class DoomerfallExplosives : StaticEventHandler
 		return DoomerfallExplosives(StaticEventHandler.Find("DoomerfallExplosives"));
 	}
 
-	// Shots of an Explosives gun, with the gun. Not kept by saves: a shot in flight at a save loses its perks.
-	Array<Actor> shots;
-	Array<Name> shotGun;
-
-	void Tag(Actor m, Name gun, String how)
-	{
-		if (shots.Find(m) < shots.Size()) return;
-		shots.Push(m);
-		shotGun.Push(gun);
-		Log(String.Format("shot %s from %s (%s)", m.GetClassName(), gun, how));
-	}
-
-	// A projectile of this player that is new and next to them while an Explosives gun is held: the gun just fired it.
-	static bool FiredNow(Actor player, Actor m)
-	{
-		return m.bMissile && m.target == player && m.GetAge() <= 1 && player.player && IsExplosive(player.player.ReadyWeapon)
-			&& m.Distance2D(player) <= player.radius + m.radius + 64;
-	}
-
-	// Whether damage through this inflictor came from an Explosives gun of this player.
+	// Whether damage this player deals through this inflictor came from an Explosives gun: the shot's tag, or the held
+	// gun for a bullet's puff (DoomerfallShots.Find). The chain blasts are not the gun's shots.
 	static bool FromGun(Actor player, Actor inflictor)
 	{
-		let h = Get();
-		if (!h || !player || !player.player || !inflictor || inflictor is "DoomerfallChainBlast") return false;
-		if (h.shots.Find(inflictor) < h.shots.Size()) return true;
-		let w = player.player.ReadyWeapon;
-		// A hitscan puff lands in the tic it is fired; a projectile that exploded in its own spawn check (point blank)
-		// hits before WorldThingSpawned runs for it.
-		if ((inflictor.bIsPuff && IsExplosive(w)) || FiredNow(player, inflictor))
-		{
-			h.Tag(inflictor, w.GetClassName(), inflictor.bIsPuff ? "puff" : "point blank");
-			return true;
-		}
-		return false;
-	}
-
-	override void WorldThingSpawned(WorldEvent e)
-	{
-		let m = e.Thing;
-		if (!m || !m.bMissile || !m.target || !m.target.player || m.target.player.mo != m.target) return;
-		if (Actor.DD_SheetValue(SheetValid) != 1) return;
-		let pmo = m.target;
-		if (FiredNow(pmo, m)) { Tag(m, pmo.player.ReadyWeapon.GetClassName(), "fired"); return; }
-		for (int i = 0; i < shots.Size(); i++)
-		{
-			let s = shots[i];
-			if (s && s != m && !s.bIsPuff && s.target == pmo && m.Distance3D(s) <= FragmentReach)
-			{
-				Tag(m, shotGun[i], "fragment of " .. s.GetClassName());
-				return;
-			}
-		}
+		if (!inflictor || inflictor is "DoomerfallChainBlast") return false;
+		class<Weapon> gun;
+		int skill;
+		DoomerfallShotTag tag;
+		return DoomerfallShots.Find(player, inflictor, gun, skill, tag) && skill == SkillExplosives;
 	}
 
 	// Inpulsa's Broken Heart: blasts waiting to go off.
@@ -148,8 +98,7 @@ class DoomerfallExplosives : StaticEventHandler
 		{
 			let b = DoomerfallChainBlast(Actor.Spawn("DoomerfallChainBlast", (qx[i], qy[i], qz[i])));
 			if (!b) continue;
-			b.gen = qGen[i];
-			b.target = qSource[i];
+			b.gen = qGen[i]; // no target: the blast is not a shot of the player's (DoomerfallShots leaves it untagged)
 			int hit = b.RadiusAttack(qSource[i], qDamage[i], radius, 'None', 0); // no RADF_HURTSOURCE: never the player
 			Log(String.Format("blast %s gen %d damage %d radius %d hit %d tic %d", qVictim[i], qGen[i], qDamage[i], radius, hit, level.maptime));
 		}
@@ -167,12 +116,6 @@ class DoomerfallExplosives : StaticEventHandler
 
 	override void WorldTick()
 	{
-		for (int i = shots.Size() - 1; i >= 0; i--)
-		{
-			if (shots[i]) continue;
-			shots.Delete(i);
-			shotGun.Delete(i);
-		}
 		FireBlasts();
 		if (Actor.DD_SheetValue(SheetValid) != 1) return; // Rules come from Daggerfall's character only.
 		for (int i = 0; i < MAXPLAYERS; i++)

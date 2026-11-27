@@ -191,8 +191,9 @@ Explosives covers rocket, missile and grenade launchers, such as the stock rocke
   strength of the blast before. These blasts never hurt you, but they do hurt anyone else nearby, townspeople included.
   Big monsters make big blasts, so killing a large demon in a crowd can clear the crowd.
 - In a big pack the blasts go off in quick succession over a few moments, not all at once.
-- Only your explosive weapon's own shots count. An exploding barrel, or a rocket that goes off while you hold a
-  different gun, gets nothing; a rocket keeps its bonuses if you switch weapons before it lands.
+- Only your explosive weapon's own shots count, including anything they break into, such as a cluster rocket's
+  pieces. An exploding barrel or another gun's shot gets nothing. A rocket keeps its bonuses if you switch weapons
+  before it lands.
 - These only work in the Daggerfall world. Your current skill counts.
 
 ### Shotguns
