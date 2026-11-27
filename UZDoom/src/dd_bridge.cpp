@@ -423,7 +423,7 @@ void SendUiCommand(uint16_t kind, uint32_t id, uint32_t context = 0)
 	dfb_event e{};
 	e.kind = kind;
 	e.tic = gametic;
-	const dfb_ui_command body{ id, context, dfb_now_ns() };
+	const dfb_ui_command body{ id, context, dfb_now_ns(), uint32_t(screen ? screen->GetWidth() : 0), uint32_t(screen ? screen->GetHeight() : 0) };
 	memcpy(e.payload, &body, sizeof(body));
 	dfb_send(session, &e);
 }
