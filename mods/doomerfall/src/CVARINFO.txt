@@ -1,5 +1,10 @@
 // Size of Doomerfall's own on-screen labels, in whole steps above Doom's CleanXfac_1 (zscript/DoomerfallText.zs).
 user int dd_hudtextstep = 1;
+// Show damage numbers (Options > HUD Options; zscript/DoomerfallDamageNumbers.zs). -1 means no choice made: off, or
+// on in a dev launch. Stays -1 until the player picks On or Off; the default is never saved.
+nosave int dd_damagenumbers = -1;
+// Dev launch (the owner's play folder passes +dd_dev 1). Changes the default for this launch only; never saved.
+nosave noarchive bool dd_dev = false;
 // Test hook: dump the encounter monster pool (zscript/EncounterPoolTest.zs).
 server noarchive bool dd_encounter_pooldump = false;
 // Test hook: run the encounter planner on fake area facts (zscript/EncounterPlannerTest.zs).

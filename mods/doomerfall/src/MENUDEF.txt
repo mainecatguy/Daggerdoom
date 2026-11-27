@@ -3,6 +3,13 @@
 // AddOptionMenu can only append (below "Reset to defaults").
 // All actions are unbound by default; bindings are saved in the player's config like any other.
 // Interacting (Grab, Steal while crouching, talk, shops, containers) is Doom's own Use control, so it has no entry here.
+// Damage numbers over hit monsters (zscript/DoomerfallDamageNumbers.zs). Off by default; on by default in a dev launch.
+AddOptionMenu "HUDOptions"
+{
+	StaticText ""
+	DDDamageNumbersOption "Show damage numbers", "dd_damagenumbers", "OnOff" // Shows the default while no choice is made.
+}
+
 OptionMenu "DoomerfallControlsMenu"
 {
 	Title "Doomerfall Controls"
