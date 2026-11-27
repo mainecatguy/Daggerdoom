@@ -29,7 +29,7 @@ class ClimbHarness : EventHandler
 	int lt;
 	override void OnRegister() { lt = -1; }
 	int startTic, slipTic, everClimbed;
-	double z0, y0, zA;
+	double z0, y0, zA, zMax;
 	bool done;
 
 	DoomerfallClimbState St()
@@ -116,6 +116,42 @@ class ClimbHarness : EventHandler
 			{
 				Console.Printf("CLIMBTEST tread-strafe crossing=%d dy=%.1f dz=%.1f climbing=%d", zA >= 0, mo.pos.y - y0, mo.pos.z - z0, Climbing() ? 1 : 0);
 				side = 0;
+				Next();
+			}
+		}
+		else if (scen == 5 || scen == 6) // Mid-crossing: a failed continue roll (5), or hold then Back (6), never hops up.
+		{
+			let s = St();
+			if (lt == 0) { Place(770, 390); fwd = Walk; zA = -1; return; }
+			if (zA < 0 && s && s.climbing && s.crossing && mo.pos.z > 64)
+			{
+				zA = lt; z0 = zMax = mo.pos.z;
+				if (scen == 5) { EventHandler.SendNetworkEvent("dfi_climb:100:100:0:0:0"); s.rollTics = 3; }
+				else fwd = 0;
+			}
+			if (zA >= 0)
+			{
+				// Rise is measured from the slip, or from pressing Back (the crossing was already rising before that).
+				if (scen == 5 && slipTic == lt) z0 = zMax = mo.pos.z;
+				if (scen == 6 && lt == zA + 5) { fwd = -Walk; z0 = zMax = mo.pos.z; }
+				zMax = max(zMax, mo.pos.z);
+				if (lt == zA + 35 || lt > 400)
+				{
+					Console.Printf("CLIMBTEST %s crossing=%d rise=%.1f dz=%.1f slipped=%d", scen == 5 ? "cross-slip" : "cross-back", zA >= 0, zMax - z0, mo.pos.z - z0, slipTic >= 0);
+					EventHandler.SendNetworkEvent("dfi_climb:100:100:100:100:0");
+					fwd = 0;
+					Next();
+				}
+			}
+			else if (lt > 400) { Console.Printf("CLIMBTEST %s crossing=0", scen == 5 ? "cross-slip" : "cross-back"); Next(); }
+		}
+		else if (scen == 7) // A 40-unit ledge with a 4-unit-higher strip against the back wall still tops out.
+		{
+			if (lt == 0) { Place(120, 140); fwd = Walk; starts = 0; rested = 0; wasClimbing = false; return; }
+			if (!Climbing() && (abs(mo.floorz - 96) < 0.1 || abs(mo.floorz - 100) < 0.1) && mo.pos.z <= mo.floorz + 0.1) rested++;
+			if (lt == 300)
+			{
+				Console.Printf("CLIMBTEST ledge-uneven starts=%d rested=%d z=%.1f", starts, rested, mo.pos.z);
 				Console.Printf("CLIMBTEST part3 done uses=%d", uses);
 				done = true;
 			}

@@ -97,6 +97,7 @@ def build_map():
     row(350, 430, [(800 + 12 * i, 32 * (i + 1)) for i in range(10)] + [(920, 320), (1000, 0)])
     row(620, 700, [(800, 96), (864, 192), (1000, 0)])
     row(880, 960, [(800, 96), (824, 192), (1000, 0)])  # a 24-unit ledge: wider than a stair tread, still stood on
+    row(100, 180, [(150, 96), (186, 100), (190, 192), (300, 0)])  # a 40-unit ledge with a raised strip at the back
 
     out = ['namespace = "zdoom";',
            'thing { x = 400.0; y = 512.0; angle = 0; type = 1; skill1 = true; skill2 = true; skill3 = true; skill4 = true; skill5 = true; single = true; }']
