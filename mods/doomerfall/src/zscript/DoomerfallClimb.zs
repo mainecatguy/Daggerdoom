@@ -142,6 +142,8 @@ class DoomerfallClimb : StaticEventHandler
 	{
 		double fm, sm;
 		[fm, sm] = mo.TweakSpeeds(gameinfo.normforwardmove[running ? 1 : 0] * 256, 0);
+		let attributes = mo.FindInventory("DoomerfallAttributeEffects"); // Speed does not change climbing (yet): owner to decide
+		if (attributes) fm /= attributes.GetSpeedFactor();
 		return fm * mo.Speed / 256 * Actor.ORIG_FRICTION_FACTOR / (1 - Actor.ORIG_FRICTION);
 	}
 

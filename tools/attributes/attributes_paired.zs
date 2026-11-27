@@ -18,6 +18,7 @@ class AttrDummy : Actor
 		Radius 8;
 		Height 16;
 		+SHOOTABLE
+		+ISMONSTER // so autoaim (A_BFGSpray's AimLineAttack) picks it
 		+NOGRAVITY
 		+NOBLOOD
 		+NOPAIN
@@ -73,8 +74,18 @@ class AttrPaired : StaticEventHandler
 			barrel.bNoInteraction = true;
 			barrel.target = mo;
 			int g = HitWith(mo, gunRocket), m = HitWith(mo, meleeRocket), b = HitWith(mo, barrel), f = HitWith(mo, mo);
-			Console.Printf("ATTRSRC str=%d gunrocket=%d meleerocket=%d barrel=%d fist=%d pistol=%d held=%s punch=%d", s, g, m, b, f,
-				Hit(p, "Pistol"), p.ReadyWeapon ? p.ReadyWeapon.GetClassName() : 'none', Punch(mo));
+			int n = HitWith(mo, null), bfg = Spray(mo), pc = Hit(p, "Pistol"), punch = Punch(mo);
+			int ge, gl, me, ml;
+			[ge, gl] = Explode(p, gunRocket);
+			[me, ml] = Explode(p, meleeRocket);
+			// Reference: the same explosion with the effects item taken away (DoomerfallAttributes gives it back).
+			let fx = mo.FindInventory("DoomerfallAttributeEffects");
+			if (fx) fx.Destroy();
+			int re, rl;
+			[re, rl] = Explode(p, Fire(mo));
+			Console.Printf("ATTRREF boom=%d late=%d", re, rl);
+			Console.Printf("ATTRSRC str=%d gunrocket=%d meleerocket=%d barrel=%d player=%d pistol=%d held=%s punch=%d null=%d bfg=%d gunboom=%d gunlate=%d meleeboom=%d meleelate=%d",
+				s, g, m, b, f, pc, p.ReadyWeapon ? p.ReadyWeapon.GetClassName() : 'none', punch, n, bfg, ge, gl, me, ml);
 			barrel.Destroy();
 			if (gunRocket) gunRocket.Destroy();
 			if (meleeRocket) meleeRocket.Destroy();
@@ -122,6 +133,59 @@ class AttrPaired : StaticEventHandler
 		return lost;
 	}
 
+	// A dummy where Punch puts one, for hits that need real geometry.
+	Actor FrontDummy(Actor mo)
+	{
+		let dummy = Actor.Spawn("AttrDummy", mo.Vec3Angle(mo.radius + 20, mo.Angle), NO_REPLACE);
+		dummy.Height = 128;
+		return dummy;
+	}
+
+	// A real BFG tracer: A_BFGSpray from a ball the player fired, one ray of a fixed 20 at the dummy in front. Stock
+	// A_BFGSpray makes the player the inflictor. The player holds fists meanwhile.
+	int Spray(Actor mo)
+	{
+		let dummy = FrontDummy(mo);
+		let ball = Actor.Spawn("BFGBall", mo.Pos + (0, 0, -1000), NO_REPLACE);
+		ball.bNoInteraction = true;
+		ball.target = mo;
+		ball.Angle = mo.Angle;
+		int before = dummy.Health;
+		ball.A_BFGSpray("BFGExtra", 1, 15, 1, 1024, 32, 20); // one ray, half a degree left (0 would mean 90 degrees)
+		int lost = before - dummy.Health;
+		ball.Destroy();
+		dummy.Destroy();
+		return lost;
+	}
+
+	// A real explosion of a rocket the player fired, at a dummy in front: Doom's ExplodeMissile (its first death frame
+	// runs A_Explode), then a second A_Explode as a later death frame would run it, after Doom cleared MISSILE. The
+	// player is made invulnerable meanwhile so the splash does not reach Daggerfall's HP. Returns both losses.
+	int, int Explode(PlayerInfo p, Actor rocket)
+	{
+		if (!rocket) return -1, -1;
+		let mo = p.mo;
+		int cheats = p.cheats;
+		p.cheats |= CF_GODMODE;
+		let dummy = FrontDummy(mo);
+		rocket.bNoInteraction = false;
+		rocket.SetOrigin(dummy.Pos + (0, 0, 32), false);
+		rocket.Vel = (0, 0, 0);
+		int before = dummy.Health;
+		rocket.ExplodeMissile();
+		int first = before - dummy.Health;
+		before = dummy.Health;
+		int late = -1;
+		if (!rocket.bMissile) // Doom cleared it, as for every later death frame
+		{
+			rocket.A_Explode();
+			late = before - dummy.Health;
+		}
+		dummy.Destroy();
+		p.cheats = cheats;
+		return first, late;
+	}
+
 	// Health a fresh dummy loses to a 20-point hit with this inflictor and the player as source.
 	int HitWith(Actor mo, Actor inflictor)
 	{
@@ -165,8 +229,9 @@ class AttrPaired : StaticEventHandler
 		double fwd, side;
 		[fwd, side] = PlayerPawn(mo).TweakSpeeds(0x1900, 0); // a walking forward move
 		double tweak = fwd / (PlayerPawn(mo).ForwardMove1 * 0x1900);
-		Console.Printf("ATTR str=%d spd=%d fist=%d saw=%d pistol=%d move=%.2f tweak=%.4f item=%d", s, v, fist, saw, pistol,
-			moved, tweak, mo.FindInventory("DoomerfallAttributeEffects") ? 1 : 0);
+		let climb = DoomerfallClimb(StaticEventHandler.Find("DoomerfallClimb"));
+		Console.Printf("ATTR str=%d spd=%d fist=%d saw=%d pistol=%d move=%.2f tweak=%.4f item=%d climb=%.4f", s, v, fist, saw, pistol,
+			moved, tweak, mo.FindInventory("DoomerfallAttributeEffects") ? 1 : 0, climb ? climb.GroundSpeed(PlayerPawn(mo), false) : -1);
 		mo.SetOrigin(home, false);
 		mo.Vel = (0, 0, 0);
 		measured = true;
@@ -182,20 +247,17 @@ class AttrPaired : StaticEventHandler
 		pp.ForwardThrust(fm * pp.Speed / 256 * movefactor, pp.Angle);
 	}
 
-	// Health a fresh dummy loses to a 20-point player hit while the player holds a weapon of this class. The weapon is
-	// spawned loose and held for this one call only, so nothing else (Daggerfall's drawn gun, DRLA) sees a switch.
+	// Health a dummy loses to a real 20-point hitscan hit (Punch) while the player holds a weapon of this class. The
+	// weapon is spawned loose and held for this one call only, so nothing else (Daggerfall's drawn gun, DRLA) sees a
+	// switch.
 	int Hit(PlayerInfo p, class<Weapon> wc)
 	{
 		let mo = p.mo;
 		let w = Weapon(Actor.Spawn(wc, mo.Pos + (0, 0, -1000), NO_REPLACE));
-		let dummy = Actor.Spawn("AttrDummy", mo.Pos + (0, 0, -1000), NO_REPLACE);
 		let old = p.ReadyWeapon;
 		p.ReadyWeapon = w;
-		int before = dummy.Health;
-		dummy.DamageMobj(mo, mo, 20, 'Melee');
-		int lost = before - dummy.Health;
+		int lost = Punch(mo);
 		p.ReadyWeapon = old;
-		dummy.Destroy();
 		if (w) w.Destroy();
 		return lost;
 	}

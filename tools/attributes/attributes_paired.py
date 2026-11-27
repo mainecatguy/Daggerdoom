@@ -33,8 +33,10 @@ IWAD = r"D:\dev\DoomDaggerfall\GameResources\wads\DOOM.WAD"
 DAGGER = r"D:\dev\DoomDaggerfall\GameResources\DAGGER"
 MODS = Path(r"D:\dev\DoomDaggerfall\GameMods")
 DRLA = [MODS / f for f in ["DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3"]]
-LINE = re.compile(r"ATTR str=(-?\d+) spd=(-?\d+) fist=(\d+) saw=(\d+) pistol=(\d+) move=([\d.]+) tweak=([\d.]+) item=(\d)")
-SRC = re.compile(r"ATTRSRC str=(\d+) gunrocket=(\d+) meleerocket=(\d+) barrel=(\d+) fist=(\d+) pistol=(\d+) held=(\w+) punch=(\d+)")
+LINE = re.compile(r"ATTR str=(-?\d+) spd=(-?\d+) fist=(\d+) saw=(\d+) pistol=(\d+) move=([\d.]+) tweak=([\d.]+) item=(\d) climb=(-?[\d.]+)")
+SRC = re.compile(r"ATTRSRC str=(\d+) gunrocket=(\d+) meleerocket=(\d+) barrel=(\d+) player=(\d+) pistol=(\d+) held=(\w+) punch=(\d+)"
+                 r" null=(\d+) bfg=(\d+) gunboom=(-?\d+) gunlate=(-?\d+) meleeboom=(-?\d+) meleelate=(-?\d+)")
+REF = re.compile(r"ATTRREF boom=(-?\d+) late=(-?\d+)")
 BAD = re.compile(r'Script error, "(doomerfall|attr-harness)\.pk3|(doomerfall|attr-harness)\.pk3:zscript\S*, line \d+|\bFatal error|VM execution aborted', re.I)
 BG = ["+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+vid_fullscreen", "0"]
 
@@ -56,8 +58,13 @@ def read(p):
 
 
 def reports(lines):
-    return [(int(a), int(b), int(c), int(d), int(e), float(f), float(g), int(h)) for a, b, c, d, e, f, g, h in
+    return [(int(a), int(b), int(c), int(d), int(e), float(f), float(g), int(h), float(i)) for a, b, c, d, e, f, g, h, i in
             (m.groups() for m in map(LINE.search, lines) if m)]
+
+
+def climb_unchanged(rs):
+    # Climbing speed (DoomerfallClimb.GroundSpeed) must not follow Speed until the owner decides it should.
+    return bool(rs) and all(r[8] > 0 and abs(r[8] - rs[0][8]) < 1e-6 for r in rs)
 
 
 def stock(build, work):
@@ -88,6 +95,7 @@ def stock(build, work):
         checks.append((f"{label}: harness reported", bool(rs)))
         checks.append((f"{label}: no character, no effects item, damage and speed unchanged",
                        bool(rs) and all(r[0] == -1 and r[7] == 0 and r[2] == r[3] == r[4] and abs(r[6] - 1) < 1e-6 for r in rs)))
+        checks.append((f"{label}: climbing speed reported", climb_unchanged(rs)))
     return checks
 
 
@@ -169,14 +177,28 @@ def paired(source, build, dfu, bridge, launcher, work):
         print("  ", m.group(0))
     checks.append(("source test ran with Strength above 0, holding fists", bool(src)))
     if src:
-        s, g, mr, b, f, pc = (int(x) for x in src[0].groups()[:6])
-        boosted = max(1, int(pc * (1 + min(s, 100) / 100.0)))
-        print(f"source test str {s}: gun rocket {g}, fist rocket {mr}, barrel {b}, fist {f}, pistol {pc}, boosted {boosted}")
-        checks.append(("gun-fired rocket landing while fists are held is not boosted", g == pc and boosted > pc))
-        checks.append(("barrel credited to the player while fists are held is not boosted", b == pc))
-        checks.append(("rocket fired while holding fists is boosted (traced to the melee attack)", mr == boosted))
-        checks.append(("direct fist hit is boosted", f == boosted))
-        checks.append(("real hitscan punch (puff as inflictor) is boosted", int(src[0].group(8)) == boosted))
+        gr = src[0].groups()
+        s, g, mr, b, pl, pc = (int(x) for x in gr[:6])
+        punch, null, bfg, ge, gl, me, ml = (int(x) for x in gr[7:14])
+        f = 1 + min(s, 100) / 100.0
+        boost = lambda d: max(1, int(d * f))
+        print(f"source test str {s}, holding {gr[6]}: pistol {pc} (boosted would be {boost(pc)}); gun rocket {g}, fist rocket {mr},"
+              f" barrel {b}, player as inflictor {pl}, no inflictor {null}, BFG tracer {bfg}, punch {punch};"
+              f" explosions gun {ge}/{gl} late, fist {me}/{ml} late")
+        checks.append(("held fists for the source test", gr[6] in ("Fist", "RLFist")))
+        checks.append(("gun-fired rocket landing while fists are held is not boosted", g == pc and boost(pc) > pc))
+        checks.append(("barrel credited to the player is not boosted", b == pc))
+        checks.append(("player as inflictor is not boosted", pl == pc))
+        checks.append(("no inflictor is not boosted", null == pc))
+        checks.append(("BFG tracer (A_BFGSpray) while fists are held is not boosted", bfg == pc))
+        checks.append(("rocket fired while holding fists is boosted (traced to the melee attack)", mr == boost(pc)))
+        checks.append(("real hitscan punch (puff as inflictor) is boosted", punch == boost(pc)))
+        ref = [m for m in map(REF.search, con) if m]
+        re_, rl = (int(x) for x in ref[0].groups()) if ref else (-1, -1)
+        print(f"reference explosion without the effects item: {re_} / {rl} late")
+        checks.append(("gun rocket's real explosion is not boosted, fist rocket's is", re_ > 0 and ge == re_ and me == boost(re_)))
+        checks.append(("late death-frame splash (MISSILE cleared): gun not boosted, fist boosted", rl > 0 and gl == rl and ml == boost(rl)))
+    checks.append(("climbing speed does not follow Speed", climb_unchanged(live)))
     return checks
 
 

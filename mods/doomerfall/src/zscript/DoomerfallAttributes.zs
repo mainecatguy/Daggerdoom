@@ -63,17 +63,20 @@ class DoomerfallAttributeEffects : Inventory
 	}
 
 	// Whether this hit came from a melee or fist attack:
-	//   - the owner hit directly (A_Punch-style damage with the player as inflictor), or through a puff a hitscan
-	//     attack spawned this tic (fist and chainsaw hits): both happen while the attack runs, so the weapon held
-	//     now is the one attacking;
-	//   - a projectile, or the splash of one (its inflictor is the projectile): only if a melee weapon or the fists
-	//     were held on the tic it was fired, so a rocket or plasma shot that lands after a switch to fists does not count;
-	//   - anything else credited to the player (a barrel the player set off, a spawned explosion): never.
+	//   - a hitscan hit, whose inflictor is a puff spawned this tic: fists and chainsaws (A_Punch, A_Saw,
+	//     A_CustomPunch) all go through P_LineAttack, which always spawns a puff to be the inflictor
+	//     (p_map.cpp, "Since the puff is the damage inflictor"). The hit happens while the attack runs, so the weapon
+	//     held now is the one attacking;
+	//   - a projectile, or its splash, including splash from its death frames after Doom clears MISSILE (the class
+	//     default still has it): only if a melee weapon or the fists were held on the tic it was fired, so a rocket or
+	//     plasma shot that lands after a switch to fists does not count;
+	//   - anything else credited to the player never counts: no inflictor, the player as inflictor (BFG tracers,
+	//     A_BFGSpray), a barrel the player set off, a spawned explosion.
 	bool MeleeAttack(Actor inflictor)
 	{
-		if (!inflictor || inflictor == owner) return HoldsMelee(owner);
+		if (!inflictor || inflictor == owner) return false;
 		if (inflictor.bIsPuff && inflictor.GetAge() == 0) return HoldsMelee(owner);
-		if (inflictor.bMissile) return HeldMeleeAt(level.totaltime - inflictor.GetAge());
+		if (inflictor.bMissile || inflictor.default.bMissile) return HeldMeleeAt(level.totaltime - inflictor.GetAge());
 		return false;
 	}
 
