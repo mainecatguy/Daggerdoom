@@ -18,9 +18,11 @@ class DoomerfallWeaponCategoryTest : StaticEventHandler
 		"RLNuclearPlasmaPistol", "RLLightweaver", "RLDragonslayer",
 		"RLNanoShrapnelPlasmaShotgun",
 		"RLLaserShotgun", "RLPlasmaShotgun", "RLNuclearPlasmaShotgun", "RLHeavyPlasmaShotgun", "RLBlaster",
-		"RLPlasmaUzi", "RLBaronBlaster", "RLStormNuclearPlasmaPistol", "RLMiniMissilePistol"
+		"RLPlasmaUzi", "RLBaronBlaster", "RLStormNuclearPlasmaPistol", "RLMiniMissilePistol",
+		"RLHighPowerUzi", "RLStormUzi", "RLBurstCannonUzi", "RLAssaultRifleUzi", "RLDemolitionAmmoUzi",
+		"RLNanoManufactureAmmoUzi"
 	};
-	const SampleCount = 65;
+	const SampleCount = 71;
 	const WaitTics = 70;
 
 	int next, wait;

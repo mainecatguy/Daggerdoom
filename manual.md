@@ -54,12 +54,13 @@ Doomerfall adds seven weapon skills to your character sheet: the gun skills **Sh
 Impish) are gone: you can no longer calm monsters by speaking to them.
 
 - Most weapons belong to one of these skills; a few belong to two (see "Weapons that belong to two skills"). Shotguns covers shotguns, Automatics covers chainguns, miniguns and
-  other rapid-fire guns, including the Assault Rifle Chaingun, Assault Rifle Minigun and Autocannon, Explosives covers rocket, missile and grenade launchers, and Pistols covers every pistol,
-  revolver and Uzi, including plasma pistols and pistols that fire shotgun shells. Rifles covers ballistic
+  other rapid-fire guns, including the Uzi and its variants, the Assault Rifle Chaingun, Assault Rifle Minigun and Autocannon, Explosives covers rocket, missile and grenade launchers, and Pistols covers every pistol
+  and revolver, including plasma pistols and pistols that fire shotgun shells. Rifles covers ballistic
   semi-automatic and single-shot rifles that are not explosives, energy weapons, shotguns or pistols.
 - No rifle counts as a pistol.
 - **Energy Weapons** covers guns that use cells (plasma rifles, lasers, railguns, BFGs) and energy guns that recharge
-  instead of using cells (the nuclear plasma guns and BFGs), even when they fire like an automatic. Energy pistols and
+  instead of using cells (the nuclear plasma guns and BFGs), even when they fire like an automatic, such as the Plasma
+  Uzi. Energy pistols and
   energy shotguns belong to two skills (below).
 - **Melee** covers the chainsaw and other melee weapons, such as powered saws, the Ripper and the Dragonslayer sword. Your bare fists are not
   Melee: they use Hand-to-Hand, as in Daggerfall.
@@ -107,7 +108,7 @@ A skill earns a **perk** when it reaches 25, 50, 75 and 100.
 Some guns fit two weapon skills, for example a laser shotgun is both a Shotgun and an Energy Weapon. Such a gun uses
 whichever of its skills is higher, never both at once.
 
-- **Pistols and Energy Weapons:** energy pistols, both the cell-fed ones (plasma pistols, the Plasma Uzi, the Baron
+- **Pistols and Energy Weapons:** energy pistols, both the cell-fed ones (plasma pistols, the Baron
   Blaster, the Neural Stunner) and the self-charging ones (blasters, nuclear plasma pistols and the nuclear plasma
   revolver).
 - **Shotguns and Energy Weapons:** energy shotguns, such as the laser shotgun, plasma shotguns and the nuclear plasma
