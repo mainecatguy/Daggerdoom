@@ -775,20 +775,19 @@ int DD_BridgeSkillLive(int slot)
 	return s && slot >= 0 && slot < DFB_SHEET_SKILLS_LIVE - DFB_SHEET_SKILLS_BASE ? s[DFB_SHEET_SKILLS_LIVE + slot] : -1;
 }
 
-<<<<<<< agent/skillperks-20261126-200628
 // The same for the permanent (base) value, which perks follow (Actor.DD_SheetSkillBase).
 int DD_BridgeSkillBase(int slot)
 {
 	const int32_t *s = DD_BridgeSheet();
 	return s && slot >= 0 && slot < DFB_SHEET_SKILLS_LIVE - DFB_SHEET_SKILLS_BASE ? s[DFB_SHEET_SKILLS_BASE + slot] : -1;
-=======
+}
+
 // One value of the character sheet (DFB_SHEET_* index) for ZScript (Actor.DD_SheetValue), such as the perk rules
 // Daggerfall sends (DFB_SHEET_AUTO_*). -1 without a valid character or for an index out of range.
 int DD_BridgeSheetValue(int index)
 {
 	const int32_t *s = DD_BridgeSheet();
 	return s && index >= 0 && index < DFB_SHEET_INTS ? s[index] : -1;
->>>>>>> agent/skillperks-20261126-222743
 }
 
 // One line in the bridge log (-dfbridgelog) and the console, for the other dd_*.cpp files.

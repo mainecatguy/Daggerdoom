@@ -829,7 +829,6 @@ DEFINE_ACTION_FUNCTION(AActor, DD_SheetSkill)
 	ACTION_RETURN_INT(DD_BridgeSkillLive(slot));
 }
 
-<<<<<<< agent/skillperks-20261126-200628
 int DD_BridgeSkillBase(int slot); // [Doomerfall] dd_bridge.cpp
 
 DEFINE_ACTION_FUNCTION(AActor, DD_SheetSkillBase)
@@ -837,7 +836,8 @@ DEFINE_ACTION_FUNCTION(AActor, DD_SheetSkillBase)
 	PARAM_PROLOGUE;
 	PARAM_INT(slot);
 	ACTION_RETURN_INT(DD_BridgeSkillBase(slot));
-=======
+}
+
 int DD_BridgeSheetValue(int index); // [Doomerfall] dd_bridge.cpp
 
 DEFINE_ACTION_FUNCTION(AActor, DD_SheetValue)
@@ -845,7 +845,6 @@ DEFINE_ACTION_FUNCTION(AActor, DD_SheetValue)
 	PARAM_PROLOGUE;
 	PARAM_INT(index);
 	ACTION_RETURN_INT(DD_BridgeSheetValue(index));
->>>>>>> agent/skillperks-20261126-222743
 }
 
 // Why does this exist twice?

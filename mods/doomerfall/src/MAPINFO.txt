@@ -1,10 +1,6 @@
 gameinfo
 {
-<<<<<<< agent/skillperks-20261126-200628
-	AddEventHandlers = "Doomerfall_Events", "DoomerfallItems", "DoomerfallGuns", "DoomerfallClimb", "DoomerfallJump", "DoomerfallLook", "DoomerfallDamageNumbers", "DoomerfallLockpick", "DoomerfallReload", "DoomerfallAmmoTiers", "DoomerfallEncounterPoolHolder", "DoomerfallEncounterPoolDump", "DoomerfallEncounterPlanTest", "DoomerfallEncounterBudgetTest", "DoomerfallCivilWarTest", "DoomerfallWeaponCategoryTest", "DoomerfallRifleTagTest"
-=======
-	AddEventHandlers = "Doomerfall_Events", "DoomerfallItems", "DoomerfallGuns", "DoomerfallClimb", "DoomerfallLook", "DoomerfallDamageNumbers", "DoomerfallLockpick", "DoomerfallReload", "DoomerfallAutomatics", "DoomerfallAmmoTiers", "DoomerfallEncounterPoolHolder", "DoomerfallEncounterPoolDump", "DoomerfallEncounterPlanTest", "DoomerfallEncounterBudgetTest", "DoomerfallCivilWarTest", "DoomerfallWeaponCategoryTest", "DoomerfallRifleTagTest"
->>>>>>> agent/skillperks-20261126-222743
+	AddEventHandlers = "Doomerfall_Events", "DoomerfallItems", "DoomerfallGuns", "DoomerfallClimb", "DoomerfallJump", "DoomerfallLook", "DoomerfallDamageNumbers", "DoomerfallLockpick", "DoomerfallReload", "DoomerfallAutomatics", "DoomerfallAmmoTiers", "DoomerfallEncounterPoolHolder", "DoomerfallEncounterPoolDump", "DoomerfallEncounterPlanTest", "DoomerfallEncounterBudgetTest", "DoomerfallCivilWarTest", "DoomerfallWeaponCategoryTest", "DoomerfallRifleTagTest"
 }
 
 // Placed only by the dungeon converter (tools/dungeon_converter/PickupExport.cs).
