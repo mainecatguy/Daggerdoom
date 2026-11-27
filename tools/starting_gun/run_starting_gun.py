@@ -11,6 +11,7 @@ Writes every case's result to STAGE/test-run/startgun-<set>.txt.
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -43,10 +44,19 @@ def run_case(stage, case, drla):
            "--inside-quiet", "--review", str(stage), "--dfu-flag", "-dfstartguntest", "--dfu-flag", case, "--wait-df", "startguntest: done"]
     if drla:
         cmd.append("--drla")
-    out = subprocess.run(cmd, capture_output=True, text=True, errors="replace").stdout
+    for _ in range(30):  # Never read an earlier case's report. Its Daggerfall may still be closing.
+        try:
+            (stage / "test-run" / "create-df.log").unlink(missing_ok=True)
+            break
+        except PermissionError:
+            time.sleep(1)
+    else:
+        return False, "no report (the last case's log is still open)", ""
+    done = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
+    out = done.stdout or done.stderr[-300:]
     df = (stage / "test-run" / "create-df.log").read_text(errors="replace") if (stage / "test-run" / "create-df.log").exists() else ""
     report = re.search(r"startguntest: report active=(\S+) guns=(\S*) \| table=(.*) \| settled=(\S+) totals=(\d+),(\d+),(\d+),(\d+)", df)
-    gave = re.search(r"starting gun: .*", df)
+    gave = re.search(r"starting gun: Doom's starter.*", df)
     if not report:
         return False, f"no report ({out.strip().splitlines()[0] if out.strip() else 'no output'})", gave.group(0) if gave else ""
     guns, totals = expected(case, drla)
@@ -80,6 +90,10 @@ def main():
     try:
         for case in cases:
             ok, detail, gave = run_case(stage, case, drla)
+            if detail.startswith("no report"):  # The New Game driver sometimes stalls in character creation: one retry.
+                print(f"retry {case}: {detail}", flush=True)
+                ok, detail, gave = run_case(stage, case, drla)
+                detail += " (second try)"
             passed += ok
             line = f"{'PASS' if ok else 'FAIL'} {'drla' if drla else 'stock'} {case}: {detail}\n    {gave}"
             print(line, flush=True)
