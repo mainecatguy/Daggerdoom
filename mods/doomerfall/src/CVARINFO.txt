@@ -1,3 +1,7 @@
+// Fire look on burning monsters (zscript/DoomerfallBurnLook.zs). Off keeps the burn damage.
+user bool dd_burn_look = true;
+// Test: N monsters set burning on the first map (zscript/DoomerfallBurnTest.zs, tools/burn/run_test.py).
+server noarchive int dd_burn_test = 0;
 // Size of Doomerfall's own on-screen labels, in whole steps above Doom's CleanXfac_1 (zscript/DoomerfallText.zs).
 user int dd_hudtextstep = 1;
 // Show damage numbers (Options > HUD Options; zscript/DoomerfallDamageNumbers.zs). -1 means no choice made: off, or
