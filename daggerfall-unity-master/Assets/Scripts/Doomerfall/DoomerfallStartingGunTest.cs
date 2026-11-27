@@ -1,7 +1,8 @@
 // Doomerfall test only (-dfstartguntest <skills>): the starting gun of a bridged New Game (DoomerfallStartingGun).
-// <skills> is one or more of Pistols, Rifles, Automatics, Shotguns, Explosives, Melee joined by '+' (a tie), or "none".
-// Until the starting guns are given, the new character's six gun skills are held at 10, and the named ones at 90 ("none":
-// all six at 0). Six seconds after Doom takes the drawn gun, writes one "startguntest: report" line with the active gun,
+// <skills> is skills joined by '+', each optionally "=value" (default 40), for example "Rifles+Pistols" (a tie) or
+// "EnergyWeapons+Shotguns=30", or "none" (no gun class skill). Until the starting guns are given, the named skills are
+// the character's first class skills at those values and every other gun skill keeps an untrained 3-6 value (Hold).
+// Six seconds after Doom takes the drawn gun, writes one "startguntest: report" line with the active gun,
 // the Doom items in Daggerfall's inventory, the hotkey table, and whether Doom's ammo counters agree with Daggerfall's
 // stacks, then "startguntest: done". tools/starting_gun/run_starting_gun.py checks the report against the owner's table.
 
@@ -15,9 +16,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     internal sealed class DoomerfallStartingGunTest : MonoBehaviour
     {
-        static readonly DFCareer.Skills[] Six = { DFCareer.Skills.Pistols, DFCareer.Skills.Rifles, DFCareer.Skills.Automatics,
-            DFCareer.Skills.Shotguns, DFCareer.Skills.Explosives, DFCareer.Skills.Melee };
-
         DoomerfallBridge bridge;
         readonly List<DFCareer.Skills> high = new List<DFCareer.Skills>();
         bool none, reported;
@@ -36,9 +34,44 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bridge = owner;
             none = skills == "none";
             if (!none)
-                foreach (string name in skills.Split('+'))
-                    high.Add((DFCareer.Skills)Enum.Parse(typeof(DFCareer.Skills), name, true));
-            bridge.LogLine("startguntest: holding the gun skills, high: " + skills);
+                foreach (string part in skills.Split('+'))
+                {
+                    string[] f = part.Split('=');
+                    high.Add((DFCareer.Skills)Enum.Parse(typeof(DFCareer.Skills), f[0], true));
+                    values.Add(f.Length > 1 ? short.Parse(f[1]) : (short)40);
+                }
+            bridge.LogLine("startguntest: holding the class skills: " + skills);
+        }
+
+        // Untrained values as character creation rolls them (3-6), chosen so that the old "highest of the six" rule would
+        // pick the carbine and the shotgun (both 6) for a character with no gun class skill.
+        static readonly DFCareer.Skills[] Seven = { DFCareer.Skills.Pistols, DFCareer.Skills.Rifles, DFCareer.Skills.Automatics,
+            DFCareer.Skills.Shotguns, DFCareer.Skills.Explosives, DFCareer.Skills.Melee, DFCareer.Skills.EnergyWeapons };
+        static readonly short[] Untrained = { 3, 6, 5, 6, 4, 5, 4 };
+        static readonly DFCareer.Skills[] Fillers = { DFCareer.Skills.Medical, DFCareer.Skills.Etiquette, DFCareer.Skills.Streetwise,
+            DFCareer.Skills.Jumping, DFCareer.Skills.Lockpicking, DFCareer.Skills.Mercantile, DFCareer.Skills.Pickpocket,
+            DFCareer.Skills.Stealth, DFCareer.Skills.Swimming, DFCareer.Skills.Climbing, DFCareer.Skills.Dodging, DFCareer.Skills.Running };
+        readonly List<short> values = new List<short>();
+
+        // The named skills become the first class skills at their values (default 40); the other class skills are non-gun
+        // skills; the other gun skills and Energy Weapons hold untrained values.
+        void Hold(Entity.PlayerEntity player)
+        {
+            DFCareer c = player.Career;
+            if (c == null)
+                return;
+            DFCareer.Skills[] slots = new DFCareer.Skills[12];
+            for (int i = 0, f = 0; i < 12; i++)
+                slots[i] = i < high.Count ? high[i] : Fillers[f++];
+            c.PrimarySkill1 = slots[0]; c.PrimarySkill2 = slots[1]; c.PrimarySkill3 = slots[2];
+            c.MajorSkill1 = slots[3]; c.MajorSkill2 = slots[4]; c.MajorSkill3 = slots[5];
+            c.MinorSkill1 = slots[6]; c.MinorSkill2 = slots[7]; c.MinorSkill3 = slots[8];
+            c.MinorSkill4 = slots[9]; c.MinorSkill5 = slots[10]; c.MinorSkill6 = slots[11];
+            for (int i = 0; i < Seven.Length; i++)
+            {
+                int at = high.IndexOf(Seven[i]);
+                player.Skills.SetPermanentSkillValue(Seven[i], at >= 0 ? values[at] : Untrained[i]);
+            }
         }
 
         void Update()
@@ -48,8 +81,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DoomerfallHotkeys hotkeys = DoomerfallHotkeys.Instance;
             if (DoomerfallStartingGun.Given == 0)
             {
-                foreach (DFCareer.Skills s in Six)
-                    GameManager.Instance.PlayerEntity.Skills.SetPermanentSkillValue(s, (short)(none ? 0 : high.Contains(s) ? 90 : 10));
+                Hold(GameManager.Instance.PlayerEntity);
                 return;
             }
             if (hotkeys == null || hotkeys.ActiveGun == null || hotkeys.SwapInFlight)

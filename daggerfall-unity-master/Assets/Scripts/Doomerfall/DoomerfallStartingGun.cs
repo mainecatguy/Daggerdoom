@@ -9,7 +9,9 @@
 //   Automatics chaingun             N bullets         Melee       chainsaw         no ammo
 //
 // DRLA's gun when DRLA is loaded, stock Doom's otherwise; the Light Carbine is the Doomerfall mod's either way. Only these
-// six skills count (not Hand-to-Hand or Daggerfall's weapon skills; Energy Weapons comes later). Ties give every tied
+// six skills count (not Hand-to-Hand or Daggerfall's weapon skills; Energy Weapons comes later), and only when they are
+// class skills (primary, major or minor): an untrained skill is a 3-6 roll and never picks a gun. With none of the six
+// a class skill, or Energy Weapons (a class skill) higher than all of them, the starter pistol stays. Ties give every tied
 // gun; each ammo type comes once, the largest amount any tied gun gets, so a Pistols and Rifles tie gets N bullets, not
 // 2N. The first tied gun in the table's order is drawn. Every gun goes on its weapon slot key while that key has room.
 // Doom keeps only its fist; the kit is made of real Daggerfall items, and Daggerfall's ammo stacks set Doom's counters.
@@ -72,28 +74,37 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         }
 
         // The kit for this character: the guns of the highest of the six skills (all of them on a tie).
-        internal static List<Gun> Kit(DaggerfallSkills skills, string pistol, int pistolSlot, int pistolAmmoType, int n, out string why)
+        internal static List<Gun> Kit(DaggerfallSkills skills, List<DFCareer.Skills> classSkills, string pistol, int pistolSlot, int pistolAmmoType, int n, out string why)
         {
             bool drla = pistol.StartsWith("RL");
+            // Only class skills count: an untrained skill's 3-6 roll never picks a gun.
             int best = 0;
             foreach (Row r in Table)
-                best = System.Math.Max(best, skills.GetPermanentSkillValue(r.skill));
+                if (classSkills.Contains(r.skill))
+                    best = System.Math.Max(best, skills.GetPermanentSkillValue(r.skill));
+            int energy = classSkills.Contains(DFCareer.Skills.EnergyWeapons) ? skills.GetPermanentSkillValue(DFCareer.Skills.EnergyWeapons) : 0;
             List<Gun> kit = new List<Gun>();
             StringBuilder s = new StringBuilder();
             foreach (Row r in Table)
             {
                 int value = skills.GetPermanentSkillValue(r.skill);
-                s.AppendFormat("{0}{1} {2}", s.Length == 0 ? "" : ", ", Name(r.skill), value);
-                if (best <= 0 || value != best)
+                bool counts = classSkills.Contains(r.skill);
+                s.AppendFormat("{0}{1} {2}{3}", s.Length == 0 ? "" : ", ", Name(r.skill), value, counts ? "" : " (not a class skill)");
+                if (!counts || best <= 0 || value != best || energy > best)
                     continue;
                 if (r.drla == null)
                     kit.Add(new Gun { skill = r.skill, cls = pistol, slot = pistolSlot, ammoType = pistolAmmoType, ammo = n });
                 else
                     kit.Add(new Gun { skill = r.skill, cls = drla ? r.drla : r.stock, slot = r.slot, ammoType = r.divisor > 0 ? r.ammoType : -1, ammo = r.divisor > 0 ? n / r.divisor : 0 });
             }
-            if (kit.Count == 0) // No gun skill above zero: the starter pistol, as before.
+            string fallback = null;
+            if (kit.Count == 0) // None of the six is the highest class gun skill: the starter pistol, as before.
+            {
+                fallback = energy > best && best > 0 ? "Energy Weapons " + energy + " is higher: the starter pistol"
+                    : energy > 0 ? "only Energy Weapons is a class gun skill: the starter pistol" : "none of the six is a class skill: the starter pistol";
                 kit.Add(new Gun { skill = DFCareer.Skills.Pistols, cls = pistol, slot = pistolSlot, ammoType = pistolAmmoType, ammo = n });
-            why = string.Format("{0}; highest {1}{2}", s, best, kit.Count > 1 ? " (a tie: every tied gun)" : "");
+            }
+            why = string.Format("{0}; highest class gun skill {1}{2}", s, best, fallback != null ? " (" + fallback + ")" : kit.Count > 1 ? " (a tie: every tied gun)" : "");
             return kit;
         }
 
@@ -107,7 +118,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
             PlayerEntity player = GameManager.Instance.PlayerEntity;
             string why;
-            List<Gun> kit = Kit(player.Skills, starterClass, starterSlot, starterAmmoType, starterAmmo, out why);
+            List<DFCareer.Skills> classSkills = player.GetPrimarySkills();
+            classSkills.AddRange(player.GetMajorSkills());
+            classSkills.AddRange(player.GetMinorSkills());
+            List<Gun> kit = Kit(player.Skills, classSkills, starterClass, starterSlot, starterAmmoType, starterAmmo, out why);
             ItemCollection items = player.Items;
             // Anything Doom's new game class already put in Daggerfall's inventory is not the player's.
             for (int i = items.Count - 1; i >= 0; i--)
