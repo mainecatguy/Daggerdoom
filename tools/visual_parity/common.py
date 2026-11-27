@@ -107,7 +107,10 @@ def capture_daggerfall(job_lines, out, timeout, log_name):
     result = out / "df_probes.txt"
     result.unlink(missing_ok=True)
     desktop = ["--user-desktop"] if "--user-desktop" in sys.argv else []  # diagnosis only: the owner's desktop, 2AM-7AM
-    code = subprocess.run([sys.executable, QUIET, "--timeout", str(timeout), *desktop, "--", str(CAPTURE_EXE), "-dfcapture", str(job),
+    # quiet_run keeps its windows minimized, and a minimized Unity player draws no IMGUI windows, so the capture player
+    # runs unminimized on a further unseen desktop (hidden_desktop.py), as the launcher runs the paired Daggerfall Unity.
+    hidden = [] if "--minimized-capture" in sys.argv else [sys.executable, str(HERE / "hidden_desktop.py"), "--timeout", str(timeout), "--"]
+    code = subprocess.run([sys.executable, QUIET, "--timeout", str(timeout + 30), *desktop, "--", *hidden, str(CAPTURE_EXE), "-dfcapture", str(job),
                            "-screen-fullscreen", "0", "-screen-width", str(WIDTH), "-screen-height", str(HEIGHT),
                            "-logFile", str(out / (log_name + "_player.log"))]).returncode
     lines = read(result).splitlines()

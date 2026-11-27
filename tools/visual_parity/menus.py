@@ -17,6 +17,7 @@ import csv
 import json
 import os
 import random
+import re
 import shutil
 import subprocess
 import sys
@@ -67,6 +68,7 @@ def capture_doomerfall(order, out, work, timeout):
             raise RuntimeError("Daggerfall never reached sync phase 3")
         time.sleep(4.0)  # the town settles, the harness removes the sync test's rat
         log["pos"] = qa.command(["pos"])
+        log["df_place"] = paired_place(run / "df.log")
         for shot_id, window in order:
             shot = out / f"{shot_id}.doom.png"
             shot.unlink(missing_ok=True)
@@ -93,8 +95,31 @@ def capture_doomerfall(order, out, work, timeout):
     return log
 
 
-def capture_df(order, out, timeout):
-    lines = [f"out\t{out}", f"daggerfall\t{c.GAME / 'DAGGER'}", f"size\t{c.WIDTH}\t{c.HEIGHT}", "exterior\t207\t213", "testcharacter"]
+def paired_place(df_log):
+    """The paired Daggerfall Unity's place and time once position sync engaged, from its bridge log: map pixel, world
+    coordinates (gps) and classic game minutes."""
+    place = {}
+    for line in c.read(df_log).splitlines():
+        m = re.search(r"sync engaged=True .*?gps=(-?\d+),(-?\d+) pixel=(\d+),(\d+)", line)
+        if m:
+            place.update(gps=[int(m[1]), int(m[2])], pixel=[int(m[3]), int(m[4])])
+        m = re.search(r"game_minutes (\d+)", line)
+        if m and "minutes" not in place:
+            place["minutes"] = int(m[1])
+    return place
+
+
+def capture_df(order, out, timeout, session):
+    """Daggerfall Unity's side, at the paired session's town spot, facing and time (from doomerfall_session.json)."""
+    place, pos = session.get("df_place", {}), session.get("pos", {})
+    px, py = place.get("pixel", [207, 213])
+    lines = [f"out\t{out}", f"daggerfall\t{c.GAME / 'DAGGER'}", f"size\t{c.WIDTH}\t{c.HEIGHT}", f"exterior\t{px}\t{py}", "testcharacter"]
+    if "gps" in place:
+        lines.append(f"world\t{place['gps'][0]}\t{place['gps'][1]}")
+    if "angle" in pos:
+        lines.append(f"yaw\t{90 - pos['angle']}")  # Doom: counter-clockwise from east; Unity yaw: clockwise from north
+    if "minutes" in place:
+        lines.append(f"time\t{place['minutes']}")
     lines += [f"menu\t{i}\t{w}" for i, w in order]
     return c.capture_daggerfall(lines, out, timeout, "df_menus")
 
@@ -107,6 +132,8 @@ def main():
     ap.add_argument("--skip-df", action="store_true")
     ap.add_argument("--skip-doom", action="store_true")
     ap.add_argument("--unminimized", action="store_true", help="launch the paired game unminimized (still on the private desktop)")
+    ap.add_argument("--user-desktop", action="store_true", help="diagnosis only: run the capture player on the owner's desktop (2AM-7AM)")
+    ap.add_argument("--minimized-capture", action="store_true", help="diagnosis only: run the capture player minimized, as quiet_run does by itself")
     args = ap.parse_args()
     global UNMINIMIZED
     UNMINIMIZED = args.unminimized
@@ -121,7 +148,8 @@ def main():
         c.prepare(work)
         capture_doomerfall(order, out, work, args.timeout)
     if not args.skip_df:
-        capture_df(order, out, 180)
+        session = out / "doomerfall_session.json"
+        capture_df(order, out, 180, json.loads(session.read_text()) if session.exists() else {})
     cards, rows = [], []
     for shot_id, window in order:
         df, doom = out / f"{shot_id}.df.png", out / f"{shot_id}.doom.png"
