@@ -70,6 +70,9 @@ count while they last.
 - **Intelligence** and **Personality:** work as in Daggerfall (Intelligence sets your spell points; Personality helps
   when talking, trading and dealing with people).
 
+On the character sheet (P), left-click an attribute to read Daggerfall's description followed by what it does in
+Doomerfall: the rule, its formula, and what your current value gives you.
+
 ## Weapon skills
 
 Doomerfall adds seven weapon skills to your character sheet: the gun skills **Shotguns**, **Automatics**,
