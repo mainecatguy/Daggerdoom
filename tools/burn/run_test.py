@@ -56,7 +56,7 @@ def main():
         out = [l for l in lines if l.startswith('BURNTEST')]
         errs = [l for l in lines if BAD.search(l)]
         passes = sum(1 for l in out if l.endswith('PASS'))
-        ok = passes == 4 and not errs and any('BURNTEST done' in l for l in out)
+        ok = passes == 5 and not errs and any('BURNTEST done' in l for l in out)
         failed += not ok
         print(f'== {name}: {"PASS" if ok else "FAIL"}')
         for l in out + errs[:5]:

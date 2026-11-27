@@ -17,6 +17,7 @@ class DoomerfallBurnTest : EventHandler
 	Array<Actor> pack;
 	Actor taker, frac, tiny, whole;
 	bool takeAllOk;
+	Array<int> pained;
 	int startTic, playerStart;
 	double tookBack, lastMs, maxGapMs, burnMsTotal, burnMsMax;
 	int gaps;
@@ -38,6 +39,9 @@ class DoomerfallBurnTest : EventHandler
 		lastMs = now;
 		let clock = DoomerfallBurnTestClock(EventHandler.Find("DoomerfallBurnTestClock"));
 		if (clock && t > 0 && t < 105) burnMsMax = max(burnMsMax, now - clock.stamp);
+		if (t > 0 && t < 105)
+			for (int i = 0; i < pack.Size(); i++)
+				if (pack[i] && pack[i].InStateSequence(pack[i].CurState, pack[i].FindState("Pain"))) pained[i] = 1;
 		if (t == 50)
 		{
 			// Take(1.0) after some payouts (non-integer pool with carry) must return the whole Pool and leave nothing.
@@ -64,6 +68,7 @@ class DoomerfallBurnTest : EventHandler
 			DoomerfallBurn.Apply(m, 300, null);
 			DoomerfallBurn.Apply(m, 300, null);
 		}
+		pained.Resize(pack.Size());
 		taker = Actor.Spawn("ZombieMan", pl.Vec3Offset(-64, 0, 0), NO_REPLACE);
 		taker.health = HP;
 		DoomerfallBurn.Apply(taker, 300, null);
@@ -102,6 +107,10 @@ class DoomerfallBurnTest : EventHandler
 		int fracLost = HP - frac.health, tinyLost = HP - tiny.health;
 		bool fracOk = (fracLost == 11 || fracLost == 12) && (tinyLost == 0 || tinyLost == 1) && !DoomerfallBurn.Burning(frac) && !DoomerfallBurn.Burning(tiny);
 		Console.Printf("BURNTEST fraction lost11.4=%d lost0.9=%d takeall=%d %s", fracLost, tinyLost, takeAllOk, fracOk && takeAllOk ? "PASS" : "FAIL");
+		int painCount = 0;
+		for (int i = 0; i < pained.Size(); i++) painCount += pained[i];
+		// ZombieMan pain chance is 200/256 per payout and there are 15 payouts, so every one should show pain.
+		Console.Printf("BURNTEST pain shown=%d of %d %s", painCount, pained.Size(), painCount == pained.Size() && painCount > 0 ? "PASS" : "FAIL");
 		Console.Printf("BURNTEST timing tics=%d max_gap_ms=%.2f avg_gap_ms=%.2f burn_tick_max_ms=%.3f", gaps, maxGapMs, gaps ? burnMsTotal / gaps : 0, burnMsMax);
 		Console.Printf("BURNTEST done");
 	}
