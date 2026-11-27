@@ -76,7 +76,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return false;
         }
 
-        internal static string Name(int type, int tier) { return Tiers[tier].name + " " + DoomerfallAmmo.Types[type].lowerName; }
+        // Regular has no material, so it is the plain name ("Bullets"); a tier puts its material first ("Silver Bullets")
+        // (owner, 2026-11-26). Doom's pickup tags (DoomerfallAmmo.zs) match. A save holds only the template, so old saves
+        // show the new name.
+        internal static string Name(int type, int tier)
+        {
+            string name = DoomerfallAmmo.Types[type].name;
+            return tier == Regular ? name : Tiers[tier].name + " " + name;
+        }
         internal static int Price(int type, int tier) { return DoomerfallAmmo.Types[type].basePrice * Tiers[tier].priceMul; }
         internal static float Weight(int type, int tier) { return DoomerfallAmmo.Types[type].baseWeightKg * Tiers[tier].weightMul; }
         internal static int Stack(int type) { return ShopPack[type]; }
@@ -97,7 +104,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             DoomerfallAmmo.AmmoType a = DoomerfallAmmo.Types[type];
             string what = tier == Regular
-                ? string.Format("Plain {0}: {1}.", a.lowerName, BonusText(tier))
+                ? string.Format("{0}: {1}.", a.name, BonusText(tier))
                 : string.Format("{0} {1}: {2} with every gun that fires {1}.", Tiers[tier].name, a.lowerName, BonusText(tier));
             return DaggerfallUnity.Instance.TextProvider.CreateTokens(TextFile.Formatting.JustifyCenter,
                 string.Format("{0} ({1})", Name(type, tier), count),

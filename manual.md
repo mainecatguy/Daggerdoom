@@ -199,6 +199,9 @@ few are big depots and some are nearly empty. Better shops stock more. Regular a
 10 a rocket and 10 a cell, before the shop's own prices. Weapon smiths also sometimes stock higher tiers, in packs of
 80 bullets, 20 shells, 8 rockets or 100 cells.
 
+Regular ammo has no material, so it goes by its plain name: Bullets, Shells, Rockets, Energy Cells. Every other tier
+puts its material first, such as Silver Bullets.
+
 Health, ammo and other pickups lying in a place are always the same ones each time you come. A pickup you take is
 gone for good: it does not come back when you leave and return, or when you load a save.
 
