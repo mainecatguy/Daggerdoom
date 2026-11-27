@@ -411,7 +411,7 @@ typedef struct dfb_face
 #define DFB_DF_PHASE_PLAY    3
 #define DFB_DF_PHASE_DEAD    4
 #define DFB_UZ_PHASE_BOOT    0
-#define DFB_UZ_PHASE_LOADING 1
+#define DFB_UZ_PHASE_LOADING 1   /* a loading hold (UZDoom dd_loading.cpp); Daggerfall pauses while it lasts */
 #define DFB_UZ_PHASE_PLAY    2
 #define DFB_UZ_PHASE_PAUSED  3
 #define DFB_UZ_PHASE_SAVING  4

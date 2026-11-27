@@ -86,6 +86,9 @@ void DD_NpcSetup(AActor *mo, uint64_t id, bool awaitList);
 void DD_TownsfolkTick(FLevelLocals *Level);
 bool DD_BridgeHasSession();
 bool DD_BridgeArrivalFrozen();	// dd_bridge.cpp: a map change waits for its setup; Use and townspeople are held
+void DD_LoadingHold(const char *name, bool on);	// dd_loading.cpp: freezes the game behind a loading message
+double DD_LoadingAgeMs();
+bool DD_LoadingActive();
 bool DD_UsePress(player_t *player);
 void DD_UseWall(player_t *player);
 void DD_LightsFlat(AActor *mo, bool interior);	// dd_lights.cpp
@@ -2036,7 +2039,8 @@ namespace
 		useHeld = down;
 		if (dd_tm_use != 0) dd_tm_use = 0;
 		if (handoff.pending || pmo->health <= 0 || DD_BridgeArrivalFrozen()) return; // A press during the arrival wait is dropped.
-		if (fresh && DD_UsePress(pmo->player)) pressed = false; // An item in view takes the press.
+		if (DD_LoadingActive()) pressed = false; // [Doomerfall] A press behind the loading screen is dropped; a pending door still opens.
+		else if (fresh && DD_UsePress(pmo->player)) pressed = false; // An item in view takes the press.
 		const Town &t = towns[currentTown];
 		if (t.space)
 		{
@@ -3032,11 +3036,29 @@ bool DDTreadmill_HorizonMapHasFlat(int gx, int gy)
 }
 
 void DD_QaTick(FLevelLocals *Level); // [Doomerfall] QA bot (dd_qa.cpp), inactive without -ddqa
+
+// [Doomerfall] A pressed door, New Game or plain load waiting for its place to be converted holds the game frozen behind
+// a loading message (dd_loading.cpp). A conversion that never ends gives up, as a failed one does.
+static void HoldWhileConverting()
+{
+	constexpr double CONVERT_WAIT_MAX_MS = 180000;	// The slowest seen was 90 s on a loaded PC.
+	// The door entered starts a handoff; the old map stays frozen until the new one loads, which drops every hold.
+	bool converting = townActive && (handoff.pending ? DD_LoadingActive() : pendingDoor >= 0 || dungeonRequest >= 0 || buildingRequest.pending);
+	if (converting && DD_LoadingAgeMs() > CONVERT_WAIT_MAX_MS)
+	{
+		DD_DebugPrintf("DDTCONV gave up waiting after %.0f ms (door %d, dungeon %d, building %d)\n", DD_LoadingAgeMs(), pendingDoor, dungeonRequest, int(buildingRequest.pending));
+		Printf(PRINT_HIGH, "This door will not open.\n");
+		pendingDoor = dungeonRequest = -1;
+		buildingRequest.pending = converting = false;
+	}
+	DD_LoadingHold("conversion", converting);
+}
 void DDTreadmill_Tick(FLevelLocals *Level)
 {
 	DD_QaTick(Level);
 	static const bool requested = fileSystem.CheckNumForName("DDWORLD") >= 0;
 	if (!requested || Level != primaryLevel) return;
+	HoldWhileConverting();
 	if (resumePending) Resume(Level);
 	else if (Level->maptime == 0) Start(Level);
 	if (!DDTreadmill_Active && !townActive) return;
@@ -3044,7 +3066,7 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 
 	AActor *pmo = Level->Players[consoleplayer]->mo;
 	if (!pmo) return;
-	if (DD_BridgeHasSession() && !DD_BridgeArrivalFrozen()) DD_TownsfolkTick(Level);	// [Doomerfall] Idle until Daggerfall lists townspeople; held during the arrival wait.
+	if (DD_BridgeHasSession() && !DD_BridgeArrivalFrozen() && !DD_LoadingActive()) DD_TownsfolkTick(Level);	// [Doomerfall] Idle until Daggerfall lists townspeople; held during the arrival wait and loading holds.
 	DD_LightsTick(Level);
 	DD_WeatherTick(Level);
 	if (runtimeTowns) DDTownCache::Poll();

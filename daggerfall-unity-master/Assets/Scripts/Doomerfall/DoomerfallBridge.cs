@@ -77,6 +77,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         internal DoomerfallSheet Sheet { get { return sheet; } }
         DoomerfallTownspeople townspeople;
         DoomerfallGuards guards;
+        DoomerfallLoadingPause loadingPause;
         bool textFrame;
         uint ownSize, peerSize, nextPing = 1;
         ulong pingsAnswered, pongsReceived, unknownKinds;
@@ -551,6 +552,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 peerStale = !alive;
                 Log(alive ? "UZDoom heartbeat resumed" : "UZDoom heartbeat stale (logged only, gameplay unchanged)");
             }
+            if (loadingPause == null)
+                loadingPause = new DoomerfallLoadingPause(this);
+            // Doom does not publish while a hold blocks its main thread (a big dungeon spawn), so a LOADING state stays held
+            // well past the 1 s heartbeat limit; only a dead Doom (no state for 60 s) releases it without a fresh phase.
+            loadingPause.Tick(age >= 0 && age < 60000000000L && peer.uzPhase == Dfb.UZ_PHASE_LOADING);
+            DoomerfallLoadingPauseTest.Tick(this, loadingPause.Held);
 
             if (alive && now >= nextPingNs)
             {

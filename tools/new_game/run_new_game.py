@@ -26,7 +26,7 @@ def _option(name):
     if name not in sys.argv:
         return None
     at = sys.argv.index(name)
-    takes = name in ("--review", "--dfu-flag", "--wait-df")
+    takes = name in ("--review", "--dfu-flag", "--uz-flag", "--wait-df", "--limit")
     value = sys.argv[at + 1] if takes else "1"
     del sys.argv[at:at + (2 if takes else 1)]
     return value
@@ -39,6 +39,10 @@ DRLA = _option("--drla") == "1"  # --drla: load the DRLA set, as the play folder
 DFU_FLAGS = []
 while "--dfu-flag" in sys.argv:
     DFU_FLAGS.append(_option("--dfu-flag"))
+LIMIT = _option("--limit")  # --limit S: the whole run's time limit in seconds, for a long conversion wait.
+UZ_FLAGS = []  # --uz-flag F adds one UZDoom argument (repeatable), such as -ddloadingtest.
+while "--uz-flag" in sys.argv:
+    UZ_FLAGS.append(_option("--uz-flag"))
 _wait = _option("--wait-df")
 WAIT_DF, WAIT_COUNT = (_wait.rsplit("*", 1)[0], int(_wait.rsplit("*", 1)[1])) if _wait and "*" in _wait else (_wait, 1)
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
@@ -165,6 +169,7 @@ def main():
                "-ddconverter", str(DATA / "converter" / "DungeonConverter.exe"), "-ddarena2", DAGGER + r"\ARENA2",
                "+logfile", f"log-{name}.txt", "+vid_fullscreen", "0", "+wipetype", "0", "+screenshot_dir", str(run / f"shots-{name}"),
                "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"]
+    uz_args += UZ_FLAGS
     if load:
         uz_args += ["-dfloadtest", f"{load}:{run / 'saves' / (name + '.zds')}"]
     dfu_args = ["-dfbridgelog", str(df_log), "-dfflow", DAGGER, "-screen-fullscreen", "0", "-screen-width", "1280", "-screen-height", "800"] + DFU_FLAGS
@@ -187,6 +192,7 @@ def main():
 
     limit = 85 if load in ("again", "restart") else TIMEOUT  # Two characters are made in this run.
     limit += 40 if WAIT_DF else 0  # Time for the waited-for lines after arrival or a load.
+    limit = int(LIMIT) if LIMIT else limit
     command[command.index("--timeout") + 1] = str(limit)
     if INSIDE_QUIET:
         command = command[command.index("--") + 1:]

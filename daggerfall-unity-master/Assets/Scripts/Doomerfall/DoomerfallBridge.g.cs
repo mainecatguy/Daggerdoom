@@ -280,7 +280,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const int DF_PHASE_PLAY = 3;
         public const int DF_PHASE_DEAD = 4;
         public const int UZ_PHASE_BOOT = 0;
-        public const int UZ_PHASE_LOADING = 1;
+        public const int UZ_PHASE_LOADING = 1;  // a loading hold (UZDoom dd_loading.cpp); Daggerfall pauses while it lasts
         public const int UZ_PHASE_PLAY = 2;
         public const int UZ_PHASE_PAUSED = 3;
         public const int UZ_PHASE_SAVING = 4;
