@@ -105,8 +105,8 @@ def run(mode):
         presses = re.findall(r"arrivaltest: use presses=(\d+)", bridge)
         print("use presses during the freeze:", presses)
         ok = ok and len(results) == 1 and bool(presses) and int(presses[0]) > 0
-    if mode == "normal":  # the dungeon's spawn ran inside the freeze, so its monsters were held
-        ok = ok and any(int(r[1]) > 0 for r in results)
+    if mode == "normal":  # the dungeon's spawn ran inside the freeze (monsters seen frozen, or spawned on its last tics)
+        ok = ok and any(int(r[1]) + int(r[3]) > 0 for r in results)
     if mode in ("slow", "lost", "nosave", "use"):
         ok = ok and any(float(r[8]) >= (4500 if mode == "lost" else 2000) for r in results)
     print(f"{mode} {'PASS' if ok else 'FAIL'} | stopped: {reason} | freezes {len(results)}")
