@@ -32,7 +32,7 @@ class DoomerfallJump : StaticEventHandler
 
 	bool rules;
 	int skill;                     // Jumping's permanent value, or -1 without a Daggerfall character
-	int testSkill;                 // set only by the test probe (tools/jumping/jump_probe.zs); -1 means unused
+	int testSkill;                 // set only by tools/jumping (test probe, demo pk3); -1 means unused
 	DoomerfallJumpState st[MAXPLAYERS];
 
 	override void OnRegister() { skill = -1; testSkill = -1; }

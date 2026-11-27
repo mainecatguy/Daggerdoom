@@ -36,7 +36,7 @@ def main():
           "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+logfile", "console.log"]
     df = ["-dfbridgelog", os.path.join(run, "df.log"), "-dfsynctest", os.path.join(GAME, "DAGGER"), "-screen-fullscreen", "0",
           "-screen-width", "1280", "-screen-height", "800"]
-    cmd = [sys.executable, QUIET, "--timeout", "120", "--", os.path.join(play, "doomerfall-launcher.exe"), "--minimized", "--nodraw",
+    cmd = [sys.executable, QUIET, "--timeout", "260", "--", os.path.join(play, "doomerfall-launcher.exe"), "--minimized", "--nodraw",
            "--uzdoom", os.path.join(play, "uzdoom", "uzdoom.exe"), "--dfu", os.path.join(play, "dfu", "DaggerfallUnity.exe"),
            "--iwad", os.path.join(GAME, "wads", "DOOM2.WAD")]
     for m in mods:
@@ -51,13 +51,13 @@ def main():
     print("exit", r.returncode, "(124 is the expected timeout: the launcher keeps running)")
 
     lines = []
-    for name in ("console.log", "uz.log", "df.log"):
+    for name in ("log-console-log.txt", "console.log", "uz.log", "df.log"):
         p = os.path.join(run, name)
         if os.path.exists(p):
             for l in open(p, errors="replace"):
                 if re.search(r"JUMPTEST|DFJUMP|FATAL|Script error", l):
                     print(name, ":", l.rstrip())
-                    if name == "console.log" and "JUMPTEST" in l:
+                    if name in ("log-console-log.txt", "console.log") and "JUMPTEST" in l:
                         lines.append(l)
     sys.exit(check(lines))
 

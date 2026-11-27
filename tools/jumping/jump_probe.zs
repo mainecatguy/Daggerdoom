@@ -98,17 +98,20 @@ class DoomerfallJumpTest : StaticEventHandler
 		{
 			if (t == 1)
 			{
+				Vector2 store = (3616.0, -13410.75); // in front of a store (the climbing probe's start in this town)
+				mo.SetOrigin((store, mo.GetZAt(store.x, store.y, 0, GZF_ABSOLUTEPOS)), false);
 				if (!FindLedge(mo)) { Console.Printf("JUMPTEST ledge level=%d none found", lv); phase = 6; t = 0; return; }
 				mo.SetOrigin((ledgeAt, ledgeHigh), false);
 				mo.vel = (0, 0, 0);
 				mo.angle = atan2(ledgeDir.y, ledgeDir.x);
-				damage = 0; hpBefore = p.health;
+				damage = 0;
 				return;
 			}
-			if (t < 20) return; // stand on the ledge first, so the fall starts from real ground
-			if (t < 60 && Grounded(mo)) { mo.vel.xy = ledgeDir * 6; return; }
+			if (t == 34) hpBefore = p.health; // after the last heal reached Daggerfall
+			if (t < 35) return; // stand on the ledge first, so the fall starts from real ground
+			if (t < 75 && Grounded(mo)) { mo.vel.xy = ledgeDir * 6; return; }
 			if (!Grounded(mo) && t < 400) return;
-			if (t < 60 + Settle) return;
+			if (t < 75 + Settle) return;
 			double fell = ledgeHigh - mo.pos.z;
 			int expect = DoomerfallJump.FallImmune(lv) ? 0 : DoomerfallJump.FallDamage(fell);
 			Console.Printf("JUMPTEST ledge level=%d fell=%.1f falldamage=%d expected=%d hp=%d->%d", lv, fell, damage, expect, hpBefore, p.health);
@@ -130,30 +133,31 @@ class DoomerfallJumpTest : StaticEventHandler
 		}
 	}
 
-	// A drop of at least 7 m within 2048 units of the start: high floor with headroom, then a much lower floor 24 units on.
+	// A roof next to the street: the nearest walls around the player (traced at chest height), then a trace straight
+	// down from high above a point 40 units past each wall. A top surface 6 to 15 m above the street is a ledge; the
+	// player stands on it and walks back toward the street, off the edge.
 	bool FindLedge(PlayerPawn mo)
 	{
-		double best = 0;
-		for (int a = 0; a < 360; a += 10)
+		double best = 1e9, bestDrop = 0;
+		int walls = 0;
+		for (int a = 0; a < 360; a += 3)
 		{
-			Vector2 dir = Actor.AngleToVector(a);
-			for (double d = 32; d < 2048; d += 16)
+			FLineTraceData w;
+			if (!mo.LineTrace(a, 1024, 0, TRF_THRUACTORS, 40, data: w) || w.HitType != FLineTraceData.TRACE_HitWall || w.Distance < 24) continue;
+			walls++;
+			FLineTraceData d;
+			if (!mo.LineTrace(a, 3000, 90, TRF_THRUACTORS, 1500, w.Distance + 40, data: d)) continue;
+			double drop = d.HitLocation.z - mo.pos.z;
+			if (drop > bestDrop) bestDrop = drop;
+			if (drop >= 180 && drop <= 450 && w.Distance < best)
 			{
-				Vector2 hi = mo.pos.xy + dir * d;
-				Vector2 lo = hi + dir * 24;
-				double zh = mo.GetZAt(hi.x, hi.y, 0, GZF_ABSOLUTEPOS);
-				double zl = mo.GetZAt(lo.x, lo.y, 0, GZF_ABSOLUTEPOS);
-				double ch = mo.GetZAt(hi.x, hi.y, 0, GZF_ABSOLUTEPOS | GZF_CEILING);
-				double back = mo.GetZAt(hi.x - dir.x * 40, hi.y - dir.y * 40, 0, GZF_ABSOLUTEPOS);
-				if (zh - zl >= 210 && zh - zl <= 360 && ch - zh > 80 && abs(back - zh) < 1 && zh - zl > best)
-				{
-					best = zh - zl;
-					ledgeAt = hi - dir * 24;
-					ledgeDir = dir;
-					ledgeHigh = zh;
-				}
+				best = w.Distance;
+				ledgeAt = d.HitLocation.xy;
+				ledgeHigh = d.HitLocation.z;
+				ledgeDir = -Actor.AngleToVector(a);
 			}
 		}
-		return best > 0;
+		if (best > 1e8) Console.Printf("JUMPTEST ledge search: %d walls, highest top %.0f above the player", walls, bestDrop);
+		return best < 1e8;
 	}
 }
