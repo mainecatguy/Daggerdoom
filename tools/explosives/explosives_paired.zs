@@ -140,6 +140,31 @@ class ExpPairHarness : EventHandler
 			pack.Size() > 1 ? pack[1].GetClassName() : 'None', level.maptime);
 	}
 
+	// The city's own encounters attack the player and Daggerfall's hit points are real here (no buddha): monsters
+	// that target the player and are not the test pack leave quietly, so the run lives to skill 100.
+	void RemoveHostiles(Actor mo)
+	{
+		Array<Actor> gone;
+		let it = ThinkerIterator.Create("Actor");
+		Actor a;
+		while (a = Actor(it.Next()))
+		{
+			if (!a.bIsMonster || a.player || a.health <= 0 || a.target != mo || pack.Find(a) < pack.Size()) continue;
+			if (phase >= 10 && (a.pos.xy - packCentre.xy).Length() <= 320) continue;
+			gone.Push(a);
+		}
+		for (int i = 0; i < gone.Size(); i++) { Console.Printf("PAIRED removed hostile %s tic %d", gone[i].GetClassName(), level.maptime); gone[i].Destroy(); }
+	}
+
+	// What the player's own protection does to a 100-point fire explosion before the perk sees it, and what they carry.
+	void LogProtection(Actor mo)
+	{
+		String inv = "";
+		for (let i = mo.Inv; i; i = i.Inv) if (!(i is "Weapon") && !(i is "Ammo")) inv = inv .. " " .. i.GetClassName() .. (i.Amount != 1 ? String.Format("x%d", i.Amount) : "");
+		Console.Printf("PAIRED protection modified=%d factor=%d health %d inv%s", mo.GetModifiedDamage('Fire', 100, true, null, mo, DMG_EXPLOSION),
+			mo.ApplyDamageFactor('Fire', 100), mo.health, inv);
+	}
+
 	void TicEnd()
 	{
 		if (phase >= 10) Console.Printf("PAIRED cost tic %d %.2f", level.maptime, MSTimeF() - ticStart);
@@ -156,6 +181,7 @@ class ExpPairHarness : EventHandler
 		if (!ender) { ender = new("ExpPairTicEnd"); ender.ChangeStatNum(101); ender.h = self; }
 		if (!mo || mo.health <= 0 || level.maptime < 140 || Actor.DD_SheetValue(2) != 1) return;
 		int skill = Actor.DD_SheetSkill(6);
+		if (level.maptime % 5 == 0) RemoveHostiles(mo);
 		if (phase >= 10) { PackTick(p); return; }
 		if (!target)
 		{
@@ -169,6 +195,7 @@ class ExpPairHarness : EventHandler
 			t = 0; cycle++;
 			Console.Printf("PAIRED start %d skill=%d dmg=%d cut=%d direct=%d chain=%d radius=%d near=%d", cycle, skill,
 				Actor.DD_SheetValue(162), Actor.DD_SheetValue(163), Actor.DD_SheetValue(164), Actor.DD_SheetValue(165), Actor.DD_SheetValue(166), near);
+			if (near) LogProtection(mo);
 			return;
 		}
 		if (t == 0) { p.attackdown = true; if (p.WeaponState & WF_WEAPONREADY) { mo.FireWeapon(null); t = 1; } return; }
