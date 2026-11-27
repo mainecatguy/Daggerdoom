@@ -50,18 +50,44 @@ class DoomerfallEncounterPlanTest : StaticEventHandler
 			Run(3720 + k * 7,types[(k * 5) % types.Size()], 490 + k * 3, 245 + k * 4, 10 + k);
 			made++;
 		}
-		// A level ladder in the same cell (0, 3, .. 30): its favourite is out of reach low and affordable high.
-		// Types every setup has theme monsters for, so any warning here is the region rule's. No Dragon's Den or Vampire
-		// Haunt (they are counted at 120 each).
-		static const String ladder[] = { "OrcStronghold", "Prison", "Mine", "NaturalCave", "DesecratedTemple", "RuinedCastle",
-			"SpiderNest", "GiantStronghold", "Cemetery", "BarbarianStronghold", "Crypt" };
-		for (int k = 0; k <= 10; k++)
-		{
-			Run(3790 + k * 7, ladder[k], 482 + k * 4, 242 + k * 4, k * 3);
-			made++;
-		}
+		made += Ladder();
 		Console.Printf("ENCPLAN summary plans=%d", made);
 		Console.Printf("ENCPLAN done");
+	}
+
+	// A level ladder in the region cell whose favourite kind is dearest (its cheapest class): out of reach at low
+	// levels, purchasable at high ones. Types every setup has theme monsters for, so any warning here is the region
+	// rule's; no Dragon's Den or Vampire Haunt (they are counted at 120 each).
+	private int Ladder()
+	{
+		let pool = DoomerfallEncounterPool.Get();
+		int bestX = 0, bestY = 0, bestCost = -1;
+		for (int cy = 0; cy < 10; cy++)
+		{
+			for (int cx = 0; cx < 20; cx++)
+			{
+				let req = new("DoomerfallEncounterRequest");
+				req.dungeonIndex = 4231;
+				req.worldX = cx * 48 + 24;
+				req.worldY = cy * 48 + 24;
+				req.dungeonType = "Crypt";
+				let p = DoomerfallEncounterPlanner.Plan(req);
+				if (!p || p.regionKind < 0) continue;
+				int cheapest = 0x7FFFFFFF;
+				for (int i = 0; i < pool.monsters.Size(); i++)
+				{
+					let m = pool.monsters[i];
+					if (m.kind == p.regionKind && !m.capped) cheapest = min(cheapest, DoomerfallEncounterPlanner.Cost(m));
+				}
+				if (cheapest > bestCost) { bestCost = cheapest; bestX = cx; bestY = cy; }
+			}
+		}
+		Console.Printf("ENCPLAN ladder cell=%d,%d", bestX, bestY);
+		static const String types[] = { "OrcStronghold", "Prison", "Mine", "NaturalCave", "DesecratedTemple", "RuinedCastle",
+			"SpiderNest", "GiantStronghold", "Cemetery", "BarbarianStronghold", "Crypt" };
+		static const int levels[] = { 0, 1, 2, 3, 4, 5, 7, 10, 15, 20, 30 };
+		for (int k = 0; k < 11; k++) Run(3790 + k * 7, types[k], bestX * 48 + 2 + k * 4, bestY * 48 + 2 + k * 4, levels[k]);
+		return 11;
 	}
 
 	private void Run(int index, String type, double x, double y, int level)

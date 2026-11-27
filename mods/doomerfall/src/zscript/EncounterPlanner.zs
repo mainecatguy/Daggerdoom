@@ -167,7 +167,7 @@ class DoomerfallEncounterPlan
 	bool civilWar;
 	int regionCellX, regionCellY;
 	int regionKind;         // the region's favourite kind, -1 when none
-	int regionAfford;       // centipoints: the dearest favourite class this area level can buy
+	int regionAfford;       // centipoints: the dearest single monster the budget can buy at this area level
 	DoomerfallArmy a, b;    // b only in a Civil War
 	Array<String> warnings;
 
@@ -413,8 +413,10 @@ class DoomerfallEncounterPlanner play
 		double cell = max(1., data.Value("region_cell", 48));
 		result.regionCellX = int(floor(req.worldX / cell));
 		result.regionCellY = int(floor(req.worldY / cell));
-		// Affordable: one average encounter of this area level (6.1) times region_afford can buy it.
-		result.regionAfford = int(data.AveragePoints(clamp(req.areaLevel, 0, 30)) * data.Value("region_afford", 1) * 100 + 0.5);
+		// Purchasable: the dearest single monster the budget can buy at this area level. The largest budget a placement
+		// gets is a strong boss at boss_share_max times the average (6.1, 6.4), and its leader may take 3/4 of that
+		// (BossLeader). Above this no rule of the budget can buy one.
+		result.regionAfford = int(data.AveragePoints(clamp(req.areaLevel, 0, 30)) * data.Value("boss_share_max", 8) * 75 + 0.5);
 		Array<int> kinds;
 		for (int k = 0; k < data.kindName.Size(); k++)
 		{
@@ -719,45 +721,48 @@ class DoomerfallEncounterPlanner play
 		result.warnings.Push(String.Format("theme %s: no %smonster from the theme is in the pool", theme.name, civil ? "Civil War safe " : ""));
 	}
 
-	// The region's favourite kind is guaranteed. A class of it costing more than the area level can afford
-	// (result.regionAfford) is not bought; when no class of the kind is affordable, an affordable stand-in takes its
-	// place (owner, 2026-11-26).
+	// The region's favourite kind is guaranteed. When the area level cannot purchase any class of it (no class costs
+	// result.regionAfford or less), an affordable stand-in is added instead (owner, 2026-11-26), even if another role
+	// already holds an unpurchasable class of the kind. A purchasable kind is handled exactly as before.
 	private void GuaranteeRegion(DoomerfallArmy army, bool civil, DoomerfallEncounterRng r)
 	{
 		if (result.regionKind < 0) return;
-		String how = FirstRoleWhere(army, result.regionKind);
-		if (how != "") { army.regionHow = how; return; }
-		// Pass 0: affordable classes of the favourite kind. Pass 1: any class, which names what the favourite would
-		// have been, so the stand-in can share its colour or DRLA family.
-		for (int pass = 0; pass < 2; pass++)
+		bool buyable = false;
+		for (int i = 0; i < pool.monsters.Size() && !buyable; i++)
 		{
-			Array<int> w;
-			for (int i = 0; i < pool.monsters.Size(); i++)
-			{
-				let m = pool.monsters[i];
-				bool ok = m.kind == result.regionKind && Usable(m, civil) && !m.capped && ColourOk(army, m) && !FamilyTaken(army, m)
-					&& (pass == 1 || Cost(m) <= result.regionAfford);
-				w.Push(ok ? TierWeight(m.tier, army.tierLean) : 0);
-			}
-			int pick = r.Pick(w);
-			if (pick < 0) continue;
-			if (pass == 0) { Add(army, pool.monsters[pick], "region"); army.regionHow = "region"; return; }
-			let standIn = RegionStandIn(army, civil, pool.monsters[pick]);
-			if (standIn) { army.regionRef = pool.monsters[pick]; Add(army, standIn, "standin"); army.regionHow = "standin"; return; }
-			break;
+			let m = pool.monsters[i];
+			buyable = m.kind == result.regionKind && Usable(m, civil) && !m.capped && Cost(m) <= result.regionAfford;
 		}
+		String how = buyable ? FirstRoleWhere(army, result.regionKind) : "";
+		if (how != "") { army.regionHow = how; return; }
+		Array<int> w;
+		for (int i = 0; i < pool.monsters.Size(); i++)
+		{
+			let m = pool.monsters[i];
+			bool ok = m.kind == result.regionKind && Usable(m, civil) && !m.capped && ColourOk(army, m) && !FamilyTaken(army, m);
+			w.Push(ok ? TierWeight(m.tier, army.tierLean) : 0);
+		}
+		int pick = r.Pick(w);
+		if (pick >= 0 && buyable) { Add(army, pool.monsters[pick], "region"); army.regionHow = "region"; return; }
+		// Unpurchasable: the favourite already in the army through another role, else the pick, names what the
+		// favourite is, so the stand-in can share its colour or family.
+		DoomerfallMonster fav = pick >= 0 ? pool.monsters[pick] : null;
+		for (int i = 0; i < army.entries.Size(); i++)
+			if (army.entries[i].m.kind == result.regionKind) { fav = army.entries[i].m; break; }
+		let standIn = fav ? RegionStandIn(army, civil, fav) : null;
+		if (standIn) { army.regionRef = fav; Add(army, standIn, "standin"); army.regionHow = "standin"; return; }
 		army.regionHow = "unmet";
 		result.warnings.Push("region kind " .. data.kindName[result.regionKind] .. " has no usable monster");
 	}
 
-	// The affordable monster that best stands in for the favourite `fav`: first one sharing its colour or DRLA family,
-	// then the nearest kind along the kind ring, then one that fits the theme, then the closest look, then the dearest
-	// (nearest the favourite's strength). A fixed ranking, so the same seeds give the same stand-in. When nothing is
-	// affordable (the pool's cheapest costs more than the level's average), the cheapest candidate stands in.
+	// The stand-in for the favourite `fav`: an affordable monster of another kind that fits the dungeon's theme
+	// (theme.Matches), or any affordable one when none fits. Among those, the one sharing the favourite's colour or DRLA
+	// family first, then the nearest kind on the kind ring, then the closest look, then the dearest (nearest the
+	// favourite's strength). A fixed ranking, so the same seeds give the same stand-in. When nothing is affordable,
+	// the cheapest candidate stands in.
 	private DoomerfallMonster RegionStandIn(DoomerfallArmy army, bool civil, DoomerfallMonster fav)
 	{
 		int n = ringPos.Size();
-		int p = ringPos[fav.kind];
 		DoomerfallMonster best = null, cheapest = null;
 		int bestScore = -1;
 		for (int i = 0; i < pool.monsters.Size(); i++)
@@ -767,9 +772,9 @@ class DoomerfallEncounterPlanner play
 			int c = Cost(m);
 			if (!cheapest || c < Cost(cheapest)) cheapest = m;
 			if (c > result.regionAfford) continue;
-			int d = abs(ringPos[m.kind] - p);   // along the ring without wrapping: its two ends (ZombieMan, Cyberdemon) are not alike
-			int score = (m.group ~== fav.group ? 100000000 : 0) + (n - d) * 1000000 + (theme.Matches(m) ? 100000 : 0)
-				+ Bits(m.traits & fav.traits & LOOK) * 10000 + min(c, 9999);
+			int d = RingDistance(m.kind, ringPos[fav.kind], ringPos[fav.kind] + 1);
+			int score = (theme.Matches(m) ? 1000000000 : 0) + (m.group ~== fav.group ? 100000000 : 0) + (n - d) * 1000000
+				+ Bits(m.traits & fav.traits & LOOK) * 10000 + min(c / 10, 9999);
 			if (score > bestScore) { best = m; bestScore = score; }
 		}
 		return best ? best : cheapest;
@@ -793,7 +798,7 @@ class DoomerfallEncounterPlanner play
 			Array<String> used;
 			used.Push(base.m.group);
 			bool coreish = base.role == "anchor" || base.role == "core";
-			int dearest = base.role == "region" || base.role == "standin" ? result.regionAfford : 0x7FFFFFFF;   // the favourite's variants stay affordable
+			int dearest = base.role == "standin" ? result.regionAfford : 0x7FFFFFFF;   // a stand-in's variants stay affordable
 			for (int f = 1; f < want; f++)
 			{
 				// One more family, chosen evenly among those the pool has for this kind, then one of its classes.
