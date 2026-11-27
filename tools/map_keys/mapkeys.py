@@ -174,7 +174,6 @@ class Doom:
             info.append((h, buf.value))
         print("  Doom windows:", info, "desktops:", names)
         self.hwnd = next((h for h, c in info if "doom" in c.lower()), None) or next((h for h, c in info if not c.startswith(("NV", "IME", "MSCTF", "Default IME"))), found[0])
-
     def down(self, vk):
         scan = self.user.MapVirtualKeyW(vk, 0)
         if not self.user.PostMessageW(self.hwnd, 0x100, vk, 1 | (scan << 16)):
@@ -415,6 +414,9 @@ class Run:
         here = re.search(r"here '(.*)'", region)
         print("  region:", region)
         doom.click(25, 180)  # Find.
+        if not self.wait(self.views, r"top DaggerfallInputMessageBox ", 3):
+            print("  the Find button click did not open the box; pressing Daggerfall's Find shortcut, F")
+            doom.tap(CHAR_VK["f"])
         if not self.wait(self.views, r"top DaggerfallInputMessageBox ", 5):
             self.case(False, "the Find box opened")
             return
@@ -445,15 +447,17 @@ class Run:
         self.case("found True selected True" in found, f"Find found '{name}' ({found})")
         self.case(self.wait(self.uz_log, r"ui: text entry ended", 3), "Doom heard that typing ended")
         fwd, back, left, right = self.keys
-        doom.click(160, 100, right=True)  # Zoom, so the movement keys have room to pan.
-        time.sleep(0.5)
-        moved = []
-        for key in (back, right, fwd, left):  # The zoom may start at the top-left edge, so back and right move first.
-            b, a = self.pan(doom, window, key)
-            pb, pa = re.search(r" at \((.*?)\)", b or ""), re.search(r" at \((.*?)\)", a or "")
-            moved.append(bool(pb and pa and pb.group(1) != pa.group(1)))
-            print(f"  zoomed {key}: {b} -> {a}")
-        self.case(all(moved), f"after the Find box closed, {back} {right} {fwd} {left} pan the map again ({moved})")
+        # After the crosshair flashes on the found place, Daggerfall asks whether to travel there, over the map. The
+        # movement keys are Doom's map controls again: each must reach Daggerfall as the arrow that pans the map
+        # (the default and rebound runs show those arrows pan it).
+        self.wait(self.views, r"top DaggerfallMessageBox ", 6)
+        arrows = {fwd: "UpArrow", back: "DownArrow", left: "LeftArrow", right: "RightArrow"}
+        for key, arrow in arrows.items():
+            mark = len(read(self.views))
+            doom.hold(VK[key], 0.5)
+            later = read(self.views)[mark:]
+            held = re.findall(r"keys ([A-Za-z,]*) player", later)
+            self.case(any(h == arrow + "," for h in held), f"after the Find box closed, {key} reached Daggerfall as {arrow} (held: {held})")
         if self.closed(doom, "K", 2):
             self.case(True, "after the Find box closed, Doom's travel map key closes the menu again")
         self.wait(self.console, "MKDONE", 5)
