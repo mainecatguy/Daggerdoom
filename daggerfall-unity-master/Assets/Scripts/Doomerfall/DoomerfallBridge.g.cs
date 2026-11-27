@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x9717e3e7873a634fUL;
+        public const ulong SchemaHash = 0xdf84f2d66d1e59f2UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -81,7 +81,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_DOOM_ITEM_ART_REQUEST = 144;  // DF to UZ; send the sprite and name for this class; payload: dfb_doom_item
         public const ushort KIND_DOOM_ITEM_ART = 145;  // UZ to DF; DFB_ITEM_ART_SLOT holds the answer, or status DFB_ITEM_GONE for no such class; payload: dfb_doom_item
         public const uint ITEM_ART_SLOT = 5;  // bulk slot written by UZ: one dfb_item_art header, then width * height BGRA pixels, top row first
-        public const uint ITEM_ART_HEADER = 144;
+        public const uint ITEM_ART_HEADER = 464;
         public const ushort KIND_DOOM_ITEM_GUN_STATE = 146;  // UZ to DF; one state line (status amount, cls class) the gun in the next DOOM_ITEM_TAKE with this request carried, such as a DRLA modded pickup's mods
         public const ushort KIND_DOOM_ITEM_ID = 147;  // UZ to DF; the floor item's lasting id (map item, or a drop from a fixed loot roll), sent just before the DOOM_ITEM_TAKE with this request when it has one; Daggerfall seeds the item's rolls (gun material) with it; payload: dfb_item_take, mode 0
         public const uint DOOM_ITEM_GUN = 1;
@@ -309,7 +309,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         // Native size of every generated struct, for the attach check.
         public static readonly Type[] StructTypes = { typeof(DfbFaces), typeof(DfbFace), typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbPlainLoad), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbWorldContainer), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbInfoRequest), typeof(DfbInfoText), typeof(DfbDoomItem), typeof(DfbDoor), typeof(DfbItemArt), typeof(DfbClimbUses), typeof(DfbNpcUse), typeof(DfbNpcUseResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbEncounterArea), typeof(DfbEncounterText), typeof(DfbPlace), typeof(DfbPlaceName), typeof(DfbPlaceFact), typeof(DfbPlacePlan), typeof(DfbNpc), typeof(DfbTownsfolk), typeof(DfbTownsperson), typeof(DfbTownspersonDeath), typeof(DfbGuardSpawn), typeof(DfbGuardDeath), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
-        public static readonly int[] StructSizes = { 8, 16, 64, 24, 24, 16, 24, 24, 48, 32, 48, 48, 32, 16, 48, 40, 16, 48, 32, 48, 48, 32, 144, 8, 24, 16, 32, 32, 48, 48, 32, 48, 48, 32, 16, 32, 40, 24, 40, 8, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
+        public static readonly int[] StructSizes = { 8, 16, 64, 24, 24, 16, 24, 24, 48, 32, 48, 48, 32, 16, 48, 40, 16, 48, 32, 48, 48, 32, 464, 8, 24, 16, 32, 32, 48, 48, 32, 48, 48, 32, 16, 32, 40, 24, 40, 8, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
     }
 
     static class DfbBytes
@@ -734,7 +734,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(28)] public uint pad;
     }
 
-    [StructLayout(LayoutKind.Explicit, Size = 144)]
+    [StructLayout(LayoutKind.Explicit, Size = 464)]
     struct DfbItemArt
     {
         [FieldOffset(0)] public uint request;
@@ -808,6 +808,146 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DfbBytes.Write(destination, 40, 8, tag5);
             DfbBytes.Write(destination, 48, 8, tag6);
             DfbBytes.Write(destination, 56, 8, tag7);
+        }
+        [FieldOffset(144)] public ulong types0;
+        [FieldOffset(152)] public ulong types1;
+        [FieldOffset(160)] public ulong types2;
+        [FieldOffset(168)] public ulong types3;
+        [FieldOffset(176)] public ulong types4;
+        [FieldOffset(184)] public ulong types5;
+        [FieldOffset(192)] public ulong types6;
+        [FieldOffset(200)] public ulong types7;
+
+        // Copies up to 64 bytes in. The rest of the field becomes zero.
+        public void SetTypes(byte[] source, int count)
+        {
+            types0 = (ulong)DfbBytes.Read(source, count, 0, 8);
+            types1 = (ulong)DfbBytes.Read(source, count, 8, 8);
+            types2 = (ulong)DfbBytes.Read(source, count, 16, 8);
+            types3 = (ulong)DfbBytes.Read(source, count, 24, 8);
+            types4 = (ulong)DfbBytes.Read(source, count, 32, 8);
+            types5 = (ulong)DfbBytes.Read(source, count, 40, 8);
+            types6 = (ulong)DfbBytes.Read(source, count, 48, 8);
+            types7 = (ulong)DfbBytes.Read(source, count, 56, 8);
+        }
+
+        // Copies all 64 bytes out.
+        public void CopyTypes(byte[] destination)
+        {
+            DfbBytes.Write(destination, 0, 8, types0);
+            DfbBytes.Write(destination, 8, 8, types1);
+            DfbBytes.Write(destination, 16, 8, types2);
+            DfbBytes.Write(destination, 24, 8, types3);
+            DfbBytes.Write(destination, 32, 8, types4);
+            DfbBytes.Write(destination, 40, 8, types5);
+            DfbBytes.Write(destination, 48, 8, types6);
+            DfbBytes.Write(destination, 56, 8, types7);
+        }
+        [FieldOffset(208)] public ulong brief0;
+        [FieldOffset(216)] public ulong brief1;
+        [FieldOffset(224)] public ulong brief2;
+        [FieldOffset(232)] public ulong brief3;
+        [FieldOffset(240)] public ulong brief4;
+        [FieldOffset(248)] public ulong brief5;
+        [FieldOffset(256)] public ulong brief6;
+        [FieldOffset(264)] public ulong brief7;
+        [FieldOffset(272)] public ulong brief8;
+        [FieldOffset(280)] public ulong brief9;
+        [FieldOffset(288)] public ulong brief10;
+        [FieldOffset(296)] public ulong brief11;
+        [FieldOffset(304)] public ulong brief12;
+        [FieldOffset(312)] public ulong brief13;
+        [FieldOffset(320)] public ulong brief14;
+        [FieldOffset(328)] public ulong brief15;
+        [FieldOffset(336)] public ulong brief16;
+        [FieldOffset(344)] public ulong brief17;
+        [FieldOffset(352)] public ulong brief18;
+        [FieldOffset(360)] public ulong brief19;
+        [FieldOffset(368)] public ulong brief20;
+        [FieldOffset(376)] public ulong brief21;
+        [FieldOffset(384)] public ulong brief22;
+        [FieldOffset(392)] public ulong brief23;
+        [FieldOffset(400)] public ulong brief24;
+        [FieldOffset(408)] public ulong brief25;
+        [FieldOffset(416)] public ulong brief26;
+        [FieldOffset(424)] public ulong brief27;
+        [FieldOffset(432)] public ulong brief28;
+        [FieldOffset(440)] public ulong brief29;
+        [FieldOffset(448)] public ulong brief30;
+        [FieldOffset(456)] public ulong brief31;
+
+        // Copies up to 256 bytes in. The rest of the field becomes zero.
+        public void SetBrief(byte[] source, int count)
+        {
+            brief0 = (ulong)DfbBytes.Read(source, count, 0, 8);
+            brief1 = (ulong)DfbBytes.Read(source, count, 8, 8);
+            brief2 = (ulong)DfbBytes.Read(source, count, 16, 8);
+            brief3 = (ulong)DfbBytes.Read(source, count, 24, 8);
+            brief4 = (ulong)DfbBytes.Read(source, count, 32, 8);
+            brief5 = (ulong)DfbBytes.Read(source, count, 40, 8);
+            brief6 = (ulong)DfbBytes.Read(source, count, 48, 8);
+            brief7 = (ulong)DfbBytes.Read(source, count, 56, 8);
+            brief8 = (ulong)DfbBytes.Read(source, count, 64, 8);
+            brief9 = (ulong)DfbBytes.Read(source, count, 72, 8);
+            brief10 = (ulong)DfbBytes.Read(source, count, 80, 8);
+            brief11 = (ulong)DfbBytes.Read(source, count, 88, 8);
+            brief12 = (ulong)DfbBytes.Read(source, count, 96, 8);
+            brief13 = (ulong)DfbBytes.Read(source, count, 104, 8);
+            brief14 = (ulong)DfbBytes.Read(source, count, 112, 8);
+            brief15 = (ulong)DfbBytes.Read(source, count, 120, 8);
+            brief16 = (ulong)DfbBytes.Read(source, count, 128, 8);
+            brief17 = (ulong)DfbBytes.Read(source, count, 136, 8);
+            brief18 = (ulong)DfbBytes.Read(source, count, 144, 8);
+            brief19 = (ulong)DfbBytes.Read(source, count, 152, 8);
+            brief20 = (ulong)DfbBytes.Read(source, count, 160, 8);
+            brief21 = (ulong)DfbBytes.Read(source, count, 168, 8);
+            brief22 = (ulong)DfbBytes.Read(source, count, 176, 8);
+            brief23 = (ulong)DfbBytes.Read(source, count, 184, 8);
+            brief24 = (ulong)DfbBytes.Read(source, count, 192, 8);
+            brief25 = (ulong)DfbBytes.Read(source, count, 200, 8);
+            brief26 = (ulong)DfbBytes.Read(source, count, 208, 8);
+            brief27 = (ulong)DfbBytes.Read(source, count, 216, 8);
+            brief28 = (ulong)DfbBytes.Read(source, count, 224, 8);
+            brief29 = (ulong)DfbBytes.Read(source, count, 232, 8);
+            brief30 = (ulong)DfbBytes.Read(source, count, 240, 8);
+            brief31 = (ulong)DfbBytes.Read(source, count, 248, 8);
+        }
+
+        // Copies all 256 bytes out.
+        public void CopyBrief(byte[] destination)
+        {
+            DfbBytes.Write(destination, 0, 8, brief0);
+            DfbBytes.Write(destination, 8, 8, brief1);
+            DfbBytes.Write(destination, 16, 8, brief2);
+            DfbBytes.Write(destination, 24, 8, brief3);
+            DfbBytes.Write(destination, 32, 8, brief4);
+            DfbBytes.Write(destination, 40, 8, brief5);
+            DfbBytes.Write(destination, 48, 8, brief6);
+            DfbBytes.Write(destination, 56, 8, brief7);
+            DfbBytes.Write(destination, 64, 8, brief8);
+            DfbBytes.Write(destination, 72, 8, brief9);
+            DfbBytes.Write(destination, 80, 8, brief10);
+            DfbBytes.Write(destination, 88, 8, brief11);
+            DfbBytes.Write(destination, 96, 8, brief12);
+            DfbBytes.Write(destination, 104, 8, brief13);
+            DfbBytes.Write(destination, 112, 8, brief14);
+            DfbBytes.Write(destination, 120, 8, brief15);
+            DfbBytes.Write(destination, 128, 8, brief16);
+            DfbBytes.Write(destination, 136, 8, brief17);
+            DfbBytes.Write(destination, 144, 8, brief18);
+            DfbBytes.Write(destination, 152, 8, brief19);
+            DfbBytes.Write(destination, 160, 8, brief20);
+            DfbBytes.Write(destination, 168, 8, brief21);
+            DfbBytes.Write(destination, 176, 8, brief22);
+            DfbBytes.Write(destination, 184, 8, brief23);
+            DfbBytes.Write(destination, 192, 8, brief24);
+            DfbBytes.Write(destination, 200, 8, brief25);
+            DfbBytes.Write(destination, 208, 8, brief26);
+            DfbBytes.Write(destination, 216, 8, brief27);
+            DfbBytes.Write(destination, 224, 8, brief28);
+            DfbBytes.Write(destination, 232, 8, brief29);
+            DfbBytes.Write(destination, 240, 8, brief30);
+            DfbBytes.Write(destination, 248, 8, brief31);
         }
     }
 

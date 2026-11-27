@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x9717e3e7873a634fULL
+#define DFB_SCHEMA_HASH 0xdf84f2d66d1e59f2ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -81,7 +81,7 @@ static_assert((DFB_KIND_DOOM_ITEM_USED) == (143), DFB_STALE);
 static_assert((DFB_KIND_DOOM_ITEM_ART_REQUEST) == (144), DFB_STALE);
 static_assert((DFB_KIND_DOOM_ITEM_ART) == (145), DFB_STALE);
 static_assert((DFB_ITEM_ART_SLOT) == (5u), DFB_STALE);
-static_assert((DFB_ITEM_ART_HEADER) == (144u), DFB_STALE);
+static_assert((DFB_ITEM_ART_HEADER) == (464u), DFB_STALE);
 static_assert((DFB_KIND_DOOM_ITEM_GUN_STATE) == (146), DFB_STALE);
 static_assert((DFB_KIND_DOOM_ITEM_ID) == (147), DFB_STALE);
 static_assert((DFB_DOOM_ITEM_GUN) == (1u), DFB_STALE);
@@ -595,7 +595,7 @@ static_assert(std::is_same<decltype(dfb_door::flags), uint32_t>::value, DFB_STAL
 static_assert(offsetof(dfb_door, pad) == 28, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_door::pad), uint32_t>::value, DFB_STALE);
 
-static_assert(sizeof(dfb_item_art) == 144, DFB_STALE);
+static_assert(sizeof(dfb_item_art) == 464, DFB_STALE);
 static_assert(offsetof(dfb_item_art, request) == 0, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_item_art::request), uint32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_item_art, width) == 4, DFB_STALE);
@@ -608,6 +608,10 @@ static_assert(offsetof(dfb_item_art, cls) == 16, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_item_art::cls), char[64]>::value, DFB_STALE);
 static_assert(offsetof(dfb_item_art, tag) == 80, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_item_art::tag), char[64]>::value, DFB_STALE);
+static_assert(offsetof(dfb_item_art, types) == 144, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_item_art::types), char[64]>::value, DFB_STALE);
+static_assert(offsetof(dfb_item_art, brief) == 208, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_item_art::brief), char[256]>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_climb_uses) == 8, DFB_STALE);
 static_assert(offsetof(dfb_climb_uses, uses) == 0, DFB_STALE);

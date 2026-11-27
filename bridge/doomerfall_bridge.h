@@ -123,7 +123,7 @@ extern "C" {
 #define DFB_KIND_DOOM_ITEM_ART_REQUEST 144 /* DF to UZ; send the sprite and name for this class; payload: dfb_doom_item */
 #define DFB_KIND_DOOM_ITEM_ART     145  /* UZ to DF; DFB_ITEM_ART_SLOT holds the answer, or status DFB_ITEM_GONE for no such class; payload: dfb_doom_item */
 #define DFB_ITEM_ART_SLOT   5u   /* bulk slot written by UZ: one dfb_item_art header, then width * height BGRA pixels, top row first */
-#define DFB_ITEM_ART_HEADER 144u
+#define DFB_ITEM_ART_HEADER 464u
 #define DFB_KIND_DOOM_ITEM_GUN_STATE 146 /* UZ to DF; one state line (status amount, cls class) the gun in the next DOOM_ITEM_TAKE with this request carried, such as a DRLA modded pickup's mods */
 #define DFB_KIND_DOOM_ITEM_ID      147  /* UZ to DF; the floor item's lasting id (map item, or a drop from a fixed loot roll), sent just before the DOOM_ITEM_TAKE with this request when it has one; Daggerfall seeds the item's rolls (gun material) with it; payload: dfb_item_take, mode 0 */
 /* In DFB_KIND_DOOM_ITEM_TAKE, status DFB_DOOM_ITEM_GUN marks a gun, DFB_DOOM_ITEM_ARMOR armor (Weapons & Armor tab),
@@ -630,7 +630,9 @@ typedef struct dfb_door
 	uint32_t pad;
 } dfb_door;
 
-/* Header of DFB_ITEM_ART_SLOT. tag is the item's display name, UTF-8, terminated. */
+/* Header of DFB_ITEM_ART_SLOT. tag is the item's display name, UTF-8, terminated. For a weapon, types names the weapon
+   skills it counts as ("Energy, Shotgun"; empty for none) and brief is a short description from the mod's data (empty
+   when it has none), both UTF-8 and terminated, for Daggerfall's item description. */
 typedef struct dfb_item_art
 {
 	uint32_t request;
@@ -639,6 +641,8 @@ typedef struct dfb_item_art
 	uint32_t pad;
 	char cls[64];
 	char tag[64];
+	char types[64];
+	char brief[256];
 } dfb_item_art;
 
 typedef struct dfb_climb_uses

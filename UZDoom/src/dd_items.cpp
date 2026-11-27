@@ -28,6 +28,7 @@
 #include "p_local.h"
 #include "printf.h"
 #include "c_dispatch.h"
+#include "vm.h"
 
 #ifdef _WIN32
 extern "C" __declspec(dllimport) short __stdcall GetKeyState(int key); // Avoids windows.h in this file.
@@ -375,6 +376,20 @@ FString ItemName(AActor *mo)
 	return CleanTag(tag[0] ? tag : mo->GetClass()->TypeName.GetChars());
 }
 
+// A weapon's types or brief description for Daggerfall's item description (zscript/DoomerfallWeaponTypes.zs), or ""
+// for a class that is not a weapon or when the Doomerfall mod is not loaded.
+FString WeaponText(const char *what, PClassActor *cls)
+{
+	FString answer;
+	VMFunction *f = nullptr;
+	PClass::FindFunction(&f, "DoomerfallWeaponTypes", what);
+	if (!f || !cls->IsDescendantOf(NAME_Weapon)) return answer;
+	VMValue params[] = { (void *)cls };
+	VMReturn ret(&answer);
+	VMCall(f, params, 1, &ret, 1);
+	return answer;
+}
+
 // Writes the sprite and name of one class to the art slot. Larger sprites are shrunk to fit the slot.
 void SendArt(uint32_t request, const FString &name)
 {
@@ -404,6 +419,8 @@ void SendArt(uint32_t request, const FString &name)
 	header.height = h;
 	strncpy(header.cls, name.GetChars(), sizeof(header.cls) - 1);
 	strncpy(header.tag, ItemName(GetDefaultByType(cls)).GetChars(), sizeof(header.tag) - 1);
+	strncpy(header.types, WeaponText("Types", cls).GetChars(), sizeof(header.types) - 1);
+	strncpy(header.brief, WeaponText("Brief", cls).GetChars(), sizeof(header.brief) - 1);
 	memcpy(buffer.Data(), &header, sizeof(header));
 	const uint8_t *src = bmp.GetPixels();
 	uint8_t *dst = buffer.Data() + DFB_ITEM_ART_HEADER;
