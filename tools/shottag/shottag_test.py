@@ -21,7 +21,7 @@ sys.path.insert(0, str(REPO / "tools" / "automatics"))
 from automatics_test import Peer, IWAD, MODS, DRLA, BAD  # noqa: E402
 
 HIT = re.compile(r"SHOTTEST hit inf=(\S+) found=(\d) gen=(-?\d+) gun=(\S+) skill=(-?\d+) held=(\S+) dmg=(\d+)")
-SKILL = {"RocketLauncher": 6, "RLRocketLauncher": 6, "RLClusterBombLauncher": 6, "RLShrapnelCannon": 6}  # rocket ammo: Explosive (DoomerfallWeaponCategory)
+SKILL = {"RocketLauncher": 6, "RLRocketLauncher": 6, "RLClusterBombLauncher": 6, "RLShrapnelCannon": 6, "BFG9000": 9}  # rocket ammo: Explosive (DoomerfallWeaponCategory)
 
 
 def launch(exe, work, files, peer, name, timeout, extra):
@@ -64,15 +64,21 @@ def analyse(name, lines, check):
             cases[cur]["hits"].append(h)
     for c, d in cases.items():
         gun, hits = d["gun"], d["hits"]
-        check(name, f"{c}: shot held until the fist was up", d["release"] is not None and d["release"][0] > 0 and d["release"][1].endswith("Fist"), d["release"])
-        bad = [h.group(0) for h in hits if h.group(2) != "1" or h.group(4) != gun or int(h.group(5)) != SKILL[gun] or not h.group(6).endswith("Fist")]
-        check(name, f"{c}: {len(hits)} hits, all name {gun} (skill {SKILL[gun]}) while the fist is held", hits and not bad, bad[:3])
+        close = "close" in c  # point blank: hits inside the firing action, the gun stays up
+        held = gun if close else "Fist"
+        if not close:
+            check(name, f"{c}: shot held until the fist was up", d["release"] is not None and d["release"][0] > 0 and d["release"][1].endswith("Fist"), d["release"])
+        bad = [h.group(0) for h in hits if h.group(2) != "1" or h.group(4) != gun or int(h.group(5)) != SKILL[gun] or not h.group(6).endswith(held)]
+        check(name, f"{c}: {len(hits)} hits, all name {gun} (skill {SKILL[gun]}) while {held} is held", hits and not bad, bad[:3])
         infl = {h.group(1) for h in hits}
         gens = {int(h.group(3)) for h in hits}
         print(f"  {name} {c}: inflictors {sorted(infl)} generations {sorted(gens)}")
-        if c == "RocketLauncher ShotTestBomb":
-            check(name, f"{c}: bomb (gen 0), its blast and fragments (gen 1) and the fragments' blasts (gen 2) all hit",
-                  {"ShotTestBomb", "ShotTestBlast", "ShotTestFrag"} <= infl and {0, 1, 2} <= gens, (infl, gens))
+        if c in ("RocketLauncher ShotTestBomb", "RocketLauncher ShotTestBomb+close"):
+            check(name, f"{c}: bomb (gen 0), its blast and fragments (gen 1)" + ("" if close else " and the fragments' blasts (gen 2)") + " all hit",
+                  {"ShotTestBomb", "ShotTestBlast", "ShotTestFrag"} <= infl and ({0, 1} if close else {0, 1, 2}) <= gens, (infl, gens))
+            # At point blank a fragment's blast appears next to the bomb too, so either can be its parent (same gun).
+        if gun == "BFG9000":
+            check(name, f"{c}: the ball's spray (the player as inflictor) hits with the BFG's tag", "DoomPlayer" in infl, infl)
         if gun == "RLClusterBombLauncher":
             check(name, f"{c}: the bomb's exploders' explosions (generation 2) hit with the tag",
                   any(i.startswith("RLClusterBombExplosion") for i in infl) and 2 in gens, (infl, gens))

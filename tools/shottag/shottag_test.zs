@@ -82,7 +82,7 @@ class ShotTagTest : EventHandler
 	Array<Actor> frozen;
 	Array<double> fvx, fvy, fvz;
 	String mode;
-	int cur, phase, wait, t, saveWait;
+	int cur, phase, wait, t, saveWait, shotSeen;
 	bool freezing, decided;
 	transient bool live; // false again after a save loads
 	Vector3 start;
@@ -90,14 +90,16 @@ class ShotTagTest : EventHandler
 
 	override void OnRegister()
 	{
-		// gun, and the projectile the harness fires for it ("" = the gun fires its own)
-		static const String g[] = { "RocketLauncher", "RocketLauncher", "RLRocketLauncher", "RLClusterBombLauncher", "RLShrapnelCannon" };
-		static const String s[] = { "", "ShotTestBomb", "", "", "" };
+		// gun, and the projectile the harness fires for it ("" = the gun fires its own). "close": the target stands at
+		// point blank, so the shot hits inside the firing action; nothing is held still and the gun stays up.
+		static const String g[] = { "RocketLauncher", "RocketLauncher", "RocketLauncher", "RocketLauncher", "BFG9000",
+			"RLRocketLauncher", "RLRocketLauncher", "RLClusterBombLauncher", "RLShrapnelCannon" };
+		static const String s[] = { "", "ShotTestBomb", "close", "ShotTestBomb+close", "", "", "close", "", "" };
+		bool drla = Has("RLRocketLauncher");
 		for (int i = 0; i < g.Size(); i++)
 		{
 			class<Actor> k = g[i];
-			if (!k) continue;
-			if (i < 2 && Has("RLRocketLauncher")) continue; // DRLA run: its own guns only
+			if (!k || (i < 5) == drla) continue; // each run: its own guns only
 			guns.Push(g[i]);
 			shells.Push(s[i]);
 		}
@@ -114,7 +116,9 @@ class ShotTagTest : EventHandler
 	override void WorldThingSpawned(WorldEvent e)
 	{
 		let m = e.Thing;
-		if (!freezing || !m || !m.bMissile || !m.target || !m.target.player) return;
+		if (!m || !m.target || !m.target.player) return;
+		if (phase == 1 && (m.bMissile || m.default.bMissile)) shotSeen++;
+		if (!freezing || !m.bMissile) return;
 		frozen.Push(m); fvx.Push(m.vel.x); fvy.Push(m.vel.y); fvz.Push(m.vel.z);
 		m.vel = (0, 0, 0);
 		m.bNoGravity = true;
@@ -163,7 +167,7 @@ class ShotTagTest : EventHandler
 	{
 		if (w.AmmoType2) { p.mo.GiveInventory(w.AmmoType2, 1); let r = p.mo.FindInventory(w.AmmoType2); if (r) r.Amount = max(r.MaxAmount, 50); }
 		if (w.AmmoType1) { p.mo.GiveInventory(w.AmmoType1, 1); let m = p.mo.FindInventory(w.AmmoType1); if (m) m.Amount = max(m.MaxAmount, 1); }
-		if (w.AmmoType1 && !w.AmmoType2) { let m = p.mo.FindInventory(w.AmmoType1); m.Amount = 50; }
+		if (w.AmmoType1 && !w.AmmoType2) { let m = p.mo.FindInventory(w.AmmoType1); m.Amount = max(m.MaxAmount, 50); } // a BFG must not run dry and switch guns
 	}
 
 	override void WorldTick()
@@ -202,21 +206,27 @@ class ShotTagTest : EventHandler
 			wait = 0;
 			if (start == (0, 0, 0)) start = mo.pos;
 			mo.SetOrigin(start, false); mo.vel = (0, 0, 0); mo.angle = 0; mo.pitch = 0;
-			target = Actor.Spawn("ShotTestTarget", mo.Vec3Angle(110, 0));
+			bool close = shells[cur].IndexOf("close") >= 0;
+			target = Actor.Spawn("ShotTestTarget", mo.Vec3Angle(close ? 60 : 110, 0));
 			Console.Printf("SHOTTEST case %s %s", guns[cur], shells[cur]);
-			freezing = true; phase = 1; t = 0;
+			freezing = !close; phase = 1; t = 0; shotSeen = 0;
 			break;
 		}
 		case 1: // one shot, then switch to the fist
-			if (frozen.Size() == 0)
+			if (shotSeen == 0)
 			{
 				p.attackdown = true;
-				if (shells[cur] != "") { if (t == 0) mo.SpawnPlayerMissile(shells[cur]); }
+				String proj = shells[cur];
+				int plus = proj.IndexOf("+");
+				if (plus >= 0) proj = proj.Left(plus);
+				if (proj == "close") proj = "";
+				if (proj != "") { if (t == 0) mo.SpawnPlayerMissile(proj); }
 				else if (p.WeaponState & WF_WEAPONREADY) mo.FireWeapon(null);
 				if (++t > 120) { Console.Printf("SHOTTEST noshot %s", guns[cur]); Release(); phase = 3; t = 0; }
 				break;
 			}
 			p.attackdown = false;
+			if (!freezing) { phase = 3; t = 0; break; } // point blank: already landed, the gun stays up
 			mo.GiveInventory("Fist", 1);
 			p.PendingWeapon = Weapon(mo.FindInventory("Fist"));
 			phase = 2; wait = 0;

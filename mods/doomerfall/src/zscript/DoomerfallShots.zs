@@ -4,7 +4,7 @@
 // hit, so a rocket fired before a weapon switch still counts for the launcher. Doom only: the tag is an item in the
 // actor's inventory, so Doom's own saves keep it with the projectile. Daggerfall never sees it.
 //
-//   fired      a projectile (MISSILE flag) whose target is the player, spawned next to the player while the trigger is down or the gun
+//   fired      a projectile (MISSILE flag, or by default if it already exploded at point blank) whose target is the player, spawned next to the player while the trigger is down or the gun
 //              is mid-fire, is the held gun's shot (generation 0).
 //   spawned    an actor whose target is the player (A_SpawnItemEx, A_CustomMissile and the like set it to the player
 //              for anything a player's missile spawns), spawned near a tagged actor that is alive or was destroyed this
@@ -86,11 +86,34 @@ class DoomerfallShots : StaticEventHandler
 			skill = DoomerfallWeaponCategory.SkillSlotOf(w);
 			return true;
 		}
-		tag = DoomerfallShotTag.Of(inflictor);
+		if (inflictor == player) tag = Exploding(player); // a BFG ball's spray hits with the player as inflictor
+		else
+		{
+			tag = DoomerfallShotTag.Of(inflictor);
+			// A shot that hit at point blank deals its damage inside the firing action, before its spawn event.
+			if (!tag && inflictor.GetAge() == 0) tag = Tag(inflictor);
+		}
 		if (!tag || tag.shooter != player) { tag = null; return false; }
 		gun = tag.gun;
 		skill = tag.skill;
 		return true;
+	}
+
+	// A_BFGSpray (and mods' sprays like it) damages with the player's body as the inflictor, from inside the ball's
+	// death frame. The ball is the player's tagged projectile that has exploded (no longer a missile) and entered its
+	// current frame this tic.
+	private static DoomerfallShotTag Exploding(Actor player)
+	{
+		let h = DoomerfallShots(StaticEventHandler.Find("DoomerfallShots"));
+		if (!h) return null;
+		for (int i = 0; i < h.tagged.Size(); i++)
+		{
+			let a = h.tagged[i];
+			if (!a || a.bMissile || !a.default.bMissile || !a.CurState || a.tics != a.CurState.Tics) continue;
+			let t = DoomerfallShotTag.Of(a);
+			if (t && t.shooter == player) return t;
+		}
+		return null;
 	}
 
 	static bool Active()
@@ -140,8 +163,9 @@ class DoomerfallShots : StaticEventHandler
 		double fromPlayer = m.Distance2D(pmo);
 		// A sibling fired in the same tic (a spray of shrapnel or pellets) is not a parent.
 		bool sibling = parent && parent.generation == 0 && parent.fireTic == level.maptime;
-		// Only a projectile is fired by the gun; its helper actors (DRLA's recoil and reload effects) are not shots.
-		bool fired = m.bMissile && firing && fromPlayer <= pmo.radius + m.radius + 64 && (!parent || sibling || fromPlayer <= best);
+		// Only a projectile is fired by the gun (one that hit at point blank has already exploded and lost its MISSILE
+		// flag, so its class default counts); its helper actors (DRLA's recoil and reload effects) are not shots.
+		bool fired = (m.bMissile || m.default.bMissile) && firing && fromPlayer <= pmo.radius + m.radius + 64 && (!parent || sibling || fromPlayer <= best);
 
 		if (!fired && !parent) return null;
 		let tag = DoomerfallShotTag(Actor.Spawn("DoomerfallShotTag"));
@@ -175,6 +199,7 @@ class DoomerfallShots : StaticEventHandler
 		let a = e.Thing;
 		if (!a || !a.target || !a.target.player) return;
 		let t = DoomerfallShotTag.Of(a);
+		if (!t && a.GetAge() == 0) t = Tag(a); // gone before its spawn event (point blank, or into a wall)
 		if (!t) return;
 		// Keep the tag (not the dying actor) until the next tic, for whatever the actor spawned as it died.
 		a.RemoveInventory(t);
