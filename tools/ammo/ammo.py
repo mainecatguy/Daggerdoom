@@ -40,13 +40,13 @@ argv, sys.argv = sys.argv, sys.argv[:1]
 import install  # noqa: E402  (only for its registry isolation)
 sys.argv = argv
 
-REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\ammosizefix")  # Was review\ammo, ammo-pickup, ammo-equip, ammo-tiers, ammo-change, weapon-material-damage, then ammosize, for earlier ammo runs.
-SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\doom-items")  # Data, sprite package, and demo items.
+REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\ammoname")  # Was review\ammo, ammo-pickup, ammo-equip, ammo-tiers, ammo-change, weapon-material-damage, ammosize, then ammosizefix, for earlier ammo runs.
+SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\shop-ammo")  # Data, sprite package, and demo items (was review\doom-items, since removed).
 BUILD = Path(r"D:\dev\DoomDaggerfall-build")
-UZ_BUILD = BUILD / "merge-skillcore" / "uzdoom" / "Release"  # Integration's latest engine build (earlier runs: the *-ammosize and *-items trees).
+UZ_BUILD = BUILD / "uzdoom-quiet" / "Release"  # The lane-quiet worktree's builds (earlier runs: merge-skillcore, the *-ammosize and *-items trees).
 SOUND = BUILD / "uzdoom-launcher" / "Release"
-BRIDGE_DLL = BUILD / "merge-skillcore" / "bridge" / "Release" / "doomerfall_bridge.dll"
-LAUNCHER = BUILD / "merge-skillcore" / "launcher" / "Release" / "doomerfall-launcher.exe"
+BRIDGE_DLL = BUILD / "bridge-quiet" / "Release" / "doomerfall_bridge.dll"
+LAUNCHER = BUILD / "launcher-quiet" / "Release" / "doomerfall-launcher.exe"
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
 MODS = GAME.parent / "GameMods"
@@ -88,7 +88,8 @@ def copy_uzdoom():
         shutil.rmtree(REVIEW / "uzdoom")
     shutil.copytree(UZ_BUILD, REVIEW / "uzdoom", ignore=shutil.ignore_patterns("*.pdb", "*.ini"))
     for dll in ("sndfile.dll", "soft_oal.dll"):
-        shutil.copy2(SOUND / dll, REVIEW / "uzdoom" / dll)
+        if (SOUND / dll).exists():  # Test runs use -nosound; only the demo needs them.
+            shutil.copy2(SOUND / dll, REVIEW / "uzdoom" / dll)
 
 
 def assemble():
@@ -292,7 +293,8 @@ def size_checks(body, df_body):
         # A harness toss is "dropped by Toss_<plain class>"; a real monster drop names the monster.
         kinds.append((m.group(1) or "drop:" + m.group(2), (m.group(1) or m.group(2).split("Toss_")[-1]) in LARGE, m.group(2) is not None, int(m.group(3)), int(m.group(4)), int(m.group(5))))
     counts = [dict(re.findall(r"(\w+)=(\d+)", l)) for l in body.splitlines() if l.startswith("AMCOUNT before touches") or l.startswith("AMCOUNT after touch")]
-    takes = re.findall(r"ammo: picked up (\w+) ([\w ]+?) x(\d+)( \(loaded tier, goes to Doom\))?", df_body)
+    takes = [(split_name(n)[0], split_name(n)[1], x, loaded) for n, x, loaded in
+             re.findall(r"ammo: picked up ([\w ]+?) x(\d+)( \(loaded tier, goes to Doom\))?", df_body)]
     print("pickups", len(kinds), "| Daggerfall takes", len(takes), "| count lines", len(counts))
     ok_all = bool(kinds) and len(takes) == len(kinds)
     for i, (what, large, dropped, tier, amount, type_) in enumerate(kinds):
@@ -314,13 +316,21 @@ def size_checks(body, df_body):
           f" higher tiers touched: {', '.join(TIER_NAMES[t] for t in tiers) or 'NONE'})")
 
 
-SHOP_PACK = {"bullets": 80, "shotgun shells": 20, "rockets": 8, "energy cells": 100}  # A Regular shop pack, for every tier.
+SHOP_PACK = {"Bullets": 80, "Shells": 20, "Rockets": 8, "Energy Cells": 100}  # A Regular shop pack, for every tier.
+
+
+def split_name(name):
+    """Daggerfall's ammo name as (tier, kind): Regular has only the plain name ("Bullets"), other tiers put the material
+    first ("Silver Bullets")."""
+    first, _, rest = name.partition(" ")
+    return (first, rest) if first in TIER_NAMES[1:] and rest else ("Regular", name)
 
 
 def pack_checks(df_body):
     """Every tiered stack on a restocked shelf (-dfshoptest) is a whole number of Regular-sized packs: 2-4 for
     Regular, 1-2 for other tiers (DoomerfallAmmoTiers.StockShop)."""
-    stacks = re.findall(r"\[(\w+) ([a-z ]+?) x(\d+) \d+ gold\]", " ".join(l for l in df_body.splitlines() if "shoptest:" in l))
+    stacks = [split_name(n) + (x,) for n, x in
+              re.findall(r"\[([A-Za-z ]+?) x(\d+) \d+ gold\]", " ".join(l for l in df_body.splitlines() if "shoptest:" in l))]
     ok_all, higher = bool(stacks), 0
     for tier, kind, count in stacks:
         packs, rest = divmod(int(count), SHOP_PACK.get(kind, 0) or 1)
