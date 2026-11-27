@@ -37,8 +37,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             List<DaggerfallLoot> shelves = ShelvesHere();
             int index = Mathf.Max(0, shelves.IndexOf(shelf));
             int location = GameManager.HasInstance && GameManager.Instance.PlayerGPS != null ? GameManager.Instance.PlayerGPS.CurrentMapID : 0;
+            int before = shelf.Items.Count;
             Restock(shelf, building, location, index, Mathf.Max(1, shelves.Count), Day(DaggerfallUnity.Instance.WorldTime.Now), WorldLevel.Current);
-            DoomerfallItems.RecordShelf(shelf);   // the Doom item ledger owns shelf state across re-entry, save, and load
+            bool recorded = DoomerfallItems.RecordShelf(shelf);   // the Doom item ledger owns shelf state across re-entry, save, and load
+            DoomerfallBridge bridge = Object.FindObjectOfType<DoomerfallBridge>();
+            if (bridge)
+                bridge.LogLine(string.Format("shop ledger: shelf {0} of {1} restocked from {2} to {3} items{4}", index, shelves.Count, before, shelf.Items.Count, recorded ? " (recorded)" : " (not recorded)"));
             return true;
         }
 
@@ -79,9 +83,16 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 if (shelf.stockedDate < DaggerfallLoot.CreateStockedDate(DaggerfallUnity.Instance.WorldTime.Now))
                     using (WorldLevel.ForShop(GameManager.Instance.PlayerEnterExit.BuildingDiscoveryData))
                         shelf.StockShopShelf(GameManager.Instance.PlayerEnterExit.BuildingDiscoveryData);
+            int count = sold.Count;
             PutOnShelves(sold, shelves);
+            string counts = "";
             foreach (DaggerfallLoot shelf in shelves)
-                DoomerfallItems.RecordShelf(shelf);
+            {
+                counts += " " + shelf.Items.Count + (DoomerfallItems.RecordShelf(shelf) ? " (recorded)" : " (not recorded)");
+            }
+            DoomerfallBridge bridge = Object.FindObjectOfType<DoomerfallBridge>();
+            if (bridge)
+                bridge.LogLine(string.Format("shop ledger: {0} sold items put on the shelves; shelf item counts now{1}", count, counts));
             return true;
         }
 

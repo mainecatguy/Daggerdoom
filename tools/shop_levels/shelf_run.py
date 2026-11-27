@@ -138,7 +138,8 @@ class SLDemoStart : StaticEventHandler
     if kind == "GeneralStore":
         about = ("rem Shop shelves roll at the shop's level. Town start with DRLA, facing a general store. Go in and Use a shelf.\r\n"
                  "rem Daggerfall writes the shop's level for each restock to play\\df.log (\"shop restock: ... at shop level N\").\r\n"
-                 "rem Shelves restock once per day: wait or rest a day and Use a shelf again for a fresh roll.\r\n")
+                 "rem Shelves are a ledger: each day cheap goods sell off fast and pricey goods slowly, and new deliveries top the shelves up.\r\n"
+                 "rem Sell something to the shopkeeper: it goes on a shelf. Rest a few days and look again (play\\df.log has \"shop ledger:\" lines).\r\n")
     else:
         about = (f"rem Houses and guild halls roll loot at a level from their own quality. Town start with DRLA, facing a {kind}.\r\n"
                  "rem Go into any building: play\\buildings.log gets one line per building with the level things roll at\r\n"
@@ -192,7 +193,7 @@ def run(name, building, rates, stock_mods, building_levels=False, nth=0, ledger=
         if re.match(r"ND[A-Z]+ ", line) or any(k in line for k in FATAL):
             print(line[:190])
     for line in read(df_log).splitlines():
-        if re.search(r"shop restock:|interior layout:|shoplevelrates:|shopledger:|shoptest: (Weapon|General|window|bought)|error", line):
+        if re.search(r"shop restock:|interior layout:|shoplevelrates:|shopledger:|shop ledger:|items: (restored|closed)|shoptest: (Weapon|General|window|bought)|error", line):
             print("df", line[:300])
     for line in read(runs / "buildings.log").splitlines():
         print("df", line[:300])
