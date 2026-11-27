@@ -86,8 +86,7 @@ Impish) are gone: you can no longer calm monsters by speaking to them.
   energy shotguns belong to two skills (below).
 - **Melee** covers the chainsaw and other melee weapons, such as powered saws, the Ripper and the Dragonslayer sword. Your bare fists are not
   Melee: they use Hand-to-Hand, as in Daggerfall.
-- Energy Weapons and Melee are placeholders for now: they show on the sheet, can be trained and are saved, but have
-  no perks yet.
+- Melee is a placeholder for now: it shows on the sheet, can be trained and is saved, but has no perks yet.
 - The Fighters Guild trains all seven weapon skills.
 - Magic items that enhance a monster language, including the Enhances Daedric power that Fire and Frost Daedra
   souls add when bound into an item, still exist but do nothing. Their description says "(no effect)". The item
