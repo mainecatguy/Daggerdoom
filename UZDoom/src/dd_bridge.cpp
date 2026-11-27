@@ -342,7 +342,7 @@ void HandleEvent(const dfb_event &e, int64_t now)
 		memcpy(text, e.payload, sizeof(e.payload));
 		int lampsOn;
 		if (sscanf(text, "citylights %d", &lampsOn) == 1) { DD_LightsSetCity(lampsOn != 0); break; }	// Daggerfall's clock, for town lamps
-		if (DD_WeatherText(text)) break;	// Daggerfall's sky, light, weather and ambient sounds (dd_weather.cpp)
+		if (DD_WeatherText(text)) break;	// Daggerfall's sky, light, weather, ambient and UI sounds (dd_weather.cpp)
 		if (DFMesh_WindowText(text)) break;	// Daggerfall's window glow colour (hw_dfmesh.cpp)
 		Log("message from Daggerfall: \"%s\" (seq %u)", text, e.seq);
 		break;

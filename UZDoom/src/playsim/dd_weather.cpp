@@ -2,7 +2,7 @@
 //
 // Daggerfall owns time and weather. DoomerfallWorldLook.cs sends what its own sky, light and weather objects show,
 // as the bridge text "sky <index> <frame> <stars> <night> <ambient> <weather> <loop> <sun> [<elevation> [<winter>]]", and every ambient one-shot
-// Daggerfall's AmbientEffectsPlayer plays as "amb <clip>". Doom only renders them:
+// Daggerfall's AmbientEffectsPlayer plays as "amb <clip>" (and Daggerfall's UI sounds as "uisnd <clip>"). Doom only renders them:
 //   - Sky: the DFSKY texture is rewritten from SKYnn.DAT (frame, afternoon mirror) or NITEnnI0.IMG with stars, as
 //     DaggerfallSky does. Read from the arena2 folder given by -ddarena2; nothing is written to disk.
 //   - Light: in exteriors, Daggerfall's daylight: its exterior ambient (PlayerAmbientLight) plus its sun light
@@ -38,6 +38,7 @@
 
 std::pair<PalEntry, PalEntry> &R_GetSkyCapColor(FGameTexture *tex);	// hw_skydome.cpp
 int DDTreadmill_Place();	// dd_treadmill.cpp: 0 none, 1 exterior, 2 building interior, 3 dungeon
+void DD_BridgeLog(const char *text);	// dd_bridge.cpp: the bridge log (-dfbridgelog)
 
 CVAR(Bool, dd_weather, true, CVAR_ARCHIVE)			// Daggerfall's sky, daylight, weather and ambient sounds.
 CVAR(Float, dd_sun_share, 0.5f, CVAR_ARCHIVE)		// How much of Daggerfall's sun light an average surface gets (mean facing).
@@ -333,6 +334,15 @@ void PlayOneShot(int clip)
 	S_Sound(primaryLevel, at, CHAN_AUTO, 0, id, *dd_ambient_volume, ATTN_NORM);
 }
 
+// Daggerfall's UI sounds ("uisnd <clip>"), such as the skill point sound (DoomerfallPerks.cs): heard at full volume
+// wherever the player is, also while a Daggerfall window pauses Doom. Daggerfall's own audio is off in a bridge session.
+void PlayUiSound(int clip)
+{
+	const FSoundID id = ClipSound(clip);
+	DD_BridgeLog(FStringf("ui sound %d from Daggerfall%s", clip, id == INVALID_SOUND ? ": no such clip" : "").GetChars());
+	if (id != INVALID_SOUND) S_Sound(CHAN_AUTO, CHANF_UI | CHANF_NOPAUSE, id, 1.f, ATTN_NONE);
+}
+
 void TickLoop(AActor *pmo)
 {
 	const int clip = *dd_weather && haveWorld ? world.loop : 0;
@@ -392,6 +402,7 @@ bool DD_WeatherText(const char *text)
 	World w;
 	int clip;
 	if (sscanf(text, "amb %d", &clip) == 1) { PlayOneShot(clip); return true; }
+	if (sscanf(text, "uisnd %d", &clip) == 1) { PlayUiSound(clip); return true; }
 	FogLine f;
 	if (sscanf(text, "fog %d %d %f %f %f %d %d %d %d", &f.on, &f.mode, &f.density, &f.start, &f.end, &f.r, &f.g, &f.b, &f.sky) == 9)
 	{
