@@ -30,7 +30,8 @@ class DoomerfallLightCarbine : Weapon
 		Weapon.AmmoGive1 0;
 		Weapon.AmmoType1 "DoomerfallLightCarbineClip";
 		Weapon.AmmoType2 "Clip";
-		Weapon.AmmoGive2 20;
+		Weapon.AmmoGive2 0;
+		Weapon.UpSound "doomerfall/carbine/raise";
 		Weapon.Kickback 40;
 		Weapon.BobStyle "Alpha";
 		Weapon.BobSpeed 2.5;
@@ -41,6 +42,18 @@ class DoomerfallLightCarbine : Weapon
 		+WEAPON.NOAUTOFIRE
 		+INVENTORY.UNTOSSABLE
 		+INVENTORY.UNDROPPABLE
+	}
+
+	// As DRLA's Battle Rifle pickup: the first one gives only the gun, another one gives 20 bullets.
+	override bool HandlePickup(Inventory item)
+	{
+		if (item.GetClass() != GetClass()) return Super.HandlePickup(item);
+		if (AmmoType2 && Owner.CountInv(AmmoType2) < GetDefaultByType(AmmoType2).MaxAmount)
+		{
+			Owner.GiveInventory(AmmoType2, 20);
+			item.bPickupGood = true;
+		}
+		return true;
 	}
 
 	// Nudges the view up (positive) or down, as DRLA's recoil actors do.
@@ -94,7 +107,7 @@ class DoomerfallLightCarbine : Weapon
 	Reload:
 		DFLC A 1 A_WeaponReady(WRF_NOPRIMARY | WRF_ALLOWZOOM);
 		TNT1 A 0 A_JumpIf(CountInv(invoker.AmmoType1) >= MagazineSize || CountInv(invoker.AmmoType2) < 1, "Ready");
-		TNT1 A 0 A_JumpIf(CountInv(invoker.AmmoType1) < 1, "ReloadEmpty");
+		TNT1 A 0 A_JumpIf(CountInv(invoker.AmmoType1) >= 1, "ReloadPartial"); // As DRLA: C-J with rounds left, N-U when empty.
 		DFLC N 2;
 		DFLC O 2;
 		DFLC P 2;
@@ -104,7 +117,7 @@ class DoomerfallLightCarbine : Weapon
 		DFLC T 2 Kick(-0.05);
 		DFLC U 2 Kick(-0.03);
 		Goto ReloadFinish;
-	ReloadEmpty:
+	ReloadPartial:
 		DFLC C 2;
 		DFLC D 2;
 		DFLC E 2;
@@ -149,7 +162,7 @@ class DoomerfallLightCarbineClip : Ammo
 // is being spawned, before the engine reports it, so the helper itself cannot be watched.) The coin is the drop's
 // fixed loot seed when the engine gave it one (a Daggerfall map: the same monster drops the same gun every time, and
 // no random number is drawn, so no other roll moves), else Doom's random numbers. The swap is made in the next tic,
-// out of Doom's drop code: the carbine takes the rifle's place and toss.
+// out of Doom's drop code: the carbine takes the rifle's place, toss and loot identity.
 class DoomerfallLightCarbineDrops : EventHandler
 {
 	const DropTics = 10 * TICRATE; // A corpse is watched this long after the death; its drop comes within a second.
@@ -215,6 +228,7 @@ class DoomerfallLightCarbineDrops : EventHandler
 				carbine.vel = rifle.vel;
 				carbine.bDropped = true;
 				Inventory(carbine).bTossed = true;
+				carbine.DD_TakeLootId(rifle); // Daggerfall rolls the gun's material from it (dd_items.cpp).
 			}
 			rifle.Destroy();
 		}

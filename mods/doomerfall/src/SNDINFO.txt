@@ -8,3 +8,4 @@ $limit doomerfall/carbine/fire 0
 doomerfall/carbine/unload		DFLCUNLD
 doomerfall/carbine/load			DFLCLOAD
 doomerfall/carbine/pickup		DFLCGET
+doomerfall/carbine/raise		DFLCUP

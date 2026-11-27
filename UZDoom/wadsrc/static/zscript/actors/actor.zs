@@ -853,6 +853,7 @@ class Actor : Thinker native
 	native clearscope int SpawnHealth() const;
 	native int DD_HealthCheckLimit(int health); // [Doomerfall] see A_JumpIfHealthLower
 	native clearscope int DD_LootSeed(); // [Doomerfall] fixed loot seed of a drop (dd_lootrng.cpp), folded to 32 bits; 0 on stock actors
+	native void DD_TakeLootId(Actor from); // [Doomerfall] take over another item loot identity (dd_lootrng.cpp)
 	native double DD_MoveRadius(); // [Doomerfall] narrowest width against level geometry: a monster's squeeze width on Daggerfall maps, otherwise radius
 	native static double DD_MonsterMoveScale(); // [Doomerfall] 10.5 / 16 on Daggerfall maps, otherwise 1
 	native static bool DD_OnDaggerfallMap(); // [Doomerfall] a generated location, the overworld, or a converted dungeon
