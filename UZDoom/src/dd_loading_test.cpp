@@ -16,6 +16,9 @@
 #include "g_levellocals.h"
 #include "gamestate.h"
 #include "m_argv.h"
+#include "c_cvars.h"
+
+EXTERN_CVAR(Int, dd_tm_use)
 #include "printf.h"
 
 FARG_ADVANCED(ddloadingtest, "Doomerfall", "", "Loading hold test only: logs whether anything moved or saved while a long operation held the game.");
@@ -34,7 +37,15 @@ int enabled = -1;
 bool watching, askedSave;
 FLevelLocals *heldLevel;
 std::unordered_map<AActor *, Snap> snaps;
-int frames, changed, watched, healthBefore, healthLast;
+int frames, changed, watched, healthBefore, healthLast, usePresses, itemsBefore, itemsLast;
+
+int MapItems()
+{
+	int n = 0;
+	auto it = primaryLevel->GetThinkerIterator<AActor>();
+	while (AActor *a = it.Next()) n += a->IsKindOf(NAME_Inventory) && !a->PointerVar<AActor>(NAME_Owner);
+	return n;
+}
 int64_t startNs, lastNs, maxGapNs;
 DVector3 playerStart, playerLast;
 
@@ -57,6 +68,8 @@ void Start(int64_t now)
 	startNs = lastNs = now;
 	maxGapNs = 0;
 	C_DoCommand("+forward");
+	usePresses = 0;
+	itemsBefore = itemsLast = MapItems();
 	Log(FStringf("hold began on %s, watching %d actors, player at %.1f,%.1f,%.1f health %d", heldLevel->MapName.GetChars(), watched,
 		playerStart.X, playerStart.Y, playerStart.Z, healthBefore));
 }
@@ -99,9 +112,10 @@ void Finish(int64_t now)
 {
 	watching = false;
 	C_DoCommand("-forward");
-	Log(FStringf("result changed=%d watched=%d frames=%d max_frame_gap_ms=%.1f held_ms=%.1f player_moved=%.2f player_health=%d->%d saved=%d",
+	Log(FStringf("result changed=%d watched=%d frames=%d max_frame_gap_ms=%.1f held_ms=%.1f player_moved=%.2f player_health=%d->%d saved=%d use_presses=%d map_items=%d->%d",
 		changed, int(snaps.size()), frames, maxGapNs / 1e6, (lastNs - startNs) / 1e6, (playerLast - playerStart).Length(), healthBefore, healthLast,
-		int(gameaction == ga_savegame || gameaction == ga_quicksave || DD_BridgeSaveActive())));
+		int(gameaction == ga_savegame || gameaction == ga_quicksave || DD_BridgeSaveActive()), usePresses, itemsBefore, itemsLast));
+	dd_tm_use = 0;	// The last press is taken back so the test never presses into play.
 	snaps.clear();
 }
 }
@@ -116,6 +130,9 @@ void DD_LoadingTestFrame(int64_t now)
 	if (!held) return;
 	if (!watching) { Start(now); return; }
 	frames++;
+	dd_tm_use = 1;	// Use on every held frame: it must take, talk or open nothing.
+	usePresses++;
+	itemsLast = MapItems();
 	if (now - lastNs > maxGapNs) maxGapNs = now - lastNs;
 	lastNs = now;
 	Check();

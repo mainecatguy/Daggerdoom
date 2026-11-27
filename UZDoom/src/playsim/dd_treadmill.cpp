@@ -1918,7 +1918,8 @@ namespace
 		useHeld = down;
 		if (dd_tm_use != 0) dd_tm_use = 0;
 		if (handoff.pending || pmo->health <= 0 || DD_BridgeArrivalFrozen()) return; // A press during the arrival wait is dropped.
-		if (fresh && DD_UsePress(pmo->player)) pressed = false; // An item in view takes the press.
+		if (DD_LoadingActive()) pressed = false; // [Doomerfall] A press behind the loading screen is dropped; a pending door still opens.
+		else if (fresh && DD_UsePress(pmo->player)) pressed = false; // An item in view takes the press.
 		const Town &t = towns[currentTown];
 		if (t.space)
 		{
@@ -2883,7 +2884,7 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 
 	AActor *pmo = Level->Players[consoleplayer]->mo;
 	if (!pmo) return;
-	if (DD_BridgeHasSession() && !DD_BridgeArrivalFrozen()) DD_TownsfolkTick(Level);	// [Doomerfall] Idle until Daggerfall lists townspeople; held during the arrival wait.
+	if (DD_BridgeHasSession() && !DD_BridgeArrivalFrozen() && !DD_LoadingActive()) DD_TownsfolkTick(Level);	// [Doomerfall] Idle until Daggerfall lists townspeople; held during the arrival wait and loading holds.
 	DD_LightsTick(Level);
 	DD_WeatherTick(Level);
 	if (runtimeTowns) DDTownCache::Poll();

@@ -89,6 +89,8 @@ def main():
                "-ddconverter", str(DATA / "converter" / "DungeonConverter.exe"), "-ddarena2", DAGGER + r"\ARENA2",
                "+logfile", f"log-{name}.txt", "+vid_fullscreen", "0", "+wipetype", "0",
                "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"]
+    if "--loading-test" in sys.argv:  # the loading hold test (dd_loading_test.cpp)
+        uz_args.append("-ddloadingtest")
     if load:
         uz_args += ["-dfloadtest", f"{load}:{run / 'saves' / (name + '.zds')}"]
     dfu_args = ["-dfbridgelog", str(df_log), "-dfflow", DAGGER, "-dfplainloadtest", save_name, "-dfmute",
