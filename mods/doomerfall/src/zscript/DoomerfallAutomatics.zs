@@ -15,13 +15,14 @@
 // A shot is a tic in which the gun spent ammo while the trigger was down, or hit something while it was down; several
 // pellets or bullets in one tic are one shot.
 //
-// Only hits from an Automatics gun count, not whatever the player happens to hold when a hit lands:
+// Only hits from an Automatics gun count, not whatever the player happens to hold when a hit lands. The gun comes from
+// the shot's tag (DoomerfallShots.zs):
 //   bullets      hitscan damage comes with its puff as the inflictor and lands in the tic it is fired, so a puff hit
 //                while an Automatics gun is held came from that gun.
-//   projectiles  a projectile the player fires next to them while an Automatics gun is held and the trigger is down is
-//                remembered with the burst state of its shot; its hit and its splash count when it lands, even after a
-//                weapon switch. Projectiles spawned away from the player (a rocket's fragments) are not the gun's.
-// Rockets, grenades, barrels, other guns' projectiles and anything else get nothing.
+//   projectiles  a projectile an Automatics gun fires carries a tag naming the gun, and the burst state of its shot;
+//                its hit and its splash count when it lands, even after a weapon switch or a save and load. What it
+//                spawns (explosions, fragments) carries the same tag, so counts too.
+// Rockets, grenades, barrels, other guns' projectiles and untagged projectiles get nothing.
 // Fractional damage rounds up with the chance of the fraction, so +1% on a 5-point bullet is worth +1% on average.
 class DoomerfallAutomatics : StaticEventHandler
 {
@@ -67,58 +68,47 @@ class DoomerfallAutomatics : StaticEventHandler
 		DDLog.Debug(String.Format("automatics: %s", msg));
 	}
 
-	// Projectiles fired by an Automatics gun, with whether their shot was a burst shot. Not kept by saves: a projectile
-	// in flight at a save loses its bonus.
-	Array<Actor> shots;
-	Array<bool> shotBurst;
-	Array<Name> shotGun;
-
-	// Whether damage through this inflictor came from an Automatics gun of this player, and if so whether it was a burst
-	// shot. For a bullet this also counts the shot.
+	// Whether damage through this inflictor came from an Automatics gun of this player (DoomerfallShots.Find: the shot's
+	// tag, or the held gun for a bullet), and if so whether it was a burst shot. For a bullet this also counts the shot.
 	static bool FromGun(Actor player, Actor inflictor, out bool burst, out Name gun)
 	{
 		burst = false;
 		gun = 'None';
 		let perks = player ? DoomerfallAutomaticsPerks(player.FindInventory("DoomerfallAutomaticsPerks")) : null;
-		if (!perks || !inflictor) return false;
-		if (inflictor.bIsPuff)
-		{
-			if (!IsAutomatic(player.player.ReadyWeapon)) return false;
-			burst = perks.MarkShot();
-			gun = player.player.ReadyWeapon.GetClassName();
-			return true;
-		}
-		let h = DoomerfallAutomatics(StaticEventHandler.Find("DoomerfallAutomatics"));
-		int i = h ? h.shots.Find(inflictor) : 0;
-		if (!h || i >= h.shots.Size()) return false;
-		burst = h.shotBurst[i];
-		gun = h.shotGun[i];
+		class<Weapon> wc;
+		int skill;
+		DoomerfallShotTag tag;
+		if (!perks || !DoomerfallShots.Find(player, inflictor, wc, skill, tag) || skill != SkillAutomatics) return false;
+		gun = wc.GetClassName();
+		if (tag) MarkTag(tag, perks); // a point-blank hit lands before the shot's spawn event
+		burst = tag ? tag.autoBurst : perks.MarkShot();
 		return true;
 	}
 
+	// A shot the held Automatics gun just fired counts as a shot of the burst, and its tag (DoomerfallShots, which also
+	// copies it to everything the shot spawns) remembers whether it was a burst shot.
 	override void WorldThingSpawned(WorldEvent e)
 	{
 		let m = e.Thing;
-		if (!m || !m.bMissile || !m.target || !m.target.player || m.target.player.mo != m.target) return;
-		let pmo = m.target;
-		let perks = DoomerfallAutomaticsPerks(pmo.FindInventory("DoomerfallAutomaticsPerks"));
-		if (!perks || !IsAutomatic(pmo.player.ReadyWeapon) || !perks.TriggerDown()) return;
-		if (m.Distance2D(pmo) > pmo.radius + m.radius + 64) return; // Spawned by something else out in the world.
-		shots.Push(m);
-		shotBurst.Push(perks.MarkShot());
-		shotGun.Push(pmo.player.ReadyWeapon.GetClassName());
-		Log(String.Format("projectile %s from %s", m.GetClassName(), pmo.player.ReadyWeapon.GetClassName()));
+		// Projectiles only: a gun's helper actors (DRLA's recoil and reload effects) are not shots.
+		if (!m || !(m.bMissile || m.default.bMissile) || !m.target || !m.target.player || m.target.player.mo != m.target) return;
+		let perks = DoomerfallAutomaticsPerks(m.target.FindInventory("DoomerfallAutomaticsPerks"));
+		if (!perks || !perks.TriggerDown()) return;
+		let tag = DoomerfallShots.Tag(m);
+		if (tag && MarkTag(tag, perks)) Log(String.Format("projectile %s from %s", m.GetClassName(), tag.gun.GetClassName()));
+	}
+
+	// Decides once whether a shot the held Automatics gun fired this tic is a burst shot, and counts it.
+	static bool MarkTag(DoomerfallShotTag tag, DoomerfallAutomaticsPerks perks)
+	{
+		if (tag.burstSet || tag.generation != 0 || tag.fireTic != level.maptime || tag.skill != SkillAutomatics || !perks.TriggerDown()) return false;
+		tag.burstSet = true;
+		tag.autoBurst = perks.MarkShot();
+		return true;
 	}
 
 	override void WorldTick()
 	{
-		for (int i = shots.Size() - 1; i >= 0; i--)
-		{
-			if (shots[i]) continue;
-			shots.Delete(i);
-			shotBurst.Delete(i);
-			shotGun.Delete(i);
-		}
 		if (Actor.DD_SheetValue(SheetValid) != 1) return; // Rules come from Daggerfall's character only.
 		for (int i = 0; i < MAXPLAYERS; i++)
 		{

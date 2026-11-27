@@ -171,8 +171,8 @@ Uzi is a Pistol, not an Automatic.
 - **100:** automatic guns use only 1 ammo for every 4 shots.
 - The bonuses add up: a burst shot at 100 does 1.6 x 1.3, about twice the damage.
 - Only hits from the automatic gun itself get these bonuses. A rocket, grenade or exploding barrel that goes off while
-  you hold an automatic gets nothing. A shot from an automatic gun keeps its bonus even if you switch weapons before
-  it lands.
+  you hold an automatic gets nothing. A shot from an automatic gun keeps its bonus even if you switch weapons, or
+  save and load, before it lands, and so does anything the shot sets off (its explosion or fragments).
 - These only work in the Daggerfall world. Your current skill counts, so an effect that lowers or raises the skill
   changes them too.
 

@@ -192,6 +192,11 @@ def analyse(name, lines, checks, held=False):
         hit, fresh = c.get("probe", (0, 0))
         want_hit = 100 + min(target_hits, 15) if 160 in rules and auto else 100
         check(f"{tag}: a 100 hit from elsewhere does {hit} (want {want_hit}), fresh target {fresh} (want 100)", hit == want_hit and fresh == 100)
+    helpers = [l for l in lines if "AUTOTEST helper" in l]
+    if name == "drla":
+        check("DRLA recoil/reload helper actors appeared while firing", any("trigger=1" in l for l in helpers), helpers[:3])
+    counted = [l for l in lines if re.search(r"(automatics: projectile|shots: tag) \S*Recoil", l)]
+    check(f"no helper actor counted as a shot or tagged ({len(helpers)} spawned)", not counted, counted[:3])
     sources(name, lines, check)
     return cases
 
@@ -223,6 +228,10 @@ def sources(name, lines, check):
     ok = (c.get("end", (0, 0))[0] > 0 and len(c["proj"]) == 1 and "PlasmaBall from Chaingun" in c["proj"][0]
           and c["hits"] and all(h.group(2) == "Chaingun" and float(h.group(7)) >= 1.6 - 1e-3 for h in c["hits"]) and c["sunder"] > 0)
     check("source own: a Chaingun projectile landing after a switch to the fist keeps its perks", ok, c)
+    c = seen.get("close", {})
+    ok = (c.get("end", (0, 0))[0] > 0 and c["hits"] and all(h.group(2) == "Chaingun" for h in c["hits"])
+          and all(h.group(4) and float(h.group(7)) >= 1.6 * 1.3 - 1e-3 for h in c["hits"]))
+    check("source close: a Chaingun projectile hitting at point blank gets the burst bonus", ok, c)
 
 
 def main():
