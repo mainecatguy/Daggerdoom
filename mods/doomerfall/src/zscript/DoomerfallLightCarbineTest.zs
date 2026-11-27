@@ -168,9 +168,19 @@ class DoomerfallLightCarbineTest : StaticEventHandler
 			phase = 9;
 			break;
 		default:
+		{
+			// Like other guns: Doom's drop tosses it into the world, and an inventory clear removes it.
+			let w = mo.FindInventory("DoomerfallLightCarbine");
+			let dropped = w ? mo.DropInventory(w) : null;
+			bool dropOk = dropped && dropped.GetClassName() == 'DoomerfallLightCarbine' && !dropped.Owner && !mo.FindInventory("DoomerfallLightCarbine");
+			if (dropped) dropped.Destroy();
+			mo.GiveInventory("DoomerfallLightCarbine", 1);
+			mo.ClearInventory();
+			Console.Printf("CARBINE inventory dropped=%d cleared=%d", dropOk, !mo.FindInventory("DoomerfallLightCarbine"));
 			finished = true;
 			Console.Printf("CARBINE done");
 			break;
+		}
 		}
 	}
 

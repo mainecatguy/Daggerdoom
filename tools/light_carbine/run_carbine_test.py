@@ -125,6 +125,8 @@ def fire_checks(name, lines, checks, drla):
                    and all(left for _, left in partial), sorted(partial)))
     pick = value(lines, r'CARBINE pickup has=(\d+) firstClip=(\d+) secondClip=(\d+)')
     checks.append((f'{name}: the first carbine picked up gives no bullets, another gives 20', pick == (1, 0, 20), pick))
+    inv = value(lines, r'CARBINE inventory dropped=(\d+) cleared=(\d+)')
+    checks.append((f'{name}: Doom can drop the carbine, and an inventory clear removes it', inv == (1, 1), inv))
     damage = [e[2] for e in ev if e[0] == 'CARBINE hit']
     checks.append((f'{name}: every carbine hit is 6 x 1d3 (6, 12 or 18)', bool(damage) and set(damage) <= CARBINE_DAMAGE,
                    sorted(set(damage))))

@@ -40,8 +40,6 @@ class DoomerfallLightCarbine : Weapon
 		+WEAPON.AMMO_OPTIONAL
 		+WEAPON.NOALERT
 		+WEAPON.NOAUTOFIRE
-		+INVENTORY.UNTOSSABLE
-		+INVENTORY.UNDROPPABLE
 	}
 
 	// As DRLA's Battle Rifle pickup: the first one gives only the gun, another one gives 20 bullets.
