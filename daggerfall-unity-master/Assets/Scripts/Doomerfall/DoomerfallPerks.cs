@@ -39,10 +39,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         static readonly Perk[] PerkText =
         {
-            new Perk("Jumping", 25, "Your jumps get a sudden boost of 25% extra height."),
-            new Perk("Jumping", 50, "Double jump: jump once more in mid-air."),
-            new Perk("Jumping", 75, "Falling no longer hurts you."),
-            new Perk("Jumping", 100, "Triple jump: jump twice more in mid-air."),
+            new Perk("Jumping", 25, "Your jumps get a sudden boost of 25% extra height.", true),
+            new Perk("Jumping", 50, "Double jump: jump once more in mid-air.", true),
+            new Perk("Jumping", 75, "Falling no longer hurts you.", true),
+            new Perk("Jumping", 100, "Triple jump: jump twice more in mid-air.", true),
 
             new Perk("Shotguns", 25, "Shotguns reload about 35% faster."),
             new Perk("Shotguns", 50, "Shotguns fire more pellets."),

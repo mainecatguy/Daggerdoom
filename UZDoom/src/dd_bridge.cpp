@@ -775,6 +775,13 @@ int DD_BridgeSkillLive(int slot)
 	return s && slot >= 0 && slot < DFB_SHEET_SKILLS_LIVE - DFB_SHEET_SKILLS_BASE ? s[DFB_SHEET_SKILLS_LIVE + slot] : -1;
 }
 
+// The same for the permanent (base) value, which perks follow (Actor.DD_SheetSkillBase).
+int DD_BridgeSkillBase(int slot)
+{
+	const int32_t *s = DD_BridgeSheet();
+	return s && slot >= 0 && slot < DFB_SHEET_SKILLS_LIVE - DFB_SHEET_SKILLS_BASE ? s[DFB_SHEET_SKILLS_BASE + slot] : -1;
+}
+
 // One line in the bridge log (-dfbridgelog) and the console, for the other dd_*.cpp files.
 void DD_BridgeLog(const char *text) { Log("%s", text); }
 

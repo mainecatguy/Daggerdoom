@@ -102,6 +102,27 @@ A skill earns a **perk** when it reaches 25, 50, 75 and 100.
 - So far, Jumping and the gun skills (Shotguns, Automatics and Explosives) have perks. The window says when a perk
   does not work yet.
 
+## Falling and jumping
+
+In Daggerfall's world, falls hurt, by Daggerfall's own rule:
+
+- A fall is measured from where you left the ground to where you land. The first **5 metres** are free; every metre
+  past that costs **5 HP**. A 9 metre drop costs 20 HP, a 15 metre drop 50 HP. Armor does not help.
+- A jump that lands where it started never hurts, however high it goes, double and triple jumps included.
+- Landing in water does not hurt. Grabbing a wall while climbing starts the fall over from there.
+
+Your **Jumping** skill (the permanent value on your character sheet) changes how you jump:
+
+- Every point of Jumping makes your jumps 1% higher, up to twice as high at 100.
+- **25:** a sudden boost of 25% more height on top of that (so at 100 your jumps are 2.25 times as high).
+- **50:** double jump. Press Jump again in mid-air to jump once more, as strong as a jump from the ground. You can
+  also use it after walking off an edge.
+- **75:** falling no longer hurts you.
+- **100:** triple jump. You can jump twice in mid-air.
+
+Below 75, Jumping does not lower falling damage yet. Jumping does not train by jumping in Doom yet; train it at a
+guild.
+
 ## Weapons that belong to two skills
 
 Some guns fit two weapon skills, for example a laser shotgun is both a Shotgun and an Energy Weapon. Such a gun uses
