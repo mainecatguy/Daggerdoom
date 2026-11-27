@@ -140,23 +140,33 @@ class DoomerfallLightCarbineClip : Ammo
 
 // Drops (owner, 2026-11-26): with DRLA Monsters, half the Battle Rifles that the Battle Rifle monsters drop become
 // Light Carbines. Those are the Former Human, Former Commando, Elite Former Human and Former Cyborg with a battle
-// rifle; each dies dropping one of the drop helpers below, which drops RLBattleRiflePickup where it stands (DRLA
-// Monsters 7.3, MonsterStuff.txt RLEnemyWeaponDrop and the monsters' own files). A Battle Rifle from anywhere else
-// (a map, another drop, a spawner, a modded one) stays a Battle Rifle. Does nothing without DRLA Monsters.
+// rifle (and their variants): each has one of the drop helpers below in its drop list, and the helper drops
+// RLBattleRiflePickup where the corpse lies (DRLA Monsters 7.3, MonsterStuff.txt RLEnemyWeaponDrop and the monsters'
+// own files). A Battle Rifle from anywhere else (a map, another drop, a spawner, a modded one) stays a Battle Rifle.
+// Does nothing without DRLA Monsters.
 //
-// The pickup is told by where it appears: on the spot of a drop helper that is still running. The coin is the drop's
+// The pickup is told by where it appears: on the spot of such a monster that died lately. (The helper drops while it
+// is being spawned, before the engine reports it, so the helper itself cannot be watched.) The coin is the drop's
 // fixed loot seed when the engine gave it one (a Daggerfall map: the same monster drops the same gun every time, and
 // no random number is drawn, so no other roll moves), else Doom's random numbers. The swap is made in the next tic,
 // out of Doom's drop code: the carbine takes the rifle's place and toss.
 class DoomerfallLightCarbineDrops : EventHandler
 {
-	Array<Actor> helpers;
-	Array<Actor> swaps;
+	const DropTics = 10 * TICRATE; // A corpse is watched this long after the death; its drop comes within a second.
+	const NearCorpse = 16; // The helper drops on the corpse's spot; in a test of 200 deaths 2 were off by more than 1.
 
-	static bool IsHelper(Actor a)
+	Array<Actor> swaps;
+	Array<Actor> dying;
+	Array<int> diedAt;
+
+	static bool DropsBattleRifle(Actor monster)
 	{
-		Name n = a.GetClassName();
-		return n == 'RLFormerHumanBattleRifleDrop' || n == 'RLFormerCommandoBattleRifleDrop' || n == 'RLEliteHumanBattleRifleDrop';
+		for (let d = monster.GetDropItems(); d; d = d.Next)
+		{
+			Name n = d.Name;
+			if (n == 'RLFormerHumanBattleRifleDrop' || n == 'RLFormerCommandoBattleRifleDrop' || n == 'RLEliteHumanBattleRifleDrop') return true;
+		}
+		return false;
 	}
 
 	// True for half the drops: the carbine's coin.
@@ -168,26 +178,31 @@ class DoomerfallLightCarbineDrops : EventHandler
 		return ((h >> 16) & 1) == 1;
 	}
 
+	override void WorldThingDied(WorldEvent e)
+	{
+		if (!e.Thing || !e.Thing.bIsMonster || !DropsBattleRifle(e.Thing)) return;
+		dying.Push(e.Thing);
+		diedAt.Push(level.maptime);
+	}
+
 	override void WorldThingSpawned(WorldEvent e)
 	{
 		let a = e.Thing;
-		if (!a) return;
-		if (IsHelper(a))
+		if (!a || dying.Size() == 0 || a.GetClassName() != 'RLBattleRiflePickup') return;
+		for (int i = 0; i < dying.Size(); i++)
 		{
-			for (int i = helpers.Size() - 1; i >= 0; i--)
-				if (!helpers[i]) helpers.Delete(i);
-			helpers.Push(a);
+			if (!dying[i] || (dying[i].pos.xy - a.pos.xy).Length() > NearCorpse) continue;
+			if (Heads(a)) swaps.Push(a);
+			dying.Delete(i); // One rifle per death.
+			diedAt.Delete(i);
 			return;
 		}
-		if (a.GetClassName() != 'RLBattleRiflePickup' || helpers.Size() == 0) return;
-		bool fromHelper = false;
-		for (int i = 0; i < helpers.Size() && !fromHelper; i++)
-			fromHelper = helpers[i] && (helpers[i].pos.xy - a.pos.xy).Length() < 1;
-		if (fromHelper && Heads(a)) swaps.Push(a);
 	}
 
 	override void WorldTick()
 	{
+		for (int i = dying.Size() - 1; i >= 0; i--)
+			if (!dying[i] || level.maptime - diedAt[i] > DropTics) { dying.Delete(i); diedAt.Delete(i); }
 		if (swaps.Size() == 0) return;
 		for (int i = 0; i < swaps.Size(); i++)
 		{

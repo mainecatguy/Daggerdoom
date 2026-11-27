@@ -29,11 +29,11 @@ RIFLE_TICS = 4                 # The Battle Rifle's shot: Y Z V B (or W A), one 
 
 # The trigger script, one console line run by +exec (a ZScript handler cannot press buttons; the waits of one line
 # run in order, counting game tics). After the handler has set up, a round: an alt-fire press (the handler starts on it, emptying the magazine), one pull on
-# the empty gun, a 40-tic hold, 40 taps one tic down and one up, the reload key, and a last 40-tic hold for DRLA's
+# the empty gun, a 40-tic hold, 25 taps two tics down and two up, the reload key, and a last 40-tic hold for DRLA's
 # Battle Rifle.
 ROUND = ('wait 300; +altattack; wait 2; -altattack; wait 30; +attack; wait 2; -attack; wait 100; +attack; wait 40; -attack; wait 20; '
-         + '+attack; wait 1; -attack; wait 1; ' * 40
-         + 'wait 20; +reload; wait 2; -reload; wait 150; +attack; wait 40; -attack')
+         + '+attack; wait 2; -attack; wait 2; ' * 25
+         + 'wait 20; +reload; wait 6; -reload; wait 150; +attack; wait 40; -attack')
 
 
 def run(exe, work, iwad, files, name, mode, timeout):
