@@ -4,7 +4,8 @@ Doomerfall.
 usage: python tools/visual_parity/menus.py [--seed N] [--out DIR] [--skip-df] [--skip-doom]
 
 Both sides use the paired tests' blank character (-dfsynctest with -dfinventorytest: 100 HP, 5000 gold, an iron
-longsword and a steel dagger) in the test town (map pixel 207, 213), and open the windows Doomerfall offers
+longsword and a steel dagger). Daggerfall Unity is placed at the paired session's spot, facing and game time (the town
+outside Privateer's Hold, map pixel 109, 158, after Doom's map syncs the position), and both open the windows Doomerfall offers
 (inventory, travel map, map, quest journal, rest) in a seeded random order.
 - Daggerfall Unity: the capture player (DungeonCaptureTest's menu job) opens each window with Daggerfall Unity's own
   message, as its keys do, and saves its whole screen.
