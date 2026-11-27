@@ -110,12 +110,13 @@ def analyse(out, text, dft, fatal):
     for l in text.splitlines():
         if m := re.search(r"PAIRED start (\d+) skill=(-?\d+) dmg=(-?\d+) burstbp=(-?\d+) burstn=(-?\d+) per=(-?\d+) sunder=(-?\d+/-?\d+)", l):
             cur = {"skill": int(m.group(2)), "read": {"dmg": int(m.group(3)), "burstbp": int(m.group(4)), "burstn": int(m.group(5)),
-                                                      "per": int(m.group(6)), "sunder": m.group(7)}, "shots": [], "line": l}
+                                                      "per": int(m.group(6)), "sunder": m.group(7)}, "shots": [], "line": l, "all": []}
             cycles.append(cur)
         elif "AUTOTEST fire" in l:
             hits = []
         elif (h := HIT.search(l)) and cur:
             hits.append(h)
+            cur["all"].append(h)  # every landed bullet of the cycle, including those fired in the tics after a pull
         elif (s := re.search(r"PAIRED shot \d+ n=(\d+) ammo=(-?\d+)->(-?\d+) lost=(\d+)", l)) and cur:
             cur["shots"].append((int(s.group(1)), int(s.group(4)), hits))
             hits = []
@@ -125,7 +126,12 @@ def analyse(out, text, dft, fatal):
     done = [c for c in cycles if "end" in c and c["end"]["skill"] == c["skill"]]  # skip cycles the skill changed in
     seen = sorted({c["skill"] for c in done})
     report.append(f"skills seen in whole cycles: {seen}")
-    check("cycles at every step (20, 26, 50, 75, 100)", all(s in seen for s in (20, 26, 50, 75, 100)), seen)
+    # 20 lasts only one second (the test lowers then raises), so whole cycles are needed at 26 and up.
+    check("cycles at every step (26, 50, 75, 100)", all(s in seen for s in (26, 50, 75, 100)), seen)
+    # Ammo per trigger pull without ammo saving (cycles below 50), the baseline for one ammo per n shots.
+    base = [c["end"]["used"] / c["end"]["shots"] for c in done if rules(c["skill"])["per"] == 1 and c["end"]["shots"]]
+    per_pull = sum(base) / len(base) if base else 1
+    report.append(f"ammo per pull without saving: {per_pull:.2f}")
     for c in done:
         want = rules(c["skill"])
         check("Doom read Daggerfall's rules for the skill", c["read"] == want, f"skill {c['skill']}: read {c['read']} want {want}")
@@ -137,11 +143,13 @@ def analyse(out, text, dft, fatal):
             if lost > 0 and f != 1:
                 check("every hit that landed was boosted", hl, f"skill {c['skill']} shot {n} lost {lost} with no hit line")
         e = c["end"]
-        expect_used = e["shots"] / want["per"]
-        check("ammo follows one ammo per n shots", abs(e["used"] - expect_used) <= 1.01, f"skill {c['skill']}: used {e['used']} for {e['shots']} shots, per {want['per']}")
-        expect_probe = 100 + (min(e["hits"], 15) if want["sunder"] != "0/0" else 0)
-        check("sunder: the probe hit shows the stacks", e["probe"] == expect_probe, f"skill {c['skill']}: probe {e['probe']} want {expect_probe} ({e['hits']} hits)")
-        report.append(f"skill {c['skill']}: shots {e['shots']} hits {e['hits']} ammo used {e['used']} probe {e['probe']} "
+        # A DRLA Chaingun pull fires a short string; every landed bullet has a hit line (all skills here have a bonus).
+        bullets = len(c["all"])
+        expect_used = e["shots"] * per_pull / want["per"]
+        check("ammo follows one ammo per n shots", abs(e["used"] - expect_used) <= 1.01, f"skill {c['skill']}: used {e['used']} for {e['shots']} pulls, want {expect_used:.1f} (per {want['per']})")
+        expect_probe = 100 + (min(bullets, 15) if want["sunder"] != "0/0" else 0)
+        check("sunder: the probe hit shows the stacks", e["probe"] == expect_probe, f"skill {c['skill']}: probe {e['probe']} want {expect_probe} ({bullets} bullets hit)")
+        report.append(f"skill {c['skill']}: pulls {e['shots']} bullets hit {bullets} ammo used {e['used']} probe {e['probe']} "
                       f"bonus shots {sum(1 for _, _, hl in c['shots'] if hl)}")
     report.append(f"perk windows: {dft.count('ui: menu 7 opened')} opened, {dft.count('ui: menu 7 closed')} closed")
     report += [l for l in dft.splitlines() if "perktest" in l or "perks: " in l]
