@@ -93,7 +93,12 @@ def run_case(args, name, lines):
         steps = [(i, view) for i, (view, *_rest) in enumerate(VIEWS)]
         if args.walk:  # then walk about 36 tiles west (window shifts) and take every view again as walked-<view>
             steps += [("walk", None)] + [(i, "walked-" + view) for i, view in steps]
+        if args.flip:  # then a new Daggerfall season line arrives mid-game, and every view again as flipped-<view>
+            steps += [("flip", None)] + [(i, "flipped-" + view) for i, (view, *_rest) in enumerate(VIEWS)]
         for n, (i, view) in enumerate(steps):
+            if i == "flip":
+                f.write(f'alias wsstep{n} "dd_sky \\"{args.flip}\\"; wait 10; wsstep{n + 1}"\n')
+                continue
             if i == "walk":
                 f.write(f'alias wsstep{n} "netevent ws_walk; wait 70; wsstep{n + 1}"\n')
                 continue
@@ -152,6 +157,7 @@ def main():
     ap.add_argument("--timeout", type=int, default=45)
     ap.add_argument("--case", nargs="*", default=list(CASES))
     ap.add_argument("--walk", action="store_true", help="after the views, walk west about 36 tiles and take them again")
+    ap.add_argument("--flip", help="a sky line sent after the views (another season), then the views again")
     args = ap.parse_args()
     args.cache = args.cache or os.path.join(args.out, "cache")
     os.makedirs(args.cache, exist_ok=True)
