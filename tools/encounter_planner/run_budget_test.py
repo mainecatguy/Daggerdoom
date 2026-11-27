@@ -178,6 +178,15 @@ def check(name, lines, out, checks, stock):
                        f'Move gave it to {pr["moveto"]}; spent + leftover = pool ({pr["totalafter"]} + {pr["leftover"]} = {pr["pool"]})', ok))
     mf = other.get('movefull')
     checks.append((f'{name}: Move with every placement full drops and reports the points', bool(mf) and mf['to'] == '-1' and mf['dropped'] == '500'))
+    # The PlainHumanoid start room (Privateer's Hold, all 13 seed offsets): placements 0 and 1 (beside and below the cave)
+    # hold only battle rifle Former Humans (stock: zombiemen); placement 2, just outside the radius, and the rest plan as usual.
+    start_ok = {'Zombieman'} if stock else {'RLFormerHumanBattleRifle', 'RLFormerHumanBattleRifle2', 'RLFormerHumanBattleRifle3'}
+    rows = [kv(l.split('ENCBUD startroom ', 1)[1]) for l in lines if 'ENCBUD startroom ' in l]
+    bad = [r for r in rows if (r['p'] in ('0', '1')) != (r['role'] == 'start')
+           or (r['role'] == 'start' and not (r['classes'] and set(r['classes'].split(',')) <= start_ok))]
+    starts = [r for r in rows if r['role'] == 'start']
+    checks.append((f'{name}: start room: {len(starts)} start placements in 13 plans, only {sorted(start_ok)}; none past the radius '
+                   f'(bad: {bad[:3]})', len(rows) == 13 * 42 and len(starts) == 26 and not bad))
     return out, plans, places
 
 

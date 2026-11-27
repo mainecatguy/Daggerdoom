@@ -38,6 +38,7 @@ class DoomerfallEncounterBudgetTest : StaticEventHandler
 		}
 		// The hooks (6.6) on a copy of the level 30 plan.
 		Hooks();
+		StartRoom();
 		Console.Printf("ENCBUD time ms=%d", MSTime() - t0);
 		Console.Printf("ENCBUD done");
 	}
@@ -87,6 +88,29 @@ class DoomerfallEncounterBudgetTest : StaticEventHandler
 			req.placements.Push(p);
 		}
 		return req;
+	}
+
+	// The PlainHumanoid start room: Privateer's Hold's facts with placements 0 and 1 moved beside and below the cave
+	// (startat in the data file) and placement 2 just outside the radius. Prints each placement's role and classes.
+	static void StartRoom()
+	{
+		for (int s = 0; s < 13; s++)
+		{
+			let req = Fake(1506, "PlainHumanoid", 1, 42, true);
+			req.locationId = 50050;
+			req.regionIndex = 17;
+			req.seedOffset = s;
+			req.placements[0].x = 563; req.placements[0].y = 1419; req.placements[0].z = 960;
+			req.placements[1].x = 458; req.placements[1].y = 1292; req.placements[1].z = 576;
+			req.placements[2].x = 510; req.placements[2].y = 1672 - 660; req.placements[2].z = 960;
+			let p = DoomerfallEncounterPlanner.Plan(req);
+			for (int i = 0; p && i < p.placements.Size(); i++)
+			{
+				String cls = "";
+				for (int k = 0; k < p.placements[i].mooks.Size(); k++) cls = cls .. (k ? "," : "") .. p.placements[i].mooks[k].m.cls.GetClassName();
+				Console.Printf("ENCBUD startroom seed=%d p=%d role=%s classes=%s", s, i, p.placements[i].role, cls);
+			}
+		}
 	}
 
 	static String Hex(int hi, int lo) { return String.Format("%08x%08x", hi, lo); }

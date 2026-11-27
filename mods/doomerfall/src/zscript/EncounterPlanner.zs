@@ -47,6 +47,7 @@ class DoomerfallEncounterRng
 	const P_AWARE = 26;
 	const P_SIDE = 27;
 	const P_MOVE = 28;
+	const P_START = 29;
 
 	int key, purpose, index;
 
@@ -186,6 +187,7 @@ class DoomerfallEncounterPlan
 	DoomerfallMonster titan;
 	String titanWhy;         // why there is or is not a titan
 	bool emptyWing;
+	Array<int> startRoom;    // placements the theme's start room rule replaced (StartRoom), nearest the player start
 	Array<DoomerfallSquad> squads;
 	Array<DoomerfallPlannedPlacement> placements;
 

@@ -495,4 +495,10 @@ theme Humanoid            kinds=ZombieMan,ShotgunGuy,ChaingunGuy placement=choke
 # Plain Former Humans for the first dungeon (Privateer's Hold, owner 2026-11-26): the stock zombieman, shotgunner and
 # chaingunner and DRLA's base classes for them (pistol zombieman, shotgun sergeant, chaingun commando). No weapon
 # variants (battle rifle, combat shotgun), Elite, Stealth (invisible), Cyborg, Captain, Armageddon or Colourful Hell.
-theme PlainHumanoid       classes=Zombieman,ShotgunGuy,ChaingunGuy,RLFormerHumanPistol,RLFormerSergeantShotgun,RLFormerCommandoChaingun placement=chokepoints awareness=sentries only=1 seedas=Humanoid
+# The first enemy room, just outside the starting cave, is easy (owner 2026-11-26): start=<exact classes> replaces each
+# monster at placements within startradius map units (straight line) of startat with one of these classes (those the
+# pool has), keeping their number. startat is the cave's floor in the converted map: Daggerfall's enter marker, where
+# New Game puts the player (510,1672, floor 960). The radius takes the two nearest placements (258 and 545 units: the
+# rooms beside and below the cave); the next is 808 units away. DRLA's three battle rifle Former Humans differ only in
+# look and drop a battle rifle; the stock zombieman (pistol) stands in without DRLA.
+theme PlainHumanoid       classes=Zombieman,ShotgunGuy,ChaingunGuy,RLFormerHumanPistol,RLFormerSergeantShotgun,RLFormerCommandoChaingun placement=chokepoints awareness=sentries only=1 seedas=Humanoid start=RLFormerHumanBattleRifle,RLFormerHumanBattleRifle2,RLFormerHumanBattleRifle3,Zombieman startat=510,1672,960 startradius=640
