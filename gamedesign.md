@@ -44,7 +44,7 @@ The player can be superhumanly powerful, whether as a space marine, a wizard or 
 
 ## Systemic cause and effect (design principle)
 
-Systems have inputs and outputs, and they are allowed to interact with each other. We generally favor making the game more like an immersive sim, and eventually more like a roguelike (owner, 2026-11-27).
+Systems have inputs and outputs, and they are allowed to interact with each other. We generally favor making the game more like the immersive sim genre of games which leans heavily on this concept, and eventually more like an extremely systems-heavy roguelike like Cataclysm Dark Days Ahead if time and interest permits (owner, 2026-11-27).
 
 ## Maps
 

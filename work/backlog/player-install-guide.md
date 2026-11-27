@@ -1,6 +1,7 @@
 # Player installation guide
 
-Lane: `installguide` (new). Model: Opus. Depends on nothing.
+Waiting on: the project being ready to send to players (owner, 2026-11-27: "player installation needs to be deferred
+until we're ready to send it to players"). Card ready.
 
 The other Doom mods (DRLA Arsenal, DRLA Monsters, DRLAX, Colourful Hell, and so on) are not committed: players get
 them themselves. Owner (2026-11-27): "The other game mods are an exception but we should have an installation

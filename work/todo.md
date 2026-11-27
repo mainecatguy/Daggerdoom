@@ -97,6 +97,9 @@ In order. Lanes `skillresearch`, `skillcore`, `skillperks`, `skillmenu`, `levelu
 
 ### Encounters (owner, 2026-11-26)
 
+- `passiveguards` 01 (`work/queue/passiveguards/01.opus.passive-guard-bots.md`), approved by the owner, 2026-11-27: passive castle markers and friendly entities become passive Doom guard bots that look like Daggerfall's guard.
+- `randomencounters` 01 (`work/queue/randomencounters/01.opus.random-encounter-packs.md`), approved by the owner, 2026-11-27: Daggerfall's random encounters (rest ambushes, reputation guards) as mook packs at area level.
+- `questfoes` 01 (`work/queue/questfoes/01.opus.quest-foe-packs.md`), approved by the owner, 2026-11-27: quest foes in town buildings and quest ambushes as mook packs.
 - **On hold for the owner's go-ahead (owner, 2026-11-26: ready, but run it when it won't waste tokens; do not start
   until the owner says).** `monsterdps` 01 (`work/queue/monsterdps/01.opus.monster-dps.md`), approved by the owner, 2026-11-26: measure damage
   per second of non-EX Black and White monsters and DRLA bosses with an erratically strafing 500 HP player, and price

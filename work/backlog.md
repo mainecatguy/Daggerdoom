@@ -136,6 +136,8 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [Rifles skill](backlog/rifles-skill.md): New skill for rifles (was Marksmanship); no rifle counts as a pistol (owner, 2026-11-26). Later.
 - [Guns off option](backlog/guns-off-option.md): An option to turn guns off, medieval-themed only (owner, 2026-11-26). Later.
 - [Mod compatibility research](backlog/mod-compatibility-research.md): Specialist reviews history; new mods' weapons work with Daggerfall systems.
+- [Release packaging](backlog/release-packaging.md): One command builds and packages a release, pk3s included. For initial release; card ready.
+- [Player installation guide](backlog/player-install-guide.md): Deferred until ready to send to players; card ready.
 - [Player manual](backlog/player-manual.md): Started at `manual.md` with HP; a specialist task decides its full scope.
 - [Final Doom class and difficulty for New Game](backlog/full-daggerfall-new-game-flow.md): Replace the temporary prompt and fixed class.
 - [Doom monsters block fast travel](backlog/doom-monsters-block-fast-travel.md): Decide whether and how nearby Doom monsters block travel.
