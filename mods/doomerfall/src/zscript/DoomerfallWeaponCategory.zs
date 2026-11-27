@@ -86,18 +86,52 @@ class DoomerfallWeaponCategory abstract
 	{
 		if (!w) return Other, Other;
 		let owner = w.Owner;
-		bool held = owner && owner.player && owner.player.ReadyWeapon == w;
+		int tokens = 0;
+		if (owner && owner.player && owner.player.ReadyWeapon == w)
+		{
+			if (HasToken(owner, "RLPistolTypeWeapon")) tokens |= TokPistol;
+			if (HasToken(owner, "RLShotgunTypeWeapon")) tokens |= TokShotgun;
+			if (HasToken(owner, "RLSingleShotRifleTypeWeapon")) tokens |= TokSingleShotRifle;
+			if (HasToken(owner, "RLRapidfireTypeWeapon")) tokens |= TokRapidfire;
+			if (HasToken(owner, "RLMeleeTypeWeapon")) tokens |= TokMelee;
+		}
+		int first, second; // ZScript passes on only the first value of "return BothWithTokens(...)".
+		[first, second] = BothWithTokens(w, tokens);
+		return first, second;
+	}
+
+	// Both's answer for a gun class that need not be held or even exist, as a gun in Daggerfall's inventory: the same
+	// rules, with DRLA's tokens read from DoomerfallWeaponTokens (what each gun's Select state gives) instead of the
+	// player's inventory. tools/weapon_types/run_weapontypes_test.py checks it gives Both's answer for every held gun.
+	clearscope static int, int BothOfClass(class<Weapon> wc)
+	{
+		if (!wc) return Other, Other;
+		int first, second;
+		[first, second] = BothWithTokens(GetDefaultByType(wc), DoomerfallWeaponTokens.Of(wc));
+		return first, second;
+	}
+
+	// DRLA's type tokens as bits (DoomerfallWeaponTokens and tools/weapon_types/derive_weapon_tokens.py use them).
+	const TokPistol = 1;
+	const TokShotgun = 2;
+	const TokSingleShotRifle = 4;
+	const TokRapidfire = 8;
+	const TokMelee = 16;
+
+	// The rules of Both, for a weapon (or a weapon class's defaults) and the DRLA tokens it gives while held.
+	private clearscope static int, int BothWithTokens(readonly<Weapon> w, int tokens)
+	{
 		if (w is "Fist" || IsClass(w, "RLFist")) return Unarmed, Other;
-		if (w.bMeleeWeapon || w is "Chainsaw" || IsClass(w, "RLDragonslayer") || (held && HasToken(owner, "RLMeleeTypeWeapon"))) return Melee, Other;
+		if (w.bMeleeWeapon || w is "Chainsaw" || IsClass(w, "RLDragonslayer") || (tokens & TokMelee)) return Melee, Other;
 		// ZScript names are case-insensitive: these must not be called energy or shotgun, or they hide the enum values.
 		bool isEnergy = AmmoIs(w, "Cell") || IsEnergyGun(w);
-		if (w is "Pistol" || (held && HasToken(owner, "RLPistolTypeWeapon"))) return Pistol, isEnergy ? Energy : Other;
+		if (w is "Pistol" || (tokens & TokPistol)) return Pistol, isEnergy ? Energy : Other;
 		if (AmmoIs(w, "RocketAmmo")) return Explosive, Other;
-		bool isShotgun = w is "Shotgun" || w is "SuperShotgun" || (held && HasToken(owner, "RLShotgunTypeWeapon"));
+		bool isShotgun = w is "Shotgun" || w is "SuperShotgun" || (tokens & TokShotgun);
 		if (isEnergy) return Energy, isShotgun ? Shotgun : Other;
 		if (isShotgun) return Shotgun, Other;
-		if (held && HasToken(owner, "RLSingleShotRifleTypeWeapon")) return Precision, Other;
-		if (w is "Chaingun" || (held && HasToken(owner, "RLRapidfireTypeWeapon"))) return Automatic, Other;
+		if (tokens & TokSingleShotRifle) return Precision, Other;
+		if (w is "Chaingun" || (tokens & TokRapidfire)) return Automatic, Other;
 		return Other, Other;
 	}
 
@@ -127,13 +161,13 @@ class DoomerfallWeaponCategory abstract
 		return c && owner.FindInventory(c);
 	}
 
-	private clearscope static bool IsClass(Weapon w, String name)
+	private clearscope static bool IsClass(readonly<Weapon> w, String name)
 	{
 		class<Actor> c = name; // Null when that mod is not loaded.
 		return c && w is c;
 	}
 
-	private clearscope static bool IsEnergyGun(Weapon w)
+	private clearscope static bool IsEnergyGun(readonly<Weapon> w)
 	{
 		// DRLA energy guns with no Cell ammo (they recharge or make their own ammo), from GameMods/ExtractedData.
 		// Looked up at run time, so this list does nothing without DRLA.
@@ -153,7 +187,7 @@ class DoomerfallWeaponCategory abstract
 		return false;
 	}
 
-	private clearscope static bool AmmoIs(Weapon w, String base)
+	private clearscope static bool AmmoIs(readonly<Weapon> w, String base)
 	{
 		class<Inventory> b = base;
 		if (!b) return false;
