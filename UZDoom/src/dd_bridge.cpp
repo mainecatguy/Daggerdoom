@@ -101,6 +101,7 @@ FARG(dfflow, "Doomerfall", "Starts at Doom's title with New Game and Load Game d
 FARG_ADVANCED(dfsavetestfail, "Doomerfall", "uz_zip|uz_commit|uz_crash", "Save test only: fails the save at this step.");
 // The other bridge test flags and their drivers are in dd_bridge_test.cpp.
 
+CVAR(Bool, dd_bridge_session, false, CVAR_NOSAVE) // Read by scripts: Daggerfall is attached (door locks hold). Set on attach; tests may set it.
 CVAR(Int, dd_sync_df_phase, 0, CVAR_NOSAVE) // Read by the position sync test route.
 CVAR(Int, dd_ui_test_hold, 0, CVAR_NOSAVE | CVAR_MOD) // Test only: a route holds -dfuitest until it reaches the place to open the menu.
 CVAR(Int, dd_ui_test_menu, 1, CVAR_NOSAVE | CVAR_MOD) // Test only: the menu -dfuitest opens. 1 is the travel map, 2 the inventory, 3 the map command, 9 the journal.
@@ -2475,6 +2476,7 @@ void DD_BridgeInit()
 	const int rc = dfb_attach(id, DFB_SIDE_UZ, &session);
 	if (rc != DFB_OK)
 		I_FatalError("Could not attach to Doomerfall bridge session '%s' (error %d)", id, rc);
+	dd_bridge_session = true; // door locks hold (door_objects.zs DFDoorHandler.LocksHold)
 
 	if (const char *path = Args->CheckValue(FArg_dfbridgelog))
 		logFile = fopen(path, "ab");

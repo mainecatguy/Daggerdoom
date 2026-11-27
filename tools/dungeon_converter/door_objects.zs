@@ -48,7 +48,6 @@ class DFDoor : Actor
 	int moving;
 	int startingLock, loadId;	// Daggerfall's starting lock value and Daggerfall Unity LoadID (0 in older maps)
 	int lockValue;				// the live lock, as DaggerfallActionDoor.CurrentLockValue: 0 unlocked, 20 or more magically held
-	bool armed;					// locks are live: Daggerfall sent this map's door facts (a bridge session). Never set without Daggerfall
 	bool stalled, sightOpen;
 	bool solidWhenOpen;			// city gates: also held by any solid actor in the swing, not only by bodies
 	bool passable;				// links are currently non-solid to movement, because a body is inside them
@@ -175,6 +174,7 @@ class DFDoor : Actor
 	// the door trigger. Opening: a first-activation DoorText record runs first, then the lock check, then the door
 	// trigger, then the swing. A shut locked door stays shut and Daggerfall is asked about the player's attempt
 	// (its label or the lockpicking minigame). A lockpick hit comes back here with the lock cleared.
+	// Locks hold only while Daggerfall is attached, so a converted map played alone never has a door nobody can open.
 	void Toggle(Actor user)
 	{
 		if (moving != 0 && !stalled) return;
@@ -187,7 +187,7 @@ class DFDoor : Actor
 		}
 		bool text = listener && listener.IsFirstDoorText();
 		if (text) listener.DoorTrigger(user);
-		if (lockValue > 0 && IsShut())
+		if (lockValue > 0 && IsShut() && DFDoorHandler.LocksHold())
 		{
 			EventHandler.SendNetworkEvent(String.Format("dfdoor_ask:%d:%d", loadId, lockValue));
 			return;
@@ -216,15 +216,15 @@ class DFDoor : Actor
 	}
 
 	// An action record of this type ran on this door: DaggerfallAction's LockDoor (16), UnlockDoor (17), OpenDoor (18)
-	// and CloseDoor (20). Locks change only once armed, so a map without Daggerfall never gets a door nobody can open.
+	// and CloseDoor (20).
 	void RunAction(int type)
 	{
 		switch (type)
 		{
-			case 16: if (armed && lockValue <= 0) lockValue = 16; break;	// Daggerfall's value
-			case 17: if (armed) lockValue = 0; break;
-			case 18: if (!IsFullyOpen()) { if (armed) lockValue = 0; ActionSet(true); } break;
-			case 20: if (IsFullyOpen()) { ActionSet(false); if (armed) lockValue = startingLock; } break;
+			case 16: if (lockValue <= 0) lockValue = 16; break;	// Daggerfall's value
+			case 17: lockValue = 0; break;
+			case 18: if (!IsFullyOpen()) { lockValue = 0; ActionSet(true); } break;
+			case 20: if (IsFullyOpen()) { ActionSet(false); lockValue = startingLock; } break;
 		}
 	}
 
@@ -252,16 +252,13 @@ class DFDoor : Actor
 class DFDoorHandler : EventHandler
 {
 	Array<DFDoor> doors;
-	transient bool ticked;	// false again after a save is loaded (transient fields are not saved)
 
-	// A save taken before Daggerfall armed the locks (its answer timed out): ask again on the first tic after the load.
-	// The arm sets only doors not yet armed, so live locks in the save are never overwritten. A fresh map asked in
-	// WorldLoaded already (maptime 0 or 1 here). Without a bridge session nobody answers.
-	override void WorldTick()
+	// True while Daggerfall is attached (dd_bridge.cpp sets dd_bridge_session). Without it nobody can answer a locked
+	// door, so locks do not hold.
+	static bool LocksHold()
 	{
-		if (ticked) return;
-		ticked = true;
-		if (level.maptime > 1) foreach (d : doors) if (d && d.loadId != 0 && !d.armed) { EventHandler.SendNetworkEvent("dfdoor_facts"); break; }
+		let v = CVar.FindCVar("dd_bridge_session");
+		return v && v.GetBool();
 	}
 
 	DFDoor Find(int id)
@@ -271,16 +268,10 @@ class DFDoorHandler : EventHandler
 	}
 
 	// Daggerfall's door answers (dd_doors.cpp), and the lockpicking minigame's result:
-	//   "dfdoor_arm"               lock every door not yet armed at its starting lock value (only Daggerfall sends it)
 	//   "dflp_result:<id>:hit"     the minigame hit with Daggerfall's chance: unlock the door and toggle it as the player
 	//   "dfdoor_open:<id>"         unlock and open it, not as the player's toggle (Castle Daggerfall's foyer doors)
 	override void NetworkProcess(ConsoleEvent e)
 	{
-		if (e.Name == "dfdoor_arm")
-		{
-			foreach (d : doors) if (d && d.loadId != 0 && !d.armed) { d.armed = true; d.lockValue = d.startingLock; }
-			return;
-		}
 		Array<String> f;
 		e.Name.Split(f, ":");
 		if (f.Size() < 2) return;
@@ -299,11 +290,11 @@ class DFDoorHandler : EventHandler
 	}
 
 	// [Doomerfall] The location record keeps each door open or closed (dd_treadmill.cpp): "<stamp> <hex>", one bit per
-	// door in DFDOORS order, a moving door at the end it is heading to. The stamp hashes DFDOORS, so a record made from
-	// another conversion is dropped and the doors reset.
-	// Once Daggerfall armed the locks, a third field keeps every live lock that differs from the door's starting lock
-	// (picked, a lever's unlock or lock, the Castle Daggerfall foyer): "L" then "<index>.<lock>" entries joined by ",".
-	// A plain "L" means armed with every door at its starting lock; no third field means the locks were never armed.
+	// door in DFDOORS order, a moving door at the end it is heading to. The stamp hashes DFDOORS, so open bits made from
+	// another conversion are dropped and the doors reset.
+	// An optional third field keeps every live lock that differs from the door's starting lock (picked, a lever's unlock
+	// or lock, the Castle Daggerfall foyer) as "<LoadID>.<lock>" entries joined by ",". LoadIDs are Daggerfall's own door
+	// ids, so these survive a new conversion. Every door starts the map at its starting lock (WorldLoaded).
 	static int Stamp()
 	{
 		int lump = Wads.CheckNumForFullName("DFDOORS");
@@ -318,56 +309,47 @@ class DFDoorHandler : EventHandler
 	{
 		int stamp = Stamp(), n = 0, nibble = 0;
 		String bits = "", locks = "";
-		bool armed = false;
 		let it = ThinkerIterator.Create("DFDoor");
 		DFDoor d;
 		while (stamp && (d = DFDoor(it.Next())))
 		{
 			if (d.moving != 0 ? d.moving > 0 : d.swung > 0) nibble |= 1 << (n & 3);
-			if (d.armed)
-			{
-				armed = true;
-				if (d.lockValue != d.startingLock) locks.AppendFormat("%s%d.%d", locks.Length() ? "," : "", n, d.lockValue);
-			}
+			if (d.loadId != 0 && d.lockValue != d.startingLock) locks.AppendFormat("%s%d.%d", locks.Length() ? "," : "", d.loadId, d.lockValue);
 			if ((++n & 3) == 0) { bits.AppendFormat("%x", nibble); nibble = 0; }
 		}
 		if (n & 3) bits.AppendFormat("%x", nibble);
 		if (!n) return "";
-		return armed ? String.Format("%08x %s L%s", stamp, bits, locks) : String.Format("%08x %s", stamp, bits);
+		return locks.Length() ? String.Format("%08x %s %s", stamp, bits, locks) : String.Format("%08x %s", stamp, bits);
 	}
 
-	// The doors opened, or -1 when the stamp differs (nothing changes). An action keeps its own reset state.
-	// A record with locks arms every lockable door at its starting lock and then sets the recorded ones; a door already
-	// armed by Daggerfall's arm gets the record's lock too, since the record is newer than the starting lock.
+	// Applies a record to a freshly built map: the doors opened, or -1 when the stamp differs (open bits are dropped, the
+	// locks still apply). An action keeps its own reset state.
 	static int Restore(String record)
 	{
-		Array<String> f;
+		Array<String> f, locks;
 		record.Split(f, " ");
-		if (f.Size() < 2 || f.Size() > 3 || f[0] != String.Format("%08x", Stamp())) return -1;
-		bool withLocks = f.Size() == 3 && f[2].Left(1) == "L";
-		Array<String> locks;
-		if (withLocks && f[2].Length() > 1) f[2].Mid(1).Split(locks, ",");
+		if (f.Size() < 2) return -1;
+		if (f.Size() > 2) f[2].Split(locks, ",");
+		bool same = f[0] == String.Format("%08x", Stamp());
 		int n = 0, open = 0, changed = 0;
 		let it = ThinkerIterator.Create("DFDoor");
 		DFDoor d;
 		while (d = DFDoor(it.Next()))
 		{
-			bool want = (n >> 2) < f[1].Length() && (f[1].Mid(n >> 2, 1).ToInt(16) >> (n & 3)) & 1;
-			d.moving = 0; d.stalled = false; d.swung = want ? d.SWING : 0;
-			d.Place(false); d.SetSightOpen(want); d.UpdateBlocking();
-			if (want) open++;
-			if (withLocks && d.loadId != 0)
+			if (same)
 			{
-				d.armed = true;
-				d.lockValue = d.startingLock;
-				String key = String.Format("%d.", n);
-				foreach (entry : locks)
-					if (entry.Left(key.Length()) == key) { d.lockValue = entry.Mid(key.Length()).ToInt(); changed++; }
+				bool want = (n >> 2) < f[1].Length() && (f[1].Mid(n >> 2, 1).ToInt(16) >> (n & 3)) & 1;
+				d.moving = 0; d.stalled = false; d.swung = want ? d.SWING : 0;
+				d.Place(false); d.SetSightOpen(want); d.UpdateBlocking();
+				if (want) open++;
 			}
+			String key = String.Format("%d.", d.loadId);
+			if (d.loadId != 0) foreach (entry : locks)
+				if (entry.Left(key.Length()) == key) { d.lockValue = entry.Mid(key.Length()).ToInt(); changed++; }
 			n++;
 		}
-		if (withLocks) Console.PrintfEx(PRINT_HIGH | PRINT_NONOTIFY | PRINT_NOCONSOLE, "DFDOORS locks from the record: %d of %d doors differ from their starting lock", changed, n); // log only
-		return open;
+		if (locks.Size()) Console.PrintfEx(PRINT_HIGH | PRINT_NONOTIFY | PRINT_NOCONSOLE, "DFDOORS locks from the record: %d of %d doors differ from their starting lock", changed, n); // log only
+		return same ? open : -1;
 	}
 
 	override void WorldLoaded(WorldEvent e)
@@ -389,11 +371,10 @@ class DFDoorHandler : EventHandler
 				f[5].ToDouble(), f[6].ToDouble(), f[7].ToDouble(), f[8].ToDouble(), f[9].ToDouble(), f[10].ToDouble());
 			if (f.Size() > 11) door.swingDir = f[11].ToDouble();
 			if (f.Size() > 13) { door.startingLock = f[12].ToInt(); door.loadId = f[13].ToInt(); }
+			door.lockValue = door.startingLock; // the location record brings later changes (Restore)
 			spawned.Push(door);
 			doors.Push(door);
 		}
-		// Daggerfall arms the locks with its facts for this dungeon (dd_doors.cpp). Without a bridge session nobody answers.
-		if (spawned.Size() > 0 && spawned[0].loadId != 0) EventHandler.SendNetworkEvent("dfdoor_facts");
 		// "DC <door> <control>" lines in DFPOINTS link each door to its sight-blocking control sectors.
 		Array<String> points;
 		Wads.ReadLump(Wads.CheckNumForName("DFPOINTS", Wads.ns_global)).Split(points, "\n", TOK_SKIPEMPTY);

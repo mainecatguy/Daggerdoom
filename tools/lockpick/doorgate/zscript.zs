@@ -2,8 +2,9 @@ version "4.14"
 
 // Test only: Doom's live door locks and Daggerfall's door order, with no Daggerfall (run_doorgate.py). Load after a
 // converted dungeon's pk3s and doomerfall.pk3, run with +dd_lockdoor <LoadID of a door with a starting lock>.
-// Daggerfall's answers are played by this harness as the network events dd_doors.cpp would deliver. The real minigame
-// runs. Prints DGTEST lines and "DGTEST done <passed>/<total>".
+// With +dd_bridge_session 1 the harness plays an attached Daggerfall: its answers are the network events dd_doors.cpp
+// would deliver, and the real minigame runs. Without it, it checks that locks do not hold when Daggerfall is absent.
+// Prints DGTEST lines and "DGTEST done <passed>/<total>".
 
 // Records the door's calls to its action record: D = door trigger (ExecuteActionOnToggle), X = direct trigger.
 class DGRecorder : DFDoorListener
@@ -97,7 +98,7 @@ class DGTest : EventHandler
 
 	override void WorldTick()
 	{
-		if (done || !playeringame[0] || !players[0].mo || CVar.FindCVar("dd_lockload").GetInt() != 0) return;
+		if (done || !playeringame[0] || !players[0].mo) return;
 		let p = players[0].mo;
 		p.bNOTARGET = true;
 		p.bSOLID = false;	// the test player stands in the swing; since the merge a door waits for a body in its way
@@ -122,35 +123,20 @@ class DGTest : EventHandler
 			while (mo = Actor(mi.Next())) if (mo.bISMONSTER && !mo.player) mo.Destroy();
 			rec = DGRecorder(Actor.Spawn("DGRecorder", door.pos, NO_REPLACE));
 			door.listener = rec;
-			Check(!door.armed && door.lockValue == 0, "without Daggerfall the door is not locked");
-			Lever(16);
-			Check(door.lockValue == 0, "without Daggerfall action 16 does not lock it (no door nobody can open)");
-			PressUse(p);
-			Check(door.moving > 0 && rec.calls == "DX", String.Format("without Daggerfall Use opens it: door trigger, then direct trigger (%s)", rec.calls));
-			Next();
-			break;
-		}
-		case 1:
-			if (timer == 70) Lever(20);
-			if (timer < 140) break;
-			Check(door.IsShut() && door.lockValue == 0, String.Format("without Daggerfall action 20 closes it and leaves it unlocked (swung %.1f, moving %d, stalled %d, lock %d)", door.swung, door.moving, door.stalled, door.lockValue));
+			Check(door.lockValue == door.startingLock && other.lockValue == 0, String.Format("the map loads with each door at its starting lock (%d, other %d)", door.lockValue, other.lockValue));
+			if (!DFDoorHandler.LocksHold())
 			{
-				Array<String> f;
-				DFDoorHandler.Distill().Split(f, " ");
-				Check(f.Size() == 2, "without Daggerfall the location record's door fact has no lock field (" .. DFDoorHandler.Distill() .. ")");
+				PressUse(p);
+				Check(door.moving > 0 && rec.calls == "DX" && asks == 0, String.Format("without Daggerfall locks do not hold: Use opens it, door trigger then direct trigger, no ask (%s)", rec.calls));
+				step = 99;
+				break;
 			}
-			EventHandler.SendNetworkEvent("dfdoor_arm");
-			Next();
-			break;
-		case 2:
-			if (timer < 5) break;
-			Check(door.armed && door.lockValue == door.startingLock && other.armed && other.lockValue == 0, String.Format("Daggerfall's arm locks each door at its starting lock (%d, other %d)", door.lockValue, other.lockValue));
-			rec.calls = "";
 			PressUse(p);
 			Check(door.IsShut() && rec.calls == "X", String.Format("locked: Use runs no door trigger, the direct trigger still runs (%s)", rec.calls));
 			Next();
 			break;
-		case 3:
+		}
+		case 1:
 			if (timer < 35) break;
 			Check(asks == 1 && lastAsk == String.Format("dfdoor_ask:%d:%d", id, door.startingLock), "locked: Doom asks Daggerfall once, with the lock value (" .. lastAsk .. ")");
 			Check(door.IsShut() && !started, "refused (no answer): the door stays shut and no minigame starts");
@@ -163,14 +149,14 @@ class DGTest : EventHandler
 			PressUse(p);
 			Next();
 			break;
-		case 4:
+		case 2:
 			if (timer < 10) break;
 			Check(asks == 3 && lastAsk == String.Format("dfdoor_ask:%d:25", id) && door.IsShut() && rec.calls == "X" && !started, "magically held: Doom asks with lock 25, stays shut, no minigame");
 			rec.calls = "";
 			EventHandler.SendNetworkEvent(String.Format("dfdoor_open:%d", id)); // Castle Daggerfall's foyer doors
 			Next();
 			break;
-		case 5:
+		case 3:
 			if (timer == 5) Check(door.lockValue == 0 && door.moving > 0 && rec.calls == "", "dfdoor_open unlocks and opens it, not as the player's toggle");
 			if (timer == 90) Lever(20);
 			if (timer < 160) break;
@@ -178,7 +164,7 @@ class DGTest : EventHandler
 			EventHandler.SendNetworkEvent(String.Format("dflp_start:50:%d", id)); // Daggerfall's answer: start the minigame
 			Next();
 			break;
-		case 6: // a miss
+		case 4: // a miss
 			Back(p);
 			if (g && g.Off(g.pointer) >= 120) presser.press = BT_ATTACK;
 			if (timer < 35 * 4) break;
@@ -186,7 +172,7 @@ class DGTest : EventHandler
 			EventHandler.SendNetworkEvent(String.Format("dflp_start:50:%d", id));
 			Next();
 			break;
-		case 7: // a cancel
+		case 5: // a cancel
 			Back(p);
 			if (timer == 20) EventHandler.SendNetworkEvent("dflp_cancel");
 			if (timer < 70) break;
@@ -195,21 +181,21 @@ class DGTest : EventHandler
 			EventHandler.SendNetworkEvent(String.Format("dflp_start:95:%d", id));
 			Next();
 			break;
-		case 8: // a hit
+		case 6: // a hit
 			Back(p);
 			if (g && g.Off(g.pointer) <= g.arc / 2 - 0.01) presser.press = BT_ATTACK;
 			if (timer < 35 * 4) break;
 			Check(started && !g && door.lockValue == 0 && door.swung > 0 && rec.calls == "D", String.Format("a hit unlocks it and toggles it as the player: door trigger once, no direct trigger (%s)", rec.calls));
 			Next();
 			break;
-		case 9:
+		case 7:
 			if (!door.IsFullyOpen() && timer < 35 * 5) break;
 			rec.calls = "";
 			door.TryUse(p); // the swung-open leaf is off the closed-door spot's use line
 			Check(door.moving < 0 && rec.calls == "DX", String.Format("Use on the open door closes it: door trigger, then direct trigger (%s)", rec.calls));
 			Next();
 			break;
-		case 10:
+		case 8:
 			if (timer == 5) { rec.calls = ""; door.TryUse(p); Check(door.moving < 0 && rec.calls == "X", "Use while it moves changes nothing but the direct trigger"); }
 			if (timer < 70) break;
 			Check(door.IsShut() && door.lockValue == 0, "closing by Use leaves a picked door unlocked");
@@ -227,40 +213,34 @@ class DGTest : EventHandler
 			Check(door.lockValue == 0 && door.moving > 0, "action 18 unlocks and opens it");
 			Next();
 			break;
-		case 11:
+		case 9:
 			if (timer < 70) break;
 			Lever(20);
 			Check(door.moving < 0 && door.lockValue == door.startingLock, "action 20 closes it and relocks it at its starting lock");
 			EventHandler.SendNetworkEvent(String.Format("dflp_result:%d:hit", other.loadId)); // a hit never asked for
-			door.lockValue = 0;
-			EventHandler.SendNetworkEvent("dfdoor_arm");
 			Next();
 			break;
-		case 12:
+		case 10:
 		{
 			if (timer < 70) break;
 			Check(other.IsShut() && other.lockValue == 0, "a hit on a door that is not locked does nothing");
-			Check(door.IsShut() && door.lockValue == 0, "a second arm does not relock armed doors");
-			// The location record's door fact: picked (0) and lever-locked (16) doors come back; others at their start.
+			// The location record's door fact: picked (0) and lever-locked (16) doors come back, keyed by LoadID.
+			door.lockValue = 0;
 			other.lockValue = 16;
 			String record = DFDoorHandler.Distill();
 			Array<String> f;
 			record.Split(f, " ");
-			Check(f.Size() == 3 && f[2].Left(1) == "L" && f[2].IndexOf(",") > 0, "the record's door fact keeps the two changed locks (" .. record .. ")");
-			door.lockValue = door.startingLock; door.armed = false;
-			other.lockValue = 0;
-			let all = ThinkerIterator.Create("DFDoor");
-			DFDoor any;
-			while (any = DFDoor(all.Next())) any.armed = false;	// as a freshly built map before Daggerfall answers
-			Check(DFDoorHandler.Distill() == f[0] .. " " .. f[1], "unarmed doors leave the lock field out");
-			int open = DFDoorHandler.Restore(record);
-			Check(open >= 0 && door.armed && door.lockValue == 0 && other.armed && other.lockValue == 16, String.Format("restoring the record arms the doors and sets the picked one to 0, the lever-locked one to 16 (%d, %d)", door.lockValue, other.lockValue));
+			String want = String.Format("%d.0", door.loadId), want2 = String.Format("%d.16", other.loadId);
+			Check(f.Size() == 3 && f[2].IndexOf(want) >= 0 && f[2].IndexOf(want2) >= 0, "the record's door fact keeps the two changed locks by LoadID (" .. record .. ")");
 			door.lockValue = door.startingLock;
 			other.lockValue = 0;
-			Check(DFDoorHandler.Distill() == f[0] .. " " .. f[1] .. " L", "armed doors at their starting locks give a plain L (" .. DFDoorHandler.Distill() .. ")");
-			door.lockValue = 7;
-			DFDoorHandler.Restore(f[0] .. " " .. f[1]);
-			Check(door.lockValue == 7, "a record made before the arm leaves the live locks alone");
+			Check(DFDoorHandler.Distill() == f[0] .. " " .. f[1], "doors at their starting locks leave the lock field out (" .. DFDoorHandler.Distill() .. ")");
+			int open = DFDoorHandler.Restore(record);
+			Check(open >= 0 && door.lockValue == 0 && other.lockValue == 16, String.Format("restoring the record sets the picked door to 0 and the lever-locked one to 16 (%d, %d)", door.lockValue, other.lockValue));
+			door.lockValue = door.startingLock;
+			other.lockValue = 0;
+			open = DFDoorHandler.Restore("00000001 " .. f[1] .. " " .. f[2]);	// as a record from an older conversion
+			Check(open == -1 && door.lockValue == 0 && other.lockValue == 16, String.Format("a record from another conversion drops its open bits but keeps its locks (%d: %d, %d)", open, door.lockValue, other.lockValue));
 			door.lockValue = 0;
 			step = 99;
 			break;
@@ -269,45 +249,6 @@ class DGTest : EventHandler
 			Console.Printf("DGTEST done %d/%d", passed, total);
 			done = true;
 			break;
-		}
-	}
-}
-
-// +dd_lockload: a save taken before Daggerfall armed the locks asks for the arm when it is loaded; an armed one does
-// not (door_objects.zs WorldLoaded). 1 makes two autosaves on MAP01, unarmed then armed; 2 runs on a loaded save and
-// prints "DGLOAD facts=<requests> armed=<armed doors>".
-class DGSaveLoad : EventHandler
-{
-	int mode, timer, facts;
-	transient bool begun;	// false again after a load: the loaded copy of this handler starts over
-	override void NetworkProcess(ConsoleEvent e) { if (e.Name == "dfdoor_facts") facts++; }
-
-	static int Armed()
-	{
-		int n = 0;
-		let it = ThinkerIterator.Create("DFDoor");
-		DFDoor d;
-		while (d = DFDoor(it.Next())) if (d.armed) n++;
-		return n;
-	}
-
-	override void WorldTick()
-	{
-		if (!begun) { begun = true; mode = CVar.FindCVar("dd_lockload").GetInt(); timer = 0; }
-		if (mode == 0) return;
-		timer++;
-		if (mode == 1)
-		{
-			if (timer == 20) { facts = 0; Console.Printf("DGSAVE unarmed %d", Armed()); LevelLocals.MakeAutoSave(); }
-			if (timer == 60) EventHandler.SendNetworkEvent("dfdoor_arm");
-			if (timer == 80) { Console.Printf("DGSAVE armed %d", Armed()); LevelLocals.MakeAutoSave(); }
-			if (timer == 120) { Console.Printf("DGSAVE done"); mode = 0; }
-		}
-		else if (timer == 35)
-		{
-			let h = DFDoorHandler(EventHandler.Find("DFDoorHandler"));
-			Console.Printf("DGLOAD facts=%d armed=%d handler doors %d", facts, Armed(), h ? h.doors.Size() : -1);
-			mode = 0;
 		}
 	}
 }

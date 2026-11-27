@@ -1,7 +1,7 @@
 """The arrival freeze (goal 20261126-154857) with both real games, minimized.
 
 usage: run_freeze.py normal | slow | lost | nosave | use | demo   [--root DIR]
-normal: enters Privateer's Hold from its town; the map change waits for Daggerfall's door facts as usual.
+normal: enters Privateer's Hold from its town; the map change waits for the place record as usual (too short for a frame since the door arm was removed: see work/notes/20261126-lockpick-rethink.md).
 slow:   the same, with -dfsetuptest 2500: setup also waits 2.5 s for a fake answer (a slow Daggerfall).
 lost:   -dfsetuptest lost: the fake answer never comes, so the setup gate's 5 s timeout ends the wait.
 use:    -dfsetuptest 2500 -dffreezeuse: Use is pressed on every frozen frame (dd_tm_use). It must be dropped: the

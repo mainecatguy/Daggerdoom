@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0xec807f5b51a04724UL;
+        public const ulong SchemaHash = 0xc75e1cea5ae3d8c4UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -114,9 +114,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_AMMO_UNLOADED = 179;  // UZ to DF; request echoes AMMO_UNLOAD; status is the rounds taken out of the magazine, or 0xFFFFFFFF refused
         public const ushort KIND_AMMO_LOADED = 180;  // DF to UZ; request is the loaded tier (0xFFFFFFFF none), status the ammo type (0 Clip to 3 Cell); cls is the ammo's tags, comma separated
         public const ushort KIND_DOOR_USE = 190;  // UZ to DF; Use on a shut door Doom holds locked; state is its live lock value; payload: dfb_door
-        public const ushort KIND_DOOR_STATE = 191;  // DF to UZ; an answer to DOOR_USE (flags DFB_DOOR_PICK or _OPEN), or the arm (DFB_DOOR_ARM); payload: dfb_door
+        public const ushort KIND_DOOR_STATE = 191;  // DF to UZ; an answer to DOOR_USE (flags DFB_DOOR_PICK or _OPEN); payload: dfb_door
         public const ushort KIND_LOCKPICK = 192;  // UZ to DF; the minigame result for a DFB_DOOR_PICK answer; state is DFB_PICK_*; Doom opens the door itself on a hit; payload: dfb_door
-        public const ushort KIND_DOOR_FACTS = 193;  // UZ to DF; Doom built this dungeon's map fresh (not from a save): arm its locks; payload: dfb_door
         public const ushort KIND_DOOR_TEXT = 194;  // DF to UZ; a HUD message about a door (Daggerfall's words); payload: dfb_info_text; DFB_INFO_MORE as on INFO_TEXT
         public const uint DOOR_DUNGEON = 1;
         public const uint PICK_MISS = 0;  // dfb_door.state on DFB_KIND_LOCKPICK
@@ -124,7 +123,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint PICK_CANCEL = 2;
         public const uint DOOR_OPEN = 1;  // dfb_door.flags: unlock this door and open it, not as the player's toggle (Castle Daggerfall's foyer doors)
         public const uint DOOR_PICK = 2;  // start the minigame with chance; picks is the count held
-        public const uint DOOR_ARM = 4;  // id 0: lock every door not yet armed at its starting lock value. Doors stay unlocked without it
         public const ushort KIND_PLAIN_LOAD = 220;  // DF to UZ; payload: dfb_plain_load
         public const ushort KIND_STARTER = 221;  // UZ to DF; the starter gun; payload: dfb_doom_item, cls the pistol's world pickup class (empty for none), request its weapon slot (low 8 bits, 255 for none) plus (reserve ammo type + 1) << 8 (0 Clip to 3 Cell), status the class's start amount of that ammo
         public const ushort KIND_NPC_USE = 100;  // UZ to DF; payload: dfb_npc_use
@@ -402,7 +400,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public DfbInfoText infoText;  // INFO_TEXT, INFO_NAME, LOOK_TEXT, HUD_TEXT, DOOR_TEXT
         [FieldOffset(16)] public DfbDoomItem doomItem;  // DOOM_ITEM_TAKE, DOOM_ITEM_RESULT, DOOM_ITEM_USE, DOOM_ITEM_USED, DOOM_ITEM_ART_REQUEST, DOOM_ITEM_ART, STARTER
         [FieldOffset(16)] public DfbClimbUses climbUses;  // CLIMB_USES
-        [FieldOffset(16)] public DfbDoor door;  // DOOR_USE, DOOR_STATE, LOCKPICK, DOOR_FACTS
+        [FieldOffset(16)] public DfbDoor door;  // DOOR_USE, DOOR_STATE, LOCKPICK
         [FieldOffset(16)] public DfbPlainLoad plainLoad;  // PLAIN_LOAD
         [FieldOffset(16)] public DfbNpcUse npcUse;  // NPC_USE
         [FieldOffset(16)] public DfbNpcUseResult npcUseResult;  // NPC_USE_RESULT

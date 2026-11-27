@@ -26,7 +26,7 @@ class DLHarness : EventHandler
 	static const double DOORDATA[] = { @DOOR@ };
 	const LOADID = @LOADID@;
 	const LOADRUN = @LOADRUN@;
-	const ENTRYRUN = @ENTRYRUN@; // loads the take run's dungeon-entry autosave and checks every lock came back armed
+	const ENTRYRUN = @ENTRYRUN@; // loads the take run's dungeon-entry autosave and checks every lock came back at its starting lock
 	int entryTimer;
 	// Members, not consts: with these as constants, the constant-false "if (...) { ...; break; }" blocks inside
 	// WorldTick's switch crashed UZDoom while loading scripts (C0000005, every time with the DRLA set).
@@ -133,8 +133,8 @@ class DLHarness : EventHandler
 
 	bool Shut() { return door.swung <= 0 && door.moving == 0; }
 
-	// The entry run: the save was taken on arrival, before any pick, so every lockable door must be armed at its
-	// starting lock. A load does not ask Daggerfall for the facts again, so this is what the save holds.
+	// The entry run: the save was taken on arrival, before any pick, so every lockable door must be at its starting
+	// lock. A load restores Doom's snapshot, so this is what the save holds.
 	void EntryCheck()
 	{
 		if (++entryTimer != 70) return;
@@ -145,10 +145,10 @@ class DLHarness : EventHandler
 		{
 			if (d.startingLock <= 0) continue;
 			lockable++;
-			if (d.armed && d.lockValue == d.startingLock) kept++;
-			if (d.loadId == LOADID) Report(d.armed && d.lockValue == d.startingLock, String.Format("door %d is locked after the load (armed %d, lock %d of %d)", LOADID, d.armed, d.lockValue, d.startingLock));
+			if (d.lockValue == d.startingLock) kept++;
+			if (d.loadId == LOADID) Report(d.lockValue == d.startingLock, String.Format("door %d is locked after the load (lock %d of %d)", LOADID, d.lockValue, d.startingLock));
 		}
-		Report(lockable > 0 && kept == lockable, String.Format("%d of %d lockable doors are armed at their starting lock", kept, lockable));
+		Report(lockable > 0 && kept == lockable, String.Format("%d of %d lockable doors are at their starting lock", kept, lockable));
 		Finish();
 	}
 
@@ -211,6 +211,7 @@ class DLHarness : EventHandler
 		if (!DEMO) p.bSOLID = false;	// the test player stands in the swing; a door waits for a body in its way (solid again in DLTrip)
 		bool inside = level.MapName.Left(3) ~== "DDS" || level.MapName ~== "MAP01";
 		if (ENTRYRUN) { if (inside) EntryCheck(); return; } // the run starts outside; the load test then loads the save
+		if (!DEMO && inside && phase >= 2 && phase < 9) RemoveMonsters(); // the encounters can spawn after the door cases start (New Game)
 		timer++;
 		if (LOADRUN && phase == 9) { phase = 20; timer = 0; } // the load restored this handler from the take run's save
 		if (LOADRUN && phase < 9) return;
@@ -235,13 +236,13 @@ class DLHarness : EventHandler
 			timer = 0;
 			break;
 		}
-		case 1: // Daggerfall's door facts arm the locks.
-			if (timer > LIMIT) { Report(false, "Daggerfall never armed the door's lock"); Finish(); break; }
+		case 1: // Inside: the door is at its starting lock from the map itself.
+			if (timer > LIMIT) { Report(false, "never got inside to the door"); Finish(); break; }
 			if (!inside) break;
 			if (arrival == (0, 0, 0)) { arrival = p.pos; arrivalAngle = p.angle; } // DLTrip leaves from here
 			if (!door) door = FindDoor();
-			if (!door || !door.armed) break;
-			Report(door.lockValue == door.startingLock && door.startingLock > 0, String.Format("door %d found, Daggerfall armed it at its starting lock %d", LOADID, door.lockValue));
+			if (!door) break;
+			Report(door.lockValue == door.startingLock && door.startingLock > 0, String.Format("door %d found, locked at its starting lock %d", LOADID, door.lockValue));
 			if (!DEMO) RemoveMonsters();
 			if (!PlaceAtDoor(p)) { Report(false, "no spot in front of the door"); Finish(); break; }
 			if (DEMO) { done = true; break; }
@@ -301,8 +302,8 @@ class DLHarness : EventHandler
 			if (timer < 35) break;
 			let it = ThinkerIterator.Create("DFDoor");
 			DFDoor d, locked;
-			while (d = DFDoor(it.Next())) if (d.armed && d.loadId != 0 && d.loadId != LOADID && d.startingLock == 0) { locked = d; break; }
-			if (!locked) { Report(false, "an armed door that starts unlocked"); phase = 5; timer = 0; break; }
+			while (d = DFDoor(it.Next())) if (d.loadId != 0 && d.loadId != LOADID && d.startingLock == 0) { locked = d; break; }
+			if (!locked) { Report(false, "a door that starts unlocked"); phase = 5; timer = 0; break; }
 			lockedId = locked.loadId;
 			RunActionOn(locked, 16);
 			String got;
@@ -395,11 +396,12 @@ class DLHarness : EventHandler
 }
 
 // The load run's trip: out of the dungeon by the way the player came in, back in by the town door, and a check that the
-// freshly built map got Daggerfall's facts (the picked door unlocked, other locks armed). Static, so it lives across maps.
+// freshly built map got the location record's locks (the picked door unlocked, other doors at their starting lock).
+// Static, so it lives across maps.
 class DLTrip : StaticEventHandler
 {
 	static const double DOORDATA[] = { @DOOR@ };
-	int phase, timer, passed, failed, lockedId, endLock, armedFor;
+	int phase, timer, passed, failed, lockedId, endLock, insideFor;
 	vector3 arrival;
 	double arrivalAngle;
 
@@ -449,15 +451,14 @@ class DLTrip : StaticEventHandler
 			if (timer == 82) CVar.FindCVar("dd_tm_use").SetInt(1);
 			break;
 		}
-		case 3: // Inside again: wait for Daggerfall's facts.
+		case 3: // Inside again: the record applies during the arrival wait, before any tic of play.
 		{
 			DFDoor door, locked;
 			let it = ThinkerIterator.Create("DFDoor");
 			DFDoor d;
 			while (d = DFDoor(it.Next())) { if (d.loadId == @LOADID@) door = d; else if (d.startingLock > 0 && !locked) locked = d; }
-			if (!door || !door.armed) break;
-			if (++armedFor < 70) break; // the location record (with the lock changes) may land after the arm
-			Report(true, "back inside: Daggerfall armed the rebuilt map");
+			if (!door || ++insideFor < 35) break;
+			Report(true, "back inside the rebuilt map");
 			Report(door.lockValue == endLock, String.Format("the test door keeps its lock after leaving and coming back (lock %d, want %d)", door.lockValue, endLock));
 			Report(!locked || locked.lockValue == locked.startingLock, "another door keeps its starting lock");
 			String got;

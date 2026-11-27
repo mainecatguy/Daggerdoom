@@ -5,10 +5,9 @@
 // answers with Daggerfall's chance (the minigame starts) or a refusal message (no picks, magically held). The
 // minigame's result comes back for Daggerfall's bookkeeping (skill tally, broken pick, message).
 //
-// When Doom builds a dungeon's map fresh it asks here, and this class arms the locks (Daggerfall is present, so locks
-// apply). Every lock change since (picks, levers, relocks) is kept in the location record's door fact, which Doom
-// reports on leaving and saving (door_objects.zs DFDoorHandler.Distill) and DoomerfallLocations keeps and saves.
-// A saved game restores Doom's own live locks.
+// Doom starts each door at the converted map's starting lock. Every lock change since (picks, levers, relocks) is kept
+// in the location record's door fact, which Doom reports on leaving and saving (door_objects.zs DFDoorHandler.Distill)
+// and DoomerfallLocations keeps and saves. A saved game restores Doom's own live locks.
 
 using System;
 using DaggerfallWorkshop.Game.Serialization;
@@ -25,7 +24,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DoomerfallBridge bridge;
         DoomerfallPositionSync sync;
         DoomerfallInfo info;
-        bool factsWanted;
         ulong pickDoor; // the door the minigame runs on; only its result is accepted
 
         internal void Init(DoomerfallBridge owner, DoomerfallPositionSync positionSync, DoomerfallInfo infoSender)
@@ -44,28 +42,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         bool InGame
         {
             get { return !sync.LoadRunning && GameManager.HasInstance && sync.InGame; }
-        }
-
-        // Daggerfall is in the dungeon Doom is in. The arm belongs to it.
-        bool InDoomsDungeon(out string key)
-        {
-            key = null;
-            if (!InGame || !GameManager.Instance.PlayerEnterExit.IsPlayerInsideDungeon)
-                return false;
-            DfbUzState peer;
-            bridge.ReadPeerState(out peer);
-            int mapId = GameManager.Instance.PlayerGPS.CurrentLocation.MapTableData.MapId;
-            if (peer.worldContext != Dfb.WORLD_DUNGEON || mapId != peer.spaceTarget)
-                return false;
-            key = mapId.ToString();
-            return true;
-        }
-
-        // Doom built a dungeon map fresh. Answered once Daggerfall is in the same dungeon (see Update).
-        internal void OnFactsRequest()
-        {
-            factsWanted = true;
-            pickDoor = 0;
         }
 
         // Use on a shut door whose live lock (in Doom) is lockValue.
@@ -123,16 +99,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DoomerfallLocks.ApplyAttempt(hit);
             bridge.LogLine(string.Format("doors: lockpick on {0} {1}, picks {2}", id, hit ? "hit" : "miss", DoomerfallLockpick.Count(GameManager.Instance.PlayerEntity.Items)));
             Text(TextManager.Instance.GetLocalizedText(hit ? "lockpickingSuccess" : "lockpickingFailure"));
-        }
-
-        void Update()
-        {
-            string key;
-            if (!factsWanted || !InDoomsDungeon(out key))
-                return;
-            factsWanted = false;
-            Send(0, Dfb.DOOR_ARM, 0, 0, 0); // no facts follow: lock changes come with the location record
-            bridge.LogLine(string.Format("doors: armed dungeon {0}", key));
         }
 
         void Send(ulong id, uint flags, uint lockValue, int chance, int picks)

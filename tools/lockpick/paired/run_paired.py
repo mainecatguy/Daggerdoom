@@ -1,15 +1,15 @@
 """Locked dungeon doors with both real games, minimized (goal 20261125-202715).
 
 usage: run_paired.py take | load | entry | newgame | check | demo   [--root DIR]
-entry: loads the take run's dungeon-entry autosave (the map change autosave on arrival) and checks the locks are armed.
+entry: loads the take run's dungeon-entry autosave (the map change autosave on arrival) and checks every door is at its starting lock.
       --save FILE loads that autosave instead (it must be a dungeon-entry one made before any pick).
-take: enters Privateer's Hold, and on door 29539363 (lock 2): Daggerfall arms it, label, refusal without picks, damage
+take: enters Privateer's Hold, and on door 29539363 (lock 2): locked at its starting lock, label, refusal without picks, damage
       cancel, miss, action records 17/16/18/20, hit, then a synchronized autosave. Daggerfall runs with -dflocktest (holds the picks back,
       returns them after 20 s).
 newgame: the real New Game flow into Privateer's Hold, then cancel, miss, hit and the actions with the starting picks.
       Run it inside quiet_run.py (see newgame()).
 load: loads that autosave in fresh copies of both games, closes the door and checks it stays unlocked, makes it magically
-      held (no minigame), then leaves the dungeon, comes back, and checks Daggerfall's fact keeps it unlocked.
+      held (no minigame), then leaves the dungeon, comes back, and checks the location record keeps it unlocked.
 check: DOOM.WAD E1M1 with no bridge, stock and with the DRLA set.
 --case (take and load, same value for both): pick (default) ends with the hit; lever unlocks the door with action 17
       instead; relock picks it and then relocks it with action 20. Every take run also locks a door that starts unlocked

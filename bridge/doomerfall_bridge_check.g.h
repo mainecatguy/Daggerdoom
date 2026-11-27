@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0xec807f5b51a04724ULL
+#define DFB_SCHEMA_HASH 0xc75e1cea5ae3d8c4ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -116,7 +116,6 @@ static_assert((DFB_KIND_AMMO_LOADED) == (180), DFB_STALE);
 static_assert((DFB_KIND_DOOR_USE) == (190), DFB_STALE);
 static_assert((DFB_KIND_DOOR_STATE) == (191), DFB_STALE);
 static_assert((DFB_KIND_LOCKPICK) == (192), DFB_STALE);
-static_assert((DFB_KIND_DOOR_FACTS) == (193), DFB_STALE);
 static_assert((DFB_KIND_DOOR_TEXT) == (194), DFB_STALE);
 static_assert((DFB_DOOR_DUNGEON) == (1u), DFB_STALE);
 static_assert((DFB_PICK_MISS) == (0u), DFB_STALE);
@@ -124,7 +123,6 @@ static_assert((DFB_PICK_HIT) == (1u), DFB_STALE);
 static_assert((DFB_PICK_CANCEL) == (2u), DFB_STALE);
 static_assert((DFB_DOOR_OPEN) == (1u), DFB_STALE);
 static_assert((DFB_DOOR_PICK) == (2u), DFB_STALE);
-static_assert((DFB_DOOR_ARM) == (4u), DFB_STALE);
 static_assert((DFB_KIND_PLAIN_LOAD) == (220), DFB_STALE);
 static_assert((DFB_KIND_STARTER) == (221), DFB_STALE);
 static_assert((DFB_KIND_NPC_USE) == (100), DFB_STALE);

@@ -498,9 +498,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     case Dfb.KIND_LOCKPICK:
                         doors.OnLockpick(ev.door.id, ev.door.state);
                         break;
-                    case Dfb.KIND_DOOR_FACTS:
-                        doors.OnFactsRequest();
-                        break;
                     case Dfb.KIND_CLIMB_USES:
                         DoomerfallClimb.OnUses(this, ev.climbUses.uses);
                         break;
