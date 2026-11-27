@@ -117,6 +117,14 @@ whichever of its skills is higher, never both at once.
 - If both skills are equal, the gun uses its main skill: Pistols for an energy pistol, Energy Weapons for an energy
   shotgun.
 
+## Your fists
+
+- You always have your fists. Press **1** to raise them, and they use your Hand-to-Hand skill.
+- Fists are not an item, so they never show in your inventory and can't be dropped, sold or lost.
+- Fists always take the first square of hotkey 1. You can't remove or replace them there. Key 1's other squares
+  take items as usual, and pressing 1 again moves on to them.
+- Raising your fists only lowers your gun. Press the gun's key to raise it again, with its magazine as you left it.
+
 ## Ammo pickups
 
 Ammo comes in material tiers, from Regular through Steel, Silver and on up to Daedric. Higher tiers hit harder and

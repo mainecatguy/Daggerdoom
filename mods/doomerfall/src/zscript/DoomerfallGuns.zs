@@ -3,7 +3,8 @@
 // "dfg_out:" events back into bridge events. Nothing here runs unless Daggerfall sends a gun event.
 //
 //   dfg_state:<request>:<amount>:<class>  one state line of the gun the next dfg_equip gives
-//   dfg_equip:<request>:<flags>:<pickup>  take every gun and give this one; flags 1 keep the ready gun, 2 give nothing
+//   dfg_equip:<request>:<flags>:<pickup>  take every gun and give this one; flags 1 keep the ready gun, 2 give nothing,
+//                                         3 raise the held gun, 4 raise the fist (no gun changes hands)
 //   dfg_drop:<request>:<flags>:<pickup>   Daggerfall's inventory window dropped this Doom item: spawn its pickup in front
 //                                         of the player, carrying the gun's dfg_state lines (flags 0x200: the gun Doom
 //                                         holds, whose live state goes instead); answers dfg_out:dropped
@@ -15,6 +16,7 @@ class DoomerfallGuns : EventHandler
 	const FlagAdopt = 1;
 	const FlagClear = 2;
 	const FlagSelect = 3;
+	const FlagFist = 4;
 	const Taken = 0;   // DFB_ITEM_TAKEN
 	const Refused = 4; // DFB_ITEM_REFUSED
 
@@ -233,6 +235,16 @@ class DoomerfallGuns : EventHandler
 			return;
 		}
 		Weapon ready = mo.player.ReadyWeapon;
+		if (flags == FlagFist)
+		{
+			// Hotkey 1 is always the fist (owner, 2026-11-26). The active gun stays here, lowered, as for SELECT.
+			class<Inventory> fist = (class<Inventory>)(Actor.GetReplacement("Fist")); // DRLA's RLFist replaces Fist.
+			if (fist && !mo.FindInventory(fist)) mo.GiveInventory(fist, 1);
+			let w = fist ? Weapon(mo.FindInventory(fist)) : null;
+			if (w && w != ready) mo.player.PendingWeapon = w;
+			Tell("done", request, w ? Taken : Refused, "");
+			return;
+		}
 		if (flags == FlagSelect)
 		{
 			// The active gun is already here, perhaps lowered for the fists. Raise it.
