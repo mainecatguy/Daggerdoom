@@ -23,6 +23,7 @@ static partial class Program
 {
     // Doom stops walkers on floors whose normal z is below STEEPSLOPE (0.70712, just under 45 degrees). Planes are written
     // no steeper than MinPlaneNormal (44.3 degrees). Faces from there down to RampNormal (45.6 degrees) are flattened to it.
+    const double STEEPSLOPE = 46342 / 65536.0;
     const double FlatNormal = 0.9995, MinPlaneNormal = 0.715, RampNormal = 0.70, CeilingNormal = 0.2, PlaneMatch = 2.5;
     const double SnapRadius = 0.9, MinAlignment = 0.866, MaxMove = 1.3, MaxDeviation = 1.35, UnsnappedTolerance = 0.72, SnappedTolerance = 1.25, PinnedTolerance = 0.25;
     const int MaxStrikes = 12;
@@ -30,6 +31,7 @@ static partial class Program
 
     static bool gridCollision;
     static string debugChains;
+    static bool plainAngled; // --plain-angled: the first angled pass only, without ramp planes, sliver merging, or smoothing, for comparison
     static readonly List<SurfacePlane> surfacePlanes = new List<SurfacePlane>();
     static readonly List<Feature> features = new List<Feature>();
     static Dictionary<(int, int), List<Feature>> featureIndex;
@@ -102,7 +104,7 @@ static partial class Program
                 bestError = error; bestPlane = plane; bestNormal = normal; best = n;
             }
             if (up && best >= 0 && bestNormal < RampNormal) steepFloorSpans[Math.Min(9, (int)(bestNormal * 10))]++;
-            if (best < 0 || bestNormal >= FlatNormal || bestNormal < (up ? RampNormal : CeilingNormal)) return -1;
+            if (best < 0 || bestNormal >= FlatNormal || bestNormal < (up ? (plainAngled ? 0.75 : RampNormal) : CeilingNormal)) return -1;
             var key = ((long)Math.Round(bestPlane.Gx * 2000), (long)Math.Round(bestPlane.Gy * 2000), (long)Math.Round(bestPlane.H * 2));
             if (up && bestNormal < MinPlaneNormal) bestPlane = Flatten(bestPlane, rampCenters[key]);
             if (!ids.TryGetValue(key, out int id)) { ids[key] = id = surfacePlanes.Count; surfacePlanes.Add(bestPlane); }
@@ -145,11 +147,39 @@ static partial class Program
             }
             return false;
         }
-        // A sliver's gaps lower than a standing player, such as the space over a wall's sloped foot, may close: a body
-        // cannot use a one- or two-cell pocket against a diagonal wall anyway.
-        bool Close(List<Span> a, List<Span> b)
+        var floors = new Dictionary<int, List<Tri>>();
+        foreach (var t in tris)
         {
-            if (a.Count != b.Count) a = a.Where(s => s.Door >= 0 || s.Water != NoWater || s.C - s.F >= PlayerScale.Height).ToList();
+            if (t.N.Z < WallNormalZ || t.N.Z >= STEEPSLOPE) continue;
+            int i0 = Math.Max(0, (int)Math.Floor((Math.Min(t.A.X, Math.Min(t.B.X, t.C.X)) - minX) / cell));
+            int i1 = Math.Min(width - 1, (int)Math.Floor((Math.Max(t.A.X, Math.Max(t.B.X, t.C.X)) - minX) / cell));
+            int j0 = Math.Max(0, (int)Math.Floor((Math.Min(t.A.Y, Math.Min(t.B.Y, t.C.Y)) - minY) / cell));
+            int j1 = Math.Min(height - 1, (int)Math.Floor((Math.Max(t.A.Y, Math.Max(t.B.Y, t.C.Y)) - minY) / cell));
+            for (int j = j0; j <= j1; j++)
+                for (int i = i0; i <= i1; i++)
+                    (floors.TryGetValue(Index(i, j), out var l) ? l : floors[Index(i, j)] = new List<Tri>()).Add(t);
+        }
+        // The span's floor is a face too steep to walk, such as a wall's sloped foot.
+        bool Steep(int c, Span s)
+        {
+            if (!floors.TryGetValue(c, out var list)) return false;
+            double px = minX + (c % width + 0.5) * cell, py = minY + (c / width + 0.5) * cell;
+            foreach (var t in list)
+            {
+                double d = (t.B.Y - t.C.Y) * (t.A.X - t.C.X) + (t.C.X - t.B.X) * (t.A.Y - t.C.Y);
+                if (Math.Abs(d) < 1e-9) continue;
+                double u = ((t.B.Y - t.C.Y) * (px - t.C.X) + (t.C.X - t.B.X) * (py - t.C.Y)) / d, v = ((t.C.Y - t.A.Y) * (px - t.C.X) + (t.A.X - t.C.X) * (py - t.C.Y)) / d;
+                if (u >= -0.05 && v >= -0.05 && u + v <= 1.05 && Math.Abs(u * t.A.Z + v * t.B.Z + (1 - u - v) * t.C.Z - s.F) <= 4) return true;
+            }
+            return false;
+        }
+        // A sliver's gap may close if no crouching body fits, or if it is lower than a standing body and its floor is
+        // too steep to walk, such as the space over a diagonal wall's sloped foot. Crawl spaces stay.
+        bool Close(int c, List<Span> b)
+        {
+            var a = grid[c];
+            if (a.Count != b.Count) a = a.Where(s => s.Door >= 0 || s.Water != NoWater || s.C - s.F >= PlayerScale.Height
+                || (s.C - s.F >= PlayerScale.CrouchHeight && !Steep(c, s))).ToList();
             if (a.Count != b.Count) return false;
             for (int n = 0; n < a.Count; n++)
                 if (a[n].Door != b[n].Door || a[n].Water != b[n].Water || Math.Abs(a[n].F - b[n].F) > SliverFloor || Math.Abs(a[n].C - b[n].C) > SliverStep) return false;
@@ -192,7 +222,7 @@ static partial class Program
                     {
                         if (ni < 0 || nj < 0 || ni >= width || nj >= height) continue;
                         int q = Index(ni, nj);
-                        if (component[q] >= 0 && component[q] != component[c] && Close(grid[c], grid[q])
+                        if (component[q] >= 0 && component[q] != component[c] && Close(c, grid[q])
                             && cells.Any(s => Diagonal(s % width, s / width, DifferingHeights(grid[s], grid[q])))) shared[q] = shared.TryGetValue(q, out int n) ? n + 1 : 1;
                     }
                 }
@@ -680,7 +710,7 @@ static partial class Program
             if (gridded.Contains(v)) return (id: ids[v], x: (double)v.x, y: (double)v.y, tolerance: PinnedTolerance);
             if (pinned.Contains(v))
             {
-                var m = smooth.TryGetValue(v, out var q) ? q : (v.x, v.y);
+                var m = !plainAngled && smooth.TryGetValue(v, out var q) ? q : (v.x, v.y);
                 return (id: ids[v], x: m.Item1, y: m.Item2, tolerance: PinnedTolerance);
             }
             return s.ok ? (id: ids[v], x: s.x, y: s.y, tolerance: SnappedTolerance) : (id: ids[v], x: (double)v.x, y: (double)v.y, tolerance: UnsnappedTolerance * cell);

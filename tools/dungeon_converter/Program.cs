@@ -99,6 +99,7 @@ static partial class Program
             else if (args[a] == "--no-walls" || args[a] == "--export-mesh" || args[a] == "--no-ceiling-relief" || args[a] == "--door-dump" || args[a] == "--action-dump" || args[a] == "--runtime-dungeon") { }
             else if (args[a] == "--texture-table") a++; // used by --export-mesh: six archives, comma separated
             else if (args[a] == "--grid-collision") gridCollision = true; // old axis-aligned boundaries and flat planes
+            else if (args[a] == "--plain-angled") plainAngled = true; // comparison only: the angled pass before ramps and slivers
             else if (args[a] == "--debug-chains") debugChains = args[++a]; // x0,y0,x1,y1: boundary chains there, with support and fit
             else if (args[a] == "--open-actions") openActions = true;            else if (args[a] == "--route-step") routeStep = int.Parse(args[++a]); // diagnostic: models jumping or climbing
             else name = args[a];
@@ -130,7 +131,7 @@ static partial class Program
         ApplyDoors(); // these spans become sight blockers only
         if (!gridCollision) AssignPlanes();
         AssignWater();
-        if (!gridCollision) AbsorbSlivers();
+        if (!gridCollision && !plainAngled) AbsorbSlivers();
         if (args.Contains("--door-dump"))
         {
             foreach (var d in doors)

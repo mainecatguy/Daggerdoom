@@ -43,8 +43,10 @@ def main():
     parser.add_argument("--cell", type=int, help="converter collision cell size")
     parser.add_argument("--ceiling-relief", type=int, help="largest collision ceiling raise, in map units")
     parser.add_argument("--baseline", action="store_true", help="measure the converter without the ceiling relief fix")
+    parser.add_argument("--converter-arg", action="append", default=[], help="extra converter argument, e.g. --plain-angled")
     args = parser.parse_args()
     extra = ["--cell", str(args.cell)] if args.cell else []
+    extra += args.converter_arg
     if args.ceiling_relief is not None:
         extra += ["--ceiling-relief", str(args.ceiling_relief)]
     if args.baseline:

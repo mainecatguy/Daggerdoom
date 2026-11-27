@@ -189,6 +189,7 @@ def main():
     parser.add_argument("--timeout", type=int, default=300)
     parser.add_argument("--analyse-only", action="store_true", help="redo the report from an existing engine log")
     parser.add_argument("--reuse", action="store_true", help="skip conversion when the wad already exists")
+    parser.add_argument("--converter-arg", action="append", default=[], help="extra converter argument, e.g. --plain-angled")
     args = parser.parse_args()
     out = os.path.abspath(args.out)
     repo = os.path.normcase(os.path.dirname(os.path.dirname(HERE)))
@@ -205,7 +206,7 @@ def main():
             continue
         began = time.time()
         if not (args.reuse and os.path.exists(base + ".wad")):
-            code, text = convert(name, folder, [])
+            code, text = convert(name, folder, args.converter_arg)
             open(os.path.join(folder, "convert.log"), "w").write(text)
             if code:
                 print(f"{name}: CONVERT FAILED ({code}): {text.strip().splitlines()[-1][:200] if text.strip() else ''}")
