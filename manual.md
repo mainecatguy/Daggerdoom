@@ -77,8 +77,8 @@ Doomerfall adds seven weapon skills to your character sheet: the gun skills **Sh
 Impish) are gone: you can no longer calm monsters by speaking to them.
 
 - Most weapons belong to one of these skills; a few belong to two (see "Weapons that belong to two skills"). Shotguns covers shotguns, Automatics covers chainguns, miniguns and
-  other rapid-fire guns, including the Assault Rifle Chaingun, Assault Rifle Minigun and Autocannon, Explosives covers rocket, missile and grenade launchers, and Pistols covers every pistol,
-  revolver and Uzi, including plasma pistols and pistols that fire shotgun shells. Rifles covers ballistic
+  other rapid-fire guns, including the Uzi and its variants (except the Plasma Uzi, which is still a Pistol and an Energy Weapon), the Assault Rifle Chaingun, Assault Rifle Minigun and Autocannon, Explosives covers rocket, missile and grenade launchers, and Pistols covers every pistol
+  and revolver, including plasma pistols and pistols that fire shotgun shells. Rifles covers ballistic
   semi-automatic and single-shot rifles that are not explosives, energy weapons, shotguns or pistols.
 - No rifle counts as a pistol.
 - **Energy Weapons** covers guns that use cells (plasma rifles, lasers, railguns, BFGs) and energy guns that recharge

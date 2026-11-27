@@ -31,9 +31,10 @@ DRLA_EXPECT = {'RLPistol': 'pistol', 'RLShotgun': 'shotgun', 'RLCombatShotgun': 
                'RLRocketLauncher': 'explosive', 'RLMissileLauncher': 'explosive', 'RLGrenadeLauncher': 'explosive',
                'RLPlasmaRifle': 'energy', 'RLLaserRifle': 'energy', 'RLRailgun': 'energy',
                'RLChainsaw': 'melee', 'RLBFG9000': 'energy',
-               # Pistols (owner 2026-11-26): every DRLA pistol-token gun is a pistol (slot 7), including the Uzi
-               # (also rapid-fire token), Storm Pistol (also shotgun token) and Plasma Pistol (cells).
-               'RLUzi': 'pistol', 'RLStormPistol': 'pistol', 'RLPlasmaPistol': 'pistol',
+               # Pistols (owner 2026-11-26): DRLA's pistol-token guns are pistols (slot 7), including the Storm
+               # Pistol (also shotgun token) and Plasma Pistol (cells). Not the Uzis (owner 2026-11-27: "It's an
+               # Automatic. That's miscategorized."): they are Automatics, below.
+               'RLStormPistol': 'pistol', 'RLPlasmaPistol': 'pistol',
                'RLCombatPistol': 'pistol', 'RLMarksmanPistol': 'pistol', 'RLHandcannon': 'pistol',
                'RLHuntingRevolver': 'pistol', 'RLSilencedPistol': 'pistol', 'RLPP7': 'pistol'}
 # Rifles are never pistols ("no rifle is counted"). Their categories come from their DRLA tokens: rifle token ->
@@ -47,6 +48,11 @@ DRLA_EXPECT.update(RIFLES)
 # although they carry DRLA's single-shot rifle token. They must never get the Rifles slot.
 NOT_RIFLES = {'RLAssaultRifleChaingun': 'automatic', 'RLAssaultRifleMinigun': 'automatic', 'RLAutocannon': 'automatic'}
 DRLA_EXPECT.update(NOT_RIFLES)
+# The Uzi family (owner 2026-11-27): Automatics although DRLA gives them its pistol token. The cell-fed Plasma Uzi stays
+# Pistol + Energy (below) until the owner decides what it should be.
+UZIS = {'RLUzi': 'automatic', 'RLHighPowerUzi': 'automatic', 'RLStormUzi': 'automatic', 'RLBurstCannonUzi': 'automatic',
+        'RLAssaultRifleUzi': 'automatic', 'RLDemolitionAmmoUzi': 'automatic', 'RLNanoManufactureAmmoUzi': 'automatic'}
+DRLA_EXPECT.update(UZIS)
 # Energy Weapons and Melee (skillcore placeholders, 2026-11-26). DRLA's fist is unarmed like the stock one; its melee
 # weapons have the melee token (the Energysaw also uses cells, and Melee comes first). Energy guns that recharge
 # instead of using cells are on Doomerfall's list; a self-charging energy pistol stays a pistol.

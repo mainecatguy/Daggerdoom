@@ -3,8 +3,9 @@
 //
 // Precedence when signs overlap:
 //   Unarmed > Melee > Pistol > Explosive > Energy > Shotgun > Precision > Automatic.
-// Pistol second follows the Pistols goal (owner, 2026-11-26: DRLA's pistol-type guns are pistols), so pistol-token
-// Uzis, Storm (shotgun-token) pistols and cell-fed pistols are Pistols. The order of the rest is the proposal's
+// Pistol second follows the Pistols goal (owner, 2026-11-26: DRLA's pistol-type guns are pistols), so Storm
+// (shotgun-token) pistols and cell-fed pistols are Pistols. The pistol-token Uzis are not (owner, 2026-11-27: they are
+// Automatics; IsOwnerAutomatic). The order of the rest is the proposal's
 // lean, not yet an owner decision: DRLA's Autoshotgun (shotgun and rapid-fire tokens) is a Shotgun, and a cell-fed
 // shotgun or Plasma Rifle is Energy rather than Shotgun or Automatic.
 //
@@ -126,7 +127,7 @@ class DoomerfallWeaponCategory abstract
 		if (w.bMeleeWeapon || w is "Chainsaw" || IsClass(w, "RLDragonslayer") || (tokens & TokMelee)) return Melee, Other;
 		// ZScript names are case-insensitive: these must not be called energy or shotgun, or they hide the enum values.
 		bool isEnergy = AmmoIs(w, "Cell") || IsEnergyGun(w);
-		if (w is "Pistol" || (tokens & TokPistol)) return Pistol, isEnergy ? Energy : Other;
+		if (w is "Pistol" || ((tokens & TokPistol) && !IsOwnerAutomatic(w))) return Pistol, isEnergy ? Energy : Other;
 		if (AmmoIs(w, "RocketAmmo")) return Explosive, Other;
 		bool isShotgun = w is "Shotgun" || w is "SuperShotgun" || (tokens & TokShotgun);
 		if (isEnergy) return Energy, isShotgun ? Shotgun : Other;
@@ -169,11 +170,20 @@ class DoomerfallWeaponCategory abstract
 		return c && w is c;
 	}
 
-	// DRLA guns with the single-shot rifle token that the owner ruled Automatics (2026-11-26: "Those all sound like
-	// automatics"). Looked up at run time, so this list does nothing without DRLA.
+	// DRLA guns the owner ruled Automatics although a DRLA token says otherwise: the single-shot rifle token
+	// (2026-11-26: "Those all sound like automatics") or the pistol token (the Uzi family, 2026-11-27: "It's an
+	// Automatic. That's miscategorized."). The cell-fed Plasma Uzi is not listed: it stays Pistol + Energy until the
+	// owner says what it should be. Looked up at run time, so this list does nothing without DRLA.
 	private clearscope static bool IsOwnerAutomatic(readonly<Weapon> w)
 	{
-		return IsClass(w, "RLAssaultRifleChaingun") || IsClass(w, "RLAssaultRifleMinigun") || IsClass(w, "RLAutocannon");
+		static const String automatics[] = {
+			"RLAssaultRifleChaingun", "RLAssaultRifleMinigun", "RLAutocannon",
+			"RLUzi", "RLHighPowerUzi", "RLStormUzi", "RLBurstCannonUzi", "RLAssaultRifleUzi",
+			"RLDemolitionAmmoUzi", "RLNanoManufactureAmmoUzi"
+		};
+		for (int i = 0; i < automatics.Size(); i++)
+			if (IsClass(w, automatics[i])) return true;
+		return false;
 	}
 
 	private clearscope static bool IsEnergyGun(readonly<Weapon> w)
