@@ -130,15 +130,25 @@ extend class DoomerfallEncounterPlanner
 			}
 	}
 
+	// startat may list several points, separated by ';', each x,y,z or x,y,z,radius (default startradius): Privateer's
+	// Hold also names the placements in the first room with stairs on the way from the cave (owner, 2026-11-26).
 	private void StartRoom()
 	{
 		if (!theme.known) return;
 		double reach = data.ThemeGet(theme.name, "startradius").ToDouble();
-		Array<String> xyz;
+		Array<String> pts;
 		String s = data.ThemeGet(theme.name, "startat");
-		s.Split(xyz, ",", TOK_SKIPEMPTY);
-		if (reach <= 0 || xyz.Size() != 3) return;
-		Vector3 from = (xyz[0].ToDouble(), xyz[1].ToDouble(), xyz[2].ToDouble());
+		s.Split(pts, ";", TOK_SKIPEMPTY);
+		Array<double> fx, fy, fz, fr;
+		for (int n = 0; n < pts.Size(); n++)
+		{
+			Array<String> xyz;
+			pts[n].Split(xyz, ",", TOK_SKIPEMPTY);
+			double rr = xyz.Size() == 4 ? xyz[3].ToDouble() : reach;
+			if (rr <= 0 || xyz.Size() < 3 || xyz.Size() > 4) continue;
+			fx.Push(xyz[0].ToDouble()); fy.Push(xyz[1].ToDouble()); fz.Push(xyz[2].ToDouble()); fr.Push(rr);
+		}
+		if (!fx.Size()) return;
 		Array<DoomerfallMonster> start;
 		StartMonsters(start);
 		if (!start.Size()) { result.warnings.Push("start room: no start class in the pool"); return; }
@@ -146,7 +156,9 @@ extend class DoomerfallEncounterPlanner
 		for (int i = 0; i < result.placements.Size(); i++)
 		{
 			let at = req.placements[i];
-			if (((at.x, at.y, at.z) - from).Length() > reach) continue;
+			bool near = false;
+			for (int n = 0; n < fx.Size() && !near; n++) near = ((at.x, at.y, at.z) - (fx[n], fy[n], fz[n])).Length() <= fr[n];
+			if (!near) continue;
 			let p = result.placements[i];
 			if (i == result.titanPlacement) { result.titanPlacement = -1; result.titan = null; result.titanWhy = "start room"; }
 			int b = result.bosses.Find(i);
