@@ -29,6 +29,18 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return PlaceAmongClassic(t, building.Quality, TownClassOf(location), Seed(location.MapTableData.MapId, (int)building.BuildingType, building.NameSeed & 0xFFFF));
         }
 
+        /// <summary>Town class (0 village, 1 hamlet, 2 city, 3 capital) for the test's tables.</summary>
+        internal static int TestTownClass(in DFLocation location)
+        {
+            return TownClassOf(location);
+        }
+
+        /// <summary>True for the buildings that take a level from their own quality (houses, houses for sale, guild halls).</summary>
+        internal static bool TestHasQualityLevel(DFLocation.BuildingTypes type)
+        {
+            return HasQualityLevel(type);
+        }
+
         /// <summary>Every classic shop as (MapId, type, NameSeed, quality, level).</summary>
         internal static IEnumerable<int[]> TestClassic()
         {

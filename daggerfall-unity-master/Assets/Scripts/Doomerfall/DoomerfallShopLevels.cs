@@ -3,8 +3,9 @@
 //
 // Inputs:  each classic location's building list, map table and names from MAPS.BSA, read once by
 //          DoomerfallAreaLevels on its worker thread and handed to Build().
-// Outputs: ForShop(location, building) -> level, 0 if the building is not a shop. Test-only accessors are in
-//          DoomerfallShopLevelsTestAccess.cs.
+// Outputs: ForShop(location, building) -> level, 0 if the building is not a shop. ForBuilding(location, building)
+//          -> the same for shops, and a level from their own quality for houses and guild halls (see ByQuality).
+//          Test-only accessors are in DoomerfallShopLevelsTestAccess.cs.
 //
 // The rule is proposal C, band-locked rank, which the owner chose on 2026-11-26
 // (work/notes/20261124-124736-shop-levels.md). This is a port of tools/shop_levels/shop_level.py: keep the two in
@@ -97,6 +98,53 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (t.levelById.TryGetValue(Id(location.MapTableData.MapId, type, nameSeed, building.Quality), out level))
                 return level;
             return PlaceAmongClassic(t, building.Quality, TownClassOf(location), Seed(location.MapTableData.MapId, type, nameSeed));
+        }
+
+        /// <summary>
+        /// Level of the building the player can be inside: a shop's level (ForShop), or for a house, a house for sale
+        /// or a guild hall the level its own quality gets through the shop bands (the owner's H2, 2026-11-26), never
+        /// from town size. 0 for any other building (the area level applies there) or if the table could not be built.
+        /// </summary>
+        internal static int ForBuilding(in DFLocation location, in BuildingSummary building)
+        {
+            if (RMBLayout.IsShop(building.BuildingType))
+                return ForShop(location, building);
+            if (!HasQualityLevel(building.BuildingType))
+                return 0;
+            Table t = Ready();
+            if (t == null)
+                return 0;
+            return ByQuality(t, building.Quality, Seed(location.MapTableData.MapId, (int)building.BuildingType, building.NameSeed & 0xFFFF));
+        }
+
+        static bool HasQualityLevel(DFLocation.BuildingTypes type)
+        {
+            return type == DFLocation.BuildingTypes.HouseForSale || type == DFLocation.BuildingTypes.GuildHall
+                || (type >= DFLocation.BuildingTypes.House1 && type <= DFLocation.BuildingTypes.House6);
+        }
+
+        // The building takes the span of levels the classic shops of its quality hold, all town classes together,
+        // and its seed picks its place in that span. Quality with no shops (0, or above 20) sits at the band's edge.
+        static int ByQuality(Table t, int quality, uint seed)
+        {
+            quality = Math.Max(0, Math.Min(255, quality));
+            int b = Band(quality);
+            ulong[] keys = t.bandKeys[b];
+            int first = LowerBound(keys, (ulong)quality << 40), end = LowerBound(keys, (ulong)(quality + 1) << 40);
+            long place = first + (long)(((ulong)seed * (ulong)(end - first)) >> 32);
+            int width = BandHigh[b] - BandLow[b] + 1;
+            return Math.Min(BandHigh[b], BandLow[b] + (int)(place * width / Math.Max(1, keys.Length)));
+        }
+
+        static int LowerBound(ulong[] keys, ulong key)
+        {
+            int lo = 0, hi = keys.Length;
+            while (lo < hi)
+            {
+                int mid = (lo + hi) >> 1;
+                if (keys[mid] < key) lo = mid + 1; else hi = mid;
+            }
+            return lo;
         }
 
         static int PlaceAmongClassic(Table t, int quality, int townClass, uint seed)

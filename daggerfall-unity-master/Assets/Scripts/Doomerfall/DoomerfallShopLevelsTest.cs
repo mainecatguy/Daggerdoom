@@ -5,6 +5,8 @@
 //   classic.csv  map_id,type,name_seed,quality,level for every shop in the classic table
 //   shops.csv    the same for every shop Daggerfall Unity builds (RMBLayout building summaries of every location
 //                that has a shop), read through ForShop, the call the game will use
+//   buildings.csv map_id,type,name_seed,quality,town_class,faction,level for every house, house for sale and guild
+//                hall of those locations, read through ForBuilding (shop_level.py recomputes each from its inputs)
 //   sample.txt   timings, per-level counts, the band contract check, named sample shops (Gothway Garden, the City
 //                of Daggerfall and others), and the mod-added fallback run on every shop
 
@@ -110,7 +112,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             StringBuilder shops = new StringBuilder("map_id,type,name_seed,quality,level\n");
             int[] bandMin = { 99, 99, 99, 99, 99 }, bandMax = new int[5];
             List<int[]> all = new List<int[]>();
-            int total = 0, fallbackSame = 0, zero = 0;
+            int total = 0, fallbackSame = 0, zero = 0, shopSame = 0, others = 0;
+            StringBuilder buildings = new StringBuilder("map_id,type,name_seed,quality,town_class,faction,level\n");
             for (int region = 0; region < reader.MapFileReader.RegionCount; region++)
             {
                 DFRegion data = reader.MapFileReader.GetRegion(region);
@@ -125,9 +128,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         continue;
                     foreach (BuildingSummary b in Summaries(location))
                     {
+                        if (DoomerfallShopLevels.TestHasQualityLevel(b.BuildingType))
+                            buildings.AppendFormat("{0},{1},{2},{3},{4},{5},{6}\n", location.MapTableData.MapId, (int)b.BuildingType, b.NameSeed,
+                                b.Quality, DoomerfallShopLevels.TestTownClass(location), b.FactionId, DoomerfallShopLevels.ForBuilding(location, b));
+                        else if (!RMBLayout.IsShop(b.BuildingType) && DoomerfallShopLevels.ForBuilding(location, b) != 0)
+                            others++;
                         if (!RMBLayout.IsShop(b.BuildingType))
                             continue;
                         int level = DoomerfallShopLevels.ForShop(location, b);
+                        if (DoomerfallShopLevels.ForBuilding(location, b) == level) shopSame++;
                         total++;
                         if (level == 0) zero++;
                         if (DoomerfallShopLevels.TestPlaceAmongClassic(location, b) == level) fallbackSame++;
@@ -140,6 +149,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 }
             }
             File.WriteAllText(Path.Combine(dir, "shops.csv"), shops.ToString());
+            File.WriteAllText(Path.Combine(dir, "buildings.csv"), buildings.ToString());
             int broken = 0;
             foreach (int[] s in all)
                 if (s[0] > 0 && s[1] < bandMax[s[0] - 1]) broken++;
@@ -148,6 +158,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 report.AppendFormat("band {0}: levels {1}-{2}\n", band + 1, bandMin[band], bandMax[band]);
             report.AppendFormat("contract: {0} shops below the top level of the band beneath\n", broken);
             report.AppendFormat("fallback on every shop: {0} of {1} land on their own level\n", fallbackSame, total);
+            report.AppendFormat("ForBuilding on every shop: {0} of {1} give the shop level; other buildings with a level: {2}\n", shopSame, total, others);
         }
 
         // Some name forms read the player's position, and there is no player in this test.

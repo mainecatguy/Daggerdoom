@@ -23,6 +23,10 @@ The rule:
   no BLOCKS.BSA and no building key. Ties on the seed fall back to (MapId, type, NameSeed).
 - A shop that is not in the classic list (a mod-added location, or a building a mod replaced) is placed among the
   classic keys of its band without being counted, so classic levels never move.
+- Houses, houses for sale and guild halls (owner's H2, 2026-11-26): building_level. A building takes the span of
+  levels the classic shops of its own quality hold, all town classes together, and its seed (same seed function)
+  picks its place in that span: place = first + seed * (end - first) >> 32, level = lo + place * width // shops in
+  band. The town's size never enters. --runtime also checks the dump's buildings.csv this way.
 """
 import argparse
 import collections
@@ -44,6 +48,7 @@ CAPITAL_ALIAS = {"Glenumbra Moors": "Glenumbra", "Dragontail Mountains": "Dragon
                  "Alik'r Desert": "Alik'ra"}
 SEED_SHOP = 0x5B0F0001
 TOWN_CITY, TOWN_HAMLET, TOWN_VILLAGE = 0, 1, 2
+GUILD_HALL, MAGES_GUILD = 11, 40
 
 
 def band(quality):
@@ -137,6 +142,58 @@ def place_among_classic(keys, quality, tclass, shop_seed):
     return min(hi, lo + below * (hi - lo + 1) // max(1, len(k)))
 
 
+def building_level(keys, quality, building_seed):
+    """Level of a house, house for sale or guild hall (owner's H2, 2026-11-26): the span of levels the classic shops of
+    its quality hold, all town classes together, and its seed picks its place in that span. Never the town's size."""
+    import bisect
+    quality = max(0, min(255, quality))
+    b = band(quality)
+    lo, hi = BAND_RANGE[b]
+    k = keys[b]
+    first = bisect.bisect_left(k, (quality, -1, -1))
+    end = bisect.bisect_left(k, (quality + 1, -1, -1))
+    place = first + ((building_seed * (end - first)) >> 32)
+    return min(hi, lo + place * (hi - lo + 1) // max(1, len(k)))
+
+
+def check_buildings(keys, runtime):
+    """Checks buildings.csv from -dfshopleveldump: every house, house for sale and guild hall of every town and castle,
+    as Daggerfall Unity builds them. Houses keep the quality and NameSeed of their BLOCKS.BSA record (only named
+    buildings take the MAPS.BSA list entry, RMBLayout.GetLocationBuildingData), so the script recomputes each level
+    from the row's own inputs and prints the tables by town class and quality band."""
+    path = os.path.join(runtime, "buildings.csv")
+    if not os.path.exists(path):
+        print("no buildings.csv in the dump")
+        return 1
+    rows, bad, cells, mages = 0, 0, collections.defaultdict(list), collections.defaultdict(set)
+    with open(path, encoding="utf-8") as f:
+        next(f)
+        for line in f:
+            m, t, ns, q, tc, fac, lv = (int(v) for v in line.split(",")[:7])
+            want = building_level(keys, q, seed(m, t, ns))
+            rows += 1
+            if want != lv:
+                bad += 1
+                if bad <= 10:
+                    print(f"buildings.csv differs: map {m} type {t} name seed {ns} quality {q}: script {want} runtime {lv}")
+            if t == GUILD_HALL:
+                if fac == MAGES_GUILD:
+                    mages[q].add(lv)
+            else:
+                cells[(tc, band(q))].append(lv)
+    print(f"buildings.csv: {rows} rows, {rows - bad} match the script, {bad} differ")
+    print("houses and houses for sale by town class and quality band: count at levels")
+    for tc, tname in enumerate(["village", "hamlet", "city", "capital"]):
+        out = []
+        for b in range(5):
+            lv = cells.get((tc, b), [])
+            out.append(f"{BAND_NAMES[b]}: {len(lv)} at {min(lv)}-{max(lv)}" if lv else f"{BAND_NAMES[b]}: none")
+        print(f"  {tname:8s} " + " | ".join(out))
+    print(f"Mages Guild halls: {sum(1 for _ in mages)} qualities; levels by quality: "
+          + " ".join(f"q{q}:{min(v)}-{max(v)}" for q, v in sorted(mages.items())))
+    return 1 if bad or rows == 0 else 0
+
+
 def contract_violations(shops):
     top = [max(s["level"] for s in shops if band(s["quality"]) == b) for b in range(5)]
     return sum(1 for s in shops if band(s["quality"]) > 0 and s["level"] < top[band(s["quality"]) - 1])
@@ -191,7 +248,7 @@ def main():
             print(f"{name}: {rows} rows, {len(want) - len(bad)} of {len(want)} match the script, {len(bad)} differ, "
                   f"{len(extra)} unknown, per-level counts match: {same_counts}")
             failed |= bool(bad or extra or rows != len(want) or not same_counts)
-        return 1 if failed else 0
+        return 1 if check_buildings(keys, a.runtime) or failed else 0
     return 0
 
 

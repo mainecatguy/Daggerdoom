@@ -3,7 +3,7 @@
 // Inputs:  classic MAPS.BSA and POLITIC.PAK, read straight from Arena2 so mods that add locations or repaint
 //          regions cannot change the ranking, plus the hand tables and fixed seeds below.
 // Outputs: Dungeon level per location (ranked within its size class), terrain level per land map pixel
-//          (ranked over all land pixels), and ForLocation / ForMapPixel / ForCurrentPlace lookups.
+//          (ranked over all land pixels), and ForLocation / ForMapPixel / ForCurrentPlace / ForCurrentDanger lookups.
 //
 // This is a port of tools/area_level/area_level.py, the formula the owner approved on 2026-11-23
 // (work/notes/20261123-225515-area-level-proposal.md). Keep the two in step: same tables, same seeds, and the
@@ -206,8 +206,40 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return t == null || t.error != null ? 0 : TerrainAt(t, x, y);
         }
 
-        /// <summary>Where the player is now: the dungeon's level inside a dungeon, otherwise the terrain level of the map pixel. 0 if unknown.</summary>
+        /// <summary>
+        /// The level of what is rolled where the player is now: inside a shop, house or guild hall the building's level
+        /// (DoomerfallShopLevels.ForBuilding, which reads only the building's classic data), otherwise ForCurrentDanger.
+        /// </summary>
         internal static int ForCurrentPlace()
+        {
+            int building = CurrentBuildingLevel();
+            return building > 0 ? building : ForCurrentDanger();
+        }
+
+        static int cachedMapId, cachedBuildingKey, cachedBuildingLevel = -1;
+
+        // The building's level is fixed, so it is looked up once per building entered.
+        static int CurrentBuildingLevel()
+        {
+            GameManager game = GameManager.Instance;
+            if (game == null || game.PlayerGPS == null || !game.PlayerEnterExit || !game.PlayerEnterExit.IsPlayerInsideBuilding
+                || !game.PlayerGPS.HasCurrentLocation)
+                return 0;
+            int mapId = game.PlayerGPS.CurrentLocation.MapTableData.MapId, key = game.PlayerEnterExit.BuildingDiscoveryData.buildingKey;
+            if (cachedBuildingLevel >= 0 && mapId == cachedMapId && key == cachedBuildingKey)
+                return cachedBuildingLevel;
+            BuildingDirectory directory = game.StreamingWorld != null ? game.StreamingWorld.GetCurrentBuildingDirectory() : null;
+            BuildingSummary summary;
+            if (!directory || !directory.GetBuildingSummary(key, out summary))
+                return 0;   // not cached: the location may still be loading
+            cachedBuildingLevel = DoomerfallShopLevels.ForBuilding(directory.LocationData, summary);
+            cachedMapId = mapId;
+            cachedBuildingKey = key;
+            return cachedBuildingLevel;
+        }
+
+        /// <summary>The danger where the player is now: the dungeon's level inside a dungeon, otherwise the terrain level of the map pixel. 0 if unknown.</summary>
+        internal static int ForCurrentDanger()
         {
             GameManager game = GameManager.Instance;
             if (game == null || game.PlayerGPS == null)

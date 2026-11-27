@@ -15,6 +15,9 @@ namespace DaggerfallWorkshop.Game
         /// <summary>Doomerfall sets this in a bridge session: the area level where the player is now, or 0 if unknown.</summary>
         public static Func<int> CurrentPlaceProvider;
 
+        /// <summary>Doomerfall sets this in a bridge session: the danger level where the player is now (a building's own level never applies), or 0 if unknown.</summary>
+        public static Func<int> DangerProvider;
+
         /// <summary>Doomerfall sets this in a bridge session: the dungeon level of a location, or 0 if unknown.</summary>
         public static Func<DFLocation, int> DungeonProvider;
 
@@ -40,6 +43,21 @@ namespace DaggerfallWorkshop.Game
                         return level;
                 }
                 return GameManager.Instance.PlayerEntity.Level;
+            }
+        }
+
+        /// <summary>
+        /// The level enemies are made at here and now. Same as Current, except inside a shop, house or guild hall,
+        /// whose own level is wealth (what is rolled there), not danger. Outside Doomerfall it is Current.
+        /// </summary>
+        public static int Danger
+        {
+            get
+            {
+                if (scoped > 0 || DangerProvider == null)
+                    return Current;
+                int level = DangerProvider();
+                return level > 0 ? level : Current;
             }
         }
 

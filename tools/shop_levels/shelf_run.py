@@ -6,6 +6,8 @@ and data made by this checkout's converter (scripts/play/install.py make_data) i
 (default GeneralStore; the test town has no other shop) in the test town and presses Use on its shelves (tools/shop_menu/harness.zs, with Daggerfall's
 -dfshoptest closing each window), then prints Daggerfall's "shop restock" lines: the level each shelf rolled at.
 --rates also passes -dfshoplevelrates (1,000 weapon smith and armorer shelves at several levels).
+--buildinglevels passes -dfbuildingleveltest and prints its lines: the level inside each building entered (shop levels 4).
+--review DIR assembles into or runs from another demo folder; assemble copies the data from the default folder if DIR has none.
 """
 import argparse
 import re
@@ -23,7 +25,7 @@ argv, sys.argv = sys.argv, sys.argv[:1]
 import install  # noqa: E402  (only for its registry isolation)
 sys.argv = argv
 
-REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\shop-shelf-levels")
+REVIEW = DEFAULT_REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\shop-shelf-levels")
 BUILD = Path(r"D:\dev\DoomDaggerfall-build")
 UZ_BUILD, BRIDGE_BUILD, LAUNCHER_BUILD = BUILD / "uzdoom-shoplvl" / "Release", BUILD / "bridge-shoplvl" / "Release", BUILD / "launcher-shoplvl" / "Release"
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
@@ -52,6 +54,8 @@ def lumps(path):
 
 def assemble():
     REVIEW.mkdir(parents=True, exist_ok=True)
+    if REVIEW != DEFAULT_REVIEW and not (REVIEW / "data").exists() and (DEFAULT_REVIEW / "data" / "converter").exists():
+        shutil.copytree(DEFAULT_REVIEW / "data", REVIEW / "data")
     if not (REVIEW / "data" / "converter").exists() or "--fresh-data" in sys.argv:
         install.make_data(BUILD / "shoplvl-data", REVIEW)   # data, town cache and dfitems.pk3 from this checkout's converter
     for name, source in (("uzdoom", UZ_BUILD), ("dfu", REPO / "daggerfall-unity-master" / "Builds" / "Windows64")):
@@ -137,7 +141,7 @@ class SLDemoStart : StaticEventHandler
         newline="")
 
 
-def run(name, building, rates, stock_mods):
+def run(name, building, rates, stock_mods, building_levels=False):
     runs = REVIEW / "run" / name
     if runs.exists():
         shutil.rmtree(runs)
@@ -151,6 +155,8 @@ def run(name, building, rates, stock_mods):
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "SMHarness" }\n')
     uz = ["-noactivate", "-nosound", "-noautoload", "-dfbridgelog", str(uz_log), "+logfile", name, "+wipetype", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"]
     df = ["-dfbridgelog", str(df_log), "-dfshoptest", "-screen-width", "640", "-screen-height", "360"] + (["-dfshoplevelrates"] if rates else [])
+    if building_levels:
+        df += ["-dfbuildingleveltest", str(runs / "buildings.log")]
     args = launch_args(runs, uz, df, stock_mods) + ["--mod", str(harness), "--minimized", "--log", str(runs / "launcher.log")]
     timeout = 120
     proc = subprocess.Popen([sys.executable, QUIET, "--timeout", str(timeout), "--", str(REVIEW / "doomerfall-launcher.exe")] + args,
@@ -176,6 +182,8 @@ def run(name, building, rates, stock_mods):
     for line in read(df_log).splitlines():
         if re.search(r"shop restock:|shoplevelrates:|shoptest: (Weapon|General|window|bought)|error", line):
             print("df", line[:300])
+    for line in read(runs / "buildings.log").splitlines():
+        print("df", line[:300])
     kinds = sorted({l[:150] for l in read(REVIEW / "dfu" / "PortableAppdata" / "Player.log").splitlines() if "Exception" in l})
     print("Player.log exception kinds:", len(kinds))
     for line in kinds[:5]:
@@ -188,9 +196,13 @@ ap.add_argument("name", nargs="?", default="t")
 ap.add_argument("--building", default="GeneralStore", help="Daggerfall building type to go into, as the converter lists it")
 ap.add_argument("--rates", action="store_true")
 ap.add_argument("--stock-mods", action="store_true")
+ap.add_argument("--buildinglevels", action="store_true")
+ap.add_argument("--review", help="demo folder to assemble into or run from (default: the shop shelves demo)")
 ap.add_argument("--fresh-data", action="store_true", help="assemble: remake the data even if present")
 args = ap.parse_args()
+if args.review:
+    REVIEW = Path(args.review)
 if args.command == "assemble":
     assemble()
 else:
-    run(args.name, args.building, args.rates, args.stock_mods)
+    run(args.name, args.building, args.rates, args.stock_mods, args.buildinglevels)
