@@ -98,6 +98,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 location.RegionName, location.Name, location.MapTableData.LocationType, location.MapTableData.MapId, level.terrain,
                 DoomerfallAreaLevels.TownClassLevel((int)location.MapTableData.LocationType, location.RegionName, location.Name),
                 level.town, level.dungeon, DoomerfallTravelHint.Word(level.Place), centre, inside, outside, outsidePixelLevel, ok ? "PASS" : "FAIL");
+            report.AppendFormat("    town map rect x {0}..{1}, z {2}..{3} (tiles {8}..{9}, {10}..{11}); town level held over x {4}..{5}, z {6}..{7}\n",
+                minX, maxX, minZ, maxZ, minX - edge, maxX + edge, minZ - edge, maxZ + edge, minX / 256, maxX / 256, minZ / 256, maxZ / 256);
         }
 
         // A wilderness pixel next to a town: no location there, and away from the town map its level is the terrain level.
@@ -126,16 +128,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             report.AppendFormat("  no wilderness pixel next to {0}\n", townName);
         }
 
-        // Same rectangle as PlayerGPS.SetLocationRect.
+        // The rectangle the town level is held around (the one UZDoom's town map uses).
         static void Rect(DFLocation location, out int minX, out int maxX, out int minZ, out int maxZ)
         {
             int px = location.MapTableData.Longitude / 128, py = 499 - location.MapTableData.Latitude / 128;
-            DFPosition origin = MapsFile.MapPixelToWorldCoord(px, py);
-            DFPosition tile = TerrainHelper.GetLocationTerrainTileOrigin(location);
-            minX = origin.X + tile.X * 2 * MapsFile.WorldMapTileDim;
-            minZ = origin.Y + tile.Y * 2 * MapsFile.WorldMapTileDim;
-            maxX = minX + location.Exterior.ExteriorData.Width * MapsFile.WorldMapRMBDim;
-            maxZ = minZ + location.Exterior.ExteriorData.Height * MapsFile.WorldMapRMBDim;
+            DoomerfallAreaLevels.TownRectangle(DaggerfallUnity.Instance, location, px, py, out minX, out maxX, out minZ, out maxZ);
         }
     }
 }

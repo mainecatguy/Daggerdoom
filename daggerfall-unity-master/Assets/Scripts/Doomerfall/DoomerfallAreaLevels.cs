@@ -73,10 +73,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             { "Antiphyllos", "Antyphyllos" }, { "Orsinium Area", "Orsinium" }, { "Alik'r Desert", "Alik'ra" },
         };
 
-        // The town level holds over the whole town Doom map. UZDoom's town map reaches 24 tiles (256 Daggerfall units
-        // each) past the location's rectangle, and the player leaves it for the overworld at 20 (dd_treadmill.cpp,
-        // Town::margin and ExitMargin). Daggerfall's own location rect check (4096 units, 16 tiles) lies inside this.
-        internal const int TownEdge = 24 * 256;
+        // The town level holds over the whole town Doom map. The player is on UZDoom's town map only while within 20
+        // tiles (256 Daggerfall units each) of the location's rectangle: it hands off to the overworld there
+        // (dd_treadmill.cpp, Town::ExitMargin with margin 24), and enters it at 12 tiles. TownRectangle is the same
+        // rectangle the converter gives UZDoom.
+        internal const int TownEdge = 20 * 256;
 
         // Location type bytes that pick a size class. Everything else with a dungeon is a labyrinth.
         const int TypeKeep = 7, TypeRuin = 10, TypeGraveyard = 12;
@@ -311,15 +312,52 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 notTowns.Add(key);
                 return false;
             }
-            DaggerfallConnect.Utility.DFPosition origin = MapsFile.MapPixelToWorldCoord(x, y);
-            DaggerfallConnect.Utility.DFPosition tile = TerrainHelper.GetLocationTerrainTileOrigin(location);
-            rect.minX = origin.X + tile.X * 2 * MapsFile.WorldMapTileDim;
-            rect.minZ = origin.Y + tile.Y * 2 * MapsFile.WorldMapTileDim;
-            rect.maxX = rect.minX + location.Exterior.ExteriorData.Width * MapsFile.WorldMapRMBDim;
-            rect.maxZ = rect.minZ + location.Exterior.ExteriorData.Height * MapsFile.WorldMapRMBDim;
+            TownRectangle(dfu, location, x, y, out rect.minX, out rect.maxX, out rect.minZ, out rect.maxZ);
             rect.level = level.town;
             townRects[key] = rect;
             return true;
+        }
+
+        /// <summary>
+        /// A location's rectangle in world units as UZDoom's town map uses it: the ground tiles of its blocks plus
+        /// Daggerfall Unity's clearance, as TerrainHelper.SetLocationTiles works it out (the converter's
+        /// WorldTerrain.cs ports the same code). Falls back to the block rectangle if no block has ground tiles.
+        /// </summary>
+        internal static void TownRectangle(DaggerfallUnity dfu, in DFLocation location, int pixelX, int pixelY, out int minX, out int maxX, out int minZ, out int maxZ)
+        {
+            const int TileUnits = 2 * MapsFile.WorldMapTileDim, BlockTiles = 16;
+            DaggerfallConnect.Utility.DFPosition origin = MapsFile.MapPixelToWorldCoord(pixelX, pixelY);
+            DaggerfallConnect.Utility.DFPosition tile = TerrainHelper.GetLocationTerrainTileOrigin(location);
+            int width = location.Exterior.ExteriorData.Width, height = location.Exterior.ExteriorData.Height;
+            int x0 = int.MaxValue, y0 = int.MaxValue, x1 = 0, y1 = 0;
+            for (int by = 0; by < height; by++)
+                for (int bx = 0; bx < width; bx++)
+                {
+                    DFBlock block;
+                    if (!dfu.ContentReader.GetBlock(dfu.ContentReader.MapFileReader.GetRmbBlockName(location, bx, by), out block)
+                        || block.RmbBlock.FldHeader.GroundData.GroundTiles == null)
+                        continue;
+                    for (int ty = 0; ty < BlockTiles; ty++)
+                        for (int tx = 0; tx < BlockTiles; tx++)
+                            if (block.RmbBlock.FldHeader.GroundData.GroundTiles[tx, BlockTiles - 1 - ty].TextureRecord < 56)
+                            {
+                                int px = tile.X + bx * BlockTiles + tx, py = tile.Y + by * BlockTiles + ty;
+                                x0 = Math.Min(x0, px); x1 = Math.Max(x1, px);
+                                y0 = Math.Min(y0, py); y1 = Math.Max(y1, py);
+                            }
+                }
+            if (x0 == int.MaxValue)
+            {
+                x0 = tile.X; x1 = tile.X + width * BlockTiles;
+                y0 = tile.Y; y1 = tile.Y + height * BlockTiles;
+            }
+            else
+            {
+                int clearance = location.MapTableData.LocationType == DFRegion.LocationTypes.TownCity ? 3 : 2;
+                x0 -= clearance; x1 += clearance; y0 -= clearance; y1 += clearance;
+            }
+            minX = origin.X + x0 * TileUnits; maxX = origin.X + x1 * TileUnits;
+            minZ = origin.Y + y0 * TileUnits; maxZ = origin.Y + y1 * TileUnits;
         }
 
         static bool IsTownType(int locationType)

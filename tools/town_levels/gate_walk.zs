@@ -3,13 +3,15 @@ version "4.14"
 // Town levels test: on a walled town's map, stand just inside the gate nearest the start, wait, open the gate, walk
 // out through it and on past the town map's exit line onto the overworld, then wait. Daggerfall's -dftownlevellog
 // writes the area level at each step. Console lines start with TL.
-class TLGateWalk : EventHandler
+class TLGateWalk : StaticEventHandler
 {
 	const SPEED = 12.0;
-	const START = @START@;	// tics before the walk starts, so Daggerfall's world level test runs in town first
+	const START = @START@;	// tics standing inside the gate, so Daggerfall's world level test runs in town first
+	const CITYX = @CITYX@;	// the town's centre on this map (Doom units), from the cache's DDTOWN
+	const CITYY = @CITYY@;
 	int phase, wait, tics;
 	bool done;
-	Vector2 outside, inside, mid, away;
+	Vector2 outside, inside, mid, away, lastPos;
 	Array<DFDoor> leaves;
 
 	static bool InTown() { return CVar.FindCVar("dd_tm_intown").GetInt() != 0; }
@@ -30,9 +32,10 @@ class TLGateWalk : EventHandler
 		DFDoor d;
 		while ((d = DFDoor(it.Next()))) all.Push(d);
 		if (all.Size() < 2) return false;
+		// The gate farthest from the map start, so the walk out leads away from the other locations of the group.
 		DFDoor best = all[0];
 		for (int i = 1; i < all.Size(); i++)
-			if ((all[i].pivotX - p.pos.x, all[i].pivotY - p.pos.y).Length() < (best.pivotX - p.pos.x, best.pivotY - p.pos.y).Length()) best = all[i];
+			if ((all[i].pivotX - p.pos.x, all[i].pivotY - p.pos.y).Length() > (best.pivotX - p.pos.x, best.pivotY - p.pos.y).Length()) best = all[i];
 		DFDoor mate = null;
 		for (int i = 0; i < all.Size(); i++)
 		{
@@ -44,7 +47,7 @@ class TLGateWalk : EventHandler
 		mid = ((best.pivotX + mate.pivotX) / 2, (best.pivotY + mate.pivotY) / 2);
 		Vector2 along = (mate.pivotX - best.pivotX, mate.pivotY - best.pivotY).Unit();
 		Vector2 normal = (-along.y, along.x);
-		if ((p.pos.xy - mid) dot normal < 0) normal = -normal;	// toward the player's side, which is inside the walls
+		if (((CITYX, CITYY) - mid) dot normal < 0) normal = -normal;	// toward the town's centre, inside the walls
 		inside = mid + normal * 240;
 		outside = mid - normal * 260;
 		away = -normal;
@@ -58,12 +61,12 @@ class TLGateWalk : EventHandler
 		switch (phase)
 		{
 		case 0:
-			if (level.maptime < START || !InTown()) return;
+			if (level.maptime < 10 || !InTown()) return;
 			if (!FindGate(p)) { Console.Printf("TLDONE FAIL no gate on this map"); done = true; return; }
 			p.SetOrigin((inside, p.GetZAt(inside.x, inside.y, 0, GZF_ABSOLUTEPOS)), false);
 			p.vel = (0, 0, 0);
 			Console.Printf("TLINSIDE gate %.0f,%.0f, standing at %.0f,%.0f", mid.x, mid.y, p.pos.x, p.pos.y);
-			wait = level.maptime + 70;
+			wait = level.maptime + START;
 			phase = 1;
 			break;
 		case 1:	// Stand inside the gate while Daggerfall logs the level.
@@ -87,7 +90,14 @@ class TLGateWalk : EventHandler
 			{
 				p.vel.xy = away * SPEED;
 				p.angle = atan2(away.y, away.x);
-				if (++tics > 2000) { Console.Printf("TLDONE FAIL never left the town map"); done = true; }
+				if (++tics % 175 == 0) Console.Printf("TLWALK at %.0f,%.0f vel %.1f", p.pos.x, p.pos.y, p.vel.xy.Length());
+				// Blocked by scenery past the gate: the gate itself was walked, so pass the rest without collision.
+				if (tics % 35 == 0)
+				{
+					if (!p.bNOCLIP && (p.pos.xy - lastPos).Length() < 8) { p.bNOCLIP = true; Console.Printf("TLNOCLIP stuck at %.0f,%.0f", p.pos.x, p.pos.y); }
+					lastPos = p.pos.xy;
+				}
+				if (tics > 2000) { Console.Printf("TLDONE FAIL never left the town map"); done = true; }
 			}
 			else
 			{

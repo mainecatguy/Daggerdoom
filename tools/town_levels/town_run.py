@@ -18,6 +18,7 @@ import subprocess
 import sys
 import time
 import zipfile
+import zlib
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -61,6 +62,27 @@ def city_group(region="Daggerfall", name="Daggerfall"):
         if any(x0 // 128 == tx and y0 // 128 == ty for x0, _x1, y0, _y1 in rects):
             return g
     raise SystemExit(f"no group holds {region} / {name}")
+
+
+def town_centre(group):
+    """Centre of the group's largest location rectangle in the town map's Doom units, from the cached DDTOWN lump.
+    The group is converted on first entry, so a first run without a cache file uses the map origin."""
+    path = REVIEW / "data" / "cache" / f"T{group:05d}.ddt"
+    if not path.exists():
+        return 0.0, 0.0
+    with open(path, "rb") as f:
+        f.read(4)
+        count = struct.unpack("<i", f.read(4))[0]
+        heads = [(f.read(8).rstrip(b"\0").decode(), *struct.unpack("<II", f.read(8))) for _ in range(count)]
+        body = ""
+        for name, raw, packed in heads:
+            data = f.read(packed)
+            if name == "DDTOWN":
+                body = (zlib.decompress(data) if raw else data).decode()
+    rows = [l.split() for l in body.splitlines()]
+    ox, oy = next((float(r[1]), float(r[2])) for r in rows if r[0] == "origin")
+    x0, x1, y0, y1 = max((tuple(int(v) for v in r[1:5]) for r in rows if r[0] == "rect"), key=lambda r: (r[1] - r[0]) * (r[3] - r[2]))
+    return ((x0 + x1) / 2 * 256 - ox) * 0.75, ((y0 + y1) / 2 * 256 - oy) * 0.75
 
 
 def assemble():
@@ -145,9 +167,11 @@ def run(name, stock_mods, start):
         shutil.rmtree(runs)
     (runs / "saves").mkdir(parents=True)
     uz_log, df_log, console = runs / "uz.log", runs / "df.log", runs / f"log-{name}.txt"
+    cx, cy = town_centre(group)
     harness = runs / "harness.pk3"
     with zipfile.ZipFile(harness, "w") as z:
-        z.writestr("zscript.txt", (HERE / "gate_walk.zs").read_text().replace("@START@", str(start)))
+        z.writestr("zscript.txt", (HERE / "gate_walk.zs").read_text().replace("@START@", str(start))
+                   .replace("@CITYX@", f"{cx:.1f}").replace("@CITYY@", f"{cy:.1f}"))
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "TLGateWalk" }\n')
     uz = ["-noactivate", "-nosound", "-noautoload", "-dfbridgelog", str(uz_log), "+logfile", name, "+wipetype", "0",
           "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"]

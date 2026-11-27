@@ -1,5 +1,5 @@
 // Doomerfall test only (-dftownlevellog): writes a bridge log line whenever the area level where the player stands
-// changes, with the town level, the terrain level, the world position, and whether Daggerfall counts the player as
+// changes (and every 3 seconds), with the town level, the terrain level, the world position, and whether Daggerfall counts the player as
 // inside the location rect. Attached from DoomerfallWorldLevelTest.Attach. Nothing reaches the screen.
 
 using System;
@@ -12,7 +12,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
     {
         DoomerfallBridge bridge;
         string last;
-        float next;
+        float next, heartbeat;
 
         internal static void Attach(DoomerfallBridge owner)
         {
@@ -22,8 +22,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         void Update()
         {
-            if (Time.unscaledTime < next || !GameManager.HasInstance || GameManager.Instance.PlayerGPS == null
-                || !GameManager.Instance.StateManager.GameInProgress || !DoomerfallAreaLevels.IsFinished)
+            if (Time.unscaledTime < next || !GameManager.HasInstance || GameManager.Instance.PlayerGPS == null || !DoomerfallAreaLevels.IsFinished)
                 return;
             next = Time.unscaledTime + 0.25f;
             PlayerGPS gps = GameManager.Instance.PlayerGPS;
@@ -32,9 +31,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             string place = string.Format("place level {0} (WorldLevel.Current {1}), town level here {2}, terrain {3}, location {4}, in location rect {5}, inside {6}",
                 DoomerfallAreaLevels.ForCurrentPlace(), WorldLevel.Current, inside ? 0 : DoomerfallAreaLevels.TownAt(gps.WorldX, gps.WorldZ),
                 DoomerfallAreaLevels.ForMapPixel(pixel.X, pixel.Y), gps.HasCurrentLocation ? gps.CurrentLocation.Name : "none", gps.IsPlayerInLocationRect, inside);
-            if (place == last)
+            if (place == last && Time.unscaledTime < heartbeat)
                 return;
             last = place;
+            heartbeat = Time.unscaledTime + 3;
             bridge.LogLine(string.Format("townlevel: {0} at world {1},{2} pixel {3},{4}", place, gps.WorldX, gps.WorldZ, pixel.X, pixel.Y));
         }
     }
