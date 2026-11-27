@@ -158,6 +158,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 gameObject.AddComponent<DoomerfallFaceTest>().Init(this, sync); // Test only
             damageBonus = new DoomerfallDamageBonus(this, sync);
             fallState = new DoomerfallFallState(this, sync);
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dffalltest") >= 0)
+                gameObject.AddComponent<DoomerfallFallStateTest>().Init(this); // Test only
             DoomerfallDamageBonusTest.Apply(this, damageBonus, Environment.GetCommandLineArgs()); // Test only, does nothing without -dfdamagetest
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfsheettest") >= 0)
                 gameObject.AddComponent<DoomerfallSheetTest>().Init(this, sync);

@@ -126,8 +126,9 @@ In Daggerfall's world, falls hurt, by Daggerfall's own rule:
   past that costs **5 HP**. A 9 metre drop costs 20 HP, a 15 metre drop 50 HP. Armor does not help.
 - A jump that lands where it started never hurts, however high it goes, double and triple jumps included.
 - Grabbing a wall while climbing starts the fall over from there.
-- Not yet as in Daggerfall: landing in the sea or a lake outdoors **does** hurt (Doom's outdoor water is solid ground
-  for now), and the **Slowfall** spell does not protect you from falling damage in Doom yet.
+- Landing outdoors on a sea or lake tile never hurts, as in Daggerfall.
+- While a **Slowfall** spell is active, falls do not hurt. If it runs out in mid-air, only the part of the fall after
+  it ran out counts. Slowfall does not make you fall more slowly yet; you fall at the normal speed.
 
 Your **Jumping** skill (the permanent value on your character sheet) changes how you jump:
 

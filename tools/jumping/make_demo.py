@@ -15,6 +15,7 @@ NOTES = [
     " 2. Open the console (~) and type: netevent jumpskill:25  (or 0, 50, 75, 100; -1 goes back to your real Jumping). This does not change Daggerfall's sheet.",
     " 3. At 25 jumps are 1.5x as high (+25% spike), at 100 2.25x. At 50 press Jump again in mid-air (double jump), at 100 twice (triple jump).",
     " 4. At 75 and above, walking off the roof no longer hurts.",
+    " 5. As in Daggerfall, a fall does not hurt while a Slowfall spell is active, or when you land outdoors on a sea or lake tile.",
 ]
 bat = open(os.path.join(play, "play.bat")).read().splitlines()
 start = [l for l in bat if l.startswith("start ")][0]
