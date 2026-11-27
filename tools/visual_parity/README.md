@@ -34,5 +34,5 @@ Spots are seeded random nodes of the converter's walk graph (`privateershold.poi
 ## Known gaps
 
 - Doom's `screenshot` comes out black while a Daggerfall window is open in Doomerfall, so pass 2's Doomerfall side is not yet usable (see the notes).
-- Daggerfall Unity's screen cannot be grabbed on the hidden desktop, so its menu shot is rebuilt: the UI drawn into a texture, laid over the 3D frame by the UI's alpha. A blending difference from the real screen is possible.
+- Daggerfall Unity's menu shot is meant to be the UI drawn into a texture and laid over the 3D frame by the UI's alpha. On the hidden desktop the UI layer comes out empty (`*.dfui.png`), so only the 3D frame shows. Not solved.
 - Pickups (DRLA stimpacks, Doomerfall ammo) are left in Doomerfall's scenes.
