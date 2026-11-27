@@ -26,7 +26,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         static readonly string[][] Samples =
         {
             new[] { "Daggerfall", "Gothway Garden" }, new[] { "Daggerfall", "Daggerfall" }, new[] { "Sentinel", "Sentinel" },
-            new[] { "Wayrest", "Wayrest" }, new[] { "Daggerfall", "Ripwych" },
+            new[] { "Wayrest", "Wayrest" }, new[] { "Alik'r Desert", "Mesascuza" },
         };
 
         string dir;
@@ -95,9 +95,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 report.AppendFormat("sample {0} / {1} ({2}, map_id {3}):\n", sample[0], sample[1], location.MapTableData.LocationType, location.MapTableData.MapId);
                 foreach (BuildingSummary b in Summaries(location))
                     if (RMBLayout.IsShop(b.BuildingType))
-                        report.AppendFormat("    {0} \"{1}\" quality {2}: level {3}\n", b.BuildingType,
-                            BuildingNames.GetName(b.NameSeed, b.BuildingType, b.FactionId, location.Name, location.RegionName),
-                            b.Quality, DoomerfallShopLevels.ForShop(location, b));
+                        report.AppendFormat("    {0} \"{1}\" (name seed {2}) quality {3}: level {4}\n", b.BuildingType,
+                            Name(b, location), b.NameSeed, b.Quality, DoomerfallShopLevels.ForShop(location, b));
             }
 
             // Every shop the game builds, through ForShop, plus the band contract and the mod-added fallback.
@@ -143,6 +142,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 report.AppendFormat("band {0}: levels {1}-{2}\n", band + 1, bandMin[band], bandMax[band]);
             report.AppendFormat("contract: {0} shops below the top level of the band beneath\n", broken);
             report.AppendFormat("fallback on every shop: {0} of {1} land on their own level\n", fallbackSame, total);
+        }
+
+        // Some name forms read the player's position, and there is no player in this test.
+        static string Name(BuildingSummary b, DFLocation location)
+        {
+            try { return BuildingNames.GetName(b.NameSeed, b.BuildingType, b.FactionId, location.Name, location.RegionName); }
+            catch (Exception) { return "(name needs a player)"; }
         }
 
         static IEnumerable<BuildingSummary> Summaries(DFLocation location)

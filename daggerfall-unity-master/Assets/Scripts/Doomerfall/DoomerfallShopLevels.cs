@@ -20,6 +20,7 @@ using System.Diagnostics;
 using System.Text;
 using DaggerfallConnect;
 using DaggerfallConnect.Arena2;
+using DaggerfallWorkshop.Utility;
 
 namespace DaggerfallWorkshop.Game.Doomerfall
 {
