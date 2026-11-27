@@ -367,12 +367,14 @@ class DoomerfallAmmoTiers : StaticEventHandler
 	}
 
 	// ---- Luck (owner 2026-11-27, replacing card attributes/04's extra-drop rule) ---------------------------------
-	// Every kill has a Luck/2 percent chance to drop ammo (0% at Luck 0, 50% at Luck 100; Luck above 100 counts as 100;
-	// no chance without Luck). Daggerfall sends live Luck with the character sheet (DD_SheetStat). Only a kill with a
-	// fixed loot seed rolls: a monster Daggerfall placed, not a summoned or revived one, which drops nothing (dd_lootrng).
-	// The roll is a hash of that seed with its own salt, so it draws from no random stream and leaves the monster's own
-	// loot untouched, and the same kill gets the same number every game. The drop is one ordinary monster ammo drop
-	// (half a small pickup) of a type picked evenly from the four by the same hash, with the usual tier and jackpot odds.
+	// Every monster death has a Luck/2 percent chance to drop ammo (0% at Luck 0, 50% at Luck 100; Luck above 100 counts
+	// as 100; no chance without Luck), whoever killed it. Daggerfall sends live Luck with the character sheet
+	// (DD_SheetStat). Only a death with a fixed loot seed rolls: a monster Daggerfall placed, not a summoned or revived
+	// one, which drops nothing (dd_lootrng). Town guards are player pawns, not monsters, and never roll. The roll is a
+	// hash of that seed with its own salt, so it draws from no random stream and leaves the monster's own loot untouched,
+	// and the same kill gets the same number every game. The drop is exactly one pickup, half a small one (a monster's
+	// dropped clip), of a type picked evenly from the four by the same hash, its tier from the area level's usual odds.
+	// No jackpot: Luck decides only whether ammo drops at all.
 	const LuckStat = 7; // DFCareer.Stats.Luck
 	const LuckSalt = 0x4c75636b;
 
@@ -392,8 +394,10 @@ class DoomerfallAmmoTiers : StaticEventHandler
 		if (!drop) return;
 		int type = min(3, int(Unit(seed, 2) * 4));
 		double angle = Unit(seed, 3) * 360;
-		DDLog.Debug(String.Format("DFAMMO luck drop %s at %.0f %.0f luck %d", TypeNames[type], mo.pos.x, mo.pos.y, luck));
-		Drop(mo.pos + (0, 0, 32), mo.vel + (cos(angle) * 2, sin(angle) * 2, 5), type, false, true, Mix(seed, type + 1));
+		int tier = RollTier(areaLevel, Unit(seed, 4), Unit(seed, 5));
+		let p = SpawnTier(mo.pos + (0, 0, 32), type, tier, false, true);
+		if (p != null) p.vel = mo.vel + (cos(angle) * 2, sin(angle) * 2, 5);
+		DDLog.Debug(String.Format("DFAMMO luck drop %s tier %d at %.0f %.0f luck %d", TypeNames[type], tier, mo.pos.x, mo.pos.y, luck));
 	}
 
 	static Inventory SpawnTier(vector3 at, int type, int tier, bool box, bool dropped)

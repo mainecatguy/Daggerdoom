@@ -9,8 +9,10 @@ tools/fixed_drops/paired.py's "fresh" run plays once per Luck value (default 1 2
 sets Luck (-dflucktest), the player arrives in Privateer's Hold, the harness kills the monsters near the start and lists
 every drop (PDDROP). Doom logs every Luck roll (DFAMMO luck kill ... roll R drop|none) and every Luck drop.
 
-Checks, per Luck: Daggerfall set Luck; every roll names that Luck; a kill drops exactly when roll < Luck/200; one Luck
-drop per "drop" roll, each followed by its tiered drop; the drop rate is within 3 standard deviations of Luck/2 percent
+Checks, per Luck: the fixed-drops harness passed (with --stock, only that it finished and listed the drops, since its
+summoned-monster phase needs DRLA); Daggerfall set Luck; every roll names that Luck; a kill drops exactly when
+roll < Luck/200; one single-pickup Luck drop per "drop" roll, and exactly one pickup per Luck drop missing from the
+drop list once they are taken away (no jackpot); the drop rate is within 3 standard deviations of Luck/2 percent
 (binomial); Luck 0 rolls nothing. Across Lucks: the same kills, the same rolls, and with the Luck drops taken away the
 same drops (the monsters' own fixed loot does not move). Pooled over every run with Luck above 0: drops within 3
 standard deviations of the summed expectation.
@@ -27,8 +29,8 @@ sys.path.insert(0, str(REPO / "tools" / "fixed_drops"))
 import paired as fd  # noqa: E402
 
 KILL = re.compile(r"DFAMMO luck kill (\S+) luck (\d+) roll ([\d.]+) (drop|none)")
-# The Luck drop line, then the tiered drop (one pickup, or a jackpot of many) that Drop logged for it.
-LUCKDROP = re.compile(r"DFAMMO luck drop (\w+) at (-?\d+) (-?\d+) luck (\d+)[^\n]*(?:\n(?![^\n]*DFAMMO)[^\n]*)*\n[^\n]*?DFAMMO (drop|jackpot) (\w+) tier (\d+)(?: x(\d+))?")
+# One Luck drop: exactly one pickup of one type and tier (no jackpot).
+LUCKDROP = re.compile(r"DFAMMO luck drop (\w+) tier (\d+) at (-?\d+) (-?\d+) luck (\d+)")
 
 
 def copy_over(src, dst):
@@ -95,8 +97,8 @@ def main():
         base = Counter()
         for k, v in s["drops"].items():
             base[re.sub(r"^(DFAmmo_\w+) seed \w+", r"\1", k)] += v
-        for _, _, _, _, kind, t, tier, count in drops:
-            base[f"DFAmmo_{t}_{tier}"] -= int(count or 1)
+        for t, tier, *_ in drops:
+            base[f"DFAmmo_{t}_{tier}"] -= 1
         runs[luck] = dict(s=s, rolls=rolls, drops=drops, base=base, df=f"luck test: luck {luck} " in dfl,
                           listed="PDDROPS " in (out / f"result-{name}.txt").read_text(),
                           fatal=s["result"] in ("result: fatal", "result: timeout"))
@@ -108,8 +110,13 @@ def main():
         r.update(n=n, k=k, p=p)
         print(f"luck {luck}: {s['result']}, {sum(s['kills'].values())} killed, {n} Luck rolls, {k} drops "
               f"({100 * k / n if n else 0:.1f}%, expected {100 * p:.1f}%, z {z:+.2f}), {len(r['drops'])} logged drops, "
-              f"types {dict(Counter(d[0] for d in r['drops']))}")
-        checks.append((f"luck {luck}: run finished and listed the drops", not r["fatal"] and r["listed"] and sum(s["kills"].values()) > 0))
+              f"types {dict(Counter(d[0] for d in r['drops']))}, {len(s['unseeded'])} unseeded")
+        for line in s["unseeded"][:5]:
+            print("   ", line)
+        if stock:  # The harness's last phase (summoned monsters) spawns DRLA summoners, absent here: it must still list the drops.
+            checks.append((f"luck {luck}: run finished and listed the drops", not r["fatal"] and r["listed"] and sum(s["kills"].values()) > 0))
+        else:
+            checks.append((f"luck {luck}: fixed-drops harness passed", s["result"] == "result: passed"))
         checks.append((f"luck {luck}: Daggerfall set Luck", r["df"]))
         if luck <= 0:
             checks.append((f"luck {luck}: no Luck rolls and no Luck drops", n == 0 and not r["drops"]))
@@ -117,7 +124,7 @@ def main():
         checks.append((f"luck {luck}: rolled for kills", n > 0))
         checks.append((f"luck {luck}: every roll names Luck {luck}", all(x[1] == luck for x in rolls)))
         checks.append((f"luck {luck}: a kill drops exactly when roll < Luck/200", all(x[3] == (x[2] < p) for x in rolls)))
-        checks.append((f"luck {luck}: one tiered drop per Luck drop", len(r["drops"]) == k and all(d[0] == d[5] for d in r["drops"])))
+        checks.append((f"luck {luck}: one single-pickup Luck drop per drop roll, naming Luck {luck}", len(r["drops"]) == k and all(int(d[4]) == luck for d in r["drops"])))
         checks.append((f"luck {luck}: drop rate {k}/{n} within 3 sd of {100 * p:.0f}%", ok))
         checks.append((f"luck {luck}: Luck drops subtract cleanly from the drop list", all(v >= 0 for v in r["base"].values())))
     lo = min(lucks)
