@@ -11,7 +11,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     internal sealed class DoomerfallAgilityTest : MonoBehaviour
     {
-        static readonly int[] Values = { 0, 100, 50, 10 };
+        static readonly int[] Values = { 1, 100, 50, 10 }; // not 0: Daggerfall kills a character with an attribute at 0
 
         DoomerfallBridge bridge;
         DoomerfallPositionSync sync;

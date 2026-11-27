@@ -152,15 +152,17 @@ def paired(source, build, dfu, bridge, launcher, work):
               ("reports with a Daggerfall character", bool(live)),
               ("Agility item held whenever there is a character", bool(live) and all(r["item"] == 1 for r in live)),
               ("switch and reload measured every time", bool(live) and all(r["switch"] > 0 and r["reload"] > 0 for r in live))]
-    zero = [r for r in live if r["agi"] == 0]
+    # Lowest is 1, not 0 (Daggerfall kills a character with an attribute at 0); the baseline is scaled back to 0.
+    zero = [r for r in live if r["agi"] <= 1]
     high = [r for r in live if r["agi"] >= 100]
-    checks.append(("Agility 0 and 100 both measured", bool(zero) and bool(high)))
+    checks.append(("Agility 1 and 100 both measured", bool(zero) and bool(high)))
     if zero and high:
-        bs = sum(r["switch"] for r in zero) / len(zero)
-        br = sum(r["reload"] for r in zero) / len(zero)
+        f = lambda r: 1 + 0.4 * min(r["agi"], 100) / 100.0
+        bs = sum(r["switch"] * f(r) for r in zero) / len(zero)
+        br = sum(r["reload"] * f(r) for r in zero) / len(zero)
         hs = sum(r["switch"] for r in high) / len(high)
         hr = sum(r["reload"] for r in high) / len(high)
-        print(f"Agility 0: switch {bs:.1f} tics, reload {br:.1f} tics; Agility 100: switch {hs:.1f}, reload {hr:.1f}")
+        print(f"Agility 0 (from 1): switch {bs:.1f} tics, reload {br:.1f} tics; Agility 100: switch {hs:.1f}, reload {hr:.1f}")
         print(f"speed-up at 100: switch x{bs / hs:.3f}, reload x{br / hr:.3f} (want x1.4)")
         checks.append(("reload at 100 is x1.4 faster (within 8%)", abs((br / hr) / 1.4 - 1) < 0.08))
         checks.append(("switch at 100 is x1.4 faster (within 12%, A_Raise and A_Lower move in steps)", abs((bs / hs) / 1.4 - 1) < 0.12))
@@ -176,8 +178,7 @@ def paired(source, build, dfu, bridge, launcher, work):
         sd = math.sqrt(max(p * (1 - p), 1e-9) / r["of"])
         return abs(r["evade"] / r["of"] - p) <= 4 * sd + 1e-9
     checks.append(("evaded share is 15% x Agility/100 (within 4 standard deviations)", bool(live) and all(evade_ok(r) for r in live)))
-    checks.append(("high Agility evades some hits, Agility 0 none", bool(high) and bool(zero) and all(r["evade"] > 0 for r in high)
-                   and all(r["evade"] == 0 for r in zero)))
+    checks.append(("Agility 100 evades some hits", bool(high) and all(r["evade"] > 0 for r in high)))
     checks.append(("self-damage, attacker-less damage and telefrags never evaded",
                    bool(live) and all(r["self"] == r["null"] == r["tele"] == 0 for r in live)))
     return checks
