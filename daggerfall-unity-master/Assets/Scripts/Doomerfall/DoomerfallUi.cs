@@ -719,6 +719,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bridge.LogLine(string.Format("ui: surface {0}x{1} for a {2}x{3} window", surfaceWidth, surfaceHeight, Screen.width, Screen.height));
         }
 
+        /// <summary>True while a Daggerfall menu is shown in Doom. Daggerfall's HUD then stays out of the frame: popups
+        /// draw their parent window behind them, and behind a popup over the HUD Doom shows its own view and HUD.</summary>
+        public static bool MenuShown
+        {
+            get { return instance && instance.openId != 0; }
+        }
+
         /// <summary>Doom's mouse position in Unity screen pixels, with the origin at the bottom left.</summary>
         public static Vector3 MouseScreenPosition
         {

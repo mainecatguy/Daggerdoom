@@ -346,7 +346,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
         public override void Draw()
         {
-            if (renderHUD)
+            if (renderHUD && !Doomerfall.DoomerfallUi.MenuShown) // Doomerfall: Doom's own HUD shows around the menu
                 base.Draw();
         }
 
