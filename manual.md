@@ -47,6 +47,14 @@ by itself inside Doom (after you wake up, or when you arrive):
 
 You are back in Doom with the new attributes in effect.
 
+## Attributes
+
+What your attributes do now. They use your current value, so spells and effects that fortify or drain an attribute
+count while they last.
+
+- **Agility:** you reload and switch weapons faster: up to 40% faster at 100 (20% at 50). You also get a chance to
+  dodge damage completely: 15% at 100 (7.5% at 50). Agility above 100 counts as 100.
+
 ## Weapon skills
 
 Doomerfall adds seven weapon skills to your character sheet: the gun skills **Shotguns**, **Automatics**,

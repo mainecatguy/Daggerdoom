@@ -775,6 +775,14 @@ int DD_BridgeSkillLive(int slot)
 	return s && slot >= 0 && slot < DFB_SHEET_SKILLS_LIVE - DFB_SHEET_SKILLS_BASE ? s[DFB_SHEET_SKILLS_LIVE + slot] : -1;
 }
 
+// Daggerfall's live value of one attribute (DFCareer.Stats: 0 Strength .. 6 Speed, 7 Luck) for ZScript
+// (Actor.DD_SheetStat), or -1 without a valid character, so a Doom-only game reads -1.
+int DD_BridgeStatLive(int stat)
+{
+	const int32_t *s = DD_BridgeSheet();
+	return s && stat >= 0 && stat < DFB_SHEET_SKILLS_BASE - DFB_SHEET_STATS_LIVE ? s[DFB_SHEET_STATS_LIVE + stat] : -1;
+}
+
 // One line in the bridge log (-dfbridgelog) and the console, for the other dd_*.cpp files.
 void DD_BridgeLog(const char *text) { Log("%s", text); }
 
