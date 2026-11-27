@@ -114,7 +114,9 @@ def analyse(name, lines, checks, held=False):
             cur = (m.group(1), m.group(2))
             cases[cur] = {"cat": m.group(3), "slot": int(m.group(4)), "shots": [], "hitlines": 0, "hits": []}
             continue
-        if "AUTOTEST fire" in l:
+        if "AUTOTEST src" in l:
+            cur = None
+        elif "AUTOTEST fire" in l:
             hits = []
         elif (h := HIT.search(l)) and cur:
             hits.append(h)
@@ -190,7 +192,37 @@ def analyse(name, lines, checks, held=False):
         hit, fresh = c.get("probe", (0, 0))
         want_hit = 100 + min(target_hits, 15) if 160 in rules and auto else 100
         check(f"{tag}: a 100 hit from elsewhere does {hit} (want {want_hit}), fresh target {fresh} (want 100)", hit == want_hit and fresh == 100)
+    sources(name, lines, check)
     return cases
+
+
+def sources(name, lines, check):
+    """Only hits from an Automatics gun get perks (AutoPerkTest.SourceTick, rule set full, Chaingun held)."""
+    if not any("AUTOTEST want full" in l for l in lines):
+        return
+    cur, seen = None, {}
+    for l in lines:
+        if m := re.search(r"AUTOTEST src (\w+) begin", l):
+            cur = m.group(1)
+            seen[cur] = {"hits": [], "proj": [], "sunder": 0}
+        elif m := re.search(r"AUTOTEST src (\w+) end hits=(\d+) lost=(\d+)", l):
+            seen[m.group(1)]["end"] = (int(m.group(2)), int(m.group(3)))
+            cur = None
+        elif cur and (h := HIT.search(l)):
+            seen[cur]["hits"].append(h)
+        elif cur and "automatics: projectile" in l:
+            seen[cur]["proj"].append(l)
+        elif cur and "automatics: sunder" in l:
+            seen[cur]["sunder"] += 1
+    for src in ("earlier", "barrel", "fragment"):
+        c = seen.get(src, {})
+        hit = c.get("end", (0, 0))[0] > 0
+        check(f"source {src}: target hit, no Automatics perks (no boost, no sunder, not tagged)",
+              hit and not c["hits"] and not c["proj"] and not c["sunder"], c)
+    c = seen.get("own", {})
+    ok = (c.get("end", (0, 0))[0] > 0 and len(c["proj"]) == 1 and "PlasmaBall from Chaingun" in c["proj"][0]
+          and c["hits"] and all(h.group(2) == "Chaingun" and float(h.group(7)) >= 1.6 - 1e-3 for h in c["hits"]) and c["sunder"] > 0)
+    check("source own: a Chaingun projectile landing after a switch to the fist keeps its perks", ok, c)
 
 
 def main():

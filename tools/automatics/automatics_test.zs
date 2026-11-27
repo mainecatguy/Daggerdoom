@@ -84,6 +84,8 @@ class AutoPerkTest : EventHandler
 
 	override void WorldThingDamaged(WorldEvent e)
 	{
+		if (e.Thing && e.Thing.player) Console.Printf("AUTOTEST player hurt %d by %s tic %d", e.Damage, e.Inflictor ? e.Inflictor.GetClassName() : 'None', level.maptime);
+		if (e.Thing && e.Thing is "AutoTestTarget" && e.Thing != target) Console.Printf("AUTOTEST stray target hit");
 		if (target && e.Thing == target && e.DamageSource && e.DamageSource.player)
 		{
 			targetHits++; targetLost += e.Damage;
@@ -151,6 +153,66 @@ class AutoPerkTest : EventHandler
 		}
 	}
 
+	// Which gun caused a hit (rule set "full" still loaded), with the stock Chaingun held:
+	//   earlier   a projectile fired before the trigger was pulled lands while the Chaingun is held and the trigger is
+	//             down: no perks. (A rocket would do, but in E1M1 a step stops rockets fired from the start.)
+	//   barrel    a barrel the player blew up hits the target: no perks.
+	//   fragment  a player-owned projectile spawned out in the world: no perks.
+	//   own       a projectile fired with the Chaingun (trigger down), landing after a switch to the fist: perks.
+	int src;
+	Vector3 srcStart;
+	bool srcStartSet;
+	bool SourceTick(PlayerInfo p)
+	{
+		static const String names[] = { "earlier", "barrel", "fragment", "own" };
+		let mo = p.mo;
+		if (phase == 90) // hold the Chaingun
+		{
+			mo.GiveInventory("Chaingun", 1);
+			let w = Weapon(mo.FindInventory("Chaingun"));
+			if (p.ReadyWeapon != w) { p.PendingWeapon = w; return true; }
+			if (!(p.WeaponState & WF_WEAPONREADY) || ++wait < 10) return true;
+			wait = 0;
+			if (src >= names.Size()) return false;
+			if (!srcStartSet) { srcStart = mo.pos; srcStartSet = true; }
+			mo.SetOrigin(srcStart, false); mo.vel = (0, 0, 0); // blasts push the player; E1M1 has a step ~130 units east
+			mo.angle = 0; mo.pitch = 0;
+			target = Actor.Spawn("AutoTestTarget", mo.Vec3Angle(110, 0));
+			targetHits = 0; targetLost = 0;
+			Console.Printf("AUTOTEST src %s begin", names[src]);
+			phase = 91; t = 0;
+			return true;
+		}
+		String n = names[src];
+		bool down = n == "earlier" ? t >= 3 : n == "own" ? t < 3 : true;
+		p.attackdown = down;
+		if (t == 0)
+		{
+			if (n == "earlier") mo.SpawnPlayerMissile("PlasmaBall");
+			else if (n == "own") mo.SpawnPlayerMissile("PlasmaBall");
+			else if (n == "barrel")
+			{
+				let b = Actor.Spawn("ExplosiveBarrel", target.Vec3Offset(40, 50, 0));
+				b.DamageMobj(null, mo, 1000, 'None');
+			}
+			else
+			{
+				let m = Actor.Spawn("PlasmaBall", target.Vec3Offset(60, 0, 16));
+				m.target = mo;
+				m.vel = (-m.Speed, 0, 0);
+			}
+		}
+		if (n == "own" && t == 3) { mo.GiveInventory("Fist", 1); p.PendingWeapon = Weapon(mo.FindInventory("Fist")); }
+		if (++t >= 60)
+		{
+			p.attackdown = false;
+			Console.Printf("AUTOTEST src %s end hits=%d lost=%d held=%s", n, targetHits, targetLost, p.ReadyWeapon ? p.ReadyWeapon.GetClassName() : 'None');
+			target.Destroy(); target = null;
+			src++; phase = 90;
+		}
+		return true;
+	}
+
 	override void WorldTick()
 	{
 		PlayerInfo p = players[consoleplayer];
@@ -165,7 +227,13 @@ class AutoPerkTest : EventHandler
 		}
 		if (holdMode) { HeldTick(p); return; }
 		if (cfg > 0 && Actor.DD_SheetValue(2) != 1) cfg = cfgs.Size(); // No Daggerfall character: only "off" runs.
-		if (cfg >= cfgs.Size()) { if (phase != 99) { phase = 99; Console.Printf("AUTOTEST done"); } return; }
+		if (cfg >= cfgs.Size())
+		{
+			if (phase < 90 && Actor.DD_SheetValue(2) == 1) { phase = 90; src = 0; t = 0; }
+			if (phase >= 90 && phase < 99 && SourceTick(p)) return;
+			if (phase != 99) { phase = 99; Console.Printf("AUTOTEST done"); }
+			return;
+		}
 		String c = cfgs[cfg];
 		switch (phase)
 		{

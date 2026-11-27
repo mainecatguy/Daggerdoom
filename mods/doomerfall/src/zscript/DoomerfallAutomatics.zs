@@ -1,6 +1,6 @@
 // The Automatics skill in Doom (work/backlog/skills-in-doom.md, Automatics). Daggerfall decides the rules from the
 // live skill and sends them in the character sheet (DFB_SHEET_AUTO_*, DoomerfallAutomaticsRules.cs); Doom applies them
-// to the held gun when its skill is Automatics (DoomerfallWeaponCategory.SkillSlotOf), stock Doom's Chaingun or a DRLA
+// to hits from a gun whose skill is Automatics (DoomerfallWeaponCategory.SkillSlotOf), stock Doom's Chaingun or a DRLA
 // rapid-fire gun. Without a Daggerfall character every rule reads off, so a Doom-only game is unchanged.
 //
 //   damage bonus   every hit from the gun does +x% (0 to 60%).
