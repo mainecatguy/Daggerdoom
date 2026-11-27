@@ -376,15 +376,16 @@ FString ItemName(AActor *mo)
 	return CleanTag(tag[0] ? tag : mo->GetClass()->TypeName.GetChars());
 }
 
-// A weapon's types or brief description for Daggerfall's item description (zscript/DoomerfallWeaponTypes.zs), or ""
-// for a class that is not a weapon or when the Doomerfall mod is not loaded.
+// A gun's types or brief description for Daggerfall's item description (zscript/DoomerfallWeaponTypes.zs), or "" for
+// an item that is not a gun or when the Doomerfall mod is not loaded. Daggerfall holds DRLA guns by their pickup class.
 FString WeaponText(const char *what, PClassActor *cls)
 {
 	FString answer;
 	VMFunction *f = nullptr;
 	PClass::FindFunction(&f, "DoomerfallWeaponTypes", what);
-	if (!f || !cls->IsDescendantOf(NAME_Weapon)) return answer;
-	VMValue params[] = { (void *)cls };
+	PClassActor *weapon = IsGun(cls) ? WeaponOf(cls) : nullptr;
+	if (!f || !weapon) return answer;
+	VMValue params[] = { (void *)weapon };
 	VMReturn ret(&answer);
 	VMCall(f, params, 1, &ret, 1);
 	return answer;

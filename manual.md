@@ -121,7 +121,7 @@ whichever of its skills is higher, never both at once.
 
 Select **Info** on a gun in your inventory to see which weapon skills it counts as. The description starts with the
 gun's name and its types, for example "Plasma Rifle. Types: Energy" or "Laser Shotgun. Types: Energy, Shotgun". A gun
-with two types uses whichever of those skills is higher (above). Doom Roguelike Arsenal guns also show a one-line
+with two types uses whichever of those skills is higher (above). Doom Roguelike Arsenal guns also show a short
 description from the arsenal's own notes, and every gun shows its material and weight.
 
 - The types are Pistol, Shotgun, Automatic, Explosive, Rifle, Energy, Melee and Hand-to-Hand, one for each weapon

@@ -634,7 +634,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 bool doom = image.texture == art[cls].texture;
                 System.IO.Directory.CreateDirectory(testFolder);
                 System.IO.File.WriteAllBytes(System.IO.Path.Combine(testFolder, cls + ".png"), image.texture.EncodeToPNG());
-                bridge.LogLine(string.Format("doomitems: inventory picture for \"{0}\" named \"{1}\" weighs {2} kg: {3}x{4} texture, doom sprite {5}", cls, item.ItemName, item.weightInKg, image.width, image.height, doom));
+                bridge.LogLine(string.Format("doomitems: inventory picture for \"{0}\" named \"{1}\" weighs {2} kg: {3}x{4} texture, doom sprite {5}, info \"{6}\"", cls, item.ItemName, item.weightInKg, image.width, image.height, doom,
+                    string.Join(" / ", Array.FindAll(Array.ConvertAll(item.GetInfoTokens(), t => t.text), t => !string.IsNullOrEmpty(t)))));
                 return;
             }
         }
