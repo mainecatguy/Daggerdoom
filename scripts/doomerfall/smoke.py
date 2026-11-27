@@ -13,13 +13,17 @@ ap.add_argument("--timeout", type=int, default=30)
 a = ap.parse_args()
 drla = [os.path.join(a.mods, f) for f in ("DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3")]
 setups = {"mod-only": [a.pk3], "drla-only": drla, "drla+mod": drla + [a.pk3]}
+# The binds play.bat sets on a fresh install (scripts/play/install.py), checked as the submenu shows them.
+KEYS = {"Open Character Sheet": "P", "Open Spellbook": "Backspace"}
+BINDS = ["+bind", "p", "netevent df_character", "+bind", "backspace", "netevent df_spellbook"]
+SUBMENU = ["Open Fast Travel", "Open Inventory", "Open Journal", "Open Character Sheet", "Open Spellbook", "Rest", "Info", "Change Ammo"]
 fail = 0
 results = {}
 labels = {}
 for name, files in setups.items():
     d = tempfile.mkdtemp(prefix="dfsmoke_")
     cmd = [a.exe, "-iwad", a.iwad, "-file", *files, a.smoke, "-config", os.path.join(d, "t.ini"), "-skill", "3",
-           "+map", "E1M1", "-nosound", "-stdout", "-noactivate",
+           "+map", "E1M1", "-nosound", "-stdout", "-noactivate", *BINDS,
            "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"]
     out = ""
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace", cwd=d)
@@ -51,7 +55,12 @@ for name, files in setups.items():
         if not idx or not rst or idx[0] > rst[0]: ok = False; bad.append("entry not above Reset to defaults")
         elif not any("Submenu" in main[idx[0] - 1] for _ in [0]): ok = False; bad.append("entry not next to the other submenus")
         if any("Open Fast Travel" in l for l in main): ok = False; bad.append("action in main list")
-        if not (any("Open Fast Travel" in l for l in sub) and any("Open Inventory" in l for l in sub)): ok = False; bad.append("submenu lacks actions")
+        for want_label in SUBMENU:
+            if not any(f"] {want_label} {{" in l for l in sub): ok = False; bad.append(f"submenu lacks {want_label}")
+        for want_label, key in KEYS.items():
+            row = [l for l in sub if f"] {want_label} {{" in l]
+            if not row or not row[0].endswith(f"keys={key}"): ok = False; bad.append(f"{want_label} not shown as {key}: {row[:1]}")
+            else: print(f"  [{name}] {row[0].split('] ', 1)[1]}")
     elif any("Doomerfall" in l for l in main): ok = False
     labels[name] = [l.split(": ", 1)[1].split("] ", 1)[1] for l in main if "Doomerfall" not in l]
     if name == "drla+mod" and results[name] > results.get("drla-only", 0): ok = False; bad.append("extra errors vs drla-only")

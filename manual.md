@@ -287,6 +287,20 @@ You cannot rest:
 - **outdoors inside a town's walls** (camping in town is a crime, and the guards come), or **inside a building**
   unless you rented a room there, own it, or belong to a guild that lets members rest in its hall.
 
+## Character sheet and spellbook
+
+Press **P** for Daggerfall's character sheet and **Backspace** for your spellbook (rebind them in Options, Customize
+Controls, Doomerfall Controls as **Open Character Sheet** and **Open Spellbook**). Like the other keys, they are set for
+you only on a fresh install. Doom stays frozen while either is open.
+
+- The character sheet works as in Daggerfall. Its **Spellbook**, **Inventory** and **Logbook** buttons open those windows
+  on top of it, and closing them takes you back to the sheet.
+- The spellbook works as in Daggerfall: browse your spells and their effects, sort, rename and delete them. Backspace,
+  Escape or **Exit** closes it.
+- You need a spellbook in your inventory. Without one, you are told "You have no spellbook!"
+- **You cannot cast spells yet.** Choosing a spell in the spellbook, however you opened it (Backspace, the character
+  sheet, the spellbook in your inventory, or the level-up sheet), says so and does nothing else.
+
 ## Locked doors
 
 Some dungeon doors are locked. Look at one: it reads **Locked.**, or "This is a magically held lock..." for a magic one.

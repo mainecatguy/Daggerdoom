@@ -769,6 +769,9 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
         protected virtual void SpellsListBox_OnUseSelectedItem()
         {
+            if (Doomerfall.DoomerfallUi.HoldsSpellChoice()) // Doomerfall: no casting from Doom yet
+                return;
+
             // Get spell settings and exit if spell index not found
             EffectBundleSettings spellSettings;
             if (!GameManager.Instance.PlayerEntity.GetSpell(spellsListBox.SelectedIndex, out spellSettings))
