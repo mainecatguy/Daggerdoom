@@ -88,8 +88,9 @@ class EnPairHarness : EventHandler
 			if (!target) { Console.Printf("PAIRED nospot"); return; }
 			mo.angle = dir;
 			t = 0; lost = 0; nearLost = 0; shots = 0; missiles = 0; speedSum = 0; cycle++;
-			Console.Printf("PAIRED start %d skill=%d dmg=%d splash=%d radius=%d speed=%d", cycle, Actor.DD_SheetSkill(9),
-				Actor.DD_SheetValue(173), Actor.DD_SheetValue(174), Actor.DD_SheetValue(175), Actor.DD_SheetValue(176));
+			Console.Printf("PAIRED start %d skill=%d dmg=%d splash=%d radius=%d speed=%d burn=%d convert=%d burst=%d burstradius=%d", cycle,
+				Actor.DD_SheetSkill(9), Actor.DD_SheetValue(173), Actor.DD_SheetValue(174), Actor.DD_SheetValue(175), Actor.DD_SheetValue(176),
+				Actor.DD_SheetValue(177), Actor.DD_SheetValue(178), Actor.DD_SheetValue(179), Actor.DD_SheetValue(180));
 			return;
 		}
 		t++;
