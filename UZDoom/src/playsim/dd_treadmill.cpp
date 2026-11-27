@@ -255,7 +255,6 @@ namespace
 	std::unordered_map<int64_t, std::vector<uint64_t>> buckets;
 	std::unordered_set<uint64_t> expected;	// Records and seeds that currently have a live actor.
 	std::unordered_map<uint64_t, DVector3> itemSpots;	// Where each map item stood (world units), so a take's tombstone belongs to its place.
-	std::unordered_map<uint64_t, int> itemAmounts;	// The amount each map item started with, so an untaken one is not stored as changed.
 	bool resumedSnapshot;	// The current space came back from a save's snapshot; its record only refills the cache.
 	std::deque<PendingChunk> pending;
 	uint64_t nextDynamic;
@@ -612,7 +611,6 @@ namespace
 					{
 						(*heir)->ddRecordId = *e;
 						(*heir)->SpawnPoint = (*heir)->Pos();
-						itemAmounts[*e] = (*heir)->IntVar(NAME_Amount);	// A tiered pickup holds its rounds, not its class's 1.
 						loose.erase(heir);
 						++e;
 						continue;
@@ -655,12 +653,9 @@ namespace
 	{
 		const uint64_t id = mo->ddRecordId;
 		if (!id || table.count(id)) return false;
-		if (!monster)	// A map item still on its spot, with the amount it started with.
-		{
-			const auto start = itemAmounts.find(id);
+		if (!monster)	// A map item still on its spot, with its default amount.
 			return IsMapItemId(id) && (mo->Pos().XY() - mo->SpawnPoint.XY()).LengthSquared() <= 1
-				&& mo->IntVar(NAME_Amount) == (start != itemAmounts.end() ? start->second : GetDefaultByType(mo->GetClass())->IntVar(NAME_Amount));
-		}
+				&& mo->IntVar(NAME_Amount) == GetDefaultByType(mo->GetClass())->IntVar(NAME_Amount);
 		if (mo->health <= 0) return false;
 		const uint64_t tag = id >> 61;
 		if (tag == DFB_NPC_TAG || tag == DFB_TOWNSPERSON_TAG)	// Daggerfall decides where they are, so walking is no change.
@@ -1992,22 +1987,19 @@ namespace
 			mo->ddRecordId = id;
 			mo->SpawnPoint = mo->Pos();
 			itemSpots[id] = w;
-			itemAmounts[id] = mo->IntVar(NAME_Amount);
 			expected.insert(id);	// So a take becomes a tombstone (Reconcile).
 			count++;
 		}
 		return count;
 	}
 
-	// After a load: a kept actor is expected again, and a map item gets back where it stood and what it held (neither
-	// is in the save), so a take after the load still has its spot and an untaken item still compares unchanged.
+	// After a load: a kept actor is expected again, and a map item gets back where it stood (not in the save), so a take
+	// after the load still has its spot.
 	void ExpectLoaded(AActor *mo)
 	{
 		const uint64_t id = mo->ddRecordId;
 		expected.insert(id);
-		if (!IsMapItemId(id)) return;
-		itemSpots.emplace(id, ToWorld(mo->SpawnPoint, originX, originY));
-		itemAmounts.emplace(id, mo->IntVar(NAME_Amount));
+		if (IsMapItemId(id)) itemSpots.emplace(id, ToWorld(mo->SpawnPoint, originX, originY));
 	}
 
 	void StartTown(FLevelLocals *Level, int index)
