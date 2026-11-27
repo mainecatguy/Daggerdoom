@@ -50,7 +50,12 @@ class RSHarness : StaticEventHandler
 			if (watch > 0 && watch < WATCH_TICS) { gones++; if (away < NEAR_UNITS) near++; Console.Printf("RSGONE tic %d %08x, %.0f from the player", tic, ids[i], away); }
 			ids.Delete(i); xs.Delete(i); ys.Delete(i); seen.Delete(i);
 		}
-		let nit = ThinkerIterator.Create((class<Actor>)("DFNpc"));
+		for (int k = 0; k < 2; k++)	// Town and interior NPCs (DFNpc) and dungeon NPCs (DFDungeonNpc, action_objects.zs).
+		{
+		String cname = k == 0 ? "DFNpc" : "DFDungeonNpc";
+		class<Actor> cls = cname;
+		if (!cls) continue;
+		let nit = ThinkerIterator.Create(cls);
 		while (mo = Actor(nit.Next()))
 		{
 			bool shown = !mo.bINVISIBLE;
@@ -67,6 +72,7 @@ class RSHarness : StaticEventHandler
 			npcX[at] = mo.pos.x; npcY[at] = mo.pos.y;
 			if (shown != npcShown[at] && watch > 0 && watch < WATCH_TICS) { npcFlips++; near++; Console.Printf("RSNPC tic %d npc %08x %s", tic, mo.args[0], shown ? "shown" : "hidden"); }
 			npcShown[at] = shown;
+		}
 		}
 	}
 

@@ -132,7 +132,9 @@ static partial class Program
         var maps = new MapsFile(Path.Combine(arena2, "MAPS.BSA"), FileUsage.UseMemory, true);
         var blocks = new BlocksFile(Path.Combine(arena2, "BLOCKS.BSA"), FileUsage.UseMemory, true);
         var perBlock = new Dictionary<string, int>();
+        var npcBlock = new Dictionary<string, int>();
         var totals = new List<(int flats, int id, string name)>();
+        var npcTotals = new List<(int npcs, int id, string name)>();
         for (int r = 0; r < maps.RegionCount; r++)
         {
             if (!maps.LoadRegion(r)) continue;
@@ -142,9 +144,16 @@ static partial class Program
             {
                 var location = maps.GetLocation(r, l);
                 if (!location.HasDungeon) continue;
-                int total = 0;
+                int total = 0, npcs = 0;
                 foreach (var dungeonBlock in location.Dungeon.Blocks)
                 {
+                    if (!npcBlock.TryGetValue(dungeonBlock.BlockName, out int npcCount))
+                    {
+                        var npcRoots = blocks.GetBlock(dungeonBlock.BlockName).RdbBlock.ObjectRootList;
+                        npcBlock[dungeonBlock.BlockName] = npcCount = npcRoots == null ? 0 : npcRoots.Where(g => g.RdbObjects != null).SelectMany(g => g.RdbObjects)
+                            .Count(o => o.Type == DFBlock.RdbResourceTypes.Flat && NpcFlatArchives.Contains(o.Resources.FlatResource.TextureArchive));
+                    }
+                    npcs += npcCount;
                     if (!perBlock.TryGetValue(dungeonBlock.BlockName, out int count))
                     {
                         var roots = blocks.GetBlock(dungeonBlock.BlockName).RdbBlock.ObjectRootList;
@@ -155,9 +164,11 @@ static partial class Program
                     total += count;
                 }
                 totals.Add((total, location.MapTableData.MapId, $"{region.Name}/{region.MapNames[l]}"));
+                if (npcs > 0) npcTotals.Add((npcs, location.MapTableData.MapId, $"{region.Name}/{region.MapNames[l]}"));
             }
         }
         foreach (var t in totals.OrderByDescending(t => t.flats).Take(5)) Console.WriteLine($"FLATS {t.flats} #{t.id} {t.name}");
+        foreach (var t in npcTotals.OrderByDescending(t => t.npcs)) Console.WriteLine($"NPCFLATS {t.npcs} #{t.id} {t.name}"); // dungeons with NPC flats
         Console.WriteLine($"dungeons {totals.Count}, median {totals.Select(t => t.flats).OrderBy(n => n).ElementAt(totals.Count / 2)} ordinary flats");
         return 0;
     }
