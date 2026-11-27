@@ -21,13 +21,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         uint nameRequest;
         string monsterName;
         readonly List<KeyValuePair<string, bool>> lines = new List<KeyValuePair<string, bool>>();
-        Action<string, bool> capture;
+        Action<string, bool, float> capture;
 
         internal void Init(DoomerfallBridge owner, DoomerfallPositionSync positionSync)
         {
             bridge = owner;
             sync = positionSync;
-            capture = (text, mid) => { if (!string.IsNullOrEmpty(text)) lines.Add(new KeyValuePair<string, bool>(text, mid)); };
+            capture = (text, mid, seconds) => { if (!string.IsNullOrEmpty(text)) lines.Add(new KeyValuePair<string, bool>(text, mid)); };
         }
 
         internal DoomerfallItems Items;
@@ -87,9 +87,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             string what = "nothing";
             if (!sync.LoadRunning && GameManager.HasInstance && sync.InGame && !GameManager.IsGamePaused)
             {
+                Action<string, bool, float> standing = DaggerfallUI.DoomerfallHudText; // DoomerfallHudMessages, while not captured
                 DaggerfallUI.DoomerfallHudText = capture;
                 try { what = Run(request, target, id, worldX, worldZ); }
-                finally { DaggerfallUI.DoomerfallHudText = null; }
+                finally { DaggerfallUI.DoomerfallHudText = standing; }
             }
             foreach (KeyValuePair<string, bool> line in lines)
                 Send(request, line.Key, line.Value);
@@ -177,9 +178,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         internal void Capture(uint request, Action run, string what)
         {
             lines.Clear();
+            Action<string, bool, float> standing = DaggerfallUI.DoomerfallHudText;
             DaggerfallUI.DoomerfallHudText = capture;
             try { run(); }
-            finally { DaggerfallUI.DoomerfallHudText = null; }
+            finally { DaggerfallUI.DoomerfallHudText = standing; }
             var log = new StringBuilder();
             log.AppendFormat("{0}: {1} messages", what, lines.Count);
             foreach (KeyValuePair<string, bool> line in lines)

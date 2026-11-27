@@ -229,6 +229,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             npcs.Init(this, sync);
             info = gameObject.AddComponent<DoomerfallInfo>();
             info.Init(this, sync);
+            DoomerfallHudMessages.Install(this); // Daggerfall's HUD messages go to Doom's HUD
+            DoomerfallHudMessagesTest.Attach(this, sync); // test only: -dfhudtest
             doors = gameObject.AddComponent<DoomerfallDoors>();
             doors.Init(this, sync, info);
             save.Doors = doors;
