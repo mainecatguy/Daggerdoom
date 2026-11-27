@@ -10,9 +10,9 @@
 //
 // Rare exceptions: each building's days are cut into windows; a window is an exception window with a small fixed
 // chance computed from (location, building, window) alone, so it is the same in every game and never depends on the
-// player. Exceptions: a weapon smith's one shipment of a full plate suit, an armorer's archery shipment, a pawn shop's
-// estate lot with a Doom gun, a general store bought out by a siege (supplies sold, weapons only for the window), and a
-// village weapon smith whose deliveries for the window are all one weapon kind.
+// player. Exceptions: a pawn shop's estate lot with a Doom gun, a general store's siege window (weapons only), and a
+// village weapon smith whose deliveries for the window are all one weapon kind. An exception lot arrives even on a full
+// shelf, going over the share by at most its core. Exceptions never remove anything from the shelf.
 //
 // Doom gun values and tiers come from Resources/Doomerfall/WeaponValues.txt (weaponvalues 01). Without the file, no
 // Doom guns are stocked.
@@ -35,7 +35,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
     {
         /// <summary>Guns mode: Doom guns are for sale. Always on today (owner: "currently they always are"); a guns-off option is backlog.</summary>
         internal static bool GunsEnabled = true;
-        /// <summary>The Doom weapon set the loaded mods use, as WeaponValues.txt names it. DRLA is the project's mod set.</summary>
+        /// <summary>The Doom weapon set the loaded mods use, as WeaponValues.txt names it. Only DRLA is stocked: other sets
+        /// need a tier from DPS (owner), which is not built (owner question), so they get no guns for sale.</summary>
         internal static string GunSet = "DRLA";
         /// <summary>False only in the ledger's stock-size test, which measures ordinary deliveries.</summary>
         internal static bool ExceptionsEnabled = true;
@@ -70,7 +71,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
         }
 
-        sealed class Rec
+        internal sealed class Rec
         {
             public string kind, name;
             public readonly Dictionary<string, string> kv = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -99,20 +100,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         internal static float ExceptionShare { get { return SettingFloat("exception_share", 0.04f); } }
         internal static int WindowDays { get { return Mathf.Max(1, Setting("exception_window_days", 7)); } }
 
-        /// <summary>The largest core of any lot or exception: the most a shelf can go over its share in one day, plus one.</summary>
-        internal static int MaxCore
-        {
-            get
-            {
-                Load();
-                int max = 1;
-                foreach (Rec r in recs)
-                    if (r.kind == "lot" || r.kind == "exception")
-                        max = Mathf.Max(max, r.Int("core", 1));
-                return max;
-            }
-        }
-
         // ---------------------------------------------------------------- delivery
 
         /// <summary>
@@ -131,12 +118,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bool firstDay = Mod(day, WindowDays) == 0;
             if (ex != null && (ex.Get("mode") == "window" || (firstDay && shelfIndex == 0)))
             {
-                if (ex.name == "siege" && firstDay)
-                {
-                    int bought = BuyOut(shelf);
-                    room += bought;
-                    summary.AppendFormat(" siege buy-out({0})", bought);
-                }
                 Lot lot = MakeException(ex, building, level, Mathf.Max(1, room), location, day);
                 if (lot != null)
                 {
@@ -176,7 +157,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             // An ordinary lot arrives only when its core fits; items past the room are dropped. An exception shipment
             // arrives whole up to its core even on a full shelf (a rare, visible break; sell-off brings it back down).
-            if (lot.items.Count == 0 || room <= 0 || (!lot.exception && room < Mathf.Min(lot.core, lot.items.Count)))
+            if (lot.items.Count == 0 || (!lot.exception && (room <= 0 || room < Mathf.Min(lot.core, lot.items.Count))))
                 return 0;
             int n = Mathf.Min(lot.items.Count, Mathf.Max(room, lot.core));
             lot.items.RemoveRange(n, lot.items.Count - n);
@@ -358,7 +339,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         // ---------------------------------------------------------------- exceptions
 
         /// <summary>The exception that applies to this building on this day, or null. Depends only on location, building and day.</summary>
-        static Rec ExceptionFor(int location, int buildingKey, DFLocation.BuildingTypes type, int day, Place place)
+        internal static Rec ExceptionFor(int location, int buildingKey, DFLocation.BuildingTypes type, int day, Place place)
         {
             Load();
             if (!ExceptionsEnabled)
@@ -376,44 +357,16 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return eligible[(int)((h >> 16) % (uint)eligible.Count)];
         }
 
-        /// <summary>For a survey: the name of the exception on this day, or null.</summary>
-        internal static string ExceptionName(int location, int buildingKey, DFLocation.BuildingTypes type, int day, Place place)
-        {
-            Rec r = ExceptionFor(location, buildingKey, type, day, place);
-            return r == null ? null : r.name;
-        }
-
         static Lot MakeException(Rec ex, PlayerGPS.DiscoveredBuilding building, int level, int room, int location, int day)
         {
             Lot lot = new Lot { template = ex.name, exception = true, core = ex.Int("core", 1) };
             switch (ex.name)
             {
-                case "plate":
-                {
-                    WeaponMaterialTypes material = FormulaHelper.RandomMaterial(level);
-                    ArmorMaterialTypes plate = (ArmorMaterialTypes)(0x0200 + (int)material);
-                    List<Armor> body = new List<Armor>(BodyPieces);
-                    Shuffle(body);
-                    int pieces = Range(ex.Get("pieces", "4-6"));
-                    for (int i = 0; i < pieces; i++)
-                        lot.items.Add(MakeArmor(i == 0 ? Armor.Cuirass : body[(i - 1) % body.Count], plate));
-                    lot.detail = material + " plate suit";
-                    break;
-                }
-                case "archery":
-                {
-                    WeaponMaterialTypes material = FormulaHelper.RandomMaterial(level);
-                    for (int i = Range(ex.Get("count", "3-5")); i > 0; i--)
-                        lot.items.Add(ItemBuilder.CreateWeapon(UnityEngine.Random.Range(0, 2) == 0 ? Weapons.Short_Bow : Weapons.Long_Bow, FormulaHelper.RandomMaterial(level)));
-                    DaggerfallUnityItem arrows = ItemBuilder.CreateWeapon(Weapons.Arrow, material);
-                    arrows.stackCount = Range(ex.Get("arrows", "30-60"));
-                    lot.items.Add(arrows);
-                    lot.detail = "bows and arrows";
-                    break;
-                }
                 case "pawngun":
                 {
-                    DaggerfallUnityItem gun = PickGun(building.quality, 70, 30);
+                    DaggerfallUnityItem gun = null;
+                    for (int t = 0; t < 30 && gun == null; t++)
+                        gun = PickGun(building.quality, 70);
                     if (gun == null)
                         return null;
                     Lot estate = new Lot();
@@ -440,22 +393,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return lot;
         }
 
-        /// <summary>A siege buys out everything but weapons, armor, Doom ammo and the horse and cart. Returns how many stocked items left.</summary>
-        static int BuyOut(ItemCollection shelf)
-        {
-            List<DaggerfallUnityItem> gone = new List<DaggerfallUnityItem>();
-            for (int i = 0; i < shelf.Count; i++)
-            {
-                DaggerfallUnityItem item = shelf.GetItem(i);
-                if (!item.IsQuestItem && !(item is DoomerfallAmmoItem) && !(item is DoomerfallDoomItem) && item.ItemGroup != ItemGroups.Transportation
-                    && item.ItemGroup != ItemGroups.Weapons && item.ItemGroup != ItemGroups.Armor)
-                    gone.Add(item);
-            }
-            foreach (DaggerfallUnityItem item in gone)
-                shelf.RemoveItem(item);
-            return gone.Count;
-        }
-
         // ---------------------------------------------------------------- Doom guns
 
         /// <summary>The loaded set's Doom guns for sale (no fists), or an empty list without WeaponValues.txt.</summary>
@@ -463,7 +400,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             LoadGuns();
             List<Gun> list;
-            return gunsBySet.TryGetValue(GunSet ?? "", out list) ? list : new List<Gun>();
+            return GunSet == "DRLA" && gunsBySet.TryGetValue(GunSet, out list) ? list : new List<Gun>();
         }
 
         internal static int RarityOf(string tier) { int r; return gunRarity.TryGetValue(tier, out r) ? r : 20; }
@@ -492,30 +429,51 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return;
             for (int i = Setting("gun_rolls", 3); i > 0; i--)
             {
-                DaggerfallUnityItem gun = PickGun(building.quality, chance, 1);
+                DaggerfallUnityItem gun = PickGun(building.quality, chance);
                 if (gun != null)
                     into.Add(gun);
             }
         }
 
-        static DaggerfallUnityItem PickGun(int quality, int weaponChance, int tries)
+        /// <summary>The tiers in order, common first.</summary>
+        internal static readonly string[] Tiers = { "common", "uncommon", "rare", "veryrare", "legendary" };
+
+        /// <summary>
+        /// One Doom gun roll: the tier is rolled first, with weights that fall by tier (gun_tier_weights; only tiers whose
+        /// rarity the shop's quality allows and that have guns), then a gun within the tier is picked evenly, and it is
+        /// kept with Daggerfall's stock chance for the tier's rarity, which also falls by tier. Null when nothing is kept.
+        /// </summary>
+        static DaggerfallUnityItem PickGun(int quality, int weaponChance)
         {
             List<Gun> guns = Guns();
-            if (guns.Count == 0)
-                return null;
-            for (int t = 0; t < tries; t++)
+            string[] w = Setting("gun_tier_weights", "60,30,20,10,6").Split(',');
+            float total = 0;
+            float[] weight = new float[Tiers.Length];
+            for (int k = 0; k < Tiers.Length; k++)
             {
-                Gun g = guns[UnityEngine.Random.Range(0, guns.Count)];
-                int rarity = RarityOf(g.tier);
-                if (rarity <= quality && Dice100.SuccessRoll(weaponChance * 5 * (21 - rarity) / 100))
-                {
-                    DoomerfallDoomItem item = new DoomerfallDoomItem(g.pickup, true);
-                    item.value = g.value;
-                    item.weightInKg = g.weightKg;
-                    return item;
-                }
+                int wk;
+                string tierName = Tiers[k];
+                bool any = guns.Exists(g => g.tier == tierName);
+                weight[k] = any && RarityOf(tierName) <= quality && k < w.Length && int.TryParse(w[k], out wk) ? wk : 0;
+                total += weight[k];
             }
-            return null;
+            if (total <= 0)
+                return null;
+            float roll = UnityEngine.Random.value * total;
+            int tier = 0;
+            while (tier < Tiers.Length - 1 && (roll -= weight[tier]) >= 0)
+                tier++;
+            while (weight[tier] <= 0)
+                tier--;
+            string chosen = Tiers[tier];
+            List<Gun> inTier = guns.FindAll(g => g.tier == chosen);
+            Gun pick = inTier[UnityEngine.Random.Range(0, inTier.Count)];
+            if (!Dice100.SuccessRoll(weaponChance * 5 * (21 - RarityOf(chosen)) / 100))
+                return null;
+            DoomerfallDoomItem item = new DoomerfallDoomItem(pick.pickup, true);
+            item.value = pick.value;
+            item.weightInKg = pick.weightKg;
+            return item;
         }
 
         static void LoadGuns()

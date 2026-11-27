@@ -194,11 +194,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 Log("FAIL no Doom guns loaded (WeaponValues.txt missing?)");
                 return;
             }
-            // Expected tier shares among stocked guns at a weapon smith: guns of a tier x their keep chance.
-            int chance = DoomerfallShopLots.WeaponChance(DFLocation.BuildingTypes.WeaponSmith);
-            string[] tiers = { "common", "uncommon", "rare", "veryrare", "legendary" };
-            double[] weight = tiers.Select(t => guns.Count(g => g.tier == t) * (double)KeepChance(t, Quality, chance)).ToArray();
-            double total = weight.Sum();
+            // Tier shares among stocked guns must fall by tier (owner: rarer by tier), over the tiers the shop's quality allows.
+            string[] tiers = DoomerfallShopLots.Tiers;
             Dictionary<string, int> got = tiers.ToDictionary(t => t, t => 0);
             int stocked = 0;
             foreach (Seen s in lots.Where(s => s.lot.shop == DFLocation.BuildingTypes.WeaponSmith && s.lot.template == "regular"))
@@ -208,17 +205,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     string t = d != null ? TierOf(d) : null;
                     if (t != null) { got[t]++; stocked++; }
                 }
+            List<string> allowed = tiers.Where(t => DoomerfallShopLots.RarityOf(t) <= Quality).ToList();
             bool pass = stocked > 30;
-            StringBuilder line = new StringBuilder();
-            for (int k = 0; k < tiers.Length; k++)
-            {
-                double p = total > 0 ? weight[k] / total : 0, sd = Math.Sqrt(Math.Max(p * (1 - p), 1e-9) / Math.Max(1, stocked));
-                double obs = stocked > 0 ? (double)got[tiers[k]] / stocked : 0;
-                if (Math.Abs(obs - p) > 4 * sd + 0.005) pass = false;
-                line.AppendFormat(" {0} {1:F1}% (expected {2:F1}%, keep chance per roll {3:F1}%, {4} guns in set);", tiers[k], 100 * obs, 100 * p,
-                    100 * KeepChance(tiers[k], Quality, chance), guns.Count(g => g.tier == tiers[k]));
-            }
-            Log(string.Format("{0} Doom guns at weapon smiths (quality {1}) by tier, {2} stocked:{3}", pass ? "PASS" : "FAIL", Quality, stocked, line));
+            for (int k = 1; k < allowed.Count; k++)
+                if (got[allowed[k]] >= got[allowed[k - 1]]) pass = false;
+            if (tiers.Any(t => !allowed.Contains(t) && got[t] > 0)) pass = false;
+            Log(string.Format("{0} Doom guns at weapon smiths (quality {1}) fall by tier, {2} stocked: {3} (tiers above quality: {4}, must be 0)", pass ? "PASS" : "FAIL", Quality, stocked,
+                string.Join(", ", tiers.Select(t => t + " " + (100.0 * got[t] / Math.Max(1, stocked)).ToString("F1") + "% (" + guns.Count(g => g.tier == t) + " guns in set)").ToArray()),
+                string.Join(", ", tiers.Where(t => !allowed.Contains(t)).ToArray())));
             int top = 0;
             foreach (DaggerfallUnityItem i in lots.Where(s => s.lot.shop == DFLocation.BuildingTypes.WeaponSmith).SelectMany(s => s.lot.items))
                 if (i is DoomerfallDoomItem) { top = Math.Max(top, i.value); }
@@ -254,7 +248,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     for (int d = 1; d <= 360; d++)
                     {
                         days++;
-                        string name = DoomerfallShopLots.ExceptionName(30000 + b, 7 + b, type, day0 + d, PlaceFor(b));
+                        DoomerfallShopLots.Rec r = DoomerfallShopLots.ExceptionFor(30000 + b, 7 + b, type, day0 + d, PlaceFor(b));
+                        string name = r == null ? null : r.name;
                         if (name == null) continue;
                         inWindow++;
                         int c; byName.TryGetValue(type + " " + name, out c); byName[type + " " + name] = c + 1;
@@ -267,11 +262,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             Log(string.Format("exception lots in the survey: {0} of {1} lots ({2:F2}%)", exLots, totalLots, 100.0 * exLots / Math.Max(1, totalLots)));
 
             // Each exception against how often ordinary lots at the same shop type show its signature.
-            Signature(lots, "plate", DFLocation.BuildingTypes.WeaponSmith, "4+ plate pieces of one material and no weapon",
-                s => s.lot.items.Count(i => i.ItemGroup == ItemGroups.Armor && i.nativeMaterialValue >= 0x0200) >= 4 && !s.lot.items.Any(i => i.ItemGroup == ItemGroups.Weapons));
-            Signature(lots, "archery", DFLocation.BuildingTypes.Armorer, "3+ bows",
-                s => s.lot.items.Count(i => i.IsOfTemplate(ItemGroups.Weapons, (int)Weapons.Short_Bow) || i.IsOfTemplate(ItemGroups.Weapons, (int)Weapons.Long_Bow)) >= 3);
             Signature(lots, "pawngun", DFLocation.BuildingTypes.PawnShop, "a Doom gun", s => s.lot.items.Any(i => i is DoomerfallDoomItem));
+            FullShelf(day0);
             // Window exceptions shape a whole week of deliveries, so compare weeks.
             Weeks(lots, "siege", DFLocation.BuildingTypes.GeneralStore, "every item delivered (3+) is a weapon",
                 items => items.Count >= 3 && items.All(i => i.ItemGroup == ItemGroups.Weapons));
@@ -294,6 +286,38 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
             Log(string.Format("{0} exception {1} at {2}: {3} of {4} exception weeks show '{5}'; other weeks showing it: {6} of {7}",
                 exWeeks > 0 && exShows * 10 >= exWeeks * 9 && ordShows * 50 <= weeks ? "PASS" : "FAIL", name, type, exShows, exWeeks, what, ordShows, weeks));
+        }
+
+        /// <summary>A once-exception due on a full shelf still arrives, and nothing already on the shelf is removed.</summary>
+        void FullShelf(int day0)
+        {
+            DoomerfallShopLots.Place place = PlaceFor(1);
+            for (int b = 0; b < 400; b++)
+                for (int d = 7; d <= 360; d++)
+                {
+                    DoomerfallShopLots.Rec r = DoomerfallShopLots.ExceptionFor(40000 + b, 7 + b, DFLocation.BuildingTypes.PawnShop, day0 + d, place);
+                    if (r == null || r.name != "pawngun" || (day0 + d) % DoomerfallShopLots.WindowDays != 0)
+                        continue;
+                    DaggerfallLoot shelf = new GameObject("Doomerfall lots test shelf").AddComponent<DaggerfallLoot>();
+                    PlayerGPS.DiscoveredBuilding pawn = new PlayerGPS.DiscoveredBuilding { buildingType = DFLocation.BuildingTypes.PawnShop, quality = 20, buildingKey = 7 + b };
+                    using (new WorldLevel.Scope(Level))
+                        DoomerfallShopLedger.Restock(shelf, pawn, 40000 + b, 0, 1, day0 + d - 1, Level, place);   // stocked yesterday
+                    int share = DoomerfallShopLedger.StockTarget(Level);
+                    while (DoomerfallShopLedger.Stocked(shelf.Items) < share + 20)   // full well past its share, so sell-off cannot make room
+                        shelf.Items.AddItem(ItemBuilder.CreateRandomBook(), ItemCollection.AddPosition.Back, true);
+                    List<DaggerfallUnityItem> before = new List<DaggerfallUnityItem>();
+                    for (int i = 0; i < shelf.Items.Count; i++) before.Add(shelf.Items.GetItem(i));
+                    int guns = 0;
+                    DoomerfallShopLots.Observer = lot => { if (lot.exception) guns += lot.items.Count(i => i is DoomerfallDoomItem); };
+                    using (new WorldLevel.Scope(Level))
+                        DoomerfallShopLedger.Restock(shelf, pawn, 40000 + b, 0, 1, day0 + d, Level, place);
+                    DoomerfallShopLots.Observer = null;
+                    Destroy(shelf.gameObject);
+                    Log(string.Format("{0} full shelf: a pawn shop {1} items over its share on its pawngun day got {2} exception Doom gun(s); deliveries never remove items (only the day's seeded sell-off does)",
+                        guns > 0 ? "PASS" : "FAIL", DoomerfallShopLedger.Stocked(shelf.Items) - share, guns));
+                    return;
+                }
+            Log("FAIL full shelf: no pawngun day found");
         }
 
         void Signature(List<Seen> lots, string name, DFLocation.BuildingTypes type, string what, Func<Seen, bool> shows)

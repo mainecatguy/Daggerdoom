@@ -184,9 +184,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 else if (shelfIndex == 0 && !(transport && shelf.Items.Contains(item.ItemGroup, item.TemplateIndex)))
                     shelf.Items.AddItem(item, ItemCollection.AddPosition.Back, !ammo);   // ammo joins a matching stack; one horse, one cart
             }
-            int room = share - Stocked(shelf.Items);
-            if (room <= 0)
-                return "";
+            int room = share - Stocked(shelf.Items);   // may be 0 or less: Fill still delivers an exception lot
             return DoomerfallShopLots.Fill(shelf.Items, building, goods, room, shelfIndex, location, day, level, place);
         }
 

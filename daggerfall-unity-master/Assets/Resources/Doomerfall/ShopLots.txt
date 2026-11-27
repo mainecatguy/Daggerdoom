@@ -73,16 +73,17 @@ townsfolk items=Jewellery:Ring,Jewellery:Amulet,Jewellery:Bracelet,Armor:Helm,Ar
 # kept with Daggerfall's own stock rule: the gun's rarity must not exceed the shop's quality, and it stocks with
 # chance (weapon chance of the shop) x 5 x (21 - rarity) / 100. Rarity comes from the gun's tier.
 setting gun_rolls 3
+# Tier weights common,uncommon,rare,veryrare,legendary: the tier is rolled first (falling by tier), then a gun in it.
+setting gun_tier_weights 60,30,20,10,6
 gunrarity common=4 uncommon=8 rare=12 veryrare=16 legendary=20
 
 # Rare exceptions: a small fixed share of deliveries breaks the shop's pattern. Each building's days are cut into
 # windows of window_days; a window is an exception window with chance share (the same in every game, from the
 # building and the window number, never from the player). once = one shipment on the window's first day, on the
-# first shelf; window = every delivery in the window, on every shelf.
+# first shelf; window = every delivery in the window, on every shelf. An exception lot arrives even on a full shelf.
+# Plate and archery shipments wait on Shops 6 shop identity (owner question). Other mods' guns wait on a DPS tier.
 setting exception_share 0.04
 setting exception_window_days 7
-exception plate   shops=WeaponSmith  mode=once   core=4 pieces=4-6
-exception archery shops=Armorer      mode=once   core=3 count=3-5 arrows=30-60
 exception pawngun shops=PawnShop     mode=once   core=2 guns=1
 exception siege   shops=GeneralStore mode=window core=1
 exception onekind shops=WeaponSmith  mode=window core=1 village=1
