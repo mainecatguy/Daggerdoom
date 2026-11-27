@@ -203,6 +203,10 @@ A door you have picked open reads **Door**.
 - When you go through a door into or out of a dungeon or building, or walk out of a town, the game pauses until the
   new place is ready (and autosaved, if autosaves are on). A long wait shows **Loading...**. Nothing in the new place moves or
   attacks you until play resumes.
+- The first time you open a dungeon's door, or start or load a game inside a dungeon you have not visited, the game
+  builds that dungeon first. This can take from a few seconds to over a minute on a busy PC. The game shows
+  **Loading...** and pauses until it is done: nothing moves or hurts you, and you cannot save. The menu and console
+  still work, so you can quit. A very large dungeon army can also show **Loading...** for a second or two as you enter.
 
 ## Damage numbers
 

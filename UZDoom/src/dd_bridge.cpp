@@ -1500,7 +1500,8 @@ void DD_BridgeDrawLoading()
 	ClearRect(twod, 0, 0, twod->GetWidth(), twod->GetHeight(), -1, 0); // opaque black
 	DrawText(twod, BigFont, CR_UNTRANSLATED, (twod->GetWidth() - BigFont->StringWidth(text) * CleanXfac) / 2,
 		(twod->GetHeight() - BigFont->GetHeight() * CleanYfac) / 2, text, DTA_CleanNoMove, true, TAG_DONE);
-	C_DrawConsole(); // The console and menus still work during a long wait, so the player can quit.
+	DD_BridgeDrawUi(); // A Daggerfall window, the console and menus still work during a long wait, so the player can quit.
+	C_DrawConsole();
 	M_Drawer();
 	twod->End();
 	screen->Update();
