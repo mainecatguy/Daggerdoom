@@ -15,6 +15,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
     {
         const float FootprintMargin = 1f; // Unity units. Doom's wall can sit a raster cell outside the model.
         const int TextBytes = 40;
+        const float BoardMargin = 0.5f; // meters. Doom's ray stops at the board's raster cell, or at the wall right behind it.
 
         DoomerfallBridge bridge;
         DoomerfallPositionSync sync;
@@ -122,6 +123,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     return "monster " + monsterName;
 
                 case Dfb.INFO_BUILDING:
+                    // A town's bulletin board (Daggerfall's sign) is read in every mode, as PlayerActivate's BulletinBoardCheck.
+                    DaggerfallBulletinBoard board;
+                    float meters;
+                    if (FindBulletinBoard(worldX, worldZ, out board, out meters))
+                    {
+                        GameManager.Instance.PlayerActivate.DoomerfallReadBulletinBoard(board, meters);
+                        return string.Format("bulletin board at {0:F0},{1:F0}, {2:F1} m away", worldX, worldZ, meters);
+                    }
                     StaticBuilding building;
                     if (!FindBuilding(worldX, worldZ, out building))
                         return string.Format("point {0:F0},{1:F0} (no building)", worldX, worldZ);
@@ -172,6 +181,47 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 }
             }
             return any;
+        }
+
+        // The bulletin board (RMBLayout gives it a DaggerfallBulletinBoard) whose model footprint holds the world point Doom's
+        // ray hit, and how far that point is from the player, in meters. Footprint only, as FindBuilding, because Doom's
+        // heights do not match Daggerfall's.
+        bool FindBulletinBoard(double worldX, double worldZ, out DaggerfallBulletinBoard found, out float meters)
+        {
+            found = null;
+            meters = 0;
+            GameManager game = GameManager.Instance;
+            if (game.PlayerEnterExit.IsPlayerInside)
+                return false;
+            DaggerfallLocation location = game.StreamingWorld.CurrentPlayerLocationObject;
+            if (!location)
+                return false;
+            PlayerGPS gps = game.PlayerGPS;
+            Vector3 player = gps.transform.position;
+            Vector3 point = new Vector3(
+                player.x + (float)((worldX - gps.WorldX) / StreamingWorld.SceneMapRatio), 0,
+                player.z + (float)((worldZ - gps.WorldZ) / StreamingWorld.SceneMapRatio));
+            float best = BoardMargin;
+            foreach (DaggerfallBulletinBoard board in location.GetComponentsInChildren<DaggerfallBulletinBoard>(true))
+            {
+                MeshFilter filter = board.GetComponent<MeshFilter>();
+                if (!filter || !filter.sharedMesh)
+                    continue;
+                Bounds bounds = filter.sharedMesh.bounds;
+                Vector3 at = point;
+                at.y = board.transform.TransformPoint(bounds.center).y;
+                Vector3 local = board.transform.InverseTransformPoint(at) - bounds.center;
+                Vector3 scale = board.transform.lossyScale;
+                float outside = Mathf.Max((Mathf.Abs(local.x) - bounds.extents.x) * Mathf.Abs(scale.x), (Mathf.Abs(local.z) - bounds.extents.z) * Mathf.Abs(scale.z));
+                if (outside <= best)
+                {
+                    best = outside;
+                    found = board;
+                }
+            }
+            if (found)
+                meters = (float)(Math.Sqrt((worldX - gps.WorldX) * (worldX - gps.WorldX) + (worldZ - gps.WorldZ) * (worldZ - gps.WorldZ)) * MeshReader.GlobalScale);
+            return found;
         }
 
         // Runs a Daggerfall interaction and sends every HUD message it shows to Doom as the answer to this request.

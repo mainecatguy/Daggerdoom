@@ -87,6 +87,7 @@ static partial class Program
         if (args.Contains("--list-door-actions")) return ListDoorActions(arena2);
         if (args.Contains("--list-trapdoors")) return ListTrapdoors(arena2);
         if (args.Contains("--list-markers")) return ListMarkers(arena2); // MarkerCensus.cs
+        if (args.Contains("--list-boards")) return BoardCensus(arena2); // BoardCensus.cs
         for (int a = 0; a < args.Length; a++)
         {
             if (args[a] == "--out") outDir = args[++a];

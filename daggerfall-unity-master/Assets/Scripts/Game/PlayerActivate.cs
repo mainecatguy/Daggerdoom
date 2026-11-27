@@ -961,6 +961,14 @@ namespace DaggerfallWorkshop.Game
             finally { currentMode = mode; }
         }
 
+        // Doomerfall: Doom's Use or Info reached this bulletin board, at Doom's distance in meters. Daggerfall reads it in every mode.
+        public void DoomerfallReadBulletinBoard(DaggerfallBulletinBoard bulletinBoard, float distance)
+        {
+            RaycastHit hit = new RaycastHit();
+            hit.distance = distance;
+            ActivateBulletinBoard(hit, bulletinBoard);
+        }
+
         // Doomerfall: Doom's Info control named this NPC. Info on a static NPC has no reach limit.
         public void DoomerfallInfoNpc(StaticNPC npc)
         {
