@@ -448,6 +448,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 stateAge.Add(DfbNative.dfb_now_ns() - peer.publishedNs);
 
             sync.Tick(ref peer);
+            DoomerfallAreaLevels.DoomTownMap = peer.townMap != 0 ? 1 : 0;
             own.dfPhase = sync.Phase;
             own.dfHeartbeat++;
             own.dfFrame = (uint)Time.frameCount;
@@ -509,6 +510,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         void OnDestroy()
         {
             SessionActive = false;
+            DoomerfallAreaLevels.DoomTownMap = -1;
             WorldLevel.CurrentPlaceProvider = null;
             WorldLevel.DungeonProvider = null;
             WorldLevel.ShopProvider = null;

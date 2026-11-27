@@ -37,6 +37,7 @@ void DD_BridgeOpenLoot();
 bool DD_InfoUseNpc(dfb_session *session, player_t *player, bool crouching);
 bool DD_PickupNeedsUse(AActor *special);
 bool DD_BridgeMapPixel(int &x, int &y);
+bool DD_BridgeTownCell(uint32_t &cell);
 
 namespace
 {
@@ -513,7 +514,8 @@ int sentAmmo[AmmoKinds] = { -1, -1, -1, -1 };
 uint32_t ammoAddApplied, sentAmmoAck;
 int sentReadyAmmo = -2; // AmmoClasses index the ready weapon uses, -1 for none, -2 before any report.
 
-// Area levels Daggerfall answered, by map pixel (y * 1000 + x, plus one million inside a dungeon). The Doomerfall mod
+// Area levels Daggerfall answered, by map pixel (y * 1000 + x, plus one million inside a dungeon), or by town map cell
+// (3000000 + cell, see PublishAreaLevel). The Doomerfall mod
 // rolls ammo drop tiers with the level of the player's pixel (DoomerfallAmmo.zs), sent as dfa_level:<level or -1>.
 std::map<uint32_t, int> areaLevels;
 uint32_t askedLevelKey = ~0u;
@@ -525,16 +527,23 @@ void PublishAreaLevel()
 	if (useRules)
 	{
 		// After a load straight into a space Doom has not seen the outdoor pixel yet, so it asks for "where Daggerfall's
-		// player is" (key 2000000), which DD_ItemsFrame forgets on every change of place.
-		const uint32_t key = !DD_BridgeMapPixel(x, y) ? 2000000u
+		// player is" (key 2000000), which DD_ItemsFrame forgets on every change of place. Outdoors on a town's own map
+		// it asks by 8-tile cell (3000000 + cell), since each town on the map has its own level.
+		uint32_t cell;
+		const bool town = currentContext == DFB_WORLD_EXTERIOR && DD_BridgeTownCell(cell);
+		const uint32_t key = town ? 3000000u + cell : !DD_BridgeMapPixel(x, y) ? 2000000u
 			: uint32_t(y * 1000 + x) + (currentContext == DFB_WORLD_DUNGEON ? 1000000u : 0u);
 		auto known = areaLevels.find(key);
 		if (known != areaLevels.end()) level = known->second;
-		else if (key != askedLevelKey || gametic < askedLevelTic || gametic - askedLevelTic > 2 * TICRATE)
+		else
 		{
-			SendDoomItem(DFB_KIND_AREA_LEVEL_REQUEST, key, 0, "");
-			askedLevelKey = key;
-			askedLevelTic = gametic;
+			if (town && sentLevel > 0) level = sentLevel;	// Keep the last level while the next cell's answer is on its way.
+			if (key != askedLevelKey || gametic < askedLevelTic || gametic - askedLevelTic > 2 * TICRATE)
+			{
+				SendDoomItem(DFB_KIND_AREA_LEVEL_REQUEST, key, 0, "");
+				askedLevelKey = key;
+				askedLevelTic = gametic;
+			}
 		}
 	}
 	if (level == sentLevel) return;

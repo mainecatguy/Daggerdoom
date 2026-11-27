@@ -1,14 +1,15 @@
 """Shop levels 3: town levels. Runtime dump check, a paired run that walks out through a city gate, and a demo folder.
 
 usage: town_run.py assemble | dump | run [NAME] [--stock-mods]
-assemble: REVIEW gets this checkout's Daggerfall Unity build, and the engines and data the shop levels 2 demo built
-          from this branch (UZDoom, launcher, bridge DLL and data are unchanged by this work), and a play.bat that
-          starts in the City of Daggerfall.
+assemble: REVIEW gets this checkout's Daggerfall Unity build, UZDoom, launcher and bridge DLL (built into BUILD's
+          *-towndanger folders; town_map in the bridge state), the data the shop levels 2 demo built from this branch
+          (unchanged by this work), and a play.bat that starts in the City of Daggerfall.
 dump:     Daggerfall Unity alone with -dfarealeveldump, then compare_runtime.py against area_level.py, then the town
           lines of sample.txt.
 run:      paired games on the City of Daggerfall's map, with Daggerfall's -dfworldleveltest 1 (guard levels at the
           current place) and -dftownlevellog (a line whenever the level where the player stands changes), and
-          gate_walk.zs, which stands inside a gate, walks out through it and on past the town map's edge.
+          gate_walk.zs, which stands inside a gate, walks out through it and on past the town map's edge, then back in
+          until Doom loads the town map again.
 """
 import argparse
 import re
@@ -32,6 +33,8 @@ import dfdata  # noqa: E402
 
 REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\town-levels")
 BASE = Path(r"D:\dev\DoomDaggerfall-loop\review\shop-shelf-levels")
+BUILD = Path(r"D:\dev\DoomDaggerfall-build")
+UZ_BUILD, BRIDGE_BUILD, LAUNCHER_BUILD = (BUILD / f"{n}-towndanger" / "Release" for n in ("uzdoom", "bridge", "launcher"))
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
 ARENA2 = GAME / "DAGGER" / "ARENA2"
@@ -91,13 +94,17 @@ def assemble():
         if (REVIEW / name).exists():
             shutil.rmtree(REVIEW / name)
     shutil.copytree(BASE / "uzdoom", REVIEW / "uzdoom")
+    for f in UZ_BUILD.iterdir():   # this branch's engine over the base folder (sound DLLs and the like stay)
+        if f.is_file() and f.suffix.lower() in (".exe", ".pk3", ".dll"):
+            shutil.copy2(f, REVIEW / "uzdoom" / f.name)
     shutil.copytree(BASE / "data", REVIEW / "data")
-    for name in ("doomerfall-launcher.exe",) + EXTRA:
+    shutil.copy2(LAUNCHER_BUILD / "doomerfall-launcher.exe", REVIEW / "doomerfall-launcher.exe")
+    for name in EXTRA:
         shutil.copy2(BASE / name, REVIEW / name)
     shutil.copytree(REPO / "daggerfall-unity-master" / "Builds" / "Windows64", REVIEW / "dfu", ignore=shutil.ignore_patterns("*.pdb", "*.ini"))
     plugins = REVIEW / "dfu" / "DaggerfallUnity_Data" / "Plugins" / "x86_64"
     plugins.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(BASE / "dfu" / "DaggerfallUnity_Data" / "Plugins" / "x86_64" / "doomerfall_bridge.dll", plugins / "doomerfall_bridge.dll")
+    shutil.copy2(BRIDGE_BUILD / "doomerfall_bridge.dll", plugins / "doomerfall_bridge.dll")
     (REVIEW / "dfu" / "Portable.txt").write_text("")
     install.isolate_registry(REVIEW / "dfu")
     write_demo(city_group())
@@ -177,7 +184,7 @@ def run(name, stock_mods, start):
           "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"]
     df = ["-dfbridgelog", str(df_log), "-dfworldleveltest", "1", "-dftownlevellog", "-screen-width", "640", "-screen-height", "360"]
     args = launch_args(runs, group, uz, df, stock_mods) + ["--mod", str(harness), "--minimized", "--log", str(runs / "launcher.log")]
-    timeout = 150
+    timeout = 220
     proc = subprocess.Popen([sys.executable, QUIET, "--timeout", str(timeout), "--", str(REVIEW / "doomerfall-launcher.exe")] + args,
                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     reason, end = "timeout", time.time() + timeout + 3
@@ -203,7 +210,7 @@ def run(name, stock_mods, start):
         m = re.search(r"worldleveltest: area here enemy Knight_CityWatch/\d+: level (\d+)", line)
         if m:
             guards.append(int(m.group(1)))
-        if re.search(r"townlevel:|worldleveltest: player level|worldleveltest: area here level|error|Exception", line):
+        if re.search(r"townlevel:|ammo: area level|worldleveltest: player level|worldleveltest: area here level|error|Exception", line):
             print("df", line[:330])
     if guards:
         ok = all(23 <= g <= 26 for g in guards)

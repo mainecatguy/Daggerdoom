@@ -2143,6 +2143,11 @@ DDPlayerArea DDTreadmill_PlayerWorld(double &x, double &y, double &z, double &ya
 	return DD_AREA_EXTERIOR;
 }
 
+bool DDTreadmill_OnTownMap()
+{
+	return primaryLevel && townActive && !handoff.pending && currentTown >= 0 && !towns[currentTown].space;
+}
+
 // [Doomerfall] Daggerfall world units to this map's Doom position. False indoors and between maps.
 bool DDTreadmill_WorldToLocal(double x, double y, double &doomX, double &doomY)
 {

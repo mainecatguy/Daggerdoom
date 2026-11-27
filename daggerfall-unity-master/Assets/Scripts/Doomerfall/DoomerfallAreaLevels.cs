@@ -30,6 +30,16 @@ namespace DaggerfallWorkshop.Game.Doomerfall
     {
         internal const int MaxLevel = 30;
 
+        /// <summary>
+        /// Which map Doom reports the player is on (DfbUzState.townMap, set by the bridge every frame): 1 outdoors on a
+        /// town's own Doom map, 0 anywhere else. -1 without a Doom session (Daggerfall alone), where the position rule
+        /// in TownAt stands in for it.
+        /// </summary>
+        internal static int DoomTownMap = -1;
+
+        /// <summary>The 8-tile cells Doom asks by on a town map (area level request 3000000 + cy * 16000 + cx).</summary>
+        internal const int TownCellUnits = 2048, TownCellsPerRow = 16000;
+
         // ---- Tunables, identical to area_level.py ------------------------------------------------------------
         const double RegionW = 0.85, GeoW = 0.9, TypeW = 0.8, NoiseW = 1.0;
         const double ExceptionChance = 0.07, ExceptionMin = 2.5, ExceptionMax = 5.0;
@@ -245,10 +255,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (enter && enter.IsPlayerInsideDungeon && game.PlayerGPS.HasCurrentLocation
                 && ForLocation(game.PlayerGPS.CurrentLocation, out level) && level.dungeon > 0)
                 return level.dungeon;
-            // Outdoors only. An interior being laid out (PlayerEnterExit sets interior before DoLayout, and
+            // Outdoors on a town's Doom map only (DoomTownMap; on the overworld map the terrain level applies even next
+            // to a town). Each town on a shared Doom map keeps its own level (TownAt). An interior being laid out (PlayerEnterExit sets interior before DoLayout, and
             // IsPlayerInside only after it) counts as indoors, so building loot keeps the terrain level.
             bool building = enter && (enter.IsPlayerInside || (enter.Interior && enter.Interior.gameObject.activeInHierarchy));
-            if (!building)
+            if (!building && DoomTownMap != 0)
             {
                 int town = TownAt(game.PlayerGPS.WorldX, game.PlayerGPS.WorldZ);
                 if (town > 0)

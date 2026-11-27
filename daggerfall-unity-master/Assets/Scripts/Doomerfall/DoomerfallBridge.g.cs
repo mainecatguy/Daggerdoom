@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x511cf051cf7eb88fUL;
+        public const ulong SchemaHash = 0x73dfbb14dd703ce4UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -921,7 +921,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(104)] public float spaceYaw;  // Doom angle within the space
         [FieldOffset(108)] public int spaceTarget;  // the target of the door event for this space
         [FieldOffset(112)] public uint spaceValid;  // 0 outdoors and between maps
-        [FieldOffset(116)] public uint pad1;
+        [FieldOffset(116)] public uint townMap;  // 1 outdoors on a generated town's own Doom map, 0 elsewhere (overworld, indoors, between maps)
         // 136 reserved bytes at offset 120
     }
 

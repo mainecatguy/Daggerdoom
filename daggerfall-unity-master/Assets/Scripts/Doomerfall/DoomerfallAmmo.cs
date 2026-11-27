@@ -503,7 +503,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         }
 
         // DFB_KIND_AREA_LEVEL_REQUEST: Doom rolls ammo drop tiers with the area level of this map pixel. A pixel past one
-        // million is inside a dungeon there.
+        // million is inside a dungeon there; 2000000 is where Daggerfall's player is; from 3000000 up it is an 8-tile cell
+        // outdoors on a town's own Doom map (DoomerfallAreaLevels.TownCellUnits).
         internal void OnAreaLevelRequest(uint key)
         {
             if (!levelRequests.Contains(key))
@@ -519,10 +520,27 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return;
             foreach (uint key in levelRequests)
             {
-                bool dungeon = key >= 1000000 && key < 2000000;
+                bool dungeon = key >= 1000000 && key < 2000000, townCell = key >= 3000000;
                 int pixel = (int)(key % 1000000), x = pixel % 1000, y = pixel / 1000;
                 int level = test;
-                if (level < 0 && key == 2000000)
+                if (townCell)
+                {
+                    // Outdoors on a town's own Doom map: the town level at the cell's centre (each town on a shared map
+                    // keeps its own), else the terrain level there.
+                    uint cell = key - 3000000;
+                    int wx = (int)(cell % DoomerfallAreaLevels.TownCellsPerRow) * DoomerfallAreaLevels.TownCellUnits + DoomerfallAreaLevels.TownCellUnits / 2;
+                    int wz = (int)(cell / DoomerfallAreaLevels.TownCellsPerRow) * DoomerfallAreaLevels.TownCellUnits + DoomerfallAreaLevels.TownCellUnits / 2;
+                    DaggerfallConnect.Utility.DFPosition at = MapsFile.WorldCoordToMapPixel(wx, wz);
+                    x = at.X;
+                    y = at.Y;
+                    if (level < 0)
+                    {
+                        level = DoomerfallAreaLevels.TownAt(wx, wz);
+                        if (level <= 0)
+                            level = DoomerfallAreaLevels.ForMapPixel(x, y);
+                    }
+                }
+                else if (level < 0 && key == 2000000)
                     level = DoomerfallAreaLevels.ForCurrentPlace(); // Doom does not know the pixel yet: where Daggerfall's player is.
                 else if (level < 0)
                 {
@@ -544,7 +562,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 e.doomItem.request = key;
                 e.doomItem.status = (uint)level;
                 bridge.Send(ref e);
-                bridge.LogLine(string.Format("ammo: area level at map pixel ({0}, {1}){2} is {3}", x, y, dungeon ? " in the dungeon" : "", level));
+                bridge.LogLine(string.Format("ammo: area level at map pixel ({0}, {1}){2} is {3}", x, y, dungeon ? " in the dungeon" : townCell ? " on the town map, cell " + (key - 3000000) : "", level));
             }
             levelRequests.Clear();
         }

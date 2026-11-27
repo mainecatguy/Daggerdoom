@@ -49,10 +49,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             PlayerGPS gps = GameManager.Instance.PlayerGPS;
             DFPosition pixel = gps.CurrentMapPixel;
             bool inside = GameManager.Instance.PlayerEnterExit && GameManager.Instance.PlayerEnterExit.IsPlayerInside;
-            string place = string.Format("place level {0} (WorldLevel.Current {1}), town level here {2}, terrain {3}, location {4}, in location rect {5}, inside {6}",
+            string place = string.Format("place level {0} (WorldLevel.Current {1}), town level here {2}, terrain {3}, location {4}, in location rect {5}, inside {6}, Doom town map {7}",
                 DoomerfallAreaLevels.ForCurrentPlace(), WorldLevel.Current, inside ? 0 : DoomerfallAreaLevels.TownAt(gps.WorldX, gps.WorldZ),
-                DoomerfallAreaLevels.ForMapPixel(pixel.X, pixel.Y), gps.HasCurrentLocation ? gps.CurrentLocation.Name : "none", gps.IsPlayerInLocationRect, inside);
-            if (!layoutChecked && !inside && DoomerfallAreaLevels.TownAt(gps.WorldX, gps.WorldZ) > 0)
+                DoomerfallAreaLevels.ForMapPixel(pixel.X, pixel.Y), gps.HasCurrentLocation ? gps.CurrentLocation.Name : "none", gps.IsPlayerInLocationRect, inside,
+                DoomerfallAreaLevels.DoomTownMap);
+            if (!layoutChecked && !inside && DoomerfallAreaLevels.DoomTownMap != 0 && DoomerfallAreaLevels.TownAt(gps.WorldX, gps.WorldZ) > 0)
                 CheckLayout(GameManager.Instance.PlayerEnterExit, DoomerfallAreaLevels.ForMapPixel(pixel.X, pixel.Y));
             if (place == last && Time.unscaledTime < heartbeat)
                 return;

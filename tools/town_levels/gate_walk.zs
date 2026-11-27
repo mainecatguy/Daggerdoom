@@ -117,7 +117,21 @@ class TLGateWalk : StaticEventHandler
 			break;
 		case 7:
 			p.vel.xy = (0, 0);
-			if (level.maptime >= wait) { Console.Printf("TLDONE walked out"); done = true; }
+			if (level.maptime >= wait) { Console.Printf("TLWALKBACK at %.0f,%.0f", p.pos.x, p.pos.y); phase = 8; tics = 0; }
+			break;
+		case 8:	// Back toward the town until Doom loads its map again (12 tiles out), passing the old exit line on the way.
+			p.bNOCLIP = true;
+			if (!InTown())
+			{
+				p.vel.xy = -away * SPEED;
+				p.angle = atan2(-away.y, -away.x);
+				if (++tics > 1500) { Console.Printf("TLDONE FAIL never re-entered the town map"); done = true; }
+			}
+			else { Console.Printf("TLBACKIN tic %d", level.maptime); wait = level.maptime + 105; phase = 9; }
+			break;
+		case 9:
+			if (players[0].mo) players[0].mo.vel.xy = (0, 0);
+			if (level.maptime >= wait) { Console.Printf("TLDONE walked out and back in"); done = true; }
 			break;
 		}
 	}
