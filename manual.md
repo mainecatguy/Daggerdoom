@@ -28,10 +28,13 @@ Endurance can go (past 100 for tough classes). A Barbarian gets +17, a Warrior +
 
 Your level comes from your skills, as in Daggerfall. Not every skill can be trained by use yet:
 
-- **Fighting in Doom does not train any skill yet.** Weapon skills, Hand-to-Hand, Critical Strike, Dodging and the
-  magic schools do not improve from combat or spells cast in Doom.
-- What does count today: **Climbing** (each climb), and what you do in Daggerfall's own windows, such as
+- **Fighting trains the skill of the weapon you use.** Every 250 damage you deal with a weapon counts as one use of
+  its skill (Shotguns, Automatics, Explosives, Pistols, Energy Weapons, Melee, or Hand-to-Hand for your fists).
+  Dodging and the magic schools do not improve from fighting yet.
+- **Climbing** counts each climb, and what you do in Daggerfall's own windows counts as in Daggerfall, such as
   **Etiquette** and **Streetwise** when talking to people, and **Mercantile** when buying and selling.
+- You can also **buy** skill points with **Skill XP** (see "Skill XP and the Skills menu"). Bought points count
+  towards your level just like trained ones, and a level earned that way is granted straight away.
 
 Skills only go up, and a new level is only granted, when time passes: when you **rest** (see Resting) or **fast
 travel**. Daggerfall checks your skills at most once every 6 game hours.
@@ -145,9 +148,30 @@ pistol. The pistol's usual starting bullets (60 with the Doom Roguelike Arsenal,
 - Each starting gun goes on its usual number key (pistol 2, shotgun 3, chaingun and Light Carbine 4, rocket launcher
   5, chainsaw on 1 after your fists).
 
+## Skill XP and the Skills menu
+
+You earn **Skill XP** by hurting things in Doom: **1 Skill XP for every 100 damage** you deal, added up across
+everything you hit. Monsters, guards and townspeople all count. Damage beyond what kills a target does not count, so
+a rocket into a small monster is worth only that monster's health.
+
+Spend Skill XP in the **Skills menu**. Open it with **U** in Doom, or click **SKILLS** at the bottom of the
+character sheet (P). Rebind the key in Options, Customize Controls, Doomerfall Controls, "Open Skills".
+
+- The left side lists every skill you can raise, with its current value. Click one (or use the arrow keys).
+- The right side shows that skill's **price for its next point**, the **BUY POINT** button, and all four of its
+  **perks** (at 25, 50, 75 and 100). Perks you already have are marked with a star and shown in gold.
+- Points get expensive. The price grows with the skill's value and your level, and depends on your class: classes
+  that learn quickly in Daggerfall pay less. Every skill costs the same at the same value, whichever it is.
+- Most of your growth still comes from using your skills. Skill XP adds about a quarter on top.
+- A skill at 100 cannot be raised, and once any of your primary skills reaches 100, the others stop at 95, as in
+  Daggerfall.
+- If the points you buy earn a new level, the character sheet opens for it when you close the menu (or at once, if
+  you opened the menu from the character sheet).
+- Your Skill XP is kept in your save.
+
 ## Perks
 
-A skill earns a **perk** when it reaches 25, 50, 75 and 100.
+A skill earns a **perk** when it reaches 25, 50, 75 and 100. You can read every skill's perks in the Skills menu.
 
 - When you earn a perk, the game pauses and a window tells you what the perk does. Click to close it, and play
   carries on.

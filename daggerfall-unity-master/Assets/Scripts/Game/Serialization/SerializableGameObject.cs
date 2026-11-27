@@ -194,6 +194,7 @@ namespace DaggerfallWorkshop.Game.Serialization
         public uint timeToBecomeVampireOrWerebeast;
         public uint lastTimePlayerAteOrDrankAtTavern;
         public uint timeOfLastSkillTraining;
+        public int skillXp; // Doomerfall: Skill XP pool; 0 in older saves
         public PlayerEntity.RegionDataRecord[] regionData;
         public RoomRental_v1[] rentedRooms;
         public EffectBundleSettings[] spellbook;

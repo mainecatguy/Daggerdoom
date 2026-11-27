@@ -70,6 +70,7 @@ namespace DaggerfallWorkshop.Game.Entity
         protected uint[] skillsRecentlyRaised = new uint[2];
         protected uint timeOfLastSkillIncreaseCheck = 0;
         protected uint timeOfLastSkillTraining = 0;
+        protected int skillXp = 0; // Doomerfall: Skill XP pool (DoomerfallSkillXp)
 
         protected uint timeOfLastStealthCheck = 0;
 
@@ -179,6 +180,7 @@ namespace DaggerfallWorkshop.Game.Entity
         public uint[] SkillsRecentlyRaised { get { return skillsRecentlyRaised; } set { skillsRecentlyRaised = value; } }
         public uint TimeOfLastSkillIncreaseCheck { get { return timeOfLastSkillIncreaseCheck; } set { timeOfLastSkillIncreaseCheck = value; } }
         public uint TimeOfLastSkillTraining { get { return timeOfLastSkillTraining; } set { timeOfLastSkillTraining = value; } }
+        public int SkillXp { get { return skillXp; } set { skillXp = value; } } // Doomerfall
         public uint TimeOfLastStealthCheck { get { return timeOfLastStealthCheck; } set { timeOfLastStealthCheck = value; } }
         public int StartingLevelUpSkillSum { get { return startingLevelUpSkillSum; } set { startingLevelUpSkillSum = value; } }
         public int CurrentLevelUpSkillSum { get { return currentLevelUpSkillSum; } internal set { currentLevelUpSkillSum = value; } }
@@ -825,6 +827,7 @@ namespace DaggerfallWorkshop.Game.Entity
             goldPieces = 0;
             timeOfLastSkillIncreaseCheck = 0;
             timeOfLastSkillTraining = 0;
+            skillXp = 0; // Doomerfall
             rentedRooms.Clear();
             crimeCommitted = Crimes.None;
             DaedraSummonDay = DaedraSummonIndex = 0;

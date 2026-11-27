@@ -361,7 +361,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             showingTravelMap = id == Dfb.UI_TRAVEL_MAP;
             bool creating = id == Dfb.UI_NEW_GAME && DoomerfallNewGame.HoldsNewCharacter;
             bool loading = id == Dfb.UI_LOAD_GAME && DoomerfallNewGame.HoldsNewCharacter && PlainLoad;
-            if ((id != Dfb.UI_TRAVEL_MAP && id != Dfb.UI_INVENTORY && id != Dfb.UI_MAP && id != Dfb.UI_LOOT && id != Dfb.UI_TALK && id != Dfb.UI_DAGGERFALL && id != Dfb.UI_JOURNAL && id != Dfb.UI_REST && id != Dfb.UI_CHARACTER && id != Dfb.UI_SPELLBOOK && id != Dfb.UI_STATUS && id != Dfb.UI_TRANSPORT && !creating && !loading) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
+            if ((id != Dfb.UI_TRAVEL_MAP && id != Dfb.UI_INVENTORY && id != Dfb.UI_MAP && id != Dfb.UI_LOOT && id != Dfb.UI_TALK && id != Dfb.UI_DAGGERFALL && id != Dfb.UI_JOURNAL && id != Dfb.UI_REST && id != Dfb.UI_CHARACTER && id != Dfb.UI_SPELLBOOK && id != Dfb.UI_STATUS && id != Dfb.UI_TRANSPORT && id != Dfb.UI_SKILLS && !creating && !loading) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
             {
                 Finish(Dfb.UI_REASON_REFUSED);
                 return;
@@ -495,6 +495,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 DaggerfallUI.UIManager.PushWindow(UIWindowFactory.GetInstance(UIWindowType.Transport, DaggerfallUI.UIManager));
                 bridge.LogLine(string.Format("ui: transport menu, owns horse {0} cart {1} ship {2}, riding {3}", GameManager.Instance.TransportManager.HasHorse(),
                     GameManager.Instance.TransportManager.HasCart(), GameManager.Instance.TransportManager.ShipAvailiable(), GameManager.Instance.TransportManager.TransportMode));
+                return;
+            }
+            if (id == Dfb.UI_SKILLS)
+            {
+                DaggerfallUI.UIManager.PushWindow(new DoomerfallSkillsWindow(DaggerfallUI.UIManager));
                 return;
             }
             if (id == Dfb.UI_LOOT)

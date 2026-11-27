@@ -205,6 +205,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             exitButton.OnMouseClick += ExitButton_OnMouseClick;
             exitButton.Hotkey = DaggerfallShortcut.GetBinding(DaggerfallShortcut.Buttons.CharacterSheetExit);
             exitButton.OnKeyboardEvent += ExitButton_OnKeyboardEvent;
+            Doomerfall.DoomerfallSkillsWindow.AddSheetButton(this, NativePanel); // Doomerfall: the skill purchase menu
 
             // Attribute popup text
             Vector2 pos = new Vector2(141, 6);

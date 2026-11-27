@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x5a262ec33e873a15ULL
+#define DFB_SCHEMA_HASH 0xf3f75e777642edd5ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -114,6 +114,7 @@ static_assert((DFB_KIND_AMMO_CHANGE) == (177), DFB_STALE);
 static_assert((DFB_KIND_AMMO_UNLOAD) == (178), DFB_STALE);
 static_assert((DFB_KIND_AMMO_UNLOADED) == (179), DFB_STALE);
 static_assert((DFB_KIND_AMMO_LOADED) == (180), DFB_STALE);
+static_assert((DFB_KIND_SKILL_XP) == (181), DFB_STALE);
 static_assert((DFB_KIND_DOOR_USE) == (190), DFB_STALE);
 static_assert((DFB_KIND_DOOR_STATE) == (191), DFB_STALE);
 static_assert((DFB_KIND_LOCKPICK) == (192), DFB_STALE);
@@ -266,6 +267,7 @@ static_assert((DFB_UI_CHARACTER) == (11u), DFB_STALE);
 static_assert((DFB_UI_SPELLBOOK) == (12u), DFB_STALE);
 static_assert((DFB_UI_STATUS) == (13u), DFB_STALE);
 static_assert((DFB_UI_TRANSPORT) == (14u), DFB_STALE);
+static_assert((DFB_UI_SKILLS) == (15u), DFB_STALE);
 static_assert((DFB_TRANSPORT_AIRBORNE) == (0x100u), DFB_STALE);
 static_assert((DFB_REST_MONSTERS_NEAR) == (1u), DFB_STALE);
 static_assert((DFB_REST_NOT_GROUNDED) == (2u), DFB_STALE);
@@ -639,6 +641,16 @@ static_assert(offsetof(dfb_climb_uses, uses) == 0, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_climb_uses::uses), uint32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_climb_uses, pad) == 4, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_climb_uses::pad), uint32_t>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_skill_xp) == 16, DFB_STALE);
+static_assert(offsetof(dfb_skill_xp, xp) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_skill_xp::xp), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_skill_xp, skill) == 4, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_skill_xp::skill), int32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_skill_xp, uses) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_skill_xp::uses), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_skill_xp, pad) == 12, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_skill_xp::pad), uint32_t>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_npc_use) == 24, DFB_STALE);
 static_assert(offsetof(dfb_npc_use, id) == 0, DFB_STALE);
