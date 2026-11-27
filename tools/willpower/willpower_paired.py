@@ -13,7 +13,8 @@ paired: as tools/agility/agility_paired.py: <play folder> is copied once to <wor
 UZDoom, Daggerfall Unity, bridge DLL and launcher. One launch through the launcher and quiet_run.py: UZDoom on DOOM.WAD
 E1M1 with the DRLA set, doomerfall.pk3 and the harness; Daggerfall Unity with -dfsynctest and -dfwillpowertest, which
 sets Willpower to 1, 100, 50 and 75 in turn. For each value the harness hurts the real player from hitscan,
-projectile, melee, environment (sector damage) and layered (a test armor absorbing a flat 2 of 5) sources. Checks, per
+projectile, melee, environment (sector damage), layered (a test armor absorbing a flat 2 of 5) and direct (health
+lowered by assignment) sources. Checks: every logged hit is exactly (damage x (300 - Willpower) + carry) / 250; per
 window: every hit reaching the Willpower step logged its damage in and out; the damage in on the layered window is 3
 (after the armor, so Willpower comes last); the damage out totals damage in x (1.2 - 0.4 x Willpower/100) within one
 point; Daggerfall's HP dropped by exactly the damage out; and against Willpower 50 each source's damage at 1 and 100
@@ -37,7 +38,7 @@ SEEN = re.compile(r"WILLSEEN will=(-?\d+)")
 HIT = re.compile(r"willpower: tic (\d+) player takes (\d+) -> (\d+) \(willpower (-?\d+)\)")
 BAD = re.compile(r'Script error, "(doomerfall|will-harness)\.pk3|(doomerfall|will-harness)\.pk3:zscript\S*, line \d+|\bFatal error|VM execution aborted', re.I)
 BG = ["+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+vid_fullscreen", "0"]
-SOURCES = ["hitscan", "projectile", "melee", "environment", "layered"]
+SOURCES = ["hitscan", "projectile", "melee", "environment", "layered", "direct"]
 
 
 def factor(will):
@@ -123,9 +124,9 @@ def paired(source, build, dfu, bridge, launcher, work):
         p.unlink(missing_ok=True)
     uz = ["-noactivate", "-config", str(run / "will.ini"), "-dfbridgelog", str(uz_log), "+logfile", "will", "-nosound",
           "-skill", "3", "-nomonsters", "+map", "E1M1"] + BG
-    df = ["-dfbridgelog", str(df_log), "-dfsynctest", DAGGER, "-dfwillpowertest", "-screen-fullscreen", "0", "-screen-width",
+    df = ["-dfbridgelog", str(df_log), "-dfsynctest", DAGGER, "-dfwillpowertest", "40", "-screen-fullscreen", "0", "-screen-width",
           "640", "-screen-height", "360"]
-    command = [sys.executable, QUIET, "--timeout", "150", "--", str(play / "doomerfall-launcher.exe"), "--minimized",
+    command = [sys.executable, QUIET, "--timeout", "230", "--", str(play / "doomerfall-launcher.exe"), "--minimized",
                "--uzdoom", str(play / "uzdoom" / "uzdoom.exe"), "--dfu", str(play / "dfu" / "DaggerfallUnity.exe"),
                "--iwad", IWAD, "--uzdoom-cwd", str(run), "--log", str(run / "will-launcher.log")]
     for mod in DRLA + [play / "doomerfall.pk3", harn]:
@@ -157,14 +158,21 @@ def paired(source, build, dfu, bridge, launcher, work):
               f"{w['dout']:2d} (want {w['din'] * factor(w['will']):.1f})  Daggerfall HP {w['before']} -> {w['after']} (-{w['drop']})")
         by[(w["will"], w["src"])] = w
     wills = sorted({w["will"] for w in windows})
-    checks.append(("all five sources measured at Willpower 1, 50 and 100",
+    # Exact per hit: replay the integer rule (300 - Willpower) / 250 with its carry over every logged hit, in order.
+    carry, exact = 0, bool(hits)
+    for _, din, dout, w in hits:
+        units = din * (300 - min(w, 100)) + carry
+        exact = exact and dout == units // 250
+        carry = units % 250
+    checks.append(("every logged hit is exactly (damage x (300 - Willpower) + carry) / 250", exact))
+    checks.append(("all six sources measured at Willpower 1, 50 and 100",
                    all((v, s) in by for v in (1, 50, 100) for s in SOURCES)))
     checks.append(("every window took hits and logged the Daggerfall value", bool(windows) and
                    all(w["n"] > 0 and w["logwill"] == [w["will"]] for w in windows)))
     checks.append(("layered: damage reaching the Willpower step is after the armor (3 per hit)",
                    bool(windows) and all(w["din"] == 3 * w["n"] for w in windows if w["src"] == "layered")))
     checks.append(("damage out = damage in x (1.2 - 0.4 x Willpower/100), within one point",
-                   bool(windows) and all(abs(w["dout"] - w["din"] * factor(w["will"])) <= 1.0 for w in windows)))
+                   bool(windows) and all(abs(w["dout"] - w["din"] * factor(w["will"])) < 1.0 for w in windows)))
     checks.append(("Daggerfall's HP dropped by exactly the damage out", bool(windows) and all(w["drop"] == w["dout"] for w in windows)))
     # Against Willpower 50 (x1), per source: Daggerfall's HP drop per hit that reached the step.
     for v in (1, 100):

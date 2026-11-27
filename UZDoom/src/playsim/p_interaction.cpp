@@ -1864,7 +1864,6 @@ void P_PoisonDamage (player_t *player, AActor *source, int damage, bool playPain
 	damage = target->GetModifiedDamage(player->poisontype, damage, true, nullptr, source, 0, nullAngle);
 	// Modify with damage factors
 	damage = target->ApplyDamageFactor(player->poisontype, damage);
-	damage = DD_BridgeWillpowerDamage(player, damage, telefragDamage); // [Doomerfall] last step; unchanged outside a bridge session
 
 	if (damage <= 0)
 	{ // Damage was reduced to 0, so don't bother further.

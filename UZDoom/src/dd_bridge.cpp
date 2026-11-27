@@ -1095,21 +1095,23 @@ int DD_BridgeDamageBonus(AActor *source, AActor *target, int damage)
 	return scaled;
 }
 
-// P_DamageMobj (after armor, the very last step before the player's health would drop) and P_PoisonDamage: the
-// owner's Willpower rule (2026-11-26), a final modifier to all damage the bridged player takes. Daggerfall's live
-// Willpower, values above 100 counting as 100: x1.2 at 0, x1 at 50, x0.8 at 100, linear between. The fraction
-// carries to the next hit, so many small hits scale by the exact factor. Unchanged without a session or a character,
-// for other players, and for telefrags (they must stay at or above TELEFRAG_DAMAGE; they kill either way).
+// P_DamageMobj (after armor, the very last step before the player's health would drop) and DD_BridgeHpThink (health
+// lowered by direct assignment: scripts such as DRLA's Soul Shatter, and P_PoisonDamage, which subtracts health
+// itself): the owner's Willpower rule (2026-11-26), a final modifier to all damage the bridged player takes.
+// Daggerfall's live Willpower, values above 100 counting as 100: x1.2 at 0, x1 at 50, x0.8 at 100, linear between,
+// which is exactly (300 - Willpower) / 250, done in integers. The remainder carries to the next hit, so many small
+// hits scale by the exact factor. Unchanged without a session or a character, for other players, and for telefrags
+// (they must stay at or above TELEFRAG_DAMAGE; they kill either way).
 int DD_BridgeWillpowerDamage(player_t *player, int damage, bool telefrag)
 {
 	constexpr int WillpowerStat = 2; // DFCareer.Stats.Willpower
 	if (!session || telefrag || damage <= 0 || !HpIsBridgedPlayer(player)) return damage;
 	const int will = DD_BridgeStatLive(WillpowerStat);
 	if (will < 0) return damage;
-	static double carry;
-	const double scaled = damage * (1.2 - 0.4 * std::min(will, 100) / 100.0) + carry;
-	const int result = int(scaled);
-	carry = scaled - result;
+	static int carry; // 0..249, in 1/250 points
+	const int64_t units = int64_t(damage) * (300 - std::min(will, 100)) + carry;
+	const int result = int(units / 250);
+	carry = int(units % 250);
 	static int logged;
 	if (logged < 1000) // a debug log line per hit, capped
 	{
@@ -1163,7 +1165,8 @@ void DD_BridgeHpThink(player_t *player)
 	{
 		const int delta = player->health - hpMirrored;
 		hpDirect++;
-		HpSend(delta < 0 ? DFB_HP_HIT : DFB_HP_HEAL, std::abs(delta), "direct assignment");
+		const int amount = delta < 0 ? DD_BridgeWillpowerDamage(player, -delta, false) : delta; // Willpower: last step
+		if (amount > 0) HpSend(delta < 0 ? DFB_HP_HIT : DFB_HP_HEAL, amount, "direct assignment");
 	}
 	const int confirmed = std::max(1, peerState.hp_current); // 0 without the dead flag cannot be shown as alive
 	player->health = player->mo->health = confirmed;

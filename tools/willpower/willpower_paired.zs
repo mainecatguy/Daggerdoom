@@ -9,6 +9,7 @@ version "3.3"
 //   environment 10 x 4  the player's own sector made to hurt 4 every tic for 10 tics (P_PlayerInSpecialSector)
 //   layered     10 x 5  direct hits while the player holds a test armor that absorbs a flat 2, so the damage
 //                        reaching the last step is 3; Willpower applied before armor would give 5 x f - 2 instead
+//   direct      10 x 4  the player's health lowered by assignment, one per tic (DD_BridgeHpThink's path)
 // Prints, per window, the Daggerfall HP before and after (mo.health once Daggerfall has answered) and the tics it
 // covered, so the script can match the bridge log's "willpower:" lines (damage in, damage out) to it:
 //   WILL src=<name> will=<live> nominal=<hits x damage> before=<hp> after=<hp> from=<tic> to=<tic>
@@ -65,7 +66,7 @@ class WillFlatArmor : Inventory
 class WillPaired : StaticEventHandler
 {
 	const SettleTics = 35;
-	const HpWait = 25;   // tics for Daggerfall to answer hits and heals
+	const HpWait = 70;   // tics for Daggerfall to answer hits and heals (round trips reach about 1 s)
 	const Hits = 10;
 
 	int lastWill, stable, src, step, tics, hpBefore, fromTic, fired;
@@ -83,6 +84,7 @@ class WillPaired : StaticEventHandler
 		case 1: return "projectile";
 		case 2: return "melee";
 		case 3: return "environment";
+		case 5: return "direct";
 		}
 		return "layered";
 	}
@@ -119,7 +121,7 @@ class WillPaired : StaticEventHandler
 			if (++stable >= SettleTics) { src = 0; step = 0; tics = 0; }
 			return;
 		}
-		if (src >= 5) return; // done until Willpower changes
+		if (src >= 6) return; // done until Willpower changes
 		tics++;
 		if (step == 0) // heal and wait
 		{
@@ -131,7 +133,8 @@ class WillPaired : StaticEventHandler
 				step = 1;
 				tics = 0;
 				fired = 0;
-				if (!attacker) attacker = PlaceAttacker(mo);
+				if (attacker) attacker.Destroy(); // fresh each window: earlier hits may have pushed the player away
+				attacker = PlaceAttacker(mo);
 				if (src == 3) { let s = mo.CurSector; oldAmount = s.damageamount; oldInterval = s.damageinterval; oldType = s.damagetype; }
 				if (src == 4) mo.GiveInventory("WillFlatArmor", 1);
 			}
@@ -149,14 +152,14 @@ class WillPaired : StaticEventHandler
 			src++;
 			step = 0;
 			tics = 0;
-			if (src >= 5 && attacker) { attacker.Destroy(); attacker = null; }
+			if (src >= 6 && attacker) { attacker.Destroy(); attacker = null; }
 		}
 	}
 
 	// One tic of the current source; true once all its hits are dealt (missiles: once none is left in flight).
 	bool Hurt(Actor mo)
 	{
-		if (src != 3 && src != 4 && !attacker) { fired = Hits; return true; } // no spot found: the window shows nothing
+		if (src < 3 && !attacker) { fired = Hits; return true; } // no spot found: the window shows nothing
 		if (src == 0)
 		{
 			double pitch = attacker.AimLineAttack(attacker.AngleTo(mo), 512);
@@ -181,6 +184,12 @@ class WillPaired : StaticEventHandler
 			if (fired < Hits) { s.damageamount = 4; s.damageinterval = 1; s.damagetype = 'Slime'; fired++; return false; }
 			s.damageamount = oldAmount; s.damageinterval = oldInterval; s.damagetype = oldType;
 			return true;
+		}
+		if (src == 5) // health lowered by assignment, as DRLA's Soul Shatter script does with APROP_Health
+		{
+			mo.health -= 4;
+			mo.player.health = mo.health;
+			return ++fired >= Hits;
 		}
 		mo.DamageMobj(attacker, attacker, 5, 'None', DMG_THRUSTLESS);
 		if (++fired < Hits) return false;

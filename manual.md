@@ -54,9 +54,9 @@ count while they last.
 
 - **Agility:** you reload and switch weapons faster: up to 40% faster at 100 (20% at 50). You also get a chance to
   dodge damage completely: 15% at 100 (7.5% at 50). Agility above 100 counts as 100.
-- **Willpower:** changes all damage you take, from every source: 20% less at 100, normal at 50, 20% more at 0. It is
-  applied last, after armor and resistances. Willpower above 100 counts as 100. It also affects your ability to cast
-  spells.
+- **Willpower:** changes the damage you take in combat and from the environment (monsters, your own explosions,
+  harmful floors, crushers, falls): 20% less at 100, normal at 50, 20% more at 0. It is applied last, after armor and
+  resistances. Willpower above 100 counts as 100. It also affects your ability to cast spells.
 
 ## Weapon skills
 
