@@ -3,6 +3,7 @@
 // The owner asked for a feeling rather than a number (beginner, weak, moderate, very hard, legendary), coming only
 // from the place's level, never its type. Levels are percentile ranks 1 to 30, so equal six-level bands give each
 // word a fifth of all dungeons; the ranges and the measured shares are in work/notes/20261124-002814.md.
+// A town shows its town level (owner, 2026-11-26: the higher of its terrain level and its class level).
 
 using System.Collections.Generic;
 using DaggerfallConnect;
