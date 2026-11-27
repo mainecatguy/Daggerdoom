@@ -47,7 +47,8 @@ class DoomerfallAmmoTiers : StaticEventHandler
 			loadedType = f.Size() > 1 ? f[1].ToInt() : -1;
 			loadedTags = f.Size() > 2 ? f[2] : "";
 			if (loadedTier < 0 || loadedTier >= TIERCOUNT || loadedType < 0 || loadedType >= AMMOICONS.Size()) loadedTier = -1;
-			DDLog.Debug(String.Format("Doomerfall: loaded ammo %s", loadedTier < 0 ? "none" : AmmoName(loadedType, loadedTier)));
+			loadedName = loadedTier < 0 ? "" : AmmoName(loadedType, loadedTier);
+			DDLog.Debug(String.Format("Doomerfall: loaded ammo %s", loadedTier < 0 ? "none" : loadedName));
 		}
 		else if (e.Name.Left(11) == "dfa_reload:" && consoleplayer >= 0)
 		{
@@ -130,7 +131,7 @@ class DoomerfallAmmoTiers : StaticEventHandler
 		return cls ? GetDefaultByType(cls).GetTag() : "";
 	}
 	int loadedTier, loadedType;
-	String loadedTags;
+	String loadedTags, loadedName;
 
 	override void RenderOverlay(RenderEvent e)
 	{
@@ -140,7 +141,7 @@ class DoomerfallAmmoTiers : StaticEventHandler
 		int scale = DoomerfallText.Scale();
 		int fh = SmallFont.GetHeight() * scale;
 		int bottom = min(StatusBar.GetTopOfStatusBar(), int(Screen.GetHeight() * 0.85)) - fh * 3; // Above "Sneaking".
-		String text = AmmoName(loadedType, loadedTier);
+		String text = loadedName;
 		int textW = SmallFont.StringWidth(text) * scale;
 		int x = Screen.GetWidth() * 3 / 4;
 		TextureID icon = TexMan.CheckForTexture(AMMOICONS[loadedType], TexMan.Type_Sprite);
