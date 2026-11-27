@@ -130,6 +130,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
             SessionActive = true;
             WorldLevel.CurrentPlaceProvider = DoomerfallDrops.CurrentWorldLevel;   // the world scales to area level, never the player
+            WorldLevel.BuildingProvider = building => DoomerfallShopShelves.LayoutLevel(building, Log);   // interior loot piles roll at the building's level
             WorldLevel.DangerProvider = DoomerfallDrops.CurrentDangerLevel;   // enemies indoors keep the place's danger, not the building's wealth
             WorldLevel.DungeonProvider = DoomerfallDrops.DungeonWorldLevel;
             WorldLevel.ShopProvider = building => DoomerfallShopShelves.Level(building, Log);   // shelves roll at the shop's level
@@ -511,6 +512,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             SessionActive = false;
             WorldLevel.CurrentPlaceProvider = null;
+            WorldLevel.BuildingProvider = null;
             WorldLevel.DangerProvider = null;
             WorldLevel.DungeonProvider = null;
             WorldLevel.ShopProvider = null;

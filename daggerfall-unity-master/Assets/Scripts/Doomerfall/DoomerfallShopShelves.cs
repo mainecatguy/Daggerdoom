@@ -16,6 +16,17 @@ namespace DaggerfallWorkshop.Game.Doomerfall
     {
         internal static int Level(PlayerGPS.DiscoveredBuilding building, Action<string> log)
         {
+            return Lookup(building, log, false);
+        }
+
+        /// <summary>WorldLevel.BuildingProvider: the level an interior is laid out at (its loot piles), from DoomerfallShopLevels.ForBuilding.</summary>
+        internal static int LayoutLevel(PlayerGPS.DiscoveredBuilding building, Action<string> log)
+        {
+            return Lookup(building, log, true);
+        }
+
+        static int Lookup(PlayerGPS.DiscoveredBuilding building, Action<string> log, bool layout)
+        {
             int level = 0;
             string where = "no building directory";
             BuildingDirectory directory = GameManager.HasInstance && GameManager.Instance.StreamingWorld != null
@@ -23,14 +34,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             BuildingSummary summary;
             if (directory && directory.GetBuildingSummary(building.buildingKey, out summary))
             {
-                level = DoomerfallShopLevels.ForShop(directory.LocationData, summary);
+                level = layout ? DoomerfallShopLevels.ForBuilding(directory.LocationData, summary) : DoomerfallShopLevels.ForShop(directory.LocationData, summary);
                 where = string.Format("{0} / {1}", directory.LocationData.RegionName, directory.LocationData.Name);
             }
             else if (directory)
                 where = "building " + building.buildingKey + " not in directory";
             if (log != null)
-                log(string.Format("shop restock: {0} ({1}, quality {2}) in {3} at shop level {4}{5}", building.displayName,
-                    building.buildingType, building.quality, where, level, level > 0 ? "" : " (area level used)"));
+                log(string.Format("{0}: {1} ({2}, quality {3}, faction {4}) in {5} at {6} level {7}{8}", layout ? "interior layout" : "shop restock",
+                    building.displayName, building.buildingType, building.quality, building.factionID, where, layout ? "building" : "shop", level,
+                    level > 0 ? "" : " (area level used)"));
             return level;
         }
     }

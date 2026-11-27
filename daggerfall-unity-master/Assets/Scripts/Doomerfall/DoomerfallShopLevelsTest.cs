@@ -112,7 +112,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             StringBuilder shops = new StringBuilder("map_id,type,name_seed,quality,level\n");
             int[] bandMin = { 99, 99, 99, 99, 99 }, bandMax = new int[5];
             List<int[]> all = new List<int[]>();
-            int total = 0, fallbackSame = 0, zero = 0, shopSame = 0, others = 0;
+            int total = 0, fallbackSame = 0, zero = 0, shopSame = 0, others = 0, castles = 0, castlesZero = 0;
             StringBuilder buildings = new StringBuilder("map_id,type,name_seed,quality,town_class,faction,level\n");
             for (int region = 0; region < reader.MapFileReader.RegionCount; region++)
             {
@@ -128,7 +128,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         continue;
                     foreach (BuildingSummary b in Summaries(location))
                     {
-                        if (DoomerfallShopLevels.TestHasQualityLevel(b.BuildingType))
+                        if (DoomerfallShopLevels.TestHasQualityLevel(b.BuildingType) && type == DFRegion.LocationTypes.DungeonKeep)
+                        {
+                            castles++;
+                            if (DoomerfallShopLevels.ForBuilding(location, b) == 0) castlesZero++;
+                        }
+                        else if (DoomerfallShopLevels.TestHasQualityLevel(b.BuildingType))
                             buildings.AppendFormat("{0},{1},{2},{3},{4},{5},{6}\n", location.MapTableData.MapId, (int)b.BuildingType, b.NameSeed,
                                 b.Quality, DoomerfallShopLevels.TestTownClass(location), b.FactionId, DoomerfallShopLevels.ForBuilding(location, b));
                         else if (!RMBLayout.IsShop(b.BuildingType) && DoomerfallShopLevels.ForBuilding(location, b) != 0)
@@ -159,6 +164,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             report.AppendFormat("contract: {0} shops below the top level of the band beneath\n", broken);
             report.AppendFormat("fallback on every shop: {0} of {1} land on their own level\n", fallbackSame, total);
             report.AppendFormat("ForBuilding on every shop: {0} of {1} give the shop level; other buildings with a level: {2}\n", shopSame, total, others);
+            report.AppendFormat("houses and guild halls outside towns (castles): {0}, {1} keep the area level (ForBuilding 0)\n", castles, castlesZero);
         }
 
         // Some name forms read the player's position, and there is no player in this test.

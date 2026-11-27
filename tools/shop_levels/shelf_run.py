@@ -190,7 +190,7 @@ def run(name, building, rates, stock_mods, building_levels=False, nth=0):
         if re.match(r"ND[A-Z]+ ", line) or any(k in line for k in FATAL):
             print(line[:190])
     for line in read(df_log).splitlines():
-        if re.search(r"shop restock:|shoplevelrates:|shoptest: (Weapon|General|window|bought)|error", line):
+        if re.search(r"shop restock:|interior layout:|shoplevelrates:|shoptest: (Weapon|General|window|bought)|error", line):
             print("df", line[:300])
     for line in read(runs / "buildings.log").splitlines():
         print("df", line[:300])

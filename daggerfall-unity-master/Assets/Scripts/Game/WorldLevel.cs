@@ -75,6 +75,16 @@ namespace DaggerfallWorkshop.Game
             return new Scope(level);
         }
 
+        /// <summary>Doomerfall sets this in a bridge session: the level of a building being entered (shop, or a house or guild hall in a town), or 0 for the area level.</summary>
+        public static Func<PlayerGPS.DiscoveredBuilding, int> BuildingProvider;
+
+        /// <summary>Scope for laying out a building's interior before the player is inside it. Does nothing outside Doomerfall.</summary>
+        public static Scope ForBuilding(in PlayerGPS.DiscoveredBuilding building)
+        {
+            int level = BuildingProvider != null ? BuildingProvider(building) : 0;
+            return new Scope(level);
+        }
+
         /// <summary>World rolls inside this scope use the given level. A level of 0 or less leaves Current as it was.</summary>
         public struct Scope : IDisposable
         {

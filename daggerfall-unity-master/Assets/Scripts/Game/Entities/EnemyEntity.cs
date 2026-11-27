@@ -335,7 +335,8 @@ namespace DaggerfallWorkshop.Game.Entity
             try
             {
             // Generate loot table items
-            DaggerfallLoot.GenerateItems(mobileEnemy.LootTableKey, items);
+            using (new WorldLevel.Scope(WorldLevel.Danger))   // Doomerfall: enemy loot at the danger level, never a building's wealth
+                DaggerfallLoot.GenerateItems(mobileEnemy.LootTableKey, items);
 
             // Enemy classes and some monsters use equipment
             if (careerIndex == (int)MonsterCareers.Orc || careerIndex == (int)MonsterCareers.OrcShaman)

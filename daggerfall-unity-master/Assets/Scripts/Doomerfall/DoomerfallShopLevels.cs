@@ -102,15 +102,18 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         /// <summary>
         /// Level of the building the player can be inside: a shop's level (ForShop), or for a house, a house for sale
-        /// or a guild hall the level its own quality gets through the shop bands (the owner's H2, 2026-11-26), never
-        /// from town size. 0 for any other building (the area level applies there) or if the table could not be built.
+        /// or a guild hall in a town the level its own quality gets through the shop bands (the owner's H2, 2026-11-26),
+        /// never from town size. 0 for any other building or place (the area level applies there) or if the table
+        /// could not be built.
         /// </summary>
         internal static int ForBuilding(in DFLocation location, in BuildingSummary building)
         {
             if (RMBLayout.IsShop(building.BuildingType))
                 return ForShop(location, building);
-            if (!HasQualityLevel(building.BuildingType))
-                return 0;
+            DFRegion.LocationTypes ltype = location.MapTableData.LocationType;
+            if (!HasQualityLevel(building.BuildingType) || (ltype != DFRegion.LocationTypes.TownCity
+                && ltype != DFRegion.LocationTypes.TownHamlet && ltype != DFRegion.LocationTypes.TownVillage))
+                return 0;   // farms, manors and other places outside towns keep the area level (owner not asked yet)
             Table t = Ready();
             if (t == null)
                 return 0;
