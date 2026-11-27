@@ -1,5 +1,5 @@
-"""Builds this worktree's UZDoom, bridge DLL and launcher (Release), in build folders already configured from this lane's
-worktree, so the build is incremental.
+"""Builds this worktree's UZDoom, bridge DLL and launcher (Release), in build folders of its own (UZDoom reuses a tree
+configured from this lane's worktree, so its build is incremental).
 
 The transport card changes the bridge schema (DFB_UI_TRANSPORT) and dd_bridge.cpp.
 usage: build_native.py [uzdoom] [bridge] [launcher]
@@ -10,7 +10,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 BUILD = Path(r"D:\dev\DoomDaggerfall-build")
-TARGETS = {"uzdoom": ("UZDoom", "uzdoom-dungeonrt"), "bridge": ("bridge", "bridge-statuskey"), "launcher": ("launcher", "launcher-statuskey")}
+TARGETS = {"uzdoom": ("UZDoom", "uzdoom-dungeonrt"), "bridge": ("bridge", "bridge-transport"), "launcher": ("launcher", "launcher-transport")}
 log = BUILD / "transport-native.log"
 with open(log, "a") as out:
     for target in sys.argv[1:] or list(TARGETS):

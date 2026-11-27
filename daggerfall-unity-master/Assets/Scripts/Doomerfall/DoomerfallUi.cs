@@ -238,6 +238,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             instance = this;
             onReadback = OnReadback;
             DaggerfallTravelPopUp.OnPostFastTravel += OnPostFastTravel;
+            TransportManager.OnTransportModeChanged += OnTransportModeChanged;
             StartCoroutine(CaptureLoop());
         }
 
@@ -407,8 +408,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 }
                 if ((doomContext & Dfb.TRANSPORT_AIRBORNE) != 0)
                 {
-                    bridge.LogLine("ui: transport refused, Doom's player is not on the ground"); // Daggerfall says nothing either.
-                    Finish(Dfb.UI_REASON_REFUSED);
+                    // Daggerfall says nothing, so the menu closes as answered: a refusal would make Doom print a line.
+                    bridge.LogLine("ui: transport refused, Doom's player is not on the ground");
+                    Finish(Dfb.UI_REASON_RESULT);
                     return;
                 }
             }
@@ -548,18 +550,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return true;
         }
 
-        /// <summary>Boarding the ship from the transport menu. Daggerfall's boarding teleports its world to the ship's map
-        /// pixel without a fast travel, so Doom would stay where it is. Until Doom can follow it, the ship stays where
-        /// it is in a bridge session, and says so. Horse, cart and foot are kept as in Daggerfall.</summary>
-        public static bool HoldsShip()
-        {
-            if (!instance)
-                return false;
-            DaggerfallUI.MessageBox("You cannot board your ship yet.");
-            instance.bridge.LogLine("ui: ship boarding held, Doom cannot follow the ship teleport yet");
-            return true;
-        }
-
         /// <summary>Daggerfall refused its spellbook from inside a Doom menu (the character sheet's Spellbook button) with a
         /// line on its hidden HUD, so the same line shows in the menu.</summary>
         public static void NoSpellbook(string text)
@@ -677,6 +667,19 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             if (openId == 0 || !showingTravelMap)
                 return;
+            BeginArrival("travelled");
+        }
+
+        // The transport menu's Ship row: Daggerfall teleports its world to the ship, or back to where the player boarded,
+        // with no fast travel. Doom follows it as it follows a fast travel.
+        void OnTransportModeChanged(TransportModes newMode, TransportModes previousMode)
+        {
+            if (openId == Dfb.UI_TRANSPORT && newMode == TransportModes.Ship)
+                BeginArrival("boarded or left the ship");
+        }
+
+        void BeginArrival(string how)
+        {
             GameManager game = GameManager.Instance;
             StreamingWorld world = game.StreamingWorld;
             travelArriving = true;
@@ -686,7 +689,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             // Placement only sets this when a location has a facing to give. Otherwise the player keeps Doom's.
             game.PlayerMouseLook.Yaw = game.PlayerObject.transform.eulerAngles.y;
             bridge.PositionSync.BeginTravelHold(world.MapPixelX, world.MapPixelY);
-            LogWorldState("travelled");
+            LogWorldState(how);
         }
 
         void FinishTravel()
@@ -810,6 +813,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         void OnDestroy()
         {
             DaggerfallTravelPopUp.OnPostFastTravel -= OnPostFastTravel;
+            TransportManager.OnTransportModeChanged -= OnTransportModeChanged;
             DoomerfallInput.End();
             if (scaled)
                 scaled.Release();

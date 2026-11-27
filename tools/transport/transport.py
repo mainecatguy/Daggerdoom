@@ -7,8 +7,8 @@ small ship ("none": takes them away) and logs the top window, the transport mode
 and the transport panel. Doom's -dfuitest opens the menu through the command the key is bound to (netevent
 df_transport); every click after that is a real window message through Doom's window.
 run owned: the menu opens with horse, cart and ship available; Horse rides and closes the menu, and the mode stays Horse
-  while Doom runs; Cart switches to the cart; Ship shows a message and does not move the player (Doom cannot follow
-  the ship teleport yet); Exit closes; Foot gets off.
+  while Doom runs; Cart switches to the cart; Ship takes the player to the ship and Doom follows; Ship again
+  takes them back where they boarded; Foot gets off.
 run none: the menu opens with nothing owned; the Horse row does nothing; Exit closes it, still on foot.
 check: DOOM.WAD E1M1 with no bridge, stock and with the DRLA set, plus the new event doing nothing there, and -norun.
 """
@@ -32,8 +32,8 @@ SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\runtime-dungeons")  # Data, co
 BUILD = Path(r"D:\dev\DoomDaggerfall-build")
 UZ_BUILD = BUILD / "uzdoom-dungeonrt" / "Release"  # Configured from this worktree (tools/transport/build_native.py).
 SOUND = BUILD / "uzdoom-launcher" / "Release"
-BRIDGE_DLL = BUILD / "bridge-statuskey" / "Release" / "doomerfall_bridge.dll"
-LAUNCHER = BUILD / "launcher-statuskey" / "Release" / "doomerfall-launcher.exe"
+BRIDGE_DLL = BUILD / "bridge-transport" / "Release" / "doomerfall_bridge.dll"
+LAUNCHER = BUILD / "launcher-transport" / "Release" / "doomerfall-launcher.exe"
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
 MODS = GAME.parent / "GameMods"
@@ -90,7 +90,7 @@ def write_demo():
         "rem Transport menu. Starts outside Privateer's Hold with DRLA. A second after the game starts, a test hook gives you a horse,\r\n"
         "rem a cart and a small ship. Press T to open Daggerfall's transport menu (T, Escape or Exit closes it). Pick Horse or Cart:\r\n"
         "rem Daggerfall keeps the choice (press T again to see it, or P then check after a save and load). Doom's movement does not\r\n"
-        "rem change yet. Ship says you cannot board it yet. Indoors, T says you cannot change transportation indoors.\r\n"
+        "rem change yet. Ship takes you to your ship, and Ship again takes you back. Indoors, T says you cannot change transportation indoors.\r\n"
         "rem Rebind the key in Options, Customize Controls, Doomerfall Controls, as Open Transport.\r\n"
         "set \"HERE=%~dp0\"\r\n"
         "if not exist \"%HERE%play\" mkdir \"%HERE%play\"\r\n"
@@ -160,7 +160,7 @@ class Run:
     def go(self):
         for path in (self.uz_log, self.df_log, self.console, self.launcher, self.views):
             path.unlink(missing_ok=True)
-        opens = {"owned": 4, "none": 1}[self.mode]
+        opens = {"owned": 5, "none": 1}[self.mode]
         uz = ["-noactivate", "-config", str(self.dir / "uz.ini"), "-savedir", str(self.dir / "saves"), "-dfbridgelog", str(self.uz_log), "-nosound", "-noautoload", "-skill", "3",
               "-ddtowncache", str(REVIEW / "data" / "cache"), "-ddconverter", str(REVIEW / "data" / "converter" / "DungeonConverter.exe"), "-ddarena2", str(GAME / "DAGGER" / "ARENA2"),
               "-dfuitest", str(opens), "+dd_ui_test_menu", str(MENU), *BINDS, "+logfile", "transport", "+screenshot_dir", str(self.dir / "shots"), "+vid_fullscreen", "0", "+wipetype", "0",
@@ -253,25 +253,30 @@ class Run:
         ok, reasons = self.closed(2)
         s = self.state()
         self.case(ok and s and s["mode"] == "Cart", f"Cart sets the mode to Cart and closes the menu (mode {s and s['mode']}, {reasons})")
-        # The ship: Daggerfall would teleport its world to the ship, which Doom cannot follow yet.
-        if not self.open(3):
-            self.case(False, "the transport menu opened a third time")
-            return
-        before = self.state()
-        self.doom().click(self.row("ship"))
-        box = self.top_is("DaggerfallMessageBox") and self.wait(self.df_log, r"ship boarding held", 3)
-        time.sleep(1.5)
-        after = self.state()
-        self.case(box and after and after["pixel"] == before["pixel"] and after["mode"] == "Cart" and self.count(self.uz_log, r"ui: closed \(") == 2 and "travel:" not in read(self.df_log),
-                  f"Ship shows a message and does not move the player (pixel {before['pixel']} -> {after and after['pixel']}, mode {after and after['mode']}, menu still open)")
-        doom = self.doom()
-        doom.click(MESSAGE_CLICK)
-        self.case(self.top_is("DaggerfallTransportWindow"), "a click closes the message, back to the transport menu")
-        doom.click(self.row("exit"))
-        ok, reasons = self.closed(3)
-        s = self.state()
-        self.case(ok and s and s["mode"] == "Cart", f"Exit closes the menu and keeps the cart (mode {s and s['mode']}, {reasons})")
-        self.choose(4, "foot", "Foot")
+        # The ship: Daggerfall teleports its world to the ship (small ship: map pixel 2,2) and Doom follows, as after a
+        # fast travel; the second use takes the player back to where they boarded.
+        self.choose(3, "foot", "Foot")
+        before = None
+        for n, where, label in ((4, "2,2", "boards the ship"), (5, None, "leaves the ship, back where they boarded")):
+            if not self.open(n):
+                self.case(False, f"the transport menu opened (open {n})")
+                return
+            s = self.state()
+            before = before or s["pixel"]
+            arrivals = self.count(self.df_log, r"travel: arrived at world")
+            self.doom().click(self.row("ship"))
+            arrived = self.wait_count(self.df_log, r"travel: arrived at world", arrivals + 1, 40)
+            placed = self.wait_count(self.uz_log, r"travel: Daggerfall placed the player[^\n]*loading", arrivals + 1, 10)
+            ok, reasons = self.closed(n)
+            want = where or before
+            pixel = re.findall(r"travel: arrived at world \S+ pixel (\d+,\d+)", read(self.df_log))
+            time.sleep(8)  # Doom loads the place; a fatal error would show in its console.
+            fatal = any(k in read(self.console) for k in FATAL)
+            s = self.state()
+            self.case(arrived and placed and ok and pixel and pixel[-1] == want and not fatal and s and s["pixel"] == want and s["mode"] == "Foot",
+                      f"Ship {label}: Daggerfall arrives at pixel {pixel[-1:] or '?'} (want {want}), Doom follows ({'loading' if placed else 'no travel'}), fatal {fatal}, mode {s and s['mode']}, {reasons[-1:]}")
+            if not (arrived and placed):
+                return
 
     def none(self):
         if not self.open(1):

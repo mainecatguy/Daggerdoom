@@ -246,7 +246,6 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
 
         private void ShipButton_OnMouseClick(BaseScreenComponent sender, Vector2 position) {
             // Teleport to your ship, or back.
-            if (Doomerfall.DoomerfallUi.HoldsShip()) return; // Doomerfall: Doom cannot follow the ship teleport yet
             GameManager.Instance.TransportManager.TransportMode = TransportModes.Ship;
             CloseWindow();
         }
@@ -256,7 +255,6 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             if (keyboardEvent.type == EventType.KeyUp)
             {
                 // Teleport to your ship, or back.
-                if (Doomerfall.DoomerfallUi.HoldsShip()) return; // Doomerfall: Doom cannot follow the ship teleport yet
                 GameManager.Instance.TransportManager.TransportMode = TransportModes.Ship;
                 CloseWindow();
             }

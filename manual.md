@@ -327,7 +327,8 @@ closes it.
 - It lists what you own as in Daggerfall: Horse, Cart and Ship are greyed out until you buy one.
 - Choosing **Foot**, **Horse** or **Cart** works as in Daggerfall, and Daggerfall keeps the choice, in saves too.
   **Riding does not change how you move in Doom yet**, and Doom shows no horse or cart.
-- **You cannot board your ship yet.** Choosing Ship says so and does nothing else.
+- **Ship** works as in Daggerfall: it takes you to your ship, and choosing it again on board takes you back to where
+  you boarded.
 - You can only open it outdoors, standing on the ground. Indoors you are told you cannot change transportation.
 
 ## Locked doors
