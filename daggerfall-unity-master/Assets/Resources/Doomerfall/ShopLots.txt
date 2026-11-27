@@ -13,7 +13,7 @@ lot regular   core=1 WeaponSmith=64 Armorer=64 GeneralStore=72 Alchemist=85 Book
 lot estate    core=3 WeaponSmith=8  Armorer=8  GeneralStore=6  PawnShop=40
 lot salvage   core=2 WeaponSmith=6  Armorer=6  PawnShop=25
 lot caravan   core=3 WeaponSmith=12 Armorer=12 GeneralStore=10 Alchemist=15 Bookseller=15 ClothingStore=15 GemStore=15
-lot bulk      core=6 WeaponSmith=10 Armorer=10 GeneralStore=8
+lot bulk      core=4 WeaponSmith=10 Armorer=10 GeneralStore=8
 lot townsfolk core=1 GeneralStore=4 PawnShop=35
 
 # At most this many lots arrive on one shelf in one day.
@@ -61,7 +61,7 @@ province HighRock regions=Alcaire,Anticlere,Betony,Bhoriane,Daenia,Daggerfall,Dw
 # Bulk lot: many identical items (one template, one material roll), as for an army being outfitted.
 # stack=1 makes one stack of count (arrows); otherwise count separate items.
 bulk arrows   shops=WeaponSmith,GeneralStore count=30-50 stack=1 items=Weapons:Arrow
-bulk crate    shops=WeaponSmith,Armorer count=6-10 items=Weapons:Dagger,Weapons:Shortsword,Weapons:Broadsword,Weapons:Longsword,Weapons:Mace,Weapons:War_Axe,Weapons:Short_Bow
+bulk crate    shops=WeaponSmith,Armorer count=6-10 items=Weapons:Dagger,Weapons:Shortsword,Weapons:Broadsword,Weapons:Longsword,Weapons:Mace,Weapons:War_Axe
 bulk helms    shops=Armorer,WeaponSmith count=6-8 items=Armor:Helm,Armor:Buckler,Armor:Round_Shield
 bulk supplies shops=GeneralStore count=6-10 items=UselessItems2:Torch,UselessItems2:Candle,UselessItems2:*
 

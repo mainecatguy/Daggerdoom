@@ -17,6 +17,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             DoomerfallShopLevelRatesTest.Attach(owner);   // -dfshoplevelrates
             DoomerfallShopLedgerTest.Attach(owner);       // -dfshopledgertest
+            DoomerfallShopLotsTest.Attach(owner);         // -dfshoplotstest
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfshoptest") >= 0)
                 owner.gameObject.AddComponent<DoomerfallShopStockTest>().bridge = owner;
         }

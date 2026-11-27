@@ -5,8 +5,8 @@
 // item and material code: regular supply (Daggerfall's classic delivery for the shop, plus Doom guns when guns are
 // enabled), estate sale (one dead adventurer's kit, one material roll, worn), salvage (mixed gear, worn), caravan
 // (another province's goods by item kind), bulk (many identical items) and townsfolk (one odd item). Pawn shops take
-// only estate, salvage and townsfolk lots. A lot is never split below its core, so a shelf may go over its share by
-// less than one lot; items past the core are dropped when the shelf is full.
+// only estate, salvage and townsfolk lots. An ordinary lot arrives only when the shelf has room for its core (the items
+// that make it read as itself); items past the room are dropped. Only a rare exception shipment may go over the share.
 //
 // Rare exceptions: each building's days are cut into windows; a window is an exception window with a small fixed
 // chance computed from (location, building, window) alone, so it is the same in every game and never depends on the
@@ -37,6 +37,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         internal static bool GunsEnabled = true;
         /// <summary>The Doom weapon set the loaded mods use, as WeaponValues.txt names it. DRLA is the project's mod set.</summary>
         internal static string GunSet = "DRLA";
+        /// <summary>False only in the ledger's stock-size test, which measures ordinary deliveries.</summary>
+        internal static bool ExceptionsEnabled = true;
         /// <summary>Sees every lot put on a shelf (null in play).</summary>
         internal static Action<Lot> Observer;
 
@@ -172,7 +174,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         static int Add(ItemCollection shelf, Lot lot, int room, PlayerGPS.DiscoveredBuilding building, int day, int shelfIndex, StringBuilder summary)
         {
-            if (lot.items.Count == 0 || room <= 0)
+            // An ordinary lot arrives only when its core fits; items past the room are dropped. An exception shipment
+            // arrives whole up to its core even on a full shelf (a rare, visible break; sell-off brings it back down).
+            if (lot.items.Count == 0 || room <= 0 || (!lot.exception && room < Mathf.Min(lot.core, lot.items.Count)))
                 return 0;
             int n = Mathf.Min(lot.items.Count, Mathf.Max(room, lot.core));
             lot.items.RemoveRange(n, lot.items.Count - n);
@@ -357,6 +361,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         static Rec ExceptionFor(int location, int buildingKey, DFLocation.BuildingTypes type, int day, Place place)
         {
             Load();
+            if (!ExceptionsEnabled)
+                return null;
             int window = Floor(day, WindowDays);
             uint h = Hash(location, buildingKey, window, 0x5EED);
             if ((h & 0xFFFF) / 65536f >= ExceptionShare)

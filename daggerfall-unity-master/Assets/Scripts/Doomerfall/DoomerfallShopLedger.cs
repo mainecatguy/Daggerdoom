@@ -5,7 +5,8 @@
 //   1. Every item on the shelf is "sold to other customers" with a fixed chance per day from its unit value
 //      (SellChance): cheap goods leave in days, Daedric goods linger for months. Nothing else removes items.
 //   2. If the shelf is below its share of the building's stock (StockTarget from the shop level, split over the
-//      building's shelves), one classic delivery is rolled and items from it are added until the share is full.
+//      building's shelves), lots arrive until the share is full (DoomerfallShopLots, Shops 7; the classic delivery
+//      is the regular-supply lot).
 //      Doom ammo and the horse and cart do not count against the share. Doom ammo restocks every day (it sells fast),
 //      as one delivery per building on its first shelf, outside the stock target. A general store's one horse and one
 //      cart are kept on the first shelf as well.
@@ -44,12 +45,18 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bool recorded = DoomerfallItems.RecordShelf(shelf);   // the Doom item ledger owns shelf state across re-entry, save, and load
             DoomerfallBridge bridge = Object.FindObjectOfType<DoomerfallBridge>();
             if (bridge)
-                bridge.LogLine(string.Format("shop ledger: shelf {0} of {1} restocked from {2} to {3} items{4}", index, shelves.Count, before, shelf.Items.Count, recorded ? " (recorded)" : " (not recorded)"));
+                bridge.LogLine(string.Format("shop ledger: shelf {0} of {1} restocked from {2} to {3} items{4}; today's lots:{5}", index, shelves.Count, before, shelf.Items.Count, recorded ? " (recorded)" : " (not recorded)", LastLots.Length > 0 ? LastLots : " none"));
             return true;
         }
 
-        internal static void Restock(DaggerfallLoot shelf, PlayerGPS.DiscoveredBuilding building, int location, int shelfIndex, int shelfCount, int today, int level)
+        /// <summary>The lots the last simulated day put on the shelf, for the log.</summary>
+        internal static string LastLots = "";
+
+        internal static void Restock(DaggerfallLoot shelf, PlayerGPS.DiscoveredBuilding building, int location, int shelfIndex, int shelfCount, int today, int level, DoomerfallShopLots.Place place = null)
         {
+            if (place == null)
+                place = DoomerfallShopLots.Place.Here();
+            LastLots = "";
             int last = shelf.stockedDate == 0 ? today - 1 : StampToDay(shelf.stockedDate);
             int periods = Mathf.Clamp(today - last, 0, MaxCatchUpDays);
             int share = Mathf.Max(1, (StockTarget(level) + shelfCount - 1) / shelfCount);
@@ -62,7 +69,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 {
                     Random.InitState(Seed(location, building.buildingKey, day, shelfIndex));
                     SellOff(shelf.Items);
-                    Deliver(shelf, building, share, shelfIndex == 0);
+                    LastLots = Deliver(shelf, building, share, shelfIndex, location, day, level, place);
                 }
             }
             finally
@@ -160,35 +167,27 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         // Doom ammo sits outside the stock target: the building gets one ammo delivery a day, on its first shelf
         // (takesAmmo), and the other shelves drop the ammo from their deliveries.
-        static void Deliver(DaggerfallLoot shelf, PlayerGPS.DiscoveredBuilding building, int share, bool takesAmmo)
+        // The classic delivery is always rolled: its Doom ammo and the horse and cart go on the first shelf, and its other
+        // goods are the regular-supply lot that DoomerfallShopLots.Fill draws from (Shops 7 lots).
+        static string Deliver(DaggerfallLoot shelf, PlayerGPS.DiscoveredBuilding building, int share, int shelfIndex, int location, int day, int level, DoomerfallShopLots.Place place)
         {
-            int stocked = Stocked(shelf.Items);
             ItemCollection delivery = new ItemCollection();
             shelf.AddShopDelivery(building, delivery);
             List<DaggerfallUnityItem> goods = new List<DaggerfallUnityItem>();
             for (int i = 0; i < delivery.Count; i++)
-                goods.Add(delivery.GetItem(i));
-            for (int i = goods.Count - 1; i > 0; i--)   // seeded shuffle, so a full shelf does not always skip the same groups
             {
-                int j = Random.Range(0, i + 1);
-                DaggerfallUnityItem t = goods[i]; goods[i] = goods[j]; goods[j] = t;
-            }
-            foreach (DaggerfallUnityItem item in goods)
-            {
+                DaggerfallUnityItem item = delivery.GetItem(i);
                 bool ammo = item is DoomerfallAmmoItem;
                 bool transport = item.ItemGroup == ItemGroups.Transportation;
-                if (transport && shelf.Items.Contains(item.ItemGroup, item.TemplateIndex))
-                    continue;   // one horse, one cart
-                if ((ammo || transport) && !takesAmmo)
-                    continue;   // the building's one horse and cart are on its first shelf too
                 if (!ammo && !transport)
-                {
-                    if (stocked >= share)
-                        continue;   // a general store always has its horse and cart, as in Daggerfall's classic restock
-                    stocked++;
-                }
-                shelf.Items.AddItem(item, ItemCollection.AddPosition.Back, !ammo);   // ammo joins a matching stack
+                    goods.Add(item);
+                else if (shelfIndex == 0 && !(transport && shelf.Items.Contains(item.ItemGroup, item.TemplateIndex)))
+                    shelf.Items.AddItem(item, ItemCollection.AddPosition.Back, !ammo);   // ammo joins a matching stack; one horse, one cart
             }
+            int room = share - Stocked(shelf.Items);
+            if (room <= 0)
+                return "";
+            return DoomerfallShopLots.Fill(shelf.Items, building, goods, room, shelfIndex, location, day, level, place);
         }
 
         static List<DaggerfallLoot> ShelvesHere()

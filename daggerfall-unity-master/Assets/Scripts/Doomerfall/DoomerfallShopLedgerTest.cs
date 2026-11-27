@@ -178,6 +178,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         void StockSize(int level, int quality, int count, int day0)
         {
             const int Days = 180, WarmUp = 30;
+            DoomerfallShopLots.ExceptionsEnabled = false;   // ordinary deliveries; the lots test surveys exceptions
             DaggerfallLoot[] shelves = MakeShelves(count);
             int target = DoomerfallShopLedger.StockTarget(level), cap = count * ((target + count - 1) / count);
             int min = int.MaxValue, max = 0, ammoMax = 0, lateArrivals = 0;
@@ -204,6 +205,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 }
             }
             Free(shelves);
+            DoomerfallShopLots.ExceptionsEnabled = true;
             int n = Days - WarmUp;
             bool pass = max <= cap && min >= target * 3 / 4 && lateArrivals > 0;
             Log(string.Format("{0} stock size: weapon smith level {1}, quality {2}, {3} shelves, target {4} (cap {5} with rounding): stocked goods per day {6}-{7}, mean {8:F1}; Doom ammo stacks (outside the target, first shelf) mean {9:F1}, max {10}; {11} new non-ammo items in the last 30 days",
