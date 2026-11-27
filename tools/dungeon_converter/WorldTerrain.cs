@@ -296,6 +296,26 @@ static class WorldTerrain
                 w.Write(large);
             }
         }
+        // DDNATURE: what the engine needs to lay out Daggerfall Unity's wilderness flats (DefaultTerrainNature) itself:
+        // each map pixel's climate (CLIMATE.PAK, rows from the north), then each nature archive's billboard scales.
+        using (var w = new BinaryWriter(File.Create(Path.Combine(outDir, "DDNATURE"))))
+        {
+            w.Write(Encoding.ASCII.GetBytes("DDN1"));
+            w.Write((ushort)WorldW); w.Write((ushort)WorldH);
+            for (int y = 0; y < WorldH; y++)
+                for (int x = 0; x < WorldW; x++)
+                    w.Write((byte)maps.GetClimateIndex(x, y));
+            w.Write((ushort)Program.NatureArchiveFirst); w.Write((ushort)Program.NatureArchiveCount); w.Write((ushort)Program.NatureRecords);
+            for (int archive = Program.NatureArchiveFirst; archive < Program.NatureArchiveFirst + Program.NatureArchiveCount; archive++)
+            {
+                var file = new TextureFile(Path.Combine(arena2, $"TEXTURE.{archive:D3}"), FileUsage.UseMemory, true);
+                for (int record = 0; record < Program.NatureRecords; record++)
+                {
+                    var (sx, sy) = record < file.RecordCount ? Program.NatureScale(file, record) : (0.0, 0.0);
+                    w.Write((float)sx); w.Write((float)sy);
+                }
+            }
+        }
         int noRect = 0;
         using (var w = new BinaryWriter(File.Create(Path.Combine(outDir, "DDLOCS"))))
         {

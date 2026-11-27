@@ -36,6 +36,7 @@
 #include "../../../bridge/doomerfall_bridge.h"
 #include "dd_treadmill.h"
 #include "dd_towncache.h"
+#include "dd_nature.h"
 #include "../dd_locations.h"
 #include "fs_files.h"
 #include "gi.h"
@@ -75,6 +76,7 @@ CVAR(Int, dd_tm_stitches, 0, CVAR_NOSAVE)
 CVAR(Int, dd_tm_nearest, -1, CVAR_NOSAVE)		// Nearest generated location group.
 CVAR(Int, dd_tm_neareststate, 0, CVAR_NOSAVE)	// Its DDTownCache::State.
 CVAR(Int, dd_tm_use, 0, CVAR_NOSAVE | CVAR_MOD)	// Test hook: one press of Use on a location door.
+CVAR(Bool, dd_natureflats, true, CVAR_NOSAVE)	// Wilderness nature flats; off for frame time comparisons. Applies to ground laid out after it changes.
 static int doorPressTic = -1;	// DDTreadmill_PressDoor. A press counts only on the next tic, in case no town door tick runs.
 CVAR(String, dd_tm_warp, "", CVAR_NOSAVE | CVAR_MOD)		// "tileX tileY": moves the player through the overworld handoff. The path fast travel can use.
 
@@ -577,6 +579,7 @@ namespace
 
 	// Records anything that vanished since the last check, such as a picked-up item.
 	DVector3 ToLocal(double x, double y, double z);
+	void SpawnNatureChunk(FLevelLocals *Level, int cx, int cy);	// [Doomerfall] nature flats, below
 
 	void Reconcile(FLevelLocals *Level)
 	{
@@ -1036,6 +1039,7 @@ namespace
 			{
 				BuildSeeds(p.cx, p.cy, p.seeds);
 				SpawnFlats(Level, p.cx, p.cy);
+				SpawnNatureChunk(Level, p.cx, p.cy);
 				auto b = buckets.find(ChunkKey(p.cx, p.cy));
 				if (b != buckets.end()) p.recs = b->second;
 				p.prepared = true;
@@ -1375,6 +1379,114 @@ namespace
 			DD_LightsTextureName(name, id->second);
 		}
 		return id->second;
+	}
+
+	//--------------------------------------------------------------------
+	// [Doomerfall] Wilderness nature flats (dd_nature.cpp). Client-side actors, so a save never holds them: each chunk of
+	// the overworld, and the ground around a generated town, gets its flats from the same rule whenever it is shown.
+	//--------------------------------------------------------------------
+	PClassActor *natureClass;
+	std::unordered_map<int, std::vector<DDNatureFlat>> natureCache;	// key north * WORLD_W + px
+	std::unordered_map<int64_t, std::vector<TObjPtr<AActor *>>> natureActors;	// by overworld chunk
+	std::vector<TObjPtr<AActor *>> townNature;
+	int natureSpawned;
+
+	const std::vector<DDNatureFlat> &NatureOf(int px, int north)
+	{
+		const int key = north * WORLD_W + px;
+		auto found = natureCache.find(key);
+		if (found != natureCache.end()) return found->second;
+		if (natureCache.size() >= 16) natureCache.clear();
+		static std::vector<float> raw;
+		const float *heights;
+		short rect[4];
+		bool hasRect = false;
+		auto loc = locRects.find(key);
+		if (loc != locRects.end())
+		{
+			heights = BlendedPixel(px, north, loc->second).data();
+			rect[0] = loc->second.x0; rect[1] = loc->second.x1; rect[2] = loc->second.y0; rect[3] = loc->second.y1;
+			hasRect = true;
+		}
+		else
+		{
+			raw.resize(size_t(PIXEL_TILES + 1) * (PIXEL_TILES + 1));
+			for (int x = 0; x <= PIXEL_TILES; x++)
+				for (int y = 0; y <= PIXEL_TILES; y++) raw[size_t(x) * (PIXEL_TILES + 1) + y] = RawHeight(px, north, x, y);
+			heights = raw.data();
+		}
+		std::vector<DDNatureFlat> &out = natureCache[key];
+		DDNature_Layout(px, north, heights, int(SmallAt(px, WORLD_H - 1 - north)), hasRect ? rect : nullptr, out);
+		return out;
+	}
+
+	// The flats whose tile corner lies in global tiles [gx0, gx1) x [gy0, gy1), and on the town's ground if one is given.
+	void SpawnNature(FLevelLocals *Level, int gx0, int gx1, int gy0, int gy1, const Town *town, std::vector<TObjPtr<AActor *>> &into)
+	{
+		if (!natureClass) natureClass = PClass::FindActor("DFNatureFlat");
+		if (!natureClass || !dd_natureflats || !DDNature_Load()) return;
+		const bool winter = DDTownCache::IsWinter();
+		for (int north = std::max(gy0 / PIXEL_TILES, 0); north <= std::min((gy1 - 1) / PIXEL_TILES, WORLD_H - 1); north++)
+			for (int px = std::max(gx0 / PIXEL_TILES, 0); px <= std::min((gx1 - 1) / PIXEL_TILES, WORLD_W - 1); px++)
+			{
+				const int archive = DDNature_Archive(px, north, winter);
+				FTextureID tex[32];
+				for (int r = 0; r < 32; r++) tex[r] = FlatTexture(FStringf("dfflat/F%03dR%02d.png", archive, r).GetChars());
+				for (const DDNatureFlat &f : NatureOf(px, north))
+				{
+					const int gx = px * PIXEL_TILES + f.x, gy = north * PIXEL_TILES + f.y;
+					if (gx < gx0 || gx >= gx1 || gy < gy0 || gy >= gy1 || (town && !town->Near(gx, gy, town->margin))) continue;
+					float sx, sy;
+					if (!tex[f.record].isValid() || !DDNature_Scale(archive, f.record, sx, sy)) continue;
+					const double z = (SampleVertex(gx, gy) + Z_BASE) / DOOM_PER_DF - f.sink;
+					AActor *mo = Spawn(Level, natureClass, ToLocal(gx * 256.0, gy * 256.0, z), NO_REPLACE);
+					if (!mo) continue;
+					mo->picnum = tex[f.record];
+					mo->Scale = DVector2(sx, sy);
+					into.emplace_back();
+					into.back() = mo;
+					natureSpawned++;
+				}
+			}
+	}
+
+	void SpawnNatureChunk(FLevelLocals *Level, int cx, int cy)
+	{
+		auto &into = natureActors[ChunkKey(cx, cy)];
+		if (into.empty()) SpawnNature(Level, cx * CHUNK_TILES, (cx + 1) * CHUNK_TILES, cy * CHUNK_TILES, (cy + 1) * CHUNK_TILES, nullptr, into);
+	}
+
+	// After a shift: flats in chunks that left the window go, and the rest move with it.
+	void ShiftNature(const DVector3 &delta)
+	{
+		for (auto it = natureActors.begin(); it != natureActors.end();)
+		{
+			const bool keep = ChunkInWindow(int(uint32_t(it->first)), int(it->first >> 32));
+			for (auto &ptr : it->second)
+			{
+				AActor *mo = ptr.Get();
+				if (!mo) continue;
+				if (!keep) { mo->Destroy(); continue; }
+				FLinkContext ctx;
+				mo->UnlinkFromWorld(&ctx);
+				mo->SetXYZ(mo->Pos() - delta);
+				mo->LinkToWorld(&ctx);
+				mo->Prev -= delta;
+			}
+			it = keep ? std::next(it) : natureActors.erase(it);
+		}
+	}
+
+	// A generated town's ground: the flats within its walkable margin.
+	void SpawnTownNature(FLevelLocals *Level, const Town &t)
+	{
+		townNature.clear();
+		if (t.space || t.rects.empty()) return;
+		int x0 = std::numeric_limits<int>::max(), x1 = std::numeric_limits<int>::min(), y0 = x0, y1 = x1;
+		for (const TileRect &r : t.rects) { x0 = std::min(x0, r.x0); x1 = std::max(x1, r.x1); y0 = std::min(y0, r.y0); y1 = std::max(y1, r.y1); }
+		natureSpawned = 0;
+		SpawnNature(Level, x0 - t.margin, x1 + t.margin, y0 - t.margin, y1 + t.margin, &t, townNature);
+		DD_DebugPrintf("DDNATURE town %s flats=%d\n", t.map.GetChars(), natureSpawned);
 	}
 
 	// Fresh entry to a generated location: its billboards and gates. Saves restore these as ordinary actors.
@@ -2050,6 +2162,7 @@ namespace
 		if (t.space) DD_DebugPrintf("DDTM place %s map %s %s: map items %d, replaced by rows %d, restored %d, missing classes %d\n", t.place.GetChars(), t.map.GetChars(),
 			firstVisit ? "first visit" : "revisit", mapItems, replaced, restored, missingClassCount);
 		if (t.group >= 0 || (t.space && t.spaceId < DUNGEON_SPACE)) SpawnTownContents(Level, t.space);
+		SpawnTownNature(Level, t);
 		FinishHandoff(Level);
 		if (FindArg("-ddtmverify")) VerifySeam(Level, t);
 		DD_DebugPrintf("DDTOWN active %s restored=%d records=%d\n", t.map.GetChars(), restored, int(table.size()));
@@ -2137,6 +2250,7 @@ namespace
 			useHeld = true;
 			PinHomeTown(towns[town]);
 			LoadTownDoors(towns[town]);
+			SpawnTownNature(Level, towns[town]);	// never saved, so laid out again
 			expected.clear();
 			auto it = Level->GetThinkerIterator<AActor>();
 			while (AActor *mo = it.Next())
@@ -2158,6 +2272,8 @@ namespace
 		while (AActor *mo = it.Next())
 			if (mo->ddRecordId && !IsOwned(mo)) ExpectLoaded(mo);
 		SettleActors(Level, false);
+		for (int cy = originY / CHUNK_TILES; cy < (originY + CELLS) / CHUNK_TILES; cy++)	// nature is never saved
+			for (int cx = originX / CHUNK_TILES; cx < (originX + CELLS) / CHUNK_TILES; cx++) SpawnNatureChunk(Level, cx, cy);
 		DDTreadmill_Active = true;
 		int drawn = 0;
 		for (auto &t : tris) drawn += t.sec->GetTexture(sector_t::floor) == baseFloor;
@@ -2702,6 +2818,8 @@ void DD_BodiesBeginMap(FLevelLocals *Level);
 void DDTreadmill_BeginMap(FLevelLocals *Level)
 {
 	DD_BodiesBeginMap(Level);	// monster movement width (dd_monsters.cpp)
+	natureActors.clear();	// [Doomerfall] the old map's nature flats went with it
+	townNature.clear();
 	DDTreadmill_WideNodes = false;
 	static const bool hasTowns = fileSystem.CheckNumForName("DDTOWN") >= 0 || fileSystem.CheckNumForName("DDGROUPS") >= 0;
 	if (!hasTowns || !Level->isPrimaryLevel()) return;
@@ -2710,6 +2828,7 @@ void DDTreadmill_BeginMap(FLevelLocals *Level)
 }
 
 bool DDTreadmill_RuntimeTowns() { return runtimeTowns; }
+const std::vector<DDNatureFlat> *DDTreadmill_NatureOf(int px, int north) { return DDNature_Load() && !smallMap.empty() ? &NatureOf(px, north) : nullptr; }	// dd_nature_dump
 // Where the player is, for Daggerfall's world look (dd_weather.cpp): 0 none, 1 exterior, 2 building interior, 3 dungeon.
 int DDTreadmill_Place() { return DDTreadmill_Active ? 1 : !townActive || currentTown < 0 ? 0 : !towns[currentTown].space ? 1 : towns[currentTown].spaceId < DUNGEON_SPACE ? 2 : 3; }
 bool DDTreadmill_OnDaggerfallMap() { return DDTreadmill_Active || townActive; }
@@ -2897,6 +3016,7 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 	RewriteGrid();	// Before the move, so actors find their floors on the new terrain.
 	const int64_t rewriteNs = NsSince(rewriteStart);
 	MoveActors(Level, DVector3(dx * double(SPACING), dy * double(SPACING), 0), oldX, oldY);
+	ShiftNature(DVector3(dx * double(SPACING), dy * double(SPACING), 0));
 	if (runtimeTowns)	// Billboards in a chunk that left were destroyed with it, so its next entry spawns them again.
 		for (auto it = flatSpawned.begin(); it != flatSpawned.end();)
 			it = ChunkInWindow(int(uint32_t(*it)), int(*it >> 32)) ? std::next(it) : flatSpawned.erase(it);

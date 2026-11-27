@@ -227,6 +227,8 @@ static partial class Program
             }
             flatArchives.Remove(199);
             npcArchives.Remove(199);
+            // Wilderness nature, which the engine lays out around every exterior (dd_nature.cpp).
+            flatArchives.UnionWith(Enumerable.Range(NatureArchiveFirst, NatureArchiveCount));
             // Townspeople: MobilePersonBillboard's walking and idle archives, drawn by Doom from Daggerfall's live list.
             var mobileArchives = new HashSet<int>(Enumerable.Range(381, 19).Concat(Enumerable.Range(451, 6)));
             flatArchives.UnionWith(mobileArchives);
@@ -303,6 +305,14 @@ class DFCityFlat : Actor
 
 // A Daggerfall NPC. It blocks nothing and takes no damage. args[0] and args[1] hold the low and high halves of its id.
 class DFNpc : DFCityFlat {}
+
+// Wilderness nature (trees, rocks, plants), laid out by the engine as Daggerfall Unity does. Client-side, so it is never
+// saved: the same flats come back from the same rule on every visit.
+class DFNatureFlat : Actor
+{
+	Default { +CLIENTSIDE +NOINTERACTION +NOBLOCKMAP +NOGRAVITY +DONTSPLASH +NOTONAUTOMAP Radius 1; Height 1; }
+	States { Spawn: PLAY A -1; Stop; }
+}
 
 // A townsperson Daggerfall generated. The engine moves it from Daggerfall's list; ddRecordId holds its id.
 class DFTownsperson : DFCityFlat {}

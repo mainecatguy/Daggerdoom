@@ -24,6 +24,11 @@ static partial class Program
     static string FlatTextureName(int archive, int record, int frame = 0) => $"dfflat/a{archive:D3}r{record:D2}{(frame > 0 ? $"_f{frame}" : "")}.png";
     static string ModelTextureName(int archive, int record, int frame = 0) => $"dfmesh/a{archive:D3}r{record:D2}{(frame > 0 ? $"_f{frame}" : "")}.png";
 
+    // Daggerfall Unity's wilderness nature archives (Nature_RainForest 500 .. Nature_Mountains_Snow 511). DefaultTerrainNature
+    // picks records 1-31.
+    public const int NatureArchiveFirst = 500, NatureArchiveCount = 12, NatureRecords = 32;
+    public static (double x, double y) NatureScale(TextureFile file, int record) => BillboardScale(file, record);
+
     // MeshReader.GetBillboardMesh: each axis grows by a truncated fraction of its pixel size.
     static (double x, double y) BillboardScale(TextureFile file, int record)
     {
