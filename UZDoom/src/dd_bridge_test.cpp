@@ -476,6 +476,7 @@ void DD_BridgeTestFrame(int64_t now)
 {
 	if (!parsed) Parse();
 	DD_ArrivalTestFrame(now); // -dfsetuptest, -dffreezetest (dd_arrival_test.cpp)
+	DD_LoadingTestFrame(now); // -ddloadingtest (dd_loading_test.cpp)
 	if (!testPause && !hpTestMode && !saveTestFile && !difficultyTest && !loadTestMode) return;
 	DD_BridgeTestView(v);
 	RunSaveTest(now);

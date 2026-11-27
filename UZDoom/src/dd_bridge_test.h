@@ -37,3 +37,4 @@ bool DD_BridgeTestSaveAnyMap();	// -dfsavetest also saves through the bridge on 
 
 // dd_arrival_test.cpp: the arrival freeze test (-dfsetuptest, -dffreezetest).
 void DD_ArrivalTestFrame(int64_t now);
+void DD_LoadingTestFrame(int64_t now);

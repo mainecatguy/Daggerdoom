@@ -22,6 +22,7 @@
 #include "am_map.h"
 #include "bitmap.h"
 #include "c_bind.h"
+#include "c_console.h"
 #include "c_cvars.h"
 #include "c_dispatch.h"
 #include "d_event.h"
@@ -89,6 +90,11 @@ bool DD_SetupNetEvent(const char *name);
 bool DD_SetupReady(int64_t now);
 double DD_SetupAgeMs(int64_t now);
 double DD_SetupReadyMs();
+void DD_LoadingLevelLoaded();	// dd_loading.cpp: a long operation holds the game
+bool DD_LoadingActive();
+void DD_LoadingFramePresented();
+void DD_LoadingFrozenTic();
+double DD_LoadingAgeMs();
 void DD_LightsSetCity(bool on);	// playsim/dd_lights.cpp
 bool DD_WeatherText(const char *text);	// playsim/dd_weather.cpp
 bool DFMesh_WindowText(const char *text);	// rendering/hwrenderer/scene/hw_dfmesh.cpp
@@ -247,6 +253,7 @@ dfb_new_game ngWorld;
 bool ngPlain;
 dfb_plain_load plainWorld;
 int64_t ngDeadline, ngTravelAt;
+constexpr double NgLoadingMaxMs = 180000.0; // the longest a New Game or plain load waits for a dungeon conversion (seen: 90 s on a loaded PC)
 constexpr int64_t NgStallNs = 30000000000LL; // Daggerfall stalls for seconds while it builds a new character's world.
 FString campaignId, loadCampaign; // Keeps each character's auto and quick slots apart.
 void HandleNewGameGo();
@@ -1205,7 +1212,7 @@ FString WhereForLog()
 
 bool SaveReady()
 {
-	return uiState == UiClosed && !flowHold && !DDTreadmill_HandoffPending() && peerSeen && !peerStale && peerState.df_phase == DFB_DF_PHASE_PLAY;
+	return uiState == UiClosed && !flowHold && !DD_LoadingActive() && !DDTreadmill_HandoffPending() && peerSeen && !peerStale && peerState.df_phase == DFB_DF_PHASE_PLAY;
 }
 
 fs::path SavePath(const char *utf8) { return fs::path(std::u8string(reinterpret_cast<const char8_t *>(utf8))); }
@@ -1448,6 +1455,7 @@ bool DD_BridgeArrivalFreeze(FLevelLocals *Level)
 	if (!DD_BridgeArrivalFrozen())
 	{
 		if (arrivalPending && dfb_now_ns() - arrivalAtNs > ArrivalHoldNs) ArrivalFreezeEnd("the hold limit");
+		if (DD_LoadingActive()) { DD_LoadingFrozenTic(); return true; } // A long operation (dd_loading.cpp). A level load drops every hold.
 		return false;
 	}
 	const int64_t now = dfb_now_ns();
@@ -1464,12 +1472,14 @@ int DD_BridgeArrivalFrozenTics() { return arrivalFrozenTics; }
 // G_DoLoadLevel, after the map's WorldLoaded handlers: autosaves wait for this map's setup (dd_setup.cpp).
 void DD_BridgeLevelLoaded(bool fromSave)
 {
+	DD_LoadingLevelLoaded();
 	if (session && !netgame) DD_SetupLevelLoaded(fromSave);
 }
 
 // D_DoomLoop: true while a map change's autosave runs, so the screen keeps showing the frame from before the change.
 bool DD_BridgeHoldFrame()
 {
+	if (DD_LoadingActive()) return true; // A long operation shows the message at once (dd_loading.cpp).
 	if (!session || dfb_now_ns() - arrivalAtNs > ArrivalHoldNs) return false;
 	return arrivalPending || (saveStartPending && arrivalQueued) || (saveState != SaveIdle && saveIsArrival);
 }
@@ -1478,9 +1488,10 @@ bool DD_BridgeHoldFrame()
 // or the arrival autosave) shows a loading message, drawn each frame so the window stays live.
 void DD_BridgeDrawLoading()
 {
-	if (dfb_now_ns() - arrivalAtNs < LoadingAfterNs) return;
+	const bool held = DD_LoadingActive();
+	if (!held && dfb_now_ns() - arrivalAtNs < LoadingAfterNs) return;
 	static int64_t shownFor = 0;
-	if (shownFor != arrivalAtNs) Log("arrival: showing the loading message, %.1f ms after the map loaded", (dfb_now_ns() - arrivalAtNs) / 1e6);
+	if (!held && shownFor != arrivalAtNs) Log("arrival: showing the loading message, %.1f ms after the map loaded", (dfb_now_ns() - arrivalAtNs) / 1e6);
 	shownFor = arrivalAtNs;
 	static const char text[] = "Loading...";
 	screen->BeginFrame();
@@ -1489,9 +1500,12 @@ void DD_BridgeDrawLoading()
 	ClearRect(twod, 0, 0, twod->GetWidth(), twod->GetHeight(), -1, 0); // opaque black
 	DrawText(twod, BigFont, CR_UNTRANSLATED, (twod->GetWidth() - BigFont->StringWidth(text) * CleanXfac) / 2,
 		(twod->GetHeight() - BigFont->GetHeight() * CleanYfac) / 2, text, DTA_CleanNoMove, true, TAG_DONE);
+	C_DrawConsole(); // The console and menus still work during a long wait, so the player can quit.
+	M_Drawer();
 	twod->End();
 	screen->Update();
 	twod->OnFrameDone();
+	if (held) DD_LoadingFramePresented();
 }
 
 // G_SaveGame, for a save from the menu or console. True means the bridge took it, or refused it with a message.
@@ -1510,7 +1524,7 @@ bool SaveStart(const char *filename, const char *description, bool isAuto)
 	if (saveState != SaveIdle) { Printf("A save is already in progress.\n"); return true; }
 	if (gamestate != GS_LEVEL || players[consoleplayer].health <= 0 || !SaveReady())
 	{
-		Printf(PRINT_HIGH, "Cannot save right now. Daggerfall is not ready.\n");
+		Printf(PRINT_HIGH, DD_LoadingActive() ? "Cannot save while loading.\n" : "Cannot save right now. Daggerfall is not ready.\n");
 		Log("save: refused before starting, Daggerfall phase %u, stale %d", peerState.df_phase, int(peerStale));
 		return true;
 	}
@@ -2169,6 +2183,7 @@ void PumpNewGame(int64_t now)
 	}
 	if (ngState >= NgLoading)
 	{
+		if (DD_LoadingActive() && DD_LoadingAgeMs() < NgLoadingMaxMs) ngDeadline = std::max(ngDeadline, now + 5000000000LL); // A dungeon still converting is not stuck.
 		if (now > ngDeadline) { NgFail("the start location did not load"); return; }
 		if (gamestate == GS_LEVEL) NgFreeze(true);
 	}

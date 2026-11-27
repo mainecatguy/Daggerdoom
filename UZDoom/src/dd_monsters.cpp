@@ -37,6 +37,8 @@
 bool DDTreadmill_PlayerSpace(double &x, double &y, double &z, double &yawDegrees, int &target);
 void DD_SetupWait(const char *system);	// dd_setup.cpp: the arrival wait and autosave wait for the dungeon's spawn
 void DD_SetupDone(const char *system);
+void DD_LoadingHold(const char *name, bool on);	// dd_loading.cpp: a big spawn shows the loading message before it blocks
+bool DD_LoadingShown();
 
 // Monster squeeze width on Daggerfall maps (architecture.md, World Scale and Player Size). Doomguy is 10.5 wide there
 // instead of 16. Monsters keep their stock radius against the player, other actors and open walls, and squeeze to the
@@ -196,6 +198,7 @@ struct Placement { uint64_t placement; DVector3 pos; int enemyType; bool quest; 
 constexpr int PlanVersion = 1;
 struct DungeonPlan { std::vector<Placement> quests; int mooks = 0; };
 std::unordered_map<int, DungeonPlan> plans;
+std::unordered_map<int, double> spawnMs;	// the last arrival spawn's time per dungeon map, this session
 
 std::vector<Claim> claims;
 std::vector<Row> incoming, accepted;
@@ -468,14 +471,32 @@ void SpawnPass(FLevelLocals *Level, const std::vector<Placement> &list, const st
 		DD_DebugPrintf("DDWAR civil war: army A %d mooks stance %d, army B %d mooks stance %d\n", warSide[0], warStance[0], warSide[1], warStance[1]);
 }
 
+// A dungeon arrival's plan and spawn can block the main thread for seconds (a level-30 Privateer's Hold: about 1.9 s).
+// A big one first puts the loading message on screen (dd_loading.cpp), and runs a tic later. Big: many encounter
+// markers (Privateer's Hold has 42; a level-30 army plans thousands of mooks from them), or a slow spawn here before.
+bool SpawnMayRun()
+{
+	constexpr size_t BigMarkers = 30;
+	constexpr double SlowMs = 250;
+	const bool leaders = leadersPending && incomingFacts.have && incomingFacts.area.map_id == dungeonMapId;
+	const auto known = spawnMs.find(dungeonMapId);
+	if (!leaders || (markers.size() < BigMarkers && (known == spawnMs.end() || known->second < SlowMs)) || DD_LoadingShown()) return true;
+	DD_LoadingHold("dungeon spawn", true);
+	return false;
+}
+
 void ApplyRows(FLevelLocals *Level)
 {
 	if (!incomingReady || DD_LocationsWaiting()) return;	// Daggerfall's record of the place comes first.
+	if (!SpawnMayRun()) return;
 	incomingReady = false;
 	facts = incomingFacts;
 	const bool mapLeaders = leadersPending && facts.have && facts.area.map_id == dungeonMapId;
 	if (mapLeaders) leadersPending = false;
+	const auto t0 = std::chrono::steady_clock::now();
 	SpawnEncounters(Level, mapLeaders);
+	if (mapLeaders) spawnMs[dungeonMapId] = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+	DD_LoadingHold("dungeon spawn", false);
 	if (mapLeaders) DD_SetupDone("monsters");
 	for (const Row &r : incoming)
 	{
