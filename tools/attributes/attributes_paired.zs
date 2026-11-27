@@ -76,9 +76,10 @@ class AttrPaired : StaticEventHandler
 {
 	// The real weapon test: each weapon's own Fire state (PlayerPawn.FireWeapon, as the fire button does) against a
 	// bleeding target in front, with the weapon really switched to. melee = the weapon is in the Melee skill or fists.
-	static const String WpnClass[] = { "RLFist", "RLChainsaw", "RLPiercingChainsaw", "RLDoubleChainsaw", "RLRipper", "RLEnergysaw", "RLPistol", "RLRailgun" };
-	static const int WpnMelee[] = { 1, 1, 1, 1, 1, 1, 0, 0 };
-	int wi, wPhase, wTics, wTries;
+	static const String WpnClass[] = { "RLFist", "RLChainsaw", "RLPiercingChainsaw", "RLDoubleChainsaw", "RLRipper", "RLPistol", "RLRailgun", "RLEnergysaw" };
+	static const int WpnMelee[] = { 1, 1, 1, 1, 1, 0, 0, 1 };
+	int wi, wPhase, wTics, wTries, wWait;
+	bool wForced;
 	Actor bleeder;
 	int raw, rawStr;
 	bool rawMelee;
@@ -111,12 +112,23 @@ class AttrPaired : StaticEventHandler
 		if (wi >= WpnClass.Size()) return;
 		class<Weapon> wc = WpnClass[wi];
 		if (!wc) { wi++; return; } // without DRLA
+		let w = Weapon(mo.FindInventory(wc));
+		if (!w) { mo.GiveInventory(wc, 1); w = Weapon(mo.FindInventory(wc)); }
+		// Every tic: Doomerfall's ammo sync may set the count back to what Daggerfall's inventory holds.
+		if (w && w.AmmoType1) mo.GiveInventory(w.AmmoType1, 9999);
+		if (w && w.AmmoType2) mo.GiveInventory(w.AmmoType2, 9999);
+		if (++wWait > 300) { wTries = 99; wPhase = 1; wTics = 99; } // stuck: report what there is and go on
 		if (wPhase == 0)
 		{
-			let w = Weapon(mo.FindInventory(wc));
-			if (!w) { mo.GiveInventory(wc, 1); w = Weapon(mo.FindInventory(wc)); }
-			if (w && w.AmmoType1) mo.GiveInventory(w.AmmoType1, 9999);
-			if (w && w.AmmoType2) mo.GiveInventory(w.AmmoType2, 9999);
+			// A DRLA gun can sit in its refire state after the harness's fire (no button is ever held), so the switch
+			// never happens: then bring the next weapon up through its own Select state (which gives DRLA's type token).
+			if (wWait == 150 && w && p.ReadyWeapon != w)
+			{
+				p.ReadyWeapon = w;
+				p.PendingWeapon = WP_NOCHANGE;
+				p.SetPsprite(PSP_WEAPON, w.GetUpState());
+				wForced = true;
+			}
 			if (!Ready(p, wc) || !(p.WeaponState & WF_WEAPONREADY)) return;
 			if (!mo.FindInventory("AttrRawRecorder")) mo.GiveInventory("AttrRawRecorder", 1);
 			bleeder = Actor.Spawn("AttrBleeder", mo.Vec3Angle(mo.radius + 40, mo.Angle), NO_REPLACE);
@@ -126,13 +138,16 @@ class AttrPaired : StaticEventHandler
 			Fire1(p);
 			return;
 		}
-		if (++wTics < 35 || !(p.WeaponState & WF_WEAPONREADY)) return;
+		if (++wTics < 35 || (!(p.WeaponState & WF_WEAPONREADY) && wTries < 99)) return;
 		if (wHits == 0 && wTries < 4) { Fire1(p); return; } // DRLA fists may first need raising for a fight
-		Console.Printf("ATTRWPN weapon=%s melee=%d hits=%d ok=%d boosted=%d classed=%d raw=%d post=%d inflictor=%s",
-			WpnClass[wi], WpnMelee[wi], wHits, wOk, wBoosted, wClassed, wRaw, wPost, wInflictor);
+		Console.Printf("ATTRWPN weapon=%s melee=%d hits=%d ok=%d boosted=%d classed=%d raw=%d post=%d inflictor=%s held=%s ammo=%d pending=%s wstate=%d forced=%d",
+			WpnClass[wi], WpnMelee[wi], wHits, wOk, wBoosted, wClassed, wRaw, wPost, wInflictor,
+			p.ReadyWeapon ? p.ReadyWeapon.GetClassName() : 'none', w && w.AmmoType1 ? mo.CountInv(w.AmmoType1) : -1,
+			p.PendingWeapon && p.PendingWeapon != WP_NOCHANGE ? p.PendingWeapon.GetClassName() : 'nochange', p.WeaponState, wForced);
 		Interrupt();
 		wi++;
-		wTries = wHits = wOk = wBoosted = wClassed = wRaw = wPost = 0;
+		wForced = false;
+		wTries = wHits = wOk = wBoosted = wClassed = wRaw = wPost = wWait = 0;
 	}
 
 	void Fire1(PlayerInfo p)
