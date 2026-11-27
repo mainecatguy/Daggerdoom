@@ -162,7 +162,6 @@ extend class DoomerfallEncounterPlanner
 				mk.cost = Cost(mk.m);
 				p.spent += mk.cost;
 			}
-			result.startRoom.Push(i);
 		}
 	}
 
@@ -901,7 +900,7 @@ extend class DoomerfallEncounterPlanner
 		double bestD = 0;
 		for (int i = 0; i < plan.placements.Size(); i++)
 		{
-			if (i == from || (i < full.Size() && full[i])) continue;
+			if (i == from || (i < full.Size() && full[i]) || plan.placements[i].role == "start") continue;   // the start room stays easy
 			let a = plan.request.placements[i];
 			double d = (a.x - src.x) * (a.x - src.x) + (a.y - src.y) * (a.y - src.y);
 			if (best < 0 || d < bestD) { best = i; bestD = d; }

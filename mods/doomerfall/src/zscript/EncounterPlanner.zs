@@ -187,7 +187,6 @@ class DoomerfallEncounterPlan
 	DoomerfallMonster titan;
 	String titanWhy;         // why there is or is not a titan
 	bool emptyWing;
-	Array<int> startRoom;    // placements the theme's start room rule replaced (StartRoom), nearest the player start
 	Array<DoomerfallSquad> squads;
 	Array<DoomerfallPlannedPlacement> placements;
 

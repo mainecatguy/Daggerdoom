@@ -64,9 +64,6 @@ class DoomerfallEncounterLeaders play
 		String s = String.Format("plan genes %d theme %s civilwar %d pool %d spent %d mooks %d moved-dropped %d bosses %s titan %d leftover %d titanclass %s",
 			plan.order, plan.theme, plan.civilWar ? 1 : 0, plan.poolPoints, plan.spentPoints, plan.MookCount(), plan.movedDropped,
 			bosses == "" ? "-" : bosses, plan.titanPlacement, plan.leftoverPoints, plan.titan ? plan.titan.cls.GetClassName() : 'none');
-		// The start room (EncounterBudget.zs StartRoom): which placements it replaced and how many monsters each keeps.
-		for (int i = 0; i < plan.startRoom.Size(); i++)
-			s = s .. (i ? "," : "\nstartroom ") .. plan.startRoom[i] .. ":" .. plan.placements[plan.startRoom[i]].mooks.Size();
 		for (int i = 0; i < plan.warnings.Size(); i++) s = s .. "\nwarning " .. plan.warnings[i];
 		return s;
 	}
