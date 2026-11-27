@@ -1,10 +1,12 @@
-"""Visual parity, pass 2: the same Daggerfall windows, with the same character and items, in Daggerfall Unity and in
-Doomerfall.
+"""Visual parity, pass 2: the same Daggerfall windows, with the same character, in Daggerfall Unity and in Doomerfall.
+Known item gap: Doomerfall's character also holds the Doom starting pistol, which Daggerfall Unity adopts from Doom
+and the capture player cannot show (README, Known gaps). The harness's vp_noguns keeps Doom's ammo out.
 
 usage: python tools/visual_parity/menus.py [--seed N] [--out DIR] [--skip-df] [--skip-doom]
 
 Both sides use the paired tests' blank character (-dfsynctest with -dfinventorytest: 100 HP, 5000 gold, an iron
-longsword and a steel dagger). Daggerfall Unity is placed at the paired session's spot, facing and game time (the town
+longsword and a steel dagger). Daggerfall Unity is placed at the paired session's spot, facing and game time (read from the paired df.log after
+the windows open, because the game minutes are logged only then: the town
 outside Privateer's Hold, map pixel 109, 158, after Doom's map syncs the position), and both open the windows Doomerfall offers
 (inventory, travel map, map, quest journal, rest) in a seeded random order.
 - Daggerfall Unity: the capture player (DungeonCaptureTest's menu job) opens each window with Daggerfall Unity's own
@@ -51,7 +53,7 @@ def capture_doomerfall(order, out, work, timeout):
         shutil.rmtree(qa.QA)
     qa.QA.mkdir(parents=True)
     qa.INBOX.write_text("")
-    proc = subprocess.Popen(c.paired_command(work, run, timeout, uz_extra=["+screenblocks", "12"], df_extra=["-dfinventorytest"], qa=qa.QA,
+    proc = subprocess.Popen(c.paired_command(work, run, timeout, uz_extra=["+screenblocks", "12", "+vp_noguns", "1"], df_extra=["-dfinventorytest"], qa=qa.QA,
                                               minimized=not UNMINIMIZED),
                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     uzlog = run / "uz.log"
@@ -69,7 +71,6 @@ def capture_doomerfall(order, out, work, timeout):
             raise RuntimeError("Daggerfall never reached sync phase 3")
         time.sleep(4.0)  # the town settles, the harness removes the sync test's rat
         log["pos"] = qa.command(["pos"])
-        log["df_place"] = paired_place(run / "df.log")
         for shot_id, window in order:
             shot = out / f"{shot_id}.doom.png"
             shot.unlink(missing_ok=True)
@@ -92,7 +93,12 @@ def capture_doomerfall(order, out, work, timeout):
                 raise RuntimeError("fatal: " + c.fatal(run))
     finally:
         c.kill(proc)
+        # Read after the windows: Daggerfall Unity logs its game minutes only when a window opens ("ui: world before").
+        log["df_place"] = paired_place(run / "df.log")
         (out / "doomerfall_session.json").write_text(json.dumps(log, indent=1))
+        missing = [k for k in ("gps", "pixel", "minutes") if k not in log["df_place"]]
+        if missing:
+            print("WARNING: the paired session's", ", ".join(missing), "not found in df.log; the Daggerfall Unity side will not match it")
     return log
 
 
@@ -121,6 +127,8 @@ def capture_df(order, out, timeout, session):
         lines.append(f"yaw\t{90 - pos['angle']}")  # Doom: counter-clockwise from east; Unity yaw: clockwise from north
     if "minutes" in place:
         lines.append(f"time\t{place['minutes']}")
+    else:
+        print("WARNING: no paired game time; Daggerfall Unity is shot at its own new-game time")
     lines += [f"menu\t{i}\t{w}" for i, w in order]
     return c.capture_daggerfall(lines, out, timeout, "df_menus")
 
@@ -133,7 +141,6 @@ def main():
     ap.add_argument("--skip-df", action="store_true")
     ap.add_argument("--skip-doom", action="store_true")
     ap.add_argument("--unminimized", action="store_true", help="launch the paired game unminimized (still on the private desktop)")
-    ap.add_argument("--user-desktop", action="store_true", help="diagnosis only: run the capture player on the owner's desktop (2AM-7AM)")
     args = ap.parse_args()
     global UNMINIMIZED
     UNMINIMIZED = args.unminimized

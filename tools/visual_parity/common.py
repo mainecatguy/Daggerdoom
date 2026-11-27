@@ -113,8 +113,7 @@ def capture_daggerfall(job_lines, out, timeout, log_name):
         copy_tree_files(art, CAPTURE_EXE.parent / "DFCapture_Data" / "StreamingAssets" / "ExpandedInventory")
     else:
         print("no Expanded Inventory art in the play folder; the capture player keeps Daggerfall's inventory window")
-    desktop = ["--user-desktop"] if "--user-desktop" in sys.argv else []  # diagnosis only: the owner's desktop, 2AM-7AM
-    code = subprocess.run([sys.executable, QUIET, "--timeout", str(timeout), *desktop, "--", str(CAPTURE_EXE), "-dfcapture", str(job),
+    code = subprocess.run([sys.executable, QUIET, "--timeout", str(timeout), "--", str(CAPTURE_EXE), "-dfcapture", str(job),
                            "-screen-fullscreen", "0", "-screen-width", str(WIDTH), "-screen-height", str(HEIGHT),
                            "-logFile", str(out / (log_name + "_player.log"))]).returncode
     lines = read(result).splitlines()

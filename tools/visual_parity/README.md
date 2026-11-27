@@ -33,7 +33,7 @@ Spots are seeded random nodes of the converter's walk graph (`privateershold.poi
 
 ## Known gaps
 
-- Menus: the capture player cannot show Doom items (the starting pistol and bullets): their pictures and names come from Doom over the bridge.
+- Menus: the items do not fully match. The capture player cannot show Doom items, because their pictures and names come from Doom over the bridge. The harness's `vp_noguns` keeps Doom's bullets out of the paired inventory, but Daggerfall Unity still adopts the starting pistol, so Doomerfall's inventory has one more item.
 - Menus: the capture player's 3D frame behind a window is the main camera alone, without Daggerfall Unity's separate sky camera, so the letterbox strips show a partial world.
-- Menus: the capture job copies the paired session's place, facing and game time (from its `df.log` and the QA bot), and the play folder's Expanded Inventory art into the capture install.
+- Menus: the capture job copies the paired session's place, facing and game time (from its `df.log`, read after the windows open because the minutes are logged only then, and from the QA bot), and the play folder's Expanded Inventory art into the capture install.
 - Pickups (DRLA stimpacks, Doomerfall ammo) are left in Doomerfall's scenes.

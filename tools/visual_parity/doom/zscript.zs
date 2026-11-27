@@ -5,6 +5,9 @@ version "4.10"
 // 2. "netevent vp_pos x y z" (tenths of a map unit) and "netevent vp_look angle pitch fov" (hundredths of a degree) put a
 //    camera at an exact eye point, so Doom's view can match Daggerfall Unity's eye height and field of view.
 //    "netevent vp_player" gives the view back to the player.
+// 3. With the CVar vp_noguns 1 (menus.py), takes the player's pistol and ammo in the first second of the map, so the
+//    paired character's Daggerfall inventory gets no Doom bullets. Daggerfall Unity still adopts the starting pistol
+//    (Doom gives it back; taking it for 15 s did not stop the adoption), so the pistol remains a known difference.
 
 class VPCamera : Actor
 {
@@ -28,6 +31,8 @@ class VPHarness : EventHandler
 
 	override void WorldTick()
 	{
+		if (level.maptime < 35 && CVar.FindCVar("vp_noguns") && CVar.FindCVar("vp_noguns").GetBool())
+			TakeGuns();
 		let it = ThinkerIterator.Create("Actor");
 		Actor a;
 		while (a = Actor(it.Next()))
@@ -37,6 +42,27 @@ class VPHarness : EventHandler
 				if (removed < 400) Console.Printf("VPREMOVE %s at %.0f %.0f %.0f", a.GetClassName(), a.pos.x, a.pos.y, a.pos.z);
 				removed++;
 				a.Destroy();
+			}
+		}
+	}
+
+	void TakeGuns()
+	{
+		for (int i = 0; i < MAXPLAYERS; i++)
+		{
+			if (!playeringame[i] || !players[i].mo) continue;
+			let mo = players[i].mo;
+			Array<Inventory> gone;
+			for (let item = mo.Inv; item; item = item.Inv)
+			{
+				String cls = item.GetClassName();
+				cls = cls.MakeLower();
+				if (item is "Ammo" || (item is "Weapon" && cls.IndexOf("pistol") >= 0)) gone.Push(item);
+			}
+			for (int k = 0; k < gone.Size(); k++)
+			{
+				Console.Printf("VPTAKE %s x%d", gone[k].GetClassName(), gone[k].Amount);
+				gone[k].Destroy();
 			}
 		}
 	}
