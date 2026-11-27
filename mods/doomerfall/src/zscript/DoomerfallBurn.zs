@@ -13,7 +13,7 @@
 // applier, so kills are credited). Monsters show pain through the normal pain chance of each tick.
 //
 // The fire look is separate (DoomerfallBurnLook.zs) and runs only while dd_burn_look is on; removing that file and its
-// one call leaves the damage unchanged.
+// two lines in WorldTick (the Enabled check and the Draw call) leaves the damage unchanged.
 class DoomerfallBurnRecord
 {
 	Actor victim;
@@ -89,7 +89,9 @@ class DoomerfallBurn : EventHandler
 			r.slots[i] -= t;
 			taken += t;
 		}
-		return taken;
+		double c = r.carry * share;
+		r.carry -= c;
+		return taken + c;
 	}
 
 	static bool Burning(Actor victim)
@@ -119,9 +121,9 @@ class DoomerfallBurn : EventHandler
 			int whole = int(due);
 			r.carry = due - whole;
 			if (whole > 0) v.DamageMobj(null, r.source, whole, 'Fire', DMG_THRUSTLESS);
-			if (v && v.health > 0 && r.Total() + r.carry < 1)
+			if (v && v.health > 0 && r.Total() <= 0)
 			{
-				// Less than 1 point left: pay the fraction with its chance and stop burning.
+				// Every slot paid: pay the last fraction with its chance and stop burning.
 				if (r.carry > 0 && frandom[DoomerfallBurn](0, 1) < r.carry) v.DamageMobj(null, r.source, 1, 'Fire', DMG_THRUSTLESS);
 				records.Delete(i);
 			}

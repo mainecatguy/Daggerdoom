@@ -15,7 +15,8 @@ class DoomerfallBurnTest : EventHandler
 {
 	const HP = 100000;
 	Array<Actor> pack;
-	Actor taker;
+	Actor taker, frac, tiny, whole;
+	bool takeAllOk;
 	int startTic, playerStart;
 	double tookBack, lastMs, maxGapMs, burnMsTotal, burnMsMax;
 	int gaps;
@@ -37,6 +38,14 @@ class DoomerfallBurnTest : EventHandler
 		lastMs = now;
 		let clock = DoomerfallBurnTestClock(EventHandler.Find("DoomerfallBurnTestClock"));
 		if (clock && t > 0 && t < 105) burnMsMax = max(burnMsMax, now - clock.stamp);
+		if (t == 50)
+		{
+			// Take(1.0) after some payouts (non-integer pool with carry) must return the whole Pool and leave nothing.
+			double before = DoomerfallBurn.Pool(whole);
+			double got = DoomerfallBurn.Take(whole, 1.0);
+			takeAllOk = before > 0 && abs(got - before) < 0.0001 && DoomerfallBurn.Pool(whole) < 0.0001;
+			Console.Printf("BURNTEST takeall pool=%.3f took=%.3f left=%.3f", before, got, DoomerfallBurn.Pool(whole));
+		}
 		if (t == 140) Finish(pl);
 	}
 
@@ -59,6 +68,16 @@ class DoomerfallBurnTest : EventHandler
 		taker.health = HP;
 		DoomerfallBurn.Apply(taker, 300, null);
 		tookBack = DoomerfallBurn.Take(taker, 0.5);
+		frac = Actor.Spawn("ZombieMan", pl.Vec3Offset(-64, 64, 0), NO_REPLACE);
+		frac.health = HP;
+		DoomerfallBurn.Apply(frac, 10.5, null);
+		DoomerfallBurn.Apply(frac, 0.9, null);
+		tiny = Actor.Spawn("ZombieMan", pl.Vec3Offset(-64, -64, 0), NO_REPLACE);
+		tiny.health = HP;
+		DoomerfallBurn.Apply(tiny, 0.9, null);
+		whole = Actor.Spawn("ZombieMan", pl.Vec3Offset(-128, 0, 0), NO_REPLACE);
+		whole.health = HP;
+		DoomerfallBurn.Apply(whole, 7.3, null);
 		DoomerfallBurn.Apply(pl, 500, null);
 		Console.Printf("BURNTEST start monsters=%d pool0=%.1f look=%d", pack.Size(), pack.Size() ? DoomerfallBurn.Pool(pack[0]) : 0, DoomerfallBurnLook.Enabled());
 		startTic = Level.maptime;
@@ -79,6 +98,10 @@ class DoomerfallBurnTest : EventHandler
 		Console.Printf("BURNTEST pack ok=%d bad=%d %s", ok, bad, bad == 0 && ok > 0 ? "PASS" : "FAIL");
 		Console.Printf("BURNTEST take returned=%.1f lost=%d %s", tookBack, takerLost, abs(tookBack - 150) < 0.01 && takerLost == 150 ? "PASS" : "FAIL");
 		Console.Printf("BURNTEST player pool=%.1f lost=%d %s", DoomerfallBurn.Pool(pl), playerStart - pl.health, DoomerfallBurn.Pool(pl) == 0 && pl.health == playerStart ? "PASS" : "FAIL");
+		// 10.5 + 0.9 = 11.4: 11 always, the last 0.4 by chance. 0.9 alone: 0 or 1. Neither may lose its tail.
+		int fracLost = HP - frac.health, tinyLost = HP - tiny.health;
+		bool fracOk = (fracLost == 11 || fracLost == 12) && (tinyLost == 0 || tinyLost == 1) && !DoomerfallBurn.Burning(frac) && !DoomerfallBurn.Burning(tiny);
+		Console.Printf("BURNTEST fraction lost11.4=%d lost0.9=%d takeall=%d %s", fracLost, tinyLost, takeAllOk, fracOk && takeAllOk ? "PASS" : "FAIL");
 		Console.Printf("BURNTEST timing tics=%d max_gap_ms=%.2f avg_gap_ms=%.2f burn_tick_max_ms=%.3f", gaps, maxGapMs, gaps ? burnMsTotal / gaps : 0, burnMsMax);
 		Console.Printf("BURNTEST done");
 	}
