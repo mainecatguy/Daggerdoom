@@ -3,7 +3,10 @@
 // A Sell window sells one item, the first Buy window (a shelf) buys the cheapest one, both confirmed with Daggerfall's
 // own Yes. Any other window (such as the private property question) is closed. Gold and inventory are logged.
 // With -dfshopdoomgun, the first merchant menu first gives the player Doom guns (DRLA's pistol, shotgun and BFG, one
-// Daedric) and logs their value, weight and this shop's price; the Sell window then sells a Doom gun only.
+// Daedric) and logs their value, weight and this shop's price; the Sell window then sells a Doom gun only. Then it
+// opens two more Sell windows priced and filtered as a weaponsmith and a pawn shop (the test town has neither) and
+// sells a Doom gun in each. The test character's regions never had Daggerfall's price roll, so it sets the region's
+// price adjustment to a typical 900 (as DoomerfallShopAmmoTest does); 0 would price everything at the minimum.
 
 using System;
 using System.Collections.Generic;
@@ -27,11 +30,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         float actAt;
         bool acted, confirming, bought;
         int menus;
-        int goldBefore, countBefore;
+        int goldBefore, countBefore, wealthBefore;
         string traded;
         readonly bool doomGun = Array.IndexOf(Environment.GetCommandLineArgs(), "-dfshopdoomgun") >= 0;
         bool given;
         DaggerfallUnityItem sold;
+        readonly Queue<DaggerfallConnect.DFLocation.BuildingTypes> shops = new Queue<DaggerfallConnect.DFLocation.BuildingTypes>(
+            new[] { DaggerfallConnect.DFLocation.BuildingTypes.WeaponSmith, DaggerfallConnect.DFLocation.BuildingTypes.PawnShop });
+        DaggerfallTradeWindow retype;
+        DaggerfallConnect.DFLocation.BuildingTypes retypeTo;
 
         internal void Init(DoomerfallBridge owner)
         {
@@ -91,7 +98,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             {
                 if (mode == "Buy")
                     bought = true;
+                if (trade == retype)
+                    Retype(trade);
                 goldBefore = Player.GoldPieces;
+                wealthBefore = Player.GetGoldAmount();
                 countBefore = Player.Items.Count;
                 DaggerfallUnityItem item = mode == "Buy" ? Cheapest(Filtered(trade, "remoteItemsFiltered")) : null;
                 // The player's list shows one tab at a time, so look through each tab as a player would.
@@ -115,9 +125,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 }
                 traded = mode + " \"" + item.LongName + "\"";
                 sold = item;
-                Log(string.Format("{0} window ({1} merchant items): choosing \"{2}\" (value {3}, shop price {6}), gold {4}, carried {5}", mode,
+                Log(string.Format("{7} {0} window ({1} merchant items): choosing \"{2}\" (value {3}, shop price {6}), gold {4}, carried {5}", mode,
                     trade.MerchantItems != null ? trade.MerchantItems.Count : -1, item.LongName, item.value, goldBefore, countBefore,
-                    FormulaHelper.CalculateCost(item.value, GameManager.Instance.PlayerEnterExit.BuildingDiscoveryData.quality, item.ConditionPercentage)));
+                    FormulaHelper.CalculateCost(item.value, Shop(trade).quality, item.ConditionPercentage), Shop(trade).buildingType));
                 Type actions = typeof(DaggerfallInventoryWindow).GetNestedType("ActionModes", Any);
                 // Remove buys without equipping (Select would equip it), so the bought item can be sold back.
                 object select = Enum.Parse(actions, mode == "Buy" ? "Remove" : "Select");
@@ -127,10 +137,17 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
             else if (trade != null)
             {
-                Log(string.Format("{0} done: gold {1} to {2}, carried {3} to {4}, item still carried {5}", traded, goldBefore, Player.GoldPieces, countBefore, Player.Items.Count,
-                    sold != null && Player.Items.Contains(sold)));
+                Log(string.Format("{0} done: gold {1} to {2}, carried {3} to {4}, item still carried {5}, gold plus letters of credit {6} to {7}", traded, goldBefore, Player.GoldPieces, countBefore, Player.Items.Count,
+                    sold != null && Player.Items.Contains(sold), wealthBefore, Player.GetGoldAmount()));
                 traded = null;
                 trade.CloseWindow();
+                if (doomGun && mode == "Sell" && shops.Count > 0)
+                {
+                    retypeTo = shops.Dequeue();
+                    retype = (DaggerfallTradeWindow)UIWindowFactory.GetInstanceWithArgs(UIWindowType.Trade,
+                        new object[] { DaggerfallUI.UIManager, null, DaggerfallTradeWindow.WindowModes.Sell, null });
+                    DaggerfallUI.UIManager.PushWindow(retype);
+                }
             }
             else if (box != null && confirming)
             {
@@ -179,10 +196,30 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return null;
         }
 
+        static PlayerGPS.DiscoveredBuilding Shop(DaggerfallTradeWindow trade)
+        {
+            return (PlayerGPS.DiscoveredBuilding)typeof(DaggerfallTradeWindow).GetField("buildingDiscoveryData", Any).GetValue(trade);
+        }
+
+        // Makes a Sell window opened in the general store price and filter as another shop type, as it would inside one.
+        void Retype(DaggerfallTradeWindow trade)
+        {
+            PlayerGPS.DiscoveredBuilding shop = Shop(trade);
+            shop.buildingType = retypeTo;
+            typeof(DaggerfallTradeWindow).GetField("buildingDiscoveryData", Any).SetValue(trade, shop);
+            var buys = (Dictionary<DaggerfallConnect.DFLocation.BuildingTypes, List<ItemGroups>>)typeof(DaggerfallTradeWindow)
+                .GetField("storeBuysItemType", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
+            typeof(DaggerfallTradeWindow).GetField("itemTypesAccepted", Any).SetValue(trade, buys[retypeTo]);
+            trade.Refresh(false);
+        }
+
         void GiveGuns()
         {
             given = true;
             int quality = GameManager.Instance.PlayerEnterExit.BuildingDiscoveryData.quality;
+            PlayerGPS gps = GameManager.Instance.PlayerGPS;
+            if (gps.HasCurrentLocation && Player.RegionData[gps.CurrentRegionIndex].PriceAdjustment == 0)
+                Player.RegionData[gps.CurrentRegionIndex].PriceAdjustment = 900;
             foreach (string cls in new[] { "RLPistolPickup", "RLShotgunPickup", "RLBFG9000Pickup" })
             {
                 DoomerfallDoomItem gun = DoomerfallDoomItem.Create(cls, Dfb.DOOM_ITEM_GUN);
@@ -192,11 +229,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     DoomerfallWeaponValues.Apply(gun);
                 }
                 Player.Items.AddItem(gun);
-                // The test town has no weaponsmith or pawn shop, so ask the trade window's own buy lists directly.
-                var buys = (Dictionary<DaggerfallConnect.DFLocation.BuildingTypes, List<ItemGroups>>)typeof(DaggerfallTradeWindow)
-                    .GetField("storeBuysItemType", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
-                foreach (var shop in new[] { DaggerfallConnect.DFLocation.BuildingTypes.WeaponSmith, DaggerfallConnect.DFLocation.BuildingTypes.PawnShop, DaggerfallConnect.DFLocation.BuildingTypes.Alchemist })
-                    Log(string.Format("{0} buys \"{1}\": {2}", shop, gun.ItemName, DoomerfallWeaponValues.SellsHere(gun, buys[shop])));
                 Log(string.Format("gave \"{0}\" ({1}, {2}): value {3}, {4} kg, shop price {5} at quality {6}", gun.ItemName, cls, gun.Material, gun.value, gun.weightInKg,
                     FormulaHelper.CalculateCost(gun.value, quality, gun.ConditionPercentage), quality));
             }
