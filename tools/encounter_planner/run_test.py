@@ -27,6 +27,7 @@ BAD = re.compile(r'Script error, "doomerfall\.pk3|doomerfall\.pk3:zscript/\S+, l
 FAMILIES = {'Standard', 'Nightmare', 'Technophobia', 'Armageddon'}
 TITANS = {'EX', 'BlackWhite'}
 HUMANOID = {'ZombieMan', 'ShotgunGuy', 'ChaingunGuy'}
+PLAIN = re.compile(r'^(Zombieman|ShotgunGuy|ChaingunGuy|RLFormerHuman\w*|RLFormerSergeant\w*|RLFormerCommando\w*)$', re.I)
 STOCK17 = {'ZombieMan', 'ShotgunGuy', 'ChaingunGuy', 'DoomImp', 'Demon', 'Spectre', 'LostSoul', 'Cacodemon', 'HellKnight',
            'BaronOfHell', 'Arachnotron', 'PainElemental', 'Revenant', 'Fatso', 'Archvile', 'Cyberdemon', 'SpiderMastermind'}
 
@@ -195,6 +196,27 @@ def check_setup(name, lines, out, checks, stock=False):
         elif l.startswith('ENCPLAN warn ') and typ == 'Humanoid':
             bad.append(l)
     checks.append((f'{name}: {humanoid} Humanoid plans hold only Former Human kinds {bad[:6]}', humanoid == 35 and not bad))
+    # The PlainHumanoid story theme (Privateer's Hold): only plain Former Human classes, never stealthy (invisible).
+    plain, cwp, typ, bad, seen = 0, 0, None, [], set()
+    for l in out:
+        if l.startswith('ENCPLAN plan '):
+            d = kv(l[len('ENCPLAN plan '):])
+            typ = d['type']
+            plain += typ == 'PlainHumanoid'
+            cwp += typ == 'PlainHumanoid' and d['civilwar'] == '1'
+        elif l.startswith('ENCPLAN army ') and typ == 'PlainHumanoid':
+            d = kv(l[len('ENCPLAN army '):])
+            ents = [e.split(':') for e in d['entries'].split('|')] if d['entries'] else []
+            if not ents:
+                bad.append(f'{d["idx"]}{d["side"]} empty')
+            for e in ents:
+                seen.add(e[1])
+                if not PLAIN.match(e[1]) or 'stealthy' in pool.get(e[1], {}).get('traits', 'stealthy'):
+                    bad.append(f'{d["idx"]}{d["side"]} {e[1]}')
+        elif l.startswith('ENCPLAN warn ') and typ == 'PlainHumanoid':
+            bad.append(l)
+    checks.append((f'{name}: {plain} PlainHumanoid plans ({cwp} Civil War) hold only plain, visible Former Humans '
+                   f'{sorted(seen)} {bad[:6]}', plain == 33 and cwp > 0 and not bad))
     ncw = sum(p['civilwar'] == '1' for p in plans.values())
     checks.append((f'{name}: Civil War in {ncw}/{len(plans)} plans (design: about 35%)', 0.2 * len(plans) < ncw < 0.5 * len(plans)))
     return out, warns

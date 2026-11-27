@@ -96,7 +96,26 @@ TYPE_LEAN = {
 
 # Fixed levels for story places, applied after ranking. Privateer's Hold is where
 # every new character wakes up with nothing.
-OVERRIDES = {187853213: 1}  # Daggerfall/Privateer's Hold
+# Main quest dungeons rise in main quest order (owner, 2026-11-26; work/notes/20261124-202353.md).
+# Must match DoomerfallAreaLevels.MainQuest in Daggerfall Unity.
+OVERRIDES = {
+    187853213: 1,    # Daggerfall/Privateer's Hold
+    701948302: 5,    # Scourg Barrow
+    728811286: 5,    # Shedungent
+    9570447: 8,      # Castle Necromoghan
+    43196334: 10,    # Direnni Tower
+    325404: 10,      # Castle Faallem
+    5585279: 10,     # Fortress of Fhojum
+    2352284: 10,     # Tristore Laboratory
+    336619236: 17,   # Castle Llugwych
+    207828842: 17,   # Lysandus' Tomb
+    19021260: 21,    # Orsinium
+    83032363: 24,    # Woodborne Hall
+    1001: 30,        # Mantellan Crux
+    1291010263: 3,   # Daggerfall (Castle Daggerfall)
+    630439035: 14,   # Wayrest (Castle Wayrest)
+    6634853: 14,     # Sentinel (Castle Sentinel)
+}
 
 MAX_LEVEL = 30
 
