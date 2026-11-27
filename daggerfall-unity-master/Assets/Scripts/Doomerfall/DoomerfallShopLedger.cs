@@ -4,11 +4,13 @@
 // Each day since the shelf was last stocked is one period, and the day number is the delivery number:
 //   1. Every item on the shelf is "sold to other customers" with a fixed chance per day from its unit value
 //      (SellChance): cheap goods leave in days, Daedric goods linger for months. Nothing else removes items.
-//   2. If the shelf is below its share of the building's stock (StockTarget from the shop level, split over the
-//      building's shelves), one classic delivery is rolled and items from it are added until the share is full.
-//      Doom ammo and the horse and cart do not count against the share. Doom ammo restocks every day (it sells fast),
-//      as one delivery per building on its first shelf, outside the stock target. A general store's one horse and one
-//      cart are kept on the first shelf as well.
+//   2. Doom ammo restocks every day (it sells fast), as one delivery per building on its first shelf, outside the
+//      stock target. A general store's one horse and one cart are kept on the first shelf as well.
+//   3. On the shop's delivery days (Shops 6, DoomerfallShopIdentity: a trickle every 2-4 days or a big delivery every
+//      7-30 days), goods arrive from that day's supplier, picked from classic delivery rolls by the shop's lean, up to the
+//      shelf's share of the building's stock target (StockTarget from the shop level, split over the shelves; Doom ammo
+//      and the horse and cart do not count). The target is a ceiling: weapons and armor are also limited by a material
+//      budget (MaterialBudget), which is what keeps Daedric pieces rare at the best smiths.
 // Every roll in a period draws from Unity's generator seeded by (location, building, delivery number, shelf), so the
 // same building on the same day always gets the same goods. Weapon and armor material uses the owner's approved odds
 // (DoomerfallDrops.RollMaterial) at the shop's level instead of Daggerfall's classic curve.
@@ -16,6 +18,7 @@
 // Shelf contents and stockedDate are saved by Daggerfall's own loot container serialization.
 
 using System.Collections.Generic;
+using DaggerfallConnect;
 using DaggerfallWorkshop.Game.Formulas;
 using DaggerfallWorkshop.Game.Items;
 using DaggerfallWorkshop.Utility;
@@ -44,15 +47,18 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bool recorded = DoomerfallItems.RecordShelf(shelf);   // the Doom item ledger owns shelf state across re-entry, save, and load
             DoomerfallBridge bridge = Object.FindObjectOfType<DoomerfallBridge>();
             if (bridge)
-                bridge.LogLine(string.Format("shop ledger: shelf {0} of {1} restocked from {2} to {3} items{4}", index, shelves.Count, before, shelf.Items.Count, recorded ? " (recorded)" : " (not recorded)"));
+                bridge.LogLine(string.Format("shop ledger: shelf {0} of {1} restocked from {2} to {3} items{4}; shop identity: {5}", index, shelves.Count, before, shelf.Items.Count, recorded ? " (recorded)" : " (not recorded)",
+                    DoomerfallShopIdentity.For(location, building).Describe()));
             return true;
         }
 
         internal static void Restock(DaggerfallLoot shelf, PlayerGPS.DiscoveredBuilding building, int location, int shelfIndex, int shelfCount, int today, int level)
         {
-            int last = shelf.stockedDate == 0 ? today - 1 : StampToDay(shelf.stockedDate);
+            // A shelf never stocked before starts MaxCatchUpDays back, so the first visit already shows the shop's rhythm.
+            int last = shelf.stockedDate == 0 ? today - MaxCatchUpDays : StampToDay(shelf.stockedDate);
             int periods = Mathf.Clamp(today - last, 0, MaxCatchUpDays);
             int share = Mathf.Max(1, (StockTarget(level) + shelfCount - 1) / shelfCount);
+            DoomerfallShopIdentity identity = DoomerfallShopIdentity.For(location, building);
             Random.State saved = Random.state;
             System.Func<int, WeaponMaterialTypes> savedRoll = FormulaHelper.DoomerfallMaterialRoll;
             try
@@ -62,7 +68,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 {
                     Random.InitState(Seed(location, building.buildingKey, day, shelfIndex));
                     SellOff(shelf.Items);
-                    Deliver(shelf, building, share, shelfIndex == 0);
+                    if (shelfIndex == 0)
+                        DailyAmmo(shelf, building);
+                    if (identity.DeliversOn(day))
+                        Deliver(shelf, building, identity, identity.Supplier(location, building.buildingKey, day), share, shelfCount, level);
                 }
             }
             finally
@@ -158,36 +167,100 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return n;
         }
 
-        // Doom ammo sits outside the stock target: the building gets one ammo delivery a day, on its first shelf
-        // (takesAmmo), and the other shelves drop the ammo from their deliveries.
-        static void Deliver(DaggerfallLoot shelf, PlayerGPS.DiscoveredBuilding building, int share, bool takesAmmo)
+        /// <summary>Daedric-capable pieces a building receives per day, in expected Daedric rolls (DaedricWeight), from the
+        /// shop level. Calibrated so the best smith (level 30) usually holds about one Daedric piece (owner, 2026-11-27); it
+        /// rises as the Daedric odds fall, so a lower-level shop never holds more Daedric than a higher one, up to 3 a day.</summary>
+        internal static float MaterialBudget(int level)
         {
-            int stocked = Stocked(shelf.Items);
-            ItemCollection delivery = new ItemCollection();
-            shelf.AddShopDelivery(building, delivery);
-            List<DaggerfallUnityItem> goods = new List<DaggerfallUnityItem>();
-            for (int i = 0; i < delivery.Count; i++)
-                goods.Add(delivery.GetItem(i));
-            for (int i = goods.Count - 1; i > 0; i--)   // seeded shuffle, so a full shelf does not always skip the same groups
+            double top = DoomerfallDrops.DaedricChance(30), here = DoomerfallDrops.DaedricChance(level);
+            return here <= 0 ? MaxBudget : Mathf.Min(MaxBudget, TopBudget * (float)System.Math.Sqrt(top / here));
+        }
+        internal const float TopBudget = 0.4f, MaxBudget = 3f;
+
+        /// <summary>How much of the material budget an item uses, by its kind: the chance it rolled the approved
+        /// material odds. Weapons 1 (arrows 0); armor 0.1, because Daggerfall's armor roll gives plate, the only armor
+        /// that takes a material, one time in ten (RandomArmorMaterial). Everything else 0.</summary>
+        internal static float DaedricWeight(DaggerfallUnityItem item)
+        {
+            if (item.ItemGroup == ItemGroups.Weapons)
+                return item.TemplateIndex == (int)Weapons.Arrow ? 0 : 1;
+            return item.ItemGroup == ItemGroups.Armor ? 0.1f : 0;
+        }
+
+        /// <summary>Most delivery rolls pooled for one shelf delivery, before the shop's lean picks from them.</summary>
+        const int MaxPoolRolls = 6;
+
+        // Doom ammo sits outside the stock target and arrives every day whatever the shop's rhythm: one ammo delivery per
+        // building, on its first shelf, which also keeps a general store's one horse and one cart.
+        static void DailyAmmo(DaggerfallLoot shelf, PlayerGPS.DiscoveredBuilding building)
+        {
+            ItemCollection ammo = new ItemCollection();
+            DoomerfallAmmoTiers.StockShop(building.buildingType, building.quality, ammo);
+            for (int i = 0; i < ammo.Count; i++)
+                shelf.Items.AddItem(ammo.GetItem(i), ItemCollection.AddPosition.Back, false);   // joins a matching stack
+            if (building.buildingType == DFLocation.BuildingTypes.GeneralStore)
+                foreach (Transportation t in new[] { Transportation.Horse, Transportation.Small_cart })
+                    if (!shelf.Items.Contains(ItemGroups.Transportation, (int)t))
+                        shelf.Items.AddItem(ItemBuilder.CreateItem(ItemGroups.Transportation, (int)t));
+        }
+
+        // One delivery on a rhythm day (DoomerfallShopIdentity). The shelf takes its share of the building's goods:
+        //   - room: a big delivery fills the shelf to its share of the stock target; a trickle brings at most
+        //     share x interval / 7 items, so trickle shops stay below the target when goods sell fast;
+        //   - material budget: MaterialBudget x interval, split over the shelves. Once spent, further weapons and armor are
+        //     skipped and other goods still come;
+        //   - lean: items are drawn from a pool of classic delivery rolls in proportion to the shop's and the supplier's
+        //     kind weights. Kind only, never material or value, so every piece keeps the approved odds.
+        static void Deliver(DaggerfallLoot shelf, PlayerGPS.DiscoveredBuilding building, DoomerfallShopIdentity identity, int supplier, int share, int shelfCount, int level)
+        {
+            int room = share - Stocked(shelf.Items);
+            if (!identity.Big)
+                room = Mathf.Min(room, Mathf.CeilToInt(share * identity.Interval / 7f));
+            if (room <= 0)
+                return;
+            float budget = MaterialBudget(level) * identity.Interval / shelfCount;
+            List<DaggerfallUnityItem> pool = new List<DaggerfallUnityItem>();
+            ItemCollection roll = new ItemCollection();
+            for (int r = 0; r < MaxPoolRolls && pool.Count < room * 3; r++)
             {
-                int j = Random.Range(0, i + 1);
-                DaggerfallUnityItem t = goods[i]; goods[i] = goods[j]; goods[j] = t;
-            }
-            foreach (DaggerfallUnityItem item in goods)
-            {
-                bool ammo = item is DoomerfallAmmoItem;
-                bool transport = item.ItemGroup == ItemGroups.Transportation;
-                if (transport && shelf.Items.Contains(item.ItemGroup, item.TemplateIndex))
-                    continue;   // one horse, one cart
-                if ((ammo || transport) && !takesAmmo)
-                    continue;   // the building's one horse and cart are on its first shelf too
-                if (!ammo && !transport)
+                roll.Clear();
+                shelf.AddShopDelivery(building, roll);
+                for (int i = 0; i < roll.Count; i++)
                 {
-                    if (stocked >= share)
-                        continue;   // a general store always has its horse and cart, as in Daggerfall's classic restock
-                    stocked++;
+                    DaggerfallUnityItem item = roll.GetItem(i);
+                    if (!(item is DoomerfallAmmoItem) && item.ItemGroup != ItemGroups.Transportation)
+                        pool.Add(item);
                 }
-                shelf.Items.AddItem(item, ItemCollection.AddPosition.Back, !ammo);   // ammo joins a matching stack
+            }
+            List<float> weights = new List<float>(pool.Count);
+            foreach (DaggerfallUnityItem item in pool)
+                weights.Add(identity.Weight(item, supplier));
+            for (int left = pool.Count; room > 0 && left > 0; left--)
+            {
+                float total = 0;
+                foreach (float wt in weights) total += wt;
+                float x = Random.value * total;
+                int pick = -1;
+                for (int i = 0; i < pool.Count; i++)
+                    if (weights[i] > 0)
+                    {
+                        pick = i;
+                        if ((x -= weights[i]) < 0) break;
+                    }
+                DaggerfallUnityItem item = pool[pick];
+                weights[pick] = 0;
+                float w = DaedricWeight(item);
+                if (w > 0)
+                {
+                    if (budget <= 0)
+                        continue;
+                    bool take = w <= budget || Random.value < budget / w;
+                    budget -= w;
+                    if (!take)
+                        continue;
+                }
+                shelf.Items.AddItem(item, ItemCollection.AddPosition.Back, true);
+                room--;
             }
         }
 

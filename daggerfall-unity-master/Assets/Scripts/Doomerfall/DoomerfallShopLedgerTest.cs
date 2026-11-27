@@ -205,8 +205,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
             Free(shelves);
             int n = Days - WarmUp;
-            bool pass = max <= cap && min >= target * 3 / 4 && lateArrivals > 0;
-            Log(string.Format("{0} stock size: weapon smith level {1}, quality {2}, {3} shelves, target {4} (cap {5} with rounding): stocked goods per day {6}-{7}, mean {8:F1}; Doom ammo stacks (outside the target, first shelf) mean {9:F1}, max {10}; {11} new non-ammo items in the last 30 days",
+            // Since Shops 6 the target is a ceiling: the shop's rhythm and material budget decide how full it gets
+            // (big-delivery shops go sparse between deliveries), so only the ceiling and continued arrivals are checked.
+            bool pass = max <= cap && lateArrivals > 0;
+            Log(string.Format("{0} stock size: weapon smith level {1}, quality {2}, {3} shelves, target {4} (ceiling {5} with rounding): stocked goods per day {6}-{7}, mean {8:F1}; Doom ammo stacks (outside the target, first shelf) mean {9:F1}, max {10}; {11} new non-ammo items in the last 30 days",
                 pass ? "PASS" : "FAIL", level, quality, count, target, cap, min, max, (double)sum / n, (double)ammoSum / n, ammoMax, lateArrivals));
         }
 
