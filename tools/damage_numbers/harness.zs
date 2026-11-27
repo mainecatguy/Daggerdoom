@@ -10,6 +10,7 @@ class DNHarness : StaticEventHandler
 	Vector3 at, spot;
 	int phase, phaseTic;
 	bool done;
+	int lastValue;
 
 	int Ack()
 	{
@@ -17,16 +18,36 @@ class DNHarness : StaticEventHandler
 		return c ? c.GetInt() : 0;
 	}
 
-	ui bool menuChecked;
+	ui String menuSeen;
 
-	// The option is in Options > HUD Options.
+	// The option is in Options > HUD Options; logs its label and the value it shows whenever that changes.
 	override void UiTick()
 	{
-		if (menuChecked) return;
-		menuChecked = true;
 		let d = OptionMenuDescriptor(MenuDescriptor.GetDescriptor('HUDOptions'));
 		for (int i = 0; d && i < d.mItems.Size(); i++)
-			if (d.mItems[i].GetAction() == 'dd_damagenumbers') Console.Printf("DNMENU %s", d.mItems[i].mLabel);
+		{
+			let it = OptionMenuItemOption(d.mItems[i]);
+			if (!it || it.GetAction() != 'dd_damagenumbers') continue;
+			String s = String.Format("%s = %s", it.mLabel, StringTable.Localize(OptionValues.GetText(it.mValues, it.GetSelection())));
+			if (s != menuSeen) Console.Printf("DNMENU %s", s);
+			menuSeen = s;
+		}
+	}
+
+	// The runner can reset every setting mid-game (reset2defaults) and then sets dn_reset; with +set dn_wait 1 the hits
+	// wait for that.
+	bool Waiting()
+	{
+		let w = CVar.FindCVar("dn_wait");
+		let r = CVar.FindCVar("dn_reset");
+		return w && w.GetInt() && !(r && r.GetInt());
+	}
+
+	void LogValue()
+	{
+		let c = CVar.FindCVar("dd_damagenumbers");
+		let d = CVar.FindCVar("dd_dev");
+		Console.Printf("DNCVAR %d dev %d shown %d", c ? c.GetInt() : -99, d ? d.GetInt() : -99, DoomerfallDamageNumbers.Shown());
 	}
 
 	override void WorldTick()
@@ -46,13 +67,12 @@ class DNHarness : StaticEventHandler
 		}
 		if (t > 5) { p.SetOrigin(at, false); p.vel = (0, 0, 0); p.pitch = 0; }
 		if (target) { target.SetOrigin(spot, true); target.vel = (0, 0, 0); }
-		if (t == 12)
-		{
-			let c = CVar.FindCVar("dd_damagenumbers");
-			let d = CVar.FindCVar("dd_dev");
-			Console.Printf("DNCVAR %d dev %d", c ? c.GetInt() : -99, d ? d.GetInt() : -99);
-		}
-		if (t < 30 || !target) return;
+		// Logged at the start and whenever the stored value changes (a choice, then a reset).
+		let c = CVar.FindCVar("dd_damagenumbers");
+		int v = c ? c.GetInt() : -99;
+		if (t == 12 || (t > 12 && v != lastValue)) LogValue();
+		lastValue = v;
+		if (t < 30 || !target || Waiting()) return;
 		phaseTic++;
 		if (phase == 0) // Hit every 8 tics until shot a is taken.
 		{

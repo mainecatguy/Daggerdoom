@@ -1,7 +1,8 @@
 // Damage numbers (owner, 2026-11-26): with "Show damage numbers" on (Options > HUD Options), each hit the player lands
 // on a monster shows a small number over its body that rises and fades. Neither UZDoom, DRLA nor DRLAX has one.
-// Off by default; a launch with +dd_dev 1 (the owner's play folder) turns it on the first time, and after that the
-// menu choice is kept in the config like any other setting. dd_damagenumbers is -1 until then (CVARINFO.txt).
+// dd_damagenumbers (CVARINFO.txt) stays -1 until the player picks On or Off, and -1 means the launch's default: off,
+// or on in a launch with +dd_dev 1 (the owner's play folder). The default is never saved, only the player's choice,
+// and Reset to defaults goes back to -1.
 // Display only: it reads WorldThingDamaged and changes nothing in play. Works with or without Daggerfall.
 class DoomerfallDamageNumber play
 {
@@ -53,24 +54,19 @@ class DoomerfallDamageNumbers : StaticEventHandler
 			if (nums[i].target) nums[i].pos = nums[i].target.pos;
 	}
 
-	ui CVar showCvar;
-	ui bool defaultDone;
-
-	// The first time the setting is read with no choice made yet, it becomes on for a dev launch and off otherwise.
-	override void UiTick()
+	// Whether numbers show now: the player's choice, or the launch's default while there is none (-1).
+	clearscope static bool Shown()
 	{
-		if (defaultDone) return;
-		defaultDone = true;
 		let show = CVar.FindCVar("dd_damagenumbers");
+		int v = show ? show.GetInt() : -1;
+		if (v >= 0) return v == 1;
 		let dev = CVar.FindCVar("dd_dev");
-		if (show && show.GetInt() < 0) show.SetInt(dev && dev.GetBool() ? 1 : 0);
+		return dev && dev.GetBool();
 	}
 
 	override void RenderOverlay(RenderEvent e)
 	{
-		if (!nums.Size() || automapactive || consoleplayer < 0) return;
-		if (showCvar == null) showCvar = CVar.FindCVar("dd_damagenumbers");
-		if (showCvar == null || showCvar.GetInt() != 1) return;
+		if (!nums.Size() || automapactive || consoleplayer < 0 || !Shown()) return;
 
 		// The hardware renderer's projection (hw_entrypoint.cpp, hw_drawinfo.cpp, r_utility.cpp): heights are stretched
 		// by the level's pixel ratio, the pitch is adjusted to match, and the vertical field of view comes from the
@@ -112,5 +108,19 @@ class DoomerfallDamageNumbers : StaticEventHandler
 			Screen.DrawText(SmallFont, Font.CR_BLACK, sx + scale, sy + scale, text, DTA_ScaleX, scale, DTA_ScaleY, scale, DTA_Alpha, alpha * 0.7);
 			Screen.DrawText(SmallFont, Font.CR_GOLD, sx, sy, text, DTA_ScaleX, scale, DTA_ScaleY, scale, DTA_Alpha, alpha);
 		}
+	}
+}
+
+// The menu entry: Doom's own On/Off option, except that while no choice is made (-1) it shows the launch's default.
+// The first change stores a real choice.
+class OptionMenuItemDDDamageNumbersOption : OptionMenuItemOption
+{
+	override int GetSelection()
+	{
+		if (mCVar == null || mCVar.GetInt() >= 0) return Super.GetSelection();
+		int want = DoomerfallDamageNumbers.Shown() ? 1 : 0;
+		for (int i = 0; i < OptionValues.GetCount(mValues); i++)
+			if (OptionValues.GetValue(mValues, i) == want) return i;
+		return -1;
 	}
 }

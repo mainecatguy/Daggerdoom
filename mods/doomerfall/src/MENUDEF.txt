@@ -7,7 +7,7 @@
 AddOptionMenu "HUDOptions"
 {
 	StaticText ""
-	Option "Show damage numbers", "dd_damagenumbers", "OnOff"
+	DDDamageNumbersOption "Show damage numbers", "dd_damagenumbers", "OnOff" // Shows the default while no choice is made.
 }
 
 OptionMenu "DoomerfallControlsMenu"

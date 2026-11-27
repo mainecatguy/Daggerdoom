@@ -1,6 +1,10 @@
 """Damage numbers test: the "Show damage numbers" option (mods/doomerfall/src/zscript/DoomerfallDamageNumbers.zs).
 
-usage: damage_numbers.py run NAME [--stock] [--dev] [--set 0|1] [--keep-config] [--uzdoom EXE] [--iwad WAD] | check
+usage: damage_numbers.py run NAME [--stock] [--dev] [--set 0|1] [--reset] [--keep-config] [--expect 0|1]
+                         [--expect-stored -1|0|1] [--uzdoom EXE] [--iwad WAD] | check
+--reset makes a choice mid-game, opposite to the launch's default, then runs reset2defaults (Options > Reset to
+defaults); the option must go back to the launch's default. Each run checks the stored value, whether numbers show,
+what HUD Options displays, and what the config holds after quitting (the default is never saved).
 Runs UZDoom alone (no Daggerfall) on E1M1 with DRLA (unless --stock), a fresh doomerfall.pk3 and
 tools/damage_numbers/harness.zs, which freezes a monster in front of the player and hits it with the player as the
 source. Screenshots shot-a.png and shot-c.png and the console log go to the run folder. --dev passes +dd_dev 1; --set passes
@@ -50,6 +54,7 @@ def run(a):
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "DNHarness" }\n')
     mods = ([] if a.stock else [MODS / n for n in DRLA]) + [pk3, harness]
     extra = (["+dd_dev", "1"] if a.dev else []) + (["+dd_damagenumbers", a.set] if a.set is not None else [])
+    extra += ["+set", "dn_wait", "1"] if a.reset else []
     timeout = 60
     uz = [a.uzdoom, "-iwad", a.iwad, "-file", *mods, "-config", config, "-ddqa", inbox.parent, "-noautoload", "-skill", "3",
           "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1",
@@ -57,7 +62,7 @@ def run(a):
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--cwd", str(runs), "--", *map(str, uz)]
     out = open(runs / "stdout.txt", "wb")
     proc = subprocess.Popen(command + ["-stdout"], stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT)
-    reason, end, shots, waiting = "timeout", time.time() + timeout + 3, 0, None
+    reason, end, shots, waiting, resetDone = "timeout", time.time() + timeout + 3, 0, None, False
 
     def body_now():
         return read(runs / "stdout.txt")  # -stdout output arrives line by line, unlike the buffered -logfile log.
@@ -65,6 +70,19 @@ def run(a):
     while time.time() < end and proc.poll() is None:
         time.sleep(0.1)
         body = body_now()
+        if a.reset and not resetDone:
+            # Make a choice opposite to the launch's default; once the harness logs it, run Options > Reset to
+            # defaults' own command.
+            choice = 0 if a.dev else 1
+            if resetDone is False and "DNCVAR" in body:
+                resetDone = None
+                with open(inbox, "a") as f:
+                    f.write(f"c1 con dd_damagenumbers {choice}\n")
+            elif resetDone is None and f"DNCVAR {choice} " in body:
+                resetDone = True
+                with open(inbox, "a") as f:
+                    f.write("c2 con reset2defaults\n")
+                    f.write("c3 con set dn_reset 1\n")
         if waiting and waiting.exists():  # The screenshot waits for a rendered frame; only then may the harness move on.
             time.sleep(0.3)
             with open(inbox, "a") as f:
@@ -94,11 +112,26 @@ def run(a):
     for line in body.splitlines():
         if line.startswith("DN") or any(k in line for k in FATAL):
             print(line[:200])
-    value = re.search(r"DNCVAR (-?\d+)", body)
-    want = a.set if a.set is not None else a.expect
-    ok = reason == "done" and value is not None and (want is None or value[1] == want)
-    if "DNMENU Show damage numbers" not in body:
-        print("FAIL: no Show damage numbers entry in HUD Options")
+    # The last values logged: after a reset, if one was asked for.
+    values = re.findall(r"DNCVAR (-?\d+) dev (-?\d+) shown (\d)", body)
+    stored, shown = (values[-1][0], values[-1][2]) if values else ("?", "?")
+    want_stored = a.expect_stored or (a.set if a.set is not None and not a.reset else "-1")
+    want_shown = a.expect or (a.set if a.set is not None and not a.reset else ("1" if a.dev else "0"))
+    ok = reason == "done" and stored == want_stored and shown == want_shown
+    if a.reset and (len(values) < 3 or values[-2][0] != ("0" if a.dev else "1")):
+        print("FAIL: the choice and then the reset were not both logged")
+        ok = False
+    menus = re.findall(r"DNMENU Show damage numbers = (\S+)", body)
+    want_menu = "On" if want_shown == "1" else "Off"
+    if not menus or menus[-1] != want_menu:
+        print(f"FAIL: HUD Options shows {menus[-1] if menus else 'no entry'}, wanted {want_menu}")
+        ok = False
+    saved = re.search(r"(?m)^dd_damagenumbers=(\S+)", read(config))
+    if not saved or saved[1] != want_stored:  # Only a real choice is saved; the launch's default never is.
+        print(f"FAIL: config holds dd_damagenumbers={saved[1] if saved else '(none)'}, wanted {want_stored}")
+        ok = False
+    if re.search(r"(?m)^dd_dev=", read(config)):
+        print("FAIL: dd_dev was saved")
         ok = False
     summed = re.findall(r"DNNUMS handler:(.*)", body)
     if not summed or not summed[0].split()[-1:] == ["21"]:  # Three hits in one tic make one number.
@@ -106,7 +139,8 @@ def run(a):
         ok = False
     shots = sorted(p.name for p in runs.glob("shot-*.png"))
     print("screenshots:", shots, "in", runs)
-    print("RESULT", "PASS" if ok and len(shots) == 2 else "FAIL", f"(dd_damagenumbers {value[1] if value else '?'}, wanted {want})")
+    print("RESULT", "PASS" if ok and len(shots) == 2 else "FAIL",
+          f"(stored {stored}, wanted {want_stored}; shown {shown}, wanted {want_shown}; menu {menus[-1] if menus else '?'})")
 
 
 def check(a):
@@ -127,11 +161,11 @@ ap.add_argument("name", nargs="?", default="t")
 ap.add_argument("--stock", action="store_true")
 ap.add_argument("--dev", action="store_true")
 ap.add_argument("--set", choices=("0", "1"))
-ap.add_argument("--expect", choices=("0", "1"), help="the value the setting must have (default: 1 with --dev, else 0)")
+ap.add_argument("--expect", choices=("0", "1"), help="whether numbers must show (default: --set's value, else 1 with --dev, else 0)")
+ap.add_argument("--expect-stored", choices=("-1", "0", "1"), help="the stored value (default: --set's value, else -1)")
+ap.add_argument("--reset", action="store_true", help="mid-game, choose the opposite of the default, then reset2defaults")
 ap.add_argument("--keep-config", action="store_true")
 ap.add_argument("--uzdoom", default=r"D:\dev\DoomDaggerfall-loop\play\uzdoom\uzdoom.exe")
 ap.add_argument("--iwad", default=str(GAME / "wads" / "DOOM.WAD"))
 args = ap.parse_args()
-if args.expect is None and not args.keep_config:
-    args.expect = "1" if args.dev else "0"
 check(args) if args.command == "check" else run(args)
