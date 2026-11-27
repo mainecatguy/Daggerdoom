@@ -217,7 +217,7 @@ namespace DaggerfallWorkshop
                         for (int j = 0; j < enumArray.Length; ++j)
                         {
                             ItemTemplate itemTemplate = itemHelper.GetItemTemplate(itemGroup, j);
-                            if (itemTemplate.rarity <= shopQuality)
+                            if (itemTemplate.rarity <= shopQuality && !Game.Doomerfall.DoomerfallShields.Banned(itemGroup, itemTemplate.index)) // [Doomerfall] no shields
                             {
                                 int stockChance = chanceMod * 5 * (21 - itemTemplate.rarity) / 100;
                                 if (Dice100.SuccessRoll(stockChance))

@@ -1327,6 +1327,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             const int itemBrokenTextId = 29;
             const int forbiddenEquipmentTextId = 1068;
             if (DaggerfallWorkshop.Game.Doomerfall.DoomerfallHotkeys.BlockEquip(item)) return; // Doomerfall: guns are drawn by hotkey
+            if (DaggerfallWorkshop.Game.Doomerfall.DoomerfallShields.BlockEquip(item)) return; // Doomerfall: no shields for now
 
             if (item.ItemGroup == ItemGroups.Weapons && item.TemplateIndex == (int)Weapons.Arrow)
                 return;

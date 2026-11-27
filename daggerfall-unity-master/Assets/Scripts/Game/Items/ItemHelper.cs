@@ -1416,7 +1416,7 @@ namespace DaggerfallWorkshop.Game.Items
 
                 // left-hand shield
                 item = UnityEngine.Random.Range((int)Armor.Buckler, (int)(Armor.Round_Shield) + 1);
-                if (Dice100.SuccessRoll(chance))
+                if (Dice100.SuccessRoll(chance) && !Doomerfall.DoomerfallShields.Banned(ItemGroups.Armor, item)) // [Doomerfall] no shields (the roll still happens)
                 {
                     DaggerfallUnityItem armor = ItemBuilder.CreateArmor(playerGender, race, (Items.Armor)item, FormulaHelper.RandomArmorMaterial(itemLevel));
                     enemyEntity.ItemEquipTable.EquipItem(armor, true, false);

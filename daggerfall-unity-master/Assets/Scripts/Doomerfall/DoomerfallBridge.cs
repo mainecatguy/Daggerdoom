@@ -188,6 +188,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             hotkeys.Init(this, sync);
             DoomerfallAmmo.Register();
             DoomerfallLockpick.Register();
+            DoomerfallShields.Register(this); // no shields for now
             ammo =gameObject.AddComponent<DoomerfallAmmo>();
             ammo.Init(this, sync);
             damageBonus.Ammo = ammo;
@@ -196,6 +197,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfammotest") >= 0)
                 gameObject.AddComponent<DoomerfallAmmoTest>().Init(this, ammo);
             DoomerfallShopStockTest.Attach(this); // test only: -dfshoptest
+            DoomerfallShieldsTest.Attach(this, sync); // test only: -dfshieldtest
             DoomerfallShopAmmoTest.Attach(this, ammo); // test only: -dfshopammotest
             DoomerfallWorldLevelTest.Attach(this); // test only: -dfworldleveltest N
             DoomerfallChangeAmmoTest.Attach(this, ammo); // test only: -dfchangeammotest
