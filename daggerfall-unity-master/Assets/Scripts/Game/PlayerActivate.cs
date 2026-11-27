@@ -1003,6 +1003,18 @@ namespace DaggerfallWorkshop.Game
             finally { currentMode = mode; }
         }
 
+        // Doomerfall: Doom's Use on a townsperson Doom draws, through a stand-in for Daggerfall's wanderer: talk, or a
+        // pickpocket attempt in Steal mode, as in Daggerfall.
+        public void DoomerfallUseMobileNpc(MobilePersonNPC npc, PlayerActivateModes useMode, float distance)
+        {
+            PlayerActivateModes mode = currentMode;
+            currentMode = useMode;
+            RaycastHit hit = new RaycastHit();
+            hit.distance = distance;
+            try { ActivateMobileNPC(hit, npc); }
+            finally { currentMode = mode; }
+        }
+
         void DisableEmptyCorpseContainer(GameObject go)
         {
             if (go)
