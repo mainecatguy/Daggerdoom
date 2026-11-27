@@ -219,6 +219,7 @@ void PublishPosition()
 	ownState.space_yaw = float(spaceYaw);
 	ownState.space_target = spaceTarget;
 	ownState.space_valid = inSpace ? 1 : 0;
+	ownState.town_map = area == DD_AREA_EXTERIOR && DDTreadmill_OnTownMap() ? 1 : 0;
 	if (context != ownState.world_context || pixelX != ownState.map_pixel_x || pixelY != ownState.map_pixel_y)
 	{
 		ownState.world_context = context;
@@ -816,6 +817,15 @@ bool DD_BridgeMapPixel(int &x, int &y)
 	x = ownState.map_pixel_x;
 	y = ownState.map_pixel_y;
 	return session != nullptr && x >= 0 && y >= 0;
+}
+
+// Outdoors on a town's own map: the 8-tile cell (2048 Daggerfall units) the player stands in, cy * 16000 + cx.
+bool DD_BridgeTownCell(uint32_t &cell)
+{
+	if (!session || !ownState.town_map) return false;
+	const int cx = std::clamp(int(floor(ownState.world_x / 2048)), 0, 15999), cy = std::clamp(int(floor(ownState.world_z / 2048)), 0, 15999);
+	cell = uint32_t(cy) * 16000u + uint32_t(cx);
+	return true;
 }
 
 // Daggerfall answered Use on a container with its own window. Doom shows it like any other Daggerfall menu.

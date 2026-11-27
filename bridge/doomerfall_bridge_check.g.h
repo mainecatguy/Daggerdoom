@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x5a262ec33e873a15ULL
+#define DFB_SCHEMA_HASH 0x68c12c63adfaad7aULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -1031,8 +1031,8 @@ static_assert(offsetof(dfb_uz_state, space_target) == 108, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_uz_state::space_target), int32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_uz_state, space_valid) == 112, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_uz_state::space_valid), uint32_t>::value, DFB_STALE);
-static_assert(offsetof(dfb_uz_state, pad1) == 116, DFB_STALE);
-static_assert(std::is_same<decltype(dfb_uz_state::pad1), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_uz_state, town_map) == 116, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_uz_state::town_map), uint32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_uz_state, reserved) == 120, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_uz_state::reserved), uint8_t[136]>::value, DFB_STALE);
 

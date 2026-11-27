@@ -3,7 +3,7 @@
     python tools/area_level/compare_runtime.py DUMP_DIR [--arena2 DIR]
 
 DUMP_DIR is what DaggerfallUnity.exe -dfarealeveldump DUMP_DIR wrote (levels.csv and terrain.bin).
-Compares every classic location's dungeon and terrain level and every land map pixel's terrain level.
+Compares every classic location's dungeon, terrain and town level and every land map pixel's terrain level.
 """
 import argparse
 import os
@@ -27,12 +27,12 @@ def main():
     with open(os.path.join(a.dump, "levels.csv"), encoding="utf-8") as f:
         next(f)
         for line in f:
-            map_id, dungeon, ter = (int(v) for v in line.split(","))
-            runtime[map_id] = (dungeon, ter)
+            map_id, dungeon, ter, town = (int(v) for v in line.split(","))
+            runtime[map_id] = (dungeon, ter, town)
 
     bad = 0
     for l in locs:
-        want = (l["level"] if l["dtype_name"] else 0, l["terrain_level"])
+        want = (l["level"] if l["dtype_name"] else 0, l["terrain_level"], l["town_level"])
         got = runtime.get(l["map_id"])
         if got != want:
             bad += 1

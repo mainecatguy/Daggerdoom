@@ -76,9 +76,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             report.AppendFormat("warm call on main thread {0:0.000} ms\n", clock.Elapsed.TotalMilliseconds);
             report.AppendLine(DoomerfallAreaLevels.Status());
 
-            StringBuilder csv = new StringBuilder("map_id,dungeon,terrain\n");
+            StringBuilder csv = new StringBuilder("map_id,dungeon,terrain,town\n");
             foreach (KeyValuePair<int, DoomerfallAreaLevels.Level> entry in DoomerfallAreaLevels.Classic())
-                csv.AppendFormat("{0},{1},{2}\n", entry.Key, entry.Value.dungeon, entry.Value.terrain);
+                csv.AppendFormat("{0},{1},{2},{3}\n", entry.Key, entry.Value.dungeon, entry.Value.terrain, entry.Value.town);
             File.WriteAllText(Path.Combine(dir, "levels.csv"), csv.ToString());
 
             byte[] terrain = new byte[1000 * 500];
@@ -130,6 +130,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 }
             }
             report.AppendFormat("fallback on {0} classic dungeons: {1} same, {2} differ ({3} ms)\n", checkedCount, same, off, clock.ElapsedMilliseconds);
+            DoomerfallTownLevelsTest.Run(report);
         }
 
         // The same picker BuildPlacements uses, so the computed level changes which enemies the drops come from.

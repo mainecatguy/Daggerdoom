@@ -119,6 +119,28 @@ OVERRIDES = {
 
 MAX_LEVEL = 30
 
+# Towns (owner, 2026-11-24 and 2026-11-26): outdoors in a town the area level is the higher of the
+# terrain level and the town's class level. A danger level only: it never sets shop quality or a
+# building's wealth. Classes by location type ("type" scheme); a city named after its region
+# (aliases below, as in tools/shop_levels/proposals.py) is a capital.
+TOWN_CLASS_LEVEL = {"small": 5, "medium": 10, "large": 15, "capital": 20}
+CAPITAL_ALIAS = {"Glenumbra Moors": "Glenumbra", "Dragontail Mountains": "Dragontail",
+                 "Wrothgarian Mountains": "Wrothgaria", "Antiphyllos": "Antyphyllos",
+                 "Orsinium Area": "Orsinium", "Alik'r Desert": "Alik'ra"}
+
+
+def town_class(loc):
+    """'small', 'medium', 'large', 'capital', or None for a place that is not a town."""
+    t = loc["ltype"]
+    if t == 2:
+        return "small"
+    if t == 1:
+        return "medium"
+    if t != 0:
+        return None
+    capital = CAPITAL_ALIAS.get(loc["region_name"], loc["region_name"])
+    return "capital" if loc["name"].strip().lower() == capital.strip().lower() else "large"
+
 # ---- Fixed-seed hashing (ports to C# with uint arithmetic) -----------------
 
 M32 = 0xFFFFFFFF
@@ -217,6 +239,9 @@ def assign(locs, region_at):
     for loc in locs:
         t = terrain_raw(loc["region_name"], loc["x"], loc["y"])
         loc["terrain_level"] = terrain.get(loc["y"] * 1000 + loc["x"], 1)
+        loc["town_class"] = town_class(loc)
+        loc["town_level"] = (max(loc["terrain_level"], TOWN_CLASS_LEVEL[loc["town_class"]])
+                             if loc["town_class"] else 0)
         if loc["dtype_name"] is None:
             loc["class"] = "no dungeon"
             loc["level"] = loc["terrain_level"]
@@ -252,6 +277,8 @@ def histogram(levels, title):
 
 
 def report(locs):
+    towns = collections.Counter(l["town_class"] for l in locs if l["town_class"])
+    print("Town classes: " + ", ".join(f"{c} {towns[c]}" for c in ("small", "medium", "large", "capital")))
     dun = [l for l in locs if l["dtype_name"]]
     histogram([l["level"] for l in dun], "Dungeon levels, all classes")
     for cls in ("labyrinth", "keep", "ruin", "graveyard"):
@@ -383,10 +410,10 @@ def main():
     report(locs)
     if a.csv:
         with open(a.csv, "w", encoding="utf-8") as f:
-            f.write("map_id,region,name,location_type,dungeon_type,class,level,terrain_level\n")
+            f.write("map_id,region,name,location_type,dungeon_type,class,level,terrain_level,town_level\n")
             for l in locs:
                 f.write(f"{l['map_id']},\"{l['region_name']}\",\"{l['name']}\",{l['ltype_name']},"
-                        f"{l['dtype_name'] or ''},{l['class']},{l['level']},{l['terrain_level']}\n")
+                        f"{l['dtype_name'] or ''},{l['class']},{l['level']},{l['terrain_level']},{l['town_level']}\n")
         print(f"wrote {a.csv}")
     if a.png:
         write_png(a.png, locs, terrain, region_at)

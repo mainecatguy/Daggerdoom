@@ -1004,7 +1004,7 @@ typedef struct dfb_uz_state
 	float space_yaw;          /* Doom angle within the space */
 	int32_t space_target;     /* the target of the door event for this space */
 	uint32_t space_valid;     /* 0 outdoors and between maps */
-	uint32_t pad1;
+	uint32_t town_map;        /* 1 outdoors on a generated town's own Doom map, 0 elsewhere (overworld, indoors, between maps) */
 	uint8_t reserved[DFB_STATE_BYTES - 120];
 } dfb_uz_state;
 
