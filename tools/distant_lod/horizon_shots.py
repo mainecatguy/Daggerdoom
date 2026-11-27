@@ -44,6 +44,7 @@ class HorizonShot : EventHandler
 		int cx = over ? CVar.FindCVar("dd_tm_originx").GetInt() : 0, cy = over ? CVar.FindCVar("dd_tm_originy").GetInt() : 0;
 		if (!have) { have = true; ox = cx; oy = cy; start = p.pos.xy; }
 		Vector2 at = start;
+		if (@ATX@ != 0) { at = (@ATX@, @ATY@); p.angle = @ATYAW@; }
 		if (over)	// world tile (ox + 80, oy + 64): 3072 units east of the first window's centre
 		{
 			at = ((ox + 80 - cx) * 192.0 - 12288, (oy + 64 - cy) * 192.0 - 12288);
@@ -51,7 +52,7 @@ class HorizonShot : EventHandler
 		}
 		p.SetOrigin((at.x, at.y, p.GetZAt(at.x, at.y, 0, GZF_ABSOLUTEPOS)), false);
 		p.vel = (0, 0, 0);
-		p.angle = YAWS[view];
+		if (@ATX@ == 0) p.angle = YAWS[view];
 		p.pitch = @PITCH@;
 		if (level.maptime % 35 == 5) Console.Printf("HZPOS map=%s phase=%d view=%d local=%.1f,%.1f,%.1f origin=%d,%d", level.MapName, phase, view, p.pos.x, p.pos.y, p.pos.z, cx, cy);
 	}
@@ -77,6 +78,7 @@ def main():
     ap.add_argument("--exe", default=r"D:\dev\DoomDaggerfall-build\uzdoom-distantlod\Release\uzdoom.exe")
     ap.add_argument("--data", default=r"D:\dev\DoomDaggerfall-loop\review\arrival-spawn\data")
     ap.add_argument("--pitch", default="0")
+    ap.add_argument("--at", help="X,Y,YAW: a fixed local spot and facing on a location map (all four shots use it)")
     ap.add_argument("--drla", action="store_true")
     ap.add_argument("--timeout", type=int, default=60)
     args = ap.parse_args()
@@ -85,9 +87,10 @@ def main():
     cache = os.path.join(WORK, "cache")
     if not os.path.isdir(cache):
         shutil.copytree(os.path.join(args.data, "cache"), cache)
+    at = [v + ".0" for v in args.at.split(",")] if args.at else ["0.0", "0.0", "0.0"]
     harness = os.path.join(WORK, "horizon_shot.pk3")
     with zipfile.ZipFile(harness, "w") as z:
-        z.writestr("zscript.txt", ZS.replace("@PITCH@", args.pitch + ".0"))
+        z.writestr("zscript.txt", ZS.replace("@PITCH@", args.pitch + ".0").replace("@ATX@", at[0]).replace("@ATY@", at[1]).replace("@ATYAW@", at[2]))
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "HorizonShot" }\n')
     ini = os.path.join(WORK, f"{args.name}.ini")
     with open(ini, "w", newline="\n") as f:
