@@ -32,17 +32,13 @@ KILL = re.compile(r"DFAMMO luck kill (\S+) luck (\d+) roll ([\d.]+) (drop|none)"
 # One Luck drop: exactly one pickup of one type and tier (no jackpot).
 LUCKDROP = re.compile(r"DFAMMO luck drop (\w+) tier (\d+) at (-?\d+) (-?\d+) luck (\d+)")
 
-# --stock only: a loot-stream probe. Stock zombiemen get chance drops of probe tokens (DropItem chances draw from the
-# dying monster's fixed loot stream). If a Luck drop drew from that stream, which probes drop would change with Luck.
-PROBE = """
-class DDLuckProbeA : Inventory { States { Spawn: CLIP A -1; Stop; } }
-class DDLuckProbeB : DDLuckProbeA {}
-class DDLuckProbeC : DDLuckProbeA {}
-class DDLuckProbeZombie : ZombieMan replaces ZombieMan
-{
-	Default { DropItem "Clip"; DropItem "DDLuckProbeA", 128; DropItem "DDLuckProbeB", 128; DropItem "DDLuckProbeC", 64; }
-}
-"""
+
+def spots(out, name):
+    """The landing spot of each of the monsters' own drops (not DFAmmo), by seed. A dropped item's toss velocity is
+    drawn from the dying monster's fixed loot stream, and the harness kills monsters where they stand, so the spot is a
+    probe of that stream: anything else drawing from it (a Luck drop spawned inside the death) moves later drops."""
+    text = (out / f"result-{name}.txt").read_text()
+    return {s: p for c, s, p in re.findall(r"^PDDROP (\S+) seed (\w+) @ (.*)$", text, re.M) if not c.startswith("DFAmmo_")}
 
 
 def copy_over(src, dst):
@@ -82,7 +78,6 @@ def main():
         text = (fd.HERE / "paired.zs").read_text()
         for rl, doom in (("RLPainElemental", "PainElemental"), ("RLFormerOverwatch", "ChaingunGuy"), ("RLLostSoulPE", "LostSoul"), ("RLUACDefenceDrone", "LostSoul")):
             text = text.replace(f'"{rl}"', f'"{doom}"')
-        text += PROBE
         patched = Path(sys.argv[3]).resolve() / "stock-harness"
         patched.mkdir(parents=True, exist_ok=True)
         (patched / "paired.zs").write_text(text)
@@ -152,15 +147,10 @@ def main():
         if not same:
             print("  only low:", list((+b["base"] - +r["base"]).items())[:10], "\n  only high:", list((+r["base"] - +b["base"]).items())[:10])
         checks.append((f"luck {luck} vs {lo}: monsters' own drops identical apart from the Luck drops", same))
-        if stock:
-            probes = lambda s: Counter({k: v for k, v in s["drops"].items() if k.startswith("DDLuckProbe")})
-            pr, pb = probes(r["s"]), probes(b["s"])
-            # The probe's chance drops only prove something on kills whose Luck roll succeeded at the higher Luck.
-            luckyZombies = sum(1 for c, _, _, d in r["rolls"] if d and c == "DDLuckProbeZombie")
-            print(f"  probe: luck {lo} {sum(pb.values())} probe drops, luck {luck} {sum(pr.values())}; "
-                  f"{luckyZombies} probe zombies made a Luck drop at luck {luck}")
-            checks.append((f"luck {luck} vs {lo}: loot-stream probe dropped and Luck drops happened on probe zombies", sum(pb.values()) > 0 and luckyZombies > 0))
-            checks.append((f"luck {luck} vs {lo}: loot-stream probe chance drops identical (Luck does not touch the monster's loot stream)", pr == pb))
+        sr, sb = spots(out, f"fresh{luck}"), spots(out, f"fresh{lo}")
+        moved = [s for s in sr if s in sb and sr[s] != sb[s]]
+        print(f"  loot-stream probe: {len(moved)} of {len(sr)} own drops landed elsewhere at luck {luck} than at {lo}")
+        checks.append((f"luck {luck} vs {lo}: monsters' own drops land on the same spots (Luck does not touch their loot stream)", sr and not moved))
     pos = [r for l, r in runs.items() if l > 0]
     if pos:
         K, N = sum(r["k"] for r in pos), sum(r["n"] for r in pos)
