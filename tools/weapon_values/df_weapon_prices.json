@@ -1,0 +1,20 @@
+{
+ "Dagger": 1,
+ "Tanto": 3,
+ "Staff": 5,
+ "Shortsword": 5,
+ "Wakizashi": 8,
+ "Broadsword": 10,
+ "Saber": 12,
+ "Longsword": 15,
+ "Katana": 25,
+ "Claymore": 30,
+ "Dai_Katana": 50,
+ "Mace": 10,
+ "Flail": 15,
+ "Warhammer": 20,
+ "Battle_Axe": 20,
+ "War_Axe": 20,
+ "Short_Bow": 10,
+ "Long_Bow": 20
+}
