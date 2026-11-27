@@ -38,8 +38,9 @@ class DoomerfallBurnLook play
 		double r = v.radius * 0.7;
 		double h = v.height;
 		double s = 0.5 * clamp(h / 56.0, 0.6, 1.6);
-		// One flame per ZombieMan-sized area (20 x 56), up to 4.
-		int n = clamp(int(v.radius * h / 1120.0 + 0.5), 1, 4);
+		// Flames by body size (radius x height / 700, 1 to 4): ZombieMan and Imp 1, Demon, Baron, and Hell Knight 2,
+		// Mancubus and Cyberdemon 4.
+		int n = clamp(int(v.radius * h / 700.0), 1, 4);
 		for (int k = 0; k < n; k++)
 		{
 			let f = Actor.Spawn("DoomerfallBurnFlame",
