@@ -3,7 +3,9 @@
 usage: python tools/weapon_category/run_weaponcat_test.py <uzdoom.exe> <workdir> [--iwad WAD] [--mods DIR]
 
 Builds doomerfall.pk3 into workdir and runs DOOM.WAD E1M1 through quiet_run.py with a private config and
-+set dd_weaponcat_test 1, which selects each sample gun and prints "WEAPCAT <class> <category> <slot>":
++set dd_weaponcat_test 1, which selects each sample gun and prints "WEAPCAT <class> <category> <slot> held=..
+second=<category> <slot> uses=<slot>" (a weapon in two skills has a second category; "uses" is the skill it reads,
+the first one here since there is no Daggerfall character):
   stock   doomerfall.pk3 only (no DRLA): stock guns get their categories, DRLA samples are absent.
   drla    play_drlax.bat's DRLA set plus doomerfall.pk3: DRLA guns get their categories from DRLA's tokens and ammo.
 Logs go to workdir/<run>.log.
@@ -54,7 +56,17 @@ MELEE_ENERGY = {'RLFist': 'unarmed', 'RLDoubleChainsaw': 'melee', 'RLPiercingCha
                 'RLNuclearPlasmaPistol': 'pistol', 'RLLightweaver': 'energy', 'RLDragonslayer': 'melee',
                 'RLNanoShrapnelPlasmaShotgun': 'energy'}
 DRLA_EXPECT.update(MELEE_ENERGY)
-SLOT = {'shotgun': 4, 'automatic': 5, 'explosive': 6, 'pistol': 7, 'energy': 9, 'melee': 10, 'unarmed': 30}
+# Weapons in two skills (owner 2026-11-26, gamedesign/decisions/20261126-two-skill-weapons-owner.md): a Pistol or
+# Shotgun that is also an Energy Weapon. Every other sample's second category is 'other'. Energy pistols are pistols
+# first; energy shotguns are energy first. A missile pistol stays a pistol only.
+TWO_SKILL = {'RLPlasmaPistol': 'energy', 'RLNuclearPlasmaPistol': 'energy', 'RLBlaster': 'energy', 'RLPlasmaUzi': 'energy',
+             'RLBaronBlaster': 'energy', 'RLStormNuclearPlasmaPistol': 'energy',
+             'RLNanoShrapnelPlasmaShotgun': 'shotgun', 'RLLaserShotgun': 'shotgun', 'RLPlasmaShotgun': 'shotgun',
+             'RLNuclearPlasmaShotgun': 'shotgun', 'RLHeavyPlasmaShotgun': 'shotgun'}
+DRLA_EXPECT.update({'RLLaserShotgun': 'energy', 'RLPlasmaShotgun': 'energy', 'RLNuclearPlasmaShotgun': 'energy',
+                    'RLHeavyPlasmaShotgun': 'energy', 'RLBlaster': 'pistol', 'RLPlasmaUzi': 'pistol',
+                    'RLBaronBlaster': 'pistol', 'RLStormNuclearPlasmaPistol': 'pistol', 'RLMiniMissilePistol': 'pistol'})
+SLOT ={'shotgun': 4, 'automatic': 5, 'explosive': 6, 'pistol': 7, 'energy': 9, 'melee': 10, 'unarmed': 30}
 RIFLES_SLOT = 8
 
 
@@ -75,9 +87,10 @@ def run(exe, work, iwad, files, name, timeout):
 def parse(lines):
     out = {}
     for l in lines:
-        m = re.search(r'WEAPCAT (\w+) ([\w-]+)(?: (-?\d+) held=(\w+))?', l)
+        m = re.search(r'WEAPCAT (\w+) ([\w-]+)(?: (-?\d+) held=(\w+) second=(\w+) (-?\d+) uses=(-?\d+))?', l)
         if m and m.group(1) != 'done':
-            out[m.group(1)] = (m.group(2), int(m.group(3)) if m.group(3) else None, m.group(4))
+            out[m.group(1)] = (m.group(2), int(m.group(3)) if m.group(3) else None, m.group(4),
+                               m.group(5), int(m.group(6)) if m.group(6) else None, int(m.group(7)) if m.group(7) else None)
     return out
 
 
@@ -87,8 +100,12 @@ def check(name, got, expect, checks):
         if cls == 'SuperShotgun' and g and g[0] == 'not-given':
             checks.append((f'{name}: {cls} not in this IWAD (DOOM.WAD has none)', True, g))
             continue
-        ok = g is not None and g[0] == cat and g[1] == SLOT.get(cat, -1)
-        checks.append((f'{name}: {cls} is {cat}', ok, g))
+        second = TWO_SKILL.get(cls, 'other')
+        # Without Daggerfall there is no character sheet, so a two-skill weapon uses its first category's skill.
+        ok = (g is not None and g[0] == cat and g[1] == SLOT.get(cat, -1) and g[3] == second
+              and g[4] == SLOT.get(second, -1) and g[5] == SLOT.get(cat, -1))
+        label = f'{cat} + {second}' if second != 'other' else cat
+        checks.append((f'{name}: {cls} is {label}', ok, g))
 
 
 def main():
@@ -110,7 +127,7 @@ def main():
     check('stock', got, STOCK, checks)
     checks.append(('stock: DRLA samples absent', all(got.get(c, ('?',))[0] == 'absent' for c in DRLA_EXPECT), None))
 
-    drla = run(a.exe, a.work, a.iwad, [os.path.join(a.mods, f) for f in DRLA] + [mod], 'drla', 150)
+    drla = run(a.exe, a.work, a.iwad, [os.path.join(a.mods, f) for f in DRLA] + [mod], 'drla', 180)
     got = parse(drla)
     checks.append(('drla: no script errors', not any(BAD.search(l) for l in drla), None))
     checks.append(('drla: finished', any('WEAPCAT done' in l for l in drla), None))
