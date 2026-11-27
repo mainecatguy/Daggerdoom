@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x38b14661e0e54c35ULL
+#define DFB_SCHEMA_HASH 0x17f0520c4bec4ea8ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -200,8 +200,8 @@ static_assert((DFB_FACES_FORMAT_VERSION) == (1u), DFB_STALE);
 static_assert((DFB_FACES_MAX) == (3u), DFB_STALE);
 static_assert((DFB_FACE_MAX_SIDE) == (64u), DFB_STALE);
 static_assert((DFB_SHEET_SLOT) == (0u), DFB_STALE);
-static_assert((DFB_SHEET_FORMAT_VERSION) == (10), DFB_STALE);
-static_assert((DFB_SHEET_INTS) == (177), DFB_STALE);
+static_assert((DFB_SHEET_FORMAT_VERSION) == (11), DFB_STALE);
+static_assert((DFB_SHEET_INTS) == (181), DFB_STALE);
 static_assert((DFB_SHEET_FORMAT) == (0), DFB_STALE);
 static_assert((DFB_SHEET_EPOCH) == (1), DFB_STALE);
 static_assert((DFB_SHEET_VALID) == (2), DFB_STALE);
@@ -266,6 +266,10 @@ static_assert((DFB_SHEET_ENERGY_DAMAGE_BP) == (173), DFB_STALE);
 static_assert((DFB_SHEET_ENERGY_SPLASH_BP) == (174), DFB_STALE);
 static_assert((DFB_SHEET_ENERGY_SPLASH_RADIUS) == (175), DFB_STALE);
 static_assert((DFB_SHEET_ENERGY_SPEED_BP) == (176), DFB_STALE);
+static_assert((DFB_SHEET_ENERGY_BURN_BP) == (177), DFB_STALE);
+static_assert((DFB_SHEET_ENERGY_CONVERT_BP) == (178), DFB_STALE);
+static_assert((DFB_SHEET_ENERGY_BURST_BP) == (179), DFB_STALE);
+static_assert((DFB_SHEET_ENERGY_BURST_RADIUS) == (180), DFB_STALE);
 static_assert((DFB_UI_NONE) == (0u), DFB_STALE);
 static_assert((DFB_UI_TRAVEL_MAP) == (1u), DFB_STALE);
 static_assert((DFB_UI_INVENTORY) == (2u), DFB_STALE);

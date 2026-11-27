@@ -1,4 +1,4 @@
-// The Energy Weapons skill in Doom, before plasma burn (work/backlog/skills-in-doom.md, Energy Weapons; perks card 06).
+// The Energy Weapons skill in Doom (work/backlog/skills-in-doom.md, Energy Weapons; perks cards 06 and 08).
 // Daggerfall decides the rules from the live skill and sends them in the character sheet (DFB_SHEET_ENERGY_*,
 // DoomerfallEnergyRules.cs); Doom applies them to shots from a gun whose skill is Energy Weapons
 // (DoomerfallWeaponCategory.SkillSlotOf), such as stock Doom's Plasma Rifle and BFG9000 or DRLA's plasma and laser guns.
@@ -11,6 +11,14 @@
 //                  never splashes again (its inflictor is a DoomerfallEnergySplash, which is not the gun's shot).
 //   speed          25/50/75/100: the gun's projectiles (generation 0 of the shared shot tag, still flying when their spawn
 //                  event runs) fly x% faster. Hitscan guns have no projectiles, so it does nothing for them.
+//   burn           a direct hit (any hit of the gun's shots that is not an explosion, so a BFG ray too, but not the
+//                  perk's splash or a blast) sets the enemy burning for x% of the damage it did, over 3 s
+//                  (DoomerfallBurn, card 07). Stacks without limit.
+//   convert        50/75/100: before its own burn is added, a direct hit takes x% of the enemy's remaining burn and
+//                  deals it at once (inflictor DoomerfallEnergyBurst: no damage bonus, splash, burn or convert from it).
+//   burst          100: the converted damage also bursts out: every other live, unfriendly monster within the radius
+//                  that the hit enemy can see starts burning for x% of it. That burn is ordinary burn, so only a later
+//                  direct hit converts it (no chain). Never the player.
 //
 // Which shots are the gun's: the shared shot tag (DoomerfallShots.zs), as for Explosives. Fractional damage rounds with
 // the chance of the fraction.
@@ -57,7 +65,7 @@ class DoomerfallEnergy : StaticEventHandler
 	// held gun for a bullet's puff (DoomerfallShots.Find). Splash is not the gun's shot.
 	static bool FromGun(Actor player, Actor inflictor)
 	{
-		if (!inflictor || inflictor is "DoomerfallEnergySplash") return false;
+		if (!inflictor || inflictor is "DoomerfallEnergySplash" || inflictor is "DoomerfallEnergyBurst") return false;
 		class<Weapon> gun;
 		int skill;
 		DoomerfallShotTag tag;
@@ -90,15 +98,22 @@ class DoomerfallEnergy : StaticEventHandler
 		Log(String.Format("speed %s x%.4f %.2f -> %.2f tic %d", m.GetClassName(), f, before, m.vel.Length(), level.maptime));
 	}
 
-	// Splash: a hit from the gun's shots that is not an explosion.
+	// Splash and burn: a hit from the gun's shots that is not an explosion.
 	override void WorldThingDamaged(WorldEvent e)
 	{
 		let victim = e.Thing;
 		let src = e.DamageSource;
 		if (e.Damage <= 0 || !victim || victim.player || !src || !src.player || src.player.mo != src) return;
 		if (e.DamageFlags & DMG_EXPLOSION) return;
+		if (!FromGun(src, e.Inflictor)) return;
+		Splash(e, victim, src);
+		DoomerfallEnergyBurn.Hit(victim, src, e.Damage);
+	}
+
+	void Splash(WorldEvent e, Actor victim, Actor src)
+	{
 		int bp = Rule(EnergySplashBp), radius = Rule(EnergySplashRadius);
-		if (bp <= 0 || radius <= 0 || !FromGun(src, e.Inflictor)) return;
+		if (bp <= 0 || radius <= 0) return;
 
 		Vector3 centre = victim.pos + (0, 0, victim.height / 2);
 		Array<Actor> near;

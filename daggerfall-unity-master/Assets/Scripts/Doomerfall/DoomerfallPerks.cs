@@ -61,10 +61,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             new Perk("Explosives", 100, "Inpulsa's Broken Heart: enemies your explosives kill explode for a quarter of their maximum health. Those blasts chain, each at half the strength of the one before, and never hurt you.", true),
 
             // Owner: each popup lists all of its level's effects, burn included (burn arrives with perks cards 07 and 08).
-            new Perk("EnergyWeapons", 25, "Plasma burn: enemies your energy weapons hit burn for 50% of the hit's damage over 3 seconds, and burn stacks without limit. Hits that do not explode also deal 20% of their damage to other enemies nearby, never to you. Energy projectiles fly 15% faster.", true, "Plasma burn does not work yet."),
-            new Perk("EnergyWeapons", 50, "Plasma burn rises to 100% of the hit's damage, and each hit turns 20% of the enemy's remaining burn into instant damage. Energy projectiles fly 30% faster.", true, "Plasma burn does not work yet."),
-            new Perk("EnergyWeapons", 75, "Plasma burn rises to 125%, and each hit turns 40% of the enemy's remaining burn into instant damage. Energy projectiles fly 45% faster.", true, "Plasma burn does not work yet."),
-            new Perk("EnergyWeapons", 100, "Plasma burn rises to 150%. The burn a hit turns into instant damage also bursts out, never hurting you, and sets nearby enemies burning for 40% of it. Energy projectiles fly 60% faster.", true, "Plasma burn does not work yet."),
+            new Perk("EnergyWeapons", 25, "Plasma burn: enemies your energy weapons hit directly burn for 50% of the hit's damage over 3 seconds, and burn stacks without limit. Hits that do not explode also deal 20% of their damage to other enemies nearby, never to you. Energy projectiles fly 15% faster.", true),
+            new Perk("EnergyWeapons", 50, "Plasma burn rises to 100% of the hit's damage, and each direct hit turns 20% of the enemy's remaining burn into instant damage. Energy projectiles fly 30% faster.", true),
+            new Perk("EnergyWeapons", 75, "Plasma burn rises to 125%, and each direct hit turns 40% of the enemy's remaining burn into instant damage. Energy projectiles fly 45% faster.", true),
+            new Perk("EnergyWeapons", 100, "Plasma burn rises to 150%. The burn a direct hit turns into instant damage also bursts out, never hurting you, and sets nearby enemies burning for 40% of it. Energy projectiles fly 60% faster.", true),
         };
 
         DoomerfallBridge bridge;
