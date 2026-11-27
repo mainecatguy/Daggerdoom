@@ -19,6 +19,18 @@ plainly don't matter. The owner is the authority.
 - Other files only if the question names them.
 
 ## Mode "answer"
+First, strike settled options (owner, 2026-11-26). Run the Deferred test first, and leave alone anything the owner
+reserved ("waiting on owner", "do not raise", "design with the owner"). Then list the realistic options and strike an
+option only if it contradicts a quotable settled fact: the owner's words, a pillar, a `gamedesign.md` line, or merged
+behavior the owner approved. "Daggerfall did it this way" or common sense alone never strikes an option, except where
+the owner said "exactly as in Daggerfall". Don't strike an option on general owner wording that plainly wasn't about
+this case; send a one-line confirm instead ("your rule says X; does it cover Y?").
+- One option left: **Follows clearly**.
+- Every remaining option builds the same thing: decide it as a minor detail, and write "decided as minor" in the log
+  line so the owner can spot and overrule it. Options that differ in numbers, balance, economy, feel, art, or anything
+  the player can see are never the same build.
+- Only a real fork goes to the owner, with the settled parts stripped out.
+
 Give exactly one verdict:
 - **Follows clearly:** the answer falls out unambiguously and strongly from the documented design or an earlier
   decision. Quote the line it rests on.
