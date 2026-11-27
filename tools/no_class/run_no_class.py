@@ -1,7 +1,7 @@
 """No DRLA class in bridged games: drives Doom's real main menu (opened by +menu_main, then Enter on New Game) and reads the probe's log.
 
 Run the whole script under quiet_run.py, so the keys reach Doom's window on the same private desktop:
-  python D:\\dev\\DoomDaggerfall\\scripts\\overnight\\quiet_run.py --timeout 120 -- python tools\\no_class\\run_no_class.py <mode> <stage>
+  python D:\\dev\\DoomDaggerfall\\scripts\\overnight\\quiet_run.py --timeout 270 -- python tools\\no_class\\run_no_class.py <mode> <stage>
 
   standalone  UZDoom + DRLA + DRLA X, no Daggerfall: New Game must open DRLA X's class menu; Enter through it starts E1M1
               as the Marine with its perk.
@@ -57,6 +57,17 @@ def menus(console):
 def reports(console):
     return re.findall(r"noclass probe: map (\S+) tick \d+ class (\S+) perks \[(.*?) \] weapons \[(.*?) \] ready (\S+) stamina (-?\d+) armorspecial (-?\d+)",
                       ng.read(console))
+
+
+def checks(console):
+    """The probe's DRLA checks in the dungeon (WorldTick, DoomerfallPlayer only)."""
+    text = ng.read(console)
+    pats = {"start": r"noclass probe: check start map (\S+) stamina (-?\d+) armor (-?\d+)",
+            "drain": r"noclass probe: stamina after (\d+) kicks: (\d+) drains, low (-?\d+)",
+            "refill": r"noclass probe: stamina refill (\d+) steps to (-?\d+) in (\d+) tics",
+            "worn": r"noclass probe: armor worn (-?\d+) type (\S+) save (\d+)%",
+            "hit": r"noclass probe: hit 20 bare -> (-?\d+), armored -> (-?\d+), armor (-?\d+) -> (-?\d+)"}
+    return {k: m.groups() for k, p in pats.items() if (m := re.search(p, text))}
 
 
 def fatal(console):
@@ -138,7 +149,7 @@ def bridged(stage, run):
     for a in uz_args: cmd += ["--uzdoom-arg", a]
     for a in dfu_args: cmd += ["--dfu-arg", a]
     proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    deadline, result, last, tries, hwnd, arrived = time.time() + 110, "timeout", "", 0, None, 0.0
+    deadline, result, last, tries, hwnd, arrived = time.time() + 210, "timeout", "", 0, None, 0.0
     try:
         while time.time() < deadline and not hwnd:
             time.sleep(0.5)
@@ -150,18 +161,19 @@ def bridged(stage, run):
             uz = ng.read(uz_log)
             if fatal(console): result = "fatal"; break
             if "DRLAX_PlayerClassProxyMenu" in menus(console) or "PlayerclassMenu" in menus(console): result = "class menu shown"; break
-            if "both games running" in uz:
-                arrived = arrived or time.time()
-                if time.time() - arrived > 25: result = "arrived"; break  # The probe reports every 5 s from its UI tick.
-                time.sleep(0.5)
-                continue
             if "difficulty chosen" not in uz and "asking for a difficulty" in uz:
                 ng.key(hwnd, VK_ENTER)  # The difficulty prompt: Enter takes the highlighted skill.
                 time.sleep(0.8)
                 continue
-            size = re.search(r"opened menu 4 at (\d+)x(\d+)", uz)
-            if not size or "ui: closed" in uz[uz.rfind("opened menu 4"):]:
-                time.sleep(0.1)
+            # Any window Daggerfall shows in Doom: character creation (menu 4) and, after arrival, the start message box
+            # (menu 7), which holds Doom paused until it is answered.
+            opened = list(re.finditer(r"opened menu \d+ at (\d+)x(\d+)", uz))
+            size = opened[-1] if opened else None
+            if not size or "ui: closed" in uz[size.start():]:
+                if "both games running" in uz:
+                    arrived = arrived or time.time()
+                    if checks(console).get("hit") or time.time() - arrived > 75: result = "arrived"; break  # The checks take about 35 s of play.
+                time.sleep(0.2)
                 continue
             ng.SURFACE[:] = [int(size.group(1)), int(size.group(2))]
             top = ng.top_window(df_log)
@@ -173,7 +185,18 @@ def bridged(stage, run):
         subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True)
     r = reports(console)
     final = r[-1] if r else None
+    c = checks(console)
     ok = result == "arrived" and final is not None and final[1] == "DoomerfallPlayer" and final[2].strip() == "" and int(final[5]) > 0
+    inside = [x for x in r if not x[0].startswith("DDOVER")]
+    # DRLA's stamina, armor and the dungeon report, by machine (the verifier's third point).
+    n = {k: [int(x) if x.lstrip("-").isdigit() else x for x in v] for k, v in c.items()}
+    drla = (bool(inside) and len(n) == 5
+            and n["drain"][1] > 0 and n["drain"][2] < 100        # DRLA's kick took stamina
+            and n["refill"][0] > 0 and n["refill"][1] == 100     # its regen script gave it back
+            and n["worn"][0] > 0                                 # the armor item was put on by Use
+            and n["hit"][0] == 20 and n["hit"][1] < 20 and n["hit"][3] < n["hit"][2])  # and took part of the hit
+    print("  drla checks:", "PASS" if drla else "FAIL", {k: v for k, v in c.items()})
+    ok = ok and drla
     print("bridged:", "PASS" if ok else "FAIL", "| result:", result, "| last DF window:", last, "| menus:", menus(console))
     print("  class list:", re.findall(r"noclass probe: \d+ player classes:.*", ng.read(console))[:1])
     for line in r: print("  report:", line)
