@@ -124,8 +124,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 DoomerfallAreaLevels.Level level;
                 DoomerfallAreaLevels.ForLocation(location, out level);
                 string file = Safe(place[1]) + ".png";
-                report.AppendFormat("{0} / {1}: type {2}, dungeon {3}, terrain {4}, town {5}, area {6}, shown word {7}, label \"{8}\", file {9}
-", place[0], place[1],
+                report.AppendFormat("{0} / {1}: type {2}, dungeon {3}, terrain {4}, town {5}, area {6}, shown word {7}, label \"{8}\", file {9}\n", place[0], place[1],
                     summary.LocationType, level.dungeon, level.terrain, level.town, level.Area, DoomerfallTravelHint.ForLocation(summary) ?? "(none)", window.Label, file);
                 ScreenCapture.CaptureScreenshot(Path.Combine(dir, file));
                 yield return new WaitForEndOfFrame();
