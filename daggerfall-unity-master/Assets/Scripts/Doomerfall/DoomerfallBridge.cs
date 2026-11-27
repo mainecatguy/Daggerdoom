@@ -415,6 +415,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         sync.OnTransitionEvent(ev.transition.action, ev.transition.seq, ev.transition.doorX, ev.transition.doorZ, ev.transition.target);
                         break;
                     case Dfb.KIND_UI_OPEN:
+                        string resized = DoomerfallWindow.MatchDoom(ev.uiCommand.screenWidth, ev.uiCommand.screenHeight);
+                        if (resized != null)
+                            Log(resized);
                         ui.OnOpen(ev.uiCommand.uiId, ev.uiCommand.context);
                         break;
                     case Dfb.KIND_UI_CLOSE:

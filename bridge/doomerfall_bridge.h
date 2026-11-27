@@ -451,6 +451,8 @@ typedef struct dfb_ui_command
 	uint32_t ui_id;
 	uint32_t context;
 	int64_t sent_ns;
+	uint32_t screen_width;   /* UI_OPEN: Doom's screen in pixels, the size it shows the surface at; Daggerfall draws its */
+	uint32_t screen_height;  /* UI at that size (within DFB_SURFACE_MAX_W/H) so its text is not upscaled. 0: unknown */
 } dfb_ui_command;
 
 typedef struct dfb_ui_input

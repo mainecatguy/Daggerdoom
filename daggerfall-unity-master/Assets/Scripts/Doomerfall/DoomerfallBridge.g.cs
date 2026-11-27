@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0xaa7356f6b902ceafUL;
+        public const ulong SchemaHash = 0x6d78e01b08bb0c58UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -310,7 +310,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         // Native size of every generated struct, for the attach check.
         public static readonly Type[] StructTypes = { typeof(DfbFaces), typeof(DfbFace), typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbPlainLoad), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbWorldContainer), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbInfoRequest), typeof(DfbInfoText), typeof(DfbDoomItem), typeof(DfbDoor), typeof(DfbItemArt), typeof(DfbClimbUses), typeof(DfbNpcUse), typeof(DfbNpcUseResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbEncounterArea), typeof(DfbEncounterText), typeof(DfbPlace), typeof(DfbPlaceName), typeof(DfbPlaceFact), typeof(DfbPlacePlan), typeof(DfbNpc), typeof(DfbTownsfolk), typeof(DfbTownsperson), typeof(DfbTownspersonDeath), typeof(DfbGuardSpawn), typeof(DfbGuardDeath), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
-        public static readonly int[] StructSizes = { 8, 16, 64, 24, 24, 16, 24, 24, 48, 32, 48, 48, 32, 16, 48, 40, 16, 48, 32, 48, 48, 32, 464, 8, 24, 16, 32, 32, 48, 48, 32, 48, 48, 32, 16, 32, 40, 24, 40, 8, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
+        public static readonly int[] StructSizes = { 8, 16, 64, 24, 24, 24, 24, 24, 48, 32, 48, 48, 32, 16, 48, 40, 16, 48, 32, 48, 48, 32, 464, 8, 24, 16, 32, 32, 48, 48, 32, 48, 48, 32, 16, 32, 40, 24, 40, 8, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
     }
 
     static class DfbBytes
@@ -447,12 +447,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public long sentNs;
     }
 
-    [StructLayout(LayoutKind.Explicit, Size = 16)]
+    [StructLayout(LayoutKind.Explicit, Size = 24)]
     struct DfbUiCommand
     {
         [FieldOffset(0)] public uint uiId;
         [FieldOffset(4)] public uint context;
         [FieldOffset(8)] public long sentNs;
+        [FieldOffset(16)] public uint screenWidth;  // UI_OPEN: Doom's screen in pixels, the size it shows the surface at; Daggerfall draws its
+        [FieldOffset(20)] public uint screenHeight;  // UI at that size (within DFB_SURFACE_MAX_W/H) so its text is not upscaled. 0: unknown
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 24)]

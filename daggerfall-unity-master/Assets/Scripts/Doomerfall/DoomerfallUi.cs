@@ -224,7 +224,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DaggerfallRestWindow restWindow; // DFB_UI_REST: Daggerfall's rest window, kept while popups cover it
         float travelWaitUntil, nextAskAt;
         uint closeReason;
-        int waitFrames, hudFrames, pending, surfaceWidth, surfaceHeight;
+        int waitFrames, hudFrames, pending, surfaceWidth, surfaceHeight, basisWidth, basisHeight;
         uint frameId;
         byte[] pixels;
         readonly Queue<long> capturedTimes = new Queue<long>(), inputTimes = new Queue<long>();
@@ -625,6 +625,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         // Keeps the aspect ratio when the Daggerfall window is larger than the shared surface.
         void ChooseSurfaceSize()
         {
+            basisWidth = Screen.width;
+            basisHeight = Screen.height;
             float scale = Mathf.Min(1f, Mathf.Min((float)Dfb.SURFACE_MAX_W / Screen.width, (float)Dfb.SURFACE_MAX_H / Screen.height));
             surfaceWidth = Mathf.Max(1, Mathf.FloorToInt(Screen.width * scale));
             surfaceHeight = Mathf.Max(1, Mathf.FloorToInt(Screen.height * scale));
@@ -637,6 +639,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
             if (surfaceWidth != Screen.width || surfaceHeight != Screen.height)
                 scaled = new RenderTexture(surfaceWidth, surfaceHeight, 0, RenderTextureFormat.ARGB32);
+            bridge.LogLine(string.Format("ui: surface {0}x{1} for a {2}x{3} window", surfaceWidth, surfaceHeight, Screen.width, Screen.height));
         }
 
         /// <summary>Doom's mouse position in Unity screen pixels, with the origin at the bottom left.</summary>
@@ -665,14 +668,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 RenderTexture source = target.TargetTexture;
                 if (source.width != Screen.width || source.height != Screen.height)
                     continue; // Resized this frame; the texture is recreated on the next update.
+                if (source.width != basisWidth || source.height != basisHeight)
+                    ChooseSurfaceSize(); // The window was resized for Doom's screen (DoomerfallWindow.MatchDoom).
                 if (scaled)
                     Graphics.Blit(source, scaled);
-                else if (source.width != surfaceWidth || source.height != surfaceHeight)
-                {
-                    ChooseSurfaceSize();
-                    if (scaled)
-                        Graphics.Blit(source, scaled);
-                }
                 pending++;
                 capturedTimes.Enqueue(DfbNative.dfb_now_ns());
                 inputTimes.Enqueue(DoomerfallInput.LastInputNs);

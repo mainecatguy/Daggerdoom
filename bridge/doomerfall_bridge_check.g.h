@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0xaa7356f6b902ceafULL
+#define DFB_SCHEMA_HASH 0x6d78e01b08bb0c58ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -360,13 +360,17 @@ static_assert(std::is_same<decltype(dfb_area::area_seq), uint32_t>::value, DFB_S
 static_assert(offsetof(dfb_area, sent_ns) == 16, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_area::sent_ns), int64_t>::value, DFB_STALE);
 
-static_assert(sizeof(dfb_ui_command) == 16, DFB_STALE);
+static_assert(sizeof(dfb_ui_command) == 24, DFB_STALE);
 static_assert(offsetof(dfb_ui_command, ui_id) == 0, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_ui_command::ui_id), uint32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_ui_command, context) == 4, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_ui_command::context), uint32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_ui_command, sent_ns) == 8, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_ui_command::sent_ns), int64_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_ui_command, screen_width) == 16, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_ui_command::screen_width), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_ui_command, screen_height) == 20, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_ui_command::screen_height), uint32_t>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_ui_input) == 24, DFB_STALE);
 static_assert(offsetof(dfb_ui_input, type) == 0, DFB_STALE);
