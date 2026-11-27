@@ -117,6 +117,13 @@ whichever of its skills is higher, never both at once.
 - If both skills are equal, the gun uses its main skill: Pistols for an energy pistol, Energy Weapons for an energy
   shotgun.
 
+## Light Carbine
+
+The Light Carbine is a semi-automatic rifle: one shot per trigger pull, with a little more damage per shot than the
+Battle Rifle (+20%). Otherwise it handles like the Battle Rifle: same accuracy, 20-round magazine, bullets and reload.
+It is always in the game. Former Humans, Former Commandos, Elite Former Humans and Former Cyborgs that carry a battle
+rifle drop a Light Carbine about half the time instead of a Battle Rifle.
+
 ## Ammo pickups
 
 Ammo comes in material tiers, from Regular through Steel, Silver and on up to Daedric. Higher tiers hit harder and
