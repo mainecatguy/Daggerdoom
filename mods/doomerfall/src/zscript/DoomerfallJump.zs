@@ -49,7 +49,8 @@ class DoomerfallJump : StaticEventHandler
 
 	override void WorldLoaded(WorldEvent e)
 	{
-		for (int i = 0; i < MAXPLAYERS; i++) st[i] = null;
+		// A loaded save or snapshot brings its own pawn and JumpZ: forget what was written to the old one.
+		for (int i = 0; i < MAXPLAYERS; i++) { st[i] = null; jumpZScaled[i] = false; }
 	}
 
 	clearscope int JumpSkill() const { return testSkill >= 0 ? testSkill : skill; }
@@ -102,14 +103,22 @@ class DoomerfallJump : StaticEventHandler
 		double scale = sqrt(HeightFactor(JumpSkill()));
 		if (!jumpZScaled[i])
 		{
-			// A save loaded in a new session holds the scaled value: recognize it from the default so it is not
-			// scaled twice. Any other value is the base (the default, or a map's or mod's own change).
-			jumpZBase[i] = mo.JumpZ == mo.default.JumpZ * scale ? mo.default.JumpZ : mo.JumpZ;
+			// A loaded save holds the value written at the Jumping level it was saved with, which may differ from
+			// now: recognize the default scaled at any level so it is not scaled twice. Any other value is the base
+			// (the default, or a map's or mod's own change).
+			jumpZBase[i] = ScaledDefault(mo) ? mo.default.JumpZ : mo.JumpZ;
 			jumpZScaled[i] = true;
 		}
 		else if (mo.JumpZ != jumpZSet[i]) jumpZBase[i] = mo.JumpZ; // someone else wrote JumpZ: that is the new base
 		jumpZSet[i] = jumpZBase[i] * scale;
 		if (mo.JumpZ != jumpZSet[i]) mo.JumpZ = jumpZSet[i];
+	}
+
+	static bool ScaledDefault(PlayerPawn mo)
+	{
+		for (int k = 0; k <= 100; k++)
+			if (abs(mo.JumpZ - mo.default.JumpZ * sqrt(HeightFactor(k))) < 1e-6) return true;
+		return false;
 	}
 
 	void Reset(PlayerPawn mo, DoomerfallJumpState s)
