@@ -22,6 +22,7 @@ class DoomerfallShotTag : Inventory
 	int fireTic;            // level.maptime of the shot
 	int generation;         // 0: fired by the gun; 1: spawned by that shot; and so on
 	bool autoBurst;         // Automatics: the shot was one of a burst's first shots (DoomerfallAutomatics)
+	bool burstSet;          // Automatics has decided autoBurst (at the spawn event, or at a point-blank hit before it)
 
 	Default
 	{
@@ -47,6 +48,7 @@ class DoomerfallShotTag : Inventory
 		fireTic = t.fireTic;
 		generation = t.generation + 1;
 		autoBurst = t.autoBurst;
+		burstSet = t.burstSet;
 	}
 }
 

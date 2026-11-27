@@ -228,6 +228,10 @@ def sources(name, lines, check):
     ok = (c.get("end", (0, 0))[0] > 0 and len(c["proj"]) == 1 and "PlasmaBall from Chaingun" in c["proj"][0]
           and c["hits"] and all(h.group(2) == "Chaingun" and float(h.group(7)) >= 1.6 - 1e-3 for h in c["hits"]) and c["sunder"] > 0)
     check("source own: a Chaingun projectile landing after a switch to the fist keeps its perks", ok, c)
+    c = seen.get("close", {})
+    ok = (c.get("end", (0, 0))[0] > 0 and c["hits"] and all(h.group(2) == "Chaingun" for h in c["hits"])
+          and all(h.group(4) and float(h.group(7)) >= 1.6 * 1.3 - 1e-3 for h in c["hits"]))
+    check("source close: a Chaingun projectile hitting at point blank gets the burst bonus", ok, c)
 
 
 def main():

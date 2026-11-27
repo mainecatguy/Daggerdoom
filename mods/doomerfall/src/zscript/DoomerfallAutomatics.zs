@@ -80,6 +80,7 @@ class DoomerfallAutomatics : StaticEventHandler
 		DoomerfallShotTag tag;
 		if (!perks || !DoomerfallShots.Find(player, inflictor, wc, skill, tag) || skill != SkillAutomatics) return false;
 		gun = wc.GetClassName();
+		if (tag) MarkTag(tag, perks); // a point-blank hit lands before the shot's spawn event
 		burst = tag ? tag.autoBurst : perks.MarkShot();
 		return true;
 	}
@@ -90,13 +91,20 @@ class DoomerfallAutomatics : StaticEventHandler
 	{
 		let m = e.Thing;
 		// Projectiles only: a gun's helper actors (DRLA's recoil and reload effects) are not shots.
-		if (!m || !m.bMissile || !m.target || !m.target.player || m.target.player.mo != m.target) return;
+		if (!m || !(m.bMissile || m.default.bMissile) || !m.target || !m.target.player || m.target.player.mo != m.target) return;
 		let perks = DoomerfallAutomaticsPerks(m.target.FindInventory("DoomerfallAutomaticsPerks"));
 		if (!perks || !perks.TriggerDown()) return;
 		let tag = DoomerfallShots.Tag(m);
-		if (!tag || tag.generation != 0 || tag.fireTic != level.maptime || tag.skill != SkillAutomatics) return;
+		if (tag && MarkTag(tag, perks)) Log(String.Format("projectile %s from %s", m.GetClassName(), tag.gun.GetClassName()));
+	}
+
+	// Decides once whether a shot the held Automatics gun fired this tic is a burst shot, and counts it.
+	static bool MarkTag(DoomerfallShotTag tag, DoomerfallAutomaticsPerks perks)
+	{
+		if (tag.burstSet || tag.generation != 0 || tag.fireTic != level.maptime || tag.skill != SkillAutomatics || !perks.TriggerDown()) return false;
+		tag.burstSet = true;
 		tag.autoBurst = perks.MarkShot();
-		Log(String.Format("projectile %s from %s", m.GetClassName(), tag.gun.GetClassName()));
+		return true;
 	}
 
 	override void WorldTick()

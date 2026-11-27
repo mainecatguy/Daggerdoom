@@ -175,7 +175,7 @@ class AutoPerkTest : EventHandler
 	bool srcStartSet;
 	bool SourceTick(PlayerInfo p)
 	{
-		static const String names[] = { "earlier", "barrel", "fragment", "own" };
+		static const String names[] = { "earlier", "barrel", "fragment", "own", "close" };
 		let mo = p.mo;
 		if (phase == 90) // hold the Chaingun
 		{
@@ -188,7 +188,7 @@ class AutoPerkTest : EventHandler
 			if (!srcStartSet) { srcStart = mo.pos; srcStartSet = true; }
 			mo.SetOrigin(srcStart, false); mo.vel = (0, 0, 0); // blasts push the player; E1M1 has a step ~130 units east
 			mo.angle = 0; mo.pitch = 0;
-			target = Actor.Spawn("AutoTestTarget", mo.Vec3Angle(110, 0));
+			target = Actor.Spawn("AutoTestTarget", mo.Vec3Angle(names[src] == "close" ? 60 : 110, 0)); // close: point blank
 			targetHits = 0; targetLost = 0;
 			Console.Printf("AUTOTEST src %s begin", names[src]);
 			phase = 91; t = 0;
@@ -200,7 +200,7 @@ class AutoPerkTest : EventHandler
 		if (t == 0)
 		{
 			if (n == "earlier") mo.SpawnPlayerMissile("PlasmaBall");
-			else if (n == "own") mo.SpawnPlayerMissile("PlasmaBall");
+			else if (n == "own" || n == "close") mo.SpawnPlayerMissile("PlasmaBall");
 			else if (n == "barrel")
 			{
 				let b = Actor.Spawn("ExplosiveBarrel", target.Vec3Offset(40, 50, 0));
