@@ -3,9 +3,9 @@
 // A Sell window sells one item, the first Buy window (a shelf) buys the cheapest one, both confirmed with Daggerfall's
 // own Yes. Any other window (such as the private property question) is closed. Gold and inventory are logged.
 // With -dfshopdoomgun, the first merchant menu first gives the player Doom guns (DRLA's pistol, shotgun and BFG, one
-// Daedric) and logs their value, weight and this shop's price; the Sell window then sells a Doom gun only. Then it
-// opens two more Sell windows priced and filtered as a weaponsmith and a pawn shop (the test town has neither) and
-// sells a Doom gun in each. The test character's regions never had Daggerfall's price roll, so it sets the region's
+// Daedric) and logs their value, weight and this shop's price; the Sell window then sells a Doom gun only. In any
+// other shop than a real weaponsmith or pawn shop it then opens two more Sell windows priced and filtered as those
+// and sells a Doom gun in each. The test character's regions never had Daggerfall's price roll, so it sets the region's
 // price adjustment to a typical 900 (as DoomerfallShopAmmoTest does); 0 would price everything at the minimum.
 
 using System;
@@ -216,11 +216,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         void GiveGuns()
         {
             given = true;
+            var here = GameManager.Instance.PlayerEnterExit.BuildingDiscoveryData.buildingType;
+            if (shops.Contains(here)) // A real weaponsmith or pawn shop: its own Sell window is the proof, no retyped windows.
+                shops.Clear();
+            Log("shop type " + here);
             int quality = GameManager.Instance.PlayerEnterExit.BuildingDiscoveryData.quality;
             PlayerGPS gps = GameManager.Instance.PlayerGPS;
             if (gps.HasCurrentLocation && Player.RegionData[gps.CurrentRegionIndex].PriceAdjustment == 0)
                 Player.RegionData[gps.CurrentRegionIndex].PriceAdjustment = 900;
-            foreach (string cls in new[] { "RLPistolPickup", "RLShotgunPickup", "RLBFG9000Pickup" })
+            foreach (string cls in new[] { "RLShotgunPickup", "RLPistolPickup", "RLBFG9000Pickup" }) // the first is sold first
             {
                 DoomerfallDoomItem gun = DoomerfallDoomItem.Create(cls, Dfb.DOOM_ITEM_GUN);
                 if (cls == "RLBFG9000Pickup")

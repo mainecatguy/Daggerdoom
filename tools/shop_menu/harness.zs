@@ -2,17 +2,18 @@ version "4.14"
 
 // Shop test. Goes into the building whose door is DOORDATA, presses Use (df_interact, Doom's Use without the door
 // check) on each furniture container, nearest first (Daggerfall's test hook buys the cheapest item from the first shop shelf
-// and closes anything else), then twice on the nearest NPC (the
-// shopkeeper: the hook sells an item, then talks). Doom pauses while a window is open, so the timers wait it out.
+// and closes anything else), then on the NPCs, nearest first: twice when there is one (the shopkeeper: the hook sells an
+// item, then talks), else once each, so the shopkeeper is reached when a customer stands nearer. Doom pauses while a window is open, so the timers wait it out.
 class SMHarness : StaticEventHandler
 {
 	static const double DOORDATA[] = { @DOOR@ };
 	const LIMIT = 35 * 25;
 	const NPCPRESSES = 2;
 	const MAXBOXES = 6;
+	const MAXNPCS = 5;
 	int phase, timer, presses, boxIndex;
 	Actor npc;
-	Array<Actor> boxes;
+	Array<Actor> boxes, npcs;
 	bool done;
 
 	void Finish(String why) { Console.Printf("NDDONE %s", why); done = true; }
@@ -72,6 +73,15 @@ class SMHarness : StaticEventHandler
 			if (timer < 35 * 3) break;
 			npc = Nearest(p, "DFNpc");
 			{
+				let found = ThinkerIterator.Create("DFNpc");
+				Actor one;
+				while (one = Actor(found.Next()))
+					if (!one.bInvisible) npcs.Push(one);
+				for (int i = 1; i < npcs.Size(); i++)
+					for (int j = i; j > 0 && (npcs[j].pos - p.pos).Length() < (npcs[j - 1].pos - p.pos).Length(); j--)
+					{
+						Actor t = npcs[j]; npcs[j] = npcs[j - 1]; npcs[j - 1] = t;
+					}
 				let it = ThinkerIterator.Create("DoomerfallWorldContainer");
 				Actor mo;
 				while (mo = Actor(it.Next())) boxes.Push(mo);
@@ -81,17 +91,28 @@ class SMHarness : StaticEventHandler
 						Actor t = boxes[j]; boxes[j] = boxes[j - 1]; boxes[j - 1] = t;
 					}
 			}
-			Console.Printf("NDLIST npc %s, %d containers", npc ? "found" : "missing", boxes.Size());
+			Console.Printf("NDLIST npc %s, %d NPCs, %d containers", npc ? "found" : "missing", npcs.Size(), boxes.Size());
 			if (!npc || !boxes.Size()) { Console.Printf("NDFAIL no NPC or shelf shown"); Finish("failed"); break; }
 			phase = 3; timer = 0;
 			break;
 		case 2: // Use on the shopkeeper from close by.
 			if (timer == 1)
 			{
+				npc = npcs[presses % npcs.Size()];
 				vector3 aim = NpcAim(npc);
 				vector2 away = p.pos.xy - aim.xy;
 				away = away.Length() > 1 ? away.Unit() : (1, 0);
 				p.SetOrigin((aim.xy + away * 56, npc.pos.z), false);
+				// The side the player came from can be behind a counter or in a wall: take the first spot around the
+				// shopkeeper, within reach, where the player fits and sees them.
+				bool clear = p.TestMobjLocation() && p.CheckSight(npc, SF_IGNOREVISIBILITY);
+				for (double d = 56; d <= 120 && !clear; d += 32)
+					for (double a = 0; a < 360 && !clear; a += 15)
+					{
+						p.SetOrigin((aim.xy + (cos(a), sin(a)) * d, npc.pos.z), false);
+						clear = level.IsPointInLevel(p.pos) && p.TestMobjLocation() && p.CheckSight(npc, SF_IGNOREVISIBILITY);
+					}
+				Console.Printf("NDSTAND %s, %.0f from the shopkeeper", clear ? "clear spot" : "no clear spot", (p.pos.xy - aim.xy).Length());
 				Face(p, aim);
 			}
 			p.vel = (0, 0, 0);
@@ -99,7 +120,7 @@ class SMHarness : StaticEventHandler
 			if (timer == 70)
 			{
 				timer = 0;
-				if (++presses >= NPCPRESSES) phase = 4;
+				if (++presses >= max(NPCPRESSES, min(npcs.Size(), MAXNPCS))) phase = 4;
 			}
 			break;
 		case 3: // Use on the nearest shelf, standing off its box on the player's side.

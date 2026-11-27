@@ -1,10 +1,11 @@
 """Paired test: a Doom gun has a price and sells at a weaponsmith and a pawn shop (goal 20261127-095003).
 
-usage: sale_test.py assemble | run NAME --building TYPE | check
+usage: sale_test.py assemble | run NAME --building TYPE [--group N] | check
 
 assemble  builds review/weapon-values from the staged integration build (review/magicmenu-stage: UZDoom, launcher,
           bridge, town data) plus this checkout's Daggerfall Unity build and Doomerfall PK3s, and writes play.bat.
-run       walks into the first building of TYPE (WeaponSmith, PawnShop, GeneralStore...) in the test town with both
+run       walks into the first building of TYPE (WeaponSmith, PawnShop, GeneralStore...) in town group N (default the
+          city 9183, which has a weaponsmith and pawn shops; 7154 has only a general store) with both
           real games on a private desktop, using tools/shop_menu/harness.zs. Daggerfall's -dfshoptest -dfshopdoomgun
           hook gives the player Doom guns at the shopkeeper's menu, logs their value, weight and price, then sells one.
 check     E1M1 of DOOM.WAD with no bridge, stock and with DRLA (nothing in UZDoom changed; this proves it still runs).
@@ -33,7 +34,8 @@ QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
 MODS = GAME.parent / "GameMods"
 DRLA = ["DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3"]
-GROUP = 7154
+GROUP = 9183  # a city with a weaponsmith and six pawn shops
+CITY_CACHE = Path(r"D:\dev\DoomDaggerfall-loop\review\arrival-pause\data\cache")  # where an earlier run converted it
 DUNGEON = ("ddruntime.pk3", "overworld.pk3", "privateershold.wad", "privateershold_mesh.pk3", "privateershold_doors.pk3")
 FATAL = ("DIED WITH FATAL", "VM execution aborted", "Execution could not continue", "Unable to open map")
 
@@ -44,19 +46,27 @@ def read(path):
 
 def assemble():
     REVIEW.mkdir(parents=True, exist_ok=True)
-    for name in ("uzdoom", "dfu"):
+    bridge_dll = Path("DaggerfallUnity_Data") / "Plugins" / "x86_64" / "doomerfall_bridge.dll"
+    # Once the staged build is gone, keep this folder's UZDoom, bridge, launcher and data and refresh only Daggerfall.
+    staged = (SOURCE / "uzdoom").exists()
+    kept_bridge = REVIEW / "doomerfall_bridge.dll.keep"
+    if not staged:
+        shutil.copy2(REVIEW / "dfu" / bridge_dll, kept_bridge)
+    for name in ("uzdoom", "dfu") if staged else ("dfu",):
         if (REVIEW / name).exists():
             shutil.rmtree(REVIEW / name)
-    shutil.copytree(SOURCE / "uzdoom", REVIEW / "uzdoom", ignore=shutil.ignore_patterns("*.ini"))
+    if staged:
+        shutil.copytree(SOURCE / "uzdoom", REVIEW / "uzdoom", ignore=shutil.ignore_patterns("*.ini"))
     shutil.copytree(REPO / "daggerfall-unity-master" / "Builds" / "Windows64", REVIEW / "dfu", ignore=shutil.ignore_patterns("*.pdb", "*.ini"))
-    plugins = REVIEW / "dfu" / "DaggerfallUnity_Data" / "Plugins" / "x86_64"
-    plugins.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(SOURCE / "dfu" / "DaggerfallUnity_Data" / "Plugins" / "x86_64" / "doomerfall_bridge.dll", plugins / "doomerfall_bridge.dll")
+    (REVIEW / "dfu" / bridge_dll).parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(SOURCE / "dfu" / bridge_dll if staged else kept_bridge, REVIEW / "dfu" / bridge_dll)
+    kept_bridge.unlink(missing_ok=True)
     (REVIEW / "dfu" / "Portable.txt").write_text("")
     install.isolate_registry(REVIEW / "dfu")
     if not (REVIEW / "data").exists():
         shutil.copytree(SOURCE / "data", REVIEW / "data")
-    for name in ("doomerfall-launcher.exe", "dfitems.pk3"):
+    town_cache(GROUP)
+    for name in ("doomerfall-launcher.exe", "dfitems.pk3") if staged else ():
         shutil.copy2(SOURCE / name, REVIEW / name)
     build = REPO / "scripts" / "doomerfall" / "build_pk3.py"
     subprocess.check_call([sys.executable, str(build), str(REVIEW / "doomerfall.pk3")])
@@ -73,16 +83,24 @@ def lumps(path):
         return {name: zlib.decompress(f.read(packed)) if raw else b"" for name, raw, packed in heads}
 
 
-def building_door(kind):
-    """The first door of a building of this Daggerfall type in the test town (as tools/shop_menu does it)."""
+def town_cache(group):
+    """The converted town (local game-derived data, never committed); copied from an earlier run, or converted by UZDoom."""
+    path = REVIEW / "data" / "cache" / f"T{group:05d}.ddt"
+    if not path.exists() and (CITY_CACHE / path.name).exists():
+        shutil.copy2(CITY_CACHE / path.name, path)
+    return path
+
+
+def building_door(kind, group=GROUP):
+    """The first door of a building of this Daggerfall type in the town (as tools/shop_menu does it)."""
     data = REVIEW / "data"
-    listed = subprocess.run([str(data / "converter" / "DungeonConverter.exe"), "--group", str(GROUP), "--list-buildings", "--arena2", str(GAME / "DAGGER" / "ARENA2")],
+    listed = subprocess.run([str(data / "converter" / "DungeonConverter.exe"), "--group", str(group), "--list-buildings", "--arena2", str(GAME / "DAGGER" / "ARENA2")],
                             stdin=subprocess.DEVNULL, capture_output=True, text=True)
     types = {int(m[0]): m[1] for m in re.findall(r"BUILDING (\d+) (\S+)", listed.stdout)}
-    rows = [l.split() for l in lumps(data / "cache" / f"T{GROUP:05d}.ddt")["DDDOORS"].decode().splitlines() if l.startswith("0 ")]
+    rows = [l.split() for l in lumps(town_cache(group))["DDDOORS"].decode().splitlines() if l.startswith("0 ")]
     found = next((r for r in rows if types.get(int(r[1])) == kind), None)
     if not found:
-        raise SystemExit(f"no {kind} in town {GROUP}; types here: {sorted(set(types.values()))}")
+        raise SystemExit(f"no {kind} in town {group}; types here: {sorted(set(types.values()))}")
     return found
 
 
@@ -91,9 +109,9 @@ def mods():
 
 
 def write_demo():
-    door = building_door("GeneralStore")  # town 7154 has no weaponsmith or pawn shop
+    door = building_door("WeaponSmith")
     start = f"""version "4.14"
-// Demo only: starts the player a few steps from a general store's door, facing it.
+// Demo only: starts the player a few steps from a weaponsmith's door, facing it.
 class WVDemoStart : StaticEventHandler
 {{
 	bool done;
@@ -115,9 +133,9 @@ class WVDemoStart : StaticEventHandler
     dagger = GAME / "DAGGER"
     (REVIEW / "play.bat").write_text(
         "@echo off\r\n"
-        "rem Doom weapons have a gold value and a weight. You start in town facing a general store (this town has no weaponsmith or pawn shop; fast travel to a city for those), with DRLA.\r\n"
+        "rem Doom weapons have a gold value and a weight. You start in a city facing its weaponsmith, with DRLA. The city has pawn shops too.\r\n"
         "rem Pick up a Doom gun (or use the one you have), go in with Use, Use the shopkeeper and choose Sell: Doom guns are listed with their price.\r\n"
-        "rem Info (Q) on a gun in the inventory shows its weight. Pawn shops and general stores buy them too. The gun you are holding is not offered.\r\n"
+        "rem Info (Q) on a gun in the inventory shows its weight. Pawn shops, armorers and general stores buy them too. The gun you are holding is not offered.\r\n"
         "rem E is Interact, Q is Info, I opens the inventory, K opens fast travel.\r\n"
         "set \"HERE=%~dp0\"\r\n"
         "if not exist \"%HERE%play\" mkdir \"%HERE%play\"\r\n"
@@ -133,14 +151,15 @@ class WVDemoStart : StaticEventHandler
         newline="")
 
 
-def run(name, building):
+def run(name, building, group):
     data, runs = REVIEW / "data", REVIEW / "run"
     saves = runs / "saves"
     saves.mkdir(parents=True, exist_ok=True)
     uz_log, df_log, console, launcher = runs / f"{name}-uz.log", runs / f"{name}-df.log", runs / f"log-{name}.txt", runs / f"{name}-launcher.log"
     for path in (uz_log, df_log, console, launcher):
         path.unlink(missing_ok=True)
-    door = building_door(building)
+    door = building_door(building, group)
+    print("door", door[:3], "building", door[1])
     text = (REPO / "tools" / "shop_menu" / "harness.zs").read_text().replace("@DOOR@", ", ".join(door[3:8]))
     harness = runs / f"{name}_harness.pk3"
     with zipfile.ZipFile(harness, "w") as z:
@@ -148,9 +167,9 @@ def run(name, building):
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "SMHarness" }\n')
     uz = ["-noactivate", "-config", str(runs / f"{name}.ini"), "-savedir", str(saves), "-dfbridgelog", str(uz_log), "-nosound", "-noautoload", "-skill", "3",
           "-ddtowncache", str(data / "cache"), "-ddconverter", str(data / "converter" / "DungeonConverter.exe"), "-ddarena2", str(GAME / "DAGGER" / "ARENA2"),
-          "+logfile", name, "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{GROUP:05d}"]
+          "+logfile", name, "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{group:05d}"]
     df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), "-dfshoptest", "-dfshopdoomgun", "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
-    timeout = 100
+    timeout = 150  # a city interior may be converted on first entry
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
                "--uzdoom-cwd", str(runs), "--log", str(launcher)]
@@ -206,11 +225,12 @@ def check():
 ap = argparse.ArgumentParser()
 ap.add_argument("command", choices=("assemble", "run", "check"))
 ap.add_argument("name", nargs="?", default="t")
-ap.add_argument("--building", default="GeneralStore")
+ap.add_argument("--building", default="WeaponSmith")
+ap.add_argument("--group", type=int, default=GROUP)
 args = ap.parse_args()
 if args.command == "assemble":
     assemble()
 elif args.command == "run":
-    run(args.name, args.building)
+    run(args.name, args.building, args.group)
 else:
     check()
