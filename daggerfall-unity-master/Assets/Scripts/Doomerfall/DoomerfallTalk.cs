@@ -8,10 +8,15 @@
 // A townsperson (DoomerfallTownspeople) is not a Daggerfall object, so Daggerfall talks to an inactive stand-in
 // MobilePersonNPC that carries the person's race, gender, name and face, as its wanderers do. Being inactive, the
 // stand-in never registers as a civilian or runs any behaviour. One stand-in is kept per person, so talking to the
-// same person again continues Daggerfall's "same talk partner" rules and its rolls for that person.
+// same person again continues Daggerfall's "same talk partner" rules and its rolls for that person. The stand-ins
+// belong to the game in progress: they are dropped when a game starts and when a load begins.
+//
+// Use on a townsperson always talks, crouching or not. Pickpocketing townspeople (Daggerfall's Steal on a wanderer)
+// is not part of this feature and stays off.
 
 using System.Collections.Generic;
 using DaggerfallWorkshop.Game.Entity;
+using DaggerfallWorkshop.Game.Serialization;
 using DaggerfallWorkshop.Game.UserInterface;
 using UnityEngine;
 
@@ -46,6 +51,29 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bridge = owner;
             sync = positionSync;
             info = messages;
+            DaggerfallWorkshop.Game.Utility.StartGameBehaviour.OnStartGame += OnStartGame;
+            SaveLoadManager.OnStartLoad += OnStartLoad;
+        }
+
+        void OnDestroy()
+        {
+            DaggerfallWorkshop.Game.Utility.StartGameBehaviour.OnStartGame -= OnStartGame;
+            SaveLoadManager.OnStartLoad -= OnStartLoad;
+        }
+
+        void OnStartGame(object sender, System.EventArgs e) { ForgetWorld(); }
+        void OnStartLoad(SaveData_v1 saveData) { ForgetWorld(); }
+
+        // Another game is starting or loading: no talk partner or pending Use carries into it.
+        internal void ForgetWorld()
+        {
+            if (bridge != null && standIns.Count > 0)
+                bridge.LogLine("talk: dropped " + standIns.Count + " townsperson stand-ins");
+            foreach (MobilePersonNPC old in standIns.Values)
+                if (old) Destroy(old.gameObject);
+            standIns.Clear();
+            pending = null;
+            pendingMobile = null;
         }
 
         internal void OnUse(uint request, ulong id, uint mode, double distance)
@@ -59,7 +87,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (!sync.LoadRunning && GameManager.HasInstance && sync.InGame && !GameManager.IsGamePaused)
             {
                 if ((id >> 61) == Dfb.TOWNSPERSON_TAG)
+                {
                     mobile = StandIn(id);
+                    activateMode = PlayerActivateModes.Grab; // talk only; townsperson pickpocketing is not enabled
+                }
                 else
                     npc = DoomerfallNpcs.FindNpc(id);
                 name = npc ? npc.DisplayName : mobile ? mobile.NameNPC : "none";
@@ -96,7 +127,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             };
             bridge.Send(ref e);
             bridge.LogLine(string.Format("talk: use {0} on {1:x16} ({2}, {3:F2} m): {4}{5}, status {6}{7}", request, id, activateMode,
-                meters, name, mobile ? " (townsperson)" : "", status, status == Dfb.NPC_USE_REFUSED ? RefusedBecause() : ""));
+                meters, name, mobile ? (mode == Dfb.TAKE_STEAL ? " (townsperson, crouching: talks)" : " (townsperson)") : "", status, status == Dfb.NPC_USE_REFUSED ? RefusedBecause() : ""));
         }
 
         static void Activate(StaticNPC npc, MobilePersonNPC mobile, PlayerActivateModes mode, float meters)
@@ -104,7 +135,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (npc)
                 GameManager.Instance.PlayerActivate.DoomerfallUseNpc(npc, mode, meters);
             else
-                GameManager.Instance.PlayerActivate.DoomerfallUseMobileNpc(mobile, mode, meters);
+                GameManager.Instance.PlayerActivate.DoomerfallTalkToMobileNpc(mobile, meters);
         }
 
         // The stand-in for a living townsperson of the current town, or null.
@@ -117,11 +148,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (standIns.TryGetValue(id, out standIn) && standIn)
                 return standIn;
             if (standIns.Count >= MaxStandIns)
-            {
-                foreach (MobilePersonNPC old in standIns.Values)
-                    if (old) Destroy(old.gameObject);
-                standIns.Clear();
-            }
+                ForgetWorld();
             GameObject go = new GameObject("DoomerfallTownsperson " + id.ToString("x16"));
             go.SetActive(false); // before AddComponent, so MobilePersonNPC.Awake never registers it as a civilian
             go.transform.SetParent(transform, false);

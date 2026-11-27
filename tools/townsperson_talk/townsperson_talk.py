@@ -1,12 +1,13 @@
 """Assembles and tests Use on townspeople (Daggerfall's talk window for a wandering townsperson, inside Doom), and on a
 merchant afterwards, with both real games on quiet_run's private desktop.
 
-usage: townsperson_talk.py assemble <source review folder> | run NAME [--stock-mods] | check
+usage: townsperson_talk.py assemble <source review folder> | run NAME [--stock-mods] [--reload] | check
 assemble builds review\\townsperson-talk from a paired review folder (UZDoom, launcher, data, dfitems.pk3, the bridge
 DLL and the portable Daggerfall Unity settings) with this checkout's Daggerfall Unity build and doomerfall.pk3, and
 writes the demo play.bat. run starts in the test town, presses Use on the three nearest townspeople from close by, once
 from too far, then goes into the first general store and presses Use on the nearest NPC. Daggerfall Unity's
--dftalktest reports each window and closes it. check runs DOOM.WAD E1M1 with no bridge, stock and with DRLA.
+-dftalktest reports each window and closes it.
+--reload autosaves after the townspeople, loads that save in the same session, and talks to a townsperson again. check runs DOOM.WAD E1M1 with no bridge, stock and with DRLA.
 """
 import argparse
 import re
@@ -105,7 +106,7 @@ def write_demo():
         "@echo off\r\n"
         "rem Talking to townspeople. Starts in a town with DRLA, during the day. Walk up to any person walking about the\r\n"
         "rem streets, look at them and press Use (E): Daggerfall's talk window opens with their name and portrait, as in\r\n"
-        "rem Daggerfall Unity. Goodbye or Escape closes it. Crouch and Use tries to pickpocket them, once per person.\r\n"
+        "rem Daggerfall Unity. Goodbye or Escape closes it. Crouching makes no difference: Use always talks.\r\n"
         "rem From too far away you get Daggerfall's 'You are too far away'. Merchants inside shops still open their menu.\r\n"
         "set \"HERE=%~dp0\"\r\n"
         "if not exist \"%HERE%play\\saves\" mkdir \"%HERE%play\\saves\"\r\n"
@@ -114,26 +115,36 @@ def write_demo():
         f"start \"\" {line} %BINDS%\r\n", newline="")
 
 
-def run(name, stock_mods):
+def run(name, stock_mods, reload=False):
     runs = REVIEW / "run" / name
     shutil.rmtree(runs, ignore_errors=True)
     (runs / "saves").mkdir(parents=True)
     door = store_door()
     harness = runs / "harness.pk3"
     with zipfile.ZipFile(harness, "w") as z:
-        z.writestr("zscript.txt", (HERE / "harness.zs").read_text().replace("@DOOR@", ", ".join(door[3:8])))
+        z.writestr("zscript.txt", (HERE / "harness.zs").read_text().replace("@DOOR@", ", ".join(door[3:8])).replace("@RELOAD@", "true" if reload else "false"))
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "TTHarness" }\n')
     console = runs / "log-console.txt"
-    uz = ["-noactivate", "-nosound", "-noautoload", "+logfile", "console", "+wipetype", "0",
+    (runs / "qa").mkdir()
+    inbox = runs / "qa" / "inbox.txt"
+    inbox.write_text("")
+    uz = ["-ddqa", str(inbox.parent), "-noactivate", "-nosound", "-noautoload", "+logfile", "console", "+wipetype", "0",
           "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"]
-    timeout = 120
+    timeout = 150 if reload else 120
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--"] + launch_args(runs, harness, uz,
                ["-dfmute", "-dftalktest", "-screen-width", "640", "-screen-height", "360"], stock_mods)
     proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    reason, end = "timeout", time.time() + timeout + 3
+    reason, end, asked = "timeout", time.time() + timeout + 3, False
     while time.time() < end and proc.poll() is None:
         time.sleep(0.25)
         body = read(console)
+        if reload and not asked and "TTLOADNOW" in body:
+            saves = sorted((runs / "saves").glob("auto*.zds"), key=lambda f: f.stat().st_mtime)
+            if saves:
+                with open(inbox, "a") as f:
+                    f.write(f'l0 con load {saves[-1].name}\n')  # a name in -savedir: a full path is refused
+            print("loading", saves[-1] if saves else "nothing: no autosave")
+            asked = True
         if "TTDONE" in body:
             reason = "route finished"
             time.sleep(1)
@@ -161,11 +172,22 @@ def run(name, stock_mods):
     folk = len(re.findall(r"talktest: talking to .*static npc none", df))
     merchant = bool(re.search(r"talktest: window Daggerfall(Merchant|Guild|Trade)\w*", df)) or bool(re.search(r"talktest: talking to .*static npc (?!none)", df))
     far = "too far" in read(console).lower() or "too far" in df.lower()
+    # The crouched Use: Doom sent Steal, Daggerfall talked (Grab) and opened the talk window, and no pickpocket ran.
+    crouched = re.search(r"talk: use (\d+) on \S+ \(Grab, [^)]*\): .*crouching: talks\), status 0", df)
+    crouch_ok = bool(crouched) and bool(re.search(r"talk: activating townsperson .* in Grab mode", df)) and "pickpocket" not in df.lower()
+    print("crouched townsperson Use talked:", crouch_ok)
     kinds = sorted({l[:150] for l in read(REVIEW / "dfu" / "PortableAppdata" / "Player.log").splitlines() if "Exception" in l})
     print("Player.log exception kinds:", len(kinds))
     for line in kinds[:5]:
         print("  ", line)
-    print("RESULT", "PASS" if folk > 0 and merchant and far else "FAIL", f"townsperson talk windows {folk}, merchant window {merchant}, too far {far}")
+    reloaded = True
+    if reload:
+        dropped = re.search(r"talk: dropped \d+ townsperson stand-ins", df)
+        after = df[dropped.end():] if dropped else ""
+        reloaded = bool(dropped) and "TTLOADED" in read(console) and bool(re.search(r"talktest: talking to .*static npc none", after))
+        print("stand-ins dropped on load and talk works after it:", reloaded)
+    print("RESULT", "PASS" if folk >= 3 and merchant and far and crouch_ok and reloaded else "FAIL",
+          f"townsperson talk windows {folk}, merchant window {merchant}, too far {far}, crouched talked {crouch_ok}")
 
 
 def check():
@@ -188,10 +210,11 @@ ap = argparse.ArgumentParser()
 ap.add_argument("command", choices=("assemble", "run", "check"))
 ap.add_argument("name", nargs="?", default="t")
 ap.add_argument("--stock-mods", action="store_true")
+ap.add_argument("--reload", action="store_true")
 args = ap.parse_args()
 if args.command == "assemble":
     assemble(Path(args.name))
 elif args.command == "run":
-    run(args.name, args.stock_mods)
+    run(args.name, args.stock_mods, args.reload)
 else:
     check()

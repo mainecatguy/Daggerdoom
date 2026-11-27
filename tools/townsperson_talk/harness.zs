@@ -2,16 +2,19 @@ version "4.14"
 
 // Townsperson talk test (townsperson_talk.py). In town, presses Use (df_interact) on the nearest shown townspeople
 // from close by, then once on one from beyond Daggerfall's reach, then goes into the general store whose door is
-// DOORDATA and presses Use on the nearest NPC there, to show merchants still work.
+// DOORDATA and presses Use on the nearest NPC there, to show merchants still work. With @RELOAD@ set, it autosaves
+// after the townspeople, asks the runner to load that save, and talks to the nearest townsperson again afterwards.
 class TTHarness : StaticEventHandler
 {
 	static const double DOORDATA[] = { @DOOR@ };
-	const LIMIT = 35 * 30;
+	const LIMIT = 35 * 40;
 	const PEOPLE = 3;
 	int phase, timer, talked;
 	Array<Actor> folk;
 	Actor npc;
-	bool done;
+	bool done, loaded;
+
+	override void WorldLoaded(WorldEvent e) { if (e.IsSaveGame) { loaded = true; Console.Printf("TTLOADED"); } }
 
 	void Finish(String why) { Console.Printf("TTDONE %s", why); done = true; }
 
@@ -71,7 +74,14 @@ class TTHarness : StaticEventHandler
 		case 1: // Use on each townsperson from close by. They walk, so the player keeps stepping up to them until the press.
 			if (!folk[talked]) { timer = 70; }
 			else if (timer <= 20) StandBefore(p, folk[talked], 48, timer == 1);
-			if (timer == 20) { Console.Printf("TTPRESS townsperson %d", talked); EventHandler.SendNetworkEvent("df_interact"); }
+			if (timer == 20)
+			{
+				// The last one is used crouching (Doom's Use sends Steal then): a townsperson must still just talk.
+				bool crouch = talked == PEOPLE - 1;
+				if (crouch) players[0].crouchfactor = 0.5;
+				Console.Printf("TTPRESS townsperson %d%s", talked, crouch ? " crouching" : "");
+				EventHandler.SendNetworkEvent("df_interact");
+			}
 			if (timer >= 70)
 			{
 				timer = 0;
@@ -81,7 +91,28 @@ class TTHarness : StaticEventHandler
 		case 2: // Use on the nearest townsperson from beyond Daggerfall's reach (256 classic units, 192 Doom units).
 			if (timer <= 20 && folk[0]) StandBefore(p, folk[0], 260, timer == 1);
 			if (timer == 20) { Console.Printf("TTPRESS far townsperson 0"); EventHandler.SendNetworkEvent("df_interact"); }
-			if (timer == 70) { phase = 3; timer = 0; }
+			if (timer == 70) { phase = @RELOAD@ ? 5 : 3; timer = 0; }
+			break;
+		case 5: // Autosave, then the runner loads it (a console load through -ddqa).
+			if (timer == 1) { Console.Printf("TTSAVE"); level.MakeAutoSave(); }
+			if (timer == 35 * 5) Console.Printf("TTLOADNOW");
+			if (loaded) { phase = 6; timer = 0; }
+			break;
+		case 6: // After the load: Use on the nearest townsperson again.
+			if (timer < 35 * 4) break;
+			if (timer == 35 * 4)
+			{
+				npc = null;
+				double best = 1e9;
+				let it = ThinkerIterator.Create("DFTownsperson");
+				Actor mo;
+				while (mo = Actor(it.Next()))
+					if (!mo.bInvisible && mo.health > 0 && (mo.pos - p.pos).Length() < best) { best = (mo.pos - p.pos).Length(); npc = mo; }
+				if (!npc) { Console.Printf("TTFAIL no townsperson after the load"); Finish("failed"); break; }
+			}
+			if (npc && timer <= 35 * 4 + 20) StandBefore(p, npc, 48, timer == 35 * 4);
+			if (timer == 35 * 4 + 20) { Console.Printf("TTPRESS townsperson after load"); EventHandler.SendNetworkEvent("df_interact"); }
+			if (timer == 35 * 4 + 70) { npc = null; phase = 3; timer = 0; }
 			break;
 		case 3: // Into the store.
 			if (inside) { phase = 4; timer = 0; break; }
