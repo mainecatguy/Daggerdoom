@@ -18,7 +18,8 @@ using UnityEngine;
 
 namespace DaggerfallWorkshop.Game.Doomerfall
 {
-    // One Doom item. A gun has a Daggerfall material; no Doom item has condition, enchantments, or value yet.
+    // One Doom item. A gun has a Daggerfall material; a weapon has the weight and value of DoomerfallWeaponValues; no Doom
+    // item has condition or enchantments yet.
     public class DoomerfallDoomItem : DaggerfallUnityItem, ICustomItemImage, ICustomItemInfo
     {
         internal const int DoomTemplate = 9100;
@@ -95,6 +96,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DoomerfallDoomItem item = new DoomerfallDoomItem(doomClass, flags);
             if (item.IsGun)
                 item.Material = carried >= 0 ? (WeaponMaterialTypes)carried : RollMaterial(lootSeed);
+            DoomerfallWeaponValues.Apply(item); // weight and gold value from WeaponValues.txt
             return item;
         }
 
@@ -277,7 +279,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 DoomerfallDoomItem item = items.GetItem(i) as DoomerfallDoomItem;
                 if (item == null)
                     continue;
-                list.AppendFormat(" \"{0}\" {1} kg named \"{2}\" material {3};", item.DoomClass, item.weightInKg, item.ItemName, item.IsGun ? item.Material.ToString() : "none");
+                DoomerfallWeaponValues.Apply(item); // a save from before values, or after the table changed
+                list.AppendFormat(" \"{0}\" {1} kg named \"{2}\" material {3} value {4};", item.DoomClass, item.weightInKg, item.ItemName, item.IsGun ? item.Material.ToString() : "none", item.value);
                 if (testFolder != null)
                     RequestArt(item.DoomClass); // As the inventory window would on opening.
             }
@@ -377,7 +380,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             PlayerEntity player = GameManager.HasInstance ? GameManager.Instance.PlayerEntity : null;
             if (player == null || sync.LoadRunning || GameManager.IsGamePaused || cls.Length == 0)
                 status = Dfb.ITEM_REFUSED;
-            else if (CanHold(1, DoomerfallDoomItem.DefaultWeightKg, player.MaxEncumbrance, player.CarriedWeight) <= 0)
+            else if (CanHold(1, DoomerfallWeaponValues.WeightOf(cls), player.MaxEncumbrance, player.CarriedWeight) <= 0)
                 status = Dfb.ITEM_TOO_HEAVY;
             DoomerfallDoomItem taken = null;
             if (status == Dfb.ITEM_TAKEN)
@@ -397,7 +400,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 DoomerfallHotkeys.Instance.OnGunTaken(taken, (int)((flags & Dfb.DOOM_ITEM_SLOT_MASK) >> (int)Dfb.DOOM_ITEM_SLOT_SHIFT) - 1);
             bridge.LogLine(string.Format("doomitems: take {0} \"{1}\" flags 0x{6:x}: status {2}, carried {3:F2}/{4} kg, doom items {5}{7}",
                 request, cls, status, player != null ? player.CarriedWeight : 0, player != null ? player.MaxEncumbrance : 0, player != null ? Count(player.Items) : 0,
-                flags, taken != null ? ", stored as \"" + taken.shortName + "\" named \"" + taken.ItemName + "\"" + (taken.IsGun ? " material " + taken.Material + " at area level " + WorldLevel.Current : "") : "")
+                flags, taken != null ? ", stored as \"" + taken.shortName + "\" named \"" + taken.ItemName + "\"" + (taken.IsGun ? " material " + taken.Material + " at area level " + WorldLevel.Current : "") + string.Format(", value {0}, {1} kg", taken.value, taken.weightInKg) : "")
                 + string.Format(", floor id {0:x16}{1}", floorId, carried >= 0 ? ", material carried from a drop" : ""));
         }
 

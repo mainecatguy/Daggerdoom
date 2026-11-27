@@ -2,11 +2,14 @@
 // own handlers, so a minimized test can prove the route. The first merchant menu picks Sell, later ones pick Talk.
 // A Sell window sells one item, the first Buy window (a shelf) buys the cheapest one, both confirmed with Daggerfall's
 // own Yes. Any other window (such as the private property question) is closed. Gold and inventory are logged.
+// With -dfshopdoomgun, the first merchant menu first gives the player Doom guns (DRLA's pistol, shotgun and BFG, one
+// Daedric) and logs their value, weight and this shop's price; the Sell window then sells a Doom gun only.
 
 using System;
 using System.Collections.Generic;
 using System.Reflection;
 using DaggerfallWorkshop.Game.Entity;
+using DaggerfallWorkshop.Game.Formulas;
 using DaggerfallWorkshop.Game.Items;
 using DaggerfallWorkshop.Game.UserInterface;
 using DaggerfallWorkshop.Game.UserInterfaceWindows;
@@ -26,6 +29,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         int menus;
         int goldBefore, countBefore;
         string traded;
+        readonly bool doomGun = Array.IndexOf(Environment.GetCommandLineArgs(), "-dfshopdoomgun") >= 0;
+        bool given;
+        DaggerfallUnityItem sold;
 
         internal void Init(DoomerfallBridge owner)
         {
@@ -69,6 +75,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             string mode = trade != null ? typeof(DaggerfallTradeWindow).GetProperty("WindowMode", Any).GetValue(trade, null).ToString() : null;
             if (top is DaggerfallMerchantServicePopupWindow || top is DaggerfallMerchantRepairPopupWindow)
             {
+                if (doomGun && !given)
+                    GiveGuns();
                 // A shop's menu (Talk / Sell / Exit), or a repair shop's (Repair / Talk / Sell / Exit): Sell first, then Talk.
                 string handler = menus++ > 0 ? "TalkButton_OnMouseClick" : top is DaggerfallMerchantRepairPopupWindow ? "SellButton_OnMouseClick" : "ServiceButton_OnMouseClick";
                 Log(string.Format("{0} {1}: pressing {2}", top.GetType().Name, menus, handler));
@@ -106,8 +114,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     return;
                 }
                 traded = mode + " \"" + item.LongName + "\"";
-                Log(string.Format("{0} window ({1} merchant items): choosing \"{2}\" (value {3}), gold {4}, carried {5}", mode,
-                    trade.MerchantItems != null ? trade.MerchantItems.Count : -1, item.LongName, item.value, goldBefore, countBefore));
+                sold = item;
+                Log(string.Format("{0} window ({1} merchant items): choosing \"{2}\" (value {3}, shop price {6}), gold {4}, carried {5}", mode,
+                    trade.MerchantItems != null ? trade.MerchantItems.Count : -1, item.LongName, item.value, goldBefore, countBefore,
+                    FormulaHelper.CalculateCost(item.value, GameManager.Instance.PlayerEnterExit.BuildingDiscoveryData.quality, item.ConditionPercentage)));
                 Type actions = typeof(DaggerfallInventoryWindow).GetNestedType("ActionModes", Any);
                 // Remove buys without equipping (Select would equip it), so the bought item can be sold back.
                 object select = Enum.Parse(actions, mode == "Buy" ? "Remove" : "Select");
@@ -117,7 +127,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
             else if (trade != null)
             {
-                Log(string.Format("{0} done: gold {1} to {2}, carried {3} to {4}", traded, goldBefore, Player.GoldPieces, countBefore, Player.Items.Count));
+                Log(string.Format("{0} done: gold {1} to {2}, carried {3} to {4}, item still carried {5}", traded, goldBefore, Player.GoldPieces, countBefore, Player.Items.Count,
+                    sold != null && Player.Items.Contains(sold)));
                 traded = null;
                 trade.CloseWindow();
             }
@@ -158,13 +169,32 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         }
 
         // An ordinary Daggerfall item the store takes: not equipped, not a Doom item, not a quest item, worth something.
-        static DaggerfallUnityItem Sellable(List<DaggerfallUnityItem> items)
+        // With -dfshopdoomgun, a Doom gun instead.
+        DaggerfallUnityItem Sellable(List<DaggerfallUnityItem> items)
         {
             if (items == null) return null;
             foreach (DaggerfallUnityItem item in items)
-                if (!item.IsEquipped && !(item is DoomerfallDoomItem) && !item.IsQuestItem && item.value > 0)
+                if (!item.IsEquipped && (item is DoomerfallDoomItem) == doomGun && !item.IsQuestItem && item.value > 0)
                     return item;
             return null;
+        }
+
+        void GiveGuns()
+        {
+            given = true;
+            int quality = GameManager.Instance.PlayerEnterExit.BuildingDiscoveryData.quality;
+            foreach (string cls in new[] { "RLPistolPickup", "RLShotgunPickup", "RLBFG9000Pickup" })
+            {
+                DoomerfallDoomItem gun = DoomerfallDoomItem.Create(cls, Dfb.DOOM_ITEM_GUN);
+                if (cls == "RLBFG9000Pickup")
+                {
+                    gun.Material = WeaponMaterialTypes.Daedric;
+                    DoomerfallWeaponValues.Apply(gun);
+                }
+                Player.Items.AddItem(gun);
+                Log(string.Format("gave \"{0}\" ({1}, {2}): value {3}, {4} kg, shop price {5} at quality {6}", gun.ItemName, cls, gun.Material, gun.value, gun.weightInKg,
+                    FormulaHelper.CalculateCost(gun.value, quality, gun.ConditionPercentage), quality));
+            }
         }
 
         static DaggerfallUnityItem Cheapest(List<DaggerfallUnityItem> items)

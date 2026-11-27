@@ -694,6 +694,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                     if (!item.IsEquipped && (
                             (WindowMode != WindowModes.Sell && WindowMode != WindowModes.SellMagic) ||
                             (WindowMode == WindowModes.Sell && itemTypesAccepted.Contains(item.ItemGroup)) ||
+                            (WindowMode == WindowModes.Sell && Doomerfall.DoomerfallWeaponValues.SellsHere(item, itemTypesAccepted)) || // Doomerfall: Doom weapons sell where weapons do
                             (WindowMode == WindowModes.SellMagic && item.IsEnchanted) ))
                     {
                         AddLocalItem(item);
