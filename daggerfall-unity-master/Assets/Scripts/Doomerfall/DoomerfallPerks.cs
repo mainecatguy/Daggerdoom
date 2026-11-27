@@ -50,7 +50,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             new Perk("Shotguns", 100, "Shotguns fire twice the pellets, and the knockback and wall slam are twice as strong (up to 400 damage).", true),
 
             new Perk("Pistols", 25, "Pistols reload 20% faster. (Planned: fast-firing pistols will deal more damage. This part does not work yet.)", true),
-            new Perk("Pistols", 50, "Overkill: when a pistol shot kills, its leftover damage carries on through the body into the next enemy behind it. A 100-damage bonus is added to your next pistol hit and refills every half second. Pistols reload 40% faster.", true),
+            new Perk("Pistols", 50, "Overkill: when a pistol shot kills, its leftover damage carries on through the body into the next enemy behind it. Each pistol shot uses up a 100-damage bonus, added to its damage if it hits; the bonus refills every half second. Pistols reload 40% faster.", true),
             new Perk("Pistols", 75, "Pistols reload 60% faster. (Planned: Deadeye, slow-firing pistols will deal more damage. This part does not work yet.)", true),
             new Perk("Pistols", 100, "Shrapnel: every pistol hit bursts into 3 fragments that fly on behind the enemy, each doing a third of the hit's damage. A fragment swerves into an enemy close to its path.", true),
 

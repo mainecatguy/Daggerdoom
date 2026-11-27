@@ -389,18 +389,17 @@ typedef struct dfb_face
 #define DFB_SHEET_SHOT_SLAM_DAMAGE    171  /* most extra damage an enemy knocked into a wall takes */
 #define DFB_SHEET_SHOT_COLLIDE_DAMAGE 172  /* most damage a knocked enemy and what it hits each take */
 /* Pistols skill rules (work/backlog/skills-in-doom.md), from the live Pistols skill. Daggerfall decides them and Doom
-   applies them to guns whose skill is Pistols. 0 means that rule is off. A pistol's fire rate is its fire cycle in tics
-   (the Fire state's frames until it is ready again); the multipliers scale linearly between the fast and slow cycles,
-   and are off while either cycle is 0. */
-#define DFB_SHEET_PIST_RATE_FAST_TICS  173  /* a fire cycle this short or shorter is fast */
-#define DFB_SHEET_PIST_RATE_SLOW_TICS  174  /* a fire cycle this long or longer is slow */
-#define DFB_SHEET_PIST_SPRAY_FAST_BP   175  /* skill 25 damage multiplier at a fast cycle, 10000 = x1 (x2.5) ... */
-#define DFB_SHEET_PIST_SPRAY_SLOW_BP   176  /* ... and at a slow cycle (x1.5) */
-#define DFB_SHEET_PIST_DEADEYE_FAST_BP 177  /* skill 75 Deadeye multiplier at a fast cycle (x1.5) ... */
-#define DFB_SHEET_PIST_DEADEYE_SLOW_BP 178  /* ... and at a slow cycle (x3) */
+   applies them to guns whose skill is Pistols. 0 means that rule is off. Slots 173-178 are reserved for the skill 25
+   and 75 fire-rate multipliers, whose rules are open (owner): always 0, Doom reads nothing from them. */
+#define DFB_SHEET_PIST_RESERVED_1      173
+#define DFB_SHEET_PIST_RESERVED_2      174
+#define DFB_SHEET_PIST_RESERVED_3      175
+#define DFB_SHEET_PIST_RESERVED_4      176
+#define DFB_SHEET_PIST_RESERVED_5      177
+#define DFB_SHEET_PIST_RESERVED_6      178
 #define DFB_SHEET_PIST_RELOAD_BP       179  /* reloads take this much less time, in 1/10000ths (20/40/60%) */
 #define DFB_SHEET_PIST_CARRY           180  /* 1: a killing hit's leftover damage carries on to the next enemy behind */
-#define DFB_SHEET_PIST_POOL            181  /* bonus damage pool size, added to a pistol hit and spent by it ... */
+#define DFB_SHEET_PIST_POOL            181  /* bonus damage pool size, spent by each pistol shot (added to its hit) ... */
 #define DFB_SHEET_PIST_POOL_REFILL_MS  182  /* ... refilling from empty in this long */
 #define DFB_SHEET_PIST_FRAGMENTS       183  /* shrapnel: each pistol hit bursts into this many fragments behind the enemy ... */
 #define DFB_SHEET_PIST_FRAGMENT_BP     184  /* ... each dealing this much of the hit's damage, in 1/10000ths ... */

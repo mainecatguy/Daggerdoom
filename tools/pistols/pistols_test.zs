@@ -3,7 +3,7 @@ version "4.10"
 // Test harness for the Pistols perks (tools/pistols/pistols_test.py). Not part of the game.
 // For each rule set it asks the fake Daggerfall peer for that sheet ("PISTTEST want <cfg>"), waits until Doom reads it,
 // then for each sample gun:
-//   fire sets (off, spray, mult, reload, reload60, pool): 5 shots at a close target that never moves, logging each
+//   fire sets (off, reload, reload60, pool): 5 shots at a close target that never moves, logging each
 //     shot's hits, damage and the tics from the trigger until the gun is ready again; then, for a gun with a magazine,
 //     a reload from an empty magazine, timed the same way.
 //   line sets (carry, frag, turn, carryfrag): one shot at target A 64 units ahead. When A is first hit, the harness
@@ -39,7 +39,7 @@ class PistPerkTest : EventHandler
 
 	override void OnRegister()
 	{
-		static const String c[] = { "off", "spray", "mult", "reload", "reload60", "pool", "carry", "frag", "turn", "carryfrag" };
+		static const String c[] = { "off", "reload", "reload60", "pool", "carry", "frag", "turn", "carryfrag" };
 		static const String g[] = { "Pistol", "RLPistol", "RLHandcannon", "RLMarksmanPistol" };
 		for (int i = 0; i < c.Size(); i++) cfgs.Push(c[i]);
 		for (int i = 0; i < g.Size(); i++) { class<Actor> k = g[i]; if (k) guns.Push(g[i]); else Console.Printf("PISTTEST absent %s", g[i]); }
@@ -50,13 +50,6 @@ class PistPerkTest : EventHandler
 	// Sheet values 173..185 for each rule set; must match RULES in pistols_test.py.
 	static int RuleOf(String c, int idx)
 	{
-		bool rate = c == "spray" || c == "mult";
-		if (idx == 173) return rate ? 10 : 0;
-		if (idx == 174) return rate ? 30 : 0;
-		if (idx == 175) return rate ? 25000 : 0;
-		if (idx == 176) return rate ? 15000 : 0;
-		if (idx == 177) return c == "mult" ? 15000 : 0;
-		if (idx == 178) return c == "mult" ? 30000 : 0;
 		if (idx == 179) return c == "reload" ? 2000 : c == "reload60" ? 6000 : 0;
 		if (idx == 180) return c == "carry" || c == "carryfrag" ? 1 : 0;
 		bool pool = c == "pool" || c == "carry" || c == "carryfrag";
@@ -202,16 +195,17 @@ class PistPerkTest : EventHandler
 				mo.SetOrigin(spot, false); mo.vel = (0, 0, 0); mo.angle = dirAngle; mo.pitch = 0;
 				int first, second;
 				[first, second] = DoomerfallWeaponCategory.Both(heldGun);
-				Console.Printf("PISTTEST case %s %s cat=%s slot=%d cycle=%d", c, guns[gun], DoomerfallWeaponCategory.Label(first),
-					DoomerfallWeaponCategory.SkillSlotOf(heldGun), DoomerfallPistols.FireCycle(heldGun));
+				Console.Printf("PISTTEST case %s %s cat=%s slot=%d", c, guns[gun], DoomerfallWeaponCategory.Label(first),
+					DoomerfallWeaponCategory.SkillSlotOf(heldGun));
 				bool killA = c == "carry" || c == "carryfrag";
 				target = Place(64, killA ? 20 : 1000000);
 				phase = LineSet(c) ? 10 : 4;
-				shot = 0; fireTic = -1; hits = lost = 0; placed = false;
+				shot = 0; fireTic = -1; hits = lost = 0; placed = false; wait = 0;
 			}
 			else if (++wait > 175) { Console.Printf("PISTTEST noselect %s %s", c, guns[gun]); gun++; phase = 2; }
 			break;
-		case 4: // fire sets: 5 shots
+		case 4: // fire sets: 5 shots, after 20 tics so the pool (spent by every shot) is full
+			if (shot == 0 && fireTic < 0 && ++wait < 20) break;
 			if (fireTic >= 0 && (p.WeaponState & WF_WEAPONREADY))
 			{
 				Console.Printf("PISTTEST shot %s %s n=%d hits=%d lost=%d cycle=%d", c, guns[gun], shot, hits, lost, level.maptime - fireTic);
@@ -251,7 +245,8 @@ class PistPerkTest : EventHandler
 			Clear();
 			gun++; phase = 2;
 			break;
-		case 10: // line sets: one shot (the pool is full: nothing was fired for a while)
+		case 10: // line sets: one shot, after 20 tics so the pool is full
+			if (++wait < 20) break;
 			if (p.WeaponState & WF_WEAPONREADY)
 			{
 				Console.Printf("PISTTEST fire tic=%d", level.maptime);

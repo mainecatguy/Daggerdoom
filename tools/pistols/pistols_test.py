@@ -7,7 +7,7 @@ harness (pistols_test.zs) asks for. The perk code logs what it changed (+set dd_
   stock    doomerfall.pk3 only: the stock Pistol.
   drla     play_drlax.bat's DRLA set: RLPistol, RLHandcannon, RLMarksmanPistol (and the stock Pistol).
   nobridge doomerfall.pk3 only, no bridge session: nothing changes.
-The fire-rate cycles (fast 10, slow 30 tics) are test values: the owner has not chosen them, so Daggerfall sends 0.
+The fire-rate multipliers are not built (open), so they are not tested.
 """
 import ctypes as C, math, re, struct, subprocess, sys, time, uuid, zipfile
 from pathlib import Path
@@ -20,19 +20,18 @@ IWAD = Path(r"D:\dev\DoomDaggerfall\GameResources\wads\DOOM.WAD")
 MODS = Path(r"D:\dev\DoomDaggerfall\GameMods")
 DRLA = ["DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3"]
 SHEET_INTS, SHEET_FORMAT_VERSION = 186, 10
-RATE = {173: 10, 174: 30, 175: 25000, 176: 15000}
 POOL = {181: 100, 182: 500}
 FRAG = {183: 3, 184: 3300, 185: 5}
 RULES = {  # must match RuleOf in pistols_test.zs
-    "off": {}, "spray": RATE, "mult": {**RATE, 177: 15000, 178: 30000}, "reload": {179: 2000}, "reload60": {179: 6000},
+    "off": {}, "reload": {179: 2000}, "reload60": {179: 6000},
     "pool": POOL, "carry": {180: 1, **POOL}, "frag": FRAG, "turn": FRAG, "carryfrag": {180: 1, **POOL, **FRAG}}
 BAD = re.compile(r'Script error, "(doomerfall|pisttest)\.pk3|(doomerfall|pisttest)\.pk3:zscript\S*, line \d+|\bFatal error|VM execution aborted|not implemented for', re.I)
-CASE = re.compile(r"PISTTEST case (\w+) (\w+) cat=(\w+) slot=(-?\d+) cycle=(\d+)")
+CASE = re.compile(r"PISTTEST case (\w+) (\w+) cat=(\w+) slot=(-?\d+)")
 SHOT = re.compile(r"PISTTEST shot (\w+) (\w+) n=(\d+) hits=(\d+) lost=(\d+) cycle=(\d+)")
 RELOAD = re.compile(r"PISTTEST reload (\w+) (\w+) tics=(\d+) mag=(-?\d+)")
 LINE = re.compile(r"PISTTEST line (\w+) (\w+) hitsA=(\d+) lostA=(\d+)(.*)")
 DMG = re.compile(r"PISTTEST damage (\w) (\d+) inflictor (\S+) health (-?\d+)")
-HIT = re.compile(r"pistols: hit (\S+) with (\S+): (\d+) -> (\d+) \(x([\d.]+) cycle (\d+), pool \+(\d+)\)")
+HIT = re.compile(r"pistols: hit (\S+) with (\S+): (\d+) -> (\d+) \(pool \+(\d+)\)")
 RFRAME = re.compile(r"pistols: reload (\S+) frame (\d+) -> (\d+) tics")
 CARRY = re.compile(r"pistols: carry (\S+) -> (\S+) damage (\d+)")
 FRAGL = re.compile(r"pistols: fragment (\S+) -> (\S+) damage (\d+) of (\d+)( turned)?")
@@ -111,7 +110,7 @@ def split_cases(lines):
     for l in lines:
         if m := CASE.search(l):
             cur = (m.group(1), m.group(2))
-            cases[cur] = {"cat": m.group(3), "slot": int(m.group(4)), "cycle": int(m.group(5)), "lines": []}
+            cases[cur] = {"cat": m.group(3), "slot": int(m.group(4)), "lines": []}
         elif "PISTTEST end" in l or "PISTTEST want" in l:
             cur = None
         elif cur:
@@ -132,16 +131,6 @@ def shots_of(lines):
     return out
 
 
-def want_mult(cfg, cycle):
-    if cfg not in ("spray", "mult"):
-        return 1.0
-    t = min(1.0, max(0.0, (cycle - 10) / 20))
-    m = 2.5 + (1.5 - 2.5) * t
-    if cfg == "mult":
-        m *= 1.5 + (3.0 - 1.5) * t
-    return m
-
-
 def r33(x):
     return max(1, int(math.floor(x * 0.33 + 0.5)))
 
@@ -158,12 +147,12 @@ def analyse(name, lines, checks, report):
           [l for l in lines if re.search(r"PISTTEST (stuck|noselect|timeout)", l)][:3])
     base = {}
     for (cfg, gun), c in split_cases(lines).items():
-        tag = f"{cfg} {gun} ({c['cat']}, slot {c['slot']}, cycle {c['cycle']})"
+        tag = f"{cfg} {gun} ({c['cat']}, slot {c['slot']})"
         check(f"{tag}: reads as Pistols (slot 7)", c["slot"] == 7)
         L = c["lines"]
         perk = [l for l in L if "pistols:" in l]
         hl = [HIT.search(l) for l in perk if HIT.search(l)]
-        if cfg in ("off", "spray", "mult", "reload", "reload60", "pool"):
+        if cfg in ("off", "reload", "reload60", "pool"):
             shots = shots_of(L)
             hits = [int(m.group(4)) for m, _, _ in shots]
             lost = sum(int(m.group(5)) for m, _, _ in shots)
@@ -172,33 +161,22 @@ def analyse(name, lines, checks, report):
             check(f"{tag}: 5 shots hit", len(shots) == 5 and all(h > 0 for h in hits), len(shots))
             if cfg == "off":
                 base[gun] = {"cycle": cycles, "reload": int(rl[0].group(3)) if rl else None}
-                check(f"{tag}: no perk activity with every rule off", not [l for l in perk if "cycle " not in l or HIT.search(l)], perk[:3])
-                # The perk's fire cycle (Fire frames until Ready) against the harness's trigger-to-ready time.
-                check(f"{tag}: fire cycle {c['cycle']} matches trigger-to-ready {cycles} within 2 tics",
-                      cycles and all(abs(x - c["cycle"]) <= 2 for x in cycles))
-                report.append(f"{gun}: fire cycle {c['cycle']} tics, trigger-to-ready {cycles}"
+                check(f"{tag}: no perk activity with every rule off", not [l for l in perk], perk[:3])
+                report.append(f"{gun}: trigger-to-ready {cycles}"
                               + (f", empty-magazine reload {base[gun]['reload']} tics" if rl else ", no reload"))
-            if cfg in ("spray", "mult"):
-                m = want_mult(cfg, c["cycle"])
-                bad = [h.group(0) for h in hl if abs(float(h.group(5)) - m) > 0.002 or int(h.group(6)) != c["cycle"]
-                       or int(h.group(4)) != max(1, int(math.floor(int(h.group(3)) * m + 0.5))) or h.group(7) != "0"]
-                ok = hl and not bad and len(hl) == sum(hits) and sum(int(h.group(4)) for h in hl) == lost
-                check(f"{tag}: every hit x{m:.3f} (cycle {c['cycle']}), the target lost what the code logged", ok, (bad[:3], len(hl), sum(hits), lost))
-                report.append(f"{gun} {cfg}: x{m:.3f}, " + ", ".join(f"{h.group(3)}->{h.group(4)}" for h in hl[:5]))
-                check(f"{tag}: the gun fires no faster ({cycles} vs off {base.get(gun, {}).get('cycle')})", cycles == base.get(gun, {}).get("cycle"))
             if cfg == "pool":
                 bad, prev = [], None
                 for (m, buf, tic) in shots:
                     for h in [HIT.search(l) for l in buf if HIT.search(l)]:
-                        bonus = int(h.group(7))
+                        bonus = int(h.group(5))
                         gap = tic - prev if prev is not None else 999
                         want = min(100, gap * 100 / 17.5)
-                        if not (want - 6 <= bonus <= 100) or int(h.group(4)) != int(h.group(3)) + bonus or h.group(5) != "1.000":
+                        if not (want - 6 <= bonus <= 100) or int(h.group(4)) != int(h.group(3)) + bonus:
                             bad.append(f"gap {gap} bonus {bonus} ({h.group(3)} -> {h.group(4)})")
                         prev = tic
-                ok = hl and not bad and len(hl) == sum(hits) and sum(int(h.group(4)) for h in hl) == lost and int(hl[0].group(7)) == 100
+                ok = hl and not bad and len(hl) == sum(hits) and sum(int(h.group(4)) for h in hl) == lost and int(hl[0].group(5)) == 100
                 check(f"{tag}: first hit +100, each later hit + what refilled since the last (100 per 0.5 s)", ok, (bad[:3], len(hl), lost))
-                report.append(f"{gun} pool: bonuses {[int(h.group(7)) for h in hl]}")
+                report.append(f"{gun} pool: bonuses {[int(h.group(5)) for h in hl]}")
             if cfg in ("reload", "reload60"):
                 share_want = 0.2 if cfg == "reload" else 0.6
                 b = base.get(gun, {})

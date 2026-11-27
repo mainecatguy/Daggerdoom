@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x4e0c704301510ea2ULL
+#define DFB_SCHEMA_HASH 0x26cfa92b169b11a2ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -262,12 +262,12 @@ static_assert((DFB_SHEET_SHOT_PELLET_BP) == (169), DFB_STALE);
 static_assert((DFB_SHEET_SHOT_KNOCK_BP) == (170), DFB_STALE);
 static_assert((DFB_SHEET_SHOT_SLAM_DAMAGE) == (171), DFB_STALE);
 static_assert((DFB_SHEET_SHOT_COLLIDE_DAMAGE) == (172), DFB_STALE);
-static_assert((DFB_SHEET_PIST_RATE_FAST_TICS) == (173), DFB_STALE);
-static_assert((DFB_SHEET_PIST_RATE_SLOW_TICS) == (174), DFB_STALE);
-static_assert((DFB_SHEET_PIST_SPRAY_FAST_BP) == (175), DFB_STALE);
-static_assert((DFB_SHEET_PIST_SPRAY_SLOW_BP) == (176), DFB_STALE);
-static_assert((DFB_SHEET_PIST_DEADEYE_FAST_BP) == (177), DFB_STALE);
-static_assert((DFB_SHEET_PIST_DEADEYE_SLOW_BP) == (178), DFB_STALE);
+static_assert((DFB_SHEET_PIST_RESERVED_1) == (173), DFB_STALE);
+static_assert((DFB_SHEET_PIST_RESERVED_2) == (174), DFB_STALE);
+static_assert((DFB_SHEET_PIST_RESERVED_3) == (175), DFB_STALE);
+static_assert((DFB_SHEET_PIST_RESERVED_4) == (176), DFB_STALE);
+static_assert((DFB_SHEET_PIST_RESERVED_5) == (177), DFB_STALE);
+static_assert((DFB_SHEET_PIST_RESERVED_6) == (178), DFB_STALE);
 static_assert((DFB_SHEET_PIST_RELOAD_BP) == (179), DFB_STALE);
 static_assert((DFB_SHEET_PIST_CARRY) == (180), DFB_STALE);
 static_assert((DFB_SHEET_PIST_POOL) == (181), DFB_STALE);

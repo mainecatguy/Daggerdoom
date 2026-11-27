@@ -3,15 +3,13 @@
 // (DoomerfallWeaponCategory.SkillSlotOf): stock Doom's Pistol or a DRLA pistol-type gun, never a rifle. Without a
 // Daggerfall character every rule reads off, so a Doom-only game is unchanged.
 //
-//   fire-rate multipliers  (25 and 75) a pistol's fire cycle is the tics of its Fire state's frames, followed from the
-//                  Fire label until the gun is back in its Ready state (DRLA's conditional jumps are 0-tic frames whose
-//                  fall-through is the plain shot, so this is the unmodified gun's time between shots). Each multiplier
-//                  goes linearly from its fast value at the fast cycle to its slow value at the slow cycle; the two
-//                  multiply. Off while Daggerfall sends no fast and slow cycle. Damage only: the gun fires as before.
+//   fire-rate multipliers  (25 and 75) not built: how fire rate is measured, which rates are fast and slow, how the
+//                  multipliers scale between them and whether they multiply the pool are open (owner). Sheet slots
+//                  173-178 are reserved for them and always 0.
 //   faster reload  a DRLA pistol's reload frames are shortened by x% in whole tics, as for Shotguns. Stock Doom's Pistol
 //                  has no reload, so nothing changes for it.
-//   bonus pool     a pistol hit gets the whole pool added (after the multipliers) and empties it; it refills from empty
-//                  in the rule's time. A miss spends nothing.
+//   bonus pool     each pistol shot spends the whole pool (the card: "shots spend it"): a bullet that hits in the tic it
+//                  is fired gets it added to its damage; a miss wastes it. It refills from empty in the rule's time.
 //   carry-through  when a pistol hit kills, the damage beyond the kill (minus the victim's health after the hit) goes on
 //                  along the shot's line to the next shootable thing behind the corpse, and so on while damage remains.
 //   shrapnel       every pistol hit and every carry-through hit bursts into fragments behind the enemy, forking in a V,
@@ -26,12 +24,7 @@ class DoomerfallPistols : StaticEventHandler
 	// DFB_SHEET_* indices; must match bridge/doomerfall_bridge.h.
 	const SheetValid = 2;
 	const SkillPistols = 7;
-	const RateFastTics = 173;
-	const RateSlowTics = 174;
-	const SprayFastBp = 175;
-	const SpraySlowBp = 176;
-	const DeadeyeFastBp = 177;
-	const DeadeyeSlowBp = 178;
+	// 173-178: reserved for the fire-rate multipliers (open).
 	const ReloadBp = 179;
 	const Carry = 180;
 	const Pool = 181;
@@ -77,46 +70,6 @@ class DoomerfallPistols : StaticEventHandler
 		DoomerfallShotTag tag;
 		if (!DoomerfallShots.Find(player, inflictor, gun, skill, tag) || skill != SkillPistols) return null;
 		return gun;
-	}
-
-	// Tics from the Fire label until the gun is ready again, on the plain path (see the top).
-	static int FireCycle(readonly<Weapon> w)
-	{
-		if (!w) return 0;
-		State fire = w.FindState("Fire");
-		State ready = w.FindState("Ready");
-		int tics = 0;
-		State st = fire;
-		for (int i = 0; st && i < 256; i++)
-		{
-			if (i > 0 && (st == fire || (ready && st.InStateSequence(ready)))) break;
-			if (st.Tics < 0) break;
-			tics += st.Tics;
-			st = st.NextState;
-		}
-		return tics;
-	}
-
-	// How far a cycle is from fast (0) to slow (1), or -1 while the fast and slow cycles are not set.
-	static double SlowShare(int cycle)
-	{
-		int fast = Rule(RateFastTics), slow = Rule(RateSlowTics);
-		if (fast <= 0 || slow <= fast) return -1;
-		return clamp((cycle - fast) / double(slow - fast), 0., 1.);
-	}
-
-	// Both fire-rate multipliers together for a gun with this cycle.
-	static double Multiplier(int cycle)
-	{
-		double t = SlowShare(cycle);
-		if (t < 0) return 1;
-		double m = 1;
-		int f = Rule(SprayFastBp), s = Rule(SpraySlowBp);
-		if (f > 0 && s > 0) m *= (f + (s - f) * t) / 10000.;
-		f = Rule(DeadeyeFastBp);
-		s = Rule(DeadeyeSlowBp);
-		if (f > 0 && s > 0) m *= (f + (s - f) * t) / 10000.;
-		return m;
 	}
 
 	// Carry-through and fragment hits waiting for the next tick.
@@ -342,12 +295,12 @@ class DoomerfallPistolTracer : LineTracer
 	}
 }
 
-// On the player while Daggerfall's character is loaded: the fire-rate multipliers, the bonus pool and faster reloads.
+// On the player while Daggerfall's character is loaded: the bonus pool and faster reloads.
 class DoomerfallPistolsPerks : Inventory
 {
 	double pool;
-	Array<class<Weapon> > cycleGun;
-	Array<int> cycleTics;
+	int poolAmmo;      // the held pistol's ammo last tic: a drop is a shot, which spends the pool
+	Weapon poolGun;
 
 	Weapon trackedGun;
 	State lastState;
@@ -370,17 +323,6 @@ class DoomerfallPistolsPerks : Inventory
 		pool = DoomerfallPistols.Rule(DoomerfallPistols.Pool);
 	}
 
-	int CycleOf(class<Weapon> gun)
-	{
-		int i = cycleGun.Find(gun);
-		if (i < cycleGun.Size()) return cycleTics[i];
-		int tics = DoomerfallPistols.FireCycle(GetDefaultByType(gun));
-		cycleGun.Push(gun);
-		cycleTics.Push(tics);
-		DoomerfallPistols.Log(String.Format("cycle %s %d tics", gun.GetClassName(), tics));
-		return tics;
-	}
-
 	override void ModifyDamage(int damage, Name damageType, out int newdamage, bool passive, Actor inflictor, Actor source, int flags)
 	{
 		// Active: source is the actor being hit. The player's own pistol hits on others only, not carry or fragments.
@@ -389,14 +331,12 @@ class DoomerfallPistolsPerks : Inventory
 		if (!h || h.dealing != DoomerfallPistols.DealNone) return;
 		let gun = DoomerfallPistols.FromGun(owner, inflictor);
 		if (!gun) return;
-		int cycle = CycleOf(gun);
-		double m = DoomerfallPistols.Multiplier(cycle);
 		int bonus = int(pool);
-		if (m == 1 && bonus <= 0) return;
-		newdamage = max(1, int(round(damage * m))) + bonus;
+		if (bonus <= 0) return;
+		newdamage = damage + bonus;
 		pool -= bonus;
-		DoomerfallPistols.Log(String.Format("hit %s with %s: %d -> %d (x%.3f cycle %d, pool +%d)", source ? source.GetClassName() : 'None',
-			inflictor.GetClassName(), damage, newdamage, m, cycle, bonus));
+		DoomerfallPistols.Log(String.Format("hit %s with %s: %d -> %d (pool +%d)", source ? source.GetClassName() : 'None',
+			inflictor.GetClassName(), damage, newdamage, bonus));
 	}
 
 	// Runs after the player's weapon frames moved this tic, so a frame entered this tic still has all its tics.
@@ -405,6 +345,17 @@ class DoomerfallPistolsPerks : Inventory
 		Super.DoEffect();
 		int most = DoomerfallPistols.Rule(DoomerfallPistols.Pool);
 		int ms = DoomerfallPistols.Rule(DoomerfallPistols.PoolRefillMs);
+		// A shot from the held pistol (its ammo dropped) spends what its hits did not: a miss wastes the pool. This runs
+		// after the weapon fired this tic, so a bullet's hit has already taken it.
+		let held = owner && owner.player ? owner.player.ReadyWeapon : null;
+		int ammoNow = DoomerfallPistols.IsPistol(held) ? AmmoNow(held) : 0;
+		if (held == poolGun && ammoNow < poolAmmo && pool >= 1)
+		{
+			DoomerfallPistols.Log(String.Format("shot %s spent pool %d", held.GetClassName(), int(pool)));
+			pool = 0;
+		}
+		poolGun = DoomerfallPistols.IsPistol(held) ? held : null;
+		poolAmmo = ammoNow;
 		if (most <= 0) pool = 0;
 		else if (pool < most) pool = min(most, pool + (ms > 0 ? most * 1000. / (ms * TICRATE) : most));
 

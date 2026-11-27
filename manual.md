@@ -221,8 +221,8 @@ Pistols covers pistols, such as the stock pistol, the Pistol, the Handcannon and
 - **25:** pistols reload 20% faster.
 - **50:** pistols reload 40% faster. **Overkill:** when a pistol shot kills an enemy, the damage left over goes on through
   the body into the next enemy behind it, and on again if that one dies too, until the damage runs out. **Bonus
-  damage:** your next pistol hit does 100 extra damage. The bonus refills in half a second, so a pistol that fires a
-  little slower than that gets it on every shot. A miss does not use it up.
+  damage:** your next pistol shot does 100 extra damage if it hits; a miss wastes it. The bonus refills in half a
+  second, so a pistol that fires a little slower than that gets it on every shot.
 - **75:** pistols reload 60% faster.
 - **100: Shrapnel.** Every pistol hit, and every overkill hit, bursts into 3 fragments that fly on behind the enemy in a
   V, each doing a third of that hit's damage. A fragment never hurts the enemy it came out of, and fragments do not
