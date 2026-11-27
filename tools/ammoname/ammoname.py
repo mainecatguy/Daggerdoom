@@ -15,8 +15,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
-REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\ammoname")
-ENGINE = Path(r"D:\dev\DoomDaggerfall-build\uzdoom-quiet\Release")  # Built from this worktree after its last engine change.
+REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\verify-ammoname-stage")
+ENGINE = Path(r"D:\dev\DoomDaggerfall-build\verify-ammoname\uzdoom\Release")  # Engine build of the merge.
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
 MODS = GAME.parent / "GameMods"
@@ -30,7 +30,7 @@ def build(out, at_head):
         for p in sorted((REPO / SRC).rglob("*")):
             if p.is_file():
                 rel = p.relative_to(REPO / SRC).as_posix()
-                data = subprocess.check_output(["git", "-C", str(REPO), "show", f"HEAD:{SRC}/{rel}"]) if at_head else p.read_bytes()
+                data = subprocess.check_output(["git", "-C", str(REPO), "show", f"integration:{SRC}/{rel}"]) if at_head else p.read_bytes()
                 z.writestr(rel, data)
 
 
