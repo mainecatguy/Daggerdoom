@@ -18,14 +18,9 @@ Owner decisions from earlier runs are recorded in `CHANGELOG.md`, `architecture.
 
 - Arrival wait covers the dungeon's monster spawn (owner, 2026-11-26: "fix this tonight"). Since the door arm was removed (lockpick rethink, merged), a normal dungeon entry's setup is done in milliseconds, so the arrival freeze ends before `DDENC spawned`. Monsters then appear about 0.1 s into visible play, and the arrival autosave is written before they exist. `run_freeze.py normal` fails. First find why Daggerfall's monster list arrives about 5 s late in the New Game flow. Then register the encounter spawn with the setup gate: `DD_SetupWait("monsters")` on bridged dungeon entry and `DD_SetupDone` after `SpawnEncounters` in `dd_monsters.cpp`. A trial of exactly that worked on normal entries (a ~440 ms hold, spawn inside the freeze) but hit the 5 s gate timeout in New Game. Done when: `run_freeze.py normal` passes with the 73 monsters held; a New Game arrival does not wait for the gate timeout; the paired lockpick take/load/entry/newgame runs still pass. Details: `work/notes/20261126-lockpick-rethink.md`, Finding 3.
 
-
 ### Skills (owner, 2026-11-25; rules in `work/backlog/skills-in-doom.md`)
 
 In order. Lanes `skillresearch`, `skillcore`, `skillperks`, `skillmenu`, `levelup` in `work/queue`.
-
-- `skillresearch` 02: research Skill XP from monsters and skill purchase costs; proposes the menu card.
-- `rifletag` 01 (owner, 2026-11-26): Doomerfall's own rifle tag on every DRLA rifle, after `skillcore` 01. Rifles get their own skill later (backlog: Rifles).
-- `skillcore` 07 (approved by the owner 2026-11-26): weapons that fit two skills use the higher one. (Cards 01-06 landed in integration 2026-11-26.)
 - `lightcarbine` 01 (owner, 2026-11-26): the Light Carbine (semi-auto Battle Rifle, +20% damage) in the Doomerfall mod, working without DRLA; half of the assault-rifle monsters' Battle Rifle drops become carbines.
 - `startgun` 01 (owner, 2026-11-26): a new character's starting gun follows the highest weapon skill and replaces the starter pistol. After `skillcore` 01, 03, 04 and `lightcarbine` 01.
 - `skillperks` 01 to 05: Jumping (adds fall damage first), Automatics, Explosives, Shotguns, then Pistols (no rifles).
@@ -35,7 +30,6 @@ In order. Lanes `skillresearch`, `skillcore`, `skillperks`, `skillmenu`, `levelu
 - `skillmenu` 01: skill purchase menu with visible perks, Skill XP from damage; revised card approved by the owner,
   2026-11-26 (research 02 answers are in the card).
 - `skillmenu` 02: Daggerfall sound and message when a skill point is gained.
-- `levelup` 01: Daggerfall's level-up flow (rest, message, attribute points) shown and usable in Doom. Independent.
 - `skillbasics` 01: Lockpicking, Pickpocket, Mercantile, Etiquette, Streetwise and Medical work and level as in
   Daggerfall (checks the `lockpick` lane's work; perks TBD).
 - `skillbasics` 02: Running levels from time spent running in Doom, at 1.5x Daggerfall's rate (perks and speed TBD).
@@ -44,29 +38,60 @@ In order. Lanes `skillresearch`, `skillcore`, `skillperks`, `skillmenu`, `levelu
   with Skill XP.
 
 ### Input (owner, 2026-11-26)
+- `noclass` 01 (`work/queue/noclass/01.opus.no-drla-class.md`), approved by the owner, 2026-11-26: no DRLA class menu and no DRLA class perks in bridged games. Then `noclass` 02 (owner, 2026-11-26): the fist always on hotkey 1, not unbindable, not in the Daggerfall inventory.
 
-- `menumouse` 01 (`work/queue/menumouse/01.opus.release-mouse-in-menus.md`), approved by the owner, 2026-11-26, no
-  blocks: release the mouse while a Daggerfall menu is open over fullscreen Doom.
+
+- `dmgnumbers` 01 (`work/queue/dmgnumbers/01.opus.damage-numbers.md`), owner, 2026-11-26: "show damage numbers"
+  option over hit enemies, off by default, on by default with a dev flag. Check for an existing one first.
 
 ### Ammo (owner, 2026-11-26)
 
 - `ammopile` 01 (`work/queue/ammopile/01.opus.ammo-pile-look.md`), approved by the owner, 2026-11-26: dropped ammo
   looks like that ammo and is remembered; mixed piles use the loot pile graphic.
+- `ammoname` 01 (`work/queue/ammoname/01.opus.plain-regular-ammo-name.md`), owner, 2026-11-26, not urgent: run it at night while the owner sleeps. Regular ammo is just "Bullets", "Rockets", "Energy Cells", no "Regular".
 
 ### Fixes and small features (owner, 2026-11-26)
-
-- `ammosizefix` 01 (`work/queue/ammosizefix/01.opus.tier-pickups-same-size.md`), approved by the owner, 2026-11-26:
-  ammo pickups and shop packs of every tier hold the same rounds as Regular.
 - `takenpickups` 01 (`work/queue/takenpickups/01.opus.daggerfall-remembers-taken-pickups.md`), approved by the
   owner, 2026-11-26: Doom reports taken seeded pickups by ID and Daggerfall keeps them gone.
 - `weapontypes` 01 (`work/queue/weapontypes/01.opus.weapon-types-in-description.md`), approved by the owner,
   2026-11-26: weapon descriptions show name and types ("Plasma Rifle. Types: Energy, Automatic"). After `rifletag` 01
   and `skillcore` 05.
 
+### Overworld (owner, 2026-11-26)
+- `terrainflats` 01 (`work/queue/terrainflats/01.opus.overworld-terrain-objects.md`), approved by the owner,  2026-11-26: Daggerfall's terrain objects in the overworld, town surroundings and dungeon exteriors, procedural and  never saved.
+- `distantlod` 01 (`work/queue/distantlod/01.opus.distant-terrain-lod.md`), approved by the owner, 2026-11-26:  distant terrain view in the wilderness and dungeon exteriors.
+
+### Movement and maps (owner, 2026-11-26)
+
+- `climb` 03 (`work/queue/climb/03.opus.climb-steep-stairs.md`), approved by the owner, 2026-11-26: climbing stays
+  engaged on steep stair-like surfaces such as Privateer's Hold's cliff.
+- `dungeonedges` 01 (`work/queue/dungeonedges/01.opus.diagonal-and-ramp-collision.md`), approved by the owner,
+  2026-11-26: diagonal edges and ramps instead of jagged grid steps in dungeon collision.
+
+### Attributes and fixes (owner, 2026-11-26)
+
+- `attributes` 01 to 04 (`work/queue/attributes/`), approved by the owner, 2026-11-26, in order: Strength and Speed
+  (and the manual's Attributes section), Agility, Willpower, Luck.
+- `weatherseam` 01 (`work/queue/weatherseam/01.opus.streamed-terrain-texture-and-light.md`), approved by the owner,
+  2026-11-26: streamed-in terrain keeps the snow ground texture and natural lighting.
+- `maptextinput` 01 (`work/queue/maptextinput/01.opus.daggerfall-text-boxes-get-keys.md`), approved by the owner,
+  2026-11-26: Daggerfall text boxes get all keys (map Find).
+- `restsync` 01 (`work/queue/restsync/01.opus.hold-view-after-rest.md`), approved by the owner, 2026-11-26: hold the
+  Doom view after rest or loiter until NPCs are in place.
+
+### Bugs from play (owner, 2026-11-26)
+
+- `outdoortalk` 01 (`work/queue/outdoortalk/01.opus.talk-to-outdoor-npcs.md`), approved by the owner, 2026-11-26: talking to generic outdoor NPCs works.
+- `menubackdrop` 01 (`work/queue/menubackdrop/01.opus.doom-view-behind-menus.md`), approved by the owner, 2026-11-26: the Doom view shows behind small Daggerfall menus.
+- `looklabel` 01 (`work/queue/looklabel/01.opus.item-names-in-look-labels.md`), approved by the owner, 2026-11-26: look labels show item names; no phantom "You got a pickup" label.
+
 ### Encounters (owner, 2026-11-26)
 
 - `mainquestlevels` 01 (`work/queue/mainquestlevels/01.opus.main-quest-levels.md`), approved by the owner,
-  2026-11-26: main quest dungeon level overrides in quest order; no invisible enemies in Privateer's Hold.
+  2026-11-26: main quest dungeon level overrides in quest order; no invisible enemies in Privateer's Hold; plain
+  Former Humans only there.
+- `mainquestlevels` 02 (owner, 2026-11-26, "take a card"): Privateer's Hold's first enemy room (just outside the
+  starting cave) holds Former Humans who drop battle rifles, no chaingunners. Runs after 01 in the same lane.
 
 - **On hold for the owner's go-ahead (owner, 2026-11-26: ready, but run it when it won't waste tokens; do not start
   until the owner says).** `monsterdps` 01 (`work/queue/monsterdps/01.opus.monster-dps.md`), approved by the owner, 2026-11-26: measure damage
@@ -74,7 +99,6 @@ In order. Lanes `skillresearch`, `skillcore`, `skillperks`, `skillmenu`, `levelu
   them with the square-law rule. Raises BlackImp1's placeholder first.
 
 ### Waiting on an owner answer from finished work
-
 
 ### Held by the owner
 

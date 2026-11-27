@@ -44,7 +44,6 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 
 ## Overworld and towns
 
-- [Distant terrain LOD](backlog/distant-terrain-lod.md): Show distant mountains beyond the loaded window.
 - [Distant town view](backlog/distant-town-view.md): Show real towns from outside their playable area.
 - [Town gates follow day and night](backlog/town-gates-follow-day-and-night.md): Gates follow Daggerfall's time cycle.
 - [Identify and sort problem location groups](backlog/identify-and-sort-problem-location-groups.md): List and rank locations that do not fit one map.
@@ -117,6 +116,8 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 ## Before initial release
 
 - [Daggerfall skills in Doom](backlog/skills-in-doom.md): Owner decisions: new gun skills, perks at 25/50/75/100, Jumping. In discussion.
+- [Rename Automatics to "Automatic Weapons"](backlog/automatic-weapons-label.md): Player-facing label (owner, 2026-11-26).
+- [Review Willpower's Daggerfall effects](backlog/willpower-effects-review.md): Magic resist saving throws and others still work (owner, 2026-11-26).
 - [Dodging skill in Doom](backlog/dodging-skill.md): Needs a Doom definition, or removal (owner, 2026-11-26).
 - [Original weapon skills in Doom](backlog/original-weapon-skills.md): Short Blade, Long Blade, Axe, Blunt, Archery stay; make them work.
 - [Brutal Doom and a melee mod](backlog/brutal-melee-mods.md): Later, after mod compatibility research.
