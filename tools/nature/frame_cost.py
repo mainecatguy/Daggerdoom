@@ -118,7 +118,7 @@ def run(a, out, data, cache, rnd, flats):
     game = [a.exe, "-iwad", IWAD, "-file", str(data / "ddruntime.pk3"), str(data / "overworld.pk3"), str(harness), "-config", str(out / "test.ini"),
             "-nosound", "-noautoload", "-nomonsters", "-skill", "3", "-ddtowncache", str(cache),
             "-ddconverter", str(data / "converter" / "DungeonConverter.exe"), "-ddarena2", ARENA2, "+logfile", f"framecost{rnd}",
-            "+dd_natureflats", str(flats),
+            "+" + a.toggle, str(flats),
             "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0",
             "+vid_scalemode", "5", "+vid_scale_customwidth", "1280", "+vid_scale_customheight", "720", "+vid_vsync", "0", "+vid_maxfps", "0",
             "+map", "DDOVER01"]
@@ -151,6 +151,7 @@ def main():
     ap.add_argument("--data", default=r"D:\dev\DoomDaggerfall-build\nature-data")
     ap.add_argument("--out", default=r"D:\dev\DoomDaggerfall-build\nature-tests\framecost")
     ap.add_argument("--tile", default="15632,31040", help="global tile to stand on (default: woodland pixel 122,257)")
+    ap.add_argument("--toggle", default="dd_natureflats", help="the CVAR switched on and off between sessions (dd_horizon for the distant view)")
     a = ap.parse_args()
     out, data = Path(a.out), Path(a.data)
     out.mkdir(parents=True, exist_ok=True)
