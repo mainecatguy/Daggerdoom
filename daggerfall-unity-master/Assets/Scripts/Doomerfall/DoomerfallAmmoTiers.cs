@@ -29,11 +29,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         internal const int Regular = 0, Daedric = 9;
 
-        // The owner's table, in its order. Tint ramps are the darkest and lightest colours of each material's metal dye
+        // The owner's table, in its order, except Regular's price: the owner's table had 3, and the shop ammo card
+        // (2026-11-26) sets Regular at the base prices (bullets 1, shells 3, rockets 10, cells 10). Tint ramps are the darkest and lightest colours of each material's metal dye
         // table (ImageProcessing.GetMetalColorTable) in ART_PAL.COL, the palette of Daggerfall's item pictures.
         internal static readonly Tier[] Tiers =
         {
-            T("Regular",    WeaponMaterialTypes.Iron,       0.00,  3, 1.0f,  44,  44,  45, 119, 119, 119),
+            T("Regular",    WeaponMaterialTypes.Iron,       0.00,  1,1.0f,  44,  44,  45, 119, 119, 119),
             T("Steel",      WeaponMaterialTypes.Steel,      0.20,  5, 1.0f,  44,  44,  44, 220, 220, 220),
             T("Silver",     WeaponMaterialTypes.Silver,     0.10,  7, 1.0f,  94,  94, 109, 254, 255, 199),
             T("Moonstone",  WeaponMaterialTypes.Elven,      0.35, 14, 0.5f, 110, 110, 110, 254, 255, 199),
@@ -140,38 +141,40 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         // My numbers: percent chance per ammo type at each restock of a weapon smith of quality 10, in tier order. The
         // owner's "where you get it" column decides the order: Regular is common, Adamantium uncommon, Orichalcum rare
-        // except in the Orsinium Area, and Daedric rare.
-        static readonly int[] SmithChance = { 85, 50, 45, 35, 35, 12, 6, 25, 25, 10 };
-        const int OrsiniumOrichalcumChance = 50, GeneralStoreRegularChance = 60;
+        // except in the Orsinium Area, and Daedric rare. Regular is not rolled: DoomerfallShopAmmo stocks it always.
+        static readonly int[] SmithChance = { 0, 50, 45, 35, 35, 12, 6, 25, 25, 10 };
+        const int OrsiniumOrichalcumChance = 50;
 
-        // Adds ammo to a shop shelf being restocked (DaggerfallLoot.StockShopShelf). Weapon smiths stock every tier;
-        // general stores stock only Regular. Other shops stock none.
-        internal static void StockShop(DFLocation.BuildingTypes buildingType, int quality, ItemCollection items)
+        // Adds ammo to a shop shelf being restocked (DaggerfallLoot.StockShopShelf). Shops that sell ammo
+        // (DoomerfallShopAmmo.Sells) always stock Regular, in amounts set by the shop's own seed; weapon smiths also roll
+        // the higher tiers. Other shops stock none.
+        internal static void StockShop(PlayerGPS.DiscoveredBuilding building, ItemCollection items)
         {
             if (!DoomerfallAmmo.IsRegistered || items == null)
                 return;
-            bool smith = buildingType == DFLocation.BuildingTypes.WeaponSmith;
-            if (!smith && buildingType != DFLocation.BuildingTypes.GeneralStore)
+            DFLocation.BuildingTypes buildingType = building.buildingType;
+            int quality = building.quality;
+            int mapID = GameManager.HasInstance && GameManager.Instance.PlayerGPS != null ? GameManager.Instance.PlayerGPS.CurrentMapID : 0;
+            int[] regular = DoomerfallShopAmmo.Restock(buildingType, quality, mapID, building.buildingKey);
+            if (regular == null)
+                return;
+            for (int type = 0; type < regular.Length; type++)
+                if (regular[type] > 0)
+                    items.AddItem(new DoomerfallAmmoItem(type, Regular, regular[type]));
+            if (buildingType != DFLocation.BuildingTypes.WeaponSmith)
                 return;
             bool orsinium = GameManager.HasInstance && GameManager.Instance.PlayerGPS != null
                 && GameManager.Instance.PlayerGPS.CurrentRegionName == "Orsinium Area";
             float qualityScale = 0.5f + Mathf.Clamp(quality, 1, 20) / 20f;
             for (int type = 0; type < DoomerfallAmmo.Types.Length; type++)
             {
-                for (int tier = 0; tier < Tiers.Length; tier++)
+                for (int tier = Regular + 1; tier < Tiers.Length; tier++)
                 {
-                    int chance;
-                    if (!smith)
-                        chance = tier == Regular ? GeneralStoreRegularChance : 0;
-                    else if (tier == 6 && orsinium)
-                        chance = OrsiniumOrichalcumChance;
-                    else
-                        chance = SmithChance[tier];
+                    int chance = tier == 6 && orsinium ? OrsiniumOrichalcumChance : SmithChance[tier];
                     chance = Mathf.Min(95, Mathf.RoundToInt(chance * qualityScale));
                     if (chance <= 0 || UnityEngine.Random.Range(0, 100) >= chance)
                         continue;
-                    int stacks = tier == Regular ? UnityEngine.Random.Range(2, 5) : UnityEngine.Random.Range(1, 3);
-                    items.AddItem(new DoomerfallAmmoItem(type, tier, stacks * Stack(type)));
+                    items.AddItem(new DoomerfallAmmoItem(type, tier, UnityEngine.Random.Range(1, 3) * Stack(type)));
                 }
             }
         }

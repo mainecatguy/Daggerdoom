@@ -194,6 +194,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfammotest") >= 0)
                 gameObject.AddComponent<DoomerfallAmmoTest>().Init(this, ammo);
             DoomerfallShopStockTest.Attach(this); // test only: -dfshoptest
+            DoomerfallShopAmmoTest.Attach(this, ammo); // test only: -dfshopammotest
             DoomerfallWorldLevelTest.Attach(this); // test only: -dfworldleveltest N
             DoomerfallChangeAmmoTest.Attach(this, ammo); // test only: -dfchangeammotest
             DoomerfallMaterialDamageTest.Attach(this, ammo); // test only: -dfmaterialtest

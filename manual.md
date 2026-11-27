@@ -189,7 +189,15 @@ rifle drop a Light Carbine about half the time instead of a Battle Rifle.
 Ammo comes in material tiers, from Regular through Steel, Silver and on up to Daedric. Higher tiers hit harder and
 are rarer, but a pickup of any tier holds the same amount as a Regular one: a clip is 10 bullets, a box of bullets 50,
 4 shells, a box of shells 20, 1 rocket, a box of rockets 5, a cell 20 and a cell pack 100. Ammo a monster drops holds
-half (at least 1). A shop pack of any tier holds 80 bullets, 20 shells, 8 rockets or 100 cells.
+half (at least 1).
+
+**Shops are where you buy ammo.** General stores, weapon smiths and armorers always have Regular bullets, shells,
+rockets and energy cells, and restock them whenever Daggerfall restocks the shop. A typical general store holds about
+300 bullets, 120 shells, 30 rockets and 300 cells, and an armorer about half that. Each shop has its own habits, which
+stay the same in every game. Some carry far more of one kind, an occasional one deals almost only in a single kind, a
+few are big depots and some are nearly empty. Better shops stock more. Regular ammo costs 1 gold a bullet, 3 a shell,
+10 a rocket and 10 a cell, before the shop's own prices. Weapon smiths also sometimes stock higher tiers, in packs of
+80 bullets, 20 shells, 8 rockets or 100 cells.
 
 Health, ammo and other pickups lying in a place are always the same ones each time you come. A pickup you take is
 gone for good: it does not come back when you leave and return, or when you load a save.
