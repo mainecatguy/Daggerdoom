@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x9717e3e7873a634fUL;
+        public const ulong SchemaHash = 0x47d19db47d7fda10UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -102,6 +102,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint GUN_ADOPT = 1;  // cls is empty; keep the ready gun as the active one and take the rest
         public const uint GUN_CLEAR = 2;  // cls is empty; take every gun
         public const uint GUN_SELECT = 3;  // Doom already holds cls as the active gun; raise it
+        public const uint GUN_FIST = 4;  // cls is empty; raise the fist (given if missing); the active gun stays in Doom, lowered
         public const ushort KIND_CLIMB_USES = 170;  // UZ to DF; Daggerfall tallies this many Climbing skill uses; payload: dfb_climb_uses
         public const ushort KIND_AMMO = 171;  // UZ to DF; status is Doom's count; request is the last AMMO_ADD Doom applied
         public const ushort KIND_AMMO_ADD = 172;  // DF to UZ; status is a signed 32-bit delta to add (Doom's count stops at 0)
