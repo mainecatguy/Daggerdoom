@@ -26,7 +26,7 @@ def main():
     out, data = Path(a.out), Path(a.data)
     out.mkdir(parents=True, exist_ok=True)
     pairs = list(zip(a.pixels[0::2], a.pixels[1::2]))
-    lines = ["wait 175", "vid_setsize 1280 720", "turn180", "wait 35"]	# after the map loads: a private desktop renders 320x200 otherwise
+    lines = ["wait 175", "turn180", "wait 35"]	# after the map loads
     for mx, my in pairs + [pairs[0]]:
         gx, gy = mx * 128 + 16, (499 - my) * 128 + 64
         lines += [f'dd_tm_warp "{gx} {gy}"', "wait 350"]
@@ -45,6 +45,8 @@ def main():
             "-nosound", "-noautoload", "-skill", "3", "-width", "1280", "-height", "720", "-ddtowncache", str(cache),
             "-ddconverter", str(data / "converter" / "DungeonConverter.exe"), "-ddarena2", ARENA2, "+logfile", "log.txt", "+dd_debugmessages", "1",
             "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0",
+            "+vid_scalemode", "5", "+vid_scale_customwidth", "1280", "+vid_scale_customheight", "720",	# a private desktop renders 320x200 otherwise
+            "+screenblocks", "12", "+r_drawplayersprites", "0", "+screenshot_type", "png",
             "+screenshot_dir", str(out), "+dd_natureflats", "0" if a.noflats else "1", "+map", "DDOVER01", "+exec", str(script)]
     subprocess.run(["python", QUIET, "--cwd", str(out), "--timeout", str(60 + (25 if a.bench else 15) * len(pairs)), "--", *game])
 

@@ -143,6 +143,11 @@ def check_layout(dfu_file, doom_file):
     if va > 0 and vb > 0:
         print(f"16-tile block density correlation {cov / math.sqrt(va * vb):.3f}")
     print("records used, Daggerfall Unity:", len({r for _, _, r in dfu}), " Doom:", len({r for _, _, r in doom}))
+    # Kind mix: each record's share of the flats, side by side, and the overlap of the two mixes (1.0 = identical).
+    share = lambda fl, r: sum(1 for f in fl if f[2] == r) / max(1, len(fl))
+    records = sorted({r for _, _, r in dfu} | {r for _, _, r in doom})
+    print("record share % (DFU/Doom):", " ".join(f"{r}:{100 * share(dfu, r):.0f}/{100 * share(doom, r):.0f}" for r in records))
+    print(f"kind mix overlap {sum(min(share(dfu, r), share(doom, r)) for r in records):.3f}")
 
 if __name__ == "__main__":
     if sys.argv[1] == "unity":
