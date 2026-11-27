@@ -42,7 +42,7 @@ argv, sys.argv = sys.argv, sys.argv[:1]
 import install  # noqa: E402  (only for its registry isolation)
 sys.argv = argv
 
-REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\shop-ammo")  # Was review\ammosizefix, earlier review\ammo, ammo-pickup, ammo-equip, ammo-tiers, ammo-change, weapon-material-damage, then ammosize, for earlier ammo runs.
+REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\shop-ammo2")  # Was review\shop-ammo (left locked by two test games), earlier review\ammosizefix, earlier review\ammo, ammo-pickup, ammo-equip, ammo-tiers, ammo-change, weapon-material-damage, then ammosize, for earlier ammo runs.
 SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\runtime-dungeons")  # Data and sprite package (the runtime dungeon run).
 CACHE_SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\ammosizefix") / "data" / "cache"  # The town cache with the test door.
 BUILD = Path(r"D:\dev\DoomDaggerfall-build")
