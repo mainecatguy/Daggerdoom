@@ -112,7 +112,7 @@ def run_case(args, name, lines):
                 f.write(f'alias wsstep{n} "give infrared; wait 5; wsstep{n + 1}"\n')
                 continue
             if i == "flip":
-                f.write(f'alias wsstep{n} "dd_sky \\"{args.flip}\\"; wait 10; wsstep{n + 1}"\n')
+                f.write(f'alias wsstep{n} "dd_sky \\"{args.flip}\\"; wait {args.flip_wait}; wsstep{n + 1}"\n')
                 continue
             if i == "walk":
                 f.write(f'alias wsstep{n} "netevent ws_walk; wait 70; wsstep{n + 1}"\n')
@@ -175,6 +175,7 @@ def main():
     ap.add_argument("--case", nargs="*", default=list(CASES))
     ap.add_argument("--walk", action="store_true", help="after the views, walk west about 36 tiles and take them again")
     ap.add_argument("--lights", action="store_true", help="after the views: a dynamic light on the ground, then light-amp")
+    ap.add_argument("--flip-wait", type=int, default=10, help="tics after --flip before the views (a town in view reloads in the new season)")
     ap.add_argument("--flip", help="a sky line sent after the views (another season), then the views again")
     args = ap.parse_args()
     args.cache = args.cache or os.path.join(args.out, "cache")

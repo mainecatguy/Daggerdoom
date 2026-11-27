@@ -207,6 +207,7 @@ namespace
 
 	// Generated locations. The index comes from the DDGROUPS lump, and map data comes from the town cache.
 	constexpr int REQUEST_TILES = 100, SCAN_TICS = 8, FLAT_CHUNKS_PER_TIC = 2, RUNTIME_MESH_KEY = 1 << 24;
+	constexpr int WINTER_MESH_KEY = 1 << 30;	// [Doomerfall] added for a winter mesh, so a season change uploads the other one
 	struct RuntimeGroup { std::vector<TileRect> rects; TileRect box{}; bool tooLarge = false; int town = -1; };
 	std::vector<RuntimeGroup> groups;
 	bool runtimeTowns;
@@ -1565,6 +1566,46 @@ namespace
 		DD_DebugPrintf("DDTM season %s: ground and nature redrawn\n", groundWinter ? "winter" : "summer");
 	}
 
+	// [Doomerfall] Daggerfall's season changed while the player is in a town (or its first season line came after the
+	// town loaded): the other season's conversion is requested, and once ready its mesh is drawn and the plain
+	// billboards (trees, rocks, lamps) are replaced by its own. The map and the people (DFNpc, with their state) stay.
+	void RefreshTownSeason(FLevelLocals *Level, int group)
+	{
+		if (group < 0 || !mapEntry || mapEntry->winter == DDTownCache::IsWinter()) return;
+		if (Level->maptime % SCAN_TICS == 0) DDTownCache::Request(group, 0);
+		const auto fresh = DDTownCache::Get(group);
+		if (!fresh || fresh->winter != DDTownCache::IsWinter() || !fresh->Find("DFMESH")) return;
+		mapEntry = fresh;
+		PClassActor *flat = PClass::FindActor("DFCityFlat"), *npc = PClass::FindActor("DFNpc");
+		const auto *body = fresh->Find("DFFLATS");
+		int replaced = 0;
+		if (flat && body)
+		{
+			std::vector<AActor *> old;
+			auto it = Level->GetThinkerIterator<AActor>();
+			while (AActor *mo = it.Next()) if (mo->GetClass() == flat) old.push_back(mo);
+			for (AActor *mo : old) mo->Destroy();
+			FString text((const char *)body->data(), body->size());
+			for (auto &line : text.Split("\n"))
+			{
+				char name[40];
+				double x, y, z;
+				float sx, sy;
+				uint64_t id = 0;
+				if (sscanf(line.GetChars(), "%39s %lf %lf %lf %f %f %" SCNx64, name, &x, &y, &z, &sx, &sy, &id) < 6 || (id && npc)) continue;	// people are DFNpc, left as they are
+				const FTextureID tex = FlatTexture(name);
+				if (!tex.isValid()) continue;
+				AActor *mo = Spawn(Level, flat, DVector3(x, y, z), NO_REPLACE);
+				if (!mo) continue;
+				mo->picnum = tex;
+				mo->Scale = DVector2(sx, sy);
+				DD_LightsFlat(mo, false);
+				replaced++;
+			}
+		}
+		DD_DebugPrintf("DDTOWN season %s: town mesh and %d billboards replaced\n", fresh->winter ? "winter" : "summer", replaced);
+	}
+
 	// A generated town's ground: the flats within its walkable margin.
 	void SpawnTownNature(FLevelLocals *Level, const Town &t)
 	{
@@ -1693,7 +1734,9 @@ namespace
 			if (dist < nearestDist) { nearestDist = dist; nearest = n; }
 			if (g.tooLarge) continue;
 			DDTownCache::Request(n, dist);
-			if (DDTownCache::Status(n) != DDTownCache::State::Ready) continue;
+			// [Doomerfall] after a season change the distant town stays drawn in the old season while the new one loads
+			const bool shown = lodTown >= 0 && lodEntry && towns[lodTown].group == n;
+			if (DDTownCache::Status(n) != DDTownCache::State::Ready && !shown) continue;
 			const int town = TownForGroup(n, DDTownCache::Get(n));
 			if (town < 0) continue;
 			Town &t = towns[town];
@@ -1705,6 +1748,8 @@ namespace
 		}
 		dd_tm_nearest = nearest;
 		dd_tm_neareststate = nearest >= 0 ? int(DDTownCache::Status(nearest)) : 0;
+		if (bestLod >= 0 && bestLod == lodTown && lodEntry && lodEntry->winter != DDTownCache::IsWinter())	// [Doomerfall] new season ready: reload
+			if (const auto fresh = DDTownCache::Get(towns[bestLod].group); fresh && fresh->winter == DDTownCache::IsWinter()) lodTown = -2;
 		SetLodTown(Level, bestLod);
 	}
 
@@ -3005,7 +3050,7 @@ bool DDTreadmill_MapMesh(const char *mapname, const uint8_t *&data, size_t &size
 	if (!mesh) return false;
 	data = mesh->data();
 	size = mesh->size();
-	key = RUNTIME_MESH_KEY + group;
+	key = RUNTIME_MESH_KEY + group + (mapEntry->winter ? WINTER_MESH_KEY : 0);
 	return true;
 }
 
@@ -3016,7 +3061,7 @@ bool DDTreadmill_LodMesh(const uint8_t *&data, size_t &size, int &key)
 	if (!mesh) return false;
 	data = mesh->data();
 	size = mesh->size();
-	key = RUNTIME_MESH_KEY + towns[lodTown].group;
+	key = RUNTIME_MESH_KEY + towns[lodTown].group + (lodEntry->winter ? WINTER_MESH_KEY : 0);
 	return true;
 }
 
@@ -3094,6 +3139,7 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 	{
 		TickTownDoors(Level, pmo);
 		const Town &t = towns[currentTown];
+		if (!t.space && runtimeTowns) RefreshTownSeason(Level, t.group);
 		if (t.space && t.spaceId >= DUNGEON_SPACE && DD_BridgeHasSession()) DD_MonstersTick(Level);
 		if (t.space) return;	// Interiors and dungeons are left through their doors.
 		const double tx = (pmo->X() / DOOM_PER_DF + t.originX) / 256, ty = (pmo->Y() / DOOM_PER_DF + t.originY) / 256;

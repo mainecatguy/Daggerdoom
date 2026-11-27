@@ -36,6 +36,7 @@ FATAL = ("DIED WITH FATAL", "VM execution aborted", "Execution could not continu
 STEPS = "6:0 8:0 12:0 17:4 19:5 23:0 12:6 12:3"
 # Other checks (windows.py) point these at their own build and data. --review, --uzdoom-build, --cache and --converter set them too.
 UZDOOM_BUILD = "uzdoom-daynight"
+LAUNCHER = BUILD / "launcher-daynight" / "Release" / "doomerfall-launcher.exe"
 RUNTIME = DEMO / "data" / "ddruntime.pk3"
 CACHE = DEMO / "data" / "cache"
 CONVERTER = DEMO / "data" / "converter" / "DungeonConverter.exe"
@@ -87,7 +88,7 @@ def run(name, steps, hold, weather, draw, doom_args):
     shutil.rmtree(df_shots, ignore_errors=True)
     if draw:
         df += ["-dfworldlookshots", str(df_shots)]
-    command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(BUILD / "launcher-daynight" / "Release" / "doomerfall-launcher.exe"),
+    command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(LAUNCHER),
                "--minimized"] + ([] if draw else ["--nodraw"]) + ["--uzdoom", str(BUILD / UZDOOM_BUILD / "Release" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"),
                "--iwad", str(GAME / "wads" / "DOOM2.WAD"), "--uzdoom-cwd", str(runs), "--log", str(launcher)]
     for mod in [MODS / n for n in DRLA] + [RUNTIME, DEMO / "data" / "overworld.pk3", DEMO / "dfitems.pk3", DEMO / "doomerfall.pk3"]:
@@ -136,6 +137,9 @@ if __name__ == "__main__":
     ap.add_argument("--uzdoom-build", help="build folder name under DoomDaggerfall-build")
     ap.add_argument("--cache", help="town cache folder (default the Doom items demo's)")
     ap.add_argument("--converter", help="DungeonConverter.exe for uncached places")
+    ap.add_argument("--launcher", help="doomerfall-launcher.exe (default the day/night build)")
+    ap.add_argument("--demo", help="Doom side data folder: data/overworld.pk3, dfitems.pk3, doomerfall.pk3 (default the Doom items demo)")
+    ap.add_argument("--runtime", help="ddruntime.pk3 (default the Doom items demo's)")
     ap.add_argument("--doom-args", nargs=argparse.REMAINDER, default=[])
     a = ap.parse_args()
     if a.review:
@@ -146,4 +150,10 @@ if __name__ == "__main__":
         CONVERTER = Path(a.converter)
     if a.uzdoom_build:
         UZDOOM_BUILD = a.uzdoom_build
+    if a.launcher:
+        LAUNCHER = Path(a.launcher)
+    if a.demo:
+        DEMO = Path(a.demo)
+    if a.runtime:
+        RUNTIME = Path(a.runtime)
     stage() if a.command == "stage" else run(a.name, a.steps, a.hold, a.weather, a.draw, a.doom_args)
