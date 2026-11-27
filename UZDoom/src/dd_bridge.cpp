@@ -1095,6 +1095,33 @@ int DD_BridgeDamageBonus(AActor *source, AActor *target, int damage)
 	return scaled;
 }
 
+// P_DamageMobj (after armor, the very last step before the player's health would drop) and P_PoisonDamage (after its
+// damage factors; it subtracts health itself, and DD_BridgeHpThink then reports that already scaled drop unchanged):
+// the owner's Willpower rule (2026-11-26), a final modifier to all damage the bridged player takes. Health that
+// scripts set directly (costs such as DRLA's Soul Shatter, set-to-N effects) is not damage and is not scaled.
+// Daggerfall's live Willpower, values above 100 counting as 100: x1.2 at 0, x1 at 50, x0.8 at 100, linear between,
+// which is exactly (300 - Willpower) / 250, done in integers. The remainder carries to the next hit, so many small
+// hits scale by the exact factor. Unchanged without a session or a character, for other players, and when `keep`
+// is set: telefrags (they must stay at or above TELEFRAG_DAMAGE) and kill calls such as A_Die, which must still kill.
+int DD_BridgeWillpowerDamage(player_t *player, int damage, bool keep)
+{
+	constexpr int WillpowerStat = 2; // DFCareer.Stats.Willpower
+	if (!session || keep || damage <= 0 || !HpIsBridgedPlayer(player)) return damage;
+	const int will = DD_BridgeStatLive(WillpowerStat);
+	if (will < 0) return damage;
+	static int carry; // 0..249, in 1/250 points
+	const int64_t units = int64_t(damage) * (300 - std::min(will, 100)) + carry;
+	const int result = int(units / 250);
+	carry = int(units % 250);
+	static int logged;
+	if (logged < 1000) // a debug log line per hit, capped
+	{
+		logged++;
+		Log("willpower: tic %d player takes %d -> %d (willpower %d)", gametic, damage, result, will);
+	}
+	return result;
+}
+
 // P_GiveBody. True means the heal was reported instead of applied; *accepted is what P_GiveBody returns.
 bool DD_BridgeHpHeal(player_t *player, int num, int max, bool *accepted)
 {

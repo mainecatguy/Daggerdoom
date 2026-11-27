@@ -356,7 +356,32 @@ class DoomerfallAmmoTiers : StaticEventHandler
 		}
 		Console.PrintfEx(PRINT_LOG, "DFAMMO size %s%s %s -> %d rounds", box ? "large " : "small ", TypeNames[type], dropped ? "dropped" : "placed",
 			DoomerfallAmmoPickup.Rounds(type, box, dropped));
+		if (dropped && lootSeed != 0) LuckDrop(plain, type, box, seed);
 		plain.Destroy();
+	}
+
+	// ---- Luck (card attributes/04, owner 2026-11-26) -------------------------------------------------------------
+	// Daggerfall's live Luck makes monsters' ammo drops more frequent: each ammo drop from a monster's fixed loot roll
+	// has a Luck in 100 chance (Luck above 100 counts as 100) to come with one more ordinary drop of the same ammo and
+	// size, so +1% drops at Luck 1 and +100% at 100. Its own stream: a hash of the drop's seed with its own salt, so
+	// it draws from no random stream and the fixed loot (what drops, its tier, any jackpot) is the same at every Luck.
+	// The same drop gets the same number every game, so a luckier character gets every extra drop a less lucky one does.
+	const LuckStat = 7; // DFCareer.Stats.Luck
+	const LuckSalt = 0x4c75636b;
+
+	void LuckDrop(Inventory plain, int type, bool box, int seed)
+	{
+		static const String TypeNames[] = { "Clip", "Shell", "Rocket", "Cell" };
+		int luck = Actor.DD_SheetStat(LuckStat);
+		if (luck <= 0) return;
+		int luckSeed = Mix(seed, LuckSalt);
+		if (Unit(luckSeed, 1) * 100 >= min(luck, 100)) return;
+		int tier = RollTier(areaLevel, Unit(luckSeed, 3), Unit(luckSeed, 4));
+		let p = SpawnTier(plain, type, tier, box, true);
+		if (p == null) return;
+		double angle = Unit(luckSeed, 5) * 360;
+		p.vel = plain.vel + (cos(angle) * 2, sin(angle) * 2, 2);
+		DDLog.Debug(String.Format("DFAMMO luck drop %s tier %d at %.0f %.0f luck %d", TypeNames[type], tier, plain.pos.x, plain.pos.y, luck));
 	}
 
 	static Inventory SpawnTier(Actor at, int type, int tier, bool box, bool dropped)

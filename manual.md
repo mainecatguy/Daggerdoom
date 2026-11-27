@@ -54,6 +54,12 @@ count while they last.
 
 - **Agility:** you reload and switch weapons faster: up to 40% faster at 100 (20% at 50). You also get a chance to
   dodge damage completely: 15% at 100 (7.5% at 50). Agility above 100 counts as 100.
+- **Willpower:** changes the damage you take in combat and from the environment (monsters, your own explosions,
+  harmful floors, crushers, falls): 20% less at 100, normal at 50, 20% more at 0. It is applied last, after armor and
+  resistances. Willpower above 100 counts as 100. It also affects your ability to cast spells.
+- **Luck:** monsters drop ammo more often: each ammo drop has a Luck-in-100 chance to come with a second one, so about
+  twice as many ammo drops at 100 (half again as many at 50). It never changes what else a place's monsters drop. Luck above 100
+  counts as 100. Luck keeps all its usual Daggerfall effects too.
 
 ## Weapon skills
 
