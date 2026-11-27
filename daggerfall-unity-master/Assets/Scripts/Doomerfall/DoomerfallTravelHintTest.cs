@@ -25,12 +25,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     internal sealed class DoomerfallTravelHintTest : MonoBehaviour
     {
-        // Region, place. Dungeons of several levels show a word; the hamlet and the two cities (which have palace
-        // dungeons) show none. report.txt prints each place's current type, level and shown word.
+        // Region, place. Dungeons of several levels show a word; the hamlet, the coven and the two cities (which have
+        // palace dungeons) show none. report.txt prints each place's current type, level and shown word.
+        const string CovenMarker = "*coven";
+
         static readonly string[][] Places =
         {
             new[] { "Daggerfall", "Privateer's Hold" },     // dungeon
             new[] { "Daggerfall", "Gothway Garden" },       // hamlet, no dungeon
+            new[] { "Daggerfall", CovenMarker },            // the region's first Coven-type place, no dungeon
             new[] { "Daggerfall", "Daggerfall" },           // city with a palace dungeon
             new[] { "Wayrest", "Wayrest" },                 // city with a palace dungeon
             new[] { "Daggerfall", "Castle Necromoghan" },   // dungeon
@@ -105,8 +108,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             yield return null;
             yield return null;
 
-            foreach (string[] place in Places)
+            foreach (string[] entry in Places)
             {
+                string[] place = entry[1] == CovenMarker ? new[] { entry[0], FirstOfType(entry[0], DFRegion.LocationTypes.Coven) } : entry;
                 ContentReader.MapSummary summary;
                 DFLocation location;
                 if (!Find(place[0], place[1], out summary, out location))
@@ -163,6 +167,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return false;
             DFPosition pixel = MapsFile.LongitudeLatitudeToMapPixel(location.MapTableData.Longitude, location.MapTableData.Latitude);
             return DaggerfallUnity.Instance.ContentReader.HasLocation(pixel.X, pixel.Y, out summary);
+        }
+
+        static string FirstOfType(string region, DFRegion.LocationTypes type)
+        {
+            DFRegion data = DaggerfallUnity.Instance.ContentReader.MapFileReader.GetRegion(region);
+            for (int i = 0; data.MapTable != null && i < data.MapTable.Length; i++)
+                if (data.MapTable[i].LocationType == type)
+                    return data.MapNames[i];
+            return "(no " + type + " in " + region + ")";
         }
 
         static string Safe(string name)

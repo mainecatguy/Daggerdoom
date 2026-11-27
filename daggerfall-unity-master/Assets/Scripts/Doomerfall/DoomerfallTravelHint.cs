@@ -32,8 +32,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         }
 
         /// <summary>
-        /// True for the location types the travel map's own Dungeons filter button hides: labyrinths, keeps, ruins,
-        /// graveyards and covens.
+        /// True for the location types that have a dungeon: labyrinths, keeps, ruins and graveyards. Covens are left
+        /// out (as in Daggerfall's own dungeon checks): they have no dungeon, only outdoor NPCs.
         /// </summary>
         internal static bool IsDungeon(DFRegion.LocationTypes type)
         {
@@ -43,7 +43,6 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 case DFRegion.LocationTypes.DungeonKeep:
                 case DFRegion.LocationTypes.DungeonRuin:
                 case DFRegion.LocationTypes.Graveyard:
-                case DFRegion.LocationTypes.Coven:
                     return true;
                 default:
                     return false;
