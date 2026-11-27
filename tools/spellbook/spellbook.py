@@ -59,10 +59,10 @@ SHEET_EXIT = (69, 188)
 NAME_LABEL = (165, 23)  # The selected spell's name at (123,2) in the panel; a click renames it.
 MESSAGE_CLICK = (160, 100)
 # The inventory is a full 320x200 panel: Magic tab (93,0 69x10), Use (226,103 31x14), first item of the list at (163,48)
-# (9-pixel arrow column, then 50x38 items).
+# (9-pixel arrow column, then a two-column grid of 25x19 cells in this build, measured from a screenshot).
 INV_MAGIC_TAB = (127, 5)
 INV_USE = (241, 110)
-INV_FIRST_ITEM = (197, 67)
+INV_FIRST_ITEM = (184, 57)
 VK_BACK, VK_DOWN, VK_RETURN = 0x08, 0x28, 0x0D
 BINDS = ["+bind", "backspace", "netevent df_spellbook", "+bind", "p", "netevent df_character"]
 
@@ -311,8 +311,9 @@ class Run:
         """Choosing the first spell (double click) in an open spellbook casts nothing and says so; a click closes the message."""
         before = self.state()
         closes = self.count(self.uz_log, r"ui: closed \(")
+        helds = self.count(self.df_log, r"spell choice held")
         doom.double_click(FIRST_ROW)
-        box = self.top_is("DaggerfallMessageBox") and self.wait_count(self.df_log, r"spell choice held", self.count(self.df_log, r"spell choice held") + 1, 3)
+        box = self.top_is("DaggerfallMessageBox") and self.wait_count(self.df_log, r"spell choice held", helds + 1, 3)
         time.sleep(2.0)
         after = self.state()
         self.case(box and before and after and after[3] == before[3] and after[4] == "none" and "casting True" not in read(self.views) and self.count(self.uz_log, r"ui: closed \(") == closes,
