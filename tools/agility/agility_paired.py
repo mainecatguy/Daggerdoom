@@ -124,6 +124,9 @@ def paired(source, build, dfu, bridge, launcher, work):
     install.isolate_registry(play / "dfu")
     shutil.copy2(Path(launcher) / "doomerfall-launcher.exe", play / "doomerfall-launcher.exe")
     build_mod(play / "doomerfall.pk3")
+    # The real game loads doomerfall-drla.pk3 with DRLA (DoomerfallPlayer, no DRLA class). Without it the player is a
+    # DRLA class, and the Renegade's RLShellshockPerk makes every switch instant.
+    subprocess.run([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), "--drla", str(play / "doomerfall-drla.pk3")], check=True)
     harn = harness(work)
     run = play / "run"
     run.mkdir(exist_ok=True)
@@ -137,7 +140,7 @@ def paired(source, build, dfu, bridge, launcher, work):
     command = [sys.executable, QUIET, "--timeout", "110", "--", str(play / "doomerfall-launcher.exe"), "--minimized",
                "--uzdoom", str(play / "uzdoom" / "uzdoom.exe"), "--dfu", str(play / "dfu" / "DaggerfallUnity.exe"),
                "--iwad", IWAD, "--uzdoom-cwd", str(run), "--log", str(run / "agi-launcher.log")]
-    for mod in DRLA + [play / "doomerfall.pk3", harn]:
+    for mod in DRLA + [play / "doomerfall.pk3", play / "doomerfall-drla.pk3", harn]:
         command += ["--mod", str(mod)]
     for a in uz:
         command += ["--uzdoom-arg", a]
@@ -149,10 +152,13 @@ def paired(source, build, dfu, bridge, launcher, work):
     rs = reports(con)
     for r in rs:
         print("  ", r)
+    classes = sorted({l.split("AGICLASS ", 1)[1].strip() for l in con if "AGICLASS " in l})
+    print("player:", "; ".join(classes))
     live = [r for r in rs if r["agi"] >= 0]
     checks = [("no script errors", bool(con) and not any(BAD.search(l) for l in con)),
               ("reports with a Daggerfall character", bool(live)),
               ("Agility item held whenever there is a character", bool(live) and all(r["item"] == 1 for r in live)),
+              ("player is DoomerfallPlayer without the Renegade perk", bool(classes) and all(c == "class=DoomerfallPlayer shellshock=0" for c in classes)),
               ("switch and reload measured every time", bool(live) and all(r["switch"] > 0 and r["reload"] > 0 for r in live))]
     # Lowest is 1, not 0 (Daggerfall kills a character with an attribute at 0); the baseline is scaled back to 0.
     zero = [r for r in live if r["agi"] <= 1]

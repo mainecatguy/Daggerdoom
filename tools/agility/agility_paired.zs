@@ -86,7 +86,15 @@ class AgiPaired : StaticEventHandler
 		if (phase == 0)
 		{
 			if (!wa) { wa = Pick("RLPistol", "Pistol"); wb = Pick("RLShotgun", "Shotgun"); }
-			if (Ready(p, wa) && ++stable >= SettleTics) { phase = 1; tics = 0; }
+			if (Ready(p, wa) && ++stable >= SettleTics)
+			{
+				phase = 1;
+				tics = 0;
+				// DRLA's Renegade perk (RLShellshockPerk) makes every DRLA switch instant, so say which class this is.
+				String perkName = "RLShellshockPerk"; // Looked up at run time: only DRLA has it.
+				class<Inventory> perk = perkName;
+				Console.Printf("AGICLASS class=%s shellshock=%d", mo.GetClassName(), perk ? mo.CountInv(perk) : 0);
+			}
 			return;
 		}
 		tics++;
