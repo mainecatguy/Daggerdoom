@@ -36,14 +36,13 @@ start "" "%HERE%doomerfall-launcher.exe" --nodraw --uzdoom "%HERE%uzdoom\uzdoom.
 
 # What to try, for the owner. One line each, written into play.bat as rem lines.
 TRY = [
-    "What to try in this build (integration at e5775de). If a key does nothing, bind it in Options, Customize Controls, Doomerfall Controls.",
-    " 1. New Game from inside a running game: Doom asks to confirm, then both games start over with a fresh character.",
-    " 2. J opens Daggerfall's quest journal: tabs and paging work, and J, Exit or Escape close it back to Doom.",
-    " 3. Look at something within Use reach (NPC, monster, loot pile, Doom gun, door): a label under the crosshair names it. Nothing on bare walls or far things.",
-    " 4. Use an NPC that will not talk: Daggerfall's refusal message shows on Doom's screen.",
-    " 5. In town, Use a building's wall (not its door): its name shows and it is marked on the town map.",
-    " 6. Sneaking, loaded ammo and Climbing labels are one size larger; Doom's own messages are unchanged.",
-    " 7. Ammo pickups and drops give stock Doom amounts (clip 10, box 50, shells 4, rockets 1, cells 20; monster drops half).",
+    "What to try in this build (integration at dd07694). If a key does nothing, bind it in Options, Customize Controls, Doomerfall Controls.",
+    " 1. Z opens the rest window: HP comes back three times as fast as in Daggerfall, and a level earned shows You have reached level N on waking.",
+    " 2. Raise Jumping to 25, 50, 75 or 100: a popup names the perk you earned (only Jumping has perks so far).",
+    " 3. The character sheet has seven weapon skills; start a few different classes and compare their sheets.",
+    " 4. A gun in two skills (a plasma pistol or laser shotgun) uses whichever of its skills is higher.",
+    " 5. Outdoors, look for fog, a foggy sky, winter textures, and lit windows at night.",
+    " 6. Ammo of every tier comes in the same sizes: a Silver clip is 10 bullets, like a Regular one.",
 ]
 
 
