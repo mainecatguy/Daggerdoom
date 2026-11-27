@@ -852,11 +852,13 @@ class Actor : Thinker native
 	native void RestoreDamage();
 	native clearscope int SpawnHealth() const;
 	native int DD_HealthCheckLimit(int health); // [Doomerfall] see A_JumpIfHealthLower
+	native clearscope static Name DD_StateLabel(State st); // [Doomerfall] the label a state is declared under (the nearest one before it in its class), or 'None'
 	native clearscope int DD_LootSeed(); // [Doomerfall] fixed loot seed of a drop (dd_lootrng.cpp), folded to 32 bits; 0 on stock actors
 	native double DD_MoveRadius(); // [Doomerfall] narrowest width against level geometry: a monster's squeeze width on Daggerfall maps, otherwise radius
 	native static double DD_MonsterMoveScale(); // [Doomerfall] 10.5 / 16 on Daggerfall maps, otherwise 1
 	native static bool DD_OnDaggerfallMap(); // [Doomerfall] a generated location, the overworld, or a converted dungeon
 	native clearscope static int DD_SheetSkill(int slot); // [Doomerfall] Daggerfall's live value of a skill (DFCareer.Skills slot), or -1 without a Daggerfall character
+	native clearscope static int DD_SheetStat(int stat); // [Doomerfall] Daggerfall's live value of an attribute (DFCareer.Stats: 0 Strength, 6 Speed), or -1 without a Daggerfall character
 	virtual clearscope int GetMaxHealth(bool withupgrades = false) const	// this only exists to make checks for player health easier so they can avoid the type check and just call this method.
 	{
 		return SpawnHealth();

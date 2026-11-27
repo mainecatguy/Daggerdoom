@@ -814,6 +814,28 @@ DEFINE_ACTION_FUNCTION(AActor, DD_MonsterMoveScale)
 	ACTION_RETURN_FLOAT(DD_MonsterMoveScale);
 }
 
+// [Doomerfall] The label a state is declared under: the nearest label at or before it among its own class's states
+// (labels pointing at inherited states are skipped). Agility uses it to tell a weapon's reload and switch states apart.
+static void DD_NearestLabel(FStateLabels *labels, PClassActor *owner, FState *st, FState *&best, FName &name)
+{
+	for (int i = 0; labels && i < labels->NumLabels; i++)
+	{
+		FStateLabel &l = labels->Labels[i];
+		if (l.State && owner->OwnsState(l.State) && l.State <= st && (!best || l.State > best)) { best = l.State; name = l.Label; }
+		DD_NearestLabel(l.Children, owner, st, best, name);
+	}
+}
+
+DEFINE_ACTION_FUNCTION(AActor, DD_StateLabel)
+{
+	PARAM_PROLOGUE;
+	PARAM_POINTER(st, FState);
+	FState *best = nullptr;
+	FName name = NAME_None;
+	if (PClassActor *owner = st ? FState::StaticFindStateOwner(st) : nullptr) DD_NearestLabel(owner->GetStateLabels(), owner, st, best, name);
+	ACTION_RETURN_INT(name.GetIndex());
+}
+
 DEFINE_ACTION_FUNCTION(AActor, DD_OnDaggerfallMap)
 {
 	PARAM_PROLOGUE;
@@ -827,6 +849,15 @@ DEFINE_ACTION_FUNCTION(AActor, DD_SheetSkill)
 	PARAM_PROLOGUE;
 	PARAM_INT(slot);
 	ACTION_RETURN_INT(DD_BridgeSkillLive(slot));
+}
+
+int DD_BridgeStatLive(int stat); // [Doomerfall] dd_bridge.cpp
+
+DEFINE_ACTION_FUNCTION(AActor, DD_SheetStat)
+{
+	PARAM_PROLOGUE;
+	PARAM_INT(stat);
+	ACTION_RETURN_INT(DD_BridgeStatLive(stat));
 }
 
 // Why does this exist twice?
