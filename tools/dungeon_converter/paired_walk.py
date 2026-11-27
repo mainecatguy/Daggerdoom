@@ -8,6 +8,7 @@ Prints, per spot and heading, the distance run and the snags: tics where the pla
 half of that run's typical tic, and floor steps: tics on the ground that rose or fell more than 6 units at once.
 Then Daggerfall's position from the two synchronized autosaves next to Doom's.
 """
+import math
 import re
 import shutil
 import statistics
@@ -67,7 +68,16 @@ def analyse(text):
         # the same amount every tic, so it has none; a stair tread gives one per riser.
         dz = [abs(b[2] - a[2]) if a[3] and b[3] else 0 for a, b in zip(p, p[1:])]
         floor_steps = sum(1 for i, d in enumerate(dz) if d > 6 and d > 2 * max(dz[i - 1] if i else 0, dz[i + 1] if i + 1 < len(dz) else 0))
-        rows.append({**w, "distance": sum(steps), "typical": typical, "snags": snags,
+        # Jitter: tics inside a 16-tic window whose path is over 12 units long while every position stays inside a box
+        # 6 units across, so the player shakes in place (the path length then counts vibration, not progress). A clean stop
+        # has no path; a real slide leaves the box.
+        shaking = set()
+        for i in range(len(p) - 16):
+            xs, ys = [q[0] for q in p[i:i + 17]], [q[1] for q in p[i:i + 17]]
+            if sum(steps[i:i + 16]) > 12 and math.hypot(max(xs) - min(xs), max(ys) - min(ys)) < 6:
+                shaking.update(range(i, i + 16))
+        rows.append({**w, "net": math.dist(p[0][:2], p[-1][:2]), "jitter": len(shaking), "end": p[-1][:2],
+                     "distance": sum(steps), "typical": typical, "snags": snags,
                      "floor_steps": floor_steps, "rise": p[-1][2] - p[0][2], "max_dz": max(dz or [0])})
     return rows
 
@@ -155,11 +165,13 @@ def report(out):
             say(line[:200])
     rows = analyse(text)
     for r in rows:
-        say(f"spot {r['spot']} heading {r['heading'] * 22.5:5.1f}: ran {r['distance']:6.0f}, tic {r['typical']:4.1f}, "
+        say(f"spot {r['spot']} heading {r['heading'] * 22.5:5.1f}: net {r['net']:5.0f} to {r['end'][0]:.1f},{r['end'][1]:.1f}, "
+            f"jitter tics {r['jitter']:2d}, path {r['distance']:6.0f}, tic {r['typical']:4.1f}, "
               f"snags {r['snags']}, floor steps {r['floor_steps']} (max {r['max_dz']:4.1f}), rise {r['rise']:+6.1f}")
     for s in sorted({r["spot"] for r in rows}):
         mine = [r for r in rows if r["spot"] == s]
-        say(f"spot {s} total: ran {sum(r['distance'] for r in mine):.0f}, snags {sum(r['snags'] for r in mine)}, "
+        say(f"spot {s} total: net {sum(r['net'] for r in mine):.0f}, jitter tics {sum(r['jitter'] for r in mine)} "
+            f"(headings {[r['heading'] * 22.5 for r in mine if r['jitter']]}), path {sum(r['distance'] for r in mine):.0f}, snags {sum(r['snags'] for r in mine)}, "
             f"floor steps {sum(r['floor_steps'] for r in mine)}")
     for line in ng.read(df_log).splitlines():
         if re.search(r"new game:|save \d|error", line):
