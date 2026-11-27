@@ -17,6 +17,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DoomerfallBridge bridge;
         bool done;
         const int Shelves = 3;
+        const int BuildingKey = 5;
 
         internal static void Attach(DoomerfallBridge owner)
         {
@@ -66,7 +67,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         static void Day(DaggerfallLoot[] shelves, int location, int day, int level)
         {
-            PlayerGPS.DiscoveredBuilding smith = new PlayerGPS.DiscoveredBuilding { buildingType = DFLocation.BuildingTypes.WeaponSmith, quality = 20, buildingKey = 5 };
+            PlayerGPS.DiscoveredBuilding smith = new PlayerGPS.DiscoveredBuilding { buildingType = DFLocation.BuildingTypes.WeaponSmith, quality = 20, buildingKey = BuildingKey };
             using (new WorldLevel.Scope(level))
                 for (int i = 0; i < shelves.Length; i++)
                     DoomerfallShopLedger.Restock(shelves[i], smith, location, i, shelves.Length, day, level);
@@ -83,10 +84,24 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             int[] stillThere = new int[4]; long[] stillAge = new long[4];
             DaggerfallUnityItem playerSold = null;
             int playerSoldOn = -1, playerSoldGone = -1;
+            long kept = 0, keptMissing = 0, sold = 0, soldStill = 0;
+            int longest = 0; string longestName = "";
             StringBuilder sig = new StringBuilder();
             for (int d = 1; d <= Days; d++)
             {
+                // Persistence check: replay the day's seeded sell-off rolls on yesterday's shelves, then require that every
+                // item whose roll failed is still on the same shelf after the restock, and every item whose roll hit is gone.
+                List<DaggerfallUnityItem>[] keep = new List<DaggerfallUnityItem>[Shelves], sell = new List<DaggerfallUnityItem>[Shelves];
+                for (int i = 0; i < Shelves; i++)
+                    Predict(shelves[i], location, day0 + d, i, keep[i] = new List<DaggerfallUnityItem>(), sell[i] = new List<DaggerfallUnityItem>());
                 Day(shelves, location, day0 + d, 30);
+                for (int i = 0; i < Shelves; i++)
+                {
+                    HashSet<DaggerfallUnityItem> on = new HashSet<DaggerfallUnityItem>();
+                    for (int k = 0; k < shelves[i].Items.Count; k++) on.Add(shelves[i].Items.GetItem(k));
+                    foreach (DaggerfallUnityItem item in keep[i]) { kept++; if (!on.Contains(item)) keptMissing++; }
+                    foreach (DaggerfallUnityItem item in sell[i]) { sold++; if (on.Contains(item)) soldStill++; }
+                }
                 if (d == SoldDay)   // the player sells after the day's restock, as in game
                 {
                     playerSold = ItemBuilder.CreateWeapon(Weapons.Longsword, WeaponMaterialTypes.Steel);
@@ -118,6 +133,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         gone.Add(kv.Key);
                 foreach (DaggerfallUnityItem item in gone)
                 {
+                    if (d - seen[item] > longest) { longest = d - seen[item]; longestName = string.Format("{0} ({1} gold, days {2}-{3})", item.LongName, item.value, seen[item], d - 1); }
                     if (item != playerSold && !(item is DoomerfallAmmoItem))
                     {
                         int b = Band(item);
@@ -147,10 +163,26 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 Log(string.Format("{0} player-sold steel longsword ({1} gold, {2:P0} a day): sold to the shop on day {3}, seen on a shelf on day {4}, sold off on day {5}",
                     playerSoldOn == SoldDay ? "PASS" : "FAIL", playerSold.value, DoomerfallShopLedger.SellChance(playerSold), SoldDay, playerSoldOn,
                     playerSoldGone < 0 ? "(still there)" : playerSoldGone.ToString()));
+                Log(string.Format("{0} unsold items persist: {1} item-days whose replayed sell-off roll failed, {2} missing after the restock; {3} whose roll hit, {4} still there; longest stay of a sold-off item {5} days: {6}",
+                    keptMissing == 0 && soldStill == 0 && kept > 0 ? "PASS" : "FAIL", kept, keptMissing, sold, soldStill, longest, longestName));
                 Log(string.Format("{0} expensive items linger longer than cheap ones", MeanLife(left, life, stillThere, stillAge, 0) < MeanLife(left, life, stillThere, stillAge, 2) ? "PASS" : "FAIL"));
             }
             Free(shelves);
             return sig.ToString();
+        }
+
+        /// <summary>Replays DoomerfallShopLedger's sell-off for one day (same seed, same roll order) without touching the shelf.</summary>
+        static void Predict(DaggerfallLoot shelf, int location, int day, int index, List<DaggerfallUnityItem> keep, List<DaggerfallUnityItem> sell)
+        {
+            UnityEngine.Random.State saved = UnityEngine.Random.state;
+            UnityEngine.Random.InitState(DoomerfallShopLedger.Seed(location, BuildingKey, day, index));
+            for (int i = 0; i < shelf.Items.Count; i++)
+            {
+                DaggerfallUnityItem item = shelf.Items.GetItem(i);
+                bool gone = !item.IsQuestItem && item.ItemGroup != ItemGroups.Transportation && UnityEngine.Random.value < DoomerfallShopLedger.SellChance(item);
+                (gone ? sell : keep).Add(item);
+            }
+            UnityEngine.Random.state = saved;
         }
 
         static double MeanLife(int[] left, long[] life, int[] still, long[] age, int b)
