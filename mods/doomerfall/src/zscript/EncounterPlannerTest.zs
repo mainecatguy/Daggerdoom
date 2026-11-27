@@ -62,6 +62,18 @@ class DoomerfallEncounterPlanTest : StaticEventHandler
 			Run(4100 + k * 13, "Humanoid", (k * 83 + 40) % 1000, (k * 47 + 20) % 500, 1 + k);
 			made++;
 		}
+		// The PlainHumanoid story theme: Privateer's Hold's real facts at level 1 with all 13 seed offsets, then 20
+		// other dungeon indices across all levels. Every army member must be a plain Former Human class.
+		for (int s = 0; s < 13; s++)
+		{
+			RunAt(1506, 50050, 17, "PlainHumanoid", 109.5, 158.5, 1, s);
+			made++;
+		}
+		for (int k = 0; k < 20; k++)
+		{
+			Run(4500 + k * 11, "PlainHumanoid", (k * 61 + 70) % 1000, (k * 43 + 30) % 500, 1 + (k * 3) % 30);
+			made++;
+		}
 		Console.Printf("ENCPLAN summary plans=%d", made);
 		Console.Printf("ENCPLAN done");
 	}
@@ -71,7 +83,7 @@ class DoomerfallEncounterPlanTest : StaticEventHandler
 		RunAt(index, 50000 + index * 3, (index * 7) % 62, type, x, y, level);
 	}
 
-	private void RunAt(int index, int locationId, int region, String type, double x, double y, int level)
+	private void RunAt(int index, int locationId, int region, String type, double x, double y, int level, int seedOffset = 0)
 	{
 		let req = new("DoomerfallEncounterRequest");
 		req.dungeonIndex = index;
@@ -83,14 +95,14 @@ class DoomerfallEncounterPlanTest : StaticEventHandler
 		req.worldY = y;
 		req.dungeonType = type;
 		req.areaLevel = level;
-		req.seedOffset = 0;
+		req.seedOffset = seedOffset;
 		let p = DoomerfallEncounterPlanner.Plan(req);
 		if (!p) { Console.Printf("ENCPLAN error no-plan idx=%d", index); return; }
 		let d = DoomerfallEncounterPool.Get().data;
 		String g = "", th = "";
 		for (int i = 0; i < p.genes.Size(); i++) { g = g .. (i ? "," : "") .. p.genes[i]; th = th .. (p.themed[i] ? "1" : "0"); }
-		Console.Printf("ENCPLAN plan idx=%d type=%s level=%d order=%d genes=%s themed=%s civilwar=%d tierlean=%d size=%d placement=%s awareness=%s cell=%d,%d regionkind=%s",
-			index, p.theme, level, p.order, g, th, p.civilWar, p.tierLean, p.sizePermille, p.placement, p.awareness,
+		Console.Printf("ENCPLAN plan idx=%d seed=%d type=%s level=%d order=%d genes=%s themed=%s civilwar=%d tierlean=%d size=%d placement=%s awareness=%s cell=%d,%d regionkind=%s",
+			index, seedOffset, p.theme, level, p.order, g, th, p.civilWar, p.tierLean, p.sizePermille, p.placement, p.awareness,
 			p.regionCellX, p.regionCellY, p.regionKind >= 0 ? d.kindName[p.regionKind] : "-");
 		Army(index, "A", p.a, d);
 		if (p.b) Army(index, "B", p.b, d);

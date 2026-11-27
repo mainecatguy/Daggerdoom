@@ -464,10 +464,12 @@ set guarantee_share 100
 # ---------------------------------------------------------------------------------------------
 # Theme table (section 4.1): what each Daggerfall dungeon type leans toward.
 #   theme <DungeonType> kinds=<kinds> classes=<patterns> traits=<traits> size=<..> placement=<..>
-#         awareness=<..> tierlean=<..> only=1
+#         awareness=<..> tierlean=<..> only=1 seedas=<row>
 # Every key is optional. Values are comma separated. only=1 makes the leaning a rule: every monster in the
 # dungeon, titans included, must match the theme's kinds or classes. Story themes such as Humanoid are
 # not dungeon types; Daggerfall sends them for main quest dungeons (DoomerfallAreaLevels.StoryThemes).
+# seedas=<row> makes a row pick its fitting gene settings (which leanings apply) as that row does, so a narrower
+# copy of a theme keeps the same awareness, placement and other leanings.
 # ---------------------------------------------------------------------------------------------
 theme Crypt               kinds=Revenant,Archvile,LostSoul awareness=asleep placement=deadends
 theme Cemetery            kinds=Revenant,Archvile,LostSoul awareness=asleep placement=deadends
@@ -490,3 +492,7 @@ theme NaturalCave         kinds=Demon,Spectre traits=melee placement=scattered
 theme RuinedCastle        kinds=HellKnight,BaronOfHell,ZombieMan,ShotgunGuy,ChaingunGuy
 # Story themes (main quest dungeons).
 theme Humanoid            kinds=ZombieMan,ShotgunGuy,ChaingunGuy placement=chokepoints awareness=sentries only=1
+# Plain Former Humans for the first dungeon (Privateer's Hold, owner 2026-11-26): the stock zombieman, shotgunner and
+# chaingunner and DRLA's base classes for them (pistol zombieman, shotgun sergeant, chaingun commando). No weapon
+# variants (battle rifle, combat shotgun), Elite, Stealth (invisible), Cyborg, Captain, Armageddon or Colourful Hell.
+theme PlainHumanoid       classes=Zombieman,ShotgunGuy,ChaingunGuy,RLFormerHumanPistol,RLFormerSergeantShotgun,RLFormerCommandoChaingun placement=chokepoints awareness=sentries only=1 seedas=Humanoid
