@@ -95,13 +95,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             public int basePrice;
         }
 
-        // The owner's base weights and prices per round (2026-11-24); each tier multiplies them. Doom's class names match dd_items.cpp AmmoClasses.
+        // The owner's base weights and prices per round (2026-11-24; cells 10 gold, owner 2026-11-26); each tier multiplies them. Doom's class names match dd_items.cpp AmmoClasses.
         internal static readonly AmmoType[] Types =
         {
             new AmmoType { template = 9101, doomClass = "Clip", lowerName = "bullets", baseWeightKg = 0.02f, basePrice = 1 },
             new AmmoType { template = 9102, doomClass = "Shell", lowerName = "shotgun shells", baseWeightKg = 0.1f, basePrice = 3 },
             new AmmoType { template = 9103, doomClass = "RocketAmmo", lowerName = "rockets", baseWeightKg = 0.2f, basePrice = 10 },
-            new AmmoType { template = 9104, doomClass = "Cell", lowerName = "energy cells", baseWeightKg = 0.02f, basePrice = 5 },
+            new AmmoType { template = 9104, doomClass = "Cell", lowerName = "energy cells", baseWeightKg = 0.02f, basePrice = 10 },
         };
 
         internal static bool IsRegistered { get { return registered; } }
