@@ -137,6 +137,13 @@ description from the arsenal's own notes, and every gun shows its material and w
 - "Types: none" means the gun belongs to no weapon skill yet.
 - A gun's types appear once its picture has loaded in the inventory. Until then the description shows only its name.
 
+## Light Carbine
+
+The Light Carbine is a semi-automatic rifle: one shot per trigger pull, with a little more damage per shot than the
+Battle Rifle (+20%). Otherwise it handles like the Battle Rifle: same accuracy, 20-round magazine, bullets and reload.
+It is always in the game. Former Humans, Former Commandos, Elite Former Humans and Former Cyborgs that carry a battle
+rifle drop a Light Carbine about half the time instead of a Battle Rifle.
+
 ## Ammo pickups
 
 Ammo comes in material tiers, from Regular through Steel, Silver and on up to Daedric. Higher tiers hit harder and

@@ -171,6 +171,15 @@ DEFINE_ACTION_FUNCTION(AActor, DD_LootSeed)
 	ACTION_RETURN_INT(int(uint32_t(self->ddLootId ^ (self->ddLootId >> 32))));
 }
 
+// [Doomerfall] An item that replaces another (the Light Carbine for a dropped Battle Rifle) takes over its loot identity.
+DEFINE_ACTION_FUNCTION(AActor, DD_TakeLootId)
+{
+	PARAM_SELF_PROLOGUE(AActor);
+	PARAM_OBJECT(from, AActor);
+	if (from) { self->ddLootId = from->ddLootId; self->ddLootRng = from->ddLootRng; }
+	return 0;
+}
+
 uint64_t DD_LootItemId(AActor *item)
 {
 	if (!item) return 0;
