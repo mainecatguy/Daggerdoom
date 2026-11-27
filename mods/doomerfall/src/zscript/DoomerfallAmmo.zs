@@ -164,6 +164,7 @@ class DoomerfallAmmoTiers : StaticEventHandler
 	override void WorldUnloaded(WorldEvent e)
 	{
 		reloadGun = null;
+		ClearLuckDrops();
 		pending.Clear();
 		pendingTic.Clear();
 		pendingX.Clear();
@@ -228,6 +229,7 @@ class DoomerfallAmmoTiers : StaticEventHandler
 	override void WorldTick()
 	{
 		if (reloadGun) TickReload();
+		if (luckKind.Size() > 0) SpawnLuckDrops();
 		for (int i = pending.Size() - 1; i >= 0; i--)
 		{
 			let inv = pending[i];
@@ -371,8 +373,9 @@ class DoomerfallAmmoTiers : StaticEventHandler
 	// as 100; no chance without Luck), whoever killed it. Daggerfall sends live Luck with the character sheet
 	// (DD_SheetStat). Only a death with a fixed loot seed rolls: a monster Daggerfall placed, not a summoned or revived
 	// one, which drops nothing (dd_lootrng). Town guards are player pawns, not monsters, and never roll. The roll is a
-	// hash of that seed with its own salt, so it draws from no random stream and leaves the monster's own loot untouched,
-	// and the same kill gets the same number every game. The drop is exactly one pickup, half a small one (a monster's
+	// hash of that seed with its own salt, so it draws from no random stream, and the pickup is spawned on the next
+	// WorldTick, outside the death's loot scope, so the monster's own loot is untouched. The same kill gets the same
+	// number every game. The drop is exactly one pickup, half a small one (a monster's
 	// dropped clip), of a type picked evenly from the four by the same hash, its tier from the area level's usual odds.
 	// No jackpot: Luck decides only whether ammo drops at all.
 	const LuckStat = 7; // DFCareer.Stats.Luck
@@ -395,9 +398,41 @@ class DoomerfallAmmoTiers : StaticEventHandler
 		int type = min(3, int(Unit(seed, 2) * 4));
 		double angle = Unit(seed, 3) * 360;
 		int tier = RollTier(areaLevel, Unit(seed, 4), Unit(seed, 5));
-		let p = SpawnTier(mo.pos + (0, 0, 32), type, tier, false, true);
-		if (p != null) p.vel = mo.vel + (cos(angle) * 2, sin(angle) * 2, 5);
+		// Spawned in WorldTick, not here: this runs inside the death's loot scope (p_interaction.cpp CallDie), where
+		// spawning an actor draws from the dying monster's loot stream (ConstructActor's FloatBobPhase roll) and would
+		// shift its own chance drops and death-state randoms.
+		luckX.Push(mo.pos.x);
+		luckY.Push(mo.pos.y);
+		luckZ.Push(mo.pos.z + 32);
+		luckVX.Push(mo.vel.x + cos(angle) * 2);
+		luckVY.Push(mo.vel.y + sin(angle) * 2);
+		luckVZ.Push(mo.vel.z + 5);
+		luckKind.Push(type * TIERCOUNT + tier);
 		DDLog.Debug(String.Format("DFAMMO luck drop %s tier %d at %.0f %.0f luck %d", TypeNames[type], tier, mo.pos.x, mo.pos.y, luck));
+	}
+
+	Array<double> luckX, luckY, luckZ, luckVX, luckVY, luckVZ;
+	Array<int> luckKind; // type * TIERCOUNT + tier
+
+	void SpawnLuckDrops()
+	{
+		for (int i = 0; i < luckKind.Size(); i++)
+		{
+			let p = SpawnTier((luckX[i], luckY[i], luckZ[i]), luckKind[i] / TIERCOUNT, luckKind[i] % TIERCOUNT, false, true);
+			if (p != null) p.vel = (luckVX[i], luckVY[i], luckVZ[i]);
+		}
+		ClearLuckDrops();
+	}
+
+	void ClearLuckDrops()
+	{
+		luckX.Clear();
+		luckY.Clear();
+		luckZ.Clear();
+		luckVX.Clear();
+		luckVY.Clear();
+		luckVZ.Clear();
+		luckKind.Clear();
 	}
 
 	static Inventory SpawnTier(vector3 at, int type, int tier, bool box, bool dropped)
