@@ -55,7 +55,7 @@ def launcher_command(a, here, out):
           "+win_w", w, "+win_h", h, "+vid_scalemode", "0", "+vid_scalefactor", "1",
           "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"] + a.extra_uz
     df = ["-dfbridgelog", out / "df.log", "-dfsynctest", RES + "\\DAGGER", "-screen-fullscreen", "0",
-          "-screen-width", dw, "-screen-height", dh] + a.extra_df + (["-dfmenutexttest", out] if a.menutext else [])
+          "-screen-width", dw, "-screen-height", dh] + a.extra_df + (["-dfmenutexttest"] if a.menutext else [])
     cmd = [str(here / "doomerfall-launcher.exe"), "--show-dfu", "--nodraw",  # Not --minimized: a minimized Doom renders at 320x200.
            "--uzdoom", str(here / "uzdoom/uzdoom.exe"), "--dfu", str(here / "dfu/DaggerfallUnity.exe"),
            "--iwad", RES + "\\wads\\DOOM2.WAD", "--uzdoom-cwd", str(out), "--log", str(out / "launcher.log")]
