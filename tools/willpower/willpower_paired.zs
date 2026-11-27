@@ -11,6 +11,7 @@ version "3.3"
 //                        reaching the last step is 3; Willpower applied before armor would give 5 x f - 2 instead
 //   poison      10 x 4  Doom poison damage (PlayerInfo.PoisonDamage, P_PoisonDamage), one per tic
 //   direct      10 x 4  the player's health lowered by assignment, one per tic: a health cost, NOT scaled
+// Then, at Willpower 75 only (the last value), heals and runs A_Die on the player: a kill call must stay lethal.
 // Prints, per window, the Daggerfall HP before and after (mo.health once Daggerfall has answered) and the tics it
 // covered, so the script can match the bridge log's "willpower:" lines (damage in, damage out) to it:
 //   WILL src=<name> will=<live> nominal=<hits x damage> before=<hp> after=<hp> from=<tic> to=<tic>
@@ -123,8 +124,15 @@ class WillPaired : StaticEventHandler
 			if (++stable >= SettleTics) { src = 0; step = 0; tics = 0; }
 			return;
 		}
-		if (src >= 7) return; // done until Willpower changes
+		if (src >= 8) return; // done until Willpower changes
 		tics++;
+		if (src == 7) // kill call: at the last value (75, x0.9), A_Die on the full-health player must still kill
+		{
+			if (will != 75) { src = 8; return; }
+			if (tics == 1) mo.GiveBody(1000);
+			if (tics >= HpWait) { Console.Printf("WILLKILL will=%d hp=%d tic=%d", will, mo.health, gametic); mo.A_Die('Suicide'); src = 8; }
+			return;
+		}
 		if (step == 0) // heal and wait
 		{
 			if (tics == 1) mo.GiveBody(1000);
