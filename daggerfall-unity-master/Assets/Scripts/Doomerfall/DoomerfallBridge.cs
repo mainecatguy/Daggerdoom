@@ -196,6 +196,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DoomerfallWorldLevelTest.Attach(this); // test only: -dfworldleveltest N
             DoomerfallChangeAmmoTest.Attach(this, ammo); // test only: -dfchangeammotest
             DoomerfallMaterialDamageTest.Attach(this, ammo); // test only: -dfmaterialtest
+            DoomerfallAmmoPileTest.Attach(this, ammo); // test only: -dfammopiletest
             newGame = gameObject.AddComponent<DoomerfallNewGame>();
             newGame.Init(this, sync, Environment.GetCommandLineArgs());
             newGame.Items = items;
