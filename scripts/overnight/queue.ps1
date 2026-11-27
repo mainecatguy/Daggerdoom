@@ -88,6 +88,12 @@ while ($true) {
     $result = if ($row) { $row.Result } elseif ($runCode -eq 0) { 'verified' } else { 'no-metrics' }
     if ($row) { $spent += [double]::Parse($row.CostUsd, $Culture) }
     Write-Queue "Finished $($file.Name): $result. Lane spend `$$($spent.ToString('0.00', $Culture))."
+    # Take notes: a Sonnet note taker files every agent report (take_notes.ps1). It never fails the lane.
+    try {
+        & (Join-Path $PSScriptRoot 'take_notes.ps1') -Lane $Lane -RunDir $RunDir -ClaudeExe $ClaudeExe -ClaudePrefix $ClaudePrefix |
+            ForEach-Object { Write-Queue ([string]$_ -replace '^\S+ \S+ \[[^\]]*\] ', '') }
+    }
+    catch { Write-Queue "take-notes: failed: $($_.Exception.Message)" }
 
     if ($result -eq 'verified') {
         $misses = 0
