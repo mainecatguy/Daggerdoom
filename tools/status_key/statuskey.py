@@ -5,7 +5,7 @@ usage: statuskey.py assemble | run dungeon | run building | check
 run dungeon: outdoors in the town by Privateer's Hold, then inside Privateer's Hold.
 run building: outdoors, then inside the first building of the town's door list.
 Each area: the bridge's -dfuitest opens the status boxes through the command the key is bound to; after that the key
-presses are real window messages to Doom's window. The first press of L must page from the location box to the health
+presses are real window messages to Doom's window. The first press of Y must page from the location box to the health
 box (Daggerfall's own Status key does that), and the second must close it. In the building run the second press is
 Escape instead. Daggerfall's -dfstatustest logs the top window, its text, and Daggerfall's area, location and hour.
 check: DOOM.WAD E1M1 with no bridge, stock and with the DRLA set, the new event doing nothing there, and -norun.
@@ -43,8 +43,8 @@ DATA = ["ddruntime.pk3", "overworld.pk3", "privateershold.wad", "privateershold_
 GROUP = 7154
 DUNGEON_DOOR = "1 187853213"
 FATAL = ("DIED WITH FATAL", "VM execution aborted", "Execution could not continue", "Unable to open map")
-VK_L, VK_ESC = 0x4C, 0x1B
-BINDS = ["+bind", "l", "netevent df_status"]
+VK_Y, VK_ESC = 0x59, 0x1B
+BINDS = ["+bind", "y", "netevent df_status"]
 HEALTH = re.compile(r"healthy|poison|disease|suffer|infect", re.I)
 
 
@@ -117,14 +117,14 @@ def write_demo():
     mods = " ".join(f'--mod "{MODS / n}"' for n in DRLA)
     data = " ".join(f'--mod "%HERE%data\\{n}"' for n in DATA)
     dagger = GAME / "DAGGER"
-    binds = ("--uzdoom-arg +bind --uzdoom-arg l --uzdoom-arg \"netevent df_status\" --uzdoom-arg +bind --uzdoom-arg q --uzdoom-arg \"netevent df_info\" "
+    binds = ("--uzdoom-arg +bind --uzdoom-arg y --uzdoom-arg \"netevent df_status\" --uzdoom-arg +bind --uzdoom-arg q --uzdoom-arg \"netevent df_info\" "
              "--uzdoom-arg +bind --uzdoom-arg i --uzdoom-arg \"netevent df_inventory\" --uzdoom-arg +bind --uzdoom-arg k --uzdoom-arg \"netevent df_fast_travel\" "
              "--uzdoom-arg +bind --uzdoom-arg j --uzdoom-arg \"netevent df_journal\" --uzdoom-arg +bind --uzdoom-arg z --uzdoom-arg \"netevent df_rest\" "
              "--uzdoom-arg +bind --uzdoom-arg p --uzdoom-arg \"netevent df_character\"")
     (REVIEW / "play.bat").write_text(
         "@echo off\r\n"
-        "rem Status key. Starts in the town outside Privateer's Hold with DRLA. Press L for Daggerfall's status: where you are and the\r\n"
-        "rem date and time. Press L again for your health, and once more to close it (Enter, a click or Escape work too).\r\n"
+        "rem Status key. Starts in the town outside Privateer's Hold with DRLA. Press Y for Daggerfall's status: where you are and the\r\n"
+        "rem date and time. Press Y again for your health, and once more to close it (Enter, a click or Escape work too).\r\n"
         "rem Try it outdoors, inside a building (Use opens doors) and inside Privateer's Hold (the big door in town).\r\n"
         "rem Rebind it in Options, Customize Controls, Doomerfall Controls, Status.\r\n"
         "set \"HERE=%~dp0\"\r\n"
@@ -175,7 +175,7 @@ class Run:
         shutil.rmtree(self.dir / "shots", ignore_errors=True)
         uz = ["-noactivate", "-config", str(self.dir / "uz.ini"), "-savedir", str(self.dir / "saves"), "-dfbridgelog", str(self.uz_log), "-nosound", "-noautoload", "-skill", "3",
               "-ddtowncache", str(REVIEW / "data" / "cache"), "-ddconverter", str(REVIEW / "data" / "converter" / "DungeonConverter.exe"), "-ddarena2", str(GAME / "DAGGER" / "ARENA2"),
-              "-dfuitest", "2", "+dd_ui_test_hold", "1", "+dd_ui_test_menu", "13", *BINDS, "+logfile", "log-status", "+screenshot_dir", str(self.dir / "shots"), "+vid_fullscreen", "0",
+              "-dfuitest", "2", "+dd_ui_test_hold", "1", "+dd_ui_test_menu", "13", *BINDS, "+logfile", "status", "+screenshot_dir", str(self.dir / "shots"), "+vid_fullscreen", "0",
               "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{GROUP:05d}"]
         df = ["-dfbridgelog", str(self.df_log), "-dfsynctest", str(GAME / "DAGGER"), "-dfstatustest", str(self.views),
               "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "400"]
@@ -190,8 +190,8 @@ class Run:
             command += ["--dfu-arg", arg]
         self.proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
-            if self.area(1, "outdoors", ("outside",), VK_L):
-                self.area(2, "indoors", ("dungeon",) if self.mode == "dungeon" else ("building",), VK_ESC if self.mode == "building" else VK_L)
+            if self.area(1, "outdoors", ("outside",), VK_Y):
+                self.area(2, "indoors", ("dungeon",) if self.mode == "dungeon" else ("building",), VK_ESC if self.mode == "building" else VK_Y)
             self.wait(self.console, "SKDONE", 5)
         except Exception as e:  # noqa: BLE001  (report and stop the games)
             self.case(False, f"driver error: {e!r}")
@@ -214,7 +214,7 @@ class Run:
                   f"{where}: the key shows Daggerfall's location and time box in Doom (area {first and first[0]}, here '{first and first[1]}', hour {first and first[2]}: '{first and first[3]}')")
         doom = doom_driver(self.launcher, self.uz_log)
         mark2 = len(read(self.views))
-        doom.tap(VK_L)
+        doom.tap(VK_Y)
         time.sleep(1.0)
         second = self.last_box(mark2)
         print("  second box:", second)
@@ -229,6 +229,9 @@ class Run:
         return ok
 
     def summary(self):
+        # A mod's defaultbind on the same key would print this and lose its default (DRLA Arsenal binds L to its PDA).
+        clashes = [l for l in read(self.console).splitlines() if "Key already bound" in l]
+        self.case(not any("df_status" in l for l in clashes), f"no mod's default key is taken by the Status bind (clash lines: {clashes})")
         for line in read(self.console).splitlines():
             if line.startswith(("SKSTAGE", "SKREADY", "SKDONE")) or "Script error" in line or any(k in line for k in FATAL):
                 print("uz", line[:200])
