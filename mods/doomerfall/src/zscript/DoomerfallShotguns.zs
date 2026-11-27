@@ -71,7 +71,25 @@ class DoomerfallShotguns : StaticEventHandler
 	// Whether damage through this inflictor came from a Shotguns gun of this player.
 	static bool FromGun(Actor player, Actor inflictor)
 	{
-		return player && player.player && inflictor && inflictor.bIsPuff && IsShotgun(player.player.ReadyWeapon);
+		if (!player || !player.player || !inflictor) return false;
+		if (inflictor.bIsPuff) return IsShotgun(player.player.ReadyWeapon);
+		let h = DoomerfallShotguns(StaticEventHandler.Find("DoomerfallShotguns"));
+		return h && h.shots.Find(inflictor) < h.shots.Size();
+	}
+
+	// Projectile pellets (such as DRLA's Plasma Shotgun, when Shotguns is its higher skill): a missile the player fires
+	// next to them while a Shotguns gun is mid-shot is that gun's, and its hits count when it lands, even after a switch.
+	// Not kept by saves.
+	Array<Actor> shots;
+
+	override void WorldThingSpawned(WorldEvent e)
+	{
+		let m = e.Thing;
+		if (!m || !m.bMissile || !m.target || !m.target.player || m.target.player.mo != m.target) return;
+		let p = m.target.player;
+		if (!IsShotgun(p.ReadyWeapon) || (p.WeaponState & WF_WEAPONREADY)) return;
+		if (m.Distance2D(m.target) > m.target.radius + m.radius + 64) return; // Spawned by something else out in the world.
+		shots.Push(m);
 	}
 
 	// Pellets that hit each enemy this tic, and who fired them.
@@ -104,6 +122,7 @@ class DoomerfallShotguns : StaticEventHandler
 		hitShooters.Clear();
 		hitPellets.Clear();
 		Fly();
+		for (int i = shots.Size() - 1; i >= 0; i--) if (!shots[i]) shots.Delete(i);
 
 		if (Actor.DD_SheetValue(SheetValid) != 1) return; // Rules come from Daggerfall's character only.
 		for (int i = 0; i < MAXPLAYERS; i++)
@@ -195,7 +214,7 @@ class DoomerfallShotgunsPerks : Inventory
 	Weapon trackedGun;
 	State lastState;
 	int lastTics;
-	bool reloading, firedSinceReady;
+	bool reloading, firedSinceReady, readyLastTic;
 	double cutCarry;
 	int shotTic;
 	int lastAmmo;
@@ -247,6 +266,7 @@ class DoomerfallShotgunsPerks : Inventory
 		{
 			trackedGun = (psp && DoomerfallShotguns.IsShotgun(w) && p.PendingWeapon == WP_NOCHANGE) ? w : null;
 			reloading = false;
+			readyLastTic = p && (p.WeaponState & WF_WEAPONREADY);
 			lastState = psp ? psp.CurState : null;
 			lastTics = psp ? psp.Tics : 0;
 			lastAmmo = AmmoNow(w);
@@ -259,6 +279,8 @@ class DoomerfallShotgunsPerks : Inventory
 		bool entered = psp.CurState != lastState || psp.Tics > lastTics;
 		bool hasReload = w.FindState("Reload") != null;
 		bool magEmpty = w.AmmoType1 && w.AmmoType2 && owner.CountInv(w.AmmoType1) < w.AmmoUse1;
+		bool wasReady = readyLastTic;
+		readyLastTic = p.WeaponState & WF_WEAPONREADY;
 		if (p.WeaponState & WF_WEAPONREADY)
 		{
 			reloading = false;
@@ -275,7 +297,9 @@ class DoomerfallShotgunsPerks : Inventory
 		}
 		else if (entered && (psp.CurState == w.FindState("Fire") || psp.CurState == w.FindState("Hold")))
 			reloading = false; // Firing again (a stock gun's A_ReFire): the next shot's frames are not a reload.
-		else if (!reloading && entered && hasReload && ((p.cmd.buttons & BT_RELOAD) || (magEmpty && !firedSinceReady)))
+		// A reload starts only as the gun leaves its ready state without firing: the reload key (A_WeaponReady's reload)
+		// or a pull on an empty magazine (DRLA's Fire goes to Reload). Holding the key later changes nothing.
+		else if (!reloading && wasReady && hasReload && ((p.cmd.buttons & BT_RELOAD) || magEmpty))
 		{
 			reloading = true;
 			cutCarry = 0;

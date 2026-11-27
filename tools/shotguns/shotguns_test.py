@@ -20,7 +20,7 @@ MODS = Path(r"D:\dev\DoomDaggerfall\GameMods")
 DRLA = ["DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3"]
 SHEET_INTS, SHEET_FORMAT_VERSION = 168, 8
 RULES = {  # 162 damage, 163 reload cut, 164 pellets, 165 knock, 166 slam, 167 collide
-    "off": {}, "dmg": {162: 7500}, "reload": {163: 3500}, "p50": {164: 5000}, "p100": {164: 10000},
+    "off": {}, "dmg": {162: 7500}, "reload": {163: 3500}, "reloadheld": {163: 3500}, "p50": {164: 5000}, "p100": {164: 10000},
     "knock": {165: 10000, 166: 200}, "knock100": {164: 10000, 165: 20000, 166: 400}, "collide": {165: 10000, 166: 200, 167: 200}}
 BAD = re.compile(r'Script error, "(doomerfall|shottest)\.pk3|(doomerfall|shottest)\.pk3:zscript\S*, line \d+|\bFatal error|VM execution aborted', re.I)
 CASE = re.compile(r"SHOTTEST case (\w+) (\w+) cat=(\w+) slot=(-?\d+) sub=(\d)")
@@ -48,6 +48,7 @@ class Peer:
     def sheet(self, cfg):
         v = [0] * SHEET_INTS
         v[0], v[1], v[2], v[159] = SHEET_FORMAT_VERSION, 1, 1, 1
+        v[32 + 4] = v[67 + 4] = 50  # Shotguns above Energy Weapons, so the Plasma Shotgun uses Shotguns
         for k, x in RULES[cfg].items():
             v[k] = x
         data = struct.pack(f"<{SHEET_INTS}i", *v)
@@ -146,7 +147,7 @@ def analyse(name, lines, checks, report):
         L = c["lines"]
         perk = [l for l in L if "shotguns:" in l]
         shots = shots_of(L)
-        if cfg in ("off", "dmg", "reload", "p50", "p100"):
+        if cfg in ("off", "dmg", "reload", "reloadheld", "p50", "p100"):
             check(f"{tag}: 5 shots hit", len(shots) == 5 and all(int(m.group(4)) > 0 for m, _ in shots), len(shots))
             hits = [int(m.group(4)) for m, _ in shots]
             cycles = [int(m.group(6)) for m, _ in shots]
@@ -169,7 +170,15 @@ def analyse(name, lines, checks, report):
                 if sum(int(h.group(4)) for h in hl) != total_lost:
                     bad.append(f"target lost {total_lost}, hit lines say {sum(int(h.group(4)) for h in hl)}")
                 check(f"{tag}: every pellet does +75% and the target lost what the code logged", not bad and hl, bad[:4])
-            if cfg in ("p50", "p100"):
+            if cfg == "reload":
+                base.setdefault(gun, {})["rcycle"] = cycles
+            if cfg == "reloadheld":
+                # Same rule as "reload", but the reload key is held through every shot's recovery: nothing may change.
+                want = base.get(gun, {}).get("rcycle")
+                check(f"{tag}: holding reload after shots leaves the shot cycle as without it {cycles} vs {want}", cycles == want)
+            if cfg in ("p50", "p100") and gun == "RLPlasmaShotgun":
+                check(f"{tag}: projectile pellets are not multiplied (open question)", not any(PELLETS.search(l) for l in perk))
+            elif cfg in ("p50", "p100"):
                 f = 1.5 if cfg == "p50" else 2.0
                 bad = []
                 for m, buf in shots:

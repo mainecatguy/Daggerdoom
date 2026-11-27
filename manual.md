@@ -136,6 +136,9 @@ Shotguns covers shotguns, such as the stock shotgun, the Double Shotgun, the Ass
   it hits. This happens once per shot, not once per pellet.
 - **100:** shotguns fire twice as many pellets, and the knockback and wall damage are twice as strong (up to 400).
 - Only pellets from the shotgun itself count. These only work in the Daggerfall world, and your current skill counts.
+- Shotguns that fire energy balls instead of pellets, such as the Plasma Shotgun, use Shotguns only when it is higher
+  than your Energy Weapons skill. Then their balls get the damage bonus and the knockback, but you do not yet get more
+  balls per shot at 50 and 100.
 
 ## Falling and jumping
 

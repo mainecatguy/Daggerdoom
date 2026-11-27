@@ -38,8 +38,8 @@ class ShotPerkTest : EventHandler
 
 	override void OnRegister()
 	{
-		static const String c[] = { "off", "dmg", "reload", "p50", "p100", "knock", "knock100", "collide" };
-		static const String g[] = { "Shotgun", "RLShotgun", "RLDoubleShotgun", "RLAssaultShotgun", "RLAutoshotgun" };
+		static const String c[] = { "off", "dmg", "reload", "reloadheld", "p50", "p100", "knock", "knock100", "collide" };
+		static const String g[] = { "Shotgun", "RLShotgun", "RLDoubleShotgun", "RLAssaultShotgun", "RLAutoshotgun", "RLPlasmaShotgun" };
 		for (int i = 0; i < c.Size(); i++) cfgs.Push(c[i]);
 		for (int i = 0; i < g.Size(); i++) { class<Actor> k = g[i]; if (k) guns.Push(g[i]); else Console.Printf("SHOTTEST absent %s", g[i]); }
 	}
@@ -50,7 +50,7 @@ class ShotPerkTest : EventHandler
 	{
 		int d = 0, r = 0, p = 0, k = 0, s = 0, o = 0;
 		if (c == "dmg") d = 7500;
-		else if (c == "reload") r = 3500;
+		else if (c == "reload" || c == "reloadheld") r = 3500;
 		else if (c == "p50") p = 5000;
 		else if (c == "p100") p = 10000;
 		else if (c == "knock") { k = 10000; s = 200; }
@@ -149,6 +149,8 @@ class ShotPerkTest : EventHandler
 			else if (++wait > 175) { Console.Printf("SHOTTEST noselect %s %s", c, guns[gun]); gun++; phase = 2; }
 			break;
 		case 4: // fire sets: 5 shots
+			// reloadheld: the reload key is held through every shot's recovery, which must not shorten it.
+			if (c == "reloadheld" && fireTic >= 0 && !(p.WeaponState & WF_WEAPONREADY)) p.cmd.buttons |= BT_RELOAD;
 			if (fireTic >= 0 && (p.WeaponState & WF_WEAPONREADY))
 			{
 				Console.Printf("SHOTTEST shot %s %s n=%d hits=%d lost=%d cycle=%d", c, guns[gun], shot, hits, lost, level.maptime - fireTic);
