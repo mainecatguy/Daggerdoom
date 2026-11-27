@@ -382,6 +382,10 @@ typedef struct dfb_face
 #define DFB_UI_CLOSED      0u
 #define DFB_UI_OPENED      1u
 
+/* On a close: game time passed while the menu was open (a rest, loiter or rented room), so people stand elsewhere now.
+   Daggerfall sent its fresh townsfolk and NPC lists just before this close; Doom holds its view until it has placed them. */
+#define DFB_UI_CLOSED_TIME_PASSED 1u
+
 #define DFB_UI_REASON_NONE     0u
 #define DFB_UI_REASON_USER     1u  /* the player closed it in Daggerfall */
 #define DFB_UI_REASON_REFUSED  2u  /* Daggerfall could not open it here */
@@ -469,7 +473,7 @@ typedef struct dfb_ui_state
 	uint32_t reason;
 	uint32_t surface_width;
 	uint32_t surface_height;
-	uint32_t pad;
+	uint32_t flags;           /* DFB_UI_CLOSED_*, on a close */
 } dfb_ui_state;
 
 typedef struct dfb_ui_result

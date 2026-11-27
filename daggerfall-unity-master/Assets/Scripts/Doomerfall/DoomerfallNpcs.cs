@@ -40,6 +40,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             resend = true;
         }
 
+        // A menu that ran the clock is closing (DoomerfallUi): send who is present now.
+        internal void PublishNow()
+        {
+            nextPoll = 0;
+            lastHash = 0; // Publishes even an unchanged list; outside a building nothing is sent.
+            Update();
+        }
+
         // Must equal NpcIdentity.Make in the dungeon converter.
         internal static ulong MakeId(int mapId, int scope, int a, int b, int c, int position)
         {

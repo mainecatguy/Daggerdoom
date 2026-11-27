@@ -86,6 +86,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             nextPoll = 0;
         }
 
+        // A menu that ran the clock is closing (DoomerfallUi): list everyone where the new time puts them, now.
+        internal void PublishNow()
+        {
+            nextPoll = 0;
+            Update();
+        }
+
         // The roster of the town the player is in, for later work such as dialogue. Null away from towns.
         internal TownRoster Roster { get { return roster; } }
 

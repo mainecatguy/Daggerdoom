@@ -218,6 +218,8 @@ It works as in Daggerfall:
 - **Resting restores HP three times as fast as in Daggerfall.** Fatigue and magicka come back at Daggerfall's rates.
   Resting also trains Medical.
 - When you wake up, Daggerfall checks your skills, and you may level up (see Levelling up).
+- People keep living while you rest or loiter. When the window closes, everyone is already where the new hour puts
+  them, so nobody jumps to a new place after you look up.
 
 You cannot rest:
 

@@ -224,6 +224,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DaggerfallRestWindow restWindow; // DFB_UI_REST: Daggerfall's rest window, kept while popups cover it
         float travelWaitUntil, nextAskAt;
         uint closeReason;
+        ulong openGameSeconds;  // Daggerfall's clock when the menu opened, to tell a rest or loiter at the close
+        bool traveled;
         int waitFrames, hudFrames, pending, surfaceWidth, surfaceHeight;
         uint frameId;
         byte[] pixels;
@@ -338,6 +340,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return;
             openId = id;
             closeReason = 0;
+            openGameSeconds = DaggerfallUnity.Instance.WorldTime.Now.ToSeconds();
+            traveled = false;
             waitFrames = hudFrames = 0;
             showingTravelMap = id == Dfb.UI_TRAVEL_MAP;
             bool creating = id == Dfb.UI_NEW_GAME && DoomerfallNewGame.HoldsNewCharacter;
@@ -451,6 +455,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         internal DoomerfallPlainLoad PlainLoad { get; set; }
         internal DoomerfallItems Items { get; set; }
         internal DoomerfallTalk Talk { get; set; }
+        internal DoomerfallTownspeople Townspeople { get; set; }
+        internal DoomerfallNpcs Npcs { get; set; }
 
         /// <summary>The wizard is closing because a character was made, or the Load window because a save was chosen,
         /// not because the player backed out.</summary>
@@ -511,10 +517,27 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DoomerfallInput.End();
             if (DaggerfallUI.Instance)
                 DaggerfallUI.Instance.CustomRenderTarget = null;
-            SendState(Dfb.UI_CLOSED, reason, id);
+            uint flags = reason != Dfb.UI_REASON_REFUSED && TimePassed(id) ? Dfb.UI_CLOSED_TIME_PASSED : 0;
+            if (flags != 0)
+            {
+                // People moved while the clock ran. Their lists go first, so Doom has them when it reads the close.
+                if (Townspeople) Townspeople.PublishNow();
+                if (Npcs) Npcs.PublishNow();
+                bridge.LogLine(string.Format("ui: {0} game minutes passed in menu {1}; sent the people lists before the close",
+                    (DaggerfallUnity.Instance.WorldTime.Now.ToSeconds() - openGameSeconds) / 60, id));
+            }
+            SendState(Dfb.UI_CLOSED, reason, id, flags);
             bridge.LogLine("ui: menu " + id + " closed, reason " + reason);
             if (reason != Dfb.UI_REASON_REFUSED)
                 LogWorldState("after");
+        }
+
+        // A rest, a loiter or a rented room ran the clock. A journey has its own arrival, and a load its own world.
+        bool TimePassed(uint id)
+        {
+            if (id == Dfb.UI_NEW_GAME || id == Dfb.UI_LOAD_GAME || traveled || !GameManager.HasInstance || GameManager.Instance.SaveLoadManager.LoadInProgress)
+                return false;
+            return DaggerfallUnity.Instance.WorldTime.Now.ToSeconds() >= openGameSeconds + 60;
         }
 
         // Evidence that a chosen destination changed nothing: same place, same gold, same game time.
@@ -536,7 +559,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bridge.LogLine(string.Format("ui: inventory {0}: {1} carried, {2} in wagon: {3}", when, carried.Count, game.PlayerEntity.WagonItems.Count, items));
         }
 
-        void SendState(uint state, uint reason, uint id = 0)
+        void SendState(uint state, uint reason, uint id = 0, uint flags = 0)
         {
             var e = new DfbEvent
             {
@@ -549,6 +572,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     reason = reason,
                     surfaceWidth = (uint)surfaceWidth,
                     surfaceHeight = (uint)surfaceHeight,
+                    flags = flags,
                 },
             };
             bridge.Send(ref e);
@@ -563,6 +587,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             GameManager game = GameManager.Instance;
             StreamingWorld world = game.StreamingWorld;
             travelArriving = true;
+            traveled = true;
             travelWaitUntil = Time.realtimeSinceStartup + TravelSettleSeconds;
             closeReason = Dfb.UI_REASON_RESULT;
             // Placement only sets this when a location has a facing to give. Otherwise the player keeps Doom's.
