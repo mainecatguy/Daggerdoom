@@ -35,14 +35,26 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         static PlayerEntity Player { get { return GameManager.Instance.PlayerEntity; } }
 
-        /// <summary>The character sheet's "Skills" button (one line in DaggerfallCharacterSheetWindow.Setup).</summary>
-        public static void AddSheetButton(IUserInterfaceWindow sheet, Panel nativePanel)
+        internal const string LevelingText = "Assign your attribute points and close the sheet before buying skills.";
+
+        /// <summary>The character sheet's "Skills" button (one line in DaggerfallCharacterSheetWindow.Setup).
+        /// Refused while the sheet is leveling: the attribute points being assigned live only in the sheet's stat
+        /// rollout until it closes, and a second level-up from a purchase would re-roll them and lose them.</summary>
+        public static void AddSheetButton(IUserInterfaceWindow sheet, Panel nativePanel, System.Func<bool> leveling)
         {
             Button b = DaggerfallUI.AddButton(new Rect(92, 181, 42, 15), nativePanel);
             Style(b, "SKILLS", true);
             b.OnMouseClick += (sender, position) =>
             {
                 DaggerfallUI.Instance.PlayOneShot(SoundClips.ButtonClick);
+                if (leveling())
+                {
+                    DaggerfallMessageBox box = new DaggerfallMessageBox(DaggerfallUI.UIManager, sheet);
+                    box.SetText(LevelingText);
+                    box.ClickAnywhereToClose = true;
+                    box.Show();
+                    return;
+                }
                 DaggerfallUI.UIManager.PushWindow(new DoomerfallSkillsWindow(DaggerfallUI.UIManager, sheet));
             };
         }

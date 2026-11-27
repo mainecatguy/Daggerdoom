@@ -166,8 +166,10 @@ character sheet (P). Rebind the key in Options, Customize Controls, Doomerfall C
 - Most of your growth still comes from using your skills. Skill XP adds about a quarter on top.
 - A skill at 100 cannot be raised, and once any of your primary skills reaches 100, the others stop at 95, as in
   Daggerfall.
-- If the points you buy earn a new level, the character sheet opens for it when you close the menu (or at once, if
-  you opened the menu from the character sheet).
+- If the points you buy earn a new level, you get it when you close the menu: the character sheet opens (or you
+  return to it, if you opened the menu from there) and you assign your attribute points as usual.
+- While the character sheet is waiting for you to assign attribute points after a level-up, its SKILLS button does
+  not open the menu. Assign the points and close the sheet first.
 - Your Skill XP is kept in your save.
 
 ## Perks

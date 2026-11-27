@@ -9,6 +9,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using DaggerfallConnect;
 using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop.Game.Formulas;
@@ -140,6 +141,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             menu.CloseWindow();
             yield return new WaitForSecondsRealtime(1f);
             Log(string.Format("SXLEVEL before {0} after {1} top {2}", levelBefore, P.Level, Top.GetType().Name));
+            yield return LevelingRefused();
 
             // Save, spoil, load.
             SaveLoadManager saves = GameManager.Instance.SaveLoadManager;
@@ -165,7 +167,111 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             while (!done && Time.realtimeSinceStartup < until)
                 yield return null;
             Log(string.Format("SXLOADED {0} pool {1} {2} {3} level {4}", done, P.SkillXp, name, P.Skills.GetPermanentSkillValue(skill), P.Level));
+            yield return SecondLevel(skill, name);
             Log("SXDONE");
+        }
+
+        // While the sheet is leveling (stat rollout showing), its SKILLS button must not open the menu, so a purchase
+        // cannot start a second level-up that would re-roll the attribute points being assigned.
+        IEnumerator LevelingRefused()
+        {
+            var sheet = Top as DaggerfallCharacterSheetWindow;
+            Button skillsButton = sheet != null ? Find<Button>(sheet.NativePanel, b => b.Label.Text == "SKILLS") : null;
+            if (skillsButton == null)
+            {
+                Log("SXLEVELINGREFUSED no sheet");
+                yield break;
+            }
+            int level = P.Level;
+            P.SkillXp += 100000; // test grant: enough to buy through another threshold if the menu opened
+            skillsButton.TriggerMouseClick();
+            yield return null;
+            var box = Top as DaggerfallMessageBox;
+            Log(string.Format("SXLEVELINGREFUSED menu {0} message {1} level {2} -> {3}", Top is DoomerfallSkillsWindow, box != null, level, P.Level));
+            if (Top is DoomerfallSkillsWindow)
+                ((DoomerfallSkillsWindow)Top).CloseWindow();
+            else if (box != null)
+                box.CloseWindow();
+            yield return null;
+            P.SkillXp -= 100000;
+            Log(string.Format("SXLEVELINGAFTER top {0} level {1}", Top.GetType().Name, P.Level));
+
+            // Assign the bonus points as the player would (in the rollout's working stats), close the sheet, and check
+            // that the assigned points reached the character.
+            var rollout = typeof(DaggerfallCharacterSheetWindow).GetField("statsRollout", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(sheet) as StatsRollout;
+            int pool = rollout.BonusPool, before = StatSum(P.Stats), left = pool;
+            for (int i = 0; i < DaggerfallStats.Count && left > 0; i++)
+            {
+                int v = rollout.WorkingStats.GetPermanentStatValue(i), add = Math.Min(left, 100 - v);
+                rollout.WorkingStats.SetPermanentStatValue(i, v + add);
+                left -= add;
+            }
+            rollout.BonusPool = left;
+            sheet.CancelWindow();
+            yield return null;
+            Log(string.Format("SXASSIGNED bonus {0}, stat sum {1} -> {2}, top {3}", pool, before, StatSum(P.Stats), Top.GetType().Name));
+        }
+
+        // After load (the first level committed): open the sheet, click SKILLS, buy through the next threshold and let
+        // the sheet run the second level-up from bought points.
+        IEnumerator SecondLevel(DFCareer.Skills skill, string name)
+        {
+            float until = Time.realtimeSinceStartup + 20;
+            while (!(Top is DaggerfallHUD) && Time.realtimeSinceStartup < until)
+                yield return null;
+            DaggerfallUI.PostMessage(DaggerfallUIMessages.dfuiOpenCharacterSheetWindow);
+            until = Time.realtimeSinceStartup + 20;
+            while (!(Top is DaggerfallCharacterSheetWindow) && Time.realtimeSinceStartup < until)
+                yield return null;
+            var sheet = Top as DaggerfallCharacterSheetWindow;
+            Button skillsButton = sheet != null ? Find<Button>(sheet.NativePanel, b => b.Label.Text == "SKILLS") : null;
+            if (skillsButton == null)
+            {
+                Log("SXSECOND no sheet");
+                yield break;
+            }
+            yield return null;
+            skillsButton.TriggerMouseClick();
+            yield return null;
+            var menu = Top as DoomerfallSkillsWindow;
+            P.SetCurrentLevelUpSkillSum();
+            Log(string.Format("SXSECONDSTART menu {0} level {1} formula {2} ready {3}", menu != null, P.Level, Formula(), P.ReadyToLevelUp));
+            if (menu == null)
+                yield break;
+            ListBox list = Find<ListBox>(menu.NativePanel, l => true);
+            for (int i = 0; i < list.Count; i++)
+                if (list.GetItem(i).textLabel.Text.EndsWith("  " + name))
+                    list.SelectIndex(i);
+            yield return null;
+            Button buy = Find<Button>(menu.NativePanel, b => b.Label.Text == "BUY POINT");
+            int level = P.Level, bought = 0, grant = 0, start = P.Skills.GetPermanentSkillValue(skill);
+            while (!P.ReadyToLevelUp && bought < 40)
+            {
+                int need = DoomerfallSkillXp.Price(P, skill);
+                if (P.SkillXp < need)
+                {
+                    grant += need - P.SkillXp;
+                    P.SkillXp = need; // test grant
+                }
+                int before = P.Skills.GetPermanentSkillValue(skill);
+                buy.TriggerMouseClick();
+                if (P.Skills.GetPermanentSkillValue(skill) == before)
+                    break;
+                bought++;
+            }
+            Log(string.Format("SXSECONDBOUGHT {0} points ({1} -> {2}), test grant {3}, sum {4}, formula {5}, ready {6}", bought, start,
+                P.Skills.GetPermanentSkillValue(skill), grant, P.CurrentLevelUpSkillSum, Formula(), P.ReadyToLevelUp));
+            menu.CloseWindow();
+            yield return new WaitForSecondsRealtime(1f);
+            Log(string.Format("SXSECONDLEVEL before {0} after {1} top {2}", level, P.Level, Top.GetType().Name));
+        }
+
+        static int StatSum(DaggerfallStats stats)
+        {
+            int sum = 0;
+            for (int i = 0; i < DaggerfallStats.Count; i++)
+                sum += stats.GetPermanentStatValue(i);
+            return sum;
         }
 
         static int Formula()
