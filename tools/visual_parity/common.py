@@ -106,11 +106,15 @@ def capture_daggerfall(job_lines, out, timeout, log_name):
     job.write_text("\n".join(job_lines) + "\n", encoding="utf-8", newline="\n")
     result = out / "df_probes.txt"
     result.unlink(missing_ok=True)
+    # Doomerfall's built-in Expanded Inventory replaces Daggerfall's inventory window only where its art is installed
+    # (ExpandedInventoryArt.Folder), so the capture install gets the play folder's copy, as in the game.
+    art = PLAY / "dfu" / "DaggerfallUnity_Data" / "StreamingAssets" / "ExpandedInventory"
+    if art.is_dir():
+        copy_tree_files(art, CAPTURE_EXE.parent / "DFCapture_Data" / "StreamingAssets" / "ExpandedInventory")
+    else:
+        print("no Expanded Inventory art in the play folder; the capture player keeps Daggerfall's inventory window")
     desktop = ["--user-desktop"] if "--user-desktop" in sys.argv else []  # diagnosis only: the owner's desktop, 2AM-7AM
-    # quiet_run keeps its windows minimized, and a minimized Unity player draws no IMGUI windows, so the capture player
-    # runs unminimized on a further unseen desktop (hidden_desktop.py), as the launcher runs the paired Daggerfall Unity.
-    hidden = [] if "--minimized-capture" in sys.argv else [sys.executable, str(HERE / "hidden_desktop.py"), "--timeout", str(timeout), "--"]
-    code = subprocess.run([sys.executable, QUIET, "--timeout", str(timeout + 30), *desktop, "--", *hidden, str(CAPTURE_EXE), "-dfcapture", str(job),
+    code = subprocess.run([sys.executable, QUIET, "--timeout", str(timeout), *desktop, "--", str(CAPTURE_EXE), "-dfcapture", str(job),
                            "-screen-fullscreen", "0", "-screen-width", str(WIDTH), "-screen-height", str(HEIGHT),
                            "-logFile", str(out / (log_name + "_player.log"))]).returncode
     lines = read(result).splitlines()

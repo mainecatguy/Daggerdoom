@@ -144,6 +144,12 @@ namespace DaggerfallWorkshop.Game
             scene.Apply();
         }
 
+        // Diagnosis: the last step reached, in its own file, so a hang shows where it happened.
+        void Step(string what)
+        {
+            File.AppendAllText(Path.Combine(outDir, "df_steps.txt"), what + Environment.NewLine);
+        }
+
         static IEnumerator EndOfFrame(WaitForEndOfFrame wait, Action done)
         {
             yield return wait;
@@ -156,6 +162,7 @@ namespace DaggerfallWorkshop.Game
             DaggerfallUnity.Settings.VSync = false;
             QualitySettings.vSyncCount = 0;
             Application.targetFrameRate = 60;
+            File.Delete(Path.Combine(outDir, "df_steps.txt"));
             // The UI draws into a texture, as Doomerfall's DoomerfallUi does, and is laid over the rendered 3D frame.
             var host = new GameObject("CaptureUiTarget");
             host.transform.SetParent(DaggerfallUI.Instance.transform, false);
@@ -216,14 +223,17 @@ namespace DaggerfallWorkshop.Game
                 }
                 DaggerfallUI.Instance.PopToHUD();
                 yield return new WaitForSecondsRealtime(0.5f);
+                Step(shot.Id + " open");
                 DaggerfallUI.PostMessage(message);
                 yield return new WaitForSecondsRealtime(1.5f);
+                Step("wait frame end");
                 // After a frame's GUI pass, if the player renders frames at all (bounded: a hidden window may not).
                 bool frameEnded = false;
                 StartCoroutine(EndOfFrame(endOfFrame, () => frameEnded = true));
                 for (float t = Time.realtimeSinceStartup + 2f; !frameEnded && Time.realtimeSinceStartup < t;)
                     yield return null;
                 // The 3D view renders into a texture, because a screen grab is empty on a desktop nobody sees.
+                Step("render 3d");
                 Camera main = GameManager.Instance.MainCamera;
                 var frame = new RenderTexture(Screen.width, Screen.height, 24, RenderTextureFormat.ARGB32);
                 main.targetTexture = frame;
@@ -232,6 +242,7 @@ namespace DaggerfallWorkshop.Game
                 Texture2D scene = ReadTexture(frame);
                 frame.Release();
                 // The UI: what Daggerfall Unity's own GUI pass drew, else the top window drawn here.
+                Step("read ui");
                 string how = "gui pass";
                 string error = null;
                 Texture2D ui = uiTarget.TargetTexture ? ReadTexture(uiTarget.TargetTexture) : null;
@@ -239,9 +250,11 @@ namespace DaggerfallWorkshop.Game
                 {
                     if (ui != null)
                         Destroy(ui);
+                    Step("draw ui here");
                     ui = DrawTopWindowYourself(out error);
                     how = ui != null && HasPixels(ui) ? "drawn here" : "empty";
                 }
+                Step("save");
                 if (ui != null && ui.width == scene.width && ui.height == scene.height)
                 {
                     File.WriteAllBytes(Path.Combine(outDir, shot.Id + ".dfui.png"), ui.EncodeToPNG());

@@ -1,7 +1,7 @@
 # Visual parity test: Doomerfall against Daggerfall Unity
 
 Puts both games at the same place, or in the same window, and saves matched screenshots for the owner to triage.
-Issue log and findings: `work/notes/20261127-052057.md`.
+Issue log and findings: `work/notes/20261127-052057.md` (scenes) and `work/notes/20261127-055457.md` (menus).
 
 ```powershell
 python tools/visual_parity/scenes.py [--seed 1] [--count 12]   # pass 1: random spots in Privateer's Hold
@@ -33,6 +33,7 @@ Spots are seeded random nodes of the converter's walk graph (`privateershold.poi
 
 ## Known gaps
 
-- Doom's `screenshot` comes out black while a Daggerfall window is open in Doomerfall, so pass 2's Doomerfall side is not yet usable (see the notes).
-- Daggerfall Unity's menu shot is meant to be the UI drawn into a texture and laid over the 3D frame by the UI's alpha. On the hidden desktop the UI layer comes out empty (`*.dfui.png`), so only the 3D frame shows. Not solved.
+- Menus: the capture player cannot show Doom items (the starting pistol and bullets): their pictures and names come from Doom over the bridge.
+- Menus: the capture player's 3D frame behind a window is the main camera alone, without Daggerfall Unity's separate sky camera, so the letterbox strips show a partial world.
+- Menus: the capture job copies the paired session's place, facing and game time (from its `df.log` and the QA bot), and the play folder's Expanded Inventory art into the capture install.
 - Pickups (DRLA stimpacks, Doomerfall ammo) are left in Doomerfall's scenes.

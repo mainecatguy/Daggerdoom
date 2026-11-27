@@ -133,7 +133,6 @@ def main():
     ap.add_argument("--skip-doom", action="store_true")
     ap.add_argument("--unminimized", action="store_true", help="launch the paired game unminimized (still on the private desktop)")
     ap.add_argument("--user-desktop", action="store_true", help="diagnosis only: run the capture player on the owner's desktop (2AM-7AM)")
-    ap.add_argument("--minimized-capture", action="store_true", help="diagnosis only: run the capture player minimized, as quiet_run does by itself")
     args = ap.parse_args()
     global UNMINIMIZED
     UNMINIMIZED = args.unminimized
