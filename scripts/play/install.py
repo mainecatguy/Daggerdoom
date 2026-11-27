@@ -36,13 +36,16 @@ start "" "%HERE%doomerfall-launcher.exe" --nodraw --uzdoom "%HERE%uzdoom\uzdoom.
 
 # What to try, for the owner. One line each, written into play.bat as rem lines.
 TRY = [
-    "What to try in this build (integration at dd07694). If a key does nothing, bind it in Options, Customize Controls, Doomerfall Controls.",
+    "What to try in this build (integration at 9cfd017). If a key does nothing, bind it in Options, Customize Controls, Doomerfall Controls.",
     " 1. Z opens the rest window: HP comes back three times as fast as in Daggerfall, and a level earned shows You have reached level N on waking.",
     " 2. Raise Jumping to 25, 50, 75 or 100: a popup names the perk you earned (only Jumping has perks so far).",
     " 3. The character sheet has seven weapon skills; start a few different classes and compare their sheets.",
     " 4. A gun in two skills (a plasma pistol or laser shotgun) uses whichever of its skills is higher.",
     " 5. Outdoors, look for fog, a foggy sky, winter textures, and lit windows at night.",
     " 6. Ammo of every tier comes in the same sizes: a Silver clip is 10 bullets, like a Regular one.",
+    " 7. Locked doors: Use a locked door with lockpicks in your inventory to try a pick. Magic locks cannot be picked.",
+    " 8. In fullscreen Doom, the mouse is free in Daggerfall menus: you get a cursor and can click.",
+    " 9. Your hits show as gold damage numbers over monsters; turn them off in Options, HUD Options, Show damage numbers.",
 ]
 
 
