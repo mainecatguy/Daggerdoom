@@ -2257,7 +2257,9 @@ void PumpNewGame(int64_t now)
 		return;
 	case NgDoor:
 	{
-		if (gamestate != GS_LEVEL || gameaction != ga_nothing || DDTreadmill_HandoffPending() || primaryLevel->maptime < 2) return;
+		// The arrival wait holds maptime at 1 until setup is done, and the dungeon's monster spawn waits for Daggerfall's
+		// list, which a held character sends only after this arrival. So a frozen arrival counts as arrived.
+		if (gamestate != GS_LEVEL || gameaction != ga_nothing || DDTreadmill_HandoffPending() || (primaryLevel->maptime < 2 && !DD_BridgeArrivalFrozen())) return;
 		double x, y, z, yaw;
 		const DDPlayerArea area = DDTreadmill_PlayerWorld(x, y, z, yaw);
 		if (ngPlain)

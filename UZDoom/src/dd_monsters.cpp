@@ -35,6 +35,8 @@
 #include "p_maputl.h"
 
 bool DDTreadmill_PlayerSpace(double &x, double &y, double &z, double &yawDegrees, int &target);
+void DD_SetupWait(const char *system);	// dd_setup.cpp: the arrival wait and autosave wait for the dungeon's spawn
+void DD_SetupDone(const char *system);
 
 // Monster squeeze width on Daggerfall maps (architecture.md, World Scale and Player Size). Doomguy is 10.5 wide there
 // instead of 16. Monsters keep their stock radius against the player, other actors and open walls, and squeeze to the
@@ -474,6 +476,7 @@ void ApplyRows(FLevelLocals *Level)
 	const bool mapLeaders = leadersPending && facts.have && facts.area.map_id == dungeonMapId;
 	if (mapLeaders) leadersPending = false;
 	SpawnEncounters(Level, mapLeaders);
+	if (mapLeaders) DD_SetupDone("monsters");
 	for (const Row &r : incoming)
 	{
 		if (r.state != DFB_MONSTER_DEAD || reported.count(r.id)) continue;
@@ -532,6 +535,7 @@ void DD_MonstersEnterDungeon(FLevelLocals *Level, int mapId, bool firstVisit, bo
 	CollectMarkers(Level);
 	leadersPending = bridged;
 	DD_DebugPrintf("DDMON dungeon %d has %d encounter markers%s\n", mapId, int(markers.size()), firstVisit ? ", first visit" : "");
+	if (bridged) DD_SetupWait("monsters");	// A no-op for a map restored from a save. Done in ApplyRows.
 	if (bridged) return;
 	int spawned = 0;
 	for (const Marker &m : markers)
