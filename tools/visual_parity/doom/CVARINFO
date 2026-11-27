@@ -1,2 +1,2 @@
 // Visual parity test only (tools/visual_parity/doom/zscript.zs).
-server bool vp_noguns = false;
+server bool vp_noammo = false;

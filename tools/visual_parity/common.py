@@ -7,7 +7,7 @@ import sys
 import time
 from pathlib import Path
 
-from PIL import Image, ImageChops, ImageStat
+from PIL import Image, ImageChops, ImageDraw, ImageStat
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
@@ -123,18 +123,28 @@ def capture_daggerfall(job_lines, out, timeout, log_name):
     return lines
 
 
-def pair(left, right, side, label_left="Daggerfall Unity", label_right="Doomerfall"):
+def pair(left, right, side, label_left="Daggerfall Unity", label_right="Doomerfall", ignore=()):
     """Writes a side-by-side image and returns a rough difference score (mean absolute difference, 0-255, on a
-    downscaled grey copy), or None if either image is missing."""
+    downscaled grey copy), or None if either image is missing. `ignore` lists boxes (left, top, right, bottom, as
+    fractions of the image) left out of the score, for known, expected differences; the side image outlines them in
+    magenta."""
     if not (Path(left).exists() and Path(right).exists()):
         return None
     a, b = Image.open(left).convert("RGB"), Image.open(right).convert("RGB")
     if b.size != a.size:
         b = b.resize(a.size, Image.BILINEAR)
+    boxes = [tuple(round(f * s) for f, s in zip(box, (a.width, a.height) * 2)) for box in ignore]
     canvas = Image.new("RGB", (a.width * 2 + 6, a.height), (255, 255, 0))
     canvas.paste(a, (0, 0))
     canvas.paste(b, (a.width + 6, 0))
+    draw = ImageDraw.Draw(canvas)
+    for x0, y0, x1, y1 in boxes:
+        for dx in (0, a.width + 6):
+            draw.rectangle((x0 + dx, y0, x1 + dx, y1), outline=(255, 0, 255), width=2)
     canvas.save(side)
+    b = b.copy()
+    for box in boxes:
+        b.paste(a.crop(box), box[:2])  # the same pixels on both sides, so the box adds nothing to the score
     small = (160, 120)
     diff = ImageChops.difference(a.convert("L").resize(small), b.convert("L").resize(small))
     return round(ImageStat.Stat(diff).mean[0], 1)

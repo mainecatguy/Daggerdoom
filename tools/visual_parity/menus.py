@@ -1,6 +1,7 @@
 """Visual parity, pass 2: the same Daggerfall windows, with the same character, in Daggerfall Unity and in Doomerfall.
-Known item gap: Doomerfall's character also holds the Doom starting pistol, which Daggerfall Unity adopts from Doom
-and the capture player cannot show (README, Known gaps). The harness's vp_noguns keeps Doom's ammo out.
+Expected item difference: Doomerfall's character also holds the Doom starting pistol (a starting gun by design), so
+the inventory's score leaves out the pistol's slot and the weight readout (EXPECTED). The harness's vp_noammo keeps
+Doom's ammo out.
 
 usage: python tools/visual_parity/menus.py [--seed N] [--out DIR] [--skip-df] [--skip-doom]
 
@@ -41,6 +42,17 @@ WINDOWS = {
 
 UNMINIMIZED = False
 
+# Expected differences left out of a window's score, as (left, top, right, bottom) fractions of the screen.
+# Doomerfall gives the player a starting gun by design (owner, 2026-11-27), so its inventory carries the Doom starting
+# pistol and Daggerfall Unity's does not: the pistol's slot (the third item cell, after the longsword and dagger) and
+# the carried-weight readout it raises are left out. Measured on the 960x720 Expanded Inventory window.
+EXPECTED = {
+    "inventory": [
+        (624 / 960, 188 / 720, 694 / 960, 248 / 720),  # the pistol's item cell
+        (140 / 960, 62 / 720, 312 / 960, 86 / 720),  # carried weight, 17.5/75 vs 19.5/75
+    ],
+}
+
 
 def capture_doomerfall(order, out, work, timeout):
     session = out / "session"
@@ -53,7 +65,7 @@ def capture_doomerfall(order, out, work, timeout):
         shutil.rmtree(qa.QA)
     qa.QA.mkdir(parents=True)
     qa.INBOX.write_text("")
-    proc = subprocess.Popen(c.paired_command(work, run, timeout, uz_extra=["+screenblocks", "12", "+vp_noguns", "1"], df_extra=["-dfinventorytest"], qa=qa.QA,
+    proc = subprocess.Popen(c.paired_command(work, run, timeout, uz_extra=["+screenblocks", "12", "+vp_noammo", "1"], df_extra=["-dfinventorytest"], qa=qa.QA,
                                               minimized=not UNMINIMIZED),
                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     uzlog = run / "uz.log"
@@ -156,15 +168,19 @@ def main():
         capture_doomerfall(order, out, work, args.timeout)
     if not args.skip_df:
         session = out / "doomerfall_session.json"
+        for shot_id, _ in order:  # a failed capture must not pair an old run's shot
+            (out / f"{shot_id}.df.png").unlink(missing_ok=True)
         capture_df(order, out, 180, json.loads(session.read_text()) if session.exists() else {})
     cards, rows = [], []
     for shot_id, window in order:
         df, doom = out / f"{shot_id}.df.png", out / f"{shot_id}.doom.png"
-        score = c.pair(df, doom, out / f"{shot_id}.side.png")
-        rows.append([shot_id, window, score])
-        cards.append(dict(title=f"{shot_id}: {window}", note=f"difference {score}", side=f"{shot_id}.side.png" if score is not None else None))
+        ignore = EXPECTED.get(window, [])
+        score = c.pair(df, doom, out / f"{shot_id}.side.png", ignore=ignore)
+        rows.append([shot_id, window, score, len(ignore)])
+        note = f"difference {score}" + (f" ({len(ignore)} expected-difference boxes left out, outlined in magenta)" if ignore else "")
+        cards.append(dict(title=f"{shot_id}: {window}", note=note, side=f"{shot_id}.side.png" if score is not None else None))
     with open(out / "menus.csv", "w", newline="") as f:
-        csv.writer(f).writerows([["id", "window", "difference"]] + rows)
+        csv.writer(f).writerows([["id", "window", "difference", "boxes_left_out"]] + rows)
     c.write_index(out / "index.html", f"Visual parity: Daggerfall windows, seed {args.seed}", cards)
     made = sum(1 for r in rows if r[2] is not None)
     print(f"{made} of {len(order)} pairs written to {out}")
