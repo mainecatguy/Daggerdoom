@@ -106,7 +106,64 @@ extend class DoomerfallEncounterPlanner
 		Titan();
 		Split();
 		Fill();
+		StartRoom();
 		Finish();
+	}
+
+	// The theme's start room (owner, 2026-11-26): start=<exact classes> startat=<x,y,z> startradius=<map units>.
+	// Placements whose origin is within the radius of the story start point (Privateer's Hold: the cave a new character
+	// wakes in; the placer's walk distances start at the exit door instead) keep their number of monsters, but each
+	// becomes one of the start classes the pool has, so the game's first fight is easy (battle rifle Former Humans, who
+	// drop battle rifles). The points this saves stay unspent (leftover). Bosses and titans there are replaced too.
+	void StartMonsters(out Array<DoomerfallMonster> list)
+	{
+		list.Clear();
+		if (!theme || !theme.known) return;
+		Array<String> names;
+		String s = data.ThemeGet(theme.name, "start");
+		s.Split(names, ",", TOK_SKIPEMPTY);
+		for (int n = 0; n < names.Size(); n++)
+			for (int i = 0; i < pool.monsters.Size(); i++)
+			{
+				String cn = pool.monsters[i].cls.GetClassName();
+				if (cn ~== names[n]) list.Push(pool.monsters[i]);
+			}
+	}
+
+	private void StartRoom()
+	{
+		if (!theme.known) return;
+		double reach = data.ThemeGet(theme.name, "startradius").ToDouble();
+		Array<String> xyz;
+		String s = data.ThemeGet(theme.name, "startat");
+		s.Split(xyz, ",", TOK_SKIPEMPTY);
+		if (reach <= 0 || xyz.Size() != 3) return;
+		Vector3 from = (xyz[0].ToDouble(), xyz[1].ToDouble(), xyz[2].ToDouble());
+		Array<DoomerfallMonster> start;
+		StartMonsters(start);
+		if (!start.Size()) { result.warnings.Push("start room: no start class in the pool"); return; }
+		let r = DoomerfallEncounterRng.Make(placeKey, DoomerfallEncounterRng.P_START);
+		for (int i = 0; i < result.placements.Size(); i++)
+		{
+			let at = req.placements[i];
+			if (((at.x, at.y, at.z) - from).Length() > reach) continue;
+			let p = result.placements[i];
+			if (i == result.titanPlacement) { result.titanPlacement = -1; result.titan = null; result.titanWhy = "start room"; }
+			int b = result.bosses.Find(i);
+			if (b != result.bosses.Size()) result.bosses.Delete(b);
+			p.role = "start";
+			p.surprise = "";
+			p.squad = -1;
+			p.squad2 = -1;
+			p.spent = 0;
+			for (int k = 0; k < p.mooks.Size(); k++)
+			{
+				let mk = p.mooks[k];
+				mk.m = start[r.Next(start.Size())];
+				mk.cost = Cost(mk.m);
+				p.spent += mk.cost;
+			}
+		}
 	}
 
 	// Section 9.2: whether a placement starts awake, from the awareness gene's meaning.
@@ -797,7 +854,8 @@ extend class DoomerfallEncounterPlanner
 		let army = me.Side(p.side == 2 ? 0 : p.side);
 		let at = plan.request.placements[placement];
 		Array<DoomerfallMonster> cand;
-		for (int i = 0; i < me.pool.monsters.Size(); i++)
+		if (p.role == "start") me.StartMonsters(cand);   // the start room stays easy
+		else for (int i = 0; i < me.pool.monsters.Size(); i++)
 		{
 			let m = me.pool.monsters[i];
 			if (me.Usable(m, plan.civilWar) && !m.capped && me.KindInArmy(army, m.kind) && Fits(m, at)) cand.Push(m);
@@ -843,7 +901,7 @@ extend class DoomerfallEncounterPlanner
 		double bestD = 0;
 		for (int i = 0; i < plan.placements.Size(); i++)
 		{
-			if (i == from || (i < full.Size() && full[i])) continue;
+			if (i == from || (i < full.Size() && full[i]) || plan.placements[i].role == "start") continue;   // the start room stays easy
 			let a = plan.request.placements[i];
 			double d = (a.x - src.x) * (a.x - src.x) + (a.y - src.y) * (a.y - src.y);
 			if (best < 0 || d < bestD) { best = i; bestD = d; }

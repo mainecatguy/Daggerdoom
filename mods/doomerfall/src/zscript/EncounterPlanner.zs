@@ -47,6 +47,7 @@ class DoomerfallEncounterRng
 	const P_AWARE = 26;
 	const P_SIDE = 27;
 	const P_MOVE = 28;
+	const P_START = 29;
 
 	int key, purpose, index;
 
