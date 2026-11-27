@@ -37,6 +37,8 @@ LINE = re.compile(r"ATTR str=(-?\d+) spd=(-?\d+) fist=(\d+) saw=(\d+) pistol=(\d
 SRC = re.compile(r"ATTRSRC str=(\d+) gunrocket=(\d+) meleerocket=(\d+) barrel=(\d+) player=(\d+) pistol=(\d+) held=(\w+) punch=(\d+)"
                  r" null=(\d+) bfg=(\d+) gunboom=(-?\d+) gunlate=(-?\d+) meleeboom=(-?\d+) meleelate=(-?\d+)")
 REF = re.compile(r"ATTRREF boom=(-?\d+) late=(-?\d+)")
+WPN = re.compile(r"ATTRWPN weapon=(\w+) melee=(\d) hits=(\d+) ok=(\d+) boosted=(\d+) classed=(\d+) raw=(\d+) post=(\d+) inflictor=(\w+)")
+WEAPONS = ["RLFist", "RLChainsaw", "RLPiercingChainsaw", "RLDoubleChainsaw", "RLRipper", "RLEnergysaw", "RLPistol", "RLRailgun"]
 BAD = re.compile(r'Script error, "(doomerfall|attr-harness)\.pk3|(doomerfall|attr-harness)\.pk3:zscript\S*, line \d+|\bFatal error|VM execution aborted', re.I)
 BG = ["+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+vid_fullscreen", "0"]
 
@@ -126,6 +128,8 @@ def paired(source, build, dfu, bridge, launcher, work):
     install.isolate_registry(play / "dfu")
     shutil.copy2(Path(launcher) / "doomerfall-launcher.exe", play / "doomerfall-launcher.exe")
     build_mod(play / "doomerfall.pk3")
+    # The real game loads doomerfall-drla.pk3 with DRLA (DoomerfallPlayer, no DRLA class; see tools/agility).
+    subprocess.run([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), "--drla", str(play / "doomerfall-drla.pk3")], check=True)
     harn = harness(work)
     run = play / "run"
     run.mkdir(exist_ok=True)
@@ -134,12 +138,13 @@ def paired(source, build, dfu, bridge, launcher, work):
         p.unlink(missing_ok=True)
     uz = ["-noactivate", "-config", str(run / "attr.ini"), "-dfbridgelog", str(uz_log), "+logfile", "attr", "-nosound",
           "-skill", "3", "-nomonsters", "+map", "E1M1"] + BG
-    df = ["-dfbridgelog", str(df_log), "-dfsynctest", DAGGER, "-dfattrtest", "-screen-fullscreen", "0", "-screen-width",
+    # Each value held 10 s, so the real weapon test (WeaponTest) has time between the walk measurements.
+    df = ["-dfbridgelog", str(df_log), "-dfsynctest", DAGGER, "-dfattrtest", "10", "-screen-fullscreen", "0", "-screen-width",
           "640", "-screen-height", "360"]
-    command = [sys.executable, QUIET, "--timeout", "110", "--", str(play / "doomerfall-launcher.exe"), "--minimized",
+    command = [sys.executable, QUIET, "--timeout", "150", "--", str(play / "doomerfall-launcher.exe"), "--minimized",
                "--uzdoom", str(play / "uzdoom" / "uzdoom.exe"), "--dfu", str(play / "dfu" / "DaggerfallUnity.exe"),
                "--iwad", IWAD, "--uzdoom-cwd", str(run), "--log", str(run / "attr-launcher.log")]
-    for mod in DRLA + [play / "doomerfall.pk3", harn]:
+    for mod in DRLA + [play / "doomerfall.pk3", play / "doomerfall-drla.pk3", harn]:
         command += ["--mod", str(mod)]
     for a in uz:
         command += ["--uzdoom-arg", a]
@@ -199,6 +204,20 @@ def paired(source, build, dfu, bridge, launcher, work):
         checks.append(("gun rocket's real explosion is not boosted, fist rocket's is", re_ > 0 and ge == re_ and me == boost(re_)))
         checks.append(("late death-frame splash (MISSILE cleared): gun not boosted, fist boosted", rl > 0 and gl == rl and ml == boost(rl)))
     checks.append(("climbing speed does not follow Speed", climb_unchanged(live)))
+    # Real DRLA weapons, each running its own Fire state against a bleeding target: every hit of a melee weapon is
+    # boosted by the live Strength, every hit of a gun is not, and the effects item classifies each hit that way.
+    wpn = {m.group(1): m for m in map(WPN.search, con) if m}
+    for m in wpn.values():
+        print("  ", m.group(0))
+    for name in WEAPONS:
+        m = wpn.get(name)
+        if not m:
+            checks.append((f"{name}: real weapon test ran", False))
+            continue
+        melee, hits, ok, boosted, classed = (int(m.group(i)) for i in range(2, 7))
+        what = "every hit boosted by Strength" if melee else "no hit boosted"
+        checks.append((f"{name} ({'melee' if melee else 'gun'}): hit the bleeding target, {what} ({ok}/{hits})",
+                       hits > 0 and ok == hits and classed == hits and (boosted > 0 if melee else True)))
     return checks
 
 

@@ -50,13 +50,16 @@ You are back in Doom with the new attributes in effect.
 ## Attributes
 
 What your attributes do now. They use your current value, so spells and effects that fortify or drain an attribute
-count while they last. Anything above 100 counts as 100.
+count while they last.
 
 - **Strength:** your melee hits do more damage: +1% per point, so +50% at 50 and double damage at 100. Melee means
-  your fists and weapons that use the Melee skill, such as the chainsaw. Shots fired from a gun never get it, even if
-  they land after you switch to your fists.
+  your fists and kicks and weapons that use the Melee skill, such as the chainsaw, the Ripper and the Energysaw.
+  Shots fired from a gun never get it, even if they land after you switch to your fists. Strength above 100 counts
+  as 100.
+- **Agility:** you reload and switch weapons faster: up to 40% faster at 100 (20% at 50). You also get a chance to
+  dodge damage completely: 15% at 100 (7.5% at 50). Agility above 100 counts as 100.
 - **Speed:** how fast you walk and run in Doom. 50 is normal speed; 0 is 25% slower and 100 is 25% faster. It does
-  not change how fast you climb or how high you jump.
+  not change how fast you climb or how high you jump. Speed above 100 counts as 100.
 - **Endurance:** raises your maximum HP (see Health).
 - **Intelligence** and **Personality:** work as in Daggerfall (Intelligence sets your spell points; Personality helps
   when talking, trading and dealing with people).

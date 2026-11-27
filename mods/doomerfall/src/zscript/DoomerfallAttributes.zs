@@ -63,21 +63,22 @@ class DoomerfallAttributeEffects : Inventory
 	}
 
 	// Whether this hit came from a melee or fist attack:
-	//   - a hitscan hit, whose inflictor is a puff spawned this tic: fists and chainsaws (A_Punch, A_Saw,
-	//     A_CustomPunch) all go through P_LineAttack, which always spawns a puff to be the inflictor
-	//     (p_map.cpp, "Since the puff is the damage inflictor"). The hit happens while the attack runs, so the weapon
-	//     held now is the one attacking;
+	//   - a hitscan or rail hit the owner is making now: Doom flags every P_LineAttack and P_RailAttack hit
+	//     DMG_INFLICTOR_IS_PUFF, with a puff spawned this tic as the inflictor. Fists and chainsaws (A_Punch, A_Saw,
+	//     A_CustomPunch) are hitscans; DRLA's Energysaw is a rail (A_RailAttack), whose puff on a bleeding monster
+	//     is plain-Spawned without ISPUFF. The hit happens while the attack runs, so the weapon held now is the one
+	//     attacking. The same goes for a puff's own effect on its first tic (an exploding melee puff);
 	//   - a projectile, or its splash, including splash from its death frames after Doom clears MISSILE (the class
 	//     default still has it): only if a melee weapon or the fists were held on the tic it was fired, so a rocket or
-	//     plasma shot that lands after a switch to fists does not count;
+	//     plasma shot that lands after a switch to fists does not count. A hitscan a projectile makes credited to the
+	//     owner (A_Explode's nails) is the projectile's: its puff's DamageSource is the projectile;
 	//   - anything else credited to the player never counts: no inflictor, the player as inflictor (BFG tracers,
-	//     A_BFGSpray), a barrel the player set off, a spawned explosion.
+	//     A_BFGSpray, A_Explode in a weapon state), a barrel the player set off, a spawned explosion.
 	bool MeleeAttack(Actor inflictor, int flags = 0)
 	{
 		if (!inflictor || inflictor == owner) return false;
-		if (inflictor.bIsPuff && inflictor.GetAge() == 0) return HoldsMelee(owner);
-		// A rail attack (DRLA Energysaw: A_RailAttack) passes a plain-Spawned puff without ISPUFF, flagged DMG_RAILGUN.
-		if ((flags & DMG_RAILGUN) && inflictor.GetAge() == 0 && !inflictor.bMissile) return HoldsMelee(owner);
+		if (inflictor.bIsPuff && inflictor.DamageSource && inflictor.DamageSource != owner) inflictor = inflictor.DamageSource;
+		else if (inflictor.GetAge() == 0 && ((flags & DMG_INFLICTOR_IS_PUFF) || inflictor.bIsPuff)) return HoldsMelee(owner);
 		if (inflictor.bMissile || inflictor.default.bMissile) return HeldMeleeAt(level.totaltime - inflictor.GetAge());
 		return false;
 	}
