@@ -106,7 +106,7 @@ def write_demo():
         "@echo off\r\n"
         "rem Talking to townspeople. Starts in a town with DRLA, during the day. Walk up to any person walking about the\r\n"
         "rem streets, look at them and press Use (E): Daggerfall's talk window opens with their name and portrait, as in\r\n"
-        "rem Daggerfall Unity. Goodbye or Escape closes it. Crouching makes no difference: Use always talks.\r\n"
+        "rem Daggerfall Unity. Goodbye or Escape closes it. Crouching Use pickpockets instead, as Daggerfall's Steal does.\r\n"
         "rem From too far away you get Daggerfall's 'You are too far away'. Merchants inside shops still open their menu.\r\n"
         "set \"HERE=%~dp0\"\r\n"
         "if not exist \"%HERE%play\\saves\" mkdir \"%HERE%play\\saves\"\r\n"
@@ -172,10 +172,11 @@ def run(name, stock_mods, reload=False):
     folk = len(re.findall(r"talktest: talking to .*static npc none", df))
     merchant = bool(re.search(r"talktest: window Daggerfall(Merchant|Guild|Trade)\w*", df)) or bool(re.search(r"talktest: talking to .*static npc (?!none)", df))
     far = "too far" in read(console).lower() or "too far" in df.lower()
-    # The crouched Use: Doom sent Steal, Daggerfall talked (Grab) and opened the talk window, and no pickpocket ran.
-    crouched = re.search(r"talk: use (\d+) on \S+ \(Grab, [^)]*\): .*crouching: talks\), status 0", df)
-    crouch_ok = bool(crouched) and bool(re.search(r"talk: activating townsperson .* in Grab mode", df)) and "pickpocket" not in df.lower()
-    print("crouched townsperson Use talked:", crouch_ok)
+    # The crouched Use: Doom sent Steal, and Daggerfall ran its own Steal on the townsperson (a pickpocket attempt,
+    # skillbasics 01; tools/skillbasics tests its tally).
+    crouched = re.search(r"talk: use (\d+) on \S+ \(Steal, [^)]*\): .*crouching: pickpocket\), status 0", df)
+    crouch_ok = bool(crouched) and bool(re.search(r"talk: activating townsperson .* in Steal mode", df))
+    print("crouched townsperson Use pickpocketed:", crouch_ok)
     kinds = sorted({l[:150] for l in read(REVIEW / "dfu" / "PortableAppdata" / "Player.log").splitlines() if "Exception" in l})
     print("Player.log exception kinds:", len(kinds))
     for line in kinds[:5]:
@@ -186,8 +187,9 @@ def run(name, stock_mods, reload=False):
         after = df[dropped.end():] if dropped else ""
         reloaded = bool(dropped) and "TTLOADED" in read(console) and bool(re.search(r"talktest: talking to .*static npc none", after))
         print("stand-ins dropped on load and talk works after it:", reloaded)
-    print("RESULT", "PASS" if folk >= 3 and merchant and far and crouch_ok and reloaded else "FAIL",
-          f"townsperson talk windows {folk}, merchant window {merchant}, too far {far}, crouched talked {crouch_ok}")
+    # Three townspeople are used; the crouched one is a pickpocket attempt, so two talk windows.
+    print("RESULT", "PASS" if folk >= 2 and merchant and far and crouch_ok and reloaded else "FAIL",
+          f"townsperson talk windows {folk}, merchant window {merchant}, too far {far}, crouched pickpocketed {crouch_ok}")
 
 
 def check():

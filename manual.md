@@ -31,7 +31,8 @@ Your level comes from your skills, as in Daggerfall. Not every skill can be trai
 - **Fighting in Doom does not train any skill yet.** Weapon skills, Hand-to-Hand, Critical Strike, Dodging and the
   magic schools do not improve from combat or spells cast in Doom.
 - What does count today: **Climbing** (each climb), and what you do in Daggerfall's own windows, such as
-  **Etiquette** and **Streetwise** when talking to people, and **Mercantile** when buying and selling.
+  **Etiquette** and **Streetwise** when talking to people, **Mercantile** when buying and selling, **Pickpocket**,
+  **Medical** when resting, and **Lockpicking** (see Talking, trading and stealing).
 
 Skills only go up, and a new level is only granted, when time passes: when you **rest** (see Resting) or **fast
 travel**. Daggerfall checks your skills at most once every 6 game hours.
@@ -407,6 +408,22 @@ A door you have picked open reads **Door**.
 - Without lockpicks, Use only tells you the door is locked. A **magically held** door cannot be picked.
 - A door you picked open **stays unlocked**: after saving and loading, and after you leave the dungeon and come back.
 - Levers and other switches in a dungeon can still lock, unlock, open and close doors, as in Daggerfall.
+
+## Talking, trading and stealing
+
+These skills work as in Daggerfall and improve as you use them:
+
+- **Etiquette and Streetwise:** press **Use (E)** on a person to talk. Asking in the **polite** tone uses Etiquette and
+  asking in the **blunt** tone uses Streetwise. A higher skill makes people more willing to answer in that tone.
+- **Mercantile:** press Use on a shopkeeper to buy and sell. Your Mercantile skill (against the merchant's) sets the
+  prices, and every completed trade trains it.
+- **Pickpocket:** crouch (the screen shows **Sneaking**) and press Use on a person walking about town to try to pick
+  their pocket. Each person can be tried only once. If it works you may find a few gold pieces. If it fails, that is a
+  crime and the guards are called. Stealing from shop shelves and from containers in homes also uses Pickpocket.
+- **Medical:** every hour you rest heals you more with a higher Medical skill, and trains it (see Resting).
+- **Lockpicking:** see Locked doors. Doors of town buildings are never locked in Doomerfall yet.
+
+Like every skill, these only go up when Daggerfall checks your skills, after a rest or fast travel (see Levelling up).
 
 ## Entering a place
 
