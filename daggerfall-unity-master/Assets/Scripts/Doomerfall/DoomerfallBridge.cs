@@ -151,6 +151,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             hp = new DoomerfallHp(this, sync, Environment.GetCommandLineArgs());
             gameObject.AddComponent<DoomerfallEndurance>().Init(this, sync);  // max HP from Endurance and level
             DoomerfallHpFormulaTest.Attach(this, sync); // test only: -dfhpformulatest
+            DoomerfallAttributesTest.Attach(this, sync); // test only: -dfattrtest
             sheet = new DoomerfallSheet(this, sync, Environment.GetCommandLineArgs());
             faces = new DoomerfallFaces(this);
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dffacetest") >= 0)

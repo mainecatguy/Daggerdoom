@@ -47,6 +47,18 @@ by itself inside Doom (after you wake up, or when you arrive):
 
 You are back in Doom with the new attributes in effect.
 
+## Attributes
+
+What your attributes do now. They use your current value, so spells and effects that fortify or drain an attribute
+count while they last. Anything above 100 counts as 100.
+
+- **Strength:** your melee hits do more damage: +1% per point, so +50% at 50 and double damage at 100. Melee means
+  your fists and weapons that use the Melee skill, such as the chainsaw.
+- **Speed:** how fast you move in Doom. 50 is normal speed; 0 is 25% slower and 100 is 25% faster.
+- **Endurance:** raises your maximum HP (see Health).
+- **Intelligence** and **Personality:** work as in Daggerfall (Intelligence sets your spell points; Personality helps
+  when talking, trading and dealing with people).
+
 ## Weapon skills
 
 Doomerfall adds seven weapon skills to your character sheet: the gun skills **Shotguns**, **Automatics**,

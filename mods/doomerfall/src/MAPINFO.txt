@@ -1,6 +1,6 @@
 gameinfo
 {
-	AddEventHandlers = "Doomerfall_Events", "DoomerfallItems", "DoomerfallGuns", "DoomerfallClimb", "DoomerfallLook", "DoomerfallDamageNumbers", "DoomerfallLockpick", "DoomerfallReload", "DoomerfallAmmoTiers", "DoomerfallEncounterPoolHolder", "DoomerfallEncounterPoolDump", "DoomerfallEncounterPlanTest", "DoomerfallEncounterBudgetTest", "DoomerfallCivilWarTest", "DoomerfallWeaponCategoryTest", "DoomerfallRifleTagTest", "DoomerfallWeaponTypesTest"
+	AddEventHandlers = "Doomerfall_Events", "DoomerfallItems", "DoomerfallGuns", "DoomerfallAttributes", "DoomerfallClimb", "DoomerfallLook", "DoomerfallDamageNumbers", "DoomerfallLockpick", "DoomerfallReload", "DoomerfallAmmoTiers", "DoomerfallEncounterPoolHolder", "DoomerfallEncounterPoolDump", "DoomerfallEncounterPlanTest", "DoomerfallEncounterBudgetTest", "DoomerfallCivilWarTest", "DoomerfallWeaponCategoryTest", "DoomerfallRifleTagTest", "DoomerfallWeaponTypesTest"
 }
 
 // Placed only by the dungeon converter (tools/dungeon_converter/PickupExport.cs).
