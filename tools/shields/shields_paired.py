@@ -36,17 +36,35 @@ def copy_over(src, dst):
 
 
 def main():
+    # --source-pk3: keep the play folder's own doomerfall.pk3, which matches its UZDoom, instead of building this
+    # checkout's. The test is all Daggerfall code, so an older Doom mod is fine when the play folder's UZDoom predates it.
+    source_pk3 = "--source-pk3" in sys.argv
+    if source_pk3:
+        sys.argv.remove("--source-pk3")
+    if "--stock" in sys.argv:  # Stock Doom monsters, as tools/luck/luck_paired.py --stock: the test is all Daggerfall code.
+        sys.argv.remove("--stock")
+        fd.DRLA[:] = []
+        text = (fd.HERE / "paired.zs").read_text()
+        for rl, doom in (("RLPainElemental", "PainElemental"), ("RLFormerOverwatch", "ChaingunGuy"), ("RLLostSoulPE", "LostSoul"), ("RLUACDefenceDrone", "LostSoul")):
+            text = text.replace(f'"{rl}"', f'"{doom}"')
+        patched = Path(sys.argv[3]).resolve() / "stock-harness"
+        patched.mkdir(parents=True, exist_ok=True)
+        (patched / "paired.zs").write_text(text)
+        fd.HERE = patched
     source, dfu, work = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3]).resolve()
     play = work / "play"
     if not play.exists():
         shutil.copytree(source, play, ignore=shutil.ignore_patterns("run", "PortableAppdata"))
     copy_over(dfu, play / "dfu")
-    fd.subprocess.check_call([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), str(play / "doomerfall.pk3")])
+    if source_pk3:
+        shutil.copy2(source / "doomerfall.pk3", play / "doomerfall.pk3")
+    else:
+        fd.subprocess.check_call([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), str(play / "doomerfall.pk3")])
     out = work / "results"
     out.mkdir(parents=True, exist_ok=True)
     fd.EXTRA_DF[:] = ["-dfshieldtest"]
-    fd.run(play, out, "shields", 10)
-    log = fd.ng.read(out / "shields-df.log")
+    fd.run(play, out, "fresh1", 10)
+    log = fd.ng.read(out / "fresh1-df.log")
     lines = [l for l in log.splitlines() if "shield test:" in l]
     for l in lines:
         print(l[l.index("shield test:"):])
