@@ -11,6 +11,7 @@ using System.IO;
 using DaggerfallConnect;
 using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop.Game.Items;
+using DaggerfallWorkshop.Game.UserInterface;
 using UnityEngine;
 
 namespace DaggerfallWorkshop.Game
@@ -45,45 +46,28 @@ namespace DaggerfallWorkshop.Game
             { "rest", DaggerfallUIMessages.dfuiOpenRestWindow },
         };
 
-        RenderTexture guiTarget, guiScreen;
-        Texture2D guiImage;
+        UserInterfaceRenderTarget uiTarget;
 
-        // Runs before Daggerfall Unity's OnGUI (higher depth first) and points the UI at the captured frame.
-        class GuiBegin : MonoBehaviour
+        static Texture2D ReadTexture(RenderTexture source)
         {
-            public DungeonCaptureTest Owner;
-            void OnGUI()
-            {
-                GUI.depth = 100;
-                if (Event.current.type != EventType.Repaint || !Owner.guiTarget || Owner.guiImage)
-                    return;
-                Owner.guiScreen = RenderTexture.active;
-                RenderTexture.active = Owner.guiTarget;
-            }
-        }
-
-        // Runs after Daggerfall Unity's OnGUI: reads the frame with the UI drawn over it.
-        class GuiEnd : MonoBehaviour
-        {
-            public DungeonCaptureTest Owner;
-            void OnGUI()
-            {
-                GUI.depth = -100;
-                if (Event.current.type != EventType.Repaint || !Owner.guiTarget || Owner.guiImage || RenderTexture.active != Owner.guiTarget)
-                    return;
-                var image = new Texture2D(Owner.guiTarget.width, Owner.guiTarget.height, TextureFormat.RGB24, false);
-                image.ReadPixels(new Rect(0, 0, image.width, image.height), 0, 0);
-                image.Apply();
-                RenderTexture.active = Owner.guiScreen;
-                Owner.guiImage = image;
-            }
+            RenderTexture old = RenderTexture.active;
+            RenderTexture.active = source;
+            var image = new Texture2D(source.width, source.height, TextureFormat.RGBA32, false);
+            image.ReadPixels(new Rect(0, 0, source.width, source.height), 0, 0);
+            image.Apply();
+            RenderTexture.active = old;
+            return image;
         }
 
         IEnumerator RunMenus()
         {
-            // Separate objects, so each hook's GUI.depth orders it against Daggerfall Unity's OnGUI.
-            new GameObject("CaptureGuiBegin").AddComponent<GuiBegin>().Owner = this;
-            new GameObject("CaptureGuiEnd").AddComponent<GuiEnd>().Owner = this;
+            // A screen grab is empty on a hidden desktop, so the UI draws into a texture, as Doomerfall's DoomerfallUi does.
+            var host = new GameObject("CaptureUiTarget");
+            host.transform.SetParent(DaggerfallUI.Instance.transform, false);
+            uiTarget = host.AddComponent<UserInterfaceRenderTarget>();
+            uiTarget.CustomWidth = Screen.width;
+            uiTarget.CustomHeight = Screen.height;
+            DaggerfallUI.Instance.CustomRenderTarget = uiTarget;
             // The same start as DoomerfallSyncTest.TestStart, so the character and place match the paired session.
             GameManager.Instance.PlayerEnterExit.EnableExteriorParent();
             StreamingWorld world = GameManager.Instance.StreamingWorld;
@@ -131,16 +115,21 @@ namespace DaggerfallWorkshop.Game
                 main.targetTexture = frame;
                 main.Render();
                 main.targetTexture = null;
-                guiImage = null;
-                guiTarget = frame;
-                float limit = Time.realtimeSinceStartup + 5f;
-                while (guiImage == null && Time.realtimeSinceStartup < limit)
-                    yield return null;
-                guiTarget = null;
-                Texture2D image = guiImage ?? new Texture2D(1, 1);
-                guiImage = null;
-                File.WriteAllBytes(Path.Combine(outDir, shot.Id + ".df.png"), image.EncodeToPNG());
+                Texture2D scene = ReadTexture(frame);
                 frame.Release();
+                Texture2D ui = uiTarget.TargetTexture ? ReadTexture(uiTarget.TargetTexture) : null;
+                Texture2D image = scene;
+                if (ui != null && ui.width == scene.width && ui.height == scene.height)
+                {
+                    File.WriteAllBytes(Path.Combine(outDir, shot.Id + ".dfui.png"), ui.EncodeToPNG());
+                    Color32[] w = scene.GetPixels32(), u = ui.GetPixels32();
+                    for (int i = 0; i < w.Length; i++) // the UI over the 3D view, by the UI's alpha
+                        w[i] = Color32.Lerp(w[i], new Color32(u[i].r, u[i].g, u[i].b, 255), u[i].a / 255f);
+                    scene.SetPixels32(w);
+                    scene.Apply();
+                    Destroy(ui);
+                }
+                File.WriteAllBytes(Path.Combine(outDir, shot.Id + ".df.png"), image.EncodeToPNG());
                 var top = DaggerfallUI.UIManager.TopWindow;
                 results.AppendFormat("MENU {0} {1} top {2} size {3}x{4}\n", shot.Id, shot.Window, top == null ? "none" : top.GetType().Name, image.width, image.height);
                 Destroy(image);

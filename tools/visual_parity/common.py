@@ -54,7 +54,7 @@ def prepare(work):
     subprocess.check_call([sys.executable, str(build), "--drla", str(work / "doomerfall-drla.pk3")], stdout=subprocess.DEVNULL)
 
 
-def paired_command(work, run, timeout, uz_extra=(), df_extra=(), qa=None):
+def paired_command(work, run, timeout, uz_extra=(), df_extra=(), qa=None, minimized=True):
     """The real game's launch (scripts/play/install.py's play.bat), minimized on a private desktop, with the test town
     start (-dfsynctest), a private config, and the visual parity harness, which removes monsters and NPCs."""
     data = PLAY / "data"
@@ -70,7 +70,7 @@ def paired_command(work, run, timeout, uz_extra=(), df_extra=(), qa=None):
     uz += list(uz_extra) + ["+map", "DDT07154"]
     df = ["-dfbridgelog", str(run / "df.log"), "-dfsynctest", str(GAME / "DAGGER"), "-dfmute", "-screen-fullscreen", "0",
           "-screen-width", str(WIDTH), "-screen-height", str(HEIGHT)] + list(df_extra)
-    cmd = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(PLAY / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
+    cmd = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(PLAY / "doomerfall-launcher.exe"), *(["--minimized"] if minimized else []), "--nodraw",
            "--uzdoom", str(PLAY / "uzdoom" / "uzdoom.exe"), "--dfu", str(PLAY / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
            "--uzdoom-cwd", str(run), "--log", str(run / "launcher.log")]
     mods = DRLA + [data / n for n in DUNGEON] + [PLAY / "dfitems.pk3", work / "doomerfall.pk3", work / "doomerfall-drla.pk3", HERE / "doom"]

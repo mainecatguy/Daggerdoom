@@ -35,6 +35,9 @@ WINDOWS = {
 }
 
 
+UNMINIMIZED = False
+
+
 def capture_doomerfall(order, out, work, timeout):
     session = out / "session"
     os.environ["DDQA_SESSION"] = str(session)
@@ -46,7 +49,8 @@ def capture_doomerfall(order, out, work, timeout):
         shutil.rmtree(qa.QA)
     qa.QA.mkdir(parents=True)
     qa.INBOX.write_text("")
-    proc = subprocess.Popen(c.paired_command(work, run, timeout, uz_extra=["+screenblocks", "12"], df_extra=["-dfinventorytest"], qa=qa.QA),
+    proc = subprocess.Popen(c.paired_command(work, run, timeout, uz_extra=["+screenblocks", "12"], df_extra=["-dfinventorytest"], qa=qa.QA,
+                                              minimized=not UNMINIMIZED),
                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     uzlog = run / "uz.log"
     log = {"menus": []}
@@ -102,7 +106,10 @@ def main():
     ap.add_argument("--timeout", type=int, default=300)
     ap.add_argument("--skip-df", action="store_true")
     ap.add_argument("--skip-doom", action="store_true")
+    ap.add_argument("--unminimized", action="store_true", help="launch the paired game unminimized (still on the private desktop)")
     args = ap.parse_args()
+    global UNMINIMIZED
+    UNMINIMIZED = args.unminimized
     out = args.out.resolve()
     c.ensure_outside_repo(out)
     out.mkdir(parents=True, exist_ok=True)
