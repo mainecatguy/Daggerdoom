@@ -567,6 +567,8 @@ namespace DaggerfallWorkshop.Game.Entity
             List<DFCareer.Skills> miscSkills = new List<DFCareer.Skills>();
             for (int i = 0; i < DaggerfallSkills.Count; i++)
             {
+                if (DaggerfallSkills.IsRemovedSkill((DFCareer.Skills)i)) // Doomerfall: unused language slots
+                    continue;
                 if (!primarySkills.Contains((DFCareer.Skills)i) &&
                     !majorSkills.Contains((DFCareer.Skills)i) &&
                     !minorSkills.Contains((DFCareer.Skills)i))

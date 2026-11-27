@@ -2963,39 +2963,39 @@ namespace DaggerfallWorkshop.Game.Formulas
                 case (int)MonsterCareers.OrcSergeant:
                 case (int)MonsterCareers.OrcShaman:
                 case (int)MonsterCareers.OrcWarlord:
-                    return DFCareer.Skills.Orcish;
+                    return DFCareer.Skills.None; // Doomerfall: Orcish removed
 
                 case (int)MonsterCareers.Harpy:
-                    return DFCareer.Skills.Harpy;
+                    return DFCareer.Skills.None; // Doomerfall: Harpy removed
 
                 case (int)MonsterCareers.Giant:
                 case (int)MonsterCareers.Gargoyle:
-                    return DFCareer.Skills.Giantish;
+                    return DFCareer.Skills.None; // Doomerfall: Giantish removed
 
                 case (int)MonsterCareers.Dragonling:
                 case (int)MonsterCareers.Dragonling_Alternate:
-                    return DFCareer.Skills.Dragonish;
+                    return DFCareer.Skills.None; // Doomerfall: Dragonish removed
 
                 case (int)MonsterCareers.Nymph:
                 case (int)MonsterCareers.Lamia:
-                    return DFCareer.Skills.Nymph;
+                    return DFCareer.Skills.None; // Doomerfall: Nymph removed
 
                 case (int)MonsterCareers.FrostDaedra:
                 case (int)MonsterCareers.FireDaedra:
                 case (int)MonsterCareers.Daedroth:
                 case (int)MonsterCareers.DaedraSeducer:
                 case (int)MonsterCareers.DaedraLord:
-                    return DFCareer.Skills.Daedric;
+                    return DFCareer.Skills.None; // Doomerfall: Daedric removed
 
                 case (int)MonsterCareers.Spriggan:
-                    return DFCareer.Skills.Spriggan;
+                    return DFCareer.Skills.None; // Doomerfall: Spriggan removed
 
                 case (int)MonsterCareers.Centaur:
-                    return DFCareer.Skills.Centaurian;
+                    return DFCareer.Skills.None; // Doomerfall: Centaurian removed
 
                 case (int)MonsterCareers.Imp:
                 case (int)MonsterCareers.Dreugh:
-                    return DFCareer.Skills.Impish;
+                    return DFCareer.Skills.None; // Doomerfall: Impish removed
 
                 case (int)MonsterCareers.Vampire:
                 case (int)MonsterCareers.VampireAncient:

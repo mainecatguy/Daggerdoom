@@ -16,8 +16,7 @@ Owner decisions from earlier runs are recorded in `CHANGELOG.md`, `architecture.
 
 ### Queued (owner, 2026-11-25)
 
-- `lockpick` cards 03 and 04 (approved by the owner 2026-11-26): door lock state in the location record instead of a separate ledger; the arrival autosave waits until level setup is done (general fix, report back if the approach is wrong). Card 02 (Doom owns the live lock) is verified on `overnight/lockpick`; merge after 03 and 04.
-- `daynight` card 01 (`work/queue/daynight/01.opus.fog-sky-windows-winter.md`): distance fog, foggy sky, lit windows at night, winter textures. Starts from integration (the day/night branch is merged).
+- `lockpick` cards 03 and 04 (approved by the owner 2026-11-26): door lock state in the location record instead of a separate ledger; the arrival autosave waits until level setup is done (general fix, report back if the approach is wrong). Card 02 (Doom owns the live lock) is verified on `overnight/lockpick`; merge after 03 and 04. Card 05 (approved by the owner 2026-11-26): pause the game during the arrival setup wait.
 
 
 ### Skills (owner, 2026-11-25; rules in `work/backlog/skills-in-doom.md`)
@@ -25,14 +24,16 @@ Owner decisions from earlier runs are recorded in `CHANGELOG.md`, `architecture.
 In order. Lanes `skillresearch`, `skillcore`, `skillperks`, `skillmenu`, `levelup` in `work/queue`.
 
 - `skillresearch` 02: research Skill XP from monsters and skill purchase costs; proposes the menu card.
-- `skillcore` 01: the new skills (Shotguns, Automatics, Explosives) in the slots of the monster languages, which are removed for now (owner, 2026-11-26). `skillcore` 03 then adds Pistols (owner, 2026-11-26: "pistols and rifles becomes just pistols", "no rifle is counted").
 - `rifletag` 01 (owner, 2026-11-26): Doomerfall's own rifle tag on every DRLA rifle, after `skillcore` 01. Rifles get their own skill later (backlog: Rifles).
-- `skillcore` 04 (owner, 2026-11-26, "Rifles go now"): the Rifles skill on the sheet, no perks yet.
+- `skillcore` 07 (approved by the owner 2026-11-26): weapons that fit two skills use the higher one. (Cards 01-06 landed in integration 2026-11-26.)
 - `lightcarbine` 01 (owner, 2026-11-26): the Light Carbine (semi-auto Battle Rifle, +20% damage) in the Doomerfall mod, working without DRLA; half of the assault-rifle monsters' Battle Rifle drops become carbines.
 - `startgun` 01 (owner, 2026-11-26): a new character's starting gun follows the highest weapon skill and replaces the starter pistol. After `skillcore` 01, 03, 04 and `lightcarbine` 01.
-- `skillcore` 02: perk popup (pause and show what the perk is).
 - `skillperks` 01 to 05: Jumping (adds fall damage first), Automatics, Explosives, Shotguns, then Pistols (no rifles).
-- `skillmenu` 01: skill purchase menu with visible perks, Skill XP from kills. Gated on the owner approving research 02.
+- `skillperks` 06, 07, 08, approved by the owner, 2026-11-26, in order: 06 Energy Weapons perks before burn
+  (scaling, splash, projectile speed); 07 a general burn damage system with a separate fire effect; 08 burn on energy
+  weapons (burn, conversion, explosion). After `skillcore` 01 and 05.
+- `skillmenu` 01: skill purchase menu with visible perks, Skill XP from damage; revised card approved by the owner,
+  2026-11-26 (research 02 answers are in the card).
 - `skillmenu` 02: Daggerfall sound and message when a skill point is gained.
 - `levelup` 01: Daggerfall's level-up flow (rest, message, attribute points) shown and usable in Doom. Independent.
 - `skillbasics` 01: Lockpicking, Pickpocket, Mercantile, Etiquette, Streetwise and Medical work and level as in
@@ -42,11 +43,42 @@ In order. Lanes `skillresearch`, `skillcore`, `skillperks`, `skillmenu`, `levelu
 - Tutorial: when the Doomerfall tutorial is made (backlog, after the game is complete), it must explain buying skills
   with Skill XP.
 
+### Input (owner, 2026-11-26)
+
+- `menumouse` 01 (`work/queue/menumouse/01.opus.release-mouse-in-menus.md`), approved by the owner, 2026-11-26, no
+  blocks: release the mouse while a Daggerfall menu is open over fullscreen Doom.
+
+### Ammo (owner, 2026-11-26)
+
+- `ammopile` 01 (`work/queue/ammopile/01.opus.ammo-pile-look.md`), approved by the owner, 2026-11-26: dropped ammo
+  looks like that ammo and is remembered; mixed piles use the loot pile graphic.
+
+### Fixes and small features (owner, 2026-11-26)
+
+- `ammosizefix` 01 (`work/queue/ammosizefix/01.opus.tier-pickups-same-size.md`), approved by the owner, 2026-11-26:
+  ammo pickups and shop packs of every tier hold the same rounds as Regular.
+- `takenpickups` 01 (`work/queue/takenpickups/01.opus.daggerfall-remembers-taken-pickups.md`), approved by the
+  owner, 2026-11-26: Doom reports taken seeded pickups by ID and Daggerfall keeps them gone.
+- `weapontypes` 01 (`work/queue/weapontypes/01.opus.weapon-types-in-description.md`), approved by the owner,
+  2026-11-26: weapon descriptions show name and types ("Plasma Rifle. Types: Energy, Automatic"). After `rifletag` 01
+  and `skillcore` 05.
+
+### Encounters (owner, 2026-11-26)
+
+- `mainquestlevels` 01 (`work/queue/mainquestlevels/01.opus.main-quest-levels.md`), approved by the owner,
+  2026-11-26: main quest dungeon level overrides in quest order; no invisible enemies in Privateer's Hold.
+
+- **On hold for the owner's go-ahead (owner, 2026-11-26: ready, but run it when it won't waste tokens; do not start
+  until the owner says).** `monsterdps` 01 (`work/queue/monsterdps/01.opus.monster-dps.md`), approved by the owner, 2026-11-26: measure damage
+  per second of non-EX Black and White monsters and DRLA bosses with an erratically strafing 500 HP player, and price
+  them with the square-law rule. Raises BlackImp1's placeholder first.
+
 ### Waiting on an owner answer from finished work
 
-- Main quest level table for the other main quest dungeons: `work/notes/20261124-202353-mainquestlevels.md`.
 
 ### Held by the owner
+
+- `daynight` first-town season (owner, 2026-11-26: on hold "until there are plenty of tokens", defined as weekly and current usage both at or below 10%; then it may run without asking): in a winter save the first town after launch loads in summer textures, because Doom builds it before Daggerfall sends the season; later area loads are correct. Options in `work/notes/20261126-145333.md`. The rest of day/night is merged.
 
 - `liftcollision`: moving objects (lifts, raising platforms, the Privateer's Hold throne dais) have no collision to stand on; solve it as a general problem. Owner will say when.
 - `corpsekeep`: corpses vanish on leaving and re-entering Privateer's Hold. First see whether the location record rewrite fixes it. Card in `work/queue/corpsekeep/held`.
@@ -54,7 +86,6 @@ In order. Lanes `skillresearch`, `skillcore`, `skillperks`, `skillmenu`, `levelu
 
 ### Waiting on an owner answer before a card
 
-- Mouse lost in Daggerfall menus: likely fullscreen Doom never releasing the mouse (`i_mouse.cpp`); fix waits on the owner confirming the cause.
 - nodraw follow-ups: Doom should not call Daggerfall stale during its known loading freezes; the hidden world radius should come from Doom's loaded area.
 
 ### Proposed cards waiting on owner choices
@@ -66,6 +97,7 @@ In order. Lanes `skillresearch`, `skillcore`, `skillperks`, `skillmenu`, `levelu
 
 - **Rework the Doom HUD: chat with the owner first** (owner, 2026-11-23): remove Doom's weapon slot display, because guns come from Daggerfall hotkeys, and rework the HUD in general.
 - **QA bot runs** are long and run only overnight, 2AM to 7AM.
+- `qabot` 02 (approved by the owner 2026-11-26): god-mode gun tester that equips guns, locks on and fights, reports damage and findings, roams and opens doors (`work/queue/qabot/held/02.opus.god-mode-gun-tester.md`). On hold (owner, 2026-11-26) until token usage and limits are low (weekly and current both at or below 10%), or at night while the owner sleeps and nothing else is queued; then it may start without asking. Long runs stay overnight.
 - **Lightweight location record:** merged into integration (`claude/location-record-d20944`, 2026-11-25).
 
 ### Loading screen for long operations (owner, 2026-11-24)

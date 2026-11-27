@@ -29,7 +29,10 @@ hand needs them. When writing a card on a topic, grep that topic's file so the c
 - Send each design question to the `game-designer` subagent first: mode "answer", then mode "challenge". "Follows
   clearly" needs no owner. Leans, Not determined and Deferred go to the owner. Do not interpret the design yourself
   to answer a question; that is the designer's job.
-- Ask the owner in chat, grouped and with enough context to decide. Record open ones in `work/questions.md` so they
+- Ask the owner in chat, about five questions at a time (owner, 2026-11-26), each with the concrete situation
+  (numbers, an example, what happens in game) and a lean, so it can be decided without asking back. Never ask a
+  question, or part of one, whose only realistic answer is obvious. Apply the game designer's "strike settled
+  options" step (`.claude/agents/game-designer.md`) before asking: send only real forks, with settled parts stripped. Record open ones in `work/questions.md` so they
   survive between sessions, and remove each once answered.
 - Record each owner answer as a decision (a detail file in `gamedesign/decisions/` plus one index line). If it is a
   lasting rule, also add it to the right topic file in `gamedesign/` or the matching row of `gamedesign.md`.
@@ -41,6 +44,9 @@ Follow "Working with the owner" and "Writing a brief" in `work/orchestrator.md`:
 as faithfully as possible, a "Done when", no embellishment, the manual line for player-facing features, and the model
 rules. Ask foreseeable questions in chat, never in the card. Note in the draft what the card depends on and which lane
 it belongs to; the orchestrator assigns bridge kind ranges when it starts the lane.
+
+Link every card or backlog detail file you write or change in your reply, so the owner can review it (owner,
+2026-11-26).
 
 ## Boundaries
 

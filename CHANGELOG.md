@@ -12,6 +12,26 @@ What is done on the project, newest first. Agents do not need to read this unles
 - **Roughest spots:** some walls still bend where they stayed tied to the grid, and false walls and openings remain.
 
 ## 2026-11-26
+- **Ammo tiers same size (on `integration`):** every tier's pickup and shop pack holds Regular's amount (clip 10, shop pack 80 bullets); only odds differ. Verified on `verify/ammosizefix`: startup 1337, E1M1 stock and DRLA, `ammo.py sizes` (34 PASS), `ammo.py tiers` (packs PASS, counts MATCH). Notes: `work/notes/20261126-180338.md`.
+
+- **Two-skill weapons (on `integration`):** energy pistols are Pistol + Energy and energy shotguns Energy + Shotgun; `DoomerfallWeaponCategory.SkillSlotOf` uses the higher live skill (new read-only `Actor.DD_SheetSkill`, so UZDoom must be rebuilt). Verified on `verify/skillcore7`: startup 1337, weapon category test (73 PASS), paired two-skill check, class card test (74 ok). Notes: `work/notes/20261126-174427.md`.
+
+### Weapon skills, weapon categories and class cards (on `integration`)
+
+- **Seven new skills in the removed monster-language slots:** Shotguns, Automatics, Explosives, Pistols, Rifles, Energy Weapons and Melee (slots 4-10). They show on the sheet, train, save, and are sent to Doom in the character sheet (format 6, `DFB_SKILL_*`). Monster languages are gone; their old enchantments stay but do nothing.
+- **Weapon categories:** every stock and DRLA gun maps to at most one skill (`DoomerfallWeaponCategory.zs`); fists stay Hand-to-Hand. Nothing in combat reads the category yet.
+- **Hand-made class cards** for guns and no-guns modes (guns mode on): presets get their card, custom classes convert by the default rule, the class maker offers the Doom skills and no Critical Strike. Old saves load at the same level and progress (level-up sum rebased).
+- Bridge schema changed: bridge DLL, launcher, UZDoom and Daggerfall Unity must be rebuilt together. Verified on `verify/skillcore`: class card test (74 ok), weapon category test, E1M1 stock and DRLA, perk popup, rest, one day/night town step. The sheet test's strict "Doom read every version" check still misses back-to-back publishes, as on the branch.
+- Notes: `work/notes/20261126-005053.md`, `work/notes/20261126-114057-skillcore.md`, `work/notes/20261126-145138.md`, `work/notes/20261126-154815.md`, `work/notes/20261126-161434.md`, `work/notes/20261126-164636.md`.
+
+### Day/night: fog, fogged sky, lit windows and winter textures (on `integration`)
+
+- **Doom draws Daggerfall's live fog** (clear haze, weather, interiors, dungeons) from a new `fog ...` bridge text, and heavy fog also fogs the sky as Daggerfall's does.
+- **Town windows glow** with Daggerfall's window colour (`windows r g b`): blue glass by day, orange at night, fading with distance and fog. The converter writes window masks into `ddruntime.pk3` (regenerate it).
+- **Winter textures:** Daggerfall's `sky` line carries the season; outdoor places convert with ClimateSwaps' winter sets at the next area load.
+- Known gaps (owner accepted, on hold): the first town after launch in a winter save loads in summer textures; the overworld is not seasonal yet.
+- Plain bridge texts only, no schema change; UZDoom, converter and Daggerfall Unity must be rebuilt. Verified on `verify/daynight`: paired town, interior and dungeon runs, Doom-only winter shots, E1M1 stock and DRLA, rest and perk popup regressions.
+- Notes: `work/notes/20261125-202716.md`, `work/notes/20261126-114057.md`, `work/notes/20261126-145333.md`.
 
 ### Player HP from Endurance and level (on `integration`)
 

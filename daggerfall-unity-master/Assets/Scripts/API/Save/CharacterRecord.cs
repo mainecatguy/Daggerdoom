@@ -82,6 +82,9 @@ namespace DaggerfallConnect.Save
             doc.skillUses = parsedData.skillUses;
             doc.skillsRaisedThisLevel1 = parsedData.skillsRaisedThisLevel1;
             doc.skillsRaisedThisLevel2 = parsedData.skillsRaisedThisLevel2;
+            ClassicSkills = new DaggerfallSkills(); // Doomerfall: kept for the level rebase
+            ClassicSkills.Copy(parsedData.skills);
+            ClearLegacyLanguageSkills(doc); // Doomerfall
             doc.startingLevelUpSkillSum = parsedData.startingLevelUpSkillSum;
             doc.minMetalToHit = parsedData.minMetalToHit;
             doc.armorValues = parsedData.armorValues;
@@ -357,8 +360,39 @@ namespace DaggerfallConnect.Save
             return equippedItems;
         }
 
+        /// <summary>
+        /// Doomerfall: classic saves hold monster language values and practice in slots 4-12. Slots 4-6 are the gun
+        /// skills now and start untrained; practice and "raised this level" marks for 4-12 are dropped, as for an
+        /// old Daggerfall Unity save (PlayerEntity.ClearLegacyLanguageProgress).
+        /// </summary>
+        static void ClearLegacyLanguageSkills(CharacterDocument doc)
+        {
+            if (doc.workingSkills != null)
+            {
+                doc.workingSkills.ResetGunSkillsToDefaults();
+                doc.workingSkills.IsGunSkillsFormat = true;
+            }
+            for (int i = (int)DFCareer.Skills.Shotguns; i <= (int)DFCareer.Skills.Impish; i++)
+            {
+                if (doc.skillUses != null && i < doc.skillUses.Length)
+                    doc.skillUses[i] = 0;
+                doc.skillsRaisedThisLevel1 &= ~(1u << i); // Slots 4-12 are all in the first word.
+            }
+        }
+
+        /// <summary>Doomerfall: the class lists as the classic save has them (before the class card), for the level
+        /// rebase on import (PlayerEntity.RebaseLevelUpSkillSum).</summary>
+        public DFCareer.Skills[] ClassicSkillLists { get; private set; }
+
+        /// <summary>Doomerfall: the skill values as the classic save has them (before the languages are cleared).</summary>
+        public DaggerfallSkills ClassicSkills { get; private set; }
+
         DFCareer ReadCareer(BinaryReader reader)
         {
+            long start = reader.BaseStream.Position; // Doomerfall: skill list bytes 16-27, as in CLASS*.CFG
+            reader.BaseStream.Position = start + 16;
+            ClassicSkillLists = Array.ConvertAll(reader.ReadBytes(12), b => (DFCareer.Skills)b);
+            reader.BaseStream.Position = start;
             ClassFile classFile = new ClassFile();
             classFile.Load(reader);
 

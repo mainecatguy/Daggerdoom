@@ -214,11 +214,19 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             uint sum = 2166136261;
             for (int i = 0; i < values.Length; i++)
                 sum = (sum ^ (uint)values[i]) * 16777619;
-            return string.Format("{0} v{1} epoch {2} valid {3} level {4} str {5}/{6} archery {7}/{8} armor0 {9}/{10} fire {11}/{12} sum {13:x8}",
+            return string.Format("{0} v{1} epoch {2} valid {3} level {4} str {5}/{6} archery {7}/{8} armor0 {9}/{10} fire {11}/{12} sum {13:x8}" +
+                " shotguns {14}/{15} automatics {16}/{17} explosives {18}/{19} pistols {20}/{21} rifles {22}/{23} energy {24}/{25} melee {26}/{27}",
                 what, version, values[Dfb.SHEET_EPOCH], values[Dfb.SHEET_VALID], values[Dfb.SHEET_LEVEL],
                 values[Dfb.SHEET_STATS_BASE], values[Dfb.SHEET_STATS_LIVE],
                 values[Dfb.SHEET_SKILLS_BASE + (int)DFCareer.Skills.Archery], values[Dfb.SHEET_SKILLS_LIVE + (int)DFCareer.Skills.Archery],
-                values[Dfb.SHEET_ARMOR_BASE], values[Dfb.SHEET_ARMOR_LIVE], values[Dfb.SHEET_RESIST_ACTIVE], values[Dfb.SHEET_RESIST_CHANCE], sum);
+                values[Dfb.SHEET_ARMOR_BASE], values[Dfb.SHEET_ARMOR_LIVE], values[Dfb.SHEET_RESIST_ACTIVE], values[Dfb.SHEET_RESIST_CHANCE], sum,
+                values[Dfb.SHEET_SKILLS_BASE + Dfb.SKILL_SHOTGUNS], values[Dfb.SHEET_SKILLS_LIVE + Dfb.SKILL_SHOTGUNS],
+                values[Dfb.SHEET_SKILLS_BASE + Dfb.SKILL_AUTOMATICS], values[Dfb.SHEET_SKILLS_LIVE + Dfb.SKILL_AUTOMATICS],
+                values[Dfb.SHEET_SKILLS_BASE + Dfb.SKILL_EXPLOSIVES], values[Dfb.SHEET_SKILLS_LIVE + Dfb.SKILL_EXPLOSIVES],
+                values[Dfb.SHEET_SKILLS_BASE + Dfb.SKILL_PISTOLS], values[Dfb.SHEET_SKILLS_LIVE + Dfb.SKILL_PISTOLS],
+                values[Dfb.SHEET_SKILLS_BASE + Dfb.SKILL_RIFLES], values[Dfb.SHEET_SKILLS_LIVE + Dfb.SKILL_RIFLES],
+                values[Dfb.SHEET_SKILLS_BASE + Dfb.SKILL_ENERGY], values[Dfb.SHEET_SKILLS_LIVE + Dfb.SKILL_ENERGY],
+                values[Dfb.SHEET_SKILLS_BASE + Dfb.SKILL_MELEE], values[Dfb.SHEET_SKILLS_LIVE + Dfb.SKILL_MELEE]);
         }
     }
 }

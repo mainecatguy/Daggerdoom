@@ -419,17 +419,19 @@ class AMHarness : EventHandler
 			if (timer == 175) { Report(String.Format("after change%d", k)); Next(); }
 			break;
 		}
-		// The sizes run: plain pickups of every size, placed where they roll Regular (and two where they roll Silver, to
-		// show rounding), and DRLA zombies killed for their drops. Each converted pickup is touched alone; ammo.py checks
+		// The sizes run: plain pickups of every size, placed where they roll Regular, Silver, or Ebony (every tier gives
+		// the same amount), and DRLA zombies killed for their drops. Each converted pickup is touched alone; ammo.py checks
 		// Daggerfall's "picked up" line and Doom's counter against Doom's amounts.
 		case 90:
 		{
 			let tiers = DoomerfallAmmoTiers.Get();
 			if (timer > LIMIT) { Finish("no area level"); break; }
 			if (!tiers || tiers.areaLevel < 0 || timer < 35) break;
-			static const String PLAIN[] = { "Clip", "ClipBox", "Shell", "ShellBox", "RocketAmmo", "RocketBox", "Cell", "CellPack", "ClipBox", "RocketAmmo" };
-			static const int TYPES[] = { 0, 0, 1, 1, 2, 2, 3, 3, 0, 2 };
-			static const int WANT[] = { 0, 0, 0, 0, 0, 0, 0, 0, 2, 2 };
+			// Every size at Regular, two at Silver, and every size again at Ebony, the highest tier an area level 1 rolls.
+			static const String PLAIN[] = { "Clip", "ClipBox", "Shell", "ShellBox", "RocketAmmo", "RocketBox", "Cell", "CellPack", "ClipBox", "RocketAmmo",
+				"Clip", "ClipBox", "Shell", "ShellBox", "RocketAmmo", "RocketBox", "Cell", "CellPack" };
+			static const int TYPES[] = { 0, 0, 1, 1, 2, 2, 3, 3, 0, 2, 0, 0, 1, 1, 2, 2, 3, 3 };
+			static const int WANT[] = { 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 8, 8, 8, 8, 8, 8, 8, 8 };
 			for (int k = 0; k < PLAIN.Size(); k++)
 			{
 				vector3 at = SpotFor(TYPES[k], WANT[k], k);
@@ -437,6 +439,19 @@ class AMHarness : EventHandler
 				Actor.Spawn(PLAIN[k], at, NO_REPLACE);
 				sized.Push(null);
 				sizedWhat.Push(String.Format("%s %.0f %.0f %.0f", PLAIN[k], at.x, at.y, at.z));
+			}
+			// Drops: these script-spawned zombies count as summoned, and summoned monsters drop nothing (owner rule,
+			// dd_lootrng.cpp), so every size is also tossed as Doom's drop code does it (TOSSED, set before the converter
+			// judges it a tic later), at Regular and at Ebony.
+			for (int k = 0; k < 16; k++)
+			{
+				int j = k % 8, want = k < 8 ? 0 : 8;
+				vector3 at = SpotFor(TYPES[j], want, PLAIN.Size() + k);
+				if (at == (0, 0, 0)) { Console.Printf("AMSIZE no spot for tossed %s tier %d", PLAIN[j], want); continue; }
+				let t = Inventory(Actor.Spawn(PLAIN[j], at, NO_REPLACE));
+				if (t) t.bTOSSED = true;
+				sized.Push(null);
+				sizedWhat.Push(String.Format("%s %.0f %.0f %.0f tossed", PLAIN[j], at.x, at.y, at.z));
 			}
 			for (int i = 0; i < 10; i++)
 			{
@@ -460,7 +475,7 @@ class AMHarness : EventHandler
 				sizedWhat[k].Split(f, " ");
 				sized[k] = PickupNear((f[1].ToDouble(), f[2].ToDouble(), f[3].ToDouble()), 24, none);
 				let s = DoomerfallAmmoPickup(sized[k]);
-				Console.Printf("AMSIZE placed %s -> %s tier %d amount %d type %d", f[0], s ? String.Format("%s", s.GetClassName()) : "none", s ? s.tier : -1, s ? s.Amount : 0, s ? s.ammoType : -1);
+				Console.Printf(f.Size() > 4 ? "AMSIZE dropped by Toss_%s -> %s tier %d amount %d type %d" : "AMSIZE placed %s -> %s tier %d amount %d type %d", f[0], s ? String.Format("%s", s.GetClassName()) : "none", s ? s.tier : -1, s ? s.Amount : 0, s ? s.ammoType : -1);
 			}
 			// DRLA replaces Zombieman with a spawner that removes itself: kill the monsters standing where they spawned.
 			Array<Actor> spots;

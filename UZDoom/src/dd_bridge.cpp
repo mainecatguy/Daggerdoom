@@ -91,6 +91,7 @@ double DD_SetupAgeMs(int64_t now);
 double DD_SetupReadyMs();
 void DD_LightsSetCity(bool on);	// playsim/dd_lights.cpp
 bool DD_WeatherText(const char *text);	// playsim/dd_weather.cpp
+bool DFMesh_WindowText(const char *text);	// rendering/hwrenderer/scene/hw_dfmesh.cpp
 void DD_GuardsFrame(dfb_session *session, uint32_t context, bool inSpace, int32_t target);
 void DD_GuardDied(dfb_session *session, AActor *mo);
 
@@ -331,6 +332,7 @@ void HandleEvent(const dfb_event &e, int64_t now)
 		int lampsOn;
 		if (sscanf(text, "citylights %d", &lampsOn) == 1) { DD_LightsSetCity(lampsOn != 0); break; }	// Daggerfall's clock, for town lamps
 		if (DD_WeatherText(text)) break;	// Daggerfall's sky, light, weather and ambient sounds (dd_weather.cpp)
+		if (DFMesh_WindowText(text)) break;	// Daggerfall's window glow colour (hw_dfmesh.cpp)
 		Log("message from Daggerfall: \"%s\" (seq %u)", text, e.seq);
 		break;
 	}
@@ -743,10 +745,18 @@ static void RefreshSheet()
 	if (!logIt) return;
 	uint32_t sum = 2166136261u;
 	for (int value : sheet) sum = (sum ^ uint32_t(value)) * 16777619u;
-	Log("sheet: read v%u epoch %d valid %d level %d str %d/%d archery %d/%d armor0 %d/%d fire %d/%d sum %08x", version, sheet[DFB_SHEET_EPOCH],
+	Log("sheet: read v%u epoch %d valid %d level %d str %d/%d archery %d/%d armor0 %d/%d fire %d/%d sum %08x"
+		" shotguns %d/%d automatics %d/%d explosives %d/%d pistols %d/%d rifles %d/%d energy %d/%d melee %d/%d", version, sheet[DFB_SHEET_EPOCH],
 		sheet[DFB_SHEET_VALID], sheet[DFB_SHEET_LEVEL], sheet[DFB_SHEET_STATS_BASE], sheet[DFB_SHEET_STATS_LIVE],
 		sheet[DFB_SHEET_SKILLS_BASE + 33], sheet[DFB_SHEET_SKILLS_LIVE + 33], sheet[DFB_SHEET_ARMOR_BASE], sheet[DFB_SHEET_ARMOR_LIVE], // 33 is Archery
-		sheet[DFB_SHEET_RESIST_ACTIVE], sheet[DFB_SHEET_RESIST_CHANCE], (unsigned)sum);
+		sheet[DFB_SHEET_RESIST_ACTIVE], sheet[DFB_SHEET_RESIST_CHANCE], (unsigned)sum,
+		sheet[DFB_SHEET_SKILLS_BASE + DFB_SKILL_SHOTGUNS], sheet[DFB_SHEET_SKILLS_LIVE + DFB_SKILL_SHOTGUNS],
+		sheet[DFB_SHEET_SKILLS_BASE + DFB_SKILL_AUTOMATICS], sheet[DFB_SHEET_SKILLS_LIVE + DFB_SKILL_AUTOMATICS],
+		sheet[DFB_SHEET_SKILLS_BASE + DFB_SKILL_EXPLOSIVES], sheet[DFB_SHEET_SKILLS_LIVE + DFB_SKILL_EXPLOSIVES],
+		sheet[DFB_SHEET_SKILLS_BASE + DFB_SKILL_PISTOLS], sheet[DFB_SHEET_SKILLS_LIVE + DFB_SKILL_PISTOLS],
+		sheet[DFB_SHEET_SKILLS_BASE + DFB_SKILL_RIFLES], sheet[DFB_SHEET_SKILLS_LIVE + DFB_SKILL_RIFLES],
+		sheet[DFB_SHEET_SKILLS_BASE + DFB_SKILL_ENERGY], sheet[DFB_SHEET_SKILLS_LIVE + DFB_SKILL_ENERGY],
+		sheet[DFB_SHEET_SKILLS_BASE + DFB_SKILL_MELEE], sheet[DFB_SHEET_SKILLS_LIVE + DFB_SKILL_MELEE]);
 }
 
 // Daggerfall's current character sheet, indexed by DFB_SHEET_*, or null when there is no valid character.
@@ -755,6 +765,14 @@ const int32_t *DD_BridgeSheet()
 {
 	RefreshSheet();
 	return sheetVersion && sheet[DFB_SHEET_VALID] == 1 && sheet[DFB_SHEET_FORMAT] == DFB_SHEET_FORMAT_VERSION ? sheet : nullptr;
+}
+
+// Daggerfall's live value of one skill (DFCareer.Skills slot) for ZScript (Actor.DD_SheetSkill), or -1 without a
+// valid character, so a Doom-only game reads -1.
+int DD_BridgeSkillLive(int slot)
+{
+	const int32_t *s = DD_BridgeSheet();
+	return s && slot >= 0 && slot < DFB_SHEET_SKILLS_LIVE - DFB_SHEET_SKILLS_BASE ? s[DFB_SHEET_SKILLS_LIVE + slot] : -1;
 }
 
 // One line in the bridge log (-dfbridgelog) and the console, for the other dd_*.cpp files.

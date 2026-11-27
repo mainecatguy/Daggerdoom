@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <limits.h>
+#include <stdio.h>
 #include <string.h>
 #include <vector>
 
@@ -41,7 +42,11 @@ CVAR(Bool, dfmesh_view, true, 0)	// true: Daggerfall mesh. false: Doom collider 
 
 namespace
 {
-	struct Batch { FTextureID texture; int first, count; };	// an ID, so ANIMDEFS can pick the current frame
+	// texture is an ID, so ANIMDEFS can pick the current frame. window is the texture's window mask (dfwin/...), if it has one.
+	struct Batch { FTextureID texture; int first, count; FTextureID window; };
+	// Daggerfall's window emission colour (MaterialReader's window colour x intensity for the current WindowStyle),
+	// sent as "windows <r> <g> <b>". All zero (the default, and Daggerfall's Disabled style) draws no window pass.
+	float windowColor[3];
 	// Dynamic lights: the mesh is split into square cells, each with its own light list, so a fragment only
 	// evaluates the lights that can reach its cell. Cells hold their own batches, in vertex order.
 	constexpr float LIGHT_CELL = 1024.f;
@@ -83,7 +88,14 @@ namespace
 			memcpy(name, names + entry[0] * 32, 32);
 			FTextureID id = TexMan.CheckForTexture(name, ETextureType::Any, FTextureManager::TEXMAN_TryAny | FTextureManager::TEXMAN_ForceLookup);
 			if (!id.isValid() || !TexMan.GetGameTexture(id)) { DD_DebugPrintf(TEXTCOLOR_RED "DFMesh: missing texture %s\n", name); id.SetInvalid(); }
-			loaded.push_back({ id, entry[1], entry[2] });
+			FTextureID window;
+			window.SetInvalid();
+			if (!strncmp(name, "dfmesh/", 7))	// window masks are written only for Daggerfall's exterior window textures
+			{
+				FString mask = FString("dfwin/") + (name + 7);
+				window = TexMan.CheckForTexture(mask.GetChars(), ETextureType::Any, FTextureManager::TEXMAN_TryAny | FTextureManager::TEXMAN_ForceLookup);
+			}
+			loaded.push_back({ id, entry[1], entry[2], window });
 		}
 
 		// Vertices are x, height, y (GL order), 8 floats each. A triangle goes to the cell of its first corner,
@@ -120,7 +132,7 @@ namespace
 			Cell &cell = cells.back();
 			if (newCell || order[k - 1].batch != key.batch)
 			{
-				batches.push_back({ loaded[key.batch].texture, at, 0 });
+				batches.push_back({ loaded[key.batch].texture, at, 0, loaded[key.batch].window });
 				cell.batchCount++;
 			}
 			for (int c = 0; c < 3; c++, at++)
@@ -230,6 +242,48 @@ static int CellLights(const Cell &cell, const float offset[3])
 
 static void DrawWith(FRenderState &state, const float offset[3]);
 
+// Daggerfall's window emission: its window materials add the window colour where the texture's palette index is 255
+// (BaseImageFile.GetWindowColors32). The window batches are drawn again over themselves, additive and unlit, with the
+// mask texture tinted by the window colour. Fog fades the added light to nothing, as Unity's fog covers emission.
+static int DrawWindows(FRenderState &state, float fogDensity)
+{
+	int drawn = 0;
+	state.SetFog(PalEntry(1, 1, 1), fogDensity);	// near black: Doom treats pure black fade as light-level shading, not fog
+	state.SetColor(windowColor[0], windowColor[1], windowColor[2], 1.f);
+	state.SetRenderStyle(STYLE_Add);	// adds colour x mask alpha: far away the mipmaps average the glow, as Unity's emission does
+	state.AlphaFunc(Alpha_GEqual, 0.f);	// an alpha test would drop most of a distant window's lattice
+	state.SetDepthMask(false);
+	state.SetDepthFunc(DF_LEqual);
+	for (const Batch &batch : batches)
+	{
+		if (!batch.window.isValid()) continue;
+		state.SetMaterial(TexMan.GetGameTexture(batch.window, true), UF_Skin, 0, CLAMP_NONE, NO_TRANSLATION, -1);
+		state.Draw(DT_Triangles, batch.first, batch.count);
+		drawn += batch.count / 3;
+	}
+	state.SetDepthFunc(DF_Less);
+	state.SetDepthMask(true);
+	state.SetRenderStyle(STYLE_Source);
+	state.AlphaFunc(Alpha_GEqual, 0.f);
+	return drawn;
+}
+
+// "windows <r> <g> <b>" from Daggerfall (0 to 255). Returns false for any other text.
+bool DFMesh_WindowText(const char *text)
+{
+	float c[3];
+	if (sscanf(text, "windows %f %f %f", &c[0], &c[1], &c[2]) != 3) return false;
+	if (c[0] != windowColor[0] * 255 || c[1] != windowColor[1] * 255 || c[2] != windowColor[2] * 255)
+		DD_DebugPrintf("DFMESH windows %.0f %.0f %.0f\n", c[0], c[1], c[2]);
+	for (int i = 0; i < 3; i++) windowColor[i] = std::clamp(c[i], 0.f, 255.f) / 255.f;
+	return true;
+}
+
+CCMD(dfmesh_windows)	// the same line by hand, for runs without Daggerfall: dfmesh_windows "windows 204 146 45"
+{
+	if (argv.argc() < 2 || !DFMesh_WindowText(argv[1])) Printf("usage: dfmesh_windows \"windows <r> <g> <b>\"\n");
+}
+
 void DFMesh_Draw(FRenderState &state)
 {
 	const float none[3] = { 0, 0, 0 };
@@ -271,6 +325,7 @@ static void DrawWith(FRenderState &state, const float offset[3])
 		}
 	}
 	state.SetLightIndex(-1);
+	if (windowColor[0] + windowColor[1] + windowColor[2] > 0) submitted += DrawWindows(state, fog ? fogDensity : 0);
 	if (benchOn)
 	{
 		benchMinTriangles = std::min(benchMinTriangles, submitted);

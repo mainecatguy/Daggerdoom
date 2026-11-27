@@ -73,10 +73,13 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 
 - [Rethink the inventory window](backlog/rethink-inventory.md): Daggerfall's tabs fit Doom gear poorly. Design chat with the owner first.
 - [Doom weapon equipping and hotkeys](backlog/doom-weapon-equipping-and-hotkeys.md): Assign Doom weapons, items, and spells to hotkeys.
+- [Hotkey check uses plain squares only](backlog/hotkeys-plain-squares.md): A taken gun should fill its key when the plain squares are empty; today Ctrl and Alt also block it. Low value, waits on tokens.
 - [Inventory translation](backlog/inventory-translation.md): Translate DF items and DRLA gear both ways.
 - [Ammunition system](backlog/ammunition-system.md): Add material-tiered ammo as real inventory items.
 - [What DRLA armor does](backlog/drla-armor-role.md): Decide its role beside Daggerfall armor.
+- [Energy cells are hard to find](backlog/energy-cell-scarcity.md): Cell pickups become other ammo outside jackpots, 20% kept (owner, 2026-11-26).
 - [Area loot identity](backlog/area-loot-identity.md): Fixed per-dungeon lean on which kinds of gear drop. Never changes tier odds or fixed loot.
+- [Better floor gun label](backlog/floor-gun-label.md): Plain Doom name shows for a few frames before Daggerfall's; revisit (owner, 2026-11-26).
 - [DRLA recipes as Daggerfall rewards](backlog/drla-recipes-as-daggerfall-rewards.md): Make PDA recipes an item Daggerfall can award, only when DRLA is loaded.
 - [Hotkey clothing](backlog/hotkey-clothing.md): Allow clothing on hotkeys later.
 - [Doom items replace most weapon loot](backlog/doom-weapons-in-weapon-loot.md): 80% of weapon rolls, including 5% modpacks and 1% recipes. Revisit the rate later.
@@ -114,6 +117,7 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 ## Before initial release
 
 - [Daggerfall skills in Doom](backlog/skills-in-doom.md): Owner decisions: new gun skills, perks at 25/50/75/100, Jumping. In discussion.
+- [Dodging skill in Doom](backlog/dodging-skill.md): Needs a Doom definition, or removal (owner, 2026-11-26).
 - [Original weapon skills in Doom](backlog/original-weapon-skills.md): Short Blade, Long Blade, Axe, Blunt, Archery stay; make them work.
 - [Brutal Doom and a melee mod](backlog/brutal-melee-mods.md): Later, after mod compatibility research.
 - [Rifles skill](backlog/rifles-skill.md): New skill for rifles (was Marksmanship); no rifle counts as a pistol (owner, 2026-11-26). Later.
@@ -122,6 +126,7 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [Player manual](backlog/player-manual.md): Started at `manual.md` with HP; a specialist task decides its full scope.
 - [Final Doom class and difficulty for New Game](backlog/full-daggerfall-new-game-flow.md): Replace the temporary prompt and fixed class.
 - [Doom monsters block fast travel](backlog/doom-monsters-block-fast-travel.md): Decide whether and how nearby Doom monsters block travel.
+- [Strong boss leaders and young titans](backlog/boss-leaders.md): Weak leaders with huge escorts; titans below area level 20 as rare surprises. Card ready.
 - [Improve the random enemy roster](backlog/improve-the-random-enemy-roster.md): Weight or tier the uniform random roster.
 - [Random or deterministic options](backlog/random-or-deterministic-options.md): Checkboxes for random loot and random encounter theming. Deterministic is the default.
 - [Quest targets in mook packs](backlog/quest-targets-in-mook-packs.md): Decide how quest targets map onto packs.
