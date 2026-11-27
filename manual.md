@@ -160,7 +160,7 @@ A skill earns a **perk** when it reaches 25, 50, 75 and 100.
 ### Automatics
 
 Automatics covers chainguns, miniguns and other rapid-fire guns, such as the stock chaingun and the Battle Rifle. The
-Uzi is a Pistol, not an Automatic.
+Uzi and its variants are Automatics too.
 
 - **Damage:** automatic guns do more damage as the skill rises, up to 60% more at 100.
 - **25, burst fire:** the first 3 shots of each burst do 30% more damage. Let go of the trigger for a moment (0.3
