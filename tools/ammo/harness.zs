@@ -419,17 +419,19 @@ class AMHarness : EventHandler
 			if (timer == 175) { Report(String.Format("after change%d", k)); Next(); }
 			break;
 		}
-		// The sizes run: plain pickups of every size, placed where they roll Regular (and two where they roll Silver, to
-		// show rounding), and DRLA zombies killed for their drops. Each converted pickup is touched alone; ammo.py checks
+		// The sizes run: plain pickups of every size, placed where they roll Regular, Silver, or Ebony (every tier gives
+		// the same amount), and DRLA zombies killed for their drops. Each converted pickup is touched alone; ammo.py checks
 		// Daggerfall's "picked up" line and Doom's counter against Doom's amounts.
 		case 90:
 		{
 			let tiers = DoomerfallAmmoTiers.Get();
 			if (timer > LIMIT) { Finish("no area level"); break; }
 			if (!tiers || tiers.areaLevel < 0 || timer < 35) break;
-			static const String PLAIN[] = { "Clip", "ClipBox", "Shell", "ShellBox", "RocketAmmo", "RocketBox", "Cell", "CellPack", "ClipBox", "RocketAmmo" };
-			static const int TYPES[] = { 0, 0, 1, 1, 2, 2, 3, 3, 0, 2 };
-			static const int WANT[] = { 0, 0, 0, 0, 0, 0, 0, 0, 2, 2 };
+			// Every size at Regular, two at Silver, and every size again at Ebony, the highest tier an area level 1 rolls.
+			static const String PLAIN[] = { "Clip", "ClipBox", "Shell", "ShellBox", "RocketAmmo", "RocketBox", "Cell", "CellPack", "ClipBox", "RocketAmmo",
+				"Clip", "ClipBox", "Shell", "ShellBox", "RocketAmmo", "RocketBox", "Cell", "CellPack" };
+			static const int TYPES[] = { 0, 0, 1, 1, 2, 2, 3, 3, 0, 2, 0, 0, 1, 1, 2, 2, 3, 3 };
+			static const int WANT[] = { 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 8, 8, 8, 8, 8, 8, 8, 8 };
 			for (int k = 0; k < PLAIN.Size(); k++)
 			{
 				vector3 at = SpotFor(TYPES[k], WANT[k], k);

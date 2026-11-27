@@ -107,6 +107,13 @@ A skill earns a **perk** when it reaches 25, 50, 75 and 100.
 Some guns fit two weapon skills, for example a laser shotgun is both a Shotgun and an Energy Weapon. Such a gun uses
 whichever of its skills is higher, never both at once.
 
+## Ammo pickups
+
+Ammo comes in material tiers, from Regular through Steel, Silver and on up to Daedric. Higher tiers hit harder and
+are rarer, but a pickup of any tier holds the same amount as a Regular one: a clip is 10 bullets, a box of bullets 50,
+4 shells, a box of shells 20, 1 rocket, a box of rockets 5, a cell 20 and a cell pack 100. Ammo a monster drops holds
+half (at least 1). A shop pack of any tier holds 80 bullets, 20 shells, 8 rockets or 100 cells.
+
 ## Resting
 
 Press **Z** (rebind it in Options, Customize Controls, Doomerfall Controls as **Rest**) to open Daggerfall's rest

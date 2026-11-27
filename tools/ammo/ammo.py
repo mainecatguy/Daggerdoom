@@ -1,6 +1,6 @@
 """Reserve ammo in Daggerfall's inventory, with both real games, minimized. Based on tools/gun_icons/gun_icons.py.
 
-usage: ammo.py assemble | uzdoom | take | load | equip | equipload | check
+usage: ammo.py assemble | uzdoom | sizes | tiers | take | load | equip | equipload | check
 assemble: builds the review folder from this worktree's builds (UZDoom, bridge, launcher, Daggerfall Unity).
 uzdoom:   copies only a fresh UZDoom build into the review folder.
 take:     touch-picks a box of bullets, spends 5, lets Daggerfall's -dfammotest hook drop 7 bullets and add 20 shells,
@@ -17,6 +17,9 @@ material: (-dfmaterialtest) an Iron and a Daedric Shotgun on keys 3 and 4, shell
           each, back and forth, and with fists; checks the weapon material bonus (Iron -10%, Daedric +60%) multiplies
           with the ammo bonus, and that fists are unscaled. Autosaves with the Daedric gun up.
 materialload: loads that autosave and checks the Daedric bonus again.
+sizes:    touches small and large pickups of each type at several tiers, and monster drops; each must give stock
+          Doom's amount (the same for every tier) in Doom and in Daggerfall's inventory.
+tiers:    tiered drops and pickups; with -dfshoptest, checks that shop packs of every tier hold Regular's amount.
 check:    DOOM.WAD E1M1 with no bridge, stock and with the DRLA set.
 """
 import argparse
@@ -37,13 +40,13 @@ argv, sys.argv = sys.argv, sys.argv[:1]
 import install  # noqa: E402  (only for its registry isolation)
 sys.argv = argv
 
-REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\ammosize")  # Was review\ammo, ammo-pickup, ammo-equip, ammo-tiers, ammo-change, then weapon-material-damage, for earlier ammo runs.
+REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\ammosizefix")  # Was review\ammo, ammo-pickup, ammo-equip, ammo-tiers, ammo-change, weapon-material-damage, then ammosize, for earlier ammo runs.
 SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\doom-items")  # Data, sprite package, and demo items.
 BUILD = Path(r"D:\dev\DoomDaggerfall-build")
-UZ_BUILD = BUILD / "uzdoom-ammosize" / "Release"  # Built from this worktree (earlier runs: the *-items trees).
+UZ_BUILD = BUILD / "merge-skillcore" / "uzdoom" / "Release"  # Integration's latest engine build (earlier runs: the *-ammosize and *-items trees).
 SOUND = BUILD / "uzdoom-launcher" / "Release"
-BRIDGE_DLL = BUILD / "bridge-ammosize" / "Release" / "doomerfall_bridge.dll"
-LAUNCHER = BUILD / "launcher-ammosize" / "Release" / "doomerfall-launcher.exe"
+BRIDGE_DLL = BUILD / "merge-skillcore" / "bridge" / "Release" / "doomerfall_bridge.dll"
+LAUNCHER = BUILD / "merge-skillcore" / "launcher" / "Release" / "doomerfall-launcher.exe"
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
 MODS = GAME.parent / "GameMods"
@@ -154,7 +157,7 @@ def run(name):
     if load:
         uz += ["-dfloadtest", f"resume:{autosaves[-1]}"]
     df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), *(["-dfequiptest"] if equip else ["-dfshoptest"] if tiers else ["-dfchangeammotest"] if change else ["-dfmaterialtest"] if material else [] if sizes else ["-dfammotest"]), "-dfarealevel", "1" if sizes else "20", "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
-    timeout = 180 if (change or sizes) and not load else 120  # The reload checks add about 35 s; the sizes run touches about 15 pickups 2 s apart.
+    timeout = 240 if sizes else 180 if change and not load else 120  # The reload checks add about 35 s; the sizes run touches about 25 pickups 2 s apart.
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
                "--uzdoom-cwd", str(runs), "--log", str(launcher)]
@@ -233,6 +236,8 @@ def run(name):
         reload_checks(read(console))
     if sizes:
         size_checks(read(console), df_body)
+    if tiers and not load:
+        pack_checks(df_body)
     print("MATCH" if doom and all(doom.get(c) == dagger.get(c) for c in CLASSES) else "MISMATCH")
 
 
@@ -268,7 +273,6 @@ def reload_checks(body):
 # clip loads per large pickup, half a clip load for a dropped clip. Dropped pickups of other sizes: half, at least one
 # (UZDoom Ammo.ModifyDropAmount). Kept apart from DoomerfallAmmo.zs on purpose, so the check is independent.
 DOOM_SMALL, DOOM_LARGE = (10, 4, 1, 20), (50, 20, 5, 100)
-TIER_SHARE = (1, 0.75, 0.5, 0.375, 0.5, 0.375, 0.25, 0.25, 0.25, 0.125)  # The owner's stackMul relative to Regular's 2x.
 TIER_NAMES = ("Regular", "Steel", "Silver", "Moonstone", "Dwemer", "Adamantium", "Orichalcum", "Mithril", "Ebony", "Daedric")
 LARGE = ("ClipBox", "ShellBox", "RocketBox", "CellPack")
 
@@ -277,11 +281,11 @@ def expected(type_, tier, large, dropped):
     n = (DOOM_LARGE if large else DOOM_SMALL)[type_]
     if dropped:
         n = max(1, n // 2)
-    return max(1, int(n * TIER_SHARE[tier] + 0.5))
+    return n  # The same for every tier: higher tiers are rarer, not smaller (owner, 2026-11-26).
 
 
 def size_checks(body, df_body):
-    """Each touched pickup gives Doom's amount (scaled by its tier) in Doom's pickup and in Daggerfall's inventory, and
+    """Each touched pickup gives Doom's amount, whatever its tier, in Doom's pickup and in Daggerfall's inventory, and
     a pickup of the loaded tier raises Doom's counter by the same amount."""
     kinds = []
     for m in re.finditer(r"AMSIZE (?:placed (\w+)|dropped by (\w+)) -> \w+ tier (-?\d+) amount (\d+) type (-?\d+)", body):
@@ -304,7 +308,26 @@ def size_checks(body, df_body):
               f" | Daggerfall {take[2] + ' ' + take[0] if take else 'none'}{' (loaded)' if take and take[3] else ''} | Doom counter +{delta} | {'PASS' if ok else 'FAIL'}")
     drops = sum(k[2] for k in kinds)
     regular_drop = any(k[2] and k[3] == 0 and k[4] == 5 and k[5] == 0 for k in kinds)  # A Regular dropped clip: 5 bullets.
-    print("sizes:", "PASS" if ok_all and regular_drop else "FAIL", f"({drops} monster drops, {'a' if regular_drop else 'NO'} Regular dropped clip of 5)")
+    tiers = sorted({k[3] for k in kinds if k[3] > 0})
+    print("sizes:", "PASS" if ok_all and regular_drop and tiers else "FAIL", f"({drops} monster drops, {'a' if regular_drop else 'NO'} Regular dropped clip of 5,"
+          f" higher tiers touched: {', '.join(TIER_NAMES[t] for t in tiers) or 'NONE'})")
+
+
+SHOP_PACK = {"bullets": 80, "shotgun shells": 20, "rockets": 8, "energy cells": 100}  # A Regular shop pack, for every tier.
+
+
+def pack_checks(df_body):
+    """Every tiered stack on a restocked shelf (-dfshoptest) is a whole number of Regular-sized packs: 2-4 for
+    Regular, 1-2 for other tiers (DoomerfallAmmoTiers.StockShop)."""
+    stacks = re.findall(r"\[(\w+) ([a-z ]+?) x(\d+) \d+ gold\]", " ".join(l for l in df_body.splitlines() if "shoptest:" in l))
+    ok_all, higher = bool(stacks), 0
+    for tier, kind, count in stacks:
+        packs, rest = divmod(int(count), SHOP_PACK.get(kind, 0) or 1)
+        ok = kind in SHOP_PACK and rest == 0 and packs in ((2, 3, 4) if tier == "Regular" else (1, 2))
+        higher += tier != "Regular"
+        ok_all &= ok
+        print(f"  shelf {tier:10} {kind:15} x{count:>4} = {packs} pack(s) of {SHOP_PACK.get(kind)}{' + ' + str(rest) if rest else ''} {'PASS' if ok else 'FAIL'}")
+    print("packs:", "PASS" if ok_all and higher else "FAIL", f"({len(stacks)} stacks, {higher} of higher tiers)")
 
 
 def check():
