@@ -877,6 +877,32 @@ DEFINE_ACTION_FUNCTION(AActor, DD_SheetStat)
 	ACTION_RETURN_INT(DD_BridgeStatLive(stat));
 }
 
+int DD_BridgeSkillBase(int slot); // [Doomerfall] dd_bridge.cpp
+
+DEFINE_ACTION_FUNCTION(AActor, DD_SheetSkillBase)
+{
+	PARAM_PROLOGUE;
+	PARAM_INT(slot);
+	ACTION_RETURN_INT(DD_BridgeSkillBase(slot));
+}
+
+int DD_BridgeSheetValue(int index); // [Doomerfall] dd_bridge.cpp
+
+DEFINE_ACTION_FUNCTION(AActor, DD_SheetValue)
+{
+	PARAM_PROLOGUE;
+	PARAM_INT(index);
+	ACTION_RETURN_INT(DD_BridgeSheetValue(index));
+}
+
+int DD_BridgePlayerFlags(); // [Doomerfall] dd_bridge.cpp
+
+DEFINE_ACTION_FUNCTION(AActor, DD_PlayerFlags)
+{
+	PARAM_PROLOGUE;
+	ACTION_RETURN_INT(DD_BridgePlayerFlags());
+}
+
 // Why does this exist twice?
 DEFINE_ACTION_FUNCTION_NATIVE(AActor, GetSpawnHealth, SpawnHealth)
 {

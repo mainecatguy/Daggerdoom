@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x6fc147d27ab985d4UL;
+        public const ulong SchemaHash = 0x324f1817b9f85182UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -193,13 +193,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint HP_HEAL = 2;
         public const uint HPF_VALID = 1;  // dfb_df_state.hp_current and hp_max describe a live Daggerfall player
         public const uint HPF_DEAD = 2;  // Daggerfall reports the player dead
+        public const uint PLF_SLOWFALL = 1;  // dfb_df_state.player_flags: a Slowfall effect is active, so a fall starts over each frame (AcrobatMotor.ApplyGravity)
+        public const uint PLF_OUTDOOR_WATER = 2;  // the player is outdoors over a water tile (PlayerTileMapIndex 0), where a landing does no damage (AcrobatMotor.CheckFallingDamage)
         public const uint FACES_SLOT = 1;
         public const uint FACES_FORMAT_VERSION = 1;
         public const uint FACES_MAX = 3;  // Daggerfall's HUD shows at most three faces
         public const uint FACE_MAX_SIDE = 64;
         public const uint SHEET_SLOT = 0;
-        public const int SHEET_FORMAT_VERSION = 6;  // 3: skill slots 4-6 are the gun skills, 7-12 unused; 4: slot 7 is Pistols; 5: slot 8 is Rifles; 6: slots 9-10 are Energy Weapons and Melee
-        public const int SHEET_INTS = 155;
+        public const int SHEET_FORMAT_VERSION = 7;  // 3: skill slots 4-6 are the gun skills, 7-12 unused; 4: slot 7 is Pistols; 5: slot 8 is Rifles; 6: slots 9-10 are Energy Weapons and Melee; 7: Automatics perk rules
+        public const int SHEET_INTS = 162;
         public const int SHEET_FORMAT = 0;  // DFB_SHEET_FORMAT_VERSION
         public const int SHEET_EPOCH = 1;
         public const int SHEET_VALID = 2;  // 1 when this describes the current, fully loaded character
@@ -242,6 +244,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const int CLIMB_GRASP = 1;  // grab a wall while airborne; base 40
         public const int CLIMB_CONTINUE = 2;  // keep climbing; base 50
         public const int CLIMB_REGAIN = 3;  // regain a hold while slipping; base 20
+        public const int SHEET_AUTO_DAMAGE_BP = 155;  // damage bonus in 1/10000ths (+0% to +60% by skill)
+        public const int SHEET_AUTO_BURST_BP = 156;  // burst fire: this much more damage ...
+        public const int SHEET_AUTO_BURST_SHOTS = 157;  // ... on the first this many shots of a burst ...
+        public const int SHEET_AUTO_BURST_RESET_MS = 158;  // ... which restarts this long after the last shot
+        public const int SHEET_AUTO_SHOTS_PER_AMMO = 159;  // one ammo per this many shots; 1 or 0 is normal use
+        public const int SHEET_AUTO_SUNDER_BP = 160;  // each hit makes the enemy take this much more damage from all sources ...
+        public const int SHEET_AUTO_SUNDER_MAX_BP = 161;  // ... permanently, up to this much
         public const uint UI_NONE = 0;
         public const uint UI_TRAVEL_MAP = 1;
         public const uint UI_INVENTORY = 2;
@@ -1275,7 +1284,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(40)] public uint hpAppliedEvent;  // event_no of the last dfb_hp_event Daggerfall applied
         [FieldOffset(44)] public uint hpFlags;  // DFB_HPF_*
         [FieldOffset(48)] public int damageBonusBp;
-        [FieldOffset(52)] public uint pad0;
+        [FieldOffset(52)] public uint playerFlags;  // DFB_PLF_*: Daggerfall's falling damage exemptions, which Doom applies to its falls
         // 200 reserved bytes at offset 56
     }
 

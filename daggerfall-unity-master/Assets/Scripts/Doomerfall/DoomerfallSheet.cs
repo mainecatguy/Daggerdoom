@@ -206,6 +206,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             values[Dfb.SHEET_CLIMB_CHANCE + Dfb.CLIMB_CONTINUE] = FormulaHelper.CalculateClimbingChance(player, 50);
             values[Dfb.SHEET_CLIMB_CHANCE + Dfb.CLIMB_REGAIN] = FormulaHelper.CalculateClimbingChance(player, 20);
             values[Dfb.SHEET_CLIMB_ENHANCED] = player.IsEnhancedClimbing ? 1 : 0;
+            DoomerfallAutomaticsRules.Fill(values, player);
         }
 
         // The checksum lets a test compare this line with Doom's copy of the same version.

@@ -862,6 +862,9 @@ class Actor : Thinker native
 	native static bool DD_OnDaggerfallMap(); // [Doomerfall] a generated location, the overworld, or a converted dungeon
 	native clearscope static int DD_SheetSkill(int slot); // [Doomerfall] Daggerfall's live value of a skill (DFCareer.Skills slot), or -1 without a Daggerfall character
 	native clearscope static int DD_SheetStat(int stat); // [Doomerfall] Daggerfall's live value of an attribute (DFCareer.Stats: 0 Strength, 6 Speed), or -1 without a Daggerfall character
+	native clearscope static int DD_SheetSkillBase(int slot); // [Doomerfall] the same for the permanent (base) value, which perks follow
+	native clearscope static int DD_SheetValue(int index); // [Doomerfall] one DFB_SHEET_* value of Daggerfall's character sheet, or -1 without a Daggerfall character
+	native clearscope static int DD_PlayerFlags(); // [Doomerfall] Daggerfall's falling damage exemptions (1 Slowfall, 2 outdoor water), 0 without a bridge session
 	virtual clearscope int GetMaxHealth(bool withupgrades = false) const	// this only exists to make checks for player health easier so they can avoid the type check and just call this method.
 	{
 		return SpawnHealth();

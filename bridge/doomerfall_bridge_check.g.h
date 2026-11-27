@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x6fc147d27ab985d4ULL
+#define DFB_SCHEMA_HASH 0x324f1817b9f85182ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -193,13 +193,15 @@ static_assert((DFB_HP_HIT) == (1u), DFB_STALE);
 static_assert((DFB_HP_HEAL) == (2u), DFB_STALE);
 static_assert((DFB_HPF_VALID) == (1u), DFB_STALE);
 static_assert((DFB_HPF_DEAD) == (2u), DFB_STALE);
+static_assert((DFB_PLF_SLOWFALL) == (1u), DFB_STALE);
+static_assert((DFB_PLF_OUTDOOR_WATER) == (2u), DFB_STALE);
 static_assert((DFB_FACES_SLOT) == (1u), DFB_STALE);
 static_assert((DFB_FACES_FORMAT_VERSION) == (1u), DFB_STALE);
 static_assert((DFB_FACES_MAX) == (3u), DFB_STALE);
 static_assert((DFB_FACE_MAX_SIDE) == (64u), DFB_STALE);
 static_assert((DFB_SHEET_SLOT) == (0u), DFB_STALE);
-static_assert((DFB_SHEET_FORMAT_VERSION) == (6), DFB_STALE);
-static_assert((DFB_SHEET_INTS) == (155), DFB_STALE);
+static_assert((DFB_SHEET_FORMAT_VERSION) == (7), DFB_STALE);
+static_assert((DFB_SHEET_INTS) == (162), DFB_STALE);
 static_assert((DFB_SHEET_FORMAT) == (0), DFB_STALE);
 static_assert((DFB_SHEET_EPOCH) == (1), DFB_STALE);
 static_assert((DFB_SHEET_VALID) == (2), DFB_STALE);
@@ -242,6 +244,13 @@ static_assert((DFB_CLIMB_START) == (0), DFB_STALE);
 static_assert((DFB_CLIMB_GRASP) == (1), DFB_STALE);
 static_assert((DFB_CLIMB_CONTINUE) == (2), DFB_STALE);
 static_assert((DFB_CLIMB_REGAIN) == (3), DFB_STALE);
+static_assert((DFB_SHEET_AUTO_DAMAGE_BP) == (155), DFB_STALE);
+static_assert((DFB_SHEET_AUTO_BURST_BP) == (156), DFB_STALE);
+static_assert((DFB_SHEET_AUTO_BURST_SHOTS) == (157), DFB_STALE);
+static_assert((DFB_SHEET_AUTO_BURST_RESET_MS) == (158), DFB_STALE);
+static_assert((DFB_SHEET_AUTO_SHOTS_PER_AMMO) == (159), DFB_STALE);
+static_assert((DFB_SHEET_AUTO_SUNDER_BP) == (160), DFB_STALE);
+static_assert((DFB_SHEET_AUTO_SUNDER_MAX_BP) == (161), DFB_STALE);
 static_assert((DFB_UI_NONE) == (0u), DFB_STALE);
 static_assert((DFB_UI_TRAVEL_MAP) == (1u), DFB_STALE);
 static_assert((DFB_UI_INVENTORY) == (2u), DFB_STALE);
@@ -965,8 +974,8 @@ static_assert(offsetof(dfb_df_state, hp_flags) == 44, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_df_state::hp_flags), uint32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_df_state, damage_bonus_bp) == 48, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_df_state::damage_bonus_bp), int32_t>::value, DFB_STALE);
-static_assert(offsetof(dfb_df_state, pad0) == 52, DFB_STALE);
-static_assert(std::is_same<decltype(dfb_df_state::pad0), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_df_state, player_flags) == 52, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_df_state::player_flags), uint32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_df_state, reserved) == 56, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_df_state::reserved), uint8_t[200]>::value, DFB_STALE);
 

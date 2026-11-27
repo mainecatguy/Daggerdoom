@@ -94,7 +94,7 @@ Impish) are gone: you can no longer calm monsters by speaking to them.
   maker cannot make Enhances Skill items for the weapon skills.
 - A character imported from a classic Daggerfall save starts the weapon skills untrained; their old language values
   and practice are not carried over.
-- The gun skills do not change how guns behave yet.
+- Automatics changes how its guns behave (see "Automatics" below). The other gun skills do not yet.
 
 ### Class skills
 
@@ -156,6 +156,49 @@ A skill earns a **perk** when it reaches 25, 50, 75 and 100.
 - Loading a save does not show perks you already have.
 - So far, Jumping and the gun skills (Shotguns, Automatics and Explosives) have perks. The window says when a perk
   does not work yet.
+
+### Automatics
+
+Automatics covers chainguns, miniguns and other rapid-fire guns, such as the stock chaingun and the Battle Rifle. The
+Uzi is a Pistol, not an Automatic.
+
+- **Damage:** automatic guns do more damage as the skill rises, up to 60% more at 100.
+- **25, burst fire:** the first 3 shots of each burst do 30% more damage. Let go of the trigger for a moment (0.3
+  seconds) and the next burst gets the bonus again, so short bursts hit harder than holding the trigger down.
+- **50:** every second shot uses no ammo.
+- **75:** each hit makes the enemy take 1% more damage from everything, yours and anyone else's, up to 15%. It never
+  wears off for that enemy.
+- **100:** automatic guns use only 1 ammo for every 4 shots.
+- The bonuses add up: a burst shot at 100 does 1.6 x 1.3, about twice the damage.
+- Only hits from the automatic gun itself get these bonuses. A rocket, grenade or exploding barrel that goes off while
+  you hold an automatic gets nothing. A shot from an automatic gun keeps its bonus even if you switch weapons before
+  it lands.
+- These only work in the Daggerfall world. Your current skill counts, so an effect that lowers or raises the skill
+  changes them too.
+
+## Falling and jumping
+
+In Daggerfall's world, falls hurt, by Daggerfall's own rule:
+
+- A fall is measured from where you left the ground to where you land. The first **5 metres** are free; every metre
+  past that costs **5 HP**. A 9 metre drop costs 20 HP, a 15 metre drop 50 HP. Armor does not help.
+- A jump that lands where it started never hurts, however high it goes, double and triple jumps included.
+- Grabbing a wall while climbing starts the fall over from there.
+- Landing outdoors on a sea or lake tile never hurts, as in Daggerfall.
+- While a **Slowfall** spell is active, falls do not hurt. If it runs out in mid-air, only the part of the fall after
+  it ran out counts. Slowfall does not make you fall more slowly yet; you fall at the normal speed.
+
+Your **Jumping** skill (the permanent value on your character sheet) changes how you jump:
+
+- Every point of Jumping makes your jumps 1% higher, up to twice as high at 100.
+- **25:** a sudden boost of 25% more height on top of that (so at 100 your jumps are 2.25 times as high).
+- **50:** double jump. Press Jump again in mid-air to jump once more, as strong as a jump from the ground. You can
+  also use it after walking off an edge.
+- **75:** falling no longer hurts you.
+- **100:** triple jump. You can jump twice in mid-air.
+
+Below 75, Jumping does not lower falling damage yet. Jumping does not train by jumping in Doom yet; train it at a
+guild.
 
 ## Weapons that belong to two skills
 

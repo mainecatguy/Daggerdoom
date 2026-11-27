@@ -815,6 +815,28 @@ int DD_BridgeStatLive(int stat)
 	return s && stat >= 0 && stat < DFB_SHEET_SKILLS_BASE - DFB_SHEET_STATS_LIVE ? s[DFB_SHEET_STATS_LIVE + stat] : -1;
 }
 
+// The same for the permanent (base) value, which perks follow (Actor.DD_SheetSkillBase).
+int DD_BridgeSkillBase(int slot)
+{
+	const int32_t *s = DD_BridgeSheet();
+	return s && slot >= 0 && slot < DFB_SHEET_SKILLS_LIVE - DFB_SHEET_SKILLS_BASE ? s[DFB_SHEET_SKILLS_BASE + slot] : -1;
+}
+
+// One value of the character sheet (DFB_SHEET_* index) for ZScript (Actor.DD_SheetValue), such as the perk rules
+// Daggerfall sends (DFB_SHEET_AUTO_*). -1 without a valid character or for an index out of range.
+int DD_BridgeSheetValue(int index)
+{
+	const int32_t *s = DD_BridgeSheet();
+	return s && index >= 0 && index < DFB_SHEET_INTS ? s[index] : -1;
+}
+
+// Daggerfall's falling damage exemptions for ZScript (Actor.DD_PlayerFlags): DFB_PLF_* from its last published state,
+// 0 with no session.
+int DD_BridgePlayerFlags()
+{
+	return session && peerSeen ? int(peerState.player_flags) : 0;
+}
+
 // One line in the bridge log (-dfbridgelog) and the console, for the other dd_*.cpp files.
 void DD_BridgeLog(const char *text) { Log("%s", text); }
 
