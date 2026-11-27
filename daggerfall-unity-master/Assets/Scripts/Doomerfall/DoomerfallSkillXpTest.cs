@@ -121,6 +121,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
             Log(string.Format("SXBOUGHT {0} points of {1} ({2} -> {3}), test grant {4} XP, earned {5}, ready {6}", bought, name, startValue,
                 P.Skills.GetPermanentSkillValue(skill), grant, earned, P.ReadyToLevelUp));
+            for (int i = 0; i < list.Count; i++)
+                if (list.GetItem(i).textLabel.Text.EndsWith("  Jumping"))
+                    list.SelectIndex(i);
+            yield return null;
+            LogMenu("SXPERKS");
             yield return new WaitForSecondsRealtime(1f);
             menu.CloseWindow();
             yield return new WaitForSecondsRealtime(1f);
@@ -128,6 +133,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
             // Save, spoil, load.
             SaveLoadManager saves = GameManager.Instance.SaveLoadManager;
+            P.SkillXp += 777; // test grant, so the saved pool is not zero
             int poolSaved = P.SkillXp, skillSaved = P.Skills.GetPermanentSkillValue(skill), levelSaved = P.Level;
             string character = P.Name;
             saves.Save(character, "SkillXpTest");

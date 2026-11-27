@@ -11,8 +11,10 @@ POINT (with logged test XP once the earned XP is spent) until a level-up, lets t
 Daggerfall's save, spoils the pool and the skill, loads and logs what came back.
 check: DOOM.WAD E1M1 with no bridge, stock and with the DRLA set, the new key event doing nothing there, and -norun.
 """
-import re
 import shutil
+import struct
+import zlib
+import re
 import subprocess
 import sys
 import time
@@ -45,6 +47,20 @@ BINDS = ["+bind", "u", "netevent df_skills"]
 
 def read(path):
     return path.read_text(errors="replace") if path.exists() else ""
+
+
+def lumps(path):
+    with open(path, "rb") as f:
+        f.read(4)
+        count = struct.unpack("<i", f.read(4))[0]
+        heads = [(f.read(8).rstrip(bytes(1)).decode(), *struct.unpack("<II", f.read(8))) for _ in range(count)]
+        return {name: zlib.decompress(f.read(packed)) if raw else b"" for name, raw, packed in heads}
+
+
+def store_door():
+    """The town's first building door (as tools/townsperson_talk): townspeople walk the streets around it."""
+    rows = [l.split() for l in lumps(REVIEW / "data" / "cache" / f"T{GROUP:05d}.ddt")["DDDOORS"].decode().splitlines() if l.startswith("0 ")]
+    return ", ".join(rows[0][3:8])
 
 
 def unity():
@@ -121,13 +137,13 @@ def run():
     shutil.rmtree(REVIEW / "dfu" / "PortableAppdata" / "Saves", ignore_errors=True)
     harness = d / "harness.pk3"
     with zipfile.ZipFile(harness, "w") as z:
-        z.writestr("zscript.txt", (HERE / "harness.zs").read_text())
+        z.writestr("zscript.txt", (HERE / "harness.zs").read_text().replace("@DOOR@", store_door()))
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "SXHarness" }\n')
     uz = ["-noactivate", "-config", str(d / "uz.ini"), "-savedir", str(d / "saves"), "-dfbridgelog", str(uz_log), "-nosound", "-noautoload", "-skill", "3",
           "-ddtowncache", str(REVIEW / "data" / "cache"), "-ddconverter", str(REVIEW / "data" / "converter" / "DungeonConverter.exe"), "-ddarena2", str(GAME / "DAGGER" / "ARENA2"),
           "-dfuitest", "1", "+dd_ui_test_hold", "1", "+dd_ui_test_menu", "15", *BINDS, "+logfile", "skillxp", "+screenshot_dir", str(d / "shots"), "+vid_fullscreen", "0",
           "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{GROUP:05d}"]
-    df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), "-dfskillxptest", str(test),
+    df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), "-dfskillxptest", str(test), "-dftownhour", "12",
           "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "400"]
     command = [sys.executable, QUIET, "--timeout", "260", "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),

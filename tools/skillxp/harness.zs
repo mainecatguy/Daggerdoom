@@ -5,8 +5,9 @@ version "4.14"
 // Then it lets the bridge's -dfuitest open the skills menu through its key command (netevent df_skills, menu 15).
 class SXHarness : EventHandler
 {
-	bool monsters, townsperson, released;
-	int total;
+	static const double DOORDATA[] = { @DOOR@ };
+	bool monsters, hurt, townsperson, released;
+	int total, ready;
 
 	override void WorldTick()
 	{
@@ -14,7 +15,14 @@ class SXHarness : EventHandler
 		let p = players[0].mo;
 		p.bNOTARGET = true;
 		players[0].cheats |= CF_GODMODE;
-		if (!monsters && level.maptime == 70)
+		if (!ready && CVar.FindCVar("dd_sync_df_phase").GetInt() == 3) ready = level.maptime;
+		if (!ready) return;
+		if (level.maptime == ready + 1) // stand in the street by the town's first shop, where townspeople walk
+		{
+			p.SetOrigin(((DOORDATA[0], DOORDATA[1]) + (DOORDATA[3], DOORDATA[4]) * 200, DOORDATA[2]), false);
+			p.vel = (0, 0, 0);
+		}
+		if (!monsters && level.maptime == ready + 35 * 4)
 		{
 			monsters = true;
 			for (int i = 0; i < 3; i++)
@@ -22,13 +30,24 @@ class SXHarness : EventHandler
 				Name kind = i == 0 ? 'BaronOfHell' : 'ZombieMan';
 				let mo = Actor.Spawn(kind,p.Vec3Angle(160 + 40 * i, p.angle + 20 * (i - 1)), ALLOW_REPLACE);
 				if (!mo) continue;
+				Console.Printf("SXSPAWN %s", mo.GetClassName());
+			}
+		}
+		if (monsters && !hurt && level.maptime == ready + 35 * 5) // DRLA spawners have placed the real monsters by now
+		{
+			hurt = true;
+			Actor mo;
+			let it = ThinkerIterator.Create("Actor");
+			while (mo = Actor(it.Next()))
+			{
+				if (!mo.bIsMonster || mo.health <= 0 || mo.Distance2D(p) > 400) continue;
 				int h = mo.health;
 				int taken = mo.DamageMobj(p, p, 100000, 'None');
 				total += h;
 				Console.Printf("SXHIT %s health %d, hit for 100000, took %d", mo.GetClassName(), h, taken);
 			}
 		}
-		if (monsters && !townsperson && level.maptime >= 140 && level.maptime <= 1400)
+		if (hurt && !townsperson && level.maptime <= ready + 35 * 60)
 		{
 			Actor mo;
 			let it = ThinkerIterator.Create("Actor");
@@ -43,7 +62,7 @@ class SXHarness : EventHandler
 				break;
 			}
 		}
-		if (!released && (townsperson || level.maptime > 1400))
+		if (!released && (townsperson || level.maptime > ready + 35 * 60))
 		{
 			released = true;
 			if (!townsperson) Console.Printf("SXTOWNSPERSON none found");
