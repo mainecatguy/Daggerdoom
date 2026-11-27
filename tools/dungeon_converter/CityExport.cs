@@ -282,7 +282,7 @@ static partial class Program
                 if (npcAnimation.Length > 0) Text("ANIMDEFS", npcAnimation.ToString());
                 Text("MODELDEF", catalogModels.ToString());
                 // One map entry is the template for every generated location. The engine gives each its own copy.
-                Text("MAPINFO", "GameInfo\n{\n\tAddEventHandlers = \"DFRuntimeHandler\", \"DFDoorHandler\", \"DFActionHandler\"\n}\nmap DDTOWN \"Daggerfall Location\"\n{\n\tpixelratio = 1.0\n\tsky1 = \"DFSKY\"\n\tkeepfullinventory\n}\n");
+                Text("MAPINFO", "GameInfo\n{\n\tAddEventHandlers = \"DFRuntimeHandler\", \"DFDoorHandler\", \"DFActionHandler\"\n}\nmap DDTOWN \"Daggerfall Location\"\n{\n\tpixelratio = 1.0\n\tsky1 = \"DFSKY\"\n\tkeepfullinventory\n}\nmap DDDUNGN \"Daggerfall Dungeon\"\n{\n\tpixelratio = 1.0\n\tkeepfullinventory\n\tUsePlayerStartZ\n}\n");
                 string doors = File.ReadAllText(Path.Combine(SourceDirectory(), "door_objects.zs"));
                 doors = doors.Substring(doors.IndexOf((char)10) + 1);
                 string actionScript = string.Join((char)10, File.ReadAllLines(Path.Combine(SourceDirectory(), "action_objects.zs")).Where(line => !line.StartsWith("version ")));
