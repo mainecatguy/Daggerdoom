@@ -329,67 +329,79 @@ class DoomerfallAmmoTiers : StaticEventHandler
 	// Each tiered pickup keeps the size of the pickup it replaces (small, large, or dropped), in Doom's amounts.
 	void Convert(Inventory plain, int type, bool box, bool dropped, vector3 spawned, int lootSeed)
 	{
-		static const int TownTiers[] = { 1, 3, 4, 6, 7 }; // Steel, Moonstone, Dwemer, Orichalcum, Mithril
 		static const String TypeNames[] = { "Clip", "Shell", "Rocket", "Cell" };
 		// A drop from a fixed loot roll (or a map thing) rolls from its engine seed, which does not depend on where the
 		// monster happened to die; anything else from its map and spot.
 		int seed = lootSeed != 0 ? Mix(Mix(0x011c9dc5, lootSeed), type + 1) : Seed(spawned, type);
+		Drop(plain.pos, plain.vel, type, box, dropped, seed);
+		Console.PrintfEx(PRINT_LOG, "DFAMMO size %s%s %s -> %d rounds", box ? "large " : "small ", TypeNames[type], dropped ? "dropped" : "placed",
+			DoomerfallAmmoPickup.Rounds(type, box, dropped));
+		plain.Destroy();
+	}
+
+	// One ammo drop of one type and size at a spot: the jackpot, or one pickup of a rolled tier.
+	void Drop(vector3 at, vector3 vel, int type, bool box, bool dropped, int seed)
+	{
+		static const int TownTiers[] = { 1, 3, 4, 6, 7 }; // Steel, Moonstone, Dwemer, Orichalcum, Mithril
+		static const String TypeNames[] = { "Clip", "Shell", "Rocket", "Cell" };
 		if (Unit(seed, 1) < JackpotChance)
 		{
 			int tier = TownTiers[min(4, int(Unit(seed, 2) * 5))];
 			int count = type == 2 ? 10 : 20;
 			for (int i = 0; i < count; i++)
 			{
-				let p = SpawnTier(plain, type, tier, box, dropped);
+				let p = SpawnTier(at, type, tier, box, dropped);
 				if (p == null) continue;
 				double angle = Unit(seed, 10 + i) * 360, speed = 2 + Unit(seed, 40 + i) * 6;
 				p.vel = (cos(angle) * speed, sin(angle) * speed, 4 + Unit(seed, 70 + i) * 5);
 			}
-			DDLog.Debug(String.Format("DFAMMO jackpot %s tier %d x%d at %.0f %.0f level %d", TypeNames[type], tier, count, plain.pos.x, plain.pos.y, areaLevel));
+			DDLog.Debug(String.Format("DFAMMO jackpot %s tier %d x%d at %.0f %.0f level %d", TypeNames[type], tier, count, at.x, at.y, areaLevel));
 		}
 		else
 		{
 			int tier = RollTier(areaLevel, Unit(seed, 3), Unit(seed, 4));
-			let p = SpawnTier(plain, type, tier, box, dropped);
-			if (p != null) p.vel = plain.vel;
-			DDLog.Debug(String.Format("DFAMMO drop %s tier %d at %.0f %.0f level %d", TypeNames[type], tier, plain.pos.x, plain.pos.y, areaLevel));
+			let p = SpawnTier(at, type, tier, box, dropped);
+			if (p != null) p.vel = vel;
+			DDLog.Debug(String.Format("DFAMMO drop %s tier %d at %.0f %.0f level %d", TypeNames[type], tier, at.x, at.y, areaLevel));
 		}
-		Console.PrintfEx(PRINT_LOG, "DFAMMO size %s%s %s -> %d rounds", box ? "large " : "small ", TypeNames[type], dropped ? "dropped" : "placed",
-			DoomerfallAmmoPickup.Rounds(type, box, dropped));
-		if (dropped && lootSeed != 0) LuckDrop(plain, type, box, seed);
-		plain.Destroy();
 	}
 
-	// ---- Luck (card attributes/04, owner 2026-11-26) -------------------------------------------------------------
-	// Daggerfall's live Luck makes monsters' ammo drops more frequent: each ammo drop from a monster's fixed loot roll
-	// has a Luck in 100 chance (Luck above 100 counts as 100) to come with one more ordinary drop of the same ammo and
-	// size, so +1% drops at Luck 1 and +100% at 100. Its own stream: a hash of the drop's seed with its own salt, so
-	// it draws from no random stream and the fixed loot (what drops, its tier, any jackpot) is the same at every Luck.
-	// The same drop gets the same number every game, so a luckier character gets every extra drop a less lucky one does.
+	// ---- Luck (owner 2026-11-27, replacing card attributes/04's extra-drop rule) ---------------------------------
+	// Every kill has a Luck/2 percent chance to drop ammo (0% at Luck 0, 50% at Luck 100; Luck above 100 counts as 100;
+	// no chance without Luck). Daggerfall sends live Luck with the character sheet (DD_SheetStat). Only a kill with a
+	// fixed loot seed rolls: a monster Daggerfall placed, not a summoned or revived one, which drops nothing (dd_lootrng).
+	// The roll is a hash of that seed with its own salt, so it draws from no random stream and leaves the monster's own
+	// loot untouched, and the same kill gets the same number every game. The drop is one ordinary monster ammo drop
+	// (half a small pickup) of a type picked evenly from the four by the same hash, with the usual tier and jackpot odds.
 	const LuckStat = 7; // DFCareer.Stats.Luck
 	const LuckSalt = 0x4c75636b;
 
-	void LuckDrop(Inventory plain, int type, bool box, int seed)
+	override void WorldThingDied(WorldEvent e)
 	{
 		static const String TypeNames[] = { "Clip", "Shell", "Rocket", "Cell" };
+		let mo = e.Thing;
+		if (!rules || areaLevel < 0 || mo == null || !mo.bISMONSTER || mo.player) return;
+		int lootSeed = mo.DD_LootSeed();
+		if (lootSeed == 0) return;
 		int luck = Actor.DD_SheetStat(LuckStat);
 		if (luck <= 0) return;
-		int luckSeed = Mix(seed, LuckSalt);
-		if (Unit(luckSeed, 1) * 100 >= min(luck, 100)) return;
-		int tier = RollTier(areaLevel, Unit(luckSeed, 3), Unit(luckSeed, 4));
-		let p = SpawnTier(plain, type, tier, box, true);
-		if (p == null) return;
-		double angle = Unit(luckSeed, 5) * 360;
-		p.vel = plain.vel + (cos(angle) * 2, sin(angle) * 2, 2);
-		DDLog.Debug(String.Format("DFAMMO luck drop %s tier %d at %.0f %.0f luck %d", TypeNames[type], tier, plain.pos.x, plain.pos.y, luck));
+		int seed = Mix(Mix(0x011c9dc5, lootSeed), LuckSalt);
+		double roll = Unit(seed, 1);
+		bool drop = roll * 200 < min(luck, 100);
+		DDLog.Debug(String.Format("DFAMMO luck kill %s luck %d roll %.4f %s", mo.GetClassName(), luck, roll, drop ? "drop" : "none"));
+		if (!drop) return;
+		int type = min(3, int(Unit(seed, 2) * 4));
+		double angle = Unit(seed, 3) * 360;
+		DDLog.Debug(String.Format("DFAMMO luck drop %s at %.0f %.0f luck %d", TypeNames[type], mo.pos.x, mo.pos.y, luck));
+		Drop(mo.pos + (0, 0, 32), mo.vel + (cos(angle) * 2, sin(angle) * 2, 5), type, false, true, Mix(seed, type + 1));
 	}
 
-	static Inventory SpawnTier(Actor at, int type, int tier, bool box, bool dropped)
+	static Inventory SpawnTier(vector3 at, int type, int tier, bool box, bool dropped)
 	{
 		static const String TypeNames[] = { "Clip", "Shell", "Rocket", "Cell" };
 		class<Actor> cls = String.Format("DFAmmo_%s_%d", TypeNames[type], tier);
 		if (cls == null) return null;
-		let p = Inventory(Actor.Spawn(cls, at.pos, NO_REPLACE));
+		let p = Inventory(Actor.Spawn(cls, at, NO_REPLACE));
 		if (p) p.Amount = DoomerfallAmmoPickup.Rounds(type, box, dropped);
 		return p;
 	}
