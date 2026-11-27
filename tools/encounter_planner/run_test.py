@@ -28,6 +28,8 @@ FAMILIES = {'Standard', 'Nightmare', 'Technophobia', 'Armageddon'}
 TITANS = {'EX', 'BlackWhite'}
 STOCK17 = {'ZombieMan', 'ShotgunGuy', 'ChaingunGuy', 'DoomImp', 'Demon', 'Spectre', 'LostSoul', 'Cacodemon', 'HellKnight',
            'BaronOfHell', 'Arachnotron', 'PainElemental', 'Revenant', 'Fatso', 'Archvile', 'Cyberdemon', 'SpiderMastermind'}
+RING = ('ZombieMan,ShotgunGuy,ChaingunGuy,DoomImp,Demon,Spectre,LostSoul,Cacodemon,PainElemental,HellKnight,BaronOfHell,'
+        'Revenant,Archvile,Fatso,Arachnotron,SpiderMastermind,Cyberdemon').split(',')  # kind_ring in doomerfall_encounters.txt
 
 
 def run(exe, work, iwad, files, name, extra, timeout=40, skill='3'):
@@ -96,6 +98,66 @@ def appendix_genes(idx):
 
 def is_colour(e):
     return int(e['tier']) < 8 and e['group'] not in FAMILIES and e['group'] not in TITANS and e['group'] != 'Stock'
+
+
+def cost(pm):
+    return max(1, int(float(pm['points']) * 100 + 0.5))
+
+
+def ring_distance(a, b):
+    return abs(RING.index(a) - RING.index(b))   # no wrap, as the planner's stand-in ranking
+
+
+def check_standin(name, pool, plans, armies, warns, checks):
+    """Stand-in for an unaffordable regional favourite: bought favourite classes are affordable; a favourite kind
+    with no affordable class (and not already in the army) gets an affordable stand-in of another kind."""
+    problems, standins, fits = [], 0, 0
+    for idx, plan in plans.items():
+        a = armies[idx].get('A')
+        if not a or plan['regionkind'] == '-':
+            continue
+        kind, afford, cw = plan['regionkind'], int(plan['regionafford']), plan['civilwar'] == '1'
+        usable = [c for c, pm in pool.items() if pm['kind'] == kind and pm['capped'] == '0' and pm['group'] not in TITANS
+                  and (not cw or pm['civilwar'] == 'safe')]
+        cheapest = min((cost(pool[c]) for c in usable), default=None)
+        others = [e for e in a['list'] if e['role'] not in ('region', 'standin')]
+        if a['region'] == 'standin':
+            standins += 1
+            st = [e for e in a['list'] if e['role'] == 'standin']   # the stand-in and its DRLA family variants
+            top = [e for e in st if e['parent'] == '-']
+            ref = pool.get(a['regionref'])
+            if len(top) != 1 or not ref:
+                problems.append(f'{idx} standin entries {len(top)} ref {a["regionref"]}')
+                continue
+            s = top[0]
+            if (s['kind'] == kind or any(cost(pool[e['cls']]) > afford for e in st) or ref['kind'] != kind
+                    or cost(ref) <= afford):
+                problems.append(f'{idx} standin {[e["cls"] for e in st]} for {a["regionref"]} at afford {afford}')
+            fits += ref['group'] == s['group'] or ring_distance(kind, s['kind']) <= 2
+        elif a['region'] == 'region':
+            e = [e for e in a['list'] if e['role'] == 'region']
+            if not e or any(cost(pool[x['cls']]) > afford for x in e):
+                problems.append(f'{idx} favourite {[x["cls"] for x in e]} bought above afford {afford}')
+        if cheapest is not None and cheapest > afford and not any(e['kind'] == kind for e in others) and a['region'] != 'standin':
+            problems.append(f'{idx} {kind} unaffordable ({cheapest} > {afford}) but region={a["region"]}')
+    checks.append((f'{name}: favourite bought only when affordable, else an affordable stand-in of another kind '
+                   f'({standins} stand-ins, {fits} share colour/family or sit within 2 on the kind ring) {problems[:4]}',
+                   not problems and standins > 0))
+    rw = [w for w in warns if 'region' in w]
+    checks.append((f'{name}: no regional favourite warnings {rw[:3]}', not rw))
+    ladder = sorted((int(plans[i]['level']), i) for i in plans if 3790 <= i <= 3860 and plans[i]['cell'] == '10,5')
+    rows = []
+    for lvl, i in ladder:
+        a = armies[i]['A']
+        e = next((e for e in a['list'] if e['kind'] == plans[i]['regionkind'] or e['role'] == 'standin'), None)
+        rows.append((lvl, a['region'], e['cls'] if e else '-'))
+    print(f'{name}: cell 10,5 ladder, favourite {plans[ladder[0][1]]["regionkind"] if ladder else "-"}: '
+          + ', '.join(f'L{l} {h} {c}' for l, h, c in rows))
+    lw = [w for w in warns if 3790 <= int(w.split('idx=')[1].split()[0]) <= 3860]
+    ok = len(rows) == 11 and rows[0][1] == 'standin' and rows[-1][1] != 'standin' and not lw
+    checks.append((f'{name}: cell 10,5 level ladder: stand-in at level {rows[0][0] if rows else "-"}, favourite itself at level '
+                   f'{rows[-1][0] if rows else "-"} ({sum(r[1] == "standin" for r in rows)}/{len(rows)} stand-ins), '
+                   f'no planner warnings {lw[:2]}', ok))
 
 
 def check_setup(name, lines, out, checks, stock=False):
@@ -179,6 +241,7 @@ def check_setup(name, lines, out, checks, stock=False):
                 for k, p in enumerate(cluster) for q in cluster[k + 1:]), default=0)
     checks.append((f'{name}: {len(cluster)} neighbours in cell 10,5 share favourite kind {shared}, present in every army, '
                    f'and otherwise differ (fewest differing genes {gmin})', len(cluster) >= 10 and len(shared) == 1 and present and gmin >= 7))
+    check_standin(name, pool, plans, armies, warns, checks)
     ncw = sum(p['civilwar'] == '1' for p in plans.values())
     checks.append((f'{name}: Civil War in {ncw}/{len(plans)} plans (design: about 35%)', 0.2 * len(plans) < ncw < 0.5 * len(plans)))
     return out, warns

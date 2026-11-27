@@ -50,6 +50,16 @@ class DoomerfallEncounterPlanTest : StaticEventHandler
 			Run(3720 + k * 7,types[(k * 5) % types.Size()], 490 + k * 3, 245 + k * 4, 10 + k);
 			made++;
 		}
+		// A level ladder in the same cell (0, 3, .. 30): its favourite is out of reach low and affordable high.
+		// Types every setup has theme monsters for, so any warning here is the region rule's. No Dragon's Den or Vampire
+		// Haunt (they are counted at 120 each).
+		static const String ladder[] = { "OrcStronghold", "Prison", "Mine", "NaturalCave", "DesecratedTemple", "RuinedCastle",
+			"SpiderNest", "GiantStronghold", "Cemetery", "BarbarianStronghold", "Crypt" };
+		for (int k = 0; k <= 10; k++)
+		{
+			Run(3790 + k * 7, ladder[k], 482 + k * 4, 242 + k * 4, k * 3);
+			made++;
+		}
 		Console.Printf("ENCPLAN summary plans=%d", made);
 		Console.Printf("ENCPLAN done");
 	}
@@ -72,9 +82,9 @@ class DoomerfallEncounterPlanTest : StaticEventHandler
 		let d = DoomerfallEncounterPool.Get().data;
 		String g = "", th = "";
 		for (int i = 0; i < p.genes.Size(); i++) { g = g .. (i ? "," : "") .. p.genes[i]; th = th .. (p.themed[i] ? "1" : "0"); }
-		Console.Printf("ENCPLAN plan idx=%d type=%s level=%d order=%d genes=%s themed=%s civilwar=%d tierlean=%d size=%d placement=%s awareness=%s cell=%d,%d regionkind=%s",
+		Console.Printf("ENCPLAN plan idx=%d type=%s level=%d order=%d genes=%s themed=%s civilwar=%d tierlean=%d size=%d placement=%s awareness=%s cell=%d,%d regionkind=%s regionafford=%d",
 			index, p.theme, level, p.order, g, th, p.civilWar, p.tierLean, p.sizePermille, p.placement, p.awareness,
-			p.regionCellX, p.regionCellY, p.regionKind >= 0 ? d.kindName[p.regionKind] : "-");
+			p.regionCellX, p.regionCellY, p.regionKind >= 0 ? d.kindName[p.regionKind] : "-", p.regionAfford);
 		Army(index, "A", p.a, d);
 		if (p.b) Army(index, "B", p.b, d);
 		for (int i = 0; i < p.warnings.Size(); i++) Console.Printf("ENCPLAN warn idx=%d %s", index, p.warnings[i]);
@@ -89,8 +99,8 @@ class DoomerfallEncounterPlanTest : StaticEventHandler
 			list = list .. (i ? "|" : "") .. String.Format("%s:%s:%s:%s:%d:%d:%s", e.role, e.m.cls.GetClassName(), d.kindName[e.m.kind],
 				e.m.group, e.m.tier, e.share, e.parent >= 0 ? "v" .. e.parent : "-");
 		}
-		Console.Printf("ENCPLAN army idx=%d side=%s anchorkind=%s anchorthemed=%d coherence=%d tierlean=%d stance=%s theme=%s region=%s entries=%s",
+		Console.Printf("ENCPLAN army idx=%d side=%s anchorkind=%s anchorthemed=%d coherence=%d tierlean=%d stance=%s theme=%s region=%s regionref=%s entries=%s",
 			index, side, a.entries.Size() ? d.kindName[a.anchorKind] : "-", a.anchorThemed, a.coherence, a.tierLean, a.stance,
-			a.themeHow, a.regionHow, list);
+			a.themeHow, a.regionHow, a.regionRef ? String.Format("%s", a.regionRef.cls.GetClassName()) : "-", list);
 	}
 }

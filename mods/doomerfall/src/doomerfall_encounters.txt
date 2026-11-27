@@ -458,6 +458,10 @@ list spread_middle 5,2,2,4
 list spread_loose 3,1,2,7
 # Regional leaning (4.1): world map cell size in map pixels. Dungeons in one cell share a favourite kind.
 set region_cell 48
+# A favourite class is affordable when it costs at most region_afford times the area level's average points per
+# encounter (the budget table above). When no class of the favourite kind is affordable, an affordable stand-in takes
+# its place: same colour or DRLA family first, then the nearest kind on kind_ring, then the theme (owner, 2026-11-26).
+set region_afford 1
 # Share, in thousandths, given to a guaranteed theme or regional monster when the army lacked one.
 set guarantee_share 100
 
