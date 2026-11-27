@@ -73,7 +73,8 @@ class ExpPerkTest : EventHandler
 		String inf = e.Inflictor ? e.Inflictor.GetClassName() : 'None';
 		if (e.Thing && e.Thing.player)
 		{
-			Console.Printf("EXPTEST player hurt %d by %s tic %d", e.Damage, inf, level.maptime);
+			Console.Printf("EXPTEST player hurt %d by %s tic %d flags %d type %s tagged %d", e.Damage, inf, level.maptime, e.DamageFlags, e.DamageType,
+				DoomerfallShotTag.Of(e.Inflictor) != null);
 			if (e.Inflictor is "DoomerfallChainBlast") blastHurtPlayer++;
 			else if (phase == 4) playerLost += e.Damage;
 		}
@@ -107,14 +108,24 @@ class ExpPerkTest : EventHandler
 			else if ((i is "Armor" || i is "Powerup" || n.IndexOf("Armor") >= 0) && !(i is "Weapon")) gone.Push(i);
 		}
 		for (int k = 0; k < gone.Size(); k++) { Console.Printf("EXPTEST armor %s", gone[k].GetClassName()); gone[k].Destroy(); }
+		String inv = "";
+		for (let i = mo.Inv; i; i = i.Inv) if (!(i is "Weapon") && !(i is "Ammo")) inv = inv .. " " .. i.GetClassName();
+		Console.Printf("EXPTEST inv fire100=%d dmgfactor=%.2f%s", mo.ApplyDamageFactor('Fire', 100), mo.DamageFactor, inv);
 	}
 
-	// The switch case: slow the player's rockets in flight and put another gun up before they land.
+	// The switch case: slow the player's rocket to a crawl as it spawns and put another gun up before it lands.
+	override void WorldThingSpawned(WorldEvent e)
+	{
+		let a = e.Thing;
+		PlayerInfo p = players[consoleplayer];
+		if (phase != 4 || step >= kinds.Size() || kinds[step] != "switch" || !a || !a.bMissile || a.target != p.mo) return;
+		a.vel *= 0.02;
+		Console.Printf("EXPTEST slowed %s", a.GetClassName());
+		if (p.PendingWeapon == WP_NOCHANGE) SlowAndSwitch(p);
+	}
+
 	void SlowAndSwitch(PlayerInfo p)
 	{
-		let it = ThinkerIterator.Create("Actor");
-		Actor a;
-		while (a = Actor(it.Next())) if (a.bMissile && a.target == p.mo) { a.vel *= 0.05; Console.Printf("EXPTEST slowed %s", a.GetClassName()); }
 		for (let i = p.mo.Inv; i; i = i.Inv)
 		{
 			let w = Weapon(i);
@@ -210,13 +221,12 @@ class ExpPerkTest : EventHandler
 		}
 		case 3: // one shot
 			p.attackdown = true;
-			if (p.WeaponState & WF_WEAPONREADY) { Console.Printf("EXPTEST fire tic %d", level.maptime); mo.FireWeapon(null); phase = 4; t = 0; }
+			if (p.WeaponState & WF_WEAPONREADY) { Console.Printf("EXPTEST fire tic %d at %.0f %.0f %.0f health %d buddha %d", level.maptime, mo.pos.x, mo.pos.y, mo.pos.z, mo.health, (p.cheats & CF_BUDDHA) != 0); mo.FireWeapon(null); phase = 4; t = 0; }
 			else if (++t > 100) { Console.Printf("EXPTEST nofire %s", guns[gun]); phase = 4; t = 0; }
 			break;
 		case 4:
 			p.attackdown = false;
-			if (++t == 2 && kind == "switch") SlowAndSwitch(p);
-			if (t < (kind == "pack" ? 140 : kind == "switch" ? 150 : 45)) break;
+			if (++t < (kind == "pack" ? 140 : kind == "switch" ? 150 : 45)) break;
 			int dead = 0;
 			for (int i = 0; i < pack.Size(); i++) if (pack[i] && pack[i].health <= 0) dead++;
 			Console.Printf("EXPTEST end %s %s %s target=%d/%d player=%d blasthurt=%d dead=%d/%d gap=%.1f", c, kind, guns[gun],

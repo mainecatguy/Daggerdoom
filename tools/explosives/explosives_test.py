@@ -48,6 +48,7 @@ class Peer:
     def sheet(self, cfg):
         v = [0] * SHEET_INTS
         v[0], v[1], v[2], v[159] = SHEET_FORMAT_VERSION, 1, 1, 1
+        v[24 + 2] = 50  # live Willpower 50: the Willpower rule leaves the damage the player takes unchanged (x1)
         for k, x in RULES[cfg].items():
             v[k] = x
         data = struct.pack(f"<{SHEET_INTS}i", *v)
