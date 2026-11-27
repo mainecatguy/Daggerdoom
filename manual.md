@@ -71,7 +71,8 @@ Impish) are gone: you can no longer calm monsters by speaking to them.
   maker cannot make Enhances Skill items for the weapon skills.
 - A character imported from a classic Daggerfall save starts the weapon skills untrained; their old language values
   and practice are not carried over.
-- Automatics changes how its guns behave (see "Automatics" below). The other gun skills do not yet.
+- Automatics and Explosives change how their guns behave (see "Automatics" and "Explosives" below). The other gun
+  skills do not yet.
 
 ### Class skills
 
@@ -120,6 +121,24 @@ Uzi is a Pistol, not an Automatic.
   it lands.
 - These only work in the Daggerfall world. Your current skill counts, so an effect that lowers or raises the skill
   changes them too.
+
+### Explosives
+
+Explosives covers rocket, missile and grenade launchers, such as the stock rocket launcher and DRLA's Rocket Launcher.
+
+- **Damage:** explosive weapons do more damage as the skill rises, up to 60% more at 100, both to the enemy a rocket
+  hits and to everything its blast reaches.
+- **25:** your own blasts hurt you 95% less.
+- **50:** explosives do extra damage to the enemy they hit directly. This perk does not work yet.
+- **75:** your own blasts hurt you 99% less.
+- **100, Inpulsa's Broken Heart:** an enemy your explosives kill explodes for a quarter of its maximum health, hurting
+  everything nearby (about a rocket blast's reach). Enemies killed by that blast explode too, each time at half the
+  strength of the blast before. These blasts never hurt you, but they do hurt anyone else nearby, townspeople included.
+  Big monsters make big blasts, so killing a large demon in a crowd can clear the crowd.
+- In a big pack the blasts go off in quick succession over a few moments, not all at once.
+- Only your explosive weapon's own shots count. An exploding barrel, or a rocket that goes off while you hold a
+  different gun, gets nothing; a rocket keeps its bonuses if you switch weapons before it lands.
+- These only work in the Daggerfall world. Your current skill counts.
 
 ## Falling and jumping
 

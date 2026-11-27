@@ -57,7 +57,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             new Perk("Explosives", 25, "Your own explosions hurt you 95% less.", true),
             new Perk("Explosives", 50, "Explosives do extra damage to the enemy they hit directly."),
             new Perk("Explosives", 75, "Your own explosions hurt you 99% less.", true),
-            new Perk("Explosives", 100, "Inpulsa's Broken Heart: enemies your explosives kill explode for a quarter of their health. Those blasts chain, each at half the strength of the one before, and never hurt you.", true),
+            new Perk("Explosives", 100, "Inpulsa's Broken Heart: enemies your explosives kill explode for a quarter of their maximum health. Those blasts chain, each at half the strength of the one before, and never hurt you.", true),
         };
 
         DoomerfallBridge bridge;

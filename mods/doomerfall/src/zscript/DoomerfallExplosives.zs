@@ -125,7 +125,7 @@ class DoomerfallExplosives : StaticEventHandler
 	Array<Actor> qSource;
 	Array<Name> qVictim;
 	double worstMs;
-	int worstQueue, chainTic;
+	int worstQueue, chainTic, chainBlasts;
 
 	void QueueBlast(Actor victim, Actor source, int gen)
 	{
@@ -156,11 +156,13 @@ class DoomerfallExplosives : StaticEventHandler
 		qx.Delete(0, n); qy.Delete(0, n); qz.Delete(0, n);
 		qDamage.Delete(0, n); qGen.Delete(0, n); qSource.Delete(0, n); qVictim.Delete(0, n);
 		double ms = MSTimeF() - start;
-		if (ms > worstMs)
-		{
-			worstMs = ms;
-			Log(String.Format("chain worst tic %.2f ms for %d blasts, queue peak %d", ms, n, worstQueue));
-		}
+		worstMs = max(worstMs, ms);
+		chainBlasts += n;
+		if (chainTic == 0) chainTic = level.maptime;
+		if (qx.Size() > 0) return;
+		// The chain is over: one line with its cost, then start counting afresh for the next one.
+		Log(String.Format("chain worst tic %.2f ms for %d blasts, queue peak %d, %d tics", worstMs, chainBlasts, worstQueue, level.maptime - chainTic + 1));
+		worstMs = 0; worstQueue = 0; chainBlasts = 0; chainTic = 0;
 	}
 
 	override void WorldTick()
