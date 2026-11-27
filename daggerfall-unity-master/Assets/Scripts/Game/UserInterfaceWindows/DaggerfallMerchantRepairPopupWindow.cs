@@ -95,6 +95,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             sellButton.OnMouseClick += SellButton_OnMouseClick;
             sellButton.Hotkey = DaggerfallShortcut.GetBinding(DaggerfallShortcut.Buttons.MerchantSell);
             sellButton.OnKeyboardEvent += SellButton_OnKeyboardEvent;
+            Doomerfall.DoomerfallPopupText.Repair(mainPanel, repairButton, talkButton, sellButton); // Doomerfall: painted words in Daggerfall's font
 
             // Exit button
             exitButton = DaggerfallUI.AddButton(exitButtonRect, mainPanel);

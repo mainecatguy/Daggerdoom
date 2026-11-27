@@ -88,6 +88,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             // Talk button
             talkButton = DaggerfallUI.AddButton(talkButtonRect, mainPanel);
             talkButton.OnMouseClick += TalkButton_OnMouseClick;
+            Doomerfall.DoomerfallPopupText.Merchant(mainPanel, talkButton); // Doomerfall: painted word in Daggerfall's font
 
             // Service button
             serviceLabel.Position = new Vector2(0, 1);

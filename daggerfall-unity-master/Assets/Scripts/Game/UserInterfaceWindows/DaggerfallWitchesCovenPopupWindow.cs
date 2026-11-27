@@ -95,6 +95,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             questButton.OnMouseClick += QuestButton_OnMouseClick;
             questButton.Hotkey = DaggerfallShortcut.GetBinding(DaggerfallShortcut.Buttons.WitchesQuest);
             questButton.OnKeyboardEvent += QuestButton_OnKeyboardEvent;
+            Doomerfall.DoomerfallPopupText.Coven(mainPanel, talkButton, summonButton, questButton); // Doomerfall: painted words in Daggerfall's font
 
             // Exit button
             exitButton = DaggerfallUI.AddButton(exitButtonRect, mainPanel);

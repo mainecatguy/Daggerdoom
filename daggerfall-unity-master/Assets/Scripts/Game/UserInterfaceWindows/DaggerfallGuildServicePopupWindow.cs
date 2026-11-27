@@ -133,6 +133,8 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             talkButton.OnMouseClick += TalkButton_OnMouseClick;
             talkButton.Hotkey = DaggerfallShortcut.GetBinding(DaggerfallShortcut.Buttons.GuildsTalk);
             talkButton.OnKeyboardEvent += TalkButton_OnKeyboardEvent;
+            // Doomerfall: painted words drawn in Daggerfall's font
+            Doomerfall.DoomerfallPopupText.Guild(mainPanel, talkButton, joinButtonRect, member);
 
             // Service button
             serviceLabel.Position = new Vector2(0, 1);
