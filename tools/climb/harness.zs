@@ -78,7 +78,37 @@ class ClimbHarness : EventHandler
 		if (Climbing() || Slipping()) everClimbed = 1;
 		if (startTic < 0 && Climbing()) startTic = lt;
 		if (slipTic < 0 && Slipping()) { slipTic = lt; fwd = 0; } // stop pushing, or the climb starts again at the bottom
-		if (part == 1) Part1(mo); else Part2(mo);
+		if (part == 1) Part1(mo); else if (part == 2) Part2(mo); else Part3(mo);
+		if (Climbing() && !wasClimbing) starts++;
+		wasClimbing = Climbing();
+	}
+
+	int starts, rested;
+	bool wasClimbing;
+
+	// Part 3: a staircase too steep to walk is one climb, walking and running; a wide ledge still ends the climb.
+	void Part3(PlayerPawn mo)
+	{
+		if (scen <= 1)
+		{
+			if (lt == 0) { Place(770, 390); fwd = scen ? Walk * 2 : Walk; starts = 0; wasClimbing = false; return; }
+			if ((mo.pos.z >= 319.9 && mo.pos.z <= mo.floorz && mo.pos.x > 925) || lt > 400)
+			{
+				Console.Printf("CLIMBTEST steep%s starts=%d topped=%d z=%.1f tics=%d", scen ? "run" : "walk", starts, mo.pos.z >= 319.9 ? 1 : 0, mo.pos.z, lt);
+				Next();
+			}
+		}
+		else if (scen == 2)
+		{
+			if (lt == 0) { Place(770, 660); fwd = Walk; starts = 0; rested = 0; wasClimbing = false; return; }
+			if (!Climbing() && abs(mo.floorz - 96) < 0.1 && mo.pos.z <= mo.floorz + 0.1) rested++;
+			if (lt == 300)
+			{
+				Console.Printf("CLIMBTEST ledge starts=%d rested=%d z=%.1f", starts, rested, mo.pos.z);
+				Console.Printf("CLIMBTEST part3 done uses=%d", uses);
+				done = true;
+			}
+		}
 	}
 
 	void Part1(PlayerPawn mo)

@@ -29,6 +29,7 @@ class DoomerfallClimb : StaticEventHandler
 	const Touch = 12.0;        // how far beyond the player's radius a surface still counts as touching
 	const StillMove = 2.0;     // moving less than this per tic while pushing counts as blocked
 	const Hug = 1.0;           // velocity into the wall while climbing, which keeps contact
+	const NarrowLedge = 32.0;  // a ledge up to the player's width with a climbable surface behind it does not end a climb
 	const UsesEvery = 35;
 
 	bool rules;
@@ -106,13 +107,14 @@ class DoomerfallClimb : StaticEventHandler
 	// The climbable surface in direction ang, touching the player, between Doom's step height and the player's head.
 	// Walls, 3D floor sides, and planes of 70 degrees or steeper count. Actors (doors, monsters) and ceilings do not.
 	Vector2 found;    // the surface normal FindSurface found (an out Vector2 parameter breaks the JIT)
+	double foundDist; // and the player's distance from it along that normal
 
-	bool FindSurface(PlayerPawn mo, double ang, double offz)
+	bool FindSurface(PlayerPawn mo, double ang, double offz, double extra = 0)
 	{
 		FLineTraceData t;
 		Vector2 n = (0, 0);
 		found = n;
-		double reach = mo.radius + Touch;
+		double reach = mo.radius + Touch + extra;
 		if (!mo.LineTrace(ang, reach * 2, 0, TRF_THRUACTORS, offz, data: t)) return false;
 		if (t.HitType == FLineTraceData.TRACE_HitWall && t.HitLine)
 		{
@@ -134,7 +136,8 @@ class DoomerfallClimb : StaticEventHandler
 		// Touching: the player's center is within radius plus a little of the surface, measured along its normal.
 		Vector2 dir = (cos(ang), sin(ang));
 		found = n;
-		return t.Distance * max(0.05, -(dir dot n)) <= reach;
+		foundDist = t.Distance * max(0.05, -(dir dot n));
+		return foundDist <= reach;
 	}
 
 	// Doom's top ground speed for this run state, in units per tic: thrust / (1 - friction) on normal ground.
@@ -202,7 +205,7 @@ class DoomerfallClimb : StaticEventHandler
 		double wallAng = atan2(-s.normal.y, -s.normal.x);
 		if (!FindSurface(mo, wallAng, mo.MaxStepHeight - 4))
 		{
-			TopOrLetGo(mo, s);
+			TopOrLetGo(mo, s, cmd.forwardmove);
 			return;
 		}
 		Vector2 n = found;
@@ -262,10 +265,37 @@ class DoomerfallClimb : StaticEventHandler
 		else if (!ground) s.pushTics = 0; // Daggerfall: a failed airborne grab restarts the wait; on the ground it rerolls.
 	}
 
-	// The surface ended. Near the top, carry the player over onto the ledge, as Daggerfall's forward push does.
-	void TopOrLetGo(PlayerPawn mo, DoomerfallClimbState s)
+	// A ledge no wider than the player with another climbable surface right behind it (a staircase far too steep to
+	// walk, such as Privateer's Hold's cliff) does not end the climb. Forward rises to the ledge at climb speed, then
+	// crosses it to that surface, so Doom's step-up adds no free height. Holding still stays put. False when there is
+	// no such ledge.
+	bool CrossNarrowLedge(PlayerPawn mo, DoomerfallClimbState s, int forward)
 	{
 		Vector2 n = s.normal;
+		if (!FindSurface(mo, atan2(-n.y, -n.x), mo.MaxStepHeight - 4, NarrowLedge)) return false;
+		Vector2 next = found;
+		// The highest floor between the player and that surface, at most step height above the feet (the trace passed
+		// over anything taller). A floor far below the feet is a gap, not a ledge.
+		double top = -1e9;
+		for (double d = 0; d < foundDist; d += 4)
+		{
+			Vector2 at = mo.pos.xy - n * d;
+			double z = mo.GetZAt(at.x, at.y, 0, GZF_ABSOLUTEPOS);
+			if (z <= mo.pos.z + mo.MaxStepHeight) top = max(top, z);
+		}
+		if (top < mo.pos.z - 2 * mo.MaxStepHeight) return false;
+		s.normal = next;
+		if (forward <= 0) mo.vel = (0, 0, 0);
+		else if (top > mo.pos.z) mo.vel = (0, 0, min(s.speed, top - mo.pos.z));
+		else mo.vel = (-n * s.speed, 0);
+		return true;
+	}
+
+	// The surface ended. Near the top, carry the player over onto the ledge, as Daggerfall's forward push does.
+	void TopOrLetGo(PlayerPawn mo, DoomerfallClimbState s, int forward)
+	{
+		Vector2 n = s.normal;
+		if (!s.slipping && forward >= 0 && CrossNarrowLedge(mo, s, forward)) return;
 		Vector2 ahead = mo.pos.xy - n * (mo.radius + 8);
 		double top = mo.GetZAt(ahead.x, ahead.y, 0, GZF_ABSOLUTEPOS);
 		bool atTop = top > mo.pos.z - 1 && top <= mo.pos.z + mo.MaxStepHeight;

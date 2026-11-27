@@ -2,7 +2,7 @@
 
 usage: python tools/climb/run_test.py <uzdoom.exe> <workdir> [--iwad DOOM.WAD]
 
-Builds the Doomerfall mod pk3, the test map, and the harness into workdir, runs harness parts 1 and 2 minimized
+Builds the Doomerfall mod pk3, the test map, and the harness into workdir, runs harness parts 1 to 3 minimized
 with a private config (about 30 s each), and prints PASS or FAIL for each check.
 """
 import argparse
@@ -66,7 +66,7 @@ def main():
     subprocess.run([sys.executable, os.path.join(REPO, 'scripts', 'doomerfall', 'build_pk3.py'), os.path.join(a.work, 'doomerfall.pk3')], check=True)
     subprocess.run([sys.executable, os.path.join(REPO, 'tools', 'climb', 'build_test.py'), a.work], check=True)
 
-    lines = run_part(a.exe, a.work, a.iwad, 1) + run_part(a.exe, a.work, a.iwad, 2)
+    lines = run_part(a.exe, a.work, a.iwad, 1) + run_part(a.exe, a.work, a.iwad, 2) + run_part(a.exe, a.work, a.iwad, 3)
     for l in lines:
         if 'CLIMBTEST' in l or 'DFCLIMB' in l or 'error' in l.lower():
             print(l)
@@ -86,6 +86,9 @@ def main():
         ('60-degree slope is walked, not climbed', lambda: f('slope60', 'climbed') == 0 and f('slope60', 'z') > 150),
         ('no climbing off Daggerfall maps', lambda: f('off-wall', 'climbed') == 0),
         ('Doom slope limit restored off Daggerfall maps', lambda: f('off-slope60', 'climbed') == 0 and f('off-slope60', 'z') < 100 and abs(f('off-slope60', 'steep') - 0.70711) < 1e-3),
+        ('too-steep staircase (32 risers, 12 treads) is one climb, walking', lambda: f('steepwalk', 'starts') == 1 and f('steepwalk', 'topped') == 1),
+        ('too-steep staircase is one climb, running', lambda: f('steeprun', 'starts') == 1 and f('steeprun', 'topped') == 1),
+        ('a 64-unit ledge still ends the climb (rests, then a new climb)', lambda: f('ledge', 'rested') >= 20 and f('ledge', 'starts') >= 2),
     ]
     failed = 0
     for name, check in checks:
