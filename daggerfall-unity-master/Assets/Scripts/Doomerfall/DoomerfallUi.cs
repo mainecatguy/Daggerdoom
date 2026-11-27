@@ -238,6 +238,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             instance = this;
             onReadback = OnReadback;
             DaggerfallTravelPopUp.OnPostFastTravel += OnPostFastTravel;
+            TransportManager.OnTransportModeChanged += OnTransportModeChanged;
             StartCoroutine(CaptureLoop());
         }
 
@@ -360,7 +361,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             showingTravelMap = id == Dfb.UI_TRAVEL_MAP;
             bool creating = id == Dfb.UI_NEW_GAME && DoomerfallNewGame.HoldsNewCharacter;
             bool loading = id == Dfb.UI_LOAD_GAME && DoomerfallNewGame.HoldsNewCharacter && PlainLoad;
-            if ((id != Dfb.UI_TRAVEL_MAP && id != Dfb.UI_INVENTORY && id != Dfb.UI_MAP && id != Dfb.UI_LOOT && id != Dfb.UI_TALK && id != Dfb.UI_DAGGERFALL && id != Dfb.UI_JOURNAL && id != Dfb.UI_REST && id != Dfb.UI_CHARACTER && id != Dfb.UI_SPELLBOOK && id != Dfb.UI_STATUS && !creating && !loading) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
+            if ((id != Dfb.UI_TRAVEL_MAP && id != Dfb.UI_INVENTORY && id != Dfb.UI_MAP && id != Dfb.UI_LOOT && id != Dfb.UI_TALK && id != Dfb.UI_DAGGERFALL && id != Dfb.UI_JOURNAL && id != Dfb.UI_REST && id != Dfb.UI_CHARACTER && id != Dfb.UI_SPELLBOOK && id != Dfb.UI_STATUS && id != Dfb.UI_TRANSPORT && !creating && !loading) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
             {
                 Finish(Dfb.UI_REASON_REFUSED);
                 return;
@@ -401,6 +402,25 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 PlayerEnterExit enter = GameManager.Instance.PlayerEnterExit;
                 uint actual = enter.IsPlayerInsideDungeon ? Dfb.WORLD_DUNGEON : enter.IsPlayerInside ? Dfb.WORLD_INTERIOR : Dfb.WORLD_EXTERIOR;
                 bridge.LogLine(string.Format("ui: status in Daggerfall area {0}, Doom area {1}, at {2}", actual, doomContext, DaggerfallUnity.Instance.WorldTime.Now.MinTimeString()));
+            }
+            if (id == Dfb.UI_TRANSPORT)
+            {
+                // Daggerfall's own checks (DaggerfallUI, dfuiOpenTransportWindow) on where Doom's player is, since
+                // Daggerfall's hidden player waits outside the door Doom used. The window is pushed below.
+                if ((doomContext & 0xFF) != Dfb.WORLD_EXTERIOR)
+                {
+                    DoomerfallInfo.SendText(bridge, 0, TextManager.Instance.GetLocalizedText("cannotChangeTransportationIndoors"), false, Dfb.KIND_HUD_TEXT);
+                    bridge.LogLine("ui: transport refused, Doom is in area " + (doomContext & 0xFF));
+                    Finish(Dfb.UI_REASON_RESULT);
+                    return;
+                }
+                if ((doomContext & Dfb.TRANSPORT_AIRBORNE) != 0)
+                {
+                    // Daggerfall says nothing, so the menu closes as answered: a refusal would make Doom print a line.
+                    bridge.LogLine("ui: transport refused, Doom's player is not on the ground");
+                    Finish(Dfb.UI_REASON_RESULT);
+                    return;
+                }
             }
             if (id == Dfb.UI_REST)
             {
@@ -468,6 +488,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 // The window is already there. It may have closed by itself while Doom was opening the menu.
                 if (DaggerfallUI.UIManager.TopWindow == null || DaggerfallUI.UIManager.TopWindow is DaggerfallHUD)
                     Finish(Dfb.UI_REASON_RESULT);
+                return;
+            }
+            if (id == Dfb.UI_TRANSPORT)
+            {
+                DaggerfallUI.UIManager.PushWindow(UIWindowFactory.GetInstance(UIWindowType.Transport, DaggerfallUI.UIManager));
+                bridge.LogLine(string.Format("ui: transport menu, owns horse {0} cart {1} ship {2}, riding {3}", GameManager.Instance.TransportManager.HasHorse(),
+                    GameManager.Instance.TransportManager.HasCart(), GameManager.Instance.TransportManager.ShipAvailiable(), GameManager.Instance.TransportManager.TransportMode));
                 return;
             }
             if (id == Dfb.UI_LOOT)
@@ -648,6 +675,19 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             if (openId == 0 || !showingTravelMap)
                 return;
+            BeginArrival("travelled");
+        }
+
+        // The transport menu's Ship row: Daggerfall teleports its world to the ship, or back to where the player boarded,
+        // with no fast travel. Doom follows it as it follows a fast travel.
+        void OnTransportModeChanged(TransportModes newMode, TransportModes previousMode)
+        {
+            if (openId == Dfb.UI_TRANSPORT && newMode == TransportModes.Ship)
+                BeginArrival("boarded or left the ship");
+        }
+
+        void BeginArrival(string how)
+        {
             GameManager game = GameManager.Instance;
             StreamingWorld world = game.StreamingWorld;
             travelArriving = true;
@@ -657,7 +697,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             // Placement only sets this when a location has a facing to give. Otherwise the player keeps Doom's.
             game.PlayerMouseLook.Yaw = game.PlayerObject.transform.eulerAngles.y;
             bridge.PositionSync.BeginTravelHold(world.MapPixelX, world.MapPixelY);
-            LogWorldState("travelled");
+            LogWorldState(how);
         }
 
         void FinishTravel()
@@ -781,6 +821,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         void OnDestroy()
         {
             DaggerfallTravelPopUp.OnPostFastTravel -= OnPostFastTravel;
+            TransportManager.OnTransportModeChanged -= OnTransportModeChanged;
             DoomerfallInput.End();
             if (scaled)
                 scaled.Release();

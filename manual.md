@@ -339,6 +339,19 @@ from the first message to the second and to close it; Escape closes it. Doom sta
 Y is set for you only on a fresh install. On an existing install, bind it yourself in Options, Customize Controls,
 Doomerfall Controls, **Status (location, time, health)**.
 
+## Transport: foot, horse, cart, ship
+
+Press **T** for Daggerfall's transport menu (rebind it in Options, Customize Controls, Doomerfall Controls as **Open
+Transport**). It is set for you only on a fresh install. Doom stays frozen while the menu is open. T, Escape or **Exit**
+closes it.
+
+- It lists what you own as in Daggerfall: Horse, Cart and Ship are greyed out until you buy one.
+- Choosing **Foot**, **Horse** or **Cart** works as in Daggerfall, and Daggerfall keeps the choice, in saves too.
+  **Riding does not change how you move in Doom yet**, and Doom shows no horse or cart.
+- **Ship** works as in Daggerfall: it takes you to your ship, and choosing it again on board takes you back to where
+  you boarded.
+- You can only open it outdoors, standing on the ground. Indoors you are told you cannot change transportation.
+
 ## Locked doors
 
 Some dungeon doors are locked. Look at one: it reads **Locked.**, or "This is a magically held lock..." for a magic one.

@@ -647,6 +647,7 @@ const char *UiCommandName(uint32_t id)
 	if (id == DFB_UI_CHARACTER) return "netevent df_character";
 	if (id == DFB_UI_SPELLBOOK) return "netevent df_spellbook";
 	if (id == DFB_UI_STATUS) return "netevent df_status";
+	if (id == DFB_UI_TRANSPORT) return "netevent df_transport";
 	return id == DFB_UI_INVENTORY || id == DFB_UI_LOOT ? "netevent df_inventory" : id == DFB_UI_MAP ? "togglemap" : "netevent df_fast_travel";
 }
 
@@ -922,6 +923,13 @@ bool DD_BridgeItemNetEvent(const char *name)
 
 bool DD_IsDrlaSpawner(AActor *mo);
 
+// Doom's player stands on the floor or on top of a solid actor, out of deep water.
+static bool OnGround()
+{
+	AActor *pmo = players[consoleplayer].mo;
+	return pmo && (pmo->Z() <= pmo->floorz + 1 || (pmo->flags2 & MF2_ONMOBJ)) && pmo->waterlevel < 2;
+}
+
 // What Daggerfall's rest checks would see if its world were the one shown (DaggerfallUI's rest message,
 // GameManager.AreEnemiesNearby while resting): a live hostile monster that targets the player and sees them, or
 // any within Daggerfall's 12 m resting distance; and whether the player stands on the ground, out of deep water.
@@ -931,8 +939,7 @@ static uint32_t RestState()
 	AActor *pmo = players[consoleplayer].mo;
 	if (!pmo) return DFB_REST_NOT_GROUNDED;
 	uint32_t state = 0;
-	const bool standing = pmo->Z() <= pmo->floorz + 1 || (pmo->flags2 & MF2_ONMOBJ); // on the floor, or on top of a solid actor
-	if (!standing || pmo->waterlevel >= 2) state |= DFB_REST_NOT_GROUNDED;
+	if (!OnGround()) state |= DFB_REST_NOT_GROUNDED;
 	int near = 0, seeing = 0;
 	AActor *first = nullptr;
 	auto it = primaryLevel->GetThinkerIterator<AActor>();
@@ -962,7 +969,8 @@ bool DD_BridgeNetEvent(const char *name)
 	const bool inventory = !strcmp(name, "df_inventory"), journal = !strcmp(name, "df_journal"), rest = !strcmp(name, "df_rest");
 	const uint32_t window = !strcmp(name, "df_character") ? DFB_UI_CHARACTER : !strcmp(name, "df_spellbook") ? DFB_UI_SPELLBOOK
 		: !strcmp(name, "df_status") ? DFB_UI_STATUS : DFB_UI_NONE;
-	if (!inventory && !journal && !rest && !window && strcmp(name, "df_fast_travel")) return false;
+	const bool transport = !strcmp(name, "df_transport");
+	if (!inventory && !journal && !rest && !window && !transport && strcmp(name, "df_fast_travel")) return false;
 	if (uiState != UiClosed)
 	{
 		SendUiCommand(DFB_KIND_UI_CLOSE, uiId);
@@ -982,6 +990,11 @@ bool DD_BridgeNetEvent(const char *name)
 	if (rest) // Daggerfall decides, with its own messages, from what Doom sees around the player.
 	{
 		OpenUi(DFB_UI_REST, RestState());
+		return true;
+	}
+	if (transport) // Daggerfall's indoor and on-the-ground checks, from where Doom's player is.
+	{
+		OpenUi(DFB_UI_TRANSPORT, ownState.world_context | (OnGround() ? 0 : DFB_TRANSPORT_AIRBORNE));
 		return true;
 	}
 	// Daggerfall's own indoor check cannot see this: its hidden player waits outside the door Doom used.
