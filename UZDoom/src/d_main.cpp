@@ -3184,6 +3184,7 @@ bool System_NetGame()
 
 bool System_WantNativeMouse()
 {
+	if (DD_BridgeUiActive()) return true; // Doomerfall: a Daggerfall menu needs the OS cursor, in fullscreen too
 	return primaryLevel->localEventManager->CheckRequireMouse();
 }
 
