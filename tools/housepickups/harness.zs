@@ -1,8 +1,8 @@
 version "4.14"
 
 // House pickups test (housepickups.py). Counts generated pickups outdoors in town, enters by the test door (the
-// dd_tm_use test hook), and counts them inside. WANT 0: a house, which must have none. WANT 1: a shop or dungeon,
-// which must have some. Generated pickups are what DoomerfallPickupMarker spawns: stimpacks, clips and shells.
+// dd_tm_use test hook), and counts them inside. WANT 0: a house, which must have none. WANT 1: a dungeon, which must
+// have some. Generated pickups are what DoomerfallPickupMarker spawns: health, ammo and powerups.
 class HPHarness : StaticEventHandler
 {
 	static const double DOORDATA[] = { @DOOR@ };
@@ -18,7 +18,11 @@ class HPHarness : StaticEventHandler
 		if (!inv || inv.Owner) return false;
 		if (mo is "DoomerfallAmmoPickup") return true; // Ammo tiers (DoomerfallAmmo.zs) turn clips and shells into these.
 		Name n = mo.GetClassName();
-		return n == 'RLStimpack' || n == 'RLClip' || n == 'RLShell' || n == 'Stimpack' || n == 'Clip' || n == 'Shell';
+		static const Name kinds[] = { 'RLStimpack', 'RLClip', 'RLShell', 'RLRocketAmmo', 'RLCell', 'RLBerserk', 'RLBlurSphere', 'RLInfrared',
+			'RLSoulsphere', 'RLMegasphere', 'RLInvulnerabilitySphere', 'Stimpack', 'Clip', 'Shell', 'RocketAmmo', 'Cell', 'Berserk', 'BlurSphere',
+			'Infrared', 'Soulsphere', 'Megasphere', 'InvulnerabilitySphere' };
+		for (int i = 0; i < kinds.Size(); i++) if (n == kinds[i]) return true;
+		return false;
 	}
 
 	int Count()

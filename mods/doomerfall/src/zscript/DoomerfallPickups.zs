@@ -36,3 +36,12 @@ class DoomerfallPickupMarker : Actor abstract
 class DoomerfallPickupStimpack : DoomerfallPickupMarker { Default { DoomerfallPickupMarker.Items "RLStimpack", "Stimpack"; } }
 class DoomerfallPickupClip : DoomerfallPickupMarker { Default { DoomerfallPickupMarker.Items "RLClip", "Clip"; } }
 class DoomerfallPickupShells : DoomerfallPickupMarker { Default { DoomerfallPickupMarker.Items "RLShell", "Shell"; } }
+class DoomerfallPickupRockets : DoomerfallPickupMarker { Default { DoomerfallPickupMarker.Items "RLRocketAmmo", "RocketAmmo"; } }
+class DoomerfallPickupCells : DoomerfallPickupMarker { Default { DoomerfallPickupMarker.Items "RLCell", "Cell"; } }
+// Powerups. DRLA replaces the stock ones with spot spawners that also roll a supply crate, so the concrete class is used.
+class DoomerfallPickupBerserk : DoomerfallPickupMarker { Default { DoomerfallPickupMarker.Items "RLBerserk", "Berserk"; } }
+class DoomerfallPickupBlur : DoomerfallPickupMarker { Default { DoomerfallPickupMarker.Items "RLBlurSphere", "BlurSphere"; } }
+class DoomerfallPickupVisor : DoomerfallPickupMarker { Default { DoomerfallPickupMarker.Items "RLInfrared", "Infrared"; } }
+class DoomerfallPickupSoulsphere : DoomerfallPickupMarker { Default { DoomerfallPickupMarker.Items "RLSoulsphere", "Soulsphere"; } }
+class DoomerfallPickupMegasphere : DoomerfallPickupMarker { Default { DoomerfallPickupMarker.Items "RLMegasphere", "Megasphere"; } }
+class DoomerfallPickupInvulnerability : DoomerfallPickupMarker { Default { DoomerfallPickupMarker.Items "RLInvulnerabilitySphere", "InvulnerabilitySphere"; } }

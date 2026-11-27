@@ -1,8 +1,15 @@
-// Health and cheap ammo pickups for generated dungeons and building interiors, about one or two per room.
-// A room is a connected patch of walkable floor at least CoreDepth steps from any wall, door, or ledge, so corridors
-// and doorways get none. Placement and item choice come from a fixed seed (the place plus the room), so the same
-// place always has the same pickups. The things are Doomerfall markers (mods/doomerfall, DoomerfallPickups.zs)
-// that become stock or DRLA items in Doom.
+// Health, ammo and powerup pickups for generated dungeons, about one or two per room. Dungeons only: houses, shops
+// and every other building interior get none (owner, 2026-11-26: "NO pickups in houses and shops").
+// A room is a connected patch of walkable floor at least PickupCoreDepth steps from any wall, door, or ledge, so
+// corridors and doorways get none. Placement and item choice come from fixed seeds, so the same dungeon always has the
+// same pickups. The things are Doomerfall markers (mods/doomerfall, DoomerfallPickups.zs) that become stock or DRLA
+// items in Doom.
+//
+// Item mix (owner, 2026-11-26): clips 30%, shells 25%, health 30%, rockets 10%, cells 3%, powerups 2% on average. Each
+// dungeon leans toward one kind of ammo by a fixed amount taken from its loot identity (the loot seed of its map id, as
+// Daggerfall's LootSeed builds it), so some dungeons are full of shells or rockets. The lean kind is drawn with the base
+// odds and blended into the base ammo mix, so the average over many dungeons stays the base mix. Health keeps its 30%
+// and powerups their 2% in every dungeon: the owner wants health restricted, not piled up in some dungeons.
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -11,46 +18,139 @@ using System.Text;
 
 static partial class Program
 {
-    public const int PickupStimpackType = 31640, PickupClipType = 31641, PickupShellsType = 31642;
-    // Dungeon values, then building interiors, whose rooms are small and full of furniture.
-    static int PickupCoreDepth = 3;       // Graph steps (2 cells each) from the nearest edge of walkable floor.
-    static int PickupMinRoomNodes = 6;    // Smaller wide spots, such as a corridor bend, are not rooms.
-    static int PickupRoomNodes = 90;      // Core nodes in one typical room. Larger areas count as several rooms.
+    public const int PickupStimpackType = 31640, PickupClipType = 31641, PickupShellsType = 31642, PickupRocketsType = 31643,
+        PickupCellsType = 31644, PickupBerserkType = 31645, PickupBlurType = 31646, PickupVisorType = 31647,
+        PickupSoulsphereType = 31648, PickupMegasphereType = 31649, PickupInvulnerabilityType = 31650;
+    // Ammo kinds a dungeon can lean toward, with the owner's base odds in percent.
+    static readonly (int type, string name, double odds)[] PickupKinds =
+    {
+        (PickupClipType, "clips", 30), (PickupShellsType, "shells", 25), (PickupRocketsType, "rockets", 10), (PickupCellsType, "cells", 3),
+    };
+    const double PickupHealthShare = 0.30, PickupPowerupShare = 0.02;
+    static readonly double PickupAmmoShare = 1 - PickupHealthShare - PickupPowerupShare;
+    // Powerups (owner approved, 2026-11-26): Berserk, Partial Invisibility and the Light Amplification Visor about a
+    // quarter each, Soulsphere 15%, Megasphere and Invulnerability 5% each.
+    static readonly (int type, string name, double odds)[] PickupPowerups =
+    {
+        (PickupBerserkType, "berserk", 25), (PickupBlurType, "invisibility", 25), (PickupVisorType, "visor", 25),
+        (PickupSoulsphereType, "soulsphere", 15), (PickupMegasphereType, "megasphere", 5), (PickupInvulnerabilityType, "invulnerability", 5),
+    };
+    // How hard a dungeon leans: strength = PickupLeanMax * v^3 for a fixed v in [0, 1). Most dungeons lean a little,
+    // and about one in five gives over 40% of its ammo to the lean kind on top of the base mix.
+    const double PickupLeanMax = 0.8;
+    const long LootSeedDoomPickupLean = 8; // LootSeed.DoomPickupLean in Daggerfall Unity (Assets/Scripts/Game/Items/LootSeed.cs).
+
+    const int PickupCoreDepth = 3;        // Graph steps (2 cells each) from the nearest edge of walkable floor.
+    const int PickupMinRoomNodes = 6;     // Smaller wide spots, such as a corridor bend, are not rooms.
+    const int PickupRoomNodes = 90;       // Core nodes in one typical room. Larger areas count as several rooms.
     const int PickupMinPartNodes = 300;   // A walkable part of the map not joined to the entrance gets pickups from this size.
     const double PickupSpacing = 96;      // Doom units between pickups in one room.
-    const ulong PickupSalt = 0x5049434B55505331UL; // Keeps the loot seed apart from encounter seeds.
+    const ulong PickupSalt = 0x5049434B55505331UL; // Keeps the placement seed apart from encounter seeds.
 
-    static ulong pickupPlace;             // The place's identity: the dungeon map id, or the interior's map id and building key.
+    static ulong pickupPlace;             // The dungeon's identity for placement, from its map id.
+    static double[] pickupWeights;        // This dungeon's share of each PickupKinds entry; they sum to PickupAmmoShare.
+    static int pickupLeanKind;            // Index in PickupKinds, for reports.
+    static double pickupLeanStrength;
     static readonly List<int> pickupRoomCounts = new List<int>(); // Pickups in each room of the last map, for reports.
 
-    const int PickupDungeon = 1, PickupInterior = 2;
+    const int PickupDungeon = 1;
 
     static void SetPickupPlace(int kind, long id)
     {
         pickupPlace = PickupMix(PickupMix(PickupSalt, kind), id);
-        bool inside = kind == PickupInterior;
-        PickupCoreDepth = inside ? 1 : 3;
-        PickupMinRoomNodes = inside ? 8 : 6;
-        PickupRoomNodes = inside ? 60 : 90;
+        pickupWeights = PickupLean(id, out pickupLeanKind, out pickupLeanStrength);
     }
 
-    // Owner decision (2026-11-24): no generated pickups in house interiors. Shops, taverns, temples, guild halls,
-    // palaces and other buildings keep them until the owner says otherwise.
-    static bool PickupsInBuilding(DaggerfallConnect.DFLocation.BuildingTypes kind)
+    // The dungeon's fixed mix. Only its map id goes in, so it is the same in every game and never follows the player.
+    static double[] PickupLean(long mapId, out int leanKind, out double strength)
     {
-        switch (kind)
+        ulong h = (ulong)(uint)LootSeedOf(LootSeedDoomPickupLean, mapId);
+        double total = PickupKinds.Sum(k => k.odds);
+        double pick = PickupUnit(PickupMix(h, 1)) * total;
+        leanKind = PickupKinds.Length - 1;
+        for (int k = 0; k < PickupKinds.Length; k++)
         {
-            case DaggerfallConnect.DFLocation.BuildingTypes.House1:
-            case DaggerfallConnect.DFLocation.BuildingTypes.House2:
-            case DaggerfallConnect.DFLocation.BuildingTypes.House3:
-            case DaggerfallConnect.DFLocation.BuildingTypes.House4:
-            case DaggerfallConnect.DFLocation.BuildingTypes.House5:
-            case DaggerfallConnect.DFLocation.BuildingTypes.House6:
-            case DaggerfallConnect.DFLocation.BuildingTypes.HouseForSale:
-                return false;
-            default:
-                return true;
+            if (pick < PickupKinds[k].odds) { leanKind = k; break; }
+            pick -= PickupKinds[k].odds;
         }
+        double v = PickupUnit(PickupMix(h, 2));
+        strength = PickupLeanMax * v * v * v;
+        var weights = new double[PickupKinds.Length];
+        for (int k = 0; k < weights.Length; k++)
+            weights[k] = PickupAmmoShare * ((1 - strength) * PickupKinds[k].odds / total + (k == leanKind ? strength : 0));
+        return weights;
+    }
+
+    // The same value as Daggerfall Unity's LootSeed.Of(kind, null, values) (Assets/Scripts/Game/Items/LootSeed.cs).
+    static int LootSeedOf(long kind, params long[] values)
+    {
+        static ulong Mix(ulong h, long v)
+        {
+            for (int k = 0; k < 8; k++) { h ^= (byte)(v >> (8 * k)); h *= 1099511628211UL; }
+            return h;
+        }
+        ulong h = Mix(14695981039346656037UL, 0x6c6f6f74L);
+        h = Mix(h, kind);
+        foreach (long v in values) h = Mix(h, v);
+        h ^= h >> 32;
+        h *= 0x9E3779B97F4A7C15UL;
+        h ^= h >> 29;
+        return (int)(h ^ (h >> 32));
+    }
+
+    static double PickupUnit(ulong h) => (h >> 11) * (1.0 / (1UL << 53));
+
+    // One item for a spot: a uniform roll through the health share, this dungeon's ammo weights, then the powerup share.
+    static int PickupType(ulong roll)
+    {
+        double u = PickupUnit(roll);
+        if (u < PickupHealthShare) return PickupStimpackType;
+        u -= PickupHealthShare;
+        for (int k = 0; k < PickupKinds.Length; k++)
+        {
+            if (u < pickupWeights[k]) return PickupKinds[k].type;
+            u -= pickupWeights[k];
+        }
+        double p = Math.Min(u / PickupPowerupShare, 0.999999) * PickupPowerups.Sum(k => k.odds);
+        foreach (var k in PickupPowerups)
+        {
+            if (p < k.odds) return k.type;
+            p -= k.odds;
+        }
+        return PickupPowerups[PickupPowerups.Length - 1].type;
+    }
+
+    static string PickupName(int type) => type == PickupStimpackType ? "health" : PickupKinds.Concat(PickupPowerups).First(k => k.type == type).name;
+
+    // --pickup-lean-survey: every dungeon's fixed lean and expected mix, and the average over all of them.
+    static int PickupLeanSurvey(string arena2)
+    {
+        var maps = new DaggerfallConnect.Arena2.MapsFile(System.IO.Path.Combine(arena2, "MAPS.BSA"), DaggerfallConnect.FileUsage.UseMemory, true);
+        var sum = new double[PickupKinds.Length];
+        var leans = new int[PickupKinds.Length];
+        int count = 0, strong = 0;
+        for (int r = 0; r < maps.RegionCount; r++)
+        {
+            if (!maps.LoadRegion(r)) continue;
+            var region = maps.GetRegion(r);
+            if (region.MapNames == null) continue;
+            for (int l = 0; l < region.LocationCount; l++)
+            {
+                var loc = maps.GetLocation(r, l);
+                if (!loc.HasDungeon) continue;
+                var w = PickupLean(loc.MapTableData.MapId, out int kind, out double strength);
+                for (int k = 0; k < w.Length; k++) sum[k] += w[k];
+                count++;
+                leans[kind]++;
+                if (strength > 0.4) strong++;
+                Console.WriteLine(FormattableString.Invariant($"LEAN {loc.MapTableData.MapId} {region.Name}/{region.MapNames[l]} {PickupKinds[kind].name} {strength:F2} ")
+                    + string.Join(" ", w.Select((x, k) => FormattableString.Invariant($"{PickupKinds[k].name}={x:P1}"))));
+            }
+        }
+        Console.WriteLine($"dungeons {count}, lean strength over 0.4: {strong}");
+        Console.WriteLine("average " + string.Join(" ", sum.Select((x, k) => FormattableString.Invariant($"{PickupKinds[k].name}={x / count:P2}"))) + FormattableString.Invariant($" health={PickupHealthShare:P2} powerups={PickupPowerupShare:P2}"));
+        Console.WriteLine("lean kinds " + string.Join(" ", leans.Select((x, k) => $"{PickupKinds[k].name}={x}")));
+        return 0;
     }
 
     static ulong PickupMix(ulong h, long v)
@@ -159,8 +259,7 @@ static partial class Program
                 var spans = grid[Index(n.I, n.J)];
                 var span = spans.FirstOrDefault(s => s.F == n.F && s.C - s.F >= ActorHeight);
                 if (span == null || span.Door >= 0 || (span.Water != NoWater && (span.Water == WaterToCeiling || span.Water > span.F))) { skipped++; continue; }
-                ulong pick = PickupMix(seed, 2000 + spots.Count) % 10;
-                int type = pick < 4 ? PickupStimpackType : pick < 7 ? PickupClipType : PickupShellsType;
+                int type = PickupType(PickupMix(seed, 2000 + spots.Count));
                 map.Append(FormattableString.Invariant($"thing {{ x = {x:F1}; y = {y:F1}; height = {span.F - spans[0].F}.0; angle = 0; type = {type}; skill1 = true; skill2 = true; skill3 = true; skill4 = true; skill5 = true; single = true; coop = true; dm = true; }}\n"));
                 spots.Add((x, y, n.F));
                 types[type] = types.GetValueOrDefault(type) + 1;
@@ -170,7 +269,7 @@ static partial class Program
         }
         var histogram = pickupRoomCounts.GroupBy(c => c).OrderBy(g => g.Key).Select(g => $"{g.Key}:{g.Count()}");
         Console.WriteLine($"pickups: {placed} placed in {pickupRoomCounts.Count} rooms ({rooms.Count - pickupRoomCounts.Count} wide spots too small), "
-            + $"per room {string.Join(" ", histogram)}, types {string.Join(" ", types.Select(t => t.Key + "x" + t.Value))}, {skipped} spots refused, "
+            + $"per room {string.Join(" ", histogram)}, types {string.Join(" ", types.Select(t => PickupName(t.Key) + "x" + t.Value))}, lean {PickupKinds[pickupLeanKind].name} {pickupLeanStrength.ToString("F2", CultureInfo.InvariantCulture)}, {skipped} spots refused, "
             + $"reachable nodes {reach.Count(r => r)} of {nodes.Count}");
     }
 }

@@ -9,6 +9,14 @@ DoomEdNums
 	31640 = DoomerfallPickupStimpack
 	31641 = DoomerfallPickupClip
 	31642 = DoomerfallPickupShells
+	31643 = DoomerfallPickupRockets
+	31644 = DoomerfallPickupCells
+	31645 = DoomerfallPickupBerserk
+	31646 = DoomerfallPickupBlur
+	31647 = DoomerfallPickupVisor
+	31648 = DoomerfallPickupSoulsphere
+	31649 = DoomerfallPickupMegasphere
+	31650 = DoomerfallPickupInvulnerability
 }
 
 // The world does not adapt to the player (owner, 2026-11-25): DRLA's Adaptive skill is removed whenever this mod is

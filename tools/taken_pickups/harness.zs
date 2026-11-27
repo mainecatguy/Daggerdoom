@@ -65,7 +65,8 @@ class PTHarness : StaticEventHandler
 	{
 		if (!inv || inv.Owner) return false;
 		String n = inv.GetClassName();	// DRLA's stimpack is not a Health subclass
-		return inv is "Health" || inv is "DoomerfallAmmoPickup" || inv is "Ammo" || n.IndexOf("Stimpack") >= 0 || n.IndexOf("Medikit") >= 0;
+		return inv is "Health" || inv is "DoomerfallAmmoPickup" || inv is "Ammo" || n.IndexOf("Stimpack") >= 0 || n.IndexOf("Medikit") >= 0
+			|| inv.bBigPowerup;	// Generated powerups (DoomerfallPickups.zs)
 	}
 
 	void RemoveMonsters()
@@ -129,6 +130,8 @@ class PTHarness : StaticEventHandler
 				// The taken ones include a stimpack when there is one, so health and ammo are both covered.
 				String cn = c.GetClassName();
 				if (n == 0 && !(c is "Health") && cn.IndexOf("Stimpack") < 0) d += 100000;
+				// The second is a powerup when the map has one, so powerups are covered too.
+				if (n == 1 && !c.bBigPowerup) d += 100000;
 				if (d < bestd) { bestd = d; best = c; }
 			}
 			if (!best) return false;

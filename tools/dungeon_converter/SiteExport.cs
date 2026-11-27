@@ -212,11 +212,9 @@ static partial class Program
             var nodes = BuildNodes(out var edges);
             int startNode = FindStart(nodes, entranceMarker);
             string wad = Path.Combine(outDir, "interior.wad");
-            SetPickupPlace(PickupInterior, ((long)(location.MapTableData.MapId & 0xFFFFF) << 24) | (uint)buildingKey);
-            // Houses get no generated pickups (owner, 2026-11-24); other buildings keep them.
-            bool pickups = PickupsInBuilding(buildingKind);
-            var stats = WriteMap(wad, nodes[startNode], WritePoints(nodes, edges, startNode), pickups ? nodes : null, pickups ? edges : null);
-            if (!pickups) Console.WriteLine($"pickups: none in a house ({buildingType})");
+            // No generated pickups in any building: they are for dungeons only (owner, 2026-11-26).
+            var stats = WriteMap(wad, nodes[startNode], WritePoints(nodes, edges, startNode));
+            Console.WriteLine($"pickups: none indoors ({buildingType})");
             scene.WriteRuntimeEntry(ddtPath, wad, info.ToString(), OutputMapName);
             File.Delete(wad);
             Console.WriteLine($"interior {OutputMapName} {location.Name} {blockName}:{recordIndex} type {buildingType} models {scene.Models} triangles {scene.Triangles} sectors {stats.sectors} doors {interiorDoors.Count} entries {entryIndex} {clock.ElapsedMilliseconds} ms");
