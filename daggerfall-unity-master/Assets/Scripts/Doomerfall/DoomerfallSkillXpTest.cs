@@ -196,9 +196,44 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             P.SkillXp -= 100000;
             Log(string.Format("SXLEVELINGAFTER top {0} level {1}", Top.GetType().Name, P.Level));
 
+            // Doom's close key on the leveling sheet: DoomerfallUi.OnClose pops to the HUD without the sheet's own
+            // close, so the points stay unassigned in its rollout. Then the menu opens as Doom's skills key opens it
+            // (DoomerfallUi, UI_SKILLS) and tries to buy through another threshold; buying must wait.
+            var rollout = typeof(DaggerfallCharacterSheetWindow).GetField("statsRollout", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(sheet) as StatsRollout;
+            int poolBefore = rollout.BonusPool, workingBefore = StatSum(rollout.WorkingStats);
+            DaggerfallUI.Instance.PopToHUD();
+            yield return null;
+            DaggerfallUI.UIManager.PushWindow(new DoomerfallSkillsWindow(DaggerfallUI.UIManager));
+            yield return null;
+            var menu = Top as DoomerfallSkillsWindow;
+            DFCareer.Skills skill = P.GetPrimarySkills()[0];
+            int skillBefore = P.Skills.GetPermanentSkillValue(skill);
+            P.SkillXp += 100000; // test grant
+            Button buy = menu != null ? Find<Button>(menu.NativePanel, b => b.Label.Text == "BUY POINT") : null;
+            ListBox list = menu != null ? Find<ListBox>(menu.NativePanel, l => true) : null;
+            string skillName = DaggerfallUnity.Instance.TextProvider.GetSkillName(skill);
+            for (int i = 0; list != null && i < list.Count; i++)
+                if (list.GetItem(i).textLabel.Text.EndsWith("  " + skillName))
+                    list.SelectIndex(i);
+            yield return null;
+            for (int i = 0; buy != null && i < 30; i++)
+                buy.TriggerMouseClick();
+            LogMenu("SXPENDINGMENU");
+            Log(string.Format("SXPENDINGBUY menu {0} {1} {2} -> {3}, ready {4}, level {5}", menu != null, skillName, skillBefore,
+                P.Skills.GetPermanentSkillValue(skill), P.ReadyToLevelUp, P.Level));
+            P.SkillXp -= 100000;
+            if (menu != null)
+                menu.CloseWindow();
+            yield return null;
+            DaggerfallUI.PostMessage(DaggerfallUIMessages.dfuiOpenCharacterSheetWindow);
+            float until = Time.realtimeSinceStartup + 10;
+            while (!(Top is DaggerfallCharacterSheetWindow) && Time.realtimeSinceStartup < until)
+                yield return null;
+            Log(string.Format("SXPENDINGKEPT bonus {0} -> {1}, working stat sum {2} -> {3}, level {4}, top {5}", poolBefore, rollout.BonusPool,
+                workingBefore, StatSum(rollout.WorkingStats), P.Level, Top.GetType().Name));
+
             // Assign the bonus points as the player would (in the rollout's working stats), close the sheet, and check
             // that the assigned points reached the character.
-            var rollout = typeof(DaggerfallCharacterSheetWindow).GetField("statsRollout", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(sheet) as StatsRollout;
             int pool = rollout.BonusPool, before = StatSum(P.Stats), left = pool;
             for (int i = 0; i < DaggerfallStats.Count && left > 0; i++)
             {

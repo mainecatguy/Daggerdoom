@@ -168,8 +168,9 @@ character sheet (P). Rebind the key in Options, Customize Controls, Doomerfall C
   Daggerfall.
 - If the points you buy earn a new level, you get it when you close the menu: the character sheet opens (or you
   return to it, if you opened the menu from there) and you assign your attribute points as usual.
-- While the character sheet is waiting for you to assign attribute points after a level-up, its SKILLS button does
-  not open the menu. Assign the points and close the sheet first.
+- While a level-up is waiting for you to assign its attribute points, you cannot buy skill points. The SKILLS
+  button on the sheet does not open the menu then. If you open the menu with its key, BUY POINT is greyed out until
+  you assign the points on the character sheet.
 - Your Skill XP is kept in your save.
 
 ## Perks

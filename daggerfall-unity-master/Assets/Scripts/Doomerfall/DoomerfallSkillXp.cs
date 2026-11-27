@@ -59,10 +59,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return null;
         }
 
-        /// <summary>Buys one point. True when bought; the menu checks Capped and the pool first.</summary>
+        /// <summary>True while Daggerfall's character sheet holds a level-up whose attribute points are not yet
+        /// assigned (set from the sheet's SKILLS button hook). The sheet may have been closed by Doom's close key with
+        /// the points still in its stat rollout; another level-up would re-roll them, so buying waits.</summary>
+        internal static System.Func<bool> AttributePointsPending = () => false;
+
+        /// <summary>Buys one point. True when bought; the menu checks Capped, the pool and AttributePointsPending first.</summary>
         public static bool Buy(PlayerEntity player, DFCareer.Skills skill)
         {
-            if (player == null || !Buyable(skill) || Capped(player, skill) != null)
+            if (player == null || !Buyable(skill) || Capped(player, skill) != null || AttributePointsPending())
                 return false;
             int price = Price(player, skill);
             if (player.SkillXp < price)

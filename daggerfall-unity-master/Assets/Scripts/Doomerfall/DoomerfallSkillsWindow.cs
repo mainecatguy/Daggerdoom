@@ -24,7 +24,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         readonly List<DFCareer.Skills> skills = new List<DFCareer.Skills>();
         ListBox list;
         VerticalScrollBar scroll;
-        TextLabel poolLabel, nameLabel, valueLabel, priceLabel, statusLabel;
+        TextLabel poolLabel, nameLabel, valueLabel, priceLabel, statusLabel, helpLabel;
         readonly TextLabel[] perkLabels = new TextLabel[4];
         Button buyButton;
 
@@ -36,12 +36,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         static PlayerEntity Player { get { return GameManager.Instance.PlayerEntity; } }
 
         internal const string LevelingText = "Assign your attribute points and close the sheet before buying skills.";
+        internal const string PendingText = "Assign your new level's attribute points on the character sheet.";
+        const string HelpText = "Damage enemies to earn Skill XP: 1 per 100 damage.";
 
         /// <summary>The character sheet's "Skills" button (one line in DaggerfallCharacterSheetWindow.Setup).
         /// Refused while the sheet is leveling: the attribute points being assigned live only in the sheet's stat
         /// rollout until it closes, and a second level-up from a purchase would re-roll them and lose them.</summary>
         public static void AddSheetButton(IUserInterfaceWindow sheet, Panel nativePanel, System.Func<bool> leveling)
         {
+            DoomerfallSkillXp.AttributePointsPending = leveling; // the sheet is persistent; its latest Setup wins
             Button b = DaggerfallUI.AddButton(new Rect(92, 181, 42, 15), nativePanel);
             Style(b, "SKILLS", true);
             b.OnMouseClick += (sender, position) =>
@@ -127,8 +130,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 perkLabels[i] = l;
             }
 
-            TextLabel help = DaggerfallUI.AddTextLabel(DaggerfallUI.DefaultFont, new Vector2(ListX, 186), "Damage enemies to earn Skill XP: 1 per 100 damage.", main);
-            help.TextColor = Grey;
+            helpLabel = DaggerfallUI.AddTextLabel(DaggerfallUI.DefaultFont, new Vector2(ListX, 186), HelpText, main);
             Button close = DaggerfallUI.AddButton(new Rect(270, 184, 44, 12), main);
             Style(close, "CLOSE", true);
             close.OnMouseClick += (sender, position) => CloseWindow();
@@ -166,9 +168,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             string capped = DoomerfallSkillXp.Capped(p, s);
             int price = DoomerfallSkillXp.Price(p, s);
             priceLabel.Text = capped ?? string.Format("Next point: {0:N0} Skill XP", price);
-            bool canBuy = capped == null && p.SkillXp >= price;
+            bool pending = DoomerfallSkillXp.AttributePointsPending();
+            bool canBuy = capped == null && p.SkillXp >= price && !pending;
             Style(buyButton, "BUY POINT", canBuy);
-            statusLabel.Text = capped == null && !canBuy ? "Not enough XP" : "";
+            statusLabel.Text = pending ? "Level-up first" : capped == null && !canBuy ? "Not enough XP" : "";
+            helpLabel.Text = pending ? PendingText : HelpText;
+            helpLabel.TextColor = pending ? Gold : Grey;
 
             float y = ListY + 56;
             for (int i = 0; i < perkLabels.Length; i++)
