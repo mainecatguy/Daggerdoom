@@ -167,7 +167,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             player.Items.AddItem(credit);
             goldBefore = player.GetGoldAmount();
             // The test character's regions never had Daggerfall's price roll (750-1250 in a real game); 0 would make
-            // everything cost the minimum. 900 is a region priced under 100%, where per-round rounding made bullets free.
+            // everything cost the minimum. 900 is a typical region.
             PlayerGPS gps = GameManager.Instance.PlayerGPS;
             if (gps.HasCurrentLocation && player.RegionData[gps.CurrentRegionIndex].PriceAdjustment == 0)
                 player.RegionData[gps.CurrentRegionIndex].PriceAdjustment = 900;

@@ -364,7 +364,7 @@ def shop_checks(console, df_body):
     paid = re.search(r"bought for (\d+) gold", bought.group(0)) if bought else None
     gained = len(gains) == 4 and all(int(n) > 0 for _, n in gains) and paid and int(paid.group(1)) > 0
     # Daggerfall's buy price at quality 10 is 2 x value x the region's price adjustment, then mercantile and personality
-    # move it a little. Ammo stacks are priced whole, so per-round rounding must not eat it (DoomerfallShopAmmo.StackCost).
+    # move it a little. (Stock pricing clamps each unit to at least 1 gold.)
     priced = re.search(r"bought for (\d+) gold of base value (\d+), region price (\d+)/1000", bought.group(0)) if bought else None
     if priced:
         paid_n, base, region = map(int, priced.groups())
