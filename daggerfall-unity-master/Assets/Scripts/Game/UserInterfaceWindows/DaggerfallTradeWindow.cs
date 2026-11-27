@@ -440,7 +440,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                 {
                     DaggerfallUnityItem item = basketItems.GetItem(i);
                     modeActionEnabled = true;
-                    int itemPrice = FormulaHelper.CalculateCost(item.value, buildingDiscoveryData.quality) * item.stackCount;
+                    int itemPrice = Doomerfall.DoomerfallShopAmmo.StackCost(item, buildingDiscoveryData.quality); // [Doomerfall] ammo stacks priced whole
                     if ((holidayId == (int)DFLocation.Holidays.Merchants_Festival && Guild == null) ||
                         (holidayId == (int)DFLocation.Holidays.Tales_and_Tallow && Guild != null && Guild.GetFactionId() == (int)FactionFile.FactionIDs.The_Mages_Guild) ||
                         (holidayId == (int)DFLocation.Holidays.Warriors_Festival && Guild == null && item.ItemGroup == ItemGroups.Weapons))
@@ -459,7 +459,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                     {
                         case WindowModes.Sell:
                             modeActionEnabled = true;
-                            cost += FormulaHelper.CalculateCost(item.value, buildingDiscoveryData.quality, item.ConditionPercentage) * item.stackCount;
+                            cost += Doomerfall.DoomerfallShopAmmo.StackCost(item, buildingDiscoveryData.quality, item.ConditionPercentage); // [Doomerfall] ammo stacks priced whole
                             break;
                         case WindowModes.SellMagic: // TODO: Fencing base price higher and guild rep affects it. Implement new formula or can this be used?
                             modeActionEnabled = true;

@@ -42,13 +42,14 @@ argv, sys.argv = sys.argv, sys.argv[:1]
 import install  # noqa: E402  (only for its registry isolation)
 sys.argv = argv
 
-REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\ammosizefix")  # Was review\ammo, ammo-pickup, ammo-equip, ammo-tiers, ammo-change, weapon-material-damage, then ammosize, for earlier ammo runs.
-SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\doom-items")  # Data, sprite package, and demo items.
+REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\shop-ammo")  # Was review\ammosizefix, earlier review\ammo, ammo-pickup, ammo-equip, ammo-tiers, ammo-change, weapon-material-damage, then ammosize, for earlier ammo runs.
+SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\runtime-dungeons")  # Data and sprite package (the runtime dungeon run).
+CACHE_SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\ammosizefix") / "data" / "cache"  # The town cache with the test door.
 BUILD = Path(r"D:\dev\DoomDaggerfall-build")
-UZ_BUILD = BUILD / "merge-skillcore" / "uzdoom" / "Release"  # Integration's latest engine build (earlier runs: the *-ammosize and *-items trees).
+UZ_BUILD = BUILD / "shopammo" / "uzdoom" / "Release"  # Integration's latest engine build (earlier runs: the *-ammosize and *-items trees).
 SOUND = BUILD / "uzdoom-launcher" / "Release"
-BRIDGE_DLL = BUILD / "merge-skillcore" / "bridge" / "Release" / "doomerfall_bridge.dll"
-LAUNCHER = BUILD / "merge-skillcore" / "launcher" / "Release" / "doomerfall-launcher.exe"
+BRIDGE_DLL = BUILD / "shopammo" / "bridge" / "Release" / "doomerfall_bridge.dll"
+LAUNCHER = BUILD / "shopammo" / "launcher" / "Release" / "doomerfall-launcher.exe"
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
 MODS = GAME.parent / "GameMods"
@@ -75,7 +76,7 @@ def harness(load, equip=False, tiers=False, change=False, material=False, sizes=
     cache = REVIEW / "data" / "cache" / f"T{GROUP:05d}.ddt"
     for other in cache.parent.glob("T*.ddt"):
         other.unlink()
-    shutil.copy(SOURCE / "data" / "cache" / cache.name, cache)
+    shutil.copy(CACHE_SOURCE / cache.name, cache)
     door = next(l.split() for l in lumps(cache)["DDDOORS"].decode().splitlines() if l.startswith("1 187853213"))
     text = (HERE / "harness.zs").read_text().replace("@DOOR@", ", ".join(door[3:8])).replace("@LOADRUN@", "1" if load else "0").replace("@EQUIPRUN@", "1" if equip else "0").replace("@TIERRUN@", "1" if tiers else "0").replace("@CHANGERUN@", "1" if change else "0").replace("@MATERIALRUN@", "1" if material else "0").replace("@SIZERUN@", "1" if sizes else "0").replace("@SHOPRUN@", "1" if shop else "0")
     path = REVIEW / "run" / "harness.pk3"
@@ -115,6 +116,7 @@ def assemble():
     shutil.copy2(LAUNCHER, REVIEW / "doomerfall-launcher.exe")
     shutil.copy2(SOURCE / "dfitems.pk3", REVIEW / "dfitems.pk3")
     subprocess.check_call([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), str(REVIEW / "doomerfall.pk3")])
+    subprocess.check_call([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), "--drla", str(REVIEW / "doomerfall-drla.pk3")])
     print("assembled", REVIEW)
 
 
@@ -164,7 +166,7 @@ def run(name):
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
                "--uzdoom-cwd", str(runs), "--log", str(launcher)]
-    for mod in [MODS / n for n in DRLA] + [REVIEW / "data" / n for n in DATA] + [REVIEW / "dfitems.pk3", REVIEW / "doomerfall.pk3", harness(load, equip, tiers, change, material, sizes, shop)]:
+    for mod in [MODS / n for n in DRLA] + [REVIEW / "data" / n for n in DATA] + [REVIEW / "dfitems.pk3", REVIEW / "doomerfall.pk3", REVIEW / "doomerfall-drla.pk3", harness(load, equip, tiers, change, material, sizes, shop)]:
         command += ["--mod", str(mod)]
     for arg in uz:
         command += ["--uzdoom-arg", arg]
@@ -358,7 +360,18 @@ def shop_checks(console, df_body):
     ok &= bool(listed)
     print("  shelf lists all four types:", "PASS" if listed else "FAIL")
     bought = re.search(r"shopammo: bought .*", df_body)
-    gained = bought and "inventory gained bullets +" in bought.group(0) and " -0" not in bought.group(0) and "gold " in bought.group(0)
+    gains = re.findall(r"(bullets|shotgun shells|rockets|energy cells) \+(-?\d+)", bought.group(0)) if bought else []
+    paid = re.search(r"bought for (\d+) gold", bought.group(0)) if bought else None
+    gained = len(gains) == 4 and all(int(n) > 0 for _, n in gains) and paid and int(paid.group(1)) > 0
+    # Daggerfall's buy price at quality 10 is 2 x value x the region's price adjustment, then mercantile and personality
+    # move it a little. Ammo stacks are priced whole, so per-round rounding must not eat it (DoomerfallShopAmmo.StackCost).
+    priced = re.search(r"bought for (\d+) gold of base value (\d+), region price (\d+)/1000", bought.group(0)) if bought else None
+    if priced:
+        paid_n, base, region = map(int, priced.groups())
+        expect = 2 * base * region / 1000
+        fair = 0.5 * expect <= paid_n <= 1.5 * expect
+        print(f"  price: paid {paid_n}, Daggerfall's formula before mercantile {expect:.0f}", "PASS" if fair else "FAIL")
+        gained = gained and fair
     ok &= bool(gained)
     print("  bought into inventory:", bought.group(0)[:200] if bought else "missing", "PASS" if gained else "FAIL")
     spent = re.findall(r"AMSHOP fired (\w+): (\w+) (\d+) -> (\d+), (.*)", console)

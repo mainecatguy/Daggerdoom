@@ -22,7 +22,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         DoomerfallBridge bridge;
         DoomerfallAmmo ammo;
-        int step, frames, settled, goldBefore;
+        int step, frames, settled, goldBefore, baseValue;
         int[] before = new int[4];
         GameObject holder;
         DaggerfallTradeWindow trade;
@@ -90,8 +90,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         string gained = "";
                         for (int t = 0; t < before.Length; t++)
                             gained += string.Format("{0}{1} +{2}", t > 0 ? ", " : "", Names[t], DoomerfallAmmo.Total(player.Items, t) - before[t]);
-                        Log(string.Format("bought for {0} gold (gold {1} -> {2}); inventory gained {3}; holds{4}",
-                            goldBefore - player.GoldPieces, goldBefore, player.GoldPieces, gained, ammo.Totals()));
+                        Log(string.Format("bought for {0} gold of base value {5}, region price {6}/1000 (gold {1} -> {2}); inventory gained {3}; holds{4}",
+                            goldBefore - player.GetGoldAmount(), goldBefore, player.GetGoldAmount(), gained, ammo.Totals(), baseValue, RegionPrice()));
                         Destroy(holder);
                         step = -1;
                         break;
@@ -147,23 +147,45 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             holder = new GameObject("Doomerfall shop ammo test");
             DaggerfallLoot shelf = holder.AddComponent<DaggerfallLoot>();
-            shelf.StockShopShelf(new PlayerGPS.DiscoveredBuilding { buildingType = DFLocation.BuildingTypes.GeneralStore, quality = 10, buildingKey = 77 });
+            PlayerGPS.DiscoveredBuilding building = new PlayerGPS.DiscoveredBuilding { buildingType = DFLocation.BuildingTypes.GeneralStore, quality = 10, buildingKey = 77, displayName = "Test General Store" };
+            shelf.StockShopShelf(building);
             string text = "";
             for (int i = 0; i < shelf.Items.Count; i++)
             {
                 DoomerfallAmmoItem item = shelf.Items.GetItem(i) as DoomerfallAmmoItem;
-                if (item != null)
-                    text += string.Format(" [{0} x{1} {2} gold]", item.ItemName, item.stackCount, item.value);
+                if (item == null)
+                    continue;
+                text += string.Format(" [{0} x{1} {2} gold]", item.ItemName, item.stackCount, item.value);
+                baseValue += item.value * item.stackCount;
             }
             Log(string.Format("general store shelf:{0} ({1} items in all)", text, shelf.Items.Count));
             for (int t = 0; t < before.Length; t++)
                 before[t] = DoomerfallAmmo.Total(player.Items, t);
-            player.GoldPieces += TestGold; // Test money, so the whole stock can be bought.
-            goldBefore = player.GoldPieces;
+            // Test money, so the whole stock can be bought: a letter of credit, since that much coin would be too heavy to carry.
+            DaggerfallUnityItem credit = ItemBuilder.CreateItem(ItemGroups.MiscItems, (int)MiscItems.Letter_of_credit);
+            credit.value = TestGold;
+            player.Items.AddItem(credit);
+            goldBefore = player.GetGoldAmount();
+            // The test character's regions never had Daggerfall's price roll (750-1250 in a real game); 0 would make
+            // everything cost the minimum. 900 is a region priced under 100%, where per-round rounding made bullets free.
+            PlayerGPS gps = GameManager.Instance.PlayerGPS;
+            if (gps.HasCurrentLocation && player.RegionData[gps.CurrentRegionIndex].PriceAdjustment == 0)
+                player.RegionData[gps.CurrentRegionIndex].PriceAdjustment = 900;
             trade = (DaggerfallTradeWindow)UIWindowFactory.GetInstanceWithArgs(UIWindowType.Trade,
                 new object[] { DaggerfallUI.UIManager, null, DaggerfallTradeWindow.WindowModes.Buy, null });
             trade.MerchantItems = shelf.Items;
             DaggerfallUI.UIManager.PushWindow(trade);
+            // The test runs outside any shop, so the window found no building ("old save, no trade"): give it this
+            // general store, so it prices by the store's quality as it does in a real shop, and close the notice.
+            typeof(DaggerfallTradeWindow).GetField("buildingDiscoveryData", Any).SetValue(trade, building);
+            if (DaggerfallUI.UIManager.TopWindow is DaggerfallMessageBox)
+                DaggerfallUI.UIManager.PopWindow();
+        }
+
+        static int RegionPrice()
+        {
+            PlayerGPS gps = GameManager.Instance.PlayerGPS;
+            return gps.HasCurrentLocation ? GameManager.Instance.PlayerEntity.RegionData[gps.CurrentRegionIndex].PriceAdjustment : 1000;
         }
 
         static object Mode(string name)

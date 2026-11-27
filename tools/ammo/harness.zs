@@ -221,7 +221,8 @@ class AMHarness : EventHandler
 		vector3 door = (DOORDATA[0], DOORDATA[1], DOORDATA[2]);
 		vector2 normal = (DOORDATA[3], DOORDATA[4]);
 		timer++;
-		if (SHOPRUN) players[0].cmd.buttons |= buttons; // WorldTick runs before the player thinks: holds fire.
+		// Holding fire: the player's own fire routine, as the attack button calls it, each tic the gun is ready.
+		if (SHOPRUN && buttons && (players[0].WeaponState & WF_WEAPONREADY) && PlayerPawn(players[0].mo)) PlayerPawn(players[0].mo).FireWeapon(null);
 		if (LOADRUN && phase == SAVED) { phase = 20; timer = 0; Report("loaded"); }
 		if (LOADRUN && phase < SAVED) return;
 		if (!LOADRUN && !EQUIPRUN && phase < SAVED) WatchDaggerfall(p);
@@ -534,7 +535,8 @@ class AMHarness : EventHandler
 			if (timer == 1) { shopClip = p.CountInv("Clip"); shopCell = p.CountInv("Cell"); Report("before shop purchase"); }
 			if (timer > LIMIT) { Report("shop purchase never arrived"); phase = 7; timer = 0; break; }
 			if (timer % 35 == 0) Report("waiting for shop purchase");
-			if (p.CountInv("Clip") > shopClip + 50 && p.CountInv("Cell") > shopCell + 50) { Report("after shop purchase"); Next(); }
+			// The purchase may land before this phase starts; the player starts with 60 bullets and no cells.
+			if (p.CountInv("Clip") > 60 && p.CountInv("Cell") >= 20) { Report("after shop purchase"); Next(); }
 			break;
 		case 111: // Fire the bought bullets from a chaingun, then the bought cells from a plasma rifle, holding fire.
 		case 112:

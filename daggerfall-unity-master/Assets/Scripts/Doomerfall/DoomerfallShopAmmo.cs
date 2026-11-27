@@ -6,6 +6,8 @@
 // each restock varies a little around the shop's fixed amounts.
 
 using DaggerfallConnect;
+using DaggerfallWorkshop.Game.Formulas;
+using DaggerfallWorkshop.Game.Items;
 using UnityEngine;
 
 namespace DaggerfallWorkshop.Game.Doomerfall
@@ -58,6 +60,17 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             for (int t = 0; t < result.Length; t++)
                 result[t] = Average[t] * scale * weights[t] / norm[t];
             return result;
+        }
+
+        // A trade window's price for a basket or sale item. Daggerfall prices one unit, rounding down after the regional
+        // price adjustment, then multiplies by the stack: a 1-gold bullet would cost nothing in any region priced under
+        // 100%. Doom ammo is priced as the whole stack's value instead, so the regional price applies without rounding
+        // each round away. Every other item keeps Daggerfall's formula.
+        internal static int StackCost(DaggerfallUnityItem item, int quality, int conditionPercentage = -1)
+        {
+            if (item is DoomerfallAmmoItem)
+                return FormulaHelper.CalculateCost(item.value * item.stackCount, quality, conditionPercentage);
+            return FormulaHelper.CalculateCost(item.value, quality, conditionPercentage) * item.stackCount;
         }
 
         internal static int Round(int type, float amount)
