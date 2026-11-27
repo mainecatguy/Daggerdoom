@@ -24,8 +24,9 @@
 // the pistol token (checked in GameMods/ExtractedData).
 // Rifles (owner, 2026-11-26: "all ballistic semi-automatic weapons that are not explosives, energy weapons, shotguns
 // or pistols") is skill slot 8, but no category maps to it yet. Precision (DRLA's single-shot rifle token) is not a
-// clean rifle list: the Assault Rifle Chaingun, Assault Rifle Minigun and Autocannon carry it and are Automatics by
-// the owner's rule, and the Sniper Rifle lacks it. Doomerfall's own rifle tag (DoomerfallRifleTag.IsRifle) says which
+// clean rifle list: the Assault Rifle Chaingun, Assault Rifle Minigun and Autocannon carry it but are Automatics by
+// the owner's rule (IsOwnerAutomatic, checked where the token would make them Precision), and the Sniper Rifle
+// lacks it. Doomerfall's own rifle tag (DoomerfallRifleTag.IsRifle) says which
 // guns are rifles; it changes no category or skill yet.
 // DRLA gives its tokens only while the gun is held (the gun's Select state gives them, lowering takes them), so a
 // DRLA gun that is not the held one is known by ammo only and may read as Other until it is selected.
@@ -130,7 +131,8 @@ class DoomerfallWeaponCategory abstract
 		bool isShotgun = w is "Shotgun" || w is "SuperShotgun" || (tokens & TokShotgun);
 		if (isEnergy) return Energy, isShotgun ? Shotgun : Other;
 		if (isShotgun) return Shotgun, Other;
-		if (tokens & TokSingleShotRifle) return Precision, Other;
+		if ((tokens & TokSingleShotRifle) && !IsOwnerAutomatic(w)) return Precision, Other;
+		if (IsOwnerAutomatic(w)) return Automatic, Other;
 		if (w is "Chaingun" || (tokens & TokRapidfire)) return Automatic, Other;
 		return Other, Other;
 	}
@@ -165,6 +167,13 @@ class DoomerfallWeaponCategory abstract
 	{
 		class<Actor> c = name; // Null when that mod is not loaded.
 		return c && w is c;
+	}
+
+	// DRLA guns with the single-shot rifle token that the owner ruled Automatics (2026-11-26: "Those all sound like
+	// automatics"). Looked up at run time, so this list does nothing without DRLA.
+	private clearscope static bool IsOwnerAutomatic(readonly<Weapon> w)
+	{
+		return IsClass(w, "RLAssaultRifleChaingun") || IsClass(w, "RLAssaultRifleMinigun") || IsClass(w, "RLAutocannon");
 	}
 
 	private clearscope static bool IsEnergyGun(readonly<Weapon> w)

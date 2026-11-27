@@ -142,10 +142,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         const int InfoLineChars = 44; // Keeps the info box inside Daggerfall's 320-pixel screen.
 
-        // "Plasma Rifle. Types: Energy", or "Types: none" for a gun in no weapon skill.
+        // "Plasma Rifle. Type: Energy", "Laser Shotgun. Types: Energy, Shotgun", or "Types: none" for a gun in no
+        // weapon skill. Doom sends the types comma-separated.
         internal static string TypesLine(string doomName, string types)
         {
-            return string.Format("{0}. Types: {1}", doomName, string.IsNullOrEmpty(types) ? "none" : types);
+            if (string.IsNullOrEmpty(types))
+                return string.Format("{0}. Types: none", doomName);
+            return string.Format("{0}. {1}: {2}", doomName, types.Contains(",") ? "Types" : "Type", types);
         }
 
         // Words in lines of at most width characters (a longer word gets a line of its own).

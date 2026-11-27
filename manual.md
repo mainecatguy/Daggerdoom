@@ -54,7 +54,7 @@ Doomerfall adds seven weapon skills to your character sheet: the gun skills **Sh
 Impish) are gone: you can no longer calm monsters by speaking to them.
 
 - Most weapons belong to one of these skills; a few belong to two (see "Weapons that belong to two skills"). Shotguns covers shotguns, Automatics covers chainguns, miniguns and
-  other rapid-fire guns, Explosives covers rocket, missile and grenade launchers, and Pistols covers every pistol,
+  other rapid-fire guns, including the Assault Rifle Chaingun, Assault Rifle Minigun and Autocannon, Explosives covers rocket, missile and grenade launchers, and Pistols covers every pistol,
   revolver and Uzi, including plasma pistols and pistols that fire shotgun shells. Rifles covers ballistic
   semi-automatic and single-shot rifles that are not explosives, energy weapons, shotguns or pistols.
 - No rifle counts as a pistol.
@@ -128,7 +128,7 @@ whichever of its skills is higher, never both at once.
 ### Seeing a gun's skills
 
 Select **Info** on a gun in your inventory to see which weapon skills it counts as. The description starts with the
-gun's name and its types, for example "Plasma Rifle. Types: Energy" or "Laser Shotgun. Types: Energy, Shotgun". A gun
+gun's name and its types, for example "Plasma Rifle. Type: Energy" or "Laser Shotgun. Types: Energy, Shotgun". A gun
 with two types uses whichever of those skills is higher (above). Doom Roguelike Arsenal guns also show a short
 description from the arsenal's own notes, and every gun shows its material and weight.
 

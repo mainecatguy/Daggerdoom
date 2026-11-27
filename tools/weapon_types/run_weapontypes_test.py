@@ -37,10 +37,9 @@ DRLA_SAMPLES.update({
     'RLPlasmaPistol': 'Pistol, Energy', 'RLBlaster': 'Pistol, Energy', 'RLLaserShotgun': 'Energy, Shotgun',
     'RLPlasmaShotgun': 'Energy, Shotgun', 'RLMarksmanRifle': 'Rifle', 'RLSniperRifle': 'Rifle',
     'RLGaussRifle': 'Rifle', 'RLElephantGun': 'Rifle',
+    # Automatics by the owner's ruling (2026-11-26), although they carry DRLA's single-shot rifle token.
+    'RLAssaultRifleChaingun': 'Automatic', 'RLAssaultRifleMinigun': 'Automatic', 'RLAutocannon': 'Automatic',
 })
-# Not sampled: the Assault Rifle Chaingun, Assault Rifle Minigun and Autocannon are Automatics by the owner's ruling,
-# but carry DRLA's single-shot rifle token, so the skill code reads them as Precision (no skill yet;
-# DoomerfallWeaponCategory's header). The description follows the skill code, so they show "Types: none".
 PISTOL_BRIEF = 'Your trusty 10mm pistol. It may be nice, but better find something stronger.'
 PLASMA_PISTOL_BRIEF = 'Experiments into creating scalar plasma weapon technology resulted in the Plasma Pistol.'
 
