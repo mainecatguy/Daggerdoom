@@ -46,7 +46,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (!sync)
                 sync = FindObjectOfType<DoomerfallPositionSync>();
             PlayerEntity player = GameManager.Instance.PlayerEntity;
-            if (!sync || !sync.InGame || sync.LoadRunning || GameManager.Instance.SaveLoadManager.LoadInProgress || player == null ||
+            if (!sync || !sync.InGame || sync.LoadRunning || sync.Phase != Dfb.DF_PHASE_PLAY || GameManager.Instance.SaveLoadManager.LoadInProgress || player == null ||
                 !(DaggerfallUI.UIManager.TopWindow is UserInterfaceWindows.DaggerfallHUD))
             {
                 nextAt = 0;
@@ -64,12 +64,16 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         void Raise(PlayerEntity player, DFCareer.Skills[] skills)
         {
+            // As DoomerfallLevelUpTest: line the level formula up with the current level, so these points (fewer than the
+            // 15 a level needs) cannot open the level-up sheet; the blank test character's starting sum would.
+            player.SetCurrentLevelUpSkillSum();
+            player.StartingLevelUpSkillSum = player.CurrentLevelUpSkillSum + 28 - 15 * player.Level;
             string before = Values(player, skills);
             foreach (DFCareer.Skills skill in skills)
                 player.TallySkill(skill, 20000); // Capped at 20000 by TallySkill; far more than one point needs below 95.
             player.TimeOfLastSkillIncreaseCheck = 0;
             player.RaiseSkills();
-            Write(string.Format("round {0}: skill check ran, {1} -> {2}", round, before, Values(player, skills)));
+            Write(string.Format("round {0}: skill check ran, {1} -> {2} (ready to level up {3})", round, before, Values(player, skills), player.ReadyToLevelUp));
         }
 
         static string Values(PlayerEntity player, DFCareer.Skills[] skills)
