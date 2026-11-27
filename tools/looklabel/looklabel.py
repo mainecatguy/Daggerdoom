@@ -27,6 +27,9 @@ EXPECT = {
     "drla": {"RLStimpack": "Stimpack", "RLMedikit": "Medikit"},
 }
 MESSAGE = re.compile(r"^(picked up|you got|you picked|you found|found|got)\b", re.I)
+# A sentence rather than a name: a pronoun or a verb word anywhere ("This Laser Can Fire Through Anything",
+# "Cloaking Device Activated", "Your Weapon Has Been Downgraded").
+SENTENCE = re.compile(r"\b(you|your|this|these|there|it|its|is|are|was|has|have|had|been|will|now|activated)\b", re.I)  # Not "can": "Fuel Can".
 
 
 def clean(tag):
@@ -63,7 +66,7 @@ def names(uzdoom, out):
         rows = re.findall(r"^LLNAME class=(\S+) name=(.*?) old=(.*)$", body, re.M)
         done = re.search(r"^LLDONE (\d+)", body, re.M)
         table = {c: (clean(n), clean(o)) for c, n, o in rows}
-        bad = [(c, n) for c, (n, _) in table.items() if not n or MESSAGE.match(n) or "%" in n]
+        bad = [(c, n) for c, (n, _) in table.items() if not n or MESSAGE.match(n) or SENTENCE.search(n) or "%" in n]
         changed = [(c, o, n) for c, (n, o) in table.items() if n != o]
         print(f"{label}: exit {code}, {len(table)} pickups named, fatal {len(fatal)}, done {bool(done)}")
         for l in fatal[:5]:

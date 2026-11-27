@@ -172,20 +172,28 @@ double AimScore(AActor *pmo, player_t *player, AActor *item)
 // True when a solid 3D floor lies between the player's eye and the item: it is on another storey of a converted
 // dungeon. Doom's sight check lets this through for an item lying on the 3D floor's top within the player's own sector,
 // and the floor-ahead rule in AimScore ignores where the player faces, so a clip on the storey above showed a label.
-bool OtherStorey(player_t *player, AActor *item)
+// The slab must lie between the two heights both where the item is and where the player stands, so an item on a
+// ledge or platform seen from an open room still counts.
+bool SlabBetween(sector_t *sector, const DVector2 &at, double eye, AActor *item)
 {
-	for (F3DFloor *rover : item->Sector->e->XFloor.ffloors)
+	for (F3DFloor *rover : sector->e->XFloor.ffloors)
 	{
 		if (!(rover->flags & FF_EXISTS) || !(rover->flags & FF_SOLID)) continue;
-		const double top = rover->top.plane->ZatPoint(item), bottom = rover->bottom.plane->ZatPoint(item);
-		if (player->viewz <= bottom && item->Z() >= top - 1) return true;
-		if (player->viewz >= top && item->Top() <= bottom + 1) return true;
+		const double top = rover->top.plane->ZatPoint(at), bottom = rover->bottom.plane->ZatPoint(at);
+		if (eye <= bottom && item->Z() >= top - 1) return true;
+		if (eye >= top && item->Top() <= bottom + 1) return true;
 	}
 	return false;
 }
 
-// The pile, container, or (with `doomItems`) Doom pickup that Use would take, or null.
-AActor *ItemInView(player_t *player, bool doomItems, bool touchToo = false)
+bool OtherStorey(player_t *player, AActor *item)
+{
+	return SlabBetween(item->Sector, item->Pos().XY(), player->viewz, item) && SlabBetween(player->mo->Sector, player->mo->Pos().XY(), player->viewz, item);
+}
+
+// The pile, container, or (with `doomItems`) Doom pickup that Use would take, or null. With `look` (the label only),
+// items on another storey are left out; Use and Info still choose as before.
+AActor *ItemInView(player_t *player, bool doomItems, bool touchToo = false, bool look = false)
 {
 	AActor *pmo = player->mo, *best = nullptr;
 	double bestScore = -HUGE_VAL;
@@ -195,7 +203,7 @@ AActor *ItemInView(player_t *player, bool doomItems, bool touchToo = false)
 		const bool pile = IsWorldPile(mo);
 		if (!pile && (!doomItems || !(mo->flags & MF_SPECIAL) || !(touchToo ? DD_PickupVisible(mo) : DD_PickupNeedsUse(mo)))) continue;
 		const double score = AimScore(pmo, player, mo);
-		if (score > bestScore && P_CheckSight(pmo, mo, SF_IGNOREVISIBILITY) && !OtherStorey(player, mo))
+		if (score > bestScore && P_CheckSight(pmo, mo, SF_IGNOREVISIBILITY) && !(look && OtherStorey(player, mo)))
 		{
 			bestScore = score;
 			best = mo;
@@ -1005,7 +1013,7 @@ bool DD_PickupNeedsUse(AActor *special)
 AActor *DD_LookItem(player_t *player, bool &world, uint64_t &id, FString &name)
 {
 	if (!useRules || !DD_BridgeHasSession() || !player || !player->mo) return nullptr;
-	AActor *best = ItemInView(player, true, true);
+	AActor *best = ItemInView(player, true, true, true);
 	if (!best) return nullptr;
 	world = IsWorldPile(best) || IsWorldContainer(best);
 	if (world) id = strtoull(best->StringVar(FName("dfId")).GetChars(), nullptr, 16);

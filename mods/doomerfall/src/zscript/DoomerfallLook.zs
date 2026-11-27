@@ -107,9 +107,17 @@ class DoomerfallItemName play
 		while (digits < msg.Length() && msg.ByteAt(digits) >= 48 && msg.ByteAt(digits) <= 57) digits++;
 		if (digits > 0 && digits < msg.Length() && msg.ByteAt(digits) == 32) msg = msg.Mid(digits + 1);
 		if (msg.Length() == 0) return "";
-		// Title case like the stock tags ("Armor Bonus"), small words after the first kept low ("Sixpack of Soda").
 		Array<String> words;
 		msg.Split(words, " ");
+		// A sentence ("This laser can fire through anything", "Cloaking device activated") does not name the item.
+		static const String sentence[] = { "you", "your", "this", "these", "there", "it", "its", "is", "are", "was", "has", "have", "had", "been", "will", "now", "activated" }; // Not "can": "Fuel Can".
+		for (int i = 0; i < words.Size(); i++)
+		{
+			String w = words[i].MakeLower();
+			for (int j = 0; j < sentence.Size(); j++)
+				if (w == sentence[j]) return "";
+		}
+		// Title case like the stock tags ("Armor Bonus"), small words after the first kept low ("Sixpack of Soda").
 		String title = "";
 		for (int i = 0; i < words.Size(); i++)
 		{
