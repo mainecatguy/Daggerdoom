@@ -360,7 +360,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             showingTravelMap = id == Dfb.UI_TRAVEL_MAP;
             bool creating = id == Dfb.UI_NEW_GAME && DoomerfallNewGame.HoldsNewCharacter;
             bool loading = id == Dfb.UI_LOAD_GAME && DoomerfallNewGame.HoldsNewCharacter && PlainLoad;
-            if ((id != Dfb.UI_TRAVEL_MAP && id != Dfb.UI_INVENTORY && id != Dfb.UI_MAP && id != Dfb.UI_LOOT && id != Dfb.UI_TALK && id != Dfb.UI_DAGGERFALL && id != Dfb.UI_JOURNAL && id != Dfb.UI_REST && id != Dfb.UI_CHARACTER && id != Dfb.UI_SPELLBOOK && !creating && !loading) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
+            if ((id != Dfb.UI_TRAVEL_MAP && id != Dfb.UI_INVENTORY && id != Dfb.UI_MAP && id != Dfb.UI_LOOT && id != Dfb.UI_TALK && id != Dfb.UI_DAGGERFALL && id != Dfb.UI_JOURNAL && id != Dfb.UI_REST && id != Dfb.UI_CHARACTER && id != Dfb.UI_SPELLBOOK && id != Dfb.UI_TRANSPORT && !creating && !loading) || !GameManager.HasInstance || !GameManager.Instance.IsReady || !DaggerfallUI.Instance)
             {
                 Finish(Dfb.UI_REASON_REFUSED);
                 return;
@@ -391,6 +391,24 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     DoomerfallInfo.SendText(bridge, 0, TextManager.Instance.GetLocalizedText("noSpellbook"), false, Dfb.KIND_HUD_TEXT);
                     bridge.LogLine("ui: spellbook refused, the player carries no spellbook");
                     Finish(Dfb.UI_REASON_RESULT);
+                    return;
+                }
+            }
+            if (id == Dfb.UI_TRANSPORT)
+            {
+                // Daggerfall's own checks (DaggerfallUI, dfuiOpenTransportWindow) on where Doom's player is, since
+                // Daggerfall's hidden player waits outside the door Doom used. The window is pushed below.
+                if ((doomContext & 0xFF) != Dfb.WORLD_EXTERIOR)
+                {
+                    DoomerfallInfo.SendText(bridge, 0, TextManager.Instance.GetLocalizedText("cannotChangeTransportationIndoors"), false, Dfb.KIND_HUD_TEXT);
+                    bridge.LogLine("ui: transport refused, Doom is in area " + (doomContext & 0xFF));
+                    Finish(Dfb.UI_REASON_RESULT);
+                    return;
+                }
+                if ((doomContext & Dfb.TRANSPORT_AIRBORNE) != 0)
+                {
+                    bridge.LogLine("ui: transport refused, Doom's player is not on the ground"); // Daggerfall says nothing either.
+                    Finish(Dfb.UI_REASON_REFUSED);
                     return;
                 }
             }
@@ -462,6 +480,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     Finish(Dfb.UI_REASON_RESULT);
                 return;
             }
+            if (id == Dfb.UI_TRANSPORT)
+            {
+                DaggerfallUI.UIManager.PushWindow(UIWindowFactory.GetInstance(UIWindowType.Transport, DaggerfallUI.UIManager));
+                bridge.LogLine(string.Format("ui: transport menu, owns horse {0} cart {1} ship {2}, riding {3}", GameManager.Instance.TransportManager.HasHorse(),
+                    GameManager.Instance.TransportManager.HasCart(), GameManager.Instance.TransportManager.ShipAvailiable(), GameManager.Instance.TransportManager.TransportMode));
+                return;
+            }
             if (id == Dfb.UI_LOOT)
             {
                 // Daggerfall's own activation pushes whatever the container calls for: the loot window, the trade
@@ -520,6 +545,18 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return false;
             DaggerfallUI.MessageBox("You cannot cast spells yet.");
             instance.bridge.LogLine("ui: spell choice held, casting from Doom is not built yet");
+            return true;
+        }
+
+        /// <summary>Boarding the ship from the transport menu. Daggerfall's boarding teleports its world to the ship's map
+        /// pixel without a fast travel, so Doom would stay where it is. Until Doom can follow it, the ship stays where
+        /// it is in a bridge session, and says so. Horse, cart and foot are kept as in Daggerfall.</summary>
+        public static bool HoldsShip()
+        {
+            if (!instance)
+                return false;
+            DaggerfallUI.MessageBox("You cannot board your ship yet.");
+            instance.bridge.LogLine("ui: ship boarding held, Doom cannot follow the ship teleport yet");
             return true;
         }
 

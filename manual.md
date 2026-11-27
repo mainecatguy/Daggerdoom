@@ -318,6 +318,18 @@ you only on a fresh install. Doom stays frozen while either is open.
 - **You cannot cast spells yet.** Choosing a spell in the spellbook, however you opened it (Backspace, the character
   sheet, the spellbook in your inventory, or the level-up sheet), says so and does nothing else.
 
+## Transport: foot, horse, cart, ship
+
+Press **T** for Daggerfall's transport menu (rebind it in Options, Customize Controls, Doomerfall Controls as **Open
+Transport**). It is set for you only on a fresh install. Doom stays frozen while the menu is open. T, Escape or **Exit**
+closes it.
+
+- It lists what you own as in Daggerfall: Horse, Cart and Ship are greyed out until you buy one.
+- Choosing **Foot**, **Horse** or **Cart** works as in Daggerfall, and Daggerfall keeps the choice, in saves too.
+  **Riding does not change how you move in Doom yet**, and Doom shows no horse or cart.
+- **You cannot board your ship yet.** Choosing Ship says so and does nothing else.
+- You can only open it outdoors, standing on the ground. Indoors you are told you cannot change transportation.
+
 ## Locked doors
 
 Some dungeon doors are locked. Look at one: it reads **Locked.**, or "This is a magically held lock..." for a magic one.
