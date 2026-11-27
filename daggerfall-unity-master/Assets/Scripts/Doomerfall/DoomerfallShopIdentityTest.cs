@@ -226,7 +226,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 int level = c[0];
                 DFLocation.BuildingTypes type = c[1] == 0 ? DFLocation.BuildingTypes.WeaponSmith : c[1] == 1 ? DFLocation.BuildingTypes.Armorer : DFLocation.BuildingTypes.GeneralStore;
                 int count = c[1] == 0 && level == 30 ? 120 : 60;
-                long pieces = 0, stocked = 0, samples = 0, withAny = 0, arrivals = 0;
+                long pieces = 0, stocked = 0, samples = 0, withAny = 0, arrivals = 0, newWeapons = 0, newDaedricWeapons = 0;
                 long bigPieces = 0, bigSamples = 0, trickleStocked = 0, trickleSamples = 0, bigStocked = 0;
                 int stockMin = int.MaxValue, stockMax = 0;
                 for (int k = 0; k < count; k++)
@@ -246,7 +246,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                             for (int i = 0; i < s.Items.Count; i++)
                             {
                                 DaggerfallUnityItem item = s.Items.GetItem(i);
-                                if (IsDaedric(item)) { n++; if (known.Add(item) && d > 1) arrivals++; }
+                                bool fresh = known.Add(item) && d > 1;
+                                if (IsDaedric(item)) { n++; if (fresh) arrivals++; }
+                                if (fresh && item.ItemGroup == ItemGroups.Weapons && item.TemplateIndex != (int)Weapons.Arrow) { newWeapons++; if (IsDaedric(item)) newDaedricWeapons++; }
                                 if (Stocked(item)) st++;
                             }
                         pieces += n; stocked += st; samples++; if (n > 0) withAny++;
@@ -264,9 +266,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     verdict = (mean >= 0.7 && mean <= 1.4 && any >= 0.5 ? "PASS" : "FAIL") + " best smith target (about one Daedric piece, usually there): ";
                 }
                 if (c[1] == 0 && level == 20) top20 = mean;
-                Log(string.Format("{0}{1} level {2} ({3} shops x 90 days, {4} shelves, stock target {5}, material budget {6:F2}/day): {7:F2} Daedric pieces on the shelves per shop-day, at least one on {8:P0} of shop-days; {9:F2} new Daedric arrivals per shop per month; stocked goods per day mean {10:F1} (min {11}, max {12}); trickle shops {13:F1}, big-delivery shops {14:F1} goods and {15:F2} Daedric",
+                Log(string.Format("{0}{1} level {2} ({3} shops x 90 days, {4} shelves, stock target {5}, material budget {6:F2}/day): {7:F2} Daedric pieces on the shelves per shop-day, at least one on {8:P0} of shop-days; {9:F2} new Daedric arrivals per shop per month; stocked goods per day mean {10:F1} (min {11}, max {12}); trickle shops {13:F1}, big-delivery shops {14:F1} goods and {15:F2} Daedric; newly arrived weapons {16:F2}% Daedric ({17} of {18}; approved odds {19:F2}%)",
                     verdict, type, level, count, Shelves, DoomerfallShopLedger.StockTarget(level), DoomerfallShopLedger.MaterialBudget(level), mean, any, perMonth,
-                    stocked / (double)samples, stockMin, stockMax, trickleStocked / (double)Mathf.Max(1, trickleSamples), bigStocked / (double)Mathf.Max(1, bigSamples), bigPieces / (double)Mathf.Max(1, bigSamples)));
+                    stocked / (double)samples, stockMin, stockMax, trickleStocked / (double)Mathf.Max(1, trickleSamples), bigStocked / (double)Mathf.Max(1, bigSamples), bigPieces / (double)Mathf.Max(1, bigSamples), 100.0 * newDaedricWeapons / Mathf.Max(1, newWeapons), newDaedricWeapons, newWeapons, 100 * DoomerfallDrops.DaedricChance(level)));
             }
             Log(string.Format("{0} a level 20 smith holds fewer Daedric pieces than a level 30 smith ({1:F2} vs {2:F2})", top20 < top ? "PASS" : "FAIL", top20, top));
         }

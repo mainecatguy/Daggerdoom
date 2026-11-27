@@ -139,7 +139,8 @@ class SLDemoStart : StaticEventHandler
     if kind == "GeneralStore":
         about = ("rem Shop shelves roll at the shop's level. Town start with DRLA, facing a general store. Go in and Use a shelf.\r\n"
                  "rem Daggerfall writes the shop's level for each restock to play\\df.log (\"shop restock: ... at shop level N\").\r\n"
-                 "rem Shelves are a ledger: each day cheap goods sell off fast and pricey goods slowly, and new deliveries top the shelves up.\r\n"
+                 "rem Shelves are a ledger: each day cheap goods sell off fast and pricey goods slowly. Each shop has a fixed identity (lean,\r\n"
+                 "rem breadth, trickle or big-delivery rhythm, regular suppliers); goods arrive on its delivery days, Doom ammo daily.\r\n"
                  "rem Sell something to the shopkeeper: it goes on a shelf. Rest a few days and look again (play\\df.log has \"shop ledger:\" lines).\r\n")
     else:
         about = (f"rem Houses and guild halls roll loot at a level from their own quality. Town start with DRLA, facing a {kind}.\r\n"

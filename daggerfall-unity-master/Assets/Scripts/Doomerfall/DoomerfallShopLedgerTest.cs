@@ -273,7 +273,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 }
                 Free(shelves);
             }
-            Log(string.Format("level {0}: first stocking has a Daedric item in {1:F1}% of shops; Daedric share of weapons on first stocking {2:F2}% ({3} of {4}; approved odds give {5:F2}%); after {6} days, a shop has a Daedric item on {7:F1}% of days ({8} shop-days)",
+            Log(string.Format("level {0} (first stocking = after the 120-day warm-up of a never-stocked shelf, so long-lingering Daedric goods are over-represented; fresh-delivery odds are in -dfshoplevelrates and -dfshopidentitytest): first stocking has a Daedric item in {1:F1}% of shops; Daedric share of weapons on first stocking {2:F2}% ({3} of {4}; approved odds give {5:F2}%); after {6} days, a shop has a Daedric item on {7:F1}% of days ({8} shop-days)",
                 level, 100.0 * firstDelivery / Buildings, 100.0 * daedricPieces / Mathf.Max(1, pieces), daedricPieces, pieces, 100 * DoomerfallDrops.DaedricChance(level),
                 WarmUp, 100.0 * withDaedric / Mathf.Max(1, samples), samples));
             Log(string.Format("level {0}: armor on first stocking: {1} pieces, {2} plate ({3:F1}%), {4} Daedric = {5:F2}% of armor, {6:F2}% of plate (approved odds {7:F2}%)",
