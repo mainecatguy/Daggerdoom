@@ -24,6 +24,12 @@ static partial class Program
     // Doom stops walkers on floors whose normal z is below STEEPSLOPE (0.70712, just under 45 degrees). Planes are written
     // no steeper than MinPlaneNormal (44.3 degrees). Faces from there down to RampNormal (45.6 degrees) are flattened to it.
     const double FlatNormal = 0.9995, MinPlaneNormal = 0.715, RampNormal = 0.70, CeilingNormal = 0.2, PlaneMatch = 2.5;
+    // Dungeons: a ceiling face steeper than 60 degrees over a sloped floor (a wall leaning over a 45-degree bevel) is
+    // not used as a sloped collision ceiling. It drops about 4 units per unit toward the wall, so the engine's height
+    // checks at line points flip with sub-unit position changes and a player sliding along the wall stops dead (notes
+    // 20261127-035402). The span gets a flat ceiling at the face's highest point over the cell instead. Over flat floors
+    // (stairs) the sloped ceiling stays: flattening it there changed stair walking for the worse.
+    const double DungeonCeilingNormal = 0.5;
     const double SnapRadius = 0.9, MinAlignment = 0.866, MaxMove = 1.3, MaxDeviation = 1.35, UnsnappedTolerance = 0.72, SnappedTolerance = 1.25, PinnedTolerance = 0.25;
     const int MaxStrikes = 12;
     const int FeatureBucket = 24;
@@ -40,7 +46,7 @@ static partial class Program
     const double StairStep = 2.01; // longest staircase step, in cells, that SmoothStairs straightens
     // AbsorbSlivers: largest sliver, in cells, and the largest floor and ceiling changes. Floors barely move, so stairs keep their treads.
     const int SliverCells = 2, SliverFloor = 4, SliverStep = 24;
-    static int slivers;
+    static int slivers, steepCeilingsRaised;
     static string fitReport = "";
     static readonly int[] steepFloorSpans = new int[10];
 
@@ -85,8 +91,9 @@ static partial class Program
         }
         var rampCenters = rampSums.ToDictionary(p => p.Key, p => (p.Value.x / p.Value.w, p.Value.y / p.Value.w));
         var ids = new Dictionary<(long, long, long), int>();
-        int Find(double px, double py, int z, bool up, List<int> list)
+        int Find(double px, double py, int z, bool up, List<int> list, out SurfacePlane steep, bool allowSteep = false)
         {
+            steep = null;
             int best = -1;
             double bestError = PlaneMatch;
             SurfacePlane bestPlane = null;
@@ -105,7 +112,8 @@ static partial class Program
                 bestError = error; bestPlane = plane; bestNormal = normal; best = n;
             }
             if (up && best >= 0 && bestNormal < RampNormal) steepFloorSpans[Math.Min(9, (int)(bestNormal * 10))]++;
-            if (best < 0 || bestNormal >= FlatNormal || bestNormal < (up ? (smoothDungeon ? RampNormal : 0.75) : CeilingNormal)) return -1;
+            if (!up && smoothDungeon && !allowSteep && best >= 0 && bestNormal >= CeilingNormal && bestNormal < DungeonCeilingNormal) steep = bestPlane;
+            if (best < 0 || bestNormal >= FlatNormal || bestNormal < (up ? (smoothDungeon ? RampNormal : 0.75) : (smoothDungeon && !allowSteep ? DungeonCeilingNormal : CeilingNormal))) return -1;
             var key = ((long)Math.Round(bestPlane.Gx * 2000), (long)Math.Round(bestPlane.Gy * 2000), (long)Math.Round(bestPlane.H * 2));
             if (up && bestNormal < MinPlaneNormal) bestPlane = Flatten(bestPlane, rampCenters[key]);
             if (!ids.TryGetValue(key, out int id)) { ids[key] = id = surfacePlanes.Count; surfacePlanes.Add(bestPlane); }
@@ -117,11 +125,28 @@ static partial class Program
                 var list = index[Index(i, j)];
                 if (list == null) continue;
                 double px = minX + (i + 0.5) * cell, py = minY + (j + 0.5) * cell;
-                foreach (var span in grid[Index(i, j)])
+                var spans = grid[Index(i, j)];
+                for (int s = 0; s < spans.Count; s++)
                 {
+                    var span = spans[s];
                     if (span.Door >= 0) continue; // door sight blockers rely on flat control sectors
-                    span.FP = Find(px, py, span.F, true, list);
-                    span.CP = Find(px, py, span.C, false, list);
+                    span.FP = Find(px, py, span.F, true, list, out _);
+                    span.CP = Find(px, py, span.C, false, list, out var steep);
+                    if (steep != null && span.FP < 0)
+                    {
+                        span.CP = Find(px, py, span.C, false, list, out _, true); // flat floor: keep the sloped ceiling
+                        steep = null;
+                    }
+                    // A leaning wall face over the span (see DungeonCeilingNormal): the flat ceiling goes to the face's
+                    // highest point over the cell, so it never takes headroom the visible face leaves, and stays under
+                    // the next span up.
+                    if (steep != null)
+                    {
+                        double h = cell / 2, top = new[] { steep.At(px - h, py - h), steep.At(px + h, py - h), steep.At(px - h, py + h), steep.At(px + h, py + h) }.Max();
+                        int limit = s + 1 < spans.Count ? spans[s + 1].F - 1 : int.MaxValue;
+                        span.C = Math.Max(span.C, Math.Min((int)Math.Ceiling(top), limit));
+                        steepCeilingsRaised++;
+                    }
                     if (span.FP >= 0) floorPlaneSpans++;
                     if (span.CP >= 0) ceilingPlaneSpans++;
                 }
@@ -793,6 +818,7 @@ static partial class Program
         text.AppendLine("real wall to nearest boundary: " + Row(toLine));
         text.AppendLine($"sloped spans: floors {floorPlaneSpans}, ceilings {ceilingPlaneSpans}; planes {surfacePlanes.Count}");
         text.AppendLine($"diagonal slivers merged into a neighbour: {slivers}");
+        text.AppendLine($"leaning-wall ceilings made flat at their top: {steepCeilingsRaised}");
         text.AppendLine("floor spans too steep for a plane, by normal z tenths: " + string.Join(" ", steepFloorSpans.Select((n, k) => $"0.{k}:{n}")));
         text.AppendLine($"chains: {chainCount}, fitted {chainsFitted}, smoothed staircase {chainsSmoothed}, returned to grid {chainsReverted}, door chains left on grid {chainsFrozen}, passes {refitPasses}, staircase corners left {stairCorners}");
         fitReport = text.ToString();
