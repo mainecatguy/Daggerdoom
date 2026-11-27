@@ -53,6 +53,7 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [Overworld area level](backlog/overworld-area-level.md): Whether the wilderness inherits a level bonus from its area or nearby places. Needs a chat.
 
 - [Reach outdoor loot piles from Doom](backlog/reach-exterior-piles.md): List piles dropped outdoors in Doom and let the player take them.
+- [Ship boarding lands in the water](backlog/ship-boarding.md): Boarding either ship puts the player at water level, not on deck; the travel event carries no height.
 
 ## Dungeons
 
