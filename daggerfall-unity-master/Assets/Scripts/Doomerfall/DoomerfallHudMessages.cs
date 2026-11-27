@@ -1,6 +1,7 @@
 // Doomerfall: Daggerfall's top-of-screen HUD messages and mid-screen text, shown in Doom. Runs only in a bridge session.
 //
-// Every message Daggerfall puts in its HUD (DaggerfallUI.AddHUDText, PopupMessage, SetMidScreenText) goes to Doom as
+// Every message Daggerfall puts in its HUD through DaggerfallUI.AddHUDText, PopupMessage or SetMidScreenText goes to Doom as
+// (not yet the few direct PopupText.AddText calls in PlayerEnterExit and TransportManager, which skip the hook)
 // DFB_KIND_HUD_TEXT with the seconds Daggerfall holds it, and Doom draws and scrolls it as Daggerfall Unity's
 // PopupText does (mods/doomerfall/src/zscript/Doomerfall.zs). Info and Use on NPCs capture the hook for a moment to
 // answer their own request (DoomerfallInfo.Capture) and then hand it back, so no line is sent twice.
