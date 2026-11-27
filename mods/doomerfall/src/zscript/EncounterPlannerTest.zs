@@ -74,8 +74,53 @@ class DoomerfallEncounterPlanTest : StaticEventHandler
 			Run(4500 + k * 11, "PlainHumanoid", (k * 61 + 70) % 1000, (k * 43 + 30) % 500, 1 + (k * 3) % 30);
 			made++;
 		}
+		made += Ladder();
 		Console.Printf("ENCPLAN summary plans=%d", made);
 		Console.Printf("ENCPLAN done");
+	}
+
+	// A level ladder in the region cell whose favourite kind is dearest (its cheapest class): out of reach at low
+	// levels, purchasable at high ones. Types every setup has theme monsters for, so any warning here is the region
+	// rule's; no Dragon's Den or Vampire Haunt (they are counted at 120 each).
+	private int Ladder()
+	{
+		int bestX, bestY;
+		DearestFavouriteCell(bestX, bestY);
+		Console.Printf("ENCPLAN ladder cell=%d,%d", bestX, bestY);
+		static const String types[] = { "OrcStronghold", "Prison", "Mine", "NaturalCave", "DesecratedTemple", "RuinedCastle",
+			"SpiderNest", "GiantStronghold", "Cemetery", "BarbarianStronghold", "Crypt" };
+		static const int levels[] = { 0, 1, 2, 3, 4, 5, 7, 10, 15, 20, 30 };
+		for (int k = 0; k < 11; k++) Run(3790 + k * 7, types[k], bestX * 48 + 2 + k * 4, bestY * 48 + 2 + k * 4, levels[k]);
+		return 11;
+	}
+
+	// The region cell (of 20 x 10) whose favourite kind's cheapest uncapped class is dearest. Also used by the budget test.
+	static void DearestFavouriteCell(out int bestX, out int bestY)
+	{
+		let pool = DoomerfallEncounterPool.Get();
+		int bestCost = -1;
+		bestX = 0;
+		bestY = 0;
+		for (int cy = 0; cy < 10; cy++)
+		{
+			for (int cx = 0; cx < 20; cx++)
+			{
+				let req = new("DoomerfallEncounterRequest");
+				req.dungeonIndex = 4231;
+				req.worldX = cx * 48 + 24;
+				req.worldY = cy * 48 + 24;
+				req.dungeonType = "Crypt";
+				let p = DoomerfallEncounterPlanner.Plan(req);
+				if (!p || p.regionKind < 0) continue;
+				int cheapest = 0x7FFFFFFF;
+				for (int i = 0; i < pool.monsters.Size(); i++)
+				{
+					let m = pool.monsters[i];
+					if (m.kind == p.regionKind && !m.capped) cheapest = min(cheapest, DoomerfallEncounterPlanner.Cost(m));
+				}
+				if (cheapest > bestCost) { bestCost = cheapest; bestX = cx; bestY = cy; }
+			}
+		}
 	}
 
 	private void Run(int index, String type, double x, double y, int level)
@@ -101,9 +146,9 @@ class DoomerfallEncounterPlanTest : StaticEventHandler
 		let d = DoomerfallEncounterPool.Get().data;
 		String g = "", th = "";
 		for (int i = 0; i < p.genes.Size(); i++) { g = g .. (i ? "," : "") .. p.genes[i]; th = th .. (p.themed[i] ? "1" : "0"); }
-		Console.Printf("ENCPLAN plan idx=%d seed=%d type=%s level=%d order=%d genes=%s themed=%s civilwar=%d tierlean=%d size=%d placement=%s awareness=%s cell=%d,%d regionkind=%s",
+		Console.Printf("ENCPLAN plan idx=%d seed=%d type=%s level=%d order=%d genes=%s themed=%s civilwar=%d tierlean=%d size=%d placement=%s awareness=%s cell=%d,%d regionkind=%s regionafford=%d",
 			index, seedOffset, p.theme, level, p.order, g, th, p.civilWar, p.tierLean, p.sizePermille, p.placement, p.awareness,
-			p.regionCellX, p.regionCellY, p.regionKind >= 0 ? d.kindName[p.regionKind] : "-");
+			p.regionCellX, p.regionCellY, p.regionKind >= 0 ? d.kindName[p.regionKind] : "-", p.regionAfford);
 		Army(index, "A", p.a, d);
 		if (p.b) Army(index, "B", p.b, d);
 		for (int i = 0; i < p.warnings.Size(); i++) Console.Printf("ENCPLAN warn idx=%d %s", index, p.warnings[i]);
@@ -118,8 +163,8 @@ class DoomerfallEncounterPlanTest : StaticEventHandler
 			list = list .. (i ? "|" : "") .. String.Format("%s:%s:%s:%s:%d:%d:%s", e.role, e.m.cls.GetClassName(), d.kindName[e.m.kind],
 				e.m.group, e.m.tier, e.share, e.parent >= 0 ? "v" .. e.parent : "-");
 		}
-		Console.Printf("ENCPLAN army idx=%d side=%s anchorkind=%s anchorthemed=%d coherence=%d tierlean=%d stance=%s theme=%s region=%s entries=%s",
+		Console.Printf("ENCPLAN army idx=%d side=%s anchorkind=%s anchorthemed=%d coherence=%d tierlean=%d stance=%s theme=%s region=%s regionref=%s entries=%s",
 			index, side, a.entries.Size() ? d.kindName[a.anchorKind] : "-", a.anchorThemed, a.coherence, a.tierLean, a.stance,
-			a.themeHow, a.regionHow, list);
+			a.themeHow, a.regionHow, a.regionRef ? String.Format("%s", a.regionRef.cls.GetClassName()) : "-", list);
 	}
 }

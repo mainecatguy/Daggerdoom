@@ -458,6 +458,13 @@ list spread_middle 5,2,2,4
 list spread_loose 3,1,2,7
 # Regional leaning (4.1): world map cell size in map pixels. Dungeons in one cell share a favourite kind.
 set region_cell 48
+# Regional stand-in (owner, 2026-11-26). Chosen rule, awaiting the owner's preference: the favourite kind counts as
+# purchasable when one of its classes costs at most region_afford times the level's average points per encounter,
+# that is, an ordinary pack can buy it. (Giant rooms, sleeping hordes and bosses can buy dearer monsters, so this is
+# not a hard limit of the budget.) When no class qualifies, a stand-in within the same bound is added. Engineering
+# ranking: fits the theme if any eligible monster does, then the favourite's colour or DRLA family (owner's
+# preference), then the nearest kind on kind_ring (owner's preference), then look and cost.
+set region_afford 1
 # Share, in thousandths, given to a guaranteed theme or regional monster when the army lacked one.
 set guarantee_share 100
 

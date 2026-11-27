@@ -11,6 +11,7 @@ Runs, each minimized with a private config, stopped at "ENCPLAN done" or on a fa
 Logs go to workdir/<run>.log and workdir/<run>.plan.txt (the ENCPOOL and ENCPLAN lines).
 """
 import argparse
+import fnmatch
 import os
 import random
 import re
@@ -30,6 +31,8 @@ HUMANOID = {'ZombieMan', 'ShotgunGuy', 'ChaingunGuy'}
 PLAIN = {'Zombieman', 'ShotgunGuy', 'ChaingunGuy', 'RLFormerHumanPistol', 'RLFormerSergeantShotgun', 'RLFormerCommandoChaingun'}
 STOCK17 = {'ZombieMan', 'ShotgunGuy', 'ChaingunGuy', 'DoomImp', 'Demon', 'Spectre', 'LostSoul', 'Cacodemon', 'HellKnight',
            'BaronOfHell', 'Arachnotron', 'PainElemental', 'Revenant', 'Fatso', 'Archvile', 'Cyberdemon', 'SpiderMastermind'}
+RING = ('ZombieMan,ShotgunGuy,ChaingunGuy,DoomImp,Demon,Spectre,LostSoul,Cacodemon,PainElemental,HellKnight,BaronOfHell,'
+        'Revenant,Archvile,Fatso,Arachnotron,SpiderMastermind,Cyberdemon').split(',')  # kind_ring in doomerfall_encounters.txt
 
 
 def run(exe, work, iwad, files, name, extra, timeout=40, skill='3'):
@@ -98,6 +101,114 @@ def appendix_genes(idx):
 
 def is_colour(e):
     return int(e['tier']) < 8 and e['group'] not in FAMILIES and e['group'] not in TITANS and e['group'] != 'Stock'
+
+
+def cost(pm):
+    return max(1, int(float(pm['points']) * 100 + 0.5))
+
+
+def ring_distance(a, b):
+    n = len(RING)
+    d = abs(RING.index(a) - RING.index(b))
+    return min(d, n - d)   # the kind ring wraps, as the planner's RingDistance
+
+
+def load_themes():
+    """Theme rows of the data file: {name: (kinds, lower-case class patterns, traits)}."""
+    themes = {}
+    with open(os.path.join(REPO, 'mods', 'doomerfall', 'src', 'doomerfall_encounters.txt'), encoding='utf-8') as f:
+        for line in f:
+            p = line.split()
+            if len(p) >= 2 and p[0] == 'theme':
+                kv_ = dict(x.split('=', 1) for x in p[2:] if '=' in x)
+                themes[p[1]] = tuple(set(filter(None, kv_.get(k, '').split(','))) for k in ('kinds', 'classes', 'traits'))
+                themes[p[1]] = (themes[p[1]][0], {c.lower() for c in themes[p[1]][1]}, themes[p[1]][2])
+    return themes
+
+
+def theme_matches(theme, cls, pm):
+    kinds, classes, traits = theme
+    return (pm['kind'] in kinds or any(fnmatch.fnmatchcase(cls.lower(), c) for c in classes)
+            or bool(traits & set(pm['traits'].split(','))))
+
+
+def check_standin(name, pool, plans, armies, warns, out, checks):
+    """Stand-in for an unpurchasable regional favourite. A kind with a purchasable class is left to the old rule.
+    A kind with none always gets one affordable stand-in of another kind, theme-fitting whenever an eligible
+    affordable theme-fitting monster exists."""
+    themes = load_themes()
+    # Story themes (only=1) narrow every role, the stand-in included, and outrank a favourite outside them; their own
+    # checks cover them (only theme members, no warnings), so this rule is checked in the other themes.
+    with open(os.path.join(REPO, 'mods', 'doomerfall', 'src', 'doomerfall_encounters.txt'), encoding='utf-8') as f:
+        story = {l.split()[1] for l in f if l.startswith('theme ') and ' only=1' in l}
+    problems, standins, themed, fits = [], 0, 0, 0
+    for idx, plan in plans.items():
+        a = armies[idx].get('A')
+        if not a or plan['regionkind'] == '-' or plan['type'] in story:
+            continue
+        kind, afford, cw = plan['regionkind'], int(plan['regionafford']), plan['civilwar'] == '1'
+        ok_use = lambda pm: pm['capped'] == '0' and pm['group'] not in TITANS and (not cw or pm['civilwar'] == 'safe')
+        cheapest = min((cost(pm) for pm in pool.values() if pm['kind'] == kind and ok_use(pm)), default=None)
+        unbuyable = cheapest is not None and cheapest > afford
+        if unbuyable != (a['region'] == 'standin'):
+            problems.append(f'{idx} {kind} cheapest {cheapest} afford {afford} but region={a["region"]}')
+            continue
+        if not unbuyable:
+            continue
+        standins += 1
+        st = [e for e in a['list'] if e['role'] == 'standin']   # the stand-in and its DRLA family variants
+        top = [e for e in st if e['parent'] == '-']
+        ref = pool.get(a['regionref'])
+        if len(top) != 1 or not ref or ref['kind'] != kind:
+            problems.append(f'{idx} standin entries {len(top)} ref {a["regionref"]}')
+            continue
+        s = top[0]
+        if s['kind'] == kind or any(cost(pool[e['cls']]) > afford for e in st):
+            problems.append(f'{idx} standin {[e["cls"] for e in st]} for {a["regionref"]} at afford {afford}')
+        # Theme: the army as it stood before the stand-in, then every eligible affordable candidate.
+        before = [e for e in a['list'] if e['role'] != 'standin']
+        colour = {}
+        for e in before:
+            if e['role'] != 'wildcard' and is_colour(e):
+                colour.setdefault(e['kind'], e['group'])
+        famkinds = {e['kind'] for e in before if e['group'] in FAMILIES}
+        inarmy = {e['cls'] for e in before}
+        th = themes.get(plan['type'])
+        def eligible(c, pm):
+            if pm['kind'] == kind or not ok_use(pm) or cost(pm) > afford or c in inarmy:
+                return False
+            if is_colour(pm) and colour.get(pm['kind'], pm['group']) != pm['group']:
+                return False
+            return not (pm['group'] in FAMILIES and pm['kind'] in famkinds)
+        if th and any(eligible(c, pm) and theme_matches(th, c, pm) for c, pm in pool.items()):
+            if not theme_matches(th, s['cls'], pool[s['cls']]):
+                problems.append(f'{idx} {plan["type"]} standin {s["cls"]} misses the theme though a fitting one was affordable')
+            themed += 1
+        fits += ref['group'] == s['group'] or ring_distance(kind, s['kind']) <= 2
+    checks.append((f'{name}: an unpurchasable favourite kind (and only that) gets one affordable stand-in of another kind, '
+                   f'theme-fitting whenever one is available ({standins} stand-ins, {themed} with a theme fit available, '
+                   f'{fits} share colour/family or sit within 2 on the kind ring) {problems[:4]}',
+                   not problems and standins > 0))
+    rw = [w for w in warns if 'region' in w]
+    checks.append((f'{name}: no regional favourite warnings {rw[:3]}', not rw))
+    cell = next((l.split('cell=')[1] for l in out if l.startswith('ENCPLAN ladder ')), '-')
+    ladder = sorted((int(plans[i]['level']), i) for i in plans if 3790 <= i <= 3860 and plans[i]['cell'] == cell)
+    rows = []
+    for lvl, i in ladder:
+        a = armies[i]['A']
+        e = next((e for e in a['list'] if e['role'] == 'standin'), None) or \
+            next((e for e in a['list'] if e['kind'] == plans[i]['regionkind']), None)
+        rows.append((lvl, a['region'], e['cls'] if e else '-'))
+    print(f'{name}: cell {cell} ladder, favourite {plans[ladder[0][1]]["regionkind"] if ladder else "-"}: '
+          + ', '.join(f'L{l} {h} {c}' for l, h, c in rows))
+    lw = [w for w in warns if 3790 <= int(w.split('idx=')[1].split()[0]) <= 3860]
+    # Every rung's stand-in-or-favourite is checked above; here the ladder must show both, in order.
+    first_fav = next((k for k, r in enumerate(rows) if r[1] != 'standin'), len(rows))
+    ok = (len(rows) == 11 and rows[0][1] == 'standin' and rows[-1][1] != 'standin'
+          and all(r[1] != 'standin' for r in rows[first_fav:]) and not lw)
+    checks.append((f'{name}: cell {cell} level ladder: stand-in at every level below {rows[first_fav][0] if first_fav < len(rows) else "-"}, '
+                   f'the favourite itself from there up ({sum(r[1] == "standin" for r in rows)}/{len(rows)} stand-ins), '
+                   f'no planner warnings {lw[:2]}', ok))
 
 
 def check_setup(name, lines, out, checks, stock=False):
@@ -228,6 +339,7 @@ def check_setup(name, lines, out, checks, stock=False):
     same = len(ph) == 2 and all(ph['Humanoid'][k] == ph['PlainHumanoid'][k] for k in keys)
     checks.append((f'{name}: Privateer\'s Hold PlainHumanoid plan keeps Humanoid\'s genes, themed, placement and awareness '
                    f'{[(k, ph.get("Humanoid", {}).get(k), ph.get("PlainHumanoid", {}).get(k)) for k in keys]}', same))
+    check_standin(name, pool, plans, armies, warns, out, checks)
     ncw = sum(p['civilwar'] == '1' for p in plans.values())
     checks.append((f'{name}: Civil War in {ncw}/{len(plans)} plans (design: about 35%)', 0.2 * len(plans) < ncw < 0.5 * len(plans)))
     return out, warns
