@@ -42,7 +42,8 @@ def perlin(x, y):
     v = F(F(F(y * y) * y) * F(y * F(F(y * 6) - 15) + 10))
     A, B = p(X) + Y, p(X + 1) + Y
     lerp = lambda t, a, b: F(a + F(t * F(b - a)))
-    n = lerp(v, lerp(u, grad(p(A), x, y), grad(p(B), xm, y)), lerp(u, grad(p(A + 1), x, ym), grad(p(B + 1), xm, ym)))
+    h = lambda i: p(p(i))  # 3D improved noise at z = 0: one more lookup for the z level
+    n = lerp(v, lerp(u, grad(h(A), x, y), grad(h(B), xm, y)), lerp(u, grad(h(A + 1), x, ym), grad(h(B + 1), xm, ym)))
     return F(F(n + F(0.69)) / F(1.483))
 
 
@@ -102,7 +103,7 @@ def check_unity(folder):
     key = (213 << 16) + 207
     r = UnityRandom(key)
     vals = [float(l.split()[1]) for l in lines if l.startswith("range01 ")]
-    mine = [float(r.value()) for _ in vals]
+    mine = [F(1 - r.value()) for _ in vals]  # Range(0f, 1f) is hi - (hi - lo) * value, as dd_nature.cpp
     print("range01:", "MATCH" if all(abs(a - b) < 1e-7 for a, b in zip(vals, mine)) else f"DIFFER {vals[:3]} vs {mine[:3]}")
     vals = [int(l.split()[1]) for l in lines if l.startswith("range132 ")]
     mine = [r.range_int(1, 32) for _ in vals]

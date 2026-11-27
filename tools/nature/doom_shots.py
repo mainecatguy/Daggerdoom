@@ -19,6 +19,8 @@ def main():
     ap.add_argument("--exe", default=r"D:\dev\DoomDaggerfall-build\uzdoom-nature\Release\uzdoom.exe")
     ap.add_argument("--data", default=r"D:\dev\DoomDaggerfall-build\nature-data")
     ap.add_argument("--out", default=r"D:\dev\DoomDaggerfall-build\nature-tests\doom")
+    ap.add_argument("--bench", action="store_true", help="record render times at each pixel (stock bench command)")
+    ap.add_argument("--noflats", action="store_true", help="dd_natureflats 0, the same run without nature flats")
     ap.add_argument("pixels", nargs="+", type=int)
     a = ap.parse_args()
     out, data = Path(a.out), Path(a.data)
@@ -30,10 +32,12 @@ def main():
         lines += [f'dd_tm_warp "{gx} {gy}"', "wait 350"]
         name = f"{mx}_{my}" + ("_again" if any(f"doom_{mx}_{my}.txt" in l for l in lines) else "")
         lines += [f'dd_nature_dump {mx} {my} "{out / ("doom_" + name + ".txt")}"', "screenshot", "wait 35"]
+        if a.bench:
+            lines += ["bench", "wait 280"]	# stock: render times after 5 s, appended to benchmarks.txt in --out
     lines.append("quit")
     script = out / "shots.cfg"
     script.write_text("; ".join(lines).replace("\\", "/") + "\n")	# one line: waits only hold within one command line
-    for old in out.glob("doom_*.txt"):
+    for old in list(out.glob("doom_*.txt")) + list(out.glob("benchmarks.txt")):
         old.unlink()
     cache = out / "cache"
     cache.mkdir(exist_ok=True)
@@ -41,8 +45,8 @@ def main():
             "-nosound", "-noautoload", "-skill", "3", "-width", "1280", "-height", "720", "-ddtowncache", str(cache),
             "-ddconverter", str(data / "converter" / "DungeonConverter.exe"), "-ddarena2", ARENA2, "+logfile", "log.txt", "+dd_debugmessages", "1",
             "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0",
-            "+screenshot_dir", str(out), "+map", "DDOVER01", "+exec", str(script)]
-    subprocess.run(["python", QUIET, "--cwd", str(out), "--timeout", str(60 + 15 * len(pairs)), "--", *game])
+            "+screenshot_dir", str(out), "+dd_natureflats", "0" if a.noflats else "1", "+map", "DDOVER01", "+exec", str(script)]
+    subprocess.run(["python", QUIET, "--cwd", str(out), "--timeout", str(60 + (25 if a.bench else 15) * len(pairs)), "--", *game])
 
 
 if __name__ == "__main__":

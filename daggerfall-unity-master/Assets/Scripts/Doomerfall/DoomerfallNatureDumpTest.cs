@@ -1,5 +1,6 @@
 // Doomerfall test only (-dfnaturedump <dir>): Daggerfall Unity's own wilderness nature layout, for checking Doom's port
 // (UZDoom/src/playsim/dd_nature.cpp) with tools/nature/compare.py. Needs no bridge session.
+//   DaggerfallUnity.exe -dfpath <folder holding ARENA2> -dfnaturedump <dir> x1 y1 x2 y2 ...
 //
 // Writes into <dir>:
 //   unity.txt         Mathf.PerlinNoise, UnityEngine.Random and Unity.Mathematics.Random samples
@@ -40,7 +41,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         IEnumerator Start()
         {
-            // Same scene start as DoomerfallHotkeyShotsTest.
+            // Same scene start as DoomerfallHotkeyShotsTest. -dfpath <folder holding ARENA2> sets the data path in memory
+            // only, as DoomerfallReflexProbe does, so a machine whose settings have none still loads the world.
+            string[] cmd = Environment.GetCommandLineArgs();
+            int pathAt = Array.IndexOf(cmd, "-dfpath");
+            if (pathAt >= 0 && pathAt + 1 < cmd.Length)
+            {
+                DaggerfallUnity.Settings.MyDaggerfallPath = cmd[pathAt + 1];
+                yield return SceneManager.LoadSceneAsync(1);
+            }
             float giveUp = Time.realtimeSinceStartup + 60;
             while ((DaggerfallUnity.Instance == null || !DaggerfallUnity.Instance.IsReady) && Time.realtimeSinceStartup < giveUp)
                 yield return null;
@@ -51,7 +60,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 yield return null;
             StartGameBehaviour start = FindObjectOfType<StartGameBehaviour>();
             if (start != null)
+            {
                 start.EnableVideos = false;
+                start.StartMethod = StartGameBehaviour.StartMethods.Void;	// as DoomerfallSyncTest: a blank game in the world
+            }
             DaggerfallUI.Instance.enableVideos = false;
             for (int i = 0; i < 5; i++)
                 yield return null;
@@ -81,7 +93,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             // Map pixels to visit follow the folder on the command line: -dfnaturedump <dir> x1 y1 x2 y2 ...
             string[] args = Environment.GetCommandLineArgs();
             int at = Array.IndexOf(args, "-dfnaturedump") + 2;
-            GameManager.Instance.StreamingWorld.gameObject.SetActive(true);
+            GameManager.Instance.PlayerEnterExit.EnableExteriorParent();
+            GameManager.Instance.StreamingWorld.suppressWorld = false;
+            GameManager.Instance.PauseGame(false);
             for (; at + 1 < args.Length && int.TryParse(args[at], out int mx) && int.TryParse(args[at + 1], out int my); at += 2)
             {
                 report.AppendLine($"pixel {mx} {my}");

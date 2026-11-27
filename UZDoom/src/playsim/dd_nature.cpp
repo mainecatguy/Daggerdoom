@@ -98,7 +98,8 @@ namespace
 		const float u = x * x * x * (x * (x * 6 - 15) + 10), v = y * y * y * (y * (y * 6 - 15) + 10);
 		const int A = p(X) + Y, B = p(X + 1) + Y;
 		auto lerp = [](float t, float a, float b) { return a + t * (b - a); };
-		const float n = lerp(v, lerp(u, Grad(p(A), x, y), Grad(p(B), x - 1, y)), lerp(u, Grad(p(A + 1), x, y - 1), Grad(p(B + 1), x - 1, y - 1)));
+		// The 3D form at z = 0 keeps the z level's lookup: the hash is p(p(A) + 0), not p(A). Checked against Unity's values.
+		const float n = lerp(v, lerp(u, Grad(p(p(A)), x, y), Grad(p(p(B)), x - 1, y)), lerp(u, Grad(p(p(A + 1)), x, y - 1), Grad(p(p(B + 1)), x - 1, y - 1)));
 		return (n + 0.69f) / 1.483f;
 	}
 

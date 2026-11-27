@@ -76,6 +76,7 @@ CVAR(Int, dd_tm_stitches, 0, CVAR_NOSAVE)
 CVAR(Int, dd_tm_nearest, -1, CVAR_NOSAVE)		// Nearest generated location group.
 CVAR(Int, dd_tm_neareststate, 0, CVAR_NOSAVE)	// Its DDTownCache::State.
 CVAR(Int, dd_tm_use, 0, CVAR_NOSAVE | CVAR_MOD)	// Test hook: one press of Use on a location door.
+CVAR(Bool, dd_natureflats, true, CVAR_NOSAVE)	// Wilderness nature flats; off for frame time comparisons. Applies to ground laid out after it changes.
 static int doorPressTic = -1;	// DDTreadmill_PressDoor. A press counts only on the next tic, in case no town door tick runs.
 CVAR(String, dd_tm_warp, "", CVAR_NOSAVE | CVAR_MOD)		// "tileX tileY": moves the player through the overworld handoff. The path fast travel can use.
 
@@ -1422,7 +1423,7 @@ namespace
 	void SpawnNature(FLevelLocals *Level, int gx0, int gx1, int gy0, int gy1, const Town *town, std::vector<TObjPtr<AActor *>> &into)
 	{
 		if (!natureClass) natureClass = PClass::FindActor("DFNatureFlat");
-		if (!natureClass || !DDNature_Load()) return;
+		if (!natureClass || !dd_natureflats || !DDNature_Load()) return;
 		const bool winter = DDTownCache::IsWinter();
 		for (int north = std::max(gy0 / PIXEL_TILES, 0); north <= std::min((gy1 - 1) / PIXEL_TILES, WORLD_H - 1); north++)
 			for (int px = std::max(gx0 / PIXEL_TILES, 0); px <= std::min((gx1 - 1) / PIXEL_TILES, WORLD_W - 1); px++)
