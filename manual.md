@@ -112,10 +112,8 @@ pistol. The pistol's usual starting bullets (60 with the Doom Roguelike Arsenal,
 
 - With the Doom Roguelike Arsenal you get its version of the gun; without it, stock Doom's. The Light Carbine is the
   same either way.
-- Only these six skills count, and only when they are among your class's primary, major or minor skills. A skill
-  your class doesn't train never picks your gun. Hand-to-Hand and Daggerfall's old weapon skills don't count.
-- If none of the six is a class skill, or your Energy Weapons skill is higher than all of them, you keep the pistol
-  and its bullets. Energy weapons as starting guns come later.
+- Only these six skills count. Hand-to-Hand, Energy Weapons and Daggerfall's old weapon skills don't. Energy weapons
+  as starting guns come later.
 - **A tie gives you every tied gun.** Ammo of one kind is not doubled: Pistols and Rifles tied at 30 give a pistol, a
   Light Carbine and 60 bullets. The first gun in the table's order is in your hands; the others are in your inventory.
 - Each starting gun goes on its usual number key (pistol 2, shotgun 3, chaingun and Light Carbine 4, rocket launcher

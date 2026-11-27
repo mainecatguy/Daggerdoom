@@ -3,8 +3,9 @@
   run_starting_gun.py STAGE [--drla] [case ...]
 
 A case names the character's class skills, joined by '+', each optionally "=value" (default 40); every other gun skill
-keeps a realistic untrained value (3-6). "none": no gun class skill (the starter pistol). Default: all six skills, the
-Rifles+Pistols tie, "none", and "EnergyWeapons+Shotguns=30" (Energy Weapons highest: the starter pistol). Each case is one New Game through tools/new_game/run_new_game.py on a
+keeps a realistic untrained value (3-6). "none": no gun class skill, so the highest untrained rolls (Rifles and Shotguns, 6) pick
+the guns. Default: all six skills, the Rifles+Pistols tie, "none", and "EnergyWeapons+Shotguns=30" (Energy Weapons is
+left out: the shotgun). Each case is one New Game through tools/new_game/run_new_game.py on a
 private desktop, with Daggerfall's -dfstartguntest holding the skills. The DoomerfallStartingGunTest report must show
 exactly the owner's guns, the owner's ammo, the first gun drawn in Doom, and Doom's ammo counters agreeing.
 Writes every case's result to STAGE/test-run/startgun-<set>.txt.
@@ -29,14 +30,14 @@ GUNS = {  # The owner's table: (DRLA gun, stock gun, ammo type 0-3 or None, divi
 N = {True: 60, False: 50}  # The starter pistol's bullets: DRLA's no-class pistol loadout, stock Doom's player.
 
 
+UNTRAINED = {"Pistols": 3, "Rifles": 6, "Automatics": 5, "Shotguns": 6, "Explosives": 4, "Melee": 5}  # As the test holds them.
+
+
 def expected(case, drla):
     named = {} if case == "none" else {p.split("=")[0]: int(p.split("=")[1]) if "=" in p else 40 for p in case.split("+")}
-    guns_named = {s: v for s, v in named.items() if s in GUNS}  # Only class skills count; untrained ones never do.
-    best = max(guns_named.values(), default=0)
-    if not guns_named or named.get("EnergyWeapons", 0) > best:
-        skills = ["Pistols"]  # No gun class skill, or Energy Weapons higher: the starter pistol.
-    else:
-        skills = sorted([s for s, v in guns_named.items() if v == best], key=ORDER.index)
+    values = {s: named.get(s, v) for s, v in UNTRAINED.items()}  # Energy Weapons is left out of the comparison.
+    best = max(values.values())
+    skills = sorted([s for s, v in values.items() if v == best], key=ORDER.index) if best > 0 else ["Pistols"]
     guns = [GUNS[s][0 if drla else 1] for s in skills]
     totals = [0, 0, 0, 0]
     for s in skills:
