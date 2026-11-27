@@ -16,7 +16,7 @@ using UnityEngine.SceneManagement;
 
 namespace DaggerfallWorkshop.Game
 {
-    public class DungeonCaptureTest : MonoBehaviour
+    public partial class DungeonCaptureTest : MonoBehaviour
     {
         const int GameSceneIndex = 1;
         const int SettleFrames = 30;
@@ -34,7 +34,7 @@ namespace DaggerfallWorkshop.Game
         string dungeonName, outDir, daggerfallPath;
         int width = 960, height = 720;
         float verticalFov = 73.74f;
-        bool hasFlood, lit;
+        bool hasFlood, lit, noNpcs;
         float floodX, floodY, floodFloor;
         readonly List<View> views = new List<View>();
         readonly StringBuilder results = new StringBuilder();
@@ -70,6 +70,8 @@ namespace DaggerfallWorkshop.Game
                     case "size": width = int.Parse(p[1]); height = int.Parse(p[2]); break;
                     case "vfov": verticalFov = Number(p[1]); break;
                     case "lit": lit = true; break;
+                    case "nonpcs": noNpcs = true; break; // visual parity: hide the dungeon's NPC flats as well as its enemies
+                    default: ReadMenuJob(p); break; // DungeonCaptureMenus.cs
                     case "flood": hasFlood = true; floodX = Number(p[1]); floodY = Number(p[2]); floodFloor = Number(p[3]); break;
                     case "view":
                         views.Add(new View { Id = p[1], X = Number(p[2]), Y = Number(p[3]), Z = Number(p[4]), Yaw = Number(p[5]), Pitch = Number(p[6]) });
@@ -106,6 +108,11 @@ namespace DaggerfallWorkshop.Game
             start.StartMethod = StartGameBehaviour.StartMethods.Void;
             yield return WaitFrames(5);
             DaggerfallUI.Instance.PopToHUD();
+            if (menus.Count > 0)
+            {
+                yield return RunMenus();
+                yield break;
+            }
 
             DFLocation location;
             if (!FindDungeon(out location))
@@ -124,6 +131,10 @@ namespace DaggerfallWorkshop.Game
                 Finish("ERROR dungeon did not load", 3);
                 yield break;
             }
+
+            if (noNpcs)
+                foreach (StaticNPC npc in dungeon.GetComponentsInChildren<StaticNPC>(true))
+                    npc.gameObject.SetActive(false);
 
             // Stop everything that could move the player or the view between captures.
             GameObject player = GameManager.Instance.PlayerObject;
