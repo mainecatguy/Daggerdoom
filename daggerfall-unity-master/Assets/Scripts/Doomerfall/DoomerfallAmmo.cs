@@ -246,6 +246,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         // DFB_KIND_AMMO_READY: Doom's ready weapon changed and uses this reserve ammo ("" for none). Doom sends status 1
         // when the ready weapon is a melee weapon such as fists, or none.
+        internal bool ReadyMelee { get { return readyMelee; } } // Doom's last ready report: fists or another melee weapon, or none.
+
         internal void OnReady(string cls, bool melee)
         {
             readyType = string.IsNullOrEmpty(cls) ? -1 : TypeOfClass(cls);

@@ -151,6 +151,7 @@ extern "C" {
 #define DFB_GUN_ADOPT  1u  /* cls is empty; keep the ready gun as the active one and take the rest */
 #define DFB_GUN_CLEAR  2u  /* cls is empty; take every gun */
 #define DFB_GUN_SELECT 3u  /* Doom already holds cls as the active gun; raise it */
+#define DFB_GUN_FIST   4u  /* cls is empty; raise the fist (given if missing); the active gun stays in Doom, lowered */
 
 /* Climbing. Doom runs the climb with the DFB_SHEET_CLIMB_* chances and reports each skill roll it made. */
 #define DFB_KIND_CLIMB_USES    170  /* UZ to DF; Daggerfall tallies this many Climbing skill uses; payload: dfb_climb_uses */
