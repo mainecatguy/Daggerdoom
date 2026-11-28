@@ -1,5 +1,5 @@
-// Doomerfall test only, run by -dfworldleveltest: proves quest rewards follow the area level of the place the quest
-// is given in, and ignore the player's level.
+// Doomerfall test only, run by -dfworldleveltest: proves quest rewards follow the area level of the place a giver
+// offers the quest in, stay at the fixed level for quests no giver offers, and ignore the player's level.
 //
 // Builds quest reward items through Daggerfall's own quest code (Questing.Item from the script lines a quest uses,
 // "Item _reward_ magic_item" and "Item _gold_ gold") with fixed seeds. At each of several area levels (a WorldLevel
@@ -43,8 +43,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             {
                 // A new game rolls each region's price adjustment in 750-1250 (FormulaHelper.RandomRegionalPriceAdjustment);
                 // this harness leaves it 0, which would halve quest gold. 1000 is the neutral middle.
+                int giverLevel;
+                using (WorldLevel.ForQuestGiver())
+                    giverLevel = WorldLevel.QuestReward;
                 bridge.LogLine(string.Format("questreward: place level here {0} (harness region price adjustment {1}, test uses {2})",
-                    WorldLevel.QuestReward, savedPrice, NeutralPrice));
+                    giverLevel, savedPrice, NeutralPrice));
+                bridge.LogLine(string.Format("questreward: quest no giver offers (follow-up, letter, timer) here: level {0} {1}",
+                    WorldLevel.QuestReward, WorldLevel.QuestReward == WorldLevel.DoomerfallUnplacedQuestRewardLevel ? "PASS" : "FAIL"));
                 player.RegionData[region].PriceAdjustment = NeutralPrice;
                 RealPlaces(bridge, player, region);
 

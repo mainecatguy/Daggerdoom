@@ -55,11 +55,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         }
 
         /// <summary>
-        /// WorldLevel's quest reward provider in a bridge session: rewards roll at the level of the location the player
-        /// is in when the quest starts. For a quest taken from a giver that is the giver's town (or temple, tavern or
-        /// other place). A quest started by another quest's "start quest"/"run quest", or by a letter, starts wherever
-        /// the player is then. A shop, house or guild hall's own level never applies. Away from any location, the
-        /// danger level where the player is. Never the player's level.
+        /// WorldLevel's quest reward provider in a bridge session, used only while a quest giver builds the quest it
+        /// offers (WorldLevel.ForQuestGiver): the level of the location the player is in, which is the giver's town (or
+        /// temple, tavern or other place). A shop, house or guild hall's own level never applies. Away from any
+        /// location, the danger level where the player is. Never the player's level.
         /// </summary>
         internal static int QuestRewardLevel()
         {
@@ -75,7 +74,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return Clamped(DoomerfallAreaLevels.ForCurrentDanger());
         }
 
-        /// <summary>The quest reward level of a location: the level the travel map shows (town level for a town, else its area level), 1 to 30; 0 if unknown.</summary>
+        /// <summary>The quest reward level of a location: its town level for a town (at least 5, 10, 15 or 20 by class), else its area level; 1 to 30, 0 if unknown.</summary>
         internal static int QuestRewardLevelAt(in DFLocation location)
         {
             DoomerfallAreaLevels.Level level;

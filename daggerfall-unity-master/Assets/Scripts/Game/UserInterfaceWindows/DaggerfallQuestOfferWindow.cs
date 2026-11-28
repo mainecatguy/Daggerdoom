@@ -69,7 +69,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             int level = GameManager.Instance.PlayerEntity.Level;
 
             // Select a quest at random from appropriate pool
-            offeredQuest = GameManager.Instance.QuestListsManager.GetSocialQuest(socialGroup, factionId, gender, reputation, level);
+            using (WorldLevel.ForQuestGiver()) offeredQuest = GameManager.Instance.QuestListsManager.GetSocialQuest(socialGroup, factionId, gender, reputation, level);
             if (offeredQuest != null)
             {
                 // Log offered quest

@@ -589,7 +589,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             else
             {
                 // Select a quest at random from appropriate pool
-                offeredQuest = questListsManager.SelectQuest(questPool, factionId);
+                using (WorldLevel.ForQuestGiver()) offeredQuest = questListsManager.SelectQuest(questPool, factionId); // Doomerfall: rewards at the giver's place
                 OfferQuest();
             }
         }
@@ -660,7 +660,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             DaggerfallUI.UIManager.PopWindow();
             if (index < questPool.Count)
             {
-                offeredQuest = GameManager.Instance.QuestListsManager.LoadQuest(questPool[index], GetFactionIdForGuild());
+                using (WorldLevel.ForQuestGiver()) offeredQuest = GameManager.Instance.QuestListsManager.LoadQuest(questPool[index], GetFactionIdForGuild()); // Doomerfall: rewards at the giver's place
                 OfferQuest();
             }
         }
