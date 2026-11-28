@@ -35,10 +35,12 @@
 // carry-through does: dealt with DMG_NO_ENHANCE and no inflictor, so no bonus applies twice, in the next WorldTick.
 // Such a hit still counts as the gun's hit for sunder and suppression.
 //
-// Extra bullet: when a fast-band gun fires a shot, a roll gives one more bullet in the same tic, costing no ammo. Its
-// spread mirrors the shot's first bullet about the aim (the same spread, by the gun's own symmetric scatter): a hitscan
-// bullet is fired again with the gun's puff and the last base damage this gun's bullets did, so every bonus applies to
-// it as to the others; a projectile is spawned again (its class sets its damage) with the shot's tag and burst state.
+// Extra bullet: when a fast-band gun fires a shot, a roll gives one more bullet in the same tic, costing no ammo. It is
+// the shot's own first bullet again: a hitscan bullet repeats that LineAttack exactly as the gun made it (seen in
+// WorldHitscanPreFired: its damage roll, damage type, puff, flags, range and offsets), so every bonus applies to it as
+// to the others; a projectile is spawned again (its class sets its damage) with the shot's tag, burst state and band.
+// Its spread mirrors the first bullet's about the gun's aim (the player's angle and the autoaimed pitch, BulletSlope,
+// taken as the shot was fired): the same spread, by the gun's own symmetric scatter.
 class DoomerfallAutomatics : StaticEventHandler
 {
 	// DFB_SHEET_* indices; must match bridge/doomerfall_bridge.h.
@@ -75,11 +77,10 @@ class DoomerfallAutomatics : StaticEventHandler
 		return w && DoomerfallWeaponCategory.SkillSlotOf(w) == SkillAutomatics;
 	}
 
-	// The band rules for a gun: flat damage per bullet and extra enemies passed through.
-	static int BandDamage(class<Actor> gun, out int pen)
+	// The band rules (DoomerfallAutomaticBands.EBand): flat damage per bullet and extra enemies passed through.
+	static int BandDamage(int band, out int pen)
 	{
 		pen = 0;
-		int band = DoomerfallAutomaticBands.BandOf(gun);
 		if (band == DoomerfallAutomaticBands.BandSlow) { pen = Rule(AutoSlowPen); return Rule(AutoSlowDamage); }
 		if (band == DoomerfallAutomaticBands.BandMiddle) { pen = Rule(AutoMidPen); return Rule(AutoMidDamage); }
 		return 0;
@@ -106,23 +107,23 @@ class DoomerfallAutomatics : StaticEventHandler
 	}
 
 	// Whether damage through this inflictor came from an Automatics gun of this player (DoomerfallShots.Find: the shot's
-	// tag, or the held gun for a bullet), and if so whether it was a burst shot. For a bullet this also counts the shot.
-	static bool FromGun(Actor player, Actor inflictor, out bool burst, out class<Weapon> gun)
+	// tag, or the held gun for a bullet), and if so whether it was a burst shot and the gun's band as it fired (a
+	// projectile's tag keeps it; a bullet lands in the tic it is fired, so the gun's band now). For a bullet this also
+	// counts the shot.
+	static bool FromGun(Actor player, Actor inflictor, out bool burst, out class<Weapon> gun, out int band)
 	{
 		burst = false;
 		gun = null;
+		band = DoomerfallAutomaticBands.BandNone;
 		let perks = player ? DoomerfallAutomaticsPerks(player.FindInventory("DoomerfallAutomaticsPerks")) : null;
 		int skill;
 		DoomerfallShotTag tag;
 		if (!perks || !DoomerfallShots.Find(player, inflictor, gun, skill, tag) || skill != SkillAutomatics) return false;
 		if (tag) MarkTag(tag, perks); // a point-blank hit lands before the shot's spawn event
 		burst = tag ? tag.autoBurst : perks.MarkShot();
+		band = tag && tag.burstSet ? tag.autoBand : DoomerfallAutomaticBands.BandOfGun(player, gun);
 		return true;
 	}
-
-	// The tic whose WorldTick has run: until it is this tic, this tic's players are still acting (P_PlayerThink runs
-	// before WorldTick), so a puff spawned then is a player's bullet.
-	int tickDone;
 
 	// A shot the held Automatics gun just fired counts as a shot of the burst, and its tag (DoomerfallShots, which also
 	// copies it to everything the shot spawns) remembers whether it was a burst shot.
@@ -130,7 +131,6 @@ class DoomerfallAutomatics : StaticEventHandler
 	{
 		let m = e.Thing;
 		if (!m) return;
-		if (m.bIsPuff && tickDone != level.maptime) NotePuff(m);
 		// Projectiles only: a gun's helper actors (DRLA's recoil and reload effects) are not shots.
 		if (!(m.bMissile || m.default.bMissile) || !m.target || !m.target.player || m.target.player.mo != m.target) return;
 		let perks = DoomerfallAutomaticsPerks(m.target.FindInventory("DoomerfallAutomaticsPerks"));
@@ -139,19 +139,24 @@ class DoomerfallAutomatics : StaticEventHandler
 		if (tag && MarkTag(tag, perks))
 		{
 			Log(String.Format("projectile %s from %s", m.GetClassName(), tag.gun.GetClassName()));
-			if (perks.shotMissileTic != level.maptime) { perks.shotMissile = m; perks.shotMissileTic = level.maptime; }
+			if (perks.shotMissileTic != level.maptime)
+			{
+				perks.shotMissile = m;
+				perks.shotMissileTic = level.maptime;
+				perks.shotCenter = (m.target.angle, m.target.BulletSlope()); // the aim the gun fired along
+			}
 		}
 	}
 
-	// A puff spawned while a player fires an Automatics gun: where the shot's first bullet went.
-	static void NotePuff(Actor puff)
+	// A bullet a player fires from an Automatics gun, before it flies: the shot's first one is what an extra bullet
+	// repeats. Never stops the bullet.
+	override bool WorldHitscanPreFired(WorldEvent e)
 	{
-		for (int i = 0; i < MAXPLAYERS; i++)
-		{
-			let mo = playeringame[i] ? players[i].mo : null;
-			let perks = mo ? DoomerfallAutomaticsPerks(mo.FindInventory("DoomerfallAutomaticsPerks")) : null;
-			if (perks && perks.TriggerDown() && IsAutomatic(players[i].ReadyWeapon)) { perks.NotePuff(puff); return; }
-		}
+		let mo = e.Thing;
+		if (!mo || !mo.player || mo.player.mo != mo || e.Damage <= 0 || (e.AttackLineFlags & LAF_NOINTERACT)) return false;
+		let perks = DoomerfallAutomaticsPerks(mo.FindInventory("DoomerfallAutomaticsPerks"));
+		if (perks && perks.TriggerDown() && IsAutomatic(mo.player.ReadyWeapon)) perks.NoteBullet(e);
+		return false;
 	}
 
 	// Decides once whether a shot the held Automatics gun fired this tic is a burst shot, and counts it.
@@ -160,12 +165,12 @@ class DoomerfallAutomatics : StaticEventHandler
 		if (tag.burstSet || tag.generation != 0 || tag.fireTic != level.maptime || tag.skill != SkillAutomatics || !perks.TriggerDown()) return false;
 		tag.burstSet = true;
 		tag.autoBurst = perks.MarkShot();
+		tag.autoBand = DoomerfallAutomaticBands.BandOfGun(perks.owner, tag.gun);
 		return true;
 	}
 
 	override void WorldTick()
 	{
-		tickDone = level.maptime;
 		bool valid = Actor.DD_SheetValue(SheetValid) == 1; // Rules come from Daggerfall's character only.
 		for (int i = 0; i < MAXPLAYERS && valid; i++)
 		{
@@ -251,11 +256,11 @@ class DoomerfallAutomatics : StaticEventHandler
 		if (e.Damage <= 0 || !victim || victim.player || !src || !src.player || src.player.mo != src) return;
 		bool burst;
 		class<Weapon> gun;
-		int left;
+		int left, band;
 		if (penetrating) { gun = penGun; left = penLeft; }
-		else if (!FromGun(src, e.Inflictor, burst, gun)) return; // Hits from an Automatics gun only.
-		else if (e.DamageFlags & DMG_EXPLOSION) left = 0;        // Splash does not pass through anything.
-		else BandDamage(gun, left);
+		else if (!FromGun(src, e.Inflictor, burst, gun, band)) return; // Hits from an Automatics gun only.
+		else if (e.DamageFlags & DMG_EXPLOSION) left = 0;              // Splash does not pass through anything.
+		else BandDamage(band, left);
 
 		if (left > 0 && gun)
 		{
@@ -333,13 +338,15 @@ class DoomerfallAutomaticsPerks : Inventory
 
 	// The fast band's extra bullet: what this tic's shot did.
 	int rolledTic;
-	class<Actor> puffClass;
-	Vector3 puffPos;
-	int puffTic;
+	int bulletTic;              // the shot's first bullet (LineAttack) this tic, as the gun fired it
+	double bulletAngle, bulletPitch, bulletRange, bulletZ, bulletForward, bulletSide;
+	int bulletDamage, bulletFlags;
+	Name bulletType;
+	class<Actor> bulletPuff;
+	Vector2 bulletCenter;       // the gun's aim then: angle, autoaimed pitch
 	Actor shotMissile;
 	int shotMissileTic;
-	class<Weapon> baseGun;      // the last bullet hit's gun, and its damage before every bonus
-	double baseDamage;
+	Vector2 shotCenter;         // the aim when that projectile was fired
 	bool extra;                 // while firing an extra bullet
 
 	// The last hit's damage after this gun's bonuses, before the enemy's own modifiers (penetration carries it on).
@@ -358,7 +365,7 @@ class DoomerfallAutomaticsPerks : Inventory
 	{
 		Super.BeginPlay();
 		lastShotTic = -1000;
-		rolledTic = puffTic = shotMissileTic = hitTic = -1;
+		rolledTic = bulletTic = shotMissileTic = hitTic = -1;
 	}
 
 	bool TriggerDown()
@@ -443,12 +450,21 @@ class DoomerfallAutomaticsPerks : Inventory
 		return n > 0 && lastShotTic == level.maptime && burstShots <= n;
 	}
 
-	void NotePuff(Actor puff)
+	void NoteBullet(WorldEvent e)
 	{
-		if (extra || puffTic == level.maptime) return;
-		puffTic = level.maptime;
-		puffClass = puff.GetClass();
-		puffPos = puff.pos;
+		if (extra || bulletTic == level.maptime) return;
+		bulletTic = level.maptime;
+		bulletAngle = e.AttackAngle;
+		bulletPitch = e.AttackPitch;
+		bulletRange = e.AttackDistance;
+		bulletDamage = e.Damage;
+		bulletType = e.DamageType;
+		bulletPuff = e.AttackPuffType;
+		bulletFlags = e.AttackLineFlags;
+		bulletZ = e.AttackZ;
+		bulletForward = e.AttackOffsetForward;
+		bulletSide = e.AttackOffsetSide;
+		bulletCenter = (owner.angle, owner.BulletSlope()); // as A_FireBullets aims, before its spread
 	}
 
 	override void DoEffect()
@@ -477,16 +493,11 @@ class DoomerfallAutomaticsPerks : Inventory
 		if (passive || damage <= 0 || !owner || !owner.player || source == owner) return;
 		bool burst;
 		class<Weapon> gun;
-		if (!DoomerfallAutomatics.FromGun(owner, inflictor, burst, gun)) return; // Hits from an Automatics gun only.
+		int band;
+		if (!DoomerfallAutomatics.FromGun(owner, inflictor, burst, gun, band)) return; // Hits from an Automatics gun only.
 		double early = EarlyFactor();
-		if (inflictor.bIsPuff && !extra)
-		{
-			baseGun = gun;
-			baseDamage = early > 0 ? damage / early : damage;
-			NotePuff(inflictor);
-		}
 		int pen;
-		int flat = DoomerfallAutomatics.BandDamage(gun, pen);
+		int flat = DoomerfallAutomatics.BandDamage(band, pen);
 		double factor = 1 + DoomerfallAutomatics.Rule(DoomerfallAutomatics.AutoDamageBp) / 10000.;
 		if (burst) factor *= 1 + DoomerfallAutomatics.Rule(DoomerfallAutomatics.AutoBurstBp) / 10000.;
 		if (factor != 1 || flat > 0)
@@ -501,8 +512,8 @@ class DoomerfallAutomaticsPerks : Inventory
 	}
 
 	// The fast band: once per shot, a chance of one more bullet, free. Runs in the player's DoEffect, after the players
-	// acted (P_PlayerThink) and WorldTick, so this tic's shot, its first bullet's puff and its projectiles are all known;
-	// the player's own thinker runs before projectiles spawned this tic move.
+	// acted (P_PlayerThink) and WorldTick, so this tic's shot, its first bullet and its projectiles are all known; the
+	// player's own thinker runs before projectiles spawned this tic move.
 	void ExtraBullet()
 	{
 		int now = level.maptime;
@@ -510,20 +521,18 @@ class DoomerfallAutomaticsPerks : Inventory
 		rolledTic = now;
 		let w = owner.player.ReadyWeapon;
 		int chance = DoomerfallAutomatics.Rule(DoomerfallAutomatics.AutoFastExtraBp);
-		if (chance <= 0 || !w || DoomerfallAutomaticBands.BandOf(w.GetClass()) != DoomerfallAutomaticBands.BandFast) return;
+		if (chance <= 0 || !w || DoomerfallAutomaticBands.BandOf(w) != DoomerfallAutomaticBands.BandFast) return;
 		if (Random[DoomerfallAutomatics](0, 9999) >= chance) return;
 
-		let pmo = PlayerPawn(owner);
-		Vector3 shoot = owner.pos + (0, 0, owner.height / 2 - owner.floorclip + (pmo ? pmo.AttackZOffset * owner.player.crouchfactor : 8));
 		extra = true;
 		if (shotMissileTic == now && shotMissile)
 		{
-			// A projectile shot: the same projectile again, mirrored about the aim.
+			// A projectile shot: the same projectile again, its direction mirrored about the aim it was fired along.
 			let m = shotMissile;
 			double speed = m.Vel.Length();
 			double ma = speed > 0 ? atan2(m.Vel.Y, m.Vel.X) : m.angle;
 			double mp = speed > 0 ? -atan2(m.Vel.Z, m.Vel.XY.Length()) : m.pitch;
-			double na = owner.angle - Actor.DeltaAngle(owner.angle, ma), np = 2 * owner.pitch - mp;
+			double na = shotCenter.X - Actor.DeltaAngle(shotCenter.X, ma), np = 2 * shotCenter.Y - mp;
 			let c = Actor.Spawn(m.GetClass(), m.pos, NO_REPLACE);
 			if (c)
 			{
@@ -533,24 +542,20 @@ class DoomerfallAutomaticsPerks : Inventory
 				c.pitch = np;
 				c.Vel = (cos(na) * cos(np), sin(na) * cos(np), -sin(np)) * speed;
 				let mt = DoomerfallShotTag.Of(m), ct = DoomerfallShots.Tag(c);
-				if (ct && mt) { ct.burstSet = true; ct.autoBurst = mt.autoBurst; }
+				if (ct && mt) { ct.burstSet = true; ct.autoBurst = mt.autoBurst; ct.autoBand = mt.autoBand; }
 				DoomerfallAutomatics.Log(String.Format("extra projectile %s from %s tic %d", c.GetClassName(), w.GetClassName(), now));
 				if (c.bMissile) c.CheckMissileSpawn(owner.radius);
 			}
 		}
-		else if (puffTic == now && puffClass)
+		else if (bulletTic == now)
 		{
-			// A hitscan shot: one more bullet with the gun's puff and its bullets' base damage, mirrored about the aim.
-			Vector3 d = puffPos - shoot;
-			double ba = atan2(d.Y, d.X), bp = -atan2(d.Z, d.XY.Length());
-			double na = owner.angle - Actor.DeltaAngle(owner.angle, ba), np = 2 * owner.pitch - bp;
-			int damage = baseGun == w.GetClass() ? max(1, int(round(baseDamage))) : 0;
-			if (damage > 0)
-			{
-				owner.LineAttack(na, PLAYERMISSILERANGE, np, damage, 'Hitscan', puffClass);
-				DoomerfallAutomatics.Log(String.Format("extra bullet from %s damage %d tic %d", w.GetClassName(), damage, now));
-			}
-			else DoomerfallAutomatics.Log(String.Format("extra bullet from %s skipped: no base damage seen yet", w.GetClassName()));
+			// A hitscan shot: the first bullet's LineAttack again, as the gun made it, its spread mirrored about the aim.
+			double na = bulletCenter.X - Actor.DeltaAngle(bulletCenter.X, bulletAngle);
+			double np = 2 * bulletCenter.Y - bulletPitch;
+			FTranslatedLineTarget t;
+			owner.LineAttack(na, bulletRange, np, bulletDamage, bulletType, bulletPuff, bulletFlags, t, bulletZ, bulletForward, bulletSide);
+			DoomerfallAutomatics.Log(String.Format("extra bullet from %s damage %d type %s puff %s flags %d angle %.3f pitch %.3f (first %.3f %.3f, aim %.3f %.3f) tic %d",
+				w.GetClassName(), bulletDamage, bulletType, bulletPuff ? bulletPuff.GetClassName() : 'None', bulletFlags, na, np, bulletAngle, bulletPitch, bulletCenter.X, bulletCenter.Y, now));
 		}
 		extra = false;
 	}

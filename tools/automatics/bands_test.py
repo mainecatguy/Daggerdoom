@@ -34,6 +34,17 @@ BAD = re.compile(r'Script error, "(doomerfall|bandtest)\.pk3|(doomerfall|bandtes
 HIT = re.compile(r"automatics: hit (\S+) with (\S+) shot (\d+)( burst)?: (\d+) -> (\d+) \(x([\d.]+)\) tic (\d+) by (\S+) flat (\d+)( extra)?")
 PEN = re.compile(r"automatics: penetrate (\S+) -> (\S+) damage (\d+)")
 EXTRA = re.compile(r"automatics: extra (bullet|projectile)")
+XB = re.compile(r"automatics: extra bullet from \S+ damage (\d+) type (\S+) puff (\S+) flags (\d+) angle (-?[\d.]+) pitch (-?[\d.]+) "
+                r"\(first (-?[\d.]+) (-?[\d.]+), aim (-?[\d.]+) (-?[\d.]+)\) tic (\d+)")
+BUL = re.compile(r"BANDTEST bullet tic (\d+) damage (\d+) type (\S+) puff (\S+) flags (\d+) angle (-?[\d.]+) pitch (-?[\d.]+)")
+REPORT = re.compile(r"BANDTEST report (\w+) (\d) (\d) band=(\d) tics=(\d+)")
+# Bands as the gun fires now (DECORATE, derive_bands.py): the Grammaton Beretta semi 18 slow, burst 2 fast, full auto
+# 5 slow (its AltFire only switches mode, so alt keeps the mode's band); the Widowmaker SMG 2 fast, its alternate fire
+# 18 slow; the three guns the old walk could not measure; the Hurricane Cannon spun up on DRLA's synth-fire button.
+WANT_REPORT = {("RLGrammatonClericBeretta", 0, 0): (1, 18), ("RLGrammatonClericBeretta", 1, 0): (3, 2),
+               ("RLGrammatonClericBeretta", 2, 0): (1, 5), ("RLGrammatonClericBeretta", 2, 1): (1, 5),
+               ("RLWidowmakerSMG", 0, 0): (3, 2), ("RLWidowmakerSMG", 0, 1): (1, 18), ("RLStormUzi", 0, 0): (2, 3),
+               ("RLSussGun", 0, 0): (2, 3), ("RLNuclearOnslaught", 0, 0): (2, 3), ("RLHurricaneCannon", 0, 0): (3, 1)}
 SUP = re.compile(r"automatics: suppress \S+ ([\d.]+) -> ([\d.]+) speed")
 
 
@@ -72,13 +83,18 @@ def cases_of(lines):
     for l in lines:
         if m := re.search(r"BANDTEST case (\w+) (\w+) band=(\d) tics=(\d+) slot=(-?\d+)", l):
             cur = {"cfg": m.group(1), "gun": m.group(2), "band": int(m.group(3)), "tics": int(m.group(4)), "slot": int(m.group(5)),
-                   "hits": [], "pens": [], "extras": 0, "sup": [], "speed": [], "shots": 0}
+                   "hits": [], "pens": [], "extras": 0, "sup": [], "speed": [], "shots": 0, "bullets": {}, "xb": [], "shot_tics": [],
+                   "pitch": float(m2.group(1)) if (m2 := re.search(r"pitch=(-?[\d.]+)", l)) else 0.0}
             cases.append(cur)
         elif not cur:
             continue
         elif m := re.search(r"BANDTEST end \w+ \w+ shots=(\d+) hittics=(\d+) ammo=(-?\d+)->(-?\d+) hitsA=(\d+) lostA=(\d+) hitsB=(\d+) lostB=(\d+)", l):
             cur.update(shots=int(m.group(1)), hittics=int(m.group(2)), used=int(m.group(3)) - int(m.group(4)), hitsA=int(m.group(5)),
                        lostA=int(m.group(6)), hitsB=int(m.group(7)), lostB=int(m.group(8)))
+        elif b := BUL.search(l):
+            cur["bullets"].setdefault(int(b.group(1)), []).append(b.groups()[1:])
+        elif m := re.search(r"BANDTEST shot \d+ tic (\d+)", l):
+            cur["shot_tics"].append(int(m.group(1)))
         elif m := re.search(r"BANDTEST probe \w+ \w+ hit=(\d+)", l):
             cur["probe"] = int(m.group(1))
         elif m := re.search(r"BANDTEST speed tic (\d+) ([\d.]+)", l):
@@ -89,6 +105,8 @@ def cases_of(lines):
             cur["pens"].append(pm)
         elif EXTRA.search(l):
             cur["extras"] += 1
+            if x := XB.search(l):
+                cur["xb"].append(x.groups())
         elif s := SUP.search(l):
             cur["sup"].append((float(s.group(1)), float(s.group(2))))
     return cases
@@ -105,6 +123,9 @@ def analyse(lines):
     check("finished", any("BANDTEST done" in l for l in lines))
     absent = [l for l in lines if "BANDTEST absent" in l or "noselect" in l or "timeout" in l]
     check("every gun present, selected, and every rule set arrived", not absent, absent)
+    got = {(m.group(1), int(m.group(2)), int(m.group(3))): (int(m.group(4)), int(m.group(5))) for l in lines if (m := REPORT.search(l))}
+    for k, want in WANT_REPORT.items():
+        check(f"band of {k[0]} mode {k[1]}{' alt fire' if k[2] else ''} is {want} (band, tics)", got.get(k) == want, got.get(k))
     want_band = {"Chaingun": (1, 4), "RLBattleRifle": (1, 4), "RLUzi": (2, 3), "RLThompson": (3, 2), "RLMinigun": (3, 1)}
     for c in cases_of(lines):
         tag = f"{c['cfg']} {c['gun']}"
@@ -141,6 +162,28 @@ def analyse(lines):
             check(f"{tag}: an extra bullet on every shot ({c['extras']} for {c['shots']} shots), and they hit (A hit {c['hitsA']} times)",
                   c["extras"] >= 0.9 * c["shots"] and c["extras"] <= c["shots"] + 1 and c["hitsA"] >= 1.5 * c["shots"], (c["extras"], c["shots"]))
             check(f"{tag}: extra bullets spend no ammo (used {c['used']} for {c['shots']} shots)", c["used"] <= c["shots"] + 2 or c["used"] < 0)
+            # Each extra bullet is the shot's first bullet again: the same damage roll, damage type, puff and flags as the
+            # gun's own LineAttack that tic, its angle and pitch mirrored about the gun's (autoaimed) aim.
+            bad = []
+            for x in c["xb"]:
+                dmg, typ, puff, flags, ang, pit, fa, fp, aa, ap, tic = x
+                recs = c["bullets"].get(int(tic), [])
+                first = recs[0] if recs else None
+                mine = [r for r in recs[1:] if r[4] == ang and r[5] == pit]
+                ok = (first and first[:4] == (dmg, typ, puff, flags) and (first[4], first[5]) == (fa, fp) and mine and mine[0][:4] == (dmg, typ, puff, flags)
+                      and abs(float(ang) + float(fa) - 2 * float(aa)) < 2e-3 and abs(float(pit) + float(fp) - 2 * float(ap)) < 2e-3)
+                if not ok:
+                    bad.append((x, recs))
+            check(f"{tag}: every extra bullet ({len(c['xb'])}) repeats the shot's first bullet (damage, type, puff, flags) mirrored about the aim",
+                  c["xb"] and len(c["xb"]) == c["extras"] and not bad, bad[:2])
+            check(f"{tag}: the first shot already gets its extra bullet (no waiting for an earlier hit)",
+                  c["shot_tics"] and c["xb"] and int(c["xb"][0][10]) == c["shot_tics"][0], (c["shot_tics"][:2], [x[10] for x in c["xb"][:2]]))
+            dmgs = {x[0] for x in c["xb"]}
+            check(f"{tag}: extra bullets follow each shot's own damage roll ({sorted(dmgs)})", len(dmgs) >= 2, dmgs)
+            if c["pitch"]:
+                aims = [float(x[9]) for x in c["xb"]]
+                check(f"{tag}: view pitch {c['pitch']}, extra bullets mirror about the autoaimed pitch, not the view "
+                      f"(aim pitch {min(aims, default=0):.2f}..{max(aims, default=0):.2f})", aims and all(abs(a - c["pitch"]) > 2 for a in aims), aims[:5])
         if c["cfg"] == "free3":
             n = c["hittics"]  # a shot is a tic in which the gun fired; every shot of these accurate guns hits A
             want = n - n // 3

@@ -190,7 +190,7 @@ def frame_offset(owner, i, n):
     return i
 
 
-def trace_fire(actors, a, ammo, debug=False, held=True):
+def trace_fire(actors, a, ammo, debug=False, held=True, start='Fire', inv0=None, ready_fires=False):
     """Fires the gun with the trigger held forever and finds the loop it settles into.
 
     The walk follows each state's next state. It keeps the gun's own counters (A_GiveInventory, A_TakeInventory and
@@ -204,12 +204,21 @@ def trace_fire(actors, a, ammo, debug=False, held=True):
     With held=False the trigger is pressed again at Ready but let go at every A_ReFire (it falls through): that is
     how a charge gun that fires on release (the Gauss Rifle) is fired.
 
+    Options used by tools/automatics/derive_bands.py (the defaults keep this file's own table unchanged):
+    start='AltFire' fires the alternate fire instead (A_ReFire then goes to AltHold, else AltFire); inv0 presets the
+    gun's own counters (a firing-mode item, or DRLA's synth-fire button items); ready_fires=True makes every
+    A_WeaponReady that allows this fire go back to the fire state, as the engine does with the button held (the
+    psprite ticks, then CheckWeaponFire runs in the same tic, so it costs no tics).
+
     Returns (shortest tics between shots in the loop, shots per loop, loop tics, note)."""
-    owner, i = find_label(actors, a, 'Fire')
+    alt = start.lower() == 'altfire'
+    owner, i = find_label(actors, a, start)
     if owner is None:
-        return None, 0, 0, 'no Fire state'
+        return None, 0, 0, 'no %s state' % start
     ready_owner, ready_i = find_label(actors, a, 'Ready')
-    inv = {}
+    hold = 'AltHold' if alt else 'Hold'
+    block = 'WRF_NOSECONDARY' if alt else 'WRF_NOPRIMARY'
+    inv = dict(inv0 or {})
     tics, steps, shot_tics = 0, 0, []
     seen = {}
 
@@ -224,7 +233,7 @@ def trace_fire(actors, a, ammo, debug=False, held=True):
     while steps < 20000:
         steps += 1
         if owner is ready_owner and i == ready_i:
-            owner, i = go('Fire')
+            owner, i = go(start)
         key = (id(owner), i, tuple(sorted(inv.items())))
         if key in seen:
             t0, n0 = seen[key]
@@ -269,8 +278,15 @@ def trace_fire(actors, a, ammo, debug=False, held=True):
                 del inv[item]
         rm = re.search(r'\bA_ReFire\b\s*(?:\(\s*"?([\w.:]*)"?\s*\))?', rest, re.I)
         if rm and held:
-            o2, j = go(rm.group(1) or 'Hold')
-            owner, i = (o2, j) if o2 is not None else go('Fire')
+            o2, j = go(rm.group(1) or hold)
+            owner, i = (o2, j) if o2 is not None else go(start)
+            continue
+        wm = re.search(r'\bA_WeaponReady\b\s*(?:\(([^)]*)\))?', rest, re.I)
+        wf = (wm.group(1) or '').strip() if wm else ''
+        if wf.isdigit():  # WRF_NOPRIMARY 4, WRF_NOSECONDARY 8
+            wf = block if int(wf) & (8 if alt else 4) else ''
+        if wm and held and ready_fires and not re.search(r'WRF_NOFIRE|' + block, wf, re.I):
+            owner, i = go(start)
             continue
         tics += t
         jm = re.search(r'\bA_Jump\s*\(\s*(\d+)\s*,\s*("?[\w.:]+"?)', rest, re.I)

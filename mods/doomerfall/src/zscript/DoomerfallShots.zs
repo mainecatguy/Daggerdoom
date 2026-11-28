@@ -23,6 +23,7 @@ class DoomerfallShotTag : Inventory
 	int generation;         // 0: fired by the gun; 1: spawned by that shot; and so on
 	bool autoBurst;         // Automatics: the shot was one of a burst's first shots (DoomerfallAutomatics)
 	bool burstSet;          // Automatics has decided autoBurst (at the spawn event, or at a point-blank hit before it)
+	int autoBand;           // Automatics: the gun's fire-rate band as it fired (DoomerfallAutomaticBands), set with autoBurst
 
 	Default
 	{
@@ -49,6 +50,7 @@ class DoomerfallShotTag : Inventory
 		generation = t.generation + 1;
 		autoBurst = t.autoBurst;
 		burstSet = t.burstSet;
+		autoBand = t.autoBand;
 	}
 }
 

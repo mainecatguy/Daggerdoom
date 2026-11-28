@@ -35,14 +35,45 @@ class BandTest : EventHandler
 {
 	Array<String> cfgs, guns;
 	Array<int> lengths;
+	Array<double> pitches;
+	bool reported;
 	int c, phase, wait, t, shots, ammoStart, prevAmmo, hitsA, lostA, hitsB, lostB, endTic, hitTics, lastHitTic;
 	Actor a, b;
 
-	void Add(String cfg, String gun, int len)
+	void Add(String cfg, String gun, int len, double pitch = 0)
 	{
 		class<Actor> k = gun;
 		if (!k) { Console.Printf("BANDTEST absent %s", gun); return; }
-		cfgs.Push(cfg); guns.Push(gun); lengths.Push(len);
+		cfgs.Push(cfg); guns.Push(gun); lengths.Push(len); pitches.Push(pitch);
+	}
+
+	// Every bullet a player fires, as the gun made it (to compare an extra bullet with the shot's own).
+	override bool WorldHitscanPreFired(WorldEvent e)
+	{
+		if (e.Thing && e.Thing.player)
+			Console.Printf("BANDTEST bullet tic %d damage %d type %s puff %s flags %d angle %.3f pitch %.3f", level.maptime, e.Damage, e.DamageType,
+				e.AttackPuffType ? e.AttackPuffType.GetClassName() : 'None', e.AttackLineFlags, e.AttackAngle, e.AttackPitch);
+		return false;
+	}
+
+	// The band of a carried gun as it fires now: by its firing mode (count of the mode item) and alternate fire.
+	void Report(Actor mo, String gun, String mode, int count, bool alt)
+	{
+		class<Weapon> k = gun;
+		if (!k) { Console.Printf("BANDTEST absent %s", gun); return; }
+		mo.GiveInventory(k, 1);
+		let w = Weapon(mo.FindInventory(k));
+		if (!w) { Console.Printf("BANDTEST absent %s", gun); return; }
+		if (mode != "")
+		{
+			class<Inventory> mk = mode;
+			mo.TakeInventory(mk, 1000);
+			if (count > 0) mo.GiveInventory(mk, count);
+		}
+		bool was = w.bAltFire;
+		w.bAltFire = alt;
+		Console.Printf("BANDTEST report %s %d %d band=%d tics=%d", gun, count, alt, DoomerfallAutomaticBands.BandOf(w), DoomerfallAutomaticBands.TicsOf(k, mo, alt));
+		w.bAltFire = was;
 	}
 
 	override void OnRegister()
@@ -55,6 +86,7 @@ class BandTest : EventHandler
 		Add("bands", "RLThompson", 700);
 		Add("bands", "RLMinigun", 300);
 		Add("extra100", "RLThompson", 80);
+		Add("extra100", "RLThompson", 80, -5); // looking 5 degrees up: autoaim lowers the shot onto A
 		Add("free3", "Chaingun", 90);
 		Add("free3", "RLBattleRifle", 90);
 		Add("big", "Chaingun", 90);
@@ -107,6 +139,18 @@ class BandTest : EventHandler
 		PlayerInfo p = players[consoleplayer];
 		let mo = p.mo;
 		if (!mo || level.maptime < 20) return;
+		if (!reported)
+		{
+			reported = true;
+			for (int i = 0; i < 3; i++) Report(mo, "RLGrammatonClericBeretta", "RLGrammatonClericBerettaMode", i, false);
+			Report(mo, "RLGrammatonClericBeretta", "RLGrammatonClericBerettaMode", 2, true); // its AltFire only switches mode
+			Report(mo, "RLWidowmakerSMG", "", 0, false);
+			Report(mo, "RLWidowmakerSMG", "", 0, true);
+			Report(mo, "RLStormUzi", "", 0, false);
+			Report(mo, "RLSussGun", "", 0, false);
+			Report(mo, "RLNuclearOnslaught", "", 0, false);
+			Report(mo, "RLHurricaneCannon", "", 0, false);
+		}
 		if (c >= cfgs.Size()) { if (phase != 99) { phase = 99; Console.Printf("BANDTEST done"); } return; }
 		String cfg = cfgs[c], gun = guns[c];
 		switch (phase)
@@ -134,15 +178,15 @@ class BandTest : EventHandler
 			if (w && w.GetClassName() == gun && (p.WeaponState & WF_WEAPONREADY))
 			{
 				Fill(p, false);
-				mo.angle = 0; mo.pitch = 0;
+				mo.angle = 0; mo.pitch = pitches[c];
 				mo.vel = (0, 0, 0);
 				class<Actor> tk = cfg == "suppress" ? "BandTestMonster" : "BandTestTarget";
 				a = Actor.Spawn(tk, mo.Vec3Angle(120, 0));
 				b = cfg == "suppress" ? null : Actor.Spawn("BandTestTarget", mo.Vec3Angle(260, 0));
 				hitsA = lostA = hitsB = lostB = hitTics = 0; lastHitTic = -1;
 				t = 0; shots = 0; ammoStart = AmmoNow(p); prevAmmo = ammoStart; endTic = -1;
-				Console.Printf("BANDTEST case %s %s band=%d tics=%d slot=%d", cfg, gun, DoomerfallAutomaticBands.BandOf(w.GetClass()),
-					DoomerfallAutomaticBands.TicsOf(w.GetClass()), DoomerfallWeaponCategory.SkillSlotOf(w));
+				Console.Printf("BANDTEST case %s %s band=%d tics=%d slot=%d pitch=%.1f", cfg, gun, DoomerfallAutomaticBands.BandOf(w),
+					DoomerfallAutomaticBands.TicsOf(w.GetClass(), mo, w.bAltFire), DoomerfallWeaponCategory.SkillSlotOf(w), mo.pitch);
 				phase = 4;
 			}
 			else if (++wait > 175) { Console.Printf("BANDTEST noselect %s %s", cfg, gun); c++; phase = 0; }
