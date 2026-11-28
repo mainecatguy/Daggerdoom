@@ -1310,12 +1310,13 @@ int DD_BridgeHpCheckLimit(AActor *actor, int health)
 	return peerState.hp_max - HpExpected() + actor->health;
 }
 
-// P_DamageMobj, where the player's health would drop. True means the hit was reported and Doom must not
-// change the player's health or run its own death.
-bool DD_BridgeHpHit(player_t *player, int damage)
+// P_DamageMobj and P_PoisonDamage (Hexen-style player poison), where the player's health would drop. True means
+// the hit was reported and Doom must not change the player's health or run its own death. `source` only labels
+// the log line ("damage" or "poison").
+bool DD_BridgeHpHit(player_t *player, int damage, const char *source)
 {
 	if (!HpActive() || !HpIsBridgedPlayer(player) || damage <= 0) return false;
-	HpSend(DFB_HP_HIT, damage, "damage");
+	HpSend(DFB_HP_HIT, damage, source);
 	return true;
 }
 
@@ -1343,7 +1344,7 @@ int DD_BridgeDamageBonus(AActor *source, AActor *target, AActor *inflictor, int 
 }
 
 // P_DamageMobj (after armor, the very last step before the player's health would drop) and P_PoisonDamage (after its
-// damage factors; it subtracts health itself, and DD_BridgeHpThink then reports that already scaled drop unchanged):
+// damage factors, just before it reports the hit through DD_BridgeHpHit):
 // the owner's Willpower rule (2026-11-26), a final modifier to all damage the bridged player takes. Health that
 // scripts set directly (costs such as DRLA's Soul Shatter, set-to-N effects) is not damage and is not scaled.
 // Daggerfall's live Willpower, values above 100 counting as 100: x1.2 at 0, x1 at 50, x0.8 at 100, linear between,
