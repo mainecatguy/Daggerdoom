@@ -927,8 +927,8 @@ int DD_BridgeSkillBase(int slot)
 	return s && slot >= 0 && slot < DFB_SHEET_SKILLS_LIVE - DFB_SHEET_SKILLS_BASE ? s[DFB_SHEET_SKILLS_BASE + slot] : -1;
 }
 
-// One value of the character sheet (DFB_SHEET_* index) for ZScript (Actor.DD_SheetValue), such as the perk rules
-// Daggerfall sends (DFB_SHEET_AUTO_*). -1 without a valid character or for an index out of range.
+// One value of the character sheet (DFB_SHEET_* index) for ZScript (Actor.DD_SheetValue), such as the level.
+// -1 without a valid character or for an index out of range.
 int DD_BridgeSheetValue(int index)
 {
 	const int32_t *s = DD_BridgeSheet();

@@ -1,3 +1,5 @@
+version "4.10"
+
 // Harness for rules_test.py: prints every value of Doom's shared rules (mods/doomerfall/src/zscript/DoomerfallRules.zs)
 // over the whole input range, so the script can compare them with the formulas they replaced.
 class RulesTest : EventHandler
