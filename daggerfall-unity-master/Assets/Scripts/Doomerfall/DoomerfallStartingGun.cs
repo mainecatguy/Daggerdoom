@@ -127,7 +127,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             StringBuilder s = new StringBuilder();
             foreach (Gun g in kit)
             {
-                DoomerfallDoomItem gun = DoomerfallDoomItem.Create(g.cls, Dfb.DOOM_ITEM_GUN, LootSeed.Of(LootSeed.DoomStarterGun, g.cls)); // the same for every new character
+                DoomerfallDoomItem gun = DoomerfallDoomItem.CreateStarter(g.cls); // Iron, like Daggerfall's starting gear
                 items.AddItem(gun);
                 guns.Add(gun);
                 slots.Add(g.slot);

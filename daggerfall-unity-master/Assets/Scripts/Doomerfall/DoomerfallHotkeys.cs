@@ -455,7 +455,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
             if (plainDraw == null && !string.IsNullOrEmpty(pistolClass))
             {
-                plainDraw = DoomerfallDoomItem.Create(pistolClass, Dfb.DOOM_ITEM_GUN, LootSeed.Of(LootSeed.DoomStarterGun, pistolClass));
+                plainDraw = DoomerfallDoomItem.CreateStarter(pistolClass);
                 items.AddItem(plainDraw);
                 if (ammoType >= 0 && ammoType < DoomerfallAmmo.Types.Length && ammo > 0)
                     items.AddItem(new DoomerfallAmmoItem(ammoType, DoomerfallAmmoTiers.Regular, ammo));
@@ -653,7 +653,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         DoomerfallDoomItem Adopt(string cls)
         {
-            DoomerfallDoomItem item = DoomerfallDoomItem.Create(cls, Dfb.DOOM_ITEM_GUN, LootSeed.Of(LootSeed.DoomStarterGun, cls)); // the same for every new character
+            DoomerfallDoomItem item = DoomerfallDoomItem.CreateStarter(cls); // Iron, like every starter gun
             GameManager.Instance.PlayerEntity.Items.AddItem(item);
             Log(string.Format("adopted Doom's \"{0}\" into Daggerfall's inventory, material {1}", cls, item.Material));
             return item;

@@ -181,7 +181,9 @@ extern "C" {
    numbered deltas. Payloads: dfb_doom_item, cls is Doom's ammo class (Clip, Shell, RocketAmmo, Cell). */
 #define DFB_KIND_AMMO          171  /* UZ to DF; status is Doom's count; request is the last AMMO_ADD Doom applied */
 #define DFB_KIND_AMMO_ADD      172  /* DF to UZ; status is a signed 32-bit delta to add (Doom's count stops at 0) */
-#define DFB_KIND_AMMO_READY    173  /* UZ to DF; the ready weapon changed; cls is the reserve ammo class it uses, or empty for none */
+#define DFB_KIND_AMMO_READY    173  /* UZ to DF; the ready weapon changed; cls is the reserve ammo class it uses, or empty for none; status is DFB_AMMO_READY_* bits */
+#define DFB_AMMO_READY_MELEE   1u   /* the ready weapon is a melee weapon (the fist, a chainsaw), or there is none */
+#define DFB_AMMO_READY_FIST    2u   /* the ready weapon is the fist, or there is none: no Daggerfall item is up, so no weapon material bonus */
 #define DFB_KIND_AMMO_TAKE     174  /* UZ to DF; the player touched a tiered ammo pickup; cls is the reserve class, status the rounds, request the tier (0 Regular to 9 Daedric) */
 #define DFB_KIND_AREA_LEVEL_REQUEST 175 /* UZ to DF; request is a map pixel, y * 1000 + x; Daggerfall answers with AREA_LEVEL */
 #define DFB_KIND_AREA_LEVEL    176  /* DF to UZ; request is the map pixel, status the area level there (Doom rolls ammo drop tiers with it) */
