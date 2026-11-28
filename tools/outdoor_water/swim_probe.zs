@@ -21,7 +21,8 @@ class DoomerfallSwimTest : StaticEventHandler
 	Vector3 start, anchor;
 	Vector2 waterAt;
 	double landSpeed, landEye;
-	bool active, finished;
+	bool active, finished, walked, lastSwim;
+	int lastWater, dryTic;
 
 	override void WorldLoaded(WorldEvent e) { active = !finished; }
 
@@ -134,7 +135,26 @@ class DoomerfallSwimTest : StaticEventHandler
 		}
 		if (phase == 5) // back on land
 		{
-			if (t == 1) MoveTo(mo, start.xy);
+			// Walk (thrust each tic, as MovePlayer would) from the water toward the start, logging every change of
+			// Daggerfall's water tile flag and of Doom's swimming, with the position, until on land for 2 s.
+			if (t < 35 * 60 && !walked)
+			{
+				Vector2 to = start.xy - mo.pos.xy;
+				double fm, sm, fr, mf;
+				[fm, sm] = mo.TweakSpeeds(Walk, 0);
+				[fr, mf] = mo.GetFriction();
+				if (mo.pos.z <= mo.floorz) mo.ForwardThrust(fm * mo.Speed / 256 * mf, atan2(to.y, to.x));
+				int wf = Actor.DD_PlayerFlags() & 2;
+				bool sw = Actor.DD_OutdoorSwimming();
+				if (wf != lastWater || sw != lastSwim)
+				{
+					Console.Printf("SWIMTEST shore t=%d at %.0f %.0f df_water=%d swimming=%d", t, mo.pos.x, mo.pos.y, wf / 2, sw);
+					lastWater = wf; lastSwim = sw; if (!sw && !wf) dryTic = t;
+				}
+				if (to.Length() < 64 || (dryTic > 0 && !sw && !wf && t - dryTic > 70)) walked = true;
+				return;
+			}
+			if (!walked) { MoveTo(mo, start.xy); walked = true; t = 2; }
 			if (t < 70 || (Actor.DD_OutdoorSwimming() && t < 35 * 30)) return; // Daggerfall follows a teleport within seconds
 			Console.Printf("SWIMTEST back speed_ok eye=%.2f land_eye=%.2f swimming=%d flags=%d hp=%d", p.viewheight, landEye,
 				Actor.DD_OutdoorSwimming(), Actor.DD_PlayerFlags(), p.health);
