@@ -84,6 +84,8 @@ bool DD_ResyncFreeze(FLevelLocals *Level);
 void DD_TownsfolkDied(dfb_session *session, AActor *mo);
 void DD_ClimbFrame(dfb_session *session);
 void DD_RunningFrame(dfb_session *session, uint32_t worldContext); // dd_running.cpp
+void DD_BackstabFrame(dfb_session *session); // dd_backstab.cpp
+double DD_BackstabFactor(AActor *player, AActor *target, int32_t backstabBp); // dd_backstab.cpp
 void DD_FacesFrame(dfb_session *session);
 bool DD_ClimbNetEvent(dfb_session *session, const char *name);
 bool DD_GuardsEvent(const dfb_event &e);
@@ -1226,20 +1228,23 @@ bool DD_BridgeHpHit(player_t *player, int damage)
 }
 
 // P_DamageMobj, next to the source's DamageMultiply: the damage the bridged player deals to anything but itself,
-// times Daggerfall's damage bonus (dfb_df_state.damage_bonus_bp). Unchanged with no session or a bonus of 0.
+// times Daggerfall's damage bonus (dfb_df_state.damage_bonus_bp), and on a hit to an unaware enemy also times its
+// backstab element (backstab_bonus_bp, dd_backstab.cpp). Unchanged with no session or no bonus that applies.
 int DD_BridgeDamageBonus(AActor *source, AActor *target, int damage)
 {
-	const int32_t bp = peerState.damage_bonus_bp;
-	if (!session || bp == 0 || damage <= 0 || !source || source == target || !HpIsBridgedPlayer(source->player) ||
-		source->player->mo != source)
+	const int32_t bp = peerState.damage_bonus_bp, backstabBp = peerState.backstab_bonus_bp;
+	if (!session || damage <= 0 || !source || source == target ||
+		!HpIsBridgedPlayer(source->player) || source->player->mo != source)
 		return damage;
-	const int scaled = std::max(1, int(damage * (1.0 + std::max(bp, -10000) / 10000.0)));
+	const double backstab = DD_BackstabFactor(source, target, backstabBp); // counts sneak hits even at x1 (skill 0)
+	if (bp == 0 && backstab == 1.0) return damage;
+	const int scaled = std::max(1, int(damage * (1.0 + std::max(bp, -10000) / 10000.0) * backstab));
 	static int logged;
 	if (logged < 200)
 	{
 		logged++;
-		Log("damage bonus: %s hit by the player, %d -> %d (%d bp)", target ? target->GetClass()->TypeName.GetChars() : "?",
-			damage, scaled, bp);
+		Log("damage bonus: %s hit by the player, %d -> %d (%d bp, backstab x%.4g)",
+			target ? target->GetClass()->TypeName.GetChars() : "?", damage, scaled, bp, backstab);
 	}
 	return scaled;
 }
@@ -2764,6 +2769,7 @@ void DD_BridgeFrame()
 	DD_TownsfolkFrame(session, ownState.world_context);
 	DD_ClimbFrame(session);
 	DD_RunningFrame(session, ownState.world_context);
+	DD_BackstabFrame(session);
 	DD_FacesFrame(session);
 	DD_GuardsFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
 	DD_DoorsFrame(ownState.world_context, ownState.space_valid != 0, ownState.space_target);

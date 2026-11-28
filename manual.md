@@ -28,9 +28,9 @@ Endurance can go (past 100 for tough classes). A Barbarian gets +17, a Warrior +
 
 Your level comes from your skills, as in Daggerfall. Not every skill can be trained by use yet:
 
-- **Fighting in Doom does not train any skill yet.** Weapon skills, Hand-to-Hand, Critical Strike, Dodging and the
-  magic schools do not improve from combat or spells cast in Doom.
-- What does count today: **Climbing** (each climb), **Running** (see below), and what you do in Daggerfall's own windows, such as
+- **Fighting in Doom trains only Backstabbing so far** (see below). Weapon skills, Hand-to-Hand, Critical Strike,
+  Dodging and the magic schools do not improve from combat or spells cast in Doom.
+- What does count today: **Climbing** (each climb), **Running** and **Backstabbing** (see below), and what you do in Daggerfall's own windows, such as
   **Etiquette** and **Streetwise** when talking to people, **Mercantile** when buying and selling, **Pickpocket**,
   **Medical** when resting, and **Lockpicking** (see Talking, trading and stealing).
 
@@ -39,6 +39,13 @@ Your level comes from your skills, as in Daggerfall. Not every skill can be trai
 move. Walking, standing still, holding Run without moving, or running straight into a wall does not count (sliding
 along a wall does, because you are still moving). Time with the game paused never counts, and neither does time spent
 with **Horse** or **Cart** chosen in the transport menu. Running does not make you faster in Doom yet.
+
+**Backstabbing** makes your hits on enemies that have not noticed you hit harder: normal damage at skill 0, rising
+evenly to **five times** the damage at skill 100 (three times at 50). It works with every weapon, guns included, and
+stacks with your other damage bonuses (ammo and weapon material). An enemy has noticed you once it is after you or
+fighting anything else; one that only heard a noise and has not turned to look yet still counts as unaware. Your first
+hit wakes it up, so the bonus is for the opening hit: every pellet of one shotgun blast that lands together counts, the next
+shot does not. Each such sneak hit also practises Backstabbing, ten times as much as a hit practises a weapon skill in Daggerfall.
 
 Skills only go up, and a new level is only granted, when time passes: when you **rest** (see Resting) or **fast
 travel**. Daggerfall checks your skills at most once every 6 game hours.

@@ -536,6 +536,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     case Dfb.KIND_RUN_TIME:
                         DoomerfallRunning.OnRunTime(this, ev.runTime.tics);
                         break;
+                    case Dfb.KIND_SNEAK_HITS:
+                        DoomerfallBackstab.OnSneakHits(this, ev.sneakHits.hits);
+                        break;
                     case Dfb.KIND_NPC_USE:
                         ui.Talk.OnUse(ev.npcUse.request, ev.npcUse.id, ev.npcUse.mode, ev.npcUse.distance);
                         break;
