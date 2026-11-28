@@ -125,9 +125,11 @@ Impish) are gone: you can no longer calm monsters by speaking to them.
   Melee: they use Hand-to-Hand, as in Daggerfall.
 - Melee is a placeholder for now: it shows on the sheet, can be trained and is saved, but has no perks yet.
 - The Fighters Guild trains all seven weapon skills.
-- Magic items that enhance a monster language, including the Enhances Daedric power that Fire and Frost Daedra
-  souls add when bound into an item, still exist but do nothing. Their description says "(no effect)". The item
-  maker cannot make Enhances Skill items for the weapon skills.
+- The item maker's Enhances Skill power can raise any of the seven weapon skills, like any other skill.
+- Old powers that enhanced a monster language now enhance another skill instead, the same one every time: Orcish
+  Medical, Harpy Jumping, Giantish Pistols, Dragonish Melee, Nymph Stealth, Daedric Backstabbing, Spriggan
+  Restoration, Centaurian Thaumaturgy, Impish Hand-to-Hand. So a Fire or Frost Daedra soul bound into an item adds
+  Enhances Backstabbing, and "of Venom Spitting" items enhance Melee.
 - A character imported from a classic Daggerfall save starts the weapon skills untrained; their old language values
   and practice are not carried over.
 - Automatics, Explosives and Shotguns change how their guns behave (see "Automatics", "Explosives" and "Shotguns"
