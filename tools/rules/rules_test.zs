@@ -12,8 +12,9 @@ class RulesTest : EventHandler
 		for (int r = 0; r < DoomerfallRules.RuleCount; r++)
 			Console.Printf("RULESTEST get %d %d", r, DoomerfallRules.Get(r)); // no bridge: every rule off
 		for (int v = -1; v <= 100; v++)
-			Console.Printf("RULESTEST attr %d %.6f %.6f %.6f %.6f", v, DoomerfallRules.StrengthMeleeFactor(v), DoomerfallRules.SpeedFactor(v),
-				DoomerfallRules.AgilityHandlingBonus(v), DoomerfallRules.AgilityEvadeChance(v));
+			Console.Printf("RULESTEST attr %d %.6f %.6f %.6f %.6f %.6f %.6f %.6f", v, DoomerfallRules.StrengthMeleeFactor(v), DoomerfallRules.SpeedFactor(v),
+				DoomerfallRules.AgilityHandlingBonus(v), DoomerfallRules.StrengthGunFactor(v), DoomerfallRules.AgilityGunFactor(v, false),
+				DoomerfallRules.AgilityGunFactor(v, true), DoomerfallRules.LuckCritChance(v));
 		for (int s = -5; s <= 105; s++)
 			Console.Printf("RULESTEST jump %d %.6f %d %d", s, DoomerfallRules.JumpHeightFactor(s), DoomerfallRules.AirJumps(s), DoomerfallRules.FallImmune(s));
 		for (int u = 0; u <= 1200; u += 3)

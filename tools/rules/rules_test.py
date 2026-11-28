@@ -37,8 +37,13 @@ def old_perks(skill):
 
 
 def old_attr(v):
+    # Strength melee, Speed, Agility handling (old DoomerfallAttributes.zs and DoomerfallAgility.zs), then attributes
+    # 08's DoomerfallAttributes.zs curves: Strength guns, Agility firearms, Agility rifles and pistols, Luck crit chance.
+    c = max(0, min(100, v))
     return (1.0 if v < 0 else 1.0 + v / 100.0, 1.0 if v < 0 else 0.75 + v / 200.0,
-            0.0 if v <= 0 else 0.40 * v / 100.0, 0.0 if v <= 0 else 0.15 * v / 100.0)
+            0.0 if v <= 0 else 0.40 * v / 100.0,
+            1.0 if v < 0 else 0.8 + c * 0.004, 1.0 if v < 0 else 1.0 + (c - 50) * 0.002,
+            1.0 if v < 0 else 1.0 + (c - 50) * 0.004, 0.0 if v <= 50 else min(v - 50, 50) * 0.001)
 
 
 def old_jump(s):
@@ -95,8 +100,8 @@ def main():
             fail(f"rule {t[2]} is {t[3]} without a Daggerfall character")
         elif kind == "attr":
             v = int(t[2])
-            if any(abs(float(a) - b) > 1e-6 for a, b in zip(t[3:7], old_attr(v))):
-                fail(f"attributes at {v}: {t[3:7]}, was {old_attr(v)}")
+            if any(abs(float(a) - b) > 1e-6 for a, b in zip(t[3:10], old_attr(v))):
+                fail(f"attributes at {v}: {t[3:10]}, was {old_attr(v)}")
         elif kind == "jump":
             s = int(t[2])
             want = old_jump(s)

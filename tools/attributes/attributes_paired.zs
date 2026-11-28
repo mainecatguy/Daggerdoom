@@ -62,6 +62,21 @@ class AttrRawRecorder : Inventory
 	}
 }
 
+// Given just before the effects item is given back, so it comes right after it in the chain: the damage after the
+// attribute rules and before the gun perks, which would otherwise blur the check (as in the stopped attributes card 06
+// run, 9c7bbb35).
+class AttrMidRecorder : Inventory
+{
+	Default { +INVENTORY.UNDROPPABLE +INVENTORY.UNTOSSABLE Inventory.MaxAmount 1; }
+
+	override void ModifyDamage(int damage, Name damageType, out int newdamage, bool passive, Actor inflictor, Actor source, int flags, double angle)
+	{
+		if (passive || !(source is "AttrBleeder")) return;
+		let h = AttrPaired(StaticEventHandler.Find("AttrPaired"));
+		if (h) h.mid = damage;
+	}
+}
+
 // On the bleeder: sees the damage after every offensive modifier, Strength included.
 class AttrPostRecorder : Inventory
 {
@@ -81,7 +96,7 @@ class AttrPaired : StaticEventHandler
 	int wi, wPhase, wTics, wTries, wWait;
 	bool wForced;
 	Actor bleeder;
-	int raw, rawStr;
+	int raw, rawStr, mid;
 	bool rawMelee;
 	Name rawInflictor;
 	int wHits, wOk, wBoosted, wClassed, wRaw, wPost;
@@ -98,8 +113,10 @@ class AttrPaired : StaticEventHandler
 		wHits++;
 		wRaw += raw;
 		wPost += post;
-		if (post == want) wOk++;
-		if (melee && boosted > raw && post == boosted) wBoosted++;
+		// Compared right after the effects item (mid). Guns: Daggerfall's test holds Agility and Luck at 50, so no
+		// gun factor and no crit.
+		if (mid == want) wOk++;
+		if (melee && boosted > raw && mid == boosted) wBoosted++;
 		if (rawMelee == melee) wClassed++;
 		wInflictor = rawInflictor;
 		raw = -1;
@@ -130,7 +147,31 @@ class AttrPaired : StaticEventHandler
 				wForced = true;
 			}
 			if (!Ready(p, wc) || !(p.WeaponState & WF_WEAPONREADY)) return;
+			// The raw recorder must come before the effects item and the mid recorder right after it. The effects item is
+			// left alone (re-giving it, as an earlier version did, made the railgun land no hit): the raw recorder goes
+			// to the head of the chain (AddInventory), and the mid recorder is spliced in right behind the effects item.
+			let fx = mo.FindInventory("DoomerfallAttributeEffects");
+			if (!fx) return;
 			if (!mo.FindInventory("AttrRawRecorder")) mo.GiveInventory("AttrRawRecorder", 1);
+			if (!mo.FindInventory("AttrMidRecorder"))
+			{
+				mo.GiveInventory("AttrMidRecorder", 1);
+				let m = mo.Inv; // just added, so at the head
+				if (m is "AttrMidRecorder" && m != fx)
+				{
+					mo.Inv = m.Inv;
+					m.Inv = fx.Inv;
+					fx.Inv = m;
+				}
+			}
+			int rawPos = -1, fxPos = -1, midPos = -1, n = 0;
+			for (Inventory it = mo.Inv; it; it = it.Inv, n++)
+			{
+				if (it is "AttrRawRecorder") rawPos = n;
+				else if (it == fx) fxPos = n;
+				else if (it is "AttrMidRecorder") midPos = n;
+			}
+			if (!(rawPos < fxPos && midPos == fxPos + 1)) return; // order not as needed: wait (stuck check reports)
 			bleeder = Actor.Spawn("AttrBleeder", mo.Vec3Angle(mo.radius + 40, mo.Angle), NO_REPLACE);
 			bleeder.GiveInventory("AttrPostRecorder", 1);
 			mo.Pitch = 0;

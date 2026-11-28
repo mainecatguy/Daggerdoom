@@ -40,16 +40,27 @@ class DoomerfallRules : StaticEventHandler
 
 	// ---- Attributes (owner, 2026-11-26; manual.md "Attributes"). Each takes Stat(): 0..100, or -1 (no change). ----
 
+	// Attribute rework (owner, 2026-11-27: gamedesign/decisions/20261127-attribute-rework-owner.md). The damage factors
+	// multiply with each other and with every other damage modifier (damagestacking 01 reviews that).
 	// Strength: melee damage +0% at 0 to +100% at 100.
 	clearscope static double StrengthMeleeFactor(int v) { return v < 0 ? 1.0 : 1.0 + v / 100.0; }
+	// Strength: shotguns, explosives and automatics -20% at 0, normal at 50, +20% at 100.
+	clearscope static double StrengthGunFactor(int v) { return v < 0 ? 1.0 : 0.8 + clamp(v, 0, 100) * 0.004; }
 	// Speed: movement -25% at 0, normal at 50, +25% at 100.
 	clearscope static double SpeedFactor(int v) { return v < 0 ? 1.0 : 0.75 + v / 200.0; }
-	// Agility: reloads and weapon switches up to 40% faster (0 to 0.4 extra speed), and a chance to evade damage
-	// entirely, up to 15%. Linear from 0 at Agility 0.
+	// Agility: every firearm -10% at 0, normal at 50, +10% at 100; rifles and pistols (rifleOrPistol) get another
+	// -10% to +10% on the same line, added to the first (so -20% to +20%).
+	clearscope static double AgilityGunFactor(int v, bool rifleOrPistol)
+	{
+		return v < 0 ? 1.0 : 1.0 + (clamp(v, 0, 100) - 50) * (rifleOrPistol ? 0.004 : 0.002);
+	}
+	// Agility: reloads and weapon switches up to 40% faster (0 to 0.4 extra speed), linear from 0 at Agility 0. The old
+	// chance to evade damage is gone (owner, 2026-11-27).
 	const AgilityMaxHandling = 0.40;
-	const AgilityMaxEvade = 0.15;
 	clearscope static double AgilityHandlingBonus(int v) { return v <= 0 ? 0.0 : AgilityMaxHandling * v / 100.0; }
-	clearscope static double AgilityEvadeChance(int v) { return v <= 0 ? 0.0 : AgilityMaxEvade * v / 100.0; }
+	// Luck: a super crit of LuckCritFactor x the damage, 0% at 50 and below, +0.1% per point above (5% at 100).
+	const LuckCritFactor = 5;
+	clearscope static double LuckCritChance(int v) { return v <= 50 ? 0.0 : min(v - 50, 50) * 0.001; }
 	// Luck (owner, 2026-11-27): each monster death drops ammo with a Luck / 2 percent chance (0% to 50%; above 100
 	// counts as 100). roll is 0..1 (DoomerfallAmmoTiers hashes it from the monster's loot seed).
 	clearscope static bool LuckAmmoDrop(int luck, double roll) { return luck > 0 && roll * 200 < min(luck, 100); }
