@@ -1272,6 +1272,7 @@ public:
 	uint8_t			ddNoDrops = 0;	// [Doomerfall] Spawned by a dying summoned monster: its loose items are removed (dd_lootrng.cpp). Zero on all stock actors.
 	uint8_t			ddDied = 0;		// [Doomerfall] Its seeded loot was rolled once; a revived monster drops nothing again (dd_lootrng.cpp). Zero on all stock actors.
 	uint64_t		ddHandoffId = 0;	// [Doomerfall] A placed monster's id a DRLA spawner passes on to the monster it makes (dd_monsters.cpp). Zero on all stock actors.
+	uint32_t		ddSerial = 0, ddSpawnedBy = 0;	// [Doomerfall] Spawn serial, and the serial of the actor that spawned it (dd_shotsource.cpp). Not saved; zero outside bridge sessions.
 	DVector3		SpawnPoint; 	// For nightmare respawn
 	int				StartHealth;
 	uint8_t			WeaveIndexXY;	// Separated from special2 because it's used by globally accessible functions.

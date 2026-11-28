@@ -31,6 +31,7 @@
 
 #include "a_dynlight.h"
 #include "dd_lootrng.h" // [Doomerfall]
+#include "dd_shotsource.h" // [Doomerfall]
 #include "a_keys.h"
 #include "a_morph.h"
 #include "a_sharedglobal.h"
@@ -5579,6 +5580,7 @@ void ConstructActor(AActor *actor, const DVector3 &pos, bool SpawningMapThing)
 	actor->UpdateWaterLevel (false);
 	DD_LootInherit(actor); // [Doomerfall] no-op unless a fixed loot roll is running
 	DD_SpawnerHandoff(actor); // [Doomerfall] no-op unless a DRLA spawner holding a placed monster's id made it
+	DD_ShotSourceSpawned(actor); // [Doomerfall] which actor spawned it; no-op outside bridge sessions
 	if (!SpawningMapThing)
 	{
 		actor->CallBeginPlay ();

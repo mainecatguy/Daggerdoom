@@ -32,6 +32,7 @@
 #include "v_text.h"
 #include "g_levellocals.h"
 #include "dd_lootrng.h" // [Doomerfall]
+#include "dd_shotsource.h" // [Doomerfall]
 #include "a_dynlight.h"
 #include "v_video.h"
 #include "g_cvars.h"
@@ -1266,6 +1267,7 @@ DEFINE_ACTION_FUNCTION_NATIVE(DThinker, Tick, NativeTick)
 void DThinker::CallTick()
 {
 	DDLootScope aiScope(DD_AiStateFor(this), nullptr); // [Doomerfall] fixed live randomness; no-op outside bridge sessions
+	DDTickScope tickScope(this); // [Doomerfall] spawn parents for shot tags (dd_shotsource.cpp)
 	IFVIRTUAL(DThinker, Tick)
 		VMCallVoid<DThinker*>(func, this);
 	else
