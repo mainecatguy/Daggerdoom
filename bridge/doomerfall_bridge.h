@@ -416,7 +416,7 @@ typedef struct dfb_face
 /* Explosives (work/backlog/skills-in-doom.md), from the live Explosives skill. */
 #define DFB_SHEET_EXPL_DAMAGE_BP      162  /* damage bonus in 1/10000ths (+0% to +60% by skill) */
 #define DFB_SHEET_EXPL_SELF_CUT_BP    163  /* the player's own splash damage is cut by this much (95% at 25, 99% at 75) */
-#define DFB_SHEET_EXPL_DIRECT_BP      164  /* more damage to the enemy a shot hits directly (50; amount open, so 0) */
+#define DFB_SHEET_EXPL_DIRECT_BP      164  /* more damage to the enemy a shot hits directly (50: +50%) */
 #define DFB_SHEET_EXPL_CHAIN_BP       165  /* an enemy the explosives kill explodes for this much of its maximum health ... */
 #define DFB_SHEET_EXPL_CHAIN_RADIUS   166  /* ... in this radius (map units), each chained generation at half the last */
 /* Shotguns (work/backlog/skills-in-doom.md), from the live Shotguns skill. */
