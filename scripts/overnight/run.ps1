@@ -244,6 +244,12 @@ New-Item -ItemType Directory -Force $Logs | Out-Null
 RepoGit $Repo worktree prune | Out-Null
 # Kept between runs so Unity and CMake can reuse their caches.
 if (-not (Test-Path $Worktree)) { RepoGit $Repo worktree add -q --detach $Worktree $Base | Out-Null }
+# The Unity CLI build rewrites this tracked file and adds StreamingAssets/aa; both are build output, so undo them.
+RepoGit $Worktree checkout -- daggerfall-unity-master/Assets/AddressableAssetsData/Windows/addressables_content_state.bin 2>$null | Out-Null
+foreach ($p in 'daggerfall-unity-master/Assets/StreamingAssets/aa', 'daggerfall-unity-master/Assets/StreamingAssets/aa.meta') {
+    $full = Join-Path $Worktree $p
+    if ((Test-Path $full) -and -not (RepoGit $Worktree ls-files -- $p)) { Remove-Item -Recurse -Force $full }
+}
 if (RepoGit $Worktree status --porcelain) { throw "$Worktree has uncommitted changes. Review them first." }
 RepoGit $Worktree switch -q -c $Branch $Base | Out-Null
 
