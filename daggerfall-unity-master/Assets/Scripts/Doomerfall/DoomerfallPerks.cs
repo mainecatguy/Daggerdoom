@@ -1,4 +1,5 @@
-// Doomerfall: tells the player when a skill earns a perk (at 25, 50, 75 and 100).
+// Doomerfall: tells the player when a skill earns a perk (at 25, 50, 75 and 100), and plays the skill point sound in Doom
+// for every skill point gained.
 //
 // Daggerfall owns skills, so it owns the perk text too. This watches permanent skill values every frame, so training,
 // the level-up check, and any other source need no hooks of their own. When a skill crosses a perk threshold during
@@ -71,7 +72,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         DoomerfallPositionSync sync;
         readonly short[] known = new short[DaggerfallSkills.Count];
         readonly List<string> pending = new List<string>();
-        bool hasBaseline;
+        bool hasBaseline, soundPending;
 
         public void Init(DoomerfallBridge owner, DoomerfallPositionSync positionSync)
         {
@@ -93,6 +94,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         void Reset()
         {
             hasBaseline = false;
+            soundPending = false;
             pending.Clear();
         }
 
@@ -121,13 +123,23 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return;
             }
 
+            bool rose = false;
             for (int i = 0; i < known.Length; i++)
             {
                 short now = player.Skills.GetPermanentSkillValue(i);
                 if (hasBaseline && now > known[i])
+                {
                     Gained((DFCareer.Skills)i, known[i], now);
+                    rose = true;
+                }
                 known[i] = now;
             }
+            if (rose)
+                soundPending = true;
+            // Fast travel runs the skill check before Doom has loaded the arrival map, and a map load stops every sound,
+            // so the sound waits until Doom has arrived. A rest's check runs at the HUD and plays at once.
+            if (soundPending && !sync.TravelHolding)
+                SkillPointSound();
             if (!hasBaseline)
                 bridge.LogLine("perks: watching skills from here");
             hasBaseline = true;
@@ -135,6 +147,19 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             // A window opened on top of another, such as the travel window, could be closed by that window, so wait for the HUD.
             if (pending.Count > 0 && DaggerfallUI.Instance && DaggerfallUI.UIManager.TopWindow is DaggerfallHUD)
                 Show();
+        }
+
+        // Owner: a skill point plays a Daggerfall sound. Daggerfall Unity plays none for an ordinary skill point; the only
+        // sound its skill check has is this fanfare, for a primary skill reaching 100 (PlayerEntity.RaiseSkills).
+        // Daggerfall's audio is off in a bridge session, so Doom plays it (dd_weather.cpp), once for any number of points
+        // gained together. The message is Daggerfall's own ("Your %s skill has improved."), sent by DoomerfallHudMessages.
+        const SoundClips SkillPointClip = SoundClips.ArenaFanfareLevelUp;
+
+        void SkillPointSound()
+        {
+            soundPending = false;
+            bridge.SendText("uisnd " + (int)SkillPointClip);
+            bridge.LogLine("skill point: sound " + (int)SkillPointClip + " sent to Doom");
         }
 
         void Gained(DFCareer.Skills skill, int from, int to)
