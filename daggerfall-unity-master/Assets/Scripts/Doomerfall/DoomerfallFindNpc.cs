@@ -35,6 +35,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         sealed class Context
         {
+            public DoomerfallBridge bridge;
             public GameManager game;
             public PlayerGPS gps;
             public DfbUzState peer;
@@ -44,15 +45,20 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             public int mapId;
             public string town;
             public string query;
+            public string[] words;
+            public bool list, questPass;
             public readonly List<Hit> hits = new List<Hit>();
             public readonly HashSet<string> seen = new HashSet<string>();
         }
 
-        internal static void Find(DoomerfallBridge bridge, DoomerfallPositionSync sync, DoomerfallTownspeople townspeople, uint request, string query)
+        // list: the pick list's search (DFB_FIND_LIST). An empty query then lists the active quests' NPCs, and a typed
+        // one lists matching quest NPCs before everyone else.
+        internal static void Find(DoomerfallBridge bridge, DoomerfallPositionSync sync, DoomerfallTownspeople townspeople, uint request, string query, bool list)
         {
             query = (query ?? "").Trim();
-            Context c = new Context { query = query.ToLowerInvariant() };
-            if (query.Length > 0 && !sync.LoadRunning && GameManager.HasInstance && sync.InGame)
+            Context c = new Context { query = query.ToLowerInvariant(), list = list };
+            c.words = c.query.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            if ((query.Length > 0 || list) && !sync.LoadRunning && GameManager.HasInstance && sync.InGame)
             {
                 try { Collect(c, bridge, sync, townspeople); }
                 catch (Exception ex) { bridge.LogLine("findnpc: search failed: " + ex.Message); }
@@ -67,7 +73,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 bridge.LogLine(string.Format("findnpc: match {0} target {1} id {2:x16} at {3:F1} {4:F1}: {5}", i, h.target, h.id, h.x, h.z, h.label));
             }
             Send(bridge, Dfb.KIND_FIND_END, request, 0, (ulong)c.hits.Count, 0, 0);
-            bridge.LogLine(string.Format("findnpc: request {0} \"{1}\": {2} matches, {3} sent", request, query, c.hits.Count, sent));
+            bridge.LogLine(string.Format("findnpc: request {0} \"{1}\"{2}: {3} matches, {4} sent", request, query, list ? " (list)" : "", c.hits.Count, sent));
         }
 
         static void Send(DoomerfallBridge bridge, ushort kind, uint request, uint target, ulong id, double x, double z)
@@ -85,6 +91,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         static void Collect(Context c, DoomerfallBridge bridge, DoomerfallPositionSync sync, DoomerfallTownspeople townspeople)
         {
+            c.bridge = bridge;
             c.game = GameManager.Instance;
             c.gps = c.game.PlayerGPS;
             bridge.ReadPeerState(out c.peer);
@@ -95,32 +102,90 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             c.building = c.inBuilding ? c.game.PlayerEnterExit.BuildingDiscoveryData.buildingKey : 0;
             c.mapId = c.gps.HasCurrentLocation ? c.gps.CurrentLocation.MapTableData.MapId : -1;
             c.town = c.gps.HasCurrentLocation ? c.gps.CurrentLocation.Name : "";
+            c.questPass = true;
             QuestPeople(c);
+            c.questPass = false;
+            if (c.query.Length == 0)
+                return; // the opening list: the active quests' NPCs only
             LoadedNpcs(c);
             Residents(c);
             Townspeople(c, townspeople);
         }
 
+        // Lenient: closest first. 0 the whole name, 1 its start, 2 a word's start, 3 anywhere in it, then 4 + typos when
+        // every typed word is the start of some word of the name, or that close to one (1 typo for 3-5 letters, 2 above).
         static bool Matches(Context c, string name, out int rank)
         {
             rank = 0;
             if (string.IsNullOrEmpty(name))
                 return false;
-            string lower = name.ToLowerInvariant();
-            int at = lower.IndexOf(c.query, StringComparison.Ordinal);
-            if (at < 0)
-                return false;
-            rank = lower == c.query ? 0 : at == 0 || lower[at - 1] == ' ' ? 1 : 2;
-            return true;
+            if (c.query.Length == 0)
+                return true;
+            rank = Score(name.ToLowerInvariant(), c.query, c.words);
+            return rank >= 0;
         }
 
-        // here: 0 points in this area, 10 is elsewhere, so pointable matches list first.
+        static readonly char[] WordBreaks = { ' ', '-', '\'', '.', ',' };
+
+        internal static int Score(string name, string query, string[] words)
+        {
+            if (name == query)
+                return 0;
+            if (name.StartsWith(query, StringComparison.Ordinal))
+                return 1;
+            int at = name.IndexOf(query, StringComparison.Ordinal);
+            if (at > 0)
+                return Array.IndexOf(WordBreaks, name[at - 1]) >= 0 ? 2 : 3;
+            string[] parts = name.Split(WordBreaks, StringSplitOptions.RemoveEmptyEntries);
+            int total = 0;
+            foreach (string w in words)
+            {
+                int best = int.MaxValue;
+                foreach (string part in parts)
+                    best = Math.Min(best, WordDistance(w, part));
+                if (best > (w.Length < 3 ? 0 : w.Length <= 5 ? 1 : 2))
+                    return -1;
+                total += best;
+            }
+            return words.Length > 0 ? 4 + total : -1;
+        }
+
+        // Typos between a typed word and a word of the name, also against just as many of its first letters (a partial word).
+        static int WordDistance(string typed, string word)
+        {
+            if (word.StartsWith(typed, StringComparison.Ordinal))
+                return 0;
+            int d = Edits(typed, word);
+            if (word.Length > typed.Length)
+                d = Math.Min(d, Edits(typed, word.Substring(0, typed.Length)));
+            return d;
+        }
+
+        // Levenshtein distance with adjacent swaps (optimal string alignment).
+        static int Edits(string a, string b)
+        {
+            int[,] d = new int[a.Length + 1, b.Length + 1];
+            for (int i = 0; i <= a.Length; i++) d[i, 0] = i;
+            for (int j = 0; j <= b.Length; j++) d[0, j] = j;
+            for (int i = 1; i <= a.Length; i++)
+                for (int j = 1; j <= b.Length; j++)
+                {
+                    int cost = a[i - 1] == b[j - 1] ? 0 : 1;
+                    int v = Math.Min(Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1), d[i - 1, j - 1] + cost);
+                    if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1])
+                        v = Math.Min(v, d[i - 2, j - 2] + 1);
+                    d[i, j] = v;
+                }
+            return d[a.Length, b.Length];
+        }
+
+        // Closest match first; in the pick list quest NPCs before everyone else; then those Doom can point at.
         static void Add(Context c, string name, string what, uint target, ulong id, double x, double z, int rank)
         {
             string label = name + " - " + what;
             if (!c.seen.Add(label + "|" + target + "|" + id))
                 return;
-            c.hits.Add(new Hit { name = name, label = label, target = target, id = id, x = x, z = z, rank = rank + (target == Dfb.FIND_ELSEWHERE ? 10 : 0) });
+            c.hits.Add(new Hit { name = name, label = label, target = target, id = id, x = x, z = z, rank = (c.list && !c.questPass ? 1000 : 0) + rank * 10 + (target == Dfb.FIND_ELSEWHERE ? 1 : 0) });
         }
 
         static string BuildingName(Context c, int key)
@@ -152,8 +217,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         static bool DoorOf(Context c, int key, out double x, out double z)
         {
             x = z = 0;
+            if (!c.outside)
+                return false;
+            if (key != 0)
+                return BuildingDoor(c, key, out x, out z);
             DaggerfallLocation location = c.game.StreamingWorld.CurrentPlayerLocationObject;
-            if (!c.outside || !location)
+            if (!location)
                 return false;
             foreach (DaggerfallStaticDoors collection in location.GetComponentsInChildren<DaggerfallStaticDoors>())
             {
@@ -161,30 +230,63 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     continue;
                 foreach (StaticDoor door in collection.Doors)
                 {
-                    bool wanted = key != 0 ? door.buildingKey == key && door.doorType == DoorTypes.Building : door.doorType == DoorTypes.DungeonEntrance;
-                    if (!wanted)
+                    if (door.doorType != DoorTypes.DungeonEntrance)
                         continue;
                     Vector3 p = collection.transform.rotation * door.buildingMatrix.MultiplyPoint3x4(door.centre) + collection.transform.position;
                     ToWorld(c, p, out x, out z);
                     return true;
                 }
             }
-            // Daggerfall's inert town may hold no door lists; the building footprints (as Info uses) give its centre.
-            foreach (DaggerfallStaticBuildings collection in location.GetComponentsInChildren<DaggerfallStaticBuildings>())
-            {
-                if (key == 0 || collection.Buildings == null)
-                    continue;
-                foreach (StaticBuilding b in collection.Buildings)
-                {
-                    if (b.buildingKey != key)
-                        continue;
-                    Vector3 origin = (Vector3)b.modelMatrix.GetColumn(3) + collection.transform.position;
-                    Quaternion rotation = Quaternion.LookRotation(b.modelMatrix.GetColumn(2), b.modelMatrix.GetColumn(1));
-                    ToWorld(c, origin + rotation * b.centre, out x, out z);
-                    return true;
-                }
-            }
             return false;
+        }
+
+        // A building's door from the map data alone (as RMBLayout.AddModels places models and GetStaticDoors their
+        // doors), since Daggerfall's town scene is inert under Doom and may hold no door lists. World units as
+        // TownRoster: location rect origin + block offset + block-local position. Falls back to the building's origin.
+        static bool BuildingDoor(Context c, int key, out double x, out double z)
+        {
+            x = z = 0;
+            if (!c.gps.HasCurrentLocation)
+                return false;
+            DFLocation location = c.gps.CurrentLocation;
+            int width = location.Exterior.ExteriorData.Width, height = location.Exterior.ExteriorData.Height;
+            int bx, by, r;
+            BuildingDirectory.ReverseBuildingKey(key, out bx, out by, out r);
+            if (bx < 0 || by < 0 || bx >= width || by >= height)
+                return false;
+            DFBlock block = RMBLayout.GetLocationBuildingData(location)[by * width + bx];
+            DFBlock.RmbSubRecord[] records = block.RmbBlock.SubRecords;
+            if (records == null || r < 0 || r >= records.Length)
+                return false;
+            DFBlock.RmbSubRecord record = records[r];
+            Vector3 recordPosition = new Vector3(record.XPos, 0, BlocksFile.RMBDimension - record.ZPos) * MeshReader.GlobalScale;
+            Matrix4x4 recordMatrix = Matrix4x4.TRS(recordPosition, Quaternion.Euler(0, -record.YRotation / BlocksFile.RotationDivisor, 0), Vector3.one);
+            Vector3 local = recordPosition;
+            bool found = false;
+            foreach (DFBlock.RmbBlock3dObjectRecord obj in record.Exterior.Block3dObjectRecords)
+            {
+                ModelData model;
+                if (!DaggerfallUnity.Instance.MeshReader.GetModelData(obj.ModelIdNum, out model) || model.Doors == null)
+                    continue;
+                Vector3 position = new Vector3(obj.XPos, -obj.YPos, obj.ZPos) * MeshReader.GlobalScale;
+                Vector3 rotation = new Vector3(-obj.XRotation / BlocksFile.RotationDivisor, -obj.YRotation / BlocksFile.RotationDivisor, -obj.ZRotation / BlocksFile.RotationDivisor);
+                Matrix4x4 matrix = recordMatrix * Matrix4x4.TRS(position, Quaternion.Euler(rotation), RMBLayout.GetModelScaleVector(obj));
+                foreach (StaticDoor door in GameObjectHelper.GetStaticDoors(ref model, block.Index, r, matrix))
+                {
+                    if (door.doorType != DoorTypes.Building)
+                        continue;
+                    local = matrix.MultiplyPoint3x4(door.centre);
+                    found = true;
+                    break;
+                }
+                if (found)
+                    break;
+            }
+            Rect rect = DaggerfallLocation.GetLocationRect(location);
+            x = rect.xMin + bx * RMBLayout.RMBSide / MeshReader.GlobalScale + local.x / MeshReader.GlobalScale;
+            z = rect.yMin + by * RMBLayout.RMBSide / MeshReader.GlobalScale + local.z / MeshReader.GlobalScale;
+            c.bridge.LogLine(string.Format("findnpc: building {0} block {1},{2} record {3} {4} at {5:F1} {6:F1}", key, bx, by, r, found ? "door" : "origin (no door in model data)", x, z));
+            return true;
         }
 
         // Someone inside a building of the current town: its door when outside, a note when elsewhere.
@@ -334,6 +436,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             NameHelper.BankTypes bank = c.gps.GetNameBankOfCurrentRegion();
             var factions =c.game.PlayerEntity.FactionData;
             uint keep = DFRandom.Seed;
+            int scanned = 0;
             try
             {
                 for (int y = 0; y < height; y++)
@@ -351,6 +454,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                                 continue; // LoadedNpcs has them, with who is present
                             foreach (DFBlock.RmbBlockPeopleRecord p in people)
                             {
+                                scanned++;
                                 string name;
                                 FactionFile.FactionData faction;
                                 Genders gender = (p.Flags & 32) == 32 ? Genders.Female : Genders.Male;
@@ -369,6 +473,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     }
             }
             finally { DFRandom.Seed = keep; }
+            c.bridge.LogLine("findnpc: residents scanned " + scanned);
         }
 
         static void Townspeople(Context c, DoomerfallTownspeople townspeople)

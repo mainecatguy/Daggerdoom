@@ -485,7 +485,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         info.OnLook(ev.infoRequest.request, ev.infoRequest.target, ev.infoRequest.id, ev.infoRequest.worldX, ev.infoRequest.worldZ);
                         break;
                     case Dfb.KIND_FIND_NPC: // debug find-NPC, dd_dev only (DoomerfallFindNpc.cs)
-                        DoomerfallFindNpc.Find(this, sync, townspeople, ev.infoText.request, ReadText(8));
+                        DoomerfallFindNpc.Find(this, sync, townspeople, ev.infoText.request, ReadText(8), ev.infoText.style == Dfb.FIND_LIST);
                         break;
                     case Dfb.KIND_INFO:
                         info.OnRequest(ev.infoRequest.request, ev.infoRequest.target, ev.infoRequest.id, ev.infoRequest.worldX, ev.infoRequest.worldZ);

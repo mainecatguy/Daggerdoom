@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x396641c6e74eaf0dUL;
+        public const ulong SchemaHash = 0x5677bfabedfecf62UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -83,6 +83,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint FIND_WORLD = 3;  // outdoors: world_x/world_z is a Daggerfall world point (a building's door)
         public const uint FIND_LOCAL = 4;  // world_x/world_z is a point in Doom map units in the current building or dungeon
         public const uint FIND_ELSEWHERE = 5;  // not in this area; the label says where
+        public const uint FIND_LIST = 1;  // dfb_info_text.style on FIND_NPC: the pick list; empty text lists the active quests' NPCs, typed text lists those first
         public const ushort KIND_DOOM_ITEM_TAKE = 140;  // UZ to DF; the player pressed Use on a Doom item, which waits for the answer; payload: dfb_doom_item
         public const ushort KIND_DOOM_ITEM_RESULT = 141;  // DF to UZ; status DFB_ITEM_TAKEN, DFB_ITEM_TOO_HEAVY, or DFB_ITEM_REFUSED; payload: dfb_doom_item
         public const ushort KIND_DOOM_ITEM_USE = 142;  // DF to UZ; the player used this item in Daggerfall's inventory; payload: dfb_doom_item

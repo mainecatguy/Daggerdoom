@@ -3,12 +3,13 @@
 usage: findnpc.py assemble | run | check
 assemble: the review folder (D:\\dev\\DoomDaggerfall-loop\\review\\find-npc) from this lane's builds, with play.bat.
 run: in the town by Privateer's Hold. Daggerfall's -dffindtest starts two real quests, leaves one quest person in another
-     town and points another's place at a building of this town. The driver presses N (bound to dd_findnpc) and types:
-     (c) the far quest person: Doom must show where in text;
-     (a) the local quest person, outdoors: the marker must point at that building's door (checked against the town
-         map's door list) and follow the player turning (the harness turns the player);
-     then it walks into building door 0 (the marker must clear on the area change), and
-     (b) a resident present there: the marker must point at that NPC's own actor.
+     town and points another's place at a building of this town. The harness opens the find menu (as N does); it opens
+     with the active quests' NPCs listed, and the driver:
+     (c) types the far quest person's surname with two letters swapped (a typo): Doom must show where in text;
+     (a) picks the local quest person from the opening list without typing (arrow keys, Enter), outdoors: the marker
+         must point at that building's door (checked against the town map's door list) and follow the player turning;
+     then the harness walks into building door 0 (the marker must clear on the area change), and
+     (b) types one word of a resident's name there: the marker must point at that NPC's own actor.
 check: DOOM.WAD E1M1 with no bridge, stock and with the DRLA set, running dd_findnpc there, and -norun.
 """
 import argparse
@@ -35,10 +36,15 @@ LANE = REPO.parent / "DoomDaggerfall-build"
 UZ_BUILD = LANE / "uzdoom" / "Release"
 BRIDGE_DLL = LANE / "bridge" / "Release" / "doomerfall_bridge.dll"
 LAUNCHER = LANE / "launcher" / "Release" / "doomerfall-launcher.exe"
+SHARED = Path(r"D:\dev\DoomDaggerfall-build")  # this lane's builds there are named <part>-quiet
+if (SHARED / "uzdoom-quiet").exists():
+    UZ_BUILD = SHARED / "uzdoom-quiet" / "Release"
+    BRIDGE_DLL = SHARED / "bridge-quiet" / "Release" / "doomerfall_bridge.dll"
+    LAUNCHER = SHARED / "launcher-quiet" / "Release" / "doomerfall-launcher.exe"
 QUIET, GAME, MODS, DRLA, DATA, GROUP = sk["QUIET"], sk["GAME"], sk["MODS"], sk["DRLA"], sk["DATA"], sk["GROUP"]
 FATAL = sk["FATAL"]
 read, lumps = sk["read"], sk["lumps"]
-VK_N, VK_O, VK_ENTER, VK_ESC = 0x4E, 0x4F, 0x0D, 0x1B
+VK_N, VK_O, VK_ENTER, VK_ESC, VK_DOWN = 0x4E, 0x4F, 0x0D, 0x1B, 0x28
 BINDS = ["+bind", "n", "dd_findnpc", "+bind", "o", "netevent fn_go", "+dd_dev", "1"]
 DRAW = re.compile(r"findnpc: draw (on|edge) screen (-?\d+) (-?\d+) target (\S+) (\S+) (\S+) player (\S+) (\S+) yaw (\S+) distance (\d+) actor (\d) centre (\d+)")
 
@@ -64,7 +70,8 @@ def write_demo():
     (REVIEW / "play.bat").write_text(
         "@echo off\r\n"
         "rem Find an NPC by name (a debug aid, dev mode only). Starts in the town outside Privateer's Hold with DRLA, dev mode on.\r\n"
-        "rem Press N (or type dd_findnpc in the console), type a name, full or partial, and press Enter. If several match, pick one.\r\n"
+        "rem Press N (or type dd_findnpc in the console). The box lists the NPCs your active quests name: Enter, arrows, Enter to pick.\r\n"
+        "rem Or type any part of a name (any word, small typos are fine) to filter it, closest first, then everyone; Enter picks.\r\n"
         "rem A gold chevron then points at their building's door when you are outside, or at the NPC when you are in the same\r\n"
         "rem building; at the screen edge when off screen, with the name and distance. Someone in another place is shown as text.\r\n"
         "rem It clears when you change area (go through a door, travel, load) or search again. dd_findnpc <name> searches directly.\r\n"
@@ -115,19 +122,41 @@ class Run:
         return path
 
     def find(self, text, n):
-        """Types the name into the find menu (the harness opens it as N would), presses Enter; picks the first row if
-        Daggerfall answers with a list."""
+        """Types into the find menu (the harness opens it as N would) and presses Enter: one match is picked at once,
+        several focus the list, where a second Enter picks the first (closest) row."""
         if not self.wait(self.console, r"FNMENU %d" % n, 90):
             raise RuntimeError(f"find menu {n} did not open")
         mark = len(read(self.uz_log))
         doom = sk["doom_driver"](self.launcher, self.uz_log)
         time.sleep(1.0)
         doom.type(text)
-        time.sleep(0.3)
+        time.sleep(0.8)
         doom.tap(VK_ENTER)
-        if self.wait(self.uz_log, r"findnpc: request \d+ answered", 10, mark) and self.wait(self.uz_log, r"answered: (\d+) found", 1, mark).group(1) not in ("0", "1"):
-            time.sleep(1.0)
+        if not self.wait(self.uz_log, r"findnpc: (marker on|elsewhere)", 2, mark):
             doom.tap(VK_ENTER)
+        return mark
+
+    def pick(self, name, n):
+        """Picks a name from the list the find menu opens with, without typing: Enter, Down to its row, Enter."""
+        df_mark = len(read(self.df_log))
+        if not self.wait(self.console, r"FNMENU %d" % n, 90):
+            raise RuntimeError(f"find menu {n} did not open")
+        mark = len(read(self.uz_log))
+        listed = self.wait(self.df_log, r'findnpc: request \d+ "" \(list\): (\d+) matches', 10, df_mark)
+        rows = re.findall(r"findnpc: match (\d+) target \d+ id \S+ at \S+ \S+: (.*)", read(self.df_log)[df_mark:])
+        labels = [label.strip() for _, label in rows]
+        self.case(listed and any(l.startswith(name) for l in labels), f"the box opens with the active quests' NPCs: {labels}")
+        index = next((i for i, l in enumerate(labels) if l.startswith(name)), None)
+        if index is None:
+            return mark
+        doom = sk["doom_driver"](self.launcher, self.uz_log)
+        time.sleep(1.0)
+        doom.tap(VK_ENTER)
+        time.sleep(0.4)
+        for _ in range(index):
+            doom.tap(VK_DOWN)
+            time.sleep(0.15)
+        doom.tap(VK_ENTER)
         return mark
 
     def go(self):
@@ -166,24 +195,27 @@ class Run:
         if not (quest and far and ok):
             return
         time.sleep(2.0)
-        # (c) another town: text only.
+        # (c) another town: text only, typed with a typo.
         name = far.group(1)
-        mark = self.find(name.split()[-1].lower(), 1)
+        word = name.split()[-1].lower()
+        typo = word[:2] + word[3] + word[2] + word[4:]
+        mark = self.find(typo, 1)
         m = self.wait(self.uz_log, r"findnpc: elsewhere: (.*)", 8, mark)
-        self.case(m and name in m.group(1) and far.group(2) in m.group(1), f"(c) far quest NPC shown as text: {m and m.group(1)}")
-        # (a) quest NPC in a town building, outdoors.
+        self.case(m and name in m.group(1) and far.group(2) in m.group(1), f"(c) far quest NPC, typed \"{typo}\", shown as text: {m and m.group(1)}")
+        # (a) quest NPC in a town building, outdoors, picked from the opening list.
         name = quest.group(1)
-        mark = self.find(name.lower(), 2)
+        mark = self.pick(name, 2)
         m = self.wait(self.uz_log, r"findnpc: marker on (.*), target kind (\d+) id \S+ point (\S+) (\S+)", 8, mark)
-        self.case(m and name in m.group(1) and m.group(2) == "3", f"(a) quest NPC outdoors points at their building: {m and m.groups()}")
+        self.case(m and name in m.group(1) and m.group(2) == "3", f"(a) quest NPC outdoors, picked from the list, points at their building: {m and m.groups()}")
+        door = re.search(r"findnpc: building %s block .* (door|origin)" % quest.group(2), read(self.df_log))
+        self.case(door and door.group(1) == "door", f"(a) Daggerfall placed the building's door from map data: {door and door.group(0)}")
         time.sleep(9.0)  # the harness turns the player through a full circle
         draws = [DRAW.search(l) for l in read(self.uz_log)[mark:].splitlines()]
         draws = [d for d in draws if d]
         if draws:
             tx, ty = float(draws[0].group(4)), float(draws[0].group(5))
             near = min(math.hypot(float(r[3]) - tx, float(r[4]) - ty) for r in doors() if r[0] == "0")
-            # A door, or the building's footprint centre when Daggerfall's inert town has no door list: within a building's size.
-            self.case(near <= 400, f"(a) the marker's target {tx:.0f},{ty:.0f} is at a building of the town map (nearest door {near:.0f} units)")
+            self.case(near <= 48, f"(a) the marker's target {tx:.0f},{ty:.0f} is a door of the town map (nearest door {near:.0f} units)")
             self.check_follow(draws, "(a)")
         else:
             self.case(False, "(a) the marker was drawn")
@@ -201,7 +233,7 @@ class Run:
             return
         # (b) a resident while inside their building.
         name = residents[0]
-        mark = self.find(name.lower(), 3)
+        mark = self.find(name.split()[-1].lower(), 3)  # one word of the name
         m = self.wait(self.uz_log, r"findnpc: marker on (.*), target kind (\d+) id (\S+)", 8, mark)
         self.case(m and name in m.group(1) and m.group(2) in ("2", "4") and "here" in m.group(1), f"(b) resident inside points at the NPC: {m and m.groups()}")
         time.sleep(9.0)

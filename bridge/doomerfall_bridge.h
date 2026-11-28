@@ -124,6 +124,7 @@ extern "C" {
 #define DFB_FIND_WORLD         3u  /* outdoors: world_x/world_z is a Daggerfall world point (a building's door) */
 #define DFB_FIND_LOCAL         4u  /* world_x/world_z is a point in Doom map units in the current building or dungeon */
 #define DFB_FIND_ELSEWHERE     5u  /* not in this area; the label says where */
+#define DFB_FIND_LIST          1u  /* dfb_info_text.style on FIND_NPC: the pick list; empty text lists the active quests' NPCs, typed text lists those first */
 
 /* Doom items held by Daggerfall. A Doom item is named by the Doom world pickup class the player took. Daggerfall
    keeps the record in its inventory and save; Doom draws the sprite and applies the item when it is used. */

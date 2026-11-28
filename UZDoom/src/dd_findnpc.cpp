@@ -2,7 +2,8 @@
 // a chevron over the view that points at the target each frame, with its name and distance, or shows where it is in
 // text when it is in another place.
 // In:  `dd_findnpc [name]` (no name opens the Doomerfall mod's text box, zscript/DoomerfallFindNpc.zs), the mod's
-//      network events "ddfind:<name>" and "ddfindpick:<n>", and Daggerfall's FIND_TEXT / FIND_MATCH / FIND_END.
+//      network events "ddfind:<name>", "ddfindlist:<text>" (the box's live pick list) and "ddfindpick:<n>", and
+//      Daggerfall's FIND_TEXT / FIND_MATCH / FIND_END.
 // Out: DFB_KIND_FIND_NPC, console events "dffind:..." for the mod's pick list, the overlay, and bridge log lines.
 // The marker clears on an area change (map, inside/outside, a travel jump, a load) or a new search. It changes no game
 // or save state, and nothing here runs without dd_dev, a bridge session and a generated Daggerfall map.
@@ -47,6 +48,7 @@ struct Match { std::string label; uint32_t target = 0; uint64_t id = 0; double x
 
 dfb_session *lastSession;
 uint32_t nextRequest = 1, sentRequest;
+bool listRequest;    // the request in flight is the box's pick list (DFB_FIND_LIST): always answered as a list
 std::string partial;
 std::vector<Match> matches;
 
@@ -110,23 +112,25 @@ void Clear(const char *why)
 	if (topUntil == -1) topText.clear();
 }
 
-void Search(const char *name)
+void Search(const char *name, bool list = false)
 {
 	if (!DevMode()) { Printf("dd_findnpc needs dd_dev 1\n"); return; }
 	if (!lastSession) { Status("Find NPC: Daggerfall is not running"); return; }
-	Clear("new search");
+	if (!list) Clear("new search"); // the box's list replaces the marker only when one is picked
 	matches.clear();
 	partial.clear();
+	listRequest = list;
 	dfb_info_text q{};
 	q.request = sentRequest = nextRequest++;
+	q.style = list ? DFB_FIND_LIST : 0;
 	strncpy(q.text, name, sizeof(q.text) - 1);
 	dfb_event e{};
 	e.kind = DFB_KIND_FIND_NPC;
 	e.tic = gametic;
 	memcpy(e.payload, &q, sizeof(q));
 	dfb_send(lastSession, &e);
-	Status(std::string("Finding \"") + q.text + "\"...");
-	Log("findnpc: request %u \"%s\"", q.request, q.text);
+	if (!list) Status(std::string("Finding \"") + q.text + "\"...");
+	Log("findnpc: request %u \"%s\"%s", q.request, q.text, list ? " (list)" : "");
 }
 
 // The area the player is in now, as a key; false off a Daggerfall map.
@@ -276,6 +280,7 @@ CCMD(dd_findnpc)
 bool DD_FindNpcNetEvent(dfb_session *session, const char *name)
 {
 	if (!strncmp(name, "ddfind:", 7)) { lastSession = session; Search(name + 7); return true; }
+	if (!strncmp(name, "ddfindlist:", 11)) { lastSession = session; Search(name + 11, true); return true; }
 	if (!strncmp(name, "ddfindpick:", 11)) { Select(size_t(atoi(name + 11))); return true; }
 	return false;
 }
@@ -307,6 +312,13 @@ bool DD_FindNpcEvent(const dfb_event &e)
 		return true;
 	}
 	Log("findnpc: request %u answered: %llu found, %u sent", r.request, (unsigned long long)r.id, unsigned(matches.size()));
+	if (listRequest)
+	{
+		ToMod("dffind:clear");
+		for (const Match &m : matches) ToMod("dffind:item:" + m.label);
+		ToMod("dffind:list");
+		return true;
+	}
 	if (matches.empty())
 	{
 		Status("Find NPC: no one by that name");
