@@ -4,6 +4,7 @@
 // that the main camera still renders. DoomerfallPositionSync reports the rat and the start health in its status line.
 //   -dfsynctestenemyai   negative control: leaves enemy AI on, to prove the test can see an attack.
 //   -dfinventorytest     also gives the character a longsword and a dagger to equip and move.
+//   -dfswimtest          also puts Daggerfall's state in Game, so PlayerEntity's per-minute rules run (swim test).
 
 using System;
 using System.Collections;
@@ -94,6 +95,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 player.Career.ForbiddenMaterials = 0;
                 player.Items.AddItem(ItemBuilder.CreateWeapon(Weapons.Longsword, WeaponMaterialTypes.Iron));
                 player.Items.AddItem(ItemBuilder.CreateWeapon(Weapons.Dagger, WeaponMaterialTypes.Steel));
+            }
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfswimtest") >= 0) // Runs PlayerEntity's per-minute rules (Swimming tally, fatigue), as a started game does.
+            {
+                player.LastGameMinutes = DaggerfallUnity.Instance.WorldTime.DaggerfallDateTime.ToClassicDaggerfallTime(); // As StartGameBehaviour's new game does.
+                GameManager.Instance.StateManager.ChangeState(StateManager.StateTypes.Game);
             }
             StartHealth = player.CurrentHealth;
             WorldReady = true;

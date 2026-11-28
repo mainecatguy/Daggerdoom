@@ -48,7 +48,7 @@ def main():
           "-ddtowncache", os.path.join(data, "cache"), "-ddconverter", os.path.join(data, "converter", "DungeonConverter.exe"),
           "-ddarena2", os.path.join(GAME, "DAGGER", "ARENA2"), "-skill", "3", "+map", a.map, "+vid_fullscreen", "0",
           "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+logfile", "console.log"]
-    df = ["-dfbridgelog", os.path.join(run, "df.log"), "-dfsynctest", os.path.join(GAME, "DAGGER"), 
+    df = ["-dfbridgelog", os.path.join(run, "df.log"), "-dfsynctest", os.path.join(GAME, "DAGGER"), "-dfswimtest",
           "-screen-fullscreen", "0", "-screen-width", "1280", "-screen-height", "800"]
     cmd = [sys.executable, QUIET, "--timeout", str(a.timeout), "--", os.path.join(play, "doomerfall-launcher.exe"), "--minimized", "--nodraw",
            "--uzdoom", os.path.join(play, "uzdoom", "uzdoom.exe"), "--dfu", os.path.join(play, "dfu", "DaggerfallUnity.exe"),
@@ -63,7 +63,7 @@ def main():
     r = subprocess.run(cmd)
     print("exit", r.returncode, "(124 is the expected timeout: the launcher keeps running)")
 
-    lines, swim = [], []
+    lines, swim, popups = [], [], []
     for name in ("log-console-log.txt", "uz.log", "df.log"):
         p = os.path.join(run, name)
         if not os.path.exists(p):
@@ -75,7 +75,11 @@ def main():
                 lines.append(l)
             if name == "df.log" and "swim state:" in l:
                 swim.append(l)
-    sys.exit(check(lines, swim))
+            if name == "df.log" and "by itself" in l:
+                popups.append(l.strip())
+    for l in popups:  # Doom pauses behind such a window, so the probe stops.
+        print("FAIL Daggerfall opened a window by itself:", l)
+    sys.exit(check(lines, swim) or (1 if popups else 0))
 
 
 def num(pattern, text, cast=float):
