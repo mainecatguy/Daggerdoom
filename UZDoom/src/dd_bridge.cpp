@@ -985,11 +985,11 @@ bool DD_BridgeItemNetEvent(const char *name)
 
 bool DD_IsDrlaSpawner(AActor *mo);
 
-// Doom's player stands on the floor or on top of a solid actor, out of deep water and not swimming outdoors.
+// Doom's player stands on the floor or on top of a solid actor, out of deep water.
 static bool OnGround()
 {
 	AActor *pmo = players[consoleplayer].mo;
-	return pmo && (pmo->Z() <= pmo->floorz + 1 || (pmo->flags2 & MF2_ONMOBJ)) && pmo->waterlevel < 2 && !DD_BridgeOutdoorSwimming();
+	return pmo && (pmo->Z() <= pmo->floorz + 1 || (pmo->flags2 & MF2_ONMOBJ)) && pmo->waterlevel < 2;
 }
 
 // What Daggerfall's rest checks would see if its world were the one shown (DaggerfallUI's rest message,
@@ -1001,7 +1001,7 @@ static uint32_t RestState()
 	AActor *pmo = players[consoleplayer].mo;
 	if (!pmo) return DFB_REST_NOT_GROUNDED;
 	uint32_t state = 0;
-	if (!OnGround()) state |= DFB_REST_NOT_GROUNDED;
+	if (!OnGround() || DD_BridgeOutdoorSwimming()) state |= DFB_REST_NOT_GROUNDED;	// Daggerfall refuses rest while swimming; transport only checks the ground
 	int near = 0, seeing = 0;
 	AActor *first = nullptr;
 	auto it = primaryLevel->GetThinkerIterator<AActor>();

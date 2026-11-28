@@ -125,7 +125,7 @@ def check(lines, swim):
             # -dfsynctest builds a world but never starts a Daggerfall game (StateManager.GameInProgress stays false), so
             # PlayerEntity.Update returns before its per-minute rules: no fatigue loss at all, swimming or not.
             print("UNVERIFIED Swimming tally: Daggerfall ran no per-minute rules in this session (fatigue never changed either)")
-            notes.append("Swimming tally unverified")
+            fails.append("Swimming tally unverified: needs a started Daggerfall game (-dfflow), not -dfsynctest")
         else:
             fails.append("Swimming was not tallied in the water")
         if b1 != b0:

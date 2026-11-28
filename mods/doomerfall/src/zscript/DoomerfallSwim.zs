@@ -7,7 +7,7 @@
 //     at 100), on top of every other speed factor;
 //   - the eye drops to Daggerfall's swimming eye height, 0.21 m of the standing 1.71 m (PlayerHeightChanger:
 //     controllerSwimHeight 0.30 m, eye 0.09 m below the top), over Daggerfall's 0.1 s;
-//   - jumping is refused (AcrobatMotor.HandleJumpInput).
+//   - jumping and resting are refused (AcrobatMotor.HandleJumpInput, DaggerfallUI's rest check); transport is not.
 // Daggerfall tallies Swimming and charges its swimming fatigue from the swim state Doom reports
 // (dfb_uz_state.player_motion -> DoomerfallSwimState.cs). Breath never runs down outdoors, as in Daggerfall, whose
 // outdoor water is a surface. The collision height is unchanged, so swimming does not change how shots hit the player.
@@ -47,6 +47,7 @@ class DoomerfallSwimEffects : Inventory
 		swimming = now;
 		if (swimming) p.cmd.buttons &= ~BT_JUMP;
 
+		if (p.health <= 0 || p.playerstate != PST_LIVE) return; // leave Doom's death view alone
 		if (eye <= 0) eye = 1;
 		double target = swimming ? EyeRatio : 1.0;
 		if (eye == target) return;
