@@ -35,7 +35,7 @@ class PistPerkTest : EventHandler
 	Array<String> extraName;
 	Array<int> extraLost;
 	Vector3 spot;
-	double dirAngle, clear;
+	double dirAngle, clearDist;
 	bool spotFound, placed;
 
 	override void OnRegister()
@@ -111,8 +111,8 @@ class PistPerkTest : EventHandler
 		Console.Printf("PISTTEST line yaw %.2f pitch %.2f", yaw, pitch);
 		if (c == "carry") { AddExtra("B", at + dir * 64, 30); AddExtra("C", at + dir * 128, 1000000); }
 		else if (c == "carryfrag") AddExtra("B", at + dir * 200, 1000000);
-		else if (c == "frag") { AddExtra("B", far + Dir(yaw, pitch) * max(120, clear - 200), 1000000); AddExtra("C", far + Dir(yaw + 15, pitch) * 140, 1000000); }
-		else if (c == "turn") { AddExtra("D", far + Dir(yaw + 2, pitch) * 150, 1000000, "PistTestThin"); AddExtra("E", far + Dir(yaw - 7.5, pitch) * 180, 1000000, "PistTestThin"); }
+		else if (c == "frag") { AddExtra("B", far + Dir(yaw, pitch) * max(120, clearDist - 200), 1000000); AddExtra("C", far + Dir(yaw + 15, pitch) * 140, 1000000); }
+		else if (c == "turn") { AddExtra("D", far + Dir(yaw + 2, pitch) * 300, 1000000, "PistTestThin"); AddExtra("E", far + Dir(yaw - 7.5, pitch) * 180, 1000000, "PistTestThin"); }
 	}
 
 	static Vector3 Dir(double yaw, double pitch) { return (cos(yaw) * cos(pitch), sin(yaw) * cos(pitch), -sin(pitch)); }
@@ -147,7 +147,7 @@ class PistPerkTest : EventHandler
 			mo.LineTrace(a, 2000, 0, TRF_THRUACTORS, 32, 0, 0, d);
 			if (d.Distance > best) { best = d.Distance; dirAngle = a; }
 		}
-		clear = best;
+		clearDist = best;
 		spot = mo.pos;
 		spotFound = best >= 450;
 		Console.Printf("PISTTEST spot angle %.0f clear %.0f", dirAngle, best);

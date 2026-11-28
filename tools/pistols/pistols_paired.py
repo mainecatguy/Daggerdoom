@@ -124,6 +124,7 @@ def analyse(out, text, dft, fatal):
     report.append(f"skills seen in whole cycles: {seen}")
     check("cycles at 26, 50, 75 and 100", all(s in seen for s in (26, 50, 75, 100)), seen)
     carried = frags = 0
+    full = set()
     for c in done:
         s, e = c["skill"], c["end"]
         want = rules(s)
@@ -143,12 +144,16 @@ def analyse(out, text, dft, fatal):
             check("25: the hit x1.5 (DRLA Pistol, slow), no pool, no carry-through, no fragments",
                   rated and h0.group(7) == "0" and not c["carry"] and not c["frag"] and e["B"] == 0, line)
             continue
-        pooled = rated and h0.group(7) == "100"
+        # The pool starts empty when the skill first reaches 50 and refills over 0.5 s, so a shot fired sooner gets
+        # part of it; every later cycle must get the full 100 (checked below, per skill).
+        pooled = rated and 0 < int(h0.group(7)) <= 100
+        if pooled and h0.group(7) == "100":
+            full.add(s)
         left = hit - 20
         ok = pooled and len(c["carry"]) >= 1 and int(c["carry"][0].group(3)) == left and c["carry"][0].group(2) == "PistPairTarget"
         if s < 100:
             ok = ok and not c["frag"] and e["B"] == left and e["C"] == 0
-            check("50 and 75: x1.5 / x4.5 then +100 pool, A dies, B takes exactly what was left, no fragments", ok, line)
+            check("50 and 75: x1.5 / x4.5 then + the pool, A dies, B takes exactly what was left, no fragments", ok, line)
         else:
             fromA = [x for x in c["frag"] if int(x.group(4)) == hit]
             fromB = [x for x in c["frag"] if int(x.group(4)) == left]
@@ -157,6 +162,7 @@ def analyse(out, text, dft, fatal):
             check("100: carry-through as at 50, 3 fragments from the hit and 3 from the carry-through hit, C on the fork takes 33%", ok, line)
             frags += len(c["frag"])
         carried += len(c["carry"])
+    check("the full +100 pool at each of 50, 75 and 100", {50, 75, 100} <= full, sorted(full))
     check("a carry-through happened", carried > 0)
     check("shrapnel happened", frags > 0)
     report.append(f"perk windows: {dft.count('ui: menu 7 opened')} opened, {dft.count('ui: menu 7 closed')} closed")
