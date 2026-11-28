@@ -598,9 +598,19 @@ up yet.
 ### Quest rewards
 
 Gold and magic items a quest pays depend on the level of the place where you took the quest (the level the travel map
-shows), not on your own level. A gold quest from a village (level 5 or more) pays about 400 to 700 gold, a hamlet
-(level 10 or more) about 800 to 1,350, a city (level 15 or more) about 1,050 to 1,800, and a capital or any place of
-level 18 or more about 1,300 to 2,250. Within each range, the region's prices raise or lower it. Guild quests still pay
+shows), not on your own level. By that level, a gold quest pays about:
+
+| Level on the travel map | Gold |
+|---|---|
+| 1 | 130 to 225 |
+| 5 | 400 to 675 |
+| 10 | 790 to 1,350 |
+| 15 | 1,050 to 1,800 |
+| 18 and up | 1,300 to 2,250 |
+
+Within each range, the region's prices raise or lower it. Towns have minimum levels: a village is at least level 5, a
+hamlet at least 10, a city at least 15 and a capital at least 20, but a town in dangerous country can be higher, and
+then pays by its higher level. Guild quests still pay
 by your rank in the guild. A quest that starts by itself, such as the next step of a longer quest or one that comes by
 letter, pays by the place where you are when it starts.
 
