@@ -24,8 +24,16 @@ class SXHarness : EventHandler
 		fireHp += e.Damage + min(0, e.Thing.health);
 	}
 
+	// Fire phase diagnostics: what the player's gun spawns (puffs and projectiles carry the player as target).
+	int shotsSpawned;
+	override void WorldThingSpawned(WorldEvent e)
+	{
+		if (!ready || level.maptime > ready + FIREEND || !e.Thing || !players[0].mo || e.Thing.target != players[0].mo || e.Thing.bIsMonster) return;
+		if (++shotsSpawned <= 5) Console.Printf("SXSHOT %s at %.0f,%.0f,%.0f", e.Thing.GetClassName(), e.Thing.pos.x, e.Thing.pos.y, e.Thing.pos.z);
+	}
+
 	// Each tic of the fire phase: face the nearest living monster ahead and hold the attack button, so the equipped
-	// weapon fires through its own states (WorldTick runs before the player thinks this tic).
+	// weapon fires through its own states.
 	void Fire(PlayerPawn p)
 	{
 		Actor best, mo;
@@ -39,11 +47,20 @@ class SXHarness : EventHandler
 		}
 		if (!best) return;
 		p.A_Face(best, 0, 0);
+		// The button set here does not survive to the player's own think (attackdown stayed 0 in run 2), so run the
+		// engine's own held-trigger check right away: it fires through FireWeapon and the gun's states when ready.
 		players[0].cmd.buttons |= BT_ATTACK;
+		p.CheckWeaponFire();
 		fireTics++;
 		if (fireTics % 70 == 1)
-			Console.Printf("SXFIRING %s at %s (%d health, %.0f away), hits %d, HP %d", players[0].ReadyWeapon ? players[0].ReadyWeapon.GetClassName() : 'none',
-				best.GetClassName(), best.health, bestDist, fireHits, fireHp);
+		{
+			let w = players[0].ReadyWeapon;
+			let psp = players[0].FindPSprite(PSP_WEAPON);
+			Console.Printf("SXFIRING %s at %s (%d health, %.0f away), hits %d, HP %d, shots spawned %d, ammo %d, in Fire %d, weaponstate %d, attackdown %d, pitch %.1f, player at %.0f,%.0f,%.0f, target at %.0f,%.0f,%.0f, sight %d",
+				w ? w.GetClassName() : 'none', best.GetClassName(), best.health, bestDist, fireHits, fireHp, shotsSpawned,
+				w && w.Ammo1 ? w.Ammo1.Amount : -1, w && psp ? w.InStateSequence(psp.CurState, w.FindState('Fire')) : -1,
+				players[0].WeaponState, players[0].attackdown, p.pitch, p.pos.x, p.pos.y, p.pos.z, best.pos.x, best.pos.y, best.pos.z, p.CheckSight(best));
+		}
 	}
 
 	// The mod's own running tally of damage not yet reported (DoomerfallSkillXp.xpHp). WorldThingDamaged runs inside
