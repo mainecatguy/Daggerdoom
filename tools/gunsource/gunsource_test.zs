@@ -292,6 +292,9 @@ class GunSourceTest : EventHandler
 			if (start == (0, 0, 0)) start = mo.pos;
 			mo.SetOrigin(start, false); mo.vel = (0, 0, 0); mo.angle = 0; mo.pitch = 0;
 			for (int i = -1; i <= 1; i++) targets.Push(Actor.Spawn("GunSrcTarget", mo.Vec3Offset(160, 48 * i, 0)));
+			// Gun C's bullet would hit E1M1's wall 138 units ahead: this target takes the hit, so the bullet spawns
+			// blood (P_SpawnBlood inside the player's fire action) as well as its puff.
+			if (gunA[cur] == "GunSrcGunC") targets.Push(Actor.Spawn("GunSrcTarget", mo.Vec3Offset(100, 0, 0)));
 			Console.Printf("GUNSRC case %s %s", gunA[cur], gunB[cur]);
 			freezing = true; seenA = 0; phase = 1; t = 0;
 			break;

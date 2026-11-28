@@ -81,7 +81,8 @@ def analyse(name, lines, check):
         for kind in ("GunSrcBlood", "GunSrcSideFx"):
             k = [x for x in spawned if x.group(1) == kind]
             check(name, f"{c}: {len(k)} {kind} spawned during hits, none tagged or chained to a gun",
-                  (k or kind == "GunSrcBlood") and all(x.group(2) == "None" and x.group(7) == "other" for x in k), [x.group(0) for x in k if x.group(2) != "None" or x.group(7) != "other"][:3])
+                  # Gun C's bullet hits a bleeding target inside the player's fire action, so its case must bleed.
+                  (k or (kind == "GunSrcBlood" and a != "GunSrcGunC")) and all(x.group(2) == "None" and x.group(7) == "other" for x in k), [x.group(0) for x in k if x.group(2) != "None" or x.group(7) != "other"][:3])
         by_class = {}
         for s in shot:
             by_class.setdefault(s.group(1), set()).add(s.group(2))
