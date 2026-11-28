@@ -217,8 +217,11 @@ Uzi and its variants are Automatics too.
     25 more damage and passes through one more enemy, hitting the next one behind with full damage.
   - **Medium guns** (3 tics, such as the Uzi): each bullet does 7 more damage and passes through one more enemy.
   - **Fast guns** (1-2 tics, such as the minigun and the Thompson): each shot has a 10% chance to fire one extra
-    bullet for free.
+    bullet for free, a copy of the shot's own bullet with the same damage and spread.
   - The extra damage counts as part of the bullet's own damage, so every percentage bonus increases it too.
+  - A gun with firing modes counts at the speed of the mode you use: the Grammaton Cleric Beretta is a slow gun in
+    single and full-auto fire and a fast gun in burst fire. An alternate fire that shoots has its own speed. A gun
+    that spins up counts at full speed.
 - **75:** each hit makes the enemy take 1% more damage from everything, yours and anyone else's, up to 15%. It never
   wears off for that enemy.
 - **75, suppression:** each hit slows the enemy's movement by 5% more, up to 40%. Its attacks are not slowed. The
