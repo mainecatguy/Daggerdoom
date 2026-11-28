@@ -133,7 +133,8 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
                     regenerate = DaggerfallUnity.Instance.WorldTime.Now.IsDay && GameManager.Instance.PlayerEnterExit.WorldContext != WorldContext.Dungeon;
                     break;
                 case DFCareer.RegenerationFlags.InWater:
-                    regenerate = manager.IsPlayerEntity && (GameManager.Instance.PlayerMotor.IsSwimming || GameManager.Instance.PlayerMotor.OnExteriorWater == PlayerMotor.OnExteriorWaterMethod.Swimming);
+                    regenerate = manager.IsPlayerEntity && (GameManager.Instance.PlayerMotor.IsSwimming || GameManager.Instance.PlayerMotor.OnExteriorWater == PlayerMotor.OnExteriorWaterMethod.Swimming
+                        || Doomerfall.DoomerfallSwimState.Swimming); // [Doomerfall] Doom moves the player: its outdoor swimming
                     break;
             }
 

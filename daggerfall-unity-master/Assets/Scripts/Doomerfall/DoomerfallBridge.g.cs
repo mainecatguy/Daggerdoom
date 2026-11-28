@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x7aaae3aef0a52d89UL;
+        public const ulong SchemaHash = 0x042817d5c3dd6893UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -197,7 +197,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint HPF_VALID = 1;  // dfb_df_state.hp_current and hp_max describe a live Daggerfall player
         public const uint HPF_DEAD = 2;  // Daggerfall reports the player dead
         public const uint PLF_SLOWFALL = 1;  // dfb_df_state.player_flags: a Slowfall effect is active, so a fall starts over each frame (AcrobatMotor.ApplyGravity)
-        public const uint PLF_OUTDOOR_WATER = 2;  // the player is outdoors over a water tile (PlayerTileMapIndex 0), where a landing does no damage (AcrobatMotor.CheckFallingDamage)
+        public const uint PLF_OUTDOOR_WATER = 2;  // the player is outdoors over a water tile (PlayerTileMapIndex 0), where a landing does no damage (AcrobatMotor.CheckFallingDamage); on the ground there, Doom's player swims (DFB_UZM_SWIMMING)
+        public const uint PLF_WATER_WALKING = 4;  // a Water Walking effect is active, so outdoor water is walked on, not swum in (PlayerMotor.GetOnExteriorWaterMethod)
+        public const uint UZM_SWIMMING = 1;  // dfb_uz_state.player_motion: Doom's player swims on Daggerfall's outdoor water (on the ground over a water tile, no Water Walking); Daggerfall sets IsPlayerSwimming from it
         public const uint FACES_SLOT = 1;
         public const uint FACES_FORMAT_VERSION = 1;
         public const uint FACES_MAX = 3;  // Daggerfall's HUD shows at most three faces
@@ -1340,7 +1342,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(40)] public uint hpAppliedEvent;  // event_no of the last dfb_hp_event Daggerfall applied
         [FieldOffset(44)] public uint hpFlags;  // DFB_HPF_*
         [FieldOffset(48)] public int damageBonusBp;
-        [FieldOffset(52)] public uint playerFlags;  // DFB_PLF_*: Daggerfall's falling damage exemptions, which Doom applies to its falls
+        [FieldOffset(52)] public uint playerFlags;  // DFB_PLF_*: Daggerfall's falling damage exemptions and outdoor water state, which Doom applies to its falls and swimming
         [FieldOffset(56)] public int backstabBonusBp;
         // 196 reserved bytes at offset 60
     }
@@ -1370,7 +1372,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(108)] public int spaceTarget;  // the target of the door event for this space
         [FieldOffset(112)] public uint spaceValid;  // 0 outdoors and between maps
         [FieldOffset(116)] public uint townMap;  // 1 outdoors on a generated town's own Doom map, 0 elsewhere (overworld, indoors, between maps)
-        // 136 reserved bytes at offset 120
+        [FieldOffset(120)] public uint playerMotion;  // DFB_UZM_*
+        // 132 reserved bytes at offset 124
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 56)]

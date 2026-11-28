@@ -313,6 +313,20 @@ Your **Jumping** skill (the permanent value on your character sheet) changes how
 Below 75, Jumping does not lower falling damage yet. Jumping does not train by jumping in Doom yet; train it at a
 guild.
 
+## Swimming outdoors
+
+The sea and lakes outdoors work as in Daggerfall. Walk onto a water tile and you swim. The water's edge is
+Daggerfall's own, in the wilderness and in towns.
+
+- Your view drops to the water line, and you move at **25% of your speed, plus 1% for every 2 points of Swimming**
+  (75% at Swimming 100).
+- You cannot jump or rest while swimming. The transport menu works as on land.
+- Every game minute of swimming practises Swimming. On a failed Swimming roll that minute costs four times the usual
+  fatigue (never for Argonians), so swimming with a low Swimming skill tires you quickly.
+- A class with **Regeneration: In Water** heals 1 health every 4 game minutes while swimming.
+- You cannot dive outdoors, so you never run out of breath there, as in Daggerfall.
+- With **Water Walking** you walk on the water at full speed. Shallow water and docks are walked on, not swum.
+
 ## Weapons that belong to two skills
 
 Some guns fit two weapon skills, for example a laser shotgun is both a Shotgun and an Energy Weapon. Such a gun uses

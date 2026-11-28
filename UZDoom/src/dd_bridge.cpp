@@ -52,6 +52,7 @@
 #include "playsim/dd_log.h" // [Doomerfall]
 
 void G_SaveGame(const char *filename, const char *description, bool quick);
+bool DD_BridgeOutdoorSwimming(); // [Doomerfall] below
 void G_DoAutoSave();
 extern FString savename;
 
@@ -225,6 +226,7 @@ void PublishPosition()
 	ownState.space_target = spaceTarget;
 	ownState.space_valid = inSpace ? 1 : 0;
 	ownState.town_map = area == DD_AREA_EXTERIOR && DDTreadmill_OnTownMap() ? 1 : 0;
+	ownState.player_motion = area == DD_AREA_EXTERIOR && DD_BridgeOutdoorSwimming() ? DFB_UZM_SWIMMING : 0;
 	if (context != ownState.world_context || pixelX != ownState.map_pixel_x || pixelY != ownState.map_pixel_y)
 	{
 		ownState.world_context = context;
@@ -945,6 +947,31 @@ int DD_BridgePlayerFlags()
 	return session && peerSeen ? int(peerState.player_flags) : 0;
 }
 
+// Daggerfall's outdoor swimming (PlayerMotor.GetOnExteriorWaterMethod): the player stands on the open ground (its own
+// terrain, not a dock, a roof or an actor) over a water tile Daggerfall reports, with no Water Walking, not flying.
+// Daggerfall's water is a surface: it is never deep enough to dive, so breath does not run down outdoors
+// (PlayerEnterExit only submerges in dungeons). False with no bridge session and off Daggerfall's exteriors.
+bool DD_BridgeOutdoorSwimming()
+{
+	constexpr double OnTerrain = 12;	// Doom units above the open ground that still count as on it (slope rounding)
+	if (!session || !peerSeen || ownState.world_context != DFB_WORLD_EXTERIOR) return false;
+	const uint32_t flags = peerState.player_flags;
+	AActor *pmo = players[consoleplayer].mo;
+	DDHorizonFrame f;
+	if (!(flags & DFB_PLF_OUTDOOR_WATER) || (flags & DFB_PLF_WATER_WALKING) || !pmo || pmo->health <= 0 ||
+		pmo->Z() > pmo->floorz + 1 || (pmo->flags & MF_NOGRAVITY) || (pmo->flags2 & (MF2_ONMOBJ | MF2_FLY)) ||
+		pmo->waterlevel >= 2 || !DDTreadmill_HorizonFrame(f))
+		return false;
+	// The open ground's height here, split into triangles as the treadmill's grid is.
+	const double gx = (pmo->X() - f.offX) / 192, gy = (pmo->Y() - f.offY) / 192;
+	const int i = int(floor(gx)), j = int(floor(gy));
+	const double fx = gx - i, fy = gy - j;
+	const double a = DDTreadmill_HorizonHeight(i, j), b = DDTreadmill_HorizonHeight(i + 1, j);
+	const double c = DDTreadmill_HorizonHeight(i + 1, j + 1), d = DDTreadmill_HorizonHeight(i, j + 1);
+	const double ground = (fx >= fy ? a + fx * (b - a) + fy * (c - b) : a + fy * (d - a) + fx * (c - d)) + f.offZ;
+	return pmo->Z() <= ground + OnTerrain;
+}
+
 // One line in the bridge log (-dfbridgelog) and the console, for the other dd_*.cpp files.
 void DD_BridgeLog(const char *text) { Log("%s", text); }
 
@@ -980,7 +1007,7 @@ static uint32_t RestState()
 	AActor *pmo = players[consoleplayer].mo;
 	if (!pmo) return DFB_REST_NOT_GROUNDED;
 	uint32_t state = 0;
-	if (!OnGround()) state |= DFB_REST_NOT_GROUNDED;
+	if (!OnGround() || DD_BridgeOutdoorSwimming()) state |= DFB_REST_NOT_GROUNDED;	// Daggerfall refuses rest while swimming; transport only checks the ground
 	int near = 0, seeing = 0;
 	AActor *first = nullptr;
 	auto it = primaryLevel->GetThinkerIterator<AActor>();

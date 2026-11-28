@@ -561,6 +561,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 stateAge.Add(DfbNative.dfb_now_ns() - peer.publishedNs);
 
             sync.Tick(ref peer);
+            DoomerfallSwimState.Apply(this, sync.InGame, ref peer);
             DoomerfallAreaLevels.DoomTownMap = peer.townMap != 0 ? 1 : 0;
             own.dfPhase = sync.Phase;
             own.dfHeartbeat++;
