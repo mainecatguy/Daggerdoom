@@ -5,12 +5,13 @@
 //
 //   fire-rate multipliers  (25 and 75) fast and slow are DRLA's Scout definition (owner, 2026-11-27): each pistol's
 //                  Scout damage multiplier (x3 for the fastest guns to x8 for the slowest; ScoutOf below, listed by
-//                  tools/pistols/scout_scale.py). Each multiplier goes linearly from its fast value to its slow value
+//                  tools/pistols/scout_scale.py; the Grammaton Cleric Beretta's depends on its fire mode, ScoutHeld). Each multiplier goes linearly from its fast value to its slow value
 //                  along that scale; the two multiply. A gun beyond an end counts as that end. Damage only: the gun
 //                  fires as before.
 //   faster reload  a DRLA pistol's reload frames are shortened by x% in whole tics, as for Shotguns. Stock Doom's Pistol
 //                  has no reload, so nothing changes for it.
-//   bonus pool     every pistol shot spends the whole pool, hit or miss (owner, 2026-11-27): a bullet that hits in the
+//   bonus pool     every pistol shot spends the whole pool, hit or miss (owner, 2026-11-27), whether or not it uses ammo
+//                  (a shot is an ammo drop, a bullet fired, or a projectile fired): a bullet that hits in the
 //                  tic it is fired gets it added to its damage after the multipliers (Deadeye does not multiply it); a
 //                  projectile pistol's shot carries what it spent to its first hit; a miss wastes it. It refills from
 //                  empty in the rule's time.
@@ -23,7 +24,8 @@
 //                  limit, and fly straight unless an enemy is within the lock-on angle (2.5 degrees) of the path, which
 //                  they then hit. Their hit effect is smaller than a bullet's: the smallest blood, a half-size puff.
 // Carry-through and fragment damage are slices of a hit that already had every damage boost, so they are dealt with
-// DMG_NO_ENHANCE (no boost twice) and no inflictor; the victim's own damage factors and armor still apply. They are
+// DMG_DD_DEALT and DMG_NO_ENHANCE (no boost twice: not the player's damage multiplier, Daggerfall's damage bonus or
+// power-ups again) and no inflictor; the victim's own damage factors and armor still apply. They are
 // dealt at the next tick (the WorldTick after the hit), all chains in that same tick.
 class DoomerfallPistols : StaticEventHandler
 {
@@ -126,6 +128,50 @@ class DoomerfallPistols : StaticEventHandler
 			for (int i = 0; i < names.Size(); i++) if (n ~== names[i]) return scout[i];
 		}
 		return 0;
+	}
+
+	// The Scout multiplier of the gun as this player holds it. DRLA's Grammaton Cleric Beretta has one per fire mode (the
+	// comments above its Fire state: 8x normal, 6x burst, 4x full-auto), and its RLGrammatonClericBerettaMode count is
+	// the mode (0, 1, 2). Every other gun has one value (listed, ScoutOf above).
+	static int ScoutHeld(Actor player, class<Weapon> gun, int listed)
+	{
+		String bn = "RLGrammatonClericBeretta", mn = "RLGrammatonClericBerettaMode";
+		class<Weapon> beretta = bn;
+		class<Inventory> mode = mn;
+		if (!beretta || !mode || !player) return listed;
+		for (class<Object> c = gun; c; c = c.GetParentClass())
+		{
+			if (c != beretta) continue;
+			int m = player.CountInv(mode);
+			return m >= 2 ? 4 : m == 1 ? 6 : 8;
+		}
+		return listed;
+	}
+
+	// A shot from a player's held pistol, even one that uses no ammo (every shot spends the pool, hit or miss, owner
+	// 2026-11-27): each bullet it fires (WorldHitscanPreFired runs for every bullet, a miss into the sky too) and each
+	// projectile it fires (DoomerfallShots' "fired" rule). Not the perks' own carry-through and fragments.
+	static DoomerfallPistolsPerks ShooterPerks(Actor mo)
+	{
+		if (!mo || !mo.player || mo.player.mo != mo || !IsPistol(mo.player.ReadyWeapon)) return null;
+		return DoomerfallPistolsPerks(mo.FindInventory("DoomerfallPistolsPerks"));
+	}
+
+	override bool WorldHitscanPreFired(WorldEvent e)
+	{
+		let perks = dealing == DealNone ? ShooterPerks(e.Thing) : null;
+		if (perks) perks.shotTic = level.maptime; // inside the firing action: DoEffect later this tic spends the pool
+		return false;
+	}
+
+	// A projectile's spawn event runs at its first tick, after its shooter's DoEffect in the tic it was fired.
+	override void WorldThingSpawned(WorldEvent e)
+	{
+		let m = e.Thing;
+		if (!m || !m.bMissile || !m.target || !m.target.player || dealing != DealNone) return;
+		let tag = DoomerfallShots.Tag(m);
+		let perks = ShooterPerks(m.target);
+		if (perks && tag && tag.generation == 0 && tag.shooter == m.target && tag.fireTic == level.maptime) perks.ShotFired(m);
 	}
 
 	// Where a Scout multiplier sits from fast (0) to slow (1), or -1 while the scale is not set. A gun not listed sits in
@@ -270,7 +316,7 @@ class DoomerfallPistols : StaticEventHandler
 			let blood = victim.SpawnBlood(at, atan2(-dir.Y, -dir.X), kind == DealFragment ? min(damage, 8) : damage);
 			if (blood && kind == DealFragment) blood.Scale *= 0.6;
 		}
-		victim.DamageMobj(null, shooter, damage, type, DMG_THRUSTLESS | DMG_NO_ENHANCE);
+		victim.DamageMobj(null, shooter, damage, type, DMG_THRUSTLESS | DMG_NO_ENHANCE | DMG_DD_DEALT);
 		dealing = was;
 		carryDir = keep;
 	}
@@ -402,6 +448,7 @@ class DoomerfallPistolsPerks : Inventory
 	Array<int> scoutMult;
 	int poolAmmo;      // the held pistol's ammo last tic: a drop is a shot, which spends the pool
 	Weapon poolGun;
+	int shotTic;       // level.maptime of the held pistol's last bullet (DoomerfallPistols.WorldHitscanPreFired), ammo used or not
 	Array<Actor> flying;    // projectiles carrying the pool their shot spent ...
 	Array<int> flyingBonus; // ... this much (0 once a hit took it)
 	Array<int> flyingIdle;  // tics since it stopped being a missile
@@ -425,16 +472,18 @@ class DoomerfallPistolsPerks : Inventory
 	{
 		Super.BeginPlay();
 		pool = DoomerfallPistols.Rule(DoomerfallPistols.Pool);
+		shotTic = -1;
 	}
 
 	int ScoutOf(class<Weapon> gun)
 	{
 		int i = scoutGun.Find(gun);
-		if (i < scoutGun.Size()) return scoutMult[i];
-		int m = DoomerfallPistols.ScoutOf(gun);
-		scoutGun.Push(gun);
-		scoutMult.Push(m);
-		return m;
+		if (i == scoutGun.Size())
+		{
+			scoutGun.Push(gun);
+			scoutMult.Push(DoomerfallPistols.ScoutOf(gun));
+		}
+		return DoomerfallPistols.ScoutHeld(owner, gun, scoutMult[i]); // the Beretta's fire mode is read at every hit
 	}
 
 	override void ModifyDamage(int damage, Name damageType, out int newdamage, bool passive, Actor inflictor, Actor source, int flags)
@@ -468,8 +517,9 @@ class DoomerfallPistolsPerks : Inventory
 		Super.DoEffect();
 		int most = DoomerfallPistols.Rule(DoomerfallPistols.Pool);
 		int ms = DoomerfallPistols.Rule(DoomerfallPistols.PoolRefillMs);
-		// A shot from the held pistol (its ammo dropped) spends what its hits did not: a miss wastes the pool. This runs
-		// after the weapon fired this tic, so a bullet's hit has already taken it.
+		// A shot from the held pistol (its ammo dropped, or it fired a bullet that used none) spends what its
+		// hits did not: a miss wastes the pool. This runs after the weapon fired this tic, so a bullet's hit has already
+		// taken it.
 		let held = owner && owner.player ? owner.player.ReadyWeapon : null;
 		int ammoNow = DoomerfallPistols.IsPistol(held) ? AmmoNow(held) : 0;
 		// A projectile pistol's shot carries what it spent to its first hit (CarryPool); a bullet that missed wastes it.
@@ -479,7 +529,8 @@ class DoomerfallPistolsPerks : Inventory
 			if (f && (f.bMissile || ++flyingIdle[i] < TICRATE) && flyingBonus[i] > 0) continue;
 			flying.Delete(i); flyingBonus.Delete(i); flyingIdle.Delete(i);
 		}
-		if (held == poolGun && ammoNow < poolAmmo && pool >= 1)
+		bool fired = (held == poolGun && ammoNow < poolAmmo) || (shotTic == level.maptime && DoomerfallPistols.IsPistol(held));
+		if (fired && pool >= 1)
 		{
 			let shot = CarryPool(int(pool));
 			DoomerfallPistols.Log(String.Format("shot %s spent pool %d%s", held.GetClassName(), int(pool),
@@ -559,6 +610,17 @@ class DoomerfallPistolsPerks : Inventory
 			return a;
 		}
 		return null;
+	}
+
+	// A projectile the held pistol fired this tic (DoomerfallPistols.WorldThingSpawned). One whose shot used ammo already
+	// took the pool in DoEffect (CarryPool); one that used none spends and carries it here.
+	void ShotFired(Actor missile)
+	{
+		if (pool < 1 || flying.Find(missile) < flying.Size()) return;
+		flying.Push(missile); flyingBonus.Push(int(pool)); flyingIdle.Push(0);
+		DoomerfallPistols.Log(String.Format("shot %s spent pool %d carried by %s", owner.player.ReadyWeapon.GetClassName(), int(pool),
+			missile.GetClassName()));
+		pool = 0;
 	}
 
 	int AmmoNow(Weapon w)

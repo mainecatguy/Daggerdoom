@@ -291,7 +291,9 @@ Pistols covers pistols, such as the stock pistol, the Pistol, the Handcannon and
 - **Fast and slow pistols** are the same as for the Doom Roguelike Arsenal's Scout class. The slowest are the stock
   pistol, the Pistol, the Handcannon, revolvers and most plasma and laser pistols; the Combat Pistol and Storm pistols
   are a little faster; the Shredder Pistol is in the middle; the Plasma Uzi is nearly the fastest; the Marksman Pistol
-  counts as the fastest. With both multipliers, a slow pistol does x4.5 damage and the fastest do x3.75.
+  counts as the fastest. The Grammaton Cleric Beretta depends on its fire mode: single shots count as slow, burst as a
+  little faster than the Shredder Pistol, and full-auto as fast. With both multipliers, a slow pistol does x4.5 damage
+  and the fastest do x3.75.
 - Overkill and fragments fly level from where the shot hit, and stop at walls like bullets.
 - The stock Doom pistol has no reload, so the faster reloads do nothing for it; everything else works with it.
 - These only work in the Daggerfall world, and your current skill counts.

@@ -8,7 +8,8 @@ harness (pistols_test.zs) asks for. The perk code logs what it changed (+set dd_
   drla     play_drlax.bat's DRLA set: RLPistol, RLHandcannon, RLMarksmanPistol (and the stock Pistol).
   nobridge doomerfall.pk3 only, no bridge session: nothing changes.
 Fire-rate multipliers: each gun's DRLA Scout multiplier (stock Pistol, RLPistol, RLHandcannon 8 = slowest; RLMarksmanPistol
-2 = beyond the fastest, 3) sets its place on the scale.
+2 = beyond the fastest, 3; the Grammaton Cleric Beretta by fire mode, M0/M1/M2 = 8/6/4) sets its place on the scale.
+infpool: the pool rules with infinite ammo (PowerInfiniteAmmo), first shot a miss: every shot still spends the pool.
 """
 import ctypes as C, math, re, struct, subprocess, sys, time, uuid, zipfile
 from pathlib import Path
@@ -24,10 +25,14 @@ SHEET_INTS, SHEET_FORMAT_VERSION = 194, 12
 POOL = {189: 100, 190: 500}
 FRAG = {191: 3, 192: 3300, 193: 250}
 RATE = {181: 25000, 182: 15000, 185: 3, 186: 8}
-SCOUT = {"Pistol": 8, "RLPistol": 8, "RLHandcannon": 8, "RLMarksmanPistol": 2, "RLPlasmaPistol": 8}  # tools/pistols/scout_scale.py
+SCOUT = {"Pistol": 8, "RLPistol": 8, "RLHandcannon": 8, "RLMarksmanPistol": 2, "RLPlasmaPistol": 8,  # tools/pistols/scout_scale.py
+         # The Grammaton Cleric Beretta by fire mode: normal 8x, burst 6x, full-auto 4x (GrammatonClericBeretta.txt:89-91).
+         "RLGrammatonClericBerettaM0": 8, "RLGrammatonClericBerettaM1": 6, "RLGrammatonClericBerettaM2": 4}
+BONUS = {"carry": -1000, "carryfrag": -1000}
+AMMO = re.compile(r"PISTTEST ammo (\w+) (\w+) start=(-?\d+) end=(-?\d+)")
 RULES = {  # must match RuleOf in pistols_test.zs
     "off": {}, "spray": RATE, "mult": {**RATE, 183: 15000, 184: 30000},
-    "multpool": {**RATE, 183: 15000, 184: 30000, **POOL}, "reload": {187: 2000}, "reload60": {187: 6000},
+    "multpool": {**RATE, 183: 15000, 184: 30000, **POOL}, "infpool": POOL, "reload": {187: 2000}, "reload60": {187: 6000},
     "pool": POOL, "carry": {188: 1, **POOL}, "frag": FRAG, "turn": FRAG, "carryfrag": {188: 1, **POOL, **FRAG}}
 BAD = re.compile(r'Script error, "(doomerfall|pisttest)\.pk3|(doomerfall|pisttest)\.pk3:zscript\S*, line \d+|\bFatal error|VM execution aborted|not implemented for', re.I)
 CASE = re.compile(r"PISTTEST case (\w+) (\w+) cat=(\w+) slot=(-?\d+) scout=(\d+)")
@@ -61,6 +66,9 @@ class Peer:
         v[32 + 7] = v[67 + 7] = 50  # Pistols above the other gun skills, so a two-skill pistol uses Pistols
         for k, x in RULES[cfg].items():
             v[k] = x
+        # Daggerfall's damage bonus (-10%) during the carry-through cases: the hit gets it once, its carry-through and
+        # fragment slices must not get it again (they must match what the code logged).
+        self.state.damage_bonus_bp = BONUS.get(cfg, 0)
         data = struct.pack(f"<{SHEET_INTS}i", *v)
         version = C.c_uint32()
         rc = self.b.dfb_bulk_write(self.s, 0, data, len(data), C.byref(version))
@@ -169,21 +177,35 @@ def analyse(name, lines, checks, report):
         L = c["lines"]
         perk = [l for l in L if "pistols:" in l]
         hl = [HIT.search(l) for l in perk if HIT.search(l)]
-        if cfg in ("off", "spray", "mult", "multpool", "reload", "reload60", "pool"):
+        if cfg in ("off", "spray", "mult", "multpool", "infpool", "reload", "reload60", "pool"):
             shots = shots_of(L)
             hits = [int(m.group(4)) for m, _, _ in shots]
             lost = sum(int(m.group(5)) for m, _, _ in shots)
             cycles = [int(m.group(6)) for m, _, _ in shots]
             rl = [RELOAD.search(l) for l in L if RELOAD.search(l)]
-            if cfg == "multpool":
+            if cfg in ("multpool", "infpool"):
                 miss = shots[0] if shots else None
                 spent = [SPENT.search(l) for l in (miss[1] if miss else []) if SPENT.search(l)]
                 check(f"{tag}: the first shot misses and still spends the full pool", miss and int(miss[0].group(4)) == 0
                       and len(spent) == 1 and spent[0].group(2) == "100", (miss[0].group(0) if miss else None, [x.group(0) for x in spent]))
-                report.append(f"{gun} multpool: miss " + (spent[0].group(0).replace("pistols: ", "") if spent else "spent nothing"))
+                report.append(f"{gun} {cfg}: miss " + (spent[0].group(0).replace("pistols: ", "") if spent else "spent nothing"))
                 check(f"{tag}: 4 later shots hit", len(shots) == 5 and all(h > 0 for h in hits[1:]), len(shots))
             else:
                 check(f"{tag}: 5 shots hit", len(shots) == 5 and all(h > 0 for h in hits), len(shots))
+            if cfg == "infpool":
+                am = [AMMO.search(l) for l in L if AMMO.search(l)]
+                check(f"{tag}: infinite ammo: no shot used ammo", am and am[0].group(3) == am[0].group(4), am[0].group(0) if am else None)
+                # Each hit gets what refilled since the shot before it (the miss spent the pool too): 100 per 17.5 tics.
+                bad, prev = [], None
+                for (m, buf, tic) in shots:
+                    for h in [HIT.search(l) for l in buf if HIT.search(l)]:
+                        want = min(100, (tic - prev) * 100 / 17.5) if prev is not None else 100
+                        bonus = int(h.group(7))
+                        if not (want - 6 <= bonus <= min(100, want + 6)) or int(h.group(4)) != int(h.group(3)) + bonus:
+                            bad.append(f"gap {tic - prev if prev is not None else None} bonus {bonus}")
+                    prev = tic
+                check(f"{tag}: each hit + what refilled since the shot before it, the missed one included", hl and not bad, bad[:3])
+                report.append(f"{gun} infpool: bonuses {[int(h.group(7)) for h in hl]}")
             if cfg == "off":
                 base[gun] = {"cycle": cycles, "reload": int(rl[0].group(3)) if rl else None}
                 check(f"{tag}: no perk activity with every rule off", not [l for l in perk], perk[:3])
@@ -308,6 +330,11 @@ def main():
         finally:
             if peer:
                 peer.close()
+        if bridged:
+            blog = (work / f"{name}-bridge.log").read_text(errors="replace") if (work / f"{name}-bridge.log").exists() else ""
+            checks.append("damage bonus:" in blog and "(-1000 bp)" in blog)
+            OUT.append(f"{'PASS' if checks[-1] else 'FAIL'} {name}: Daggerfall's -10% damage bonus was applied in the carry-through cases")
+            print(OUT[-1])
         if name == "nobridge":
             checks.append(not any("pistols:" in l for l in lines))
             print(f"{'PASS' if checks[-1] else 'FAIL'} nobridge: no perk activity without a Daggerfall character")

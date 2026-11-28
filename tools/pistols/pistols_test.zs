@@ -3,7 +3,8 @@ version "4.10"
 // Test harness for the Pistols perks (tools/pistols/pistols_test.py). Not part of the game.
 // For each rule set it asks the fake Daggerfall peer for that sheet ("PISTTEST want <cfg>"), waits until Doom reads it,
 // then for each sample gun:
-//   fire sets (off, spray, mult, multpool, reload, reload60, pool; multpool's first shot is fired away from the target): 5 shots at a close target that never moves, logging each
+//   fire sets (off, spray, mult, multpool, infpool, reload, reload60, pool; the first shot of multpool and infpool is
+//     fired away from the target; infpool runs with infinite ammo, so no shot uses ammo): 5 shots at a close target that never moves, logging each
 //     shot's hits, damage and the tics from the trigger until the gun is ready again; then, for a gun with a magazine,
 //     a reload from an empty magazine, timed the same way.
 //   line sets (carry, frag, turn, carryfrag): one shot at target A 64 units ahead. When A is first hit, the harness
@@ -27,8 +28,10 @@ class PistTestThin : PistTestWall { Default { Radius 4; } } // for angle tests: 
 class PistPerkTest : EventHandler
 {
 	Array<String> cfgs;
-	Array<String> guns;
-	int cfg, gun, phase, wait, shot, fireTic, hits, lost;
+	Array<String> guns;     // names in the log
+	Array<String> gunCls;   // weapon classes
+	Array<int> gunMode;     // the Beretta's fire mode, -1 for other guns
+	int cfg, gun, phase, wait, shot, fireTic, hits, lost, ammoStart;
 	Weapon heldGun;
 	Actor target;
 	Array<Actor> extra;     // B, C, D, E
@@ -40,10 +43,28 @@ class PistPerkTest : EventHandler
 
 	override void OnRegister()
 	{
-		static const String c[] = { "off", "spray", "mult", "multpool", "reload", "reload60", "pool", "carry", "frag", "turn", "carryfrag" };
-		static const String g[] = { "Pistol", "RLPistol", "RLHandcannon", "RLMarksmanPistol", "RLPlasmaPistol" };
+		static const String c[] = { "off", "spray", "mult", "multpool", "infpool", "reload", "reload60", "pool", "carry", "frag", "turn", "carryfrag" };
+		// The Grammaton Cleric Beretta in each fire mode (M0 normal, M1 burst, M2 full-auto: its mode item's count).
+		static const String g[] = { "Pistol", "RLPistol", "RLHandcannon", "RLMarksmanPistol", "RLPlasmaPistol",
+			"RLGrammatonClericBerettaM0", "RLGrammatonClericBerettaM1", "RLGrammatonClericBerettaM2" };
 		for (int i = 0; i < c.Size(); i++) cfgs.Push(c[i]);
-		for (int i = 0; i < g.Size(); i++) { class<Actor> k = g[i]; if (k) guns.Push(g[i]); else Console.Printf("PISTTEST absent %s", g[i]); }
+		for (int i = 0; i < g.Size(); i++)
+		{
+			String n = g[i];
+			int mode = -1;
+			if (n.IndexOf("RLGrammatonClericBerettaM") == 0) { mode = n.ByteAt(n.Length() - 1) - 48; n = "RLGrammatonClericBeretta"; }
+			class<Actor> k = n;
+			if (k) { guns.Push(g[i]); gunCls.Push(n); gunMode.Push(mode); } else Console.Printf("PISTTEST absent %s", g[i]);
+		}
+	}
+
+	// Which guns a rule set tries. The projectile pistol is for the pool only (its first hit gets what its shot spent);
+	// the Beretta's modes are for the fire-rate multipliers (and "off", for its fire cycle).
+	bool Tries(String c, int i)
+	{
+		if (guns[i] == "RLPlasmaPistol") return c == "pool" || c == "multpool" || c == "infpool";
+		if (gunMode[i] >= 0) return c == "off" || c == "mult";
+		return true;
 	}
 
 	static bool Want(int idx, int v) { return Actor.DD_SheetValue(idx) == v; }
@@ -60,7 +81,7 @@ class PistPerkTest : EventHandler
 		if (idx == 186) return rate ? 8 : 0;
 		if (idx == 187) return c == "reload" ? 2000 : c == "reload60" ? 6000 : 0;
 		if (idx == 188) return c == "carry" || c == "carryfrag" ? 1 : 0;
-		bool pool = c == "pool" || c == "multpool" || c == "carry" || c == "carryfrag";
+		bool pool = c == "pool" || c == "multpool" || c == "infpool" || c == "carry" || c == "carryfrag";
 		if (idx == 189) return pool ? 100 : 0;
 		if (idx == 190) return pool ? 500 : 0;
 		bool frag = c == "frag" || c == "turn" || c == "carryfrag";
@@ -190,9 +211,8 @@ class PistPerkTest : EventHandler
 		case 2: // select the gun
 		{
 			if (gun >= guns.Size()) { cfg++; phase = 0; break; }
-			// The projectile pistol is for the pool only: its first hit gets what its shot spent.
-			if (guns[gun] == "RLPlasmaPistol" && c != "pool" && c != "multpool") { gun++; break; }
-			class<Weapon> k = guns[gun];
+			if (!Tries(c, gun)) { gun++; break; }
+			class<Weapon> k = gunCls[gun];
 			mo.GiveInventory(k, 1);
 			heldGun = Weapon(mo.FindInventory(k));
 			p.PendingWeapon = heldGun;
@@ -203,11 +223,21 @@ class PistPerkTest : EventHandler
 			if (p.ReadyWeapon == heldGun && (p.WeaponState & WF_WEAPONREADY))
 			{
 				Fill(p, heldGun);
+				if (gunMode[gun] >= 0)
+				{
+					String modeName = "RLGrammatonClericBerettaMode"; // looked up at run time: DRLA only
+					class<Inventory> modeItem = modeName;
+					mo.TakeInventory(modeItem, 0x7fffffff);
+					if (gunMode[gun] > 0) mo.GiveInventory(modeItem, gunMode[gun]);
+				}
+				if (c == "infpool") mo.GiveInventory("PowerInfiniteAmmo", 1); // shots use no ammo
+				ammoStart = heldGun.AmmoType1 ? mo.CountInv(heldGun.AmmoType1) : -1;
 				mo.SetOrigin(spot, false); mo.vel = (0, 0, 0); mo.angle = dirAngle; mo.pitch = 0;
 				int first, second;
 				[first, second] = DoomerfallWeaponCategory.Both(heldGun);
+				class<Weapon> held = heldGun.GetClass();
 				Console.Printf("PISTTEST case %s %s cat=%s slot=%d scout=%d", c, guns[gun], DoomerfallWeaponCategory.Label(first),
-					DoomerfallWeaponCategory.SkillSlotOf(heldGun), DoomerfallPistols.ScoutOf(heldGun.GetClass()));
+					DoomerfallWeaponCategory.SkillSlotOf(heldGun), DoomerfallPistols.ScoutHeld(mo, held, DoomerfallPistols.ScoutOf(held)));
 				bool killA = c == "carry" || c == "carryfrag";
 				target = Place(guns[gun] == "RLPlasmaPistol" ? 400 : 64, killA ? 20 : 1000000); // a projectile flies a while
 				phase = LineSet(c) ? 10 : 4;
@@ -229,14 +259,14 @@ class PistPerkTest : EventHandler
 				// the pool). The case set-up filled it; 5 shots fit every sample gun's magazine.
 				hits = 0; lost = 0;
 				Console.Printf("PISTTEST fire tic=%d", level.maptime);
-				mo.angle = c == "multpool" && shot == 0 ? dirAngle + 180 : dirAngle; // a miss
+				mo.angle = (c == "multpool" || c == "infpool") && shot == 0 ? dirAngle + 180 : dirAngle; // a miss
 				mo.FireWeapon(null);
 				fireTic = level.maptime; shot++;
 			}
 			else if (fireTic >= 0 && level.maptime - fireTic > 300) { Console.Printf("PISTTEST stuck %s %s", c, guns[gun]); phase = 6; }
 			break;
 		case 6: // reload from an empty magazine (guns with one)
-			if (!heldGun.AmmoType2) { phase = 8; break; }
+			if (!heldGun.AmmoType2 || c == "infpool") { phase = 8; break; } // with infinite ammo an empty magazine still fires
 			if (fireTic < 0)
 			{
 				let m = mo.FindInventory(heldGun.AmmoType1);
@@ -254,6 +284,11 @@ class PistPerkTest : EventHandler
 			else if (level.maptime - fireTic > 300) { Console.Printf("PISTTEST stuck reload %s %s", c, guns[gun]); phase = 8; }
 			break;
 		case 8:
+			if (c == "infpool")
+			{
+				Console.Printf("PISTTEST ammo %s %s start=%d end=%d", c, guns[gun], ammoStart, heldGun.AmmoType1 ? mo.CountInv(heldGun.AmmoType1) : -1);
+				mo.TakeInventory("PowerInfiniteAmmo", 1);
+			}
 			Console.Printf("PISTTEST end %s %s", c, guns[gun]);
 			Clear();
 			gun++; phase = 2;
