@@ -464,6 +464,15 @@ guns are a quarter heavier, Dwarven a quarter lighter, Ebony half the weight. In
 Weapon smiths, armorers, pawn shops and general stores buy Doom weapons, as they buy Daggerfall weapons. The gun you
 are holding is not offered for sale; switch to another gun first if you want to sell it.
 
+## Light and darkness
+
+- Dungeons are dark, as in Daggerfall: a dim glow everywhere, the dungeon's own torches and braziers, and a light you
+  carry that reaches about 6 m around you. Monsters past your light and away from the dungeon's lights are hard to
+  see. Muzzle flashes, explosions and the Light Amplification Visor still light things up.
+- Doors and other moving parts of a dungeon or building are as dark as the walls around them.
+- Outdoors, trees, plants and monsters take the same daylight as the ground: they do not get darker with distance.
+  At night and in snow everything outdoors is as dim as the ground.
+
 ## Resting
 
 Press **Z** (rebind it in Options, Customize Controls, Doomerfall Controls as **Rest**) to open Daggerfall's rest
