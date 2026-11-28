@@ -242,10 +242,15 @@ extern "C" {
 
 /* NPCs. An NPC id is 64 bits: tag (3, value 6) | hash of its Daggerfall layout record (61). Doom draws every NPC in a
    generated map. Inside buildings Daggerfall lists who is present, because closed shops and owned houses are empty. */
-#define DFB_KIND_NPCS_BEGIN    60  /* DF to UZ; starts one full list for an interior; payload: dfb_world_items */
+#define DFB_KIND_NPCS_BEGIN    60  /* DF to UZ; starts one full list for an interior or dungeon; payload: dfb_world_items */
 #define DFB_KIND_NPC           61  /* DF to UZ; one NPC present in that interior; payload: dfb_npc */
 #define DFB_KIND_NPCS_END      62  /* DF to UZ; the list is complete, and anyone not in it is absent; payload: dfb_world_items */
 #define DFB_KIND_NPCS_REQUEST  63  /* UZ to DF; send the current list again; payload: dfb_world_items */
+/* A quest Person Daggerfall placed at a quest marker (no layout record, so no map spawns it). It is listed between
+   NPCS_BEGIN and NPCS_END like DFB_KIND_NPC, and Doom draws it where Daggerfall's billboard stands: x, y, z are Doom
+   units in that space's map (z its feet), width and height its size in Doom units, archive and record its billboard.
+   Lists are sent for interiors and dungeons. The id is tag 6 | hash of the quest uid and Person symbol. */
+#define DFB_KIND_NPC_PLACED    69  /* DF to UZ; payload: dfb_world_item, item_count unused */
 
 /* Townspeople: Daggerfall generates each town's wanderers from a seed and world time, and lists the ones near the
    player with their motion. A townsperson id is tag (3, value 7) | hash of map id and roster index (61). */

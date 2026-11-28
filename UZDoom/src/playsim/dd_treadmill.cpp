@@ -83,6 +83,7 @@ CVAR(String, dd_tm_warp, "", CVAR_NOSAVE | CVAR_MOD)		// "tileX tileY": moves th
 void DD_MonstersEnterDungeon(FLevelLocals *Level, int mapId, bool firstVisit, bool bridged);
 void DD_MonstersTick(FLevelLocals *Level);
 void DD_NpcSetup(AActor *mo, uint64_t id, bool awaitList);
+void DD_NpcsTick(FLevelLocals *Level);
 void DD_TownsfolkTick(FLevelLocals *Level);
 bool DD_BridgeHasSession();
 bool DD_BridgeArrivalFrozen();	// dd_bridge.cpp: a map change waits for its setup; Use and townspeople are held
@@ -3167,6 +3168,7 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 	HoldWhileConverting();
 	if (resumePending) Resume(Level);
 	else if (Level->maptime == 0) Start(Level);
+	if (DD_BridgeHasSession()) DD_NpcsTick(Level);	// [Doomerfall] Daggerfall's NPC list (buildings and dungeons), applied in the playsim.
 	if (!DDTreadmill_Active && !townActive) return;
 	if (DD_BridgeHasSession()) DD_LocationsTick(Level);	// Daggerfall's records, applied in the playsim.
 

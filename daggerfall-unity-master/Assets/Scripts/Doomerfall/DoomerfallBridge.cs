@@ -181,6 +181,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 gameObject.AddComponent<DoomerfallLootTest>().Init(this);
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dftalktest") >= 0 || Array.IndexOf(Environment.GetCommandLineArgs(), "-dftalkrefuse") >= 0)
                 gameObject.AddComponent<DoomerfallTalkTest>().Init(this);
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfquestnpctest") >= 0)
+                gameObject.AddComponent<DoomerfallQuestNpcTest>().Init(this); // Test only
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfshoptest") >= 0)
                 gameObject.AddComponent<DoomerfallShopTest>().Init(this);
             ui =gameObject.AddComponent<DoomerfallUi>();
