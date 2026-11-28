@@ -36,8 +36,9 @@ Your level comes from your skills, as in Daggerfall. Not every skill can be trai
 
 **Running** improves the more time you spend running, as in Daggerfall but one and a half times as fast: about
 5 practice uses per second of running. Running means holding **Run** (or having **Always Run** on) while you actually
-move. Walking, standing still, holding Run without moving, or pushing against a wall does not count, and neither does
-time spent with **Horse** or **Cart** chosen in the transport menu. Running does not make you faster in Doom yet.
+move. Walking, standing still, holding Run without moving, or running straight into a wall does not count (sliding
+along a wall does, because you are still moving). Time with the game paused never counts, and neither does time spent
+with **Horse** or **Cart** chosen in the transport menu. Running does not make you faster in Doom yet.
 
 Skills only go up, and a new level is only granted, when time passes: when you **rest** (see Resting) or **fast
 travel**. Daggerfall checks your skills at most once every 6 game hours.

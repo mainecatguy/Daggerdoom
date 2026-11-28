@@ -37,7 +37,8 @@ FATAL = ("DIED WITH FATAL", "errors while parsing", "error while compiling harne
 PLUGIN = Path("DaggerfallUnity_Data") / "Plugins" / "x86_64" / "doomerfall_bridge.dll"
 TICS_PER_USE = 112 / 15   # Daggerfall: one use per 4 classic updates of 0.08 s = 0.32 s; x1.5 -> 0.2133 s = 7.467 tics
 # What the runner holds at the start of each phase (QA console commands).
-PRESS = {"walk": ["+forward", "+left"], "run": ["+speed"], "runstand": ["-forward", "-left"], "done": ["-speed"]}
+PRESS = {"walk": ["+forward", "+left"], "run": ["+speed"], "runstand": ["-forward", "-left"], "wall": ["+forward"],
+         "pause": ["+left"], "done": ["-forward", "-left", "-speed"]}
 
 
 def read(path):
@@ -137,11 +138,23 @@ def run(name, prime, stock_mods):
     uz = ["-ddqa", str(inbox.parent), "-noactivate", "-nosound", "-noautoload", "+logfile", "console", "+wipetype", "0", "+cl_run", "0",
           "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"]
     df = ["-dfmute", "-dfrunningtest", str(log)] + (["prime"] if prime else []) + ["-screen-width", "640", "-screen-height", "360"]
-    timeout = 160
+    timeout = 200
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--"] + launch_args(runs, harness, uz, df, stock_mods)
     proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    reason, end, seen, marks, settle = "timeout", time.time() + timeout + 3, set(), {}, None
+    reason, end, seen, marks = "timeout", time.time() + timeout + 3, set(), {}
+    timed = []  # (wall time, mark name or None, console commands): the runner's own clock, for what WorldTick cannot do
     n = 0
+
+    def send(cmds):
+        nonlocal n
+        with open(inbox, "a") as f:
+            for c in cmds:
+                n += 1
+                f.write(f"r{n} con {c}\n")
+
+    def count():
+        return sum(u for _, u in tallies(read(log)))
+
     while time.time() < end and proc.poll() is None:
         time.sleep(0.1)
         body = read(console)
@@ -149,20 +162,25 @@ def run(name, prime, stock_mods):
             if phase in seen:
                 continue
             seen.add(phase)
-            marks[phase] = sum(u for _, u in tallies(read(log)))  # before this phase's buttons change
-            with open(inbox, "a") as f:
-                for c in PRESS.get(phase, []):
-                    n += 1
-                    f.write(f"r{n} con {c}\n")
+            marks[phase] = count()  # before this phase's buttons change
+            send(PRESS.get(phase, []))
+            now = time.time()
             if phase == "runstand":
-                settle = time.time() + 2.5  # the last running report (at most a second old) lands here
-        if settle and time.time() >= settle:
-            marks["runstand+settle"] = sum(u for _, u in tallies(read(log)))
-            settle = None
-        if "RNPHASE done" in body and "runstand+settle" in marks:
+                timed.append((now + 2.5, "runstand+settle", []))  # the last running report (at most a second old) lands
+            elif phase == "wall":
+                timed.append((now + 2.5, "wall+settle", []))
+            elif phase == "pause":
+                # Run a circle for 1.5 s, press Pause with the keys still held, let the last report land, then watch 6 s.
+                timed += [(now + 1.5, "pausing", ["pause"]), (now + 4.0, "paused", []), (now + 10.0, "paused end", ["pause"])]
+        for item in [t for t in timed if time.time() >= t[0]]:
+            timed.remove(item)
+            if item[1]:
+                marks[item[1]] = count()
+            send(item[2])
+        if "RNPHASE done" in body and not timed:
             reason = "route finished"
             time.sleep(1.5)
-            marks["end"] = sum(u for _, u in tallies(read(log)))
+            marks["end"] = count()
             break
         if any(k in body for k in FATAL):
             reason = "fatal"
@@ -186,22 +204,30 @@ def run(name, prime, stock_mods):
     total = sum(u for _, u in tallies(text))
     print("marks (Running uses tallied so far, at each phase start):", marks)
     print(f"Doom reported {sum(sent)} running tics in {len(sent)} events; Daggerfall tallied {sum(df_tallied)} uses (df.log), test log {total}")
-    ok = reason == "route finished" and len(sums) == 4
+    ok = reason == "route finished" and len(sums) == 7 and "RNWALL none" not in body
     if ok:
         stand = marks["walk"] - marks["stand"]
         walk = marks["run"] - marks["walk"]
-        runstand = marks["end"] - marks["runstand+settle"]
-        run_input = sum(s[2] for s in sums.values())
+        runstand = marks["wall"] - marks["runstand+settle"]
+        wall = marks["slide"] - marks["wall+settle"]
+        slide = marks["pause"] - marks["slide"]
+        paused = marks["paused end"] - marks["paused"]
+        run_input = sums["run"][2]
         expect = run_input / TICS_PER_USE
         run_secs = sums["run"][0] / 35
         run_uses = marks["runstand+settle"] - marks["run"]
         print(f"stand: {stand} uses (moved {sums['stand'][1]}); walk: {walk} uses (moved {sums['walk'][1]}); "
               f"runstand: {runstand} uses after settling (moved {sums['runstand'][1]})")
+        print(f"wall (run held, pushing straight in): {wall} uses after settling (moved {sums['wall'][1]}, run input {sums['wall'][2]} tics); "
+              f"slide (45 degrees along it): {slide} uses (moved {sums['slide'][1]}, run input {sums['slide'][2]} tics)")
+        print(f"paused with run and forward held: {paused} uses over 6 s (before the pause {marks['pausing'] - marks['pause']} uses in 1.5 s)")
         print(f"run: {run_uses} uses over the {run_secs:.1f} s run phase (moved {sums['run'][1]}) = {run_uses / run_secs:.2f}/s; "
               f"harness counted {run_input} tics of run input, expected {expect:.1f} uses ({35 / TICS_PER_USE:.3f}/s); "
-              f"Doom sent {sum(sent)} tics -> {sum(sent) / TICS_PER_USE:.1f} uses")
-        ok = stand == 0 and walk == 0 and runstand == 0 and run_uses > 0 and abs(total - expect) <= max(3, 0.05 * expect) \
-            and abs(sum(sent) / TICS_PER_USE - total) <= 1.01
+              f"Doom sent {sum(sent)} tics -> {sum(sent) / TICS_PER_USE:.1f} uses, test log total {total}")
+        # Sliding along a wall is moving with run held, so it counts by the rule; only a straight push counts nothing.
+        ok = stand == 0 and walk == 0 and runstand == 0 and wall == 0 and paused == 0 and run_uses > 0 \
+            and abs(run_uses - expect) <= max(3, 0.05 * expect) and abs(sum(sent) / TICS_PER_USE - total) <= 1.01 \
+            and (slide > 0 or sums["slide"][1] < 64)
         if prime:
             rises = re.findall(r"advance Running: skill (\d+) -> (\d+)", text)
             print("rises:", rises)
