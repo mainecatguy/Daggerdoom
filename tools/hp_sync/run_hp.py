@@ -65,7 +65,6 @@ def main():
         time.sleep(0.2)
     # Give the games a moment to flush, then end them.
     time.sleep(1.0)
-    subprocess.call(["taskkill", "/F", "/IM", "uzdoom.exe", "/FI", "WINDOWTITLE ne none"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) if False else None
     try:
         proc.wait(timeout=8)
     except subprocess.TimeoutExpired:

@@ -107,10 +107,7 @@ def play_check():
     command = [sys.executable, base.QUIET, "--timeout", "25", "--", here + "doomerfall-launcher.exe"]
     command += launch_args(here, ["-noactivate", "-nosound", "+logfile", "demo", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"], minimized=True)
     subprocess.call(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    # quiet_run stops only the launcher at its timeout, so end this folder's games before reading and cleaning up.
-    subprocess.call(["powershell", "-NoProfile", "-Command",
-                     f"Get-CimInstance Win32_Process | Where-Object {{ $_.ExecutablePath -like '{REVIEW}\\*' }} | ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force }}"],
-                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # quiet_run returns only when the launcher and both games have exited, or ends all of them at its timeout.
     time.sleep(1.5)
     log = base.read(play / "log-demo.txt")
     df = base.read(play / "df.log")

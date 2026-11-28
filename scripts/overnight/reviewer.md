@@ -4,8 +4,9 @@ List, in `owner_flags`, only these:
 
 1. **Major architecture problems this change introduces.** For example: state owned in the wrong engine, a second copy of state, duplicating a system that already exists, going around the bridge contract, or a design that will be hard to undo. Subjective concerns are welcome here, if they are major.
 2. **Specific performance risks.** Name the code path, why it runs often or at scale (every tic, per actor, per sector, every save), and the problem the player could see (a hitch, a freeze, a lower frame rate).
+3. **Process kills by program name.** Any kill by name or by a filter that can match processes the change did not start (`taskkill /IM`, `taskkill /FI` on modules, window titles or image names, `Stop-Process -Name`, `killall`, `pkill`, killing everything that matches a name or path). These must not merge: they have killed the owner's game. Processes may be stopped only by their own pid, or through `quiet_run.py`'s timeout and job object.
 
-Anything you noticed during verification but set aside because it was not a reason to fail belongs here, if it fits one of the two kinds above.
+Anything you noticed during verification but set aside because it was not a reason to fail belongs here, if it fits one of the three kinds above.
 
 Each flag is one self-contained item: what is wrong, the file and line, what it could cause, and your confidence. Skip style, small issues, and optional improvements. If there is nothing major, return an empty `owner_flags`. An empty list is a normal result.
 
