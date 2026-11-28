@@ -7,20 +7,24 @@ version "4.14"
 //   unaware      no target, nothing heard: the backstab element applies
 //   alerted      target set to the player: none
 //   volley       no target, three hits in one tic (as a shotgun's pellets): all three get it, one sneak hit
-//   spread       two unaware monsters hit A, B, A in one tic (a blast's pellets over both): all three hits get it,
-//                two sneak hits; prints BSHIT spread <base> <A's loss> before .. after .., then BSSPREAD B <B's loss>
 //   infight      target set to another monster: it has noticed someone, so none
 //   hitscan      no target, a real hitscan shot (LineAttack) from the player: the backstab element applies
-//   heardbefore  it heard the player make a noise 50 tics earlier (more than an attack's second) and has no target:
-//                alerted, so none
-//   heardtwice   heard the player 50 tics earlier, then the attack's own noise in the same tic as the hit: still none
-//   ownnoise     nothing heard before; the attack's own noise in the same tic as the hit (a gun alerts as it fires):
-//                the backstab element applies
-//   ownflight    the attack's own noise 6 tics before the hit (a bullet's wind-up, a rocket's flight): it applies
-// For the hearing steps the monster is held in its idle frame (it cannot look and take a target), so LastHeard is the
-// only thing that differs; the noise is the player's own SoundAlert, as a gun's.
+// Hearing steps. An "attack" here holds the player's weapon out of its ready state (Busy), as firing does; the noise is
+// the player's own SoundAlert, as a gun's. The monster is held in its idle frame, so it cannot look and take a target
+// (like an ambush monster that cannot see the player) and LastHeard is the only thing that differs:
+//   silentafter  an earlier attack with a noise (5 tics), the weapon ready for 15 tics, then a new attack that makes no
+//                noise hits it, 20 tics after that noise: alerted, none
+//   heardtwice   the same, but the new attack makes its own noise in the hit's tic: still alerted, none
+//   ownnoise     one attack: its noise and its hit in the same tic: the backstab element applies
+//   ownflight    one attack: its noise 6 tics before its hit: it applies
+//   windup       one attack with two noises, 20 tics apart (a wind-up, then firing), hit 2 tics after the second: applies
+//   noattack     an attack with a noise ends, then a hit 2 tics later while the weapon is ready (no attack): none
 // Then BSPHASE fire: the runner holds +attack for a moment with the player's real gun aimed at it (idle, nothing heard,
-// free to react); BSHIT fire reports the health it lost. BSDONE ends the route.
+// free to react); BSHIT fire reports the health it lost. Then spread: two unaware monsters hit A, B, A in one tic (a
+// blast's pellets over both): all three hits get it, two sneak hits; BSSPREAD B <B's loss>.
+// Then BSPHASE minigun: the player gets DRLA's Assault Minigun (a wind-up weapon: an alert at the wind-up, about 20 tics
+// of spin, another alert as it starts firing), the monster is held idle, and the runner holds +attack: its first bullet
+// must be a sneak hit although the monster first heard the wind-up. BSHIT minigun reports. BSDONE ends the route.
 class BSHarness : StaticEventHandler
 {
 	const BASE = 100;
@@ -43,6 +47,19 @@ class BSHarness : StaticEventHandler
 		mon.lastenemy = null;
 		mon.SetState(mon.SpawnState); // idle again: a chasing monster with no target looks all around at once
 		if (hold) mon.tics = -1;
+	}
+
+	// An attack: the weapon held out of its ready state (as when it fires), or back to its ready loop.
+	void Busy(bool on)
+	{
+		let psp = players[0].FindPSprite(PSP_WEAPON);
+		if (!psp) return;
+		if (on)
+		{
+			players[0].WeaponState &= ~(WF_WEAPONREADY | WF_WEAPONREADYALT);
+			psp.tics = -1;
+		}
+		else psp.tics = 1;
 	}
 
 	String Seen(PlayerPawn p)
@@ -109,7 +126,40 @@ class BSHarness : StaticEventHandler
 		case 1: mon.target = p; Hit("alerted", p); break;
 		case 2: Reset(); Hit("volley", p, 3); break;
 		case 3: Reset(); mon.target = other; Hit("infight", p); break;
-		case 14:
+		case 4:
+		{
+			Reset();
+			String was = Seen(p);
+			int before = mon.health;
+			p.LineAttack(aim, 1024, 0, 20, 'Hitscan', "BulletPuff");
+			Console.Printf("BSHIT hitscan 20 %d before %s after %s", before - mon.health, was, Seen(p));
+			break;
+		}
+		// silentafter
+		case 5: Reset(true); Busy(true); p.SoundAlert(p); delay = 5; break;
+		case 6: Busy(false); delay = 15; break;
+		case 7: Busy(true); Hit("silentafter", p); Busy(false); break;
+		// heardtwice
+		case 8: Reset(true); Busy(true); p.SoundAlert(p); delay = 5; break;
+		case 9: Busy(false); delay = 15; break;
+		case 10: Busy(true); p.SoundAlert(p); Hit("heardtwice", p); Busy(false); break;
+		// ownnoise
+		case 11: Reset(true); Busy(true); p.SoundAlert(p); Hit("ownnoise", p); Busy(false); break;
+		// ownflight
+		case 12: Reset(true); Busy(true); p.SoundAlert(p); delay = 6; break;
+		case 13: Hit("ownflight", p); Busy(false); break;
+		// windup
+		case 14: Reset(true); Busy(true); p.SoundAlert(p); delay = 20; break;
+		case 15: p.SoundAlert(p); delay = 2; break;
+		case 16: Hit("windup", p); Busy(false); break;
+		// noattack
+		case 17: Reset(true); Busy(true); p.SoundAlert(p); delay = 5; break;
+		case 18: Busy(false); delay = 2; break;
+		case 19: Hit("noattack", p); break;
+		// the player's real gun
+		case 20: Reset(); timer = -60; wait = mon.health; Console.Printf("BSPHASE fire %s", Seen(p)); break;
+		case 21: Console.Printf("BSHIT fire 0 %d before - after %s", wait - mon.health, Seen(p)); break;
+		case 22:
 		{
 			Reset();
 			other.bDormant = false;
@@ -124,24 +174,25 @@ class BSHarness : StaticEventHandler
 			Console.Printf("BSSPREAD B %d", b - other.health);
 			break;
 		}
-		case 4:
+		// DRLA's wind-up minigun
+		case 23:
 		{
-			Reset();
-			String was = Seen(p);
-			int before = mon.health;
-			p.LineAttack(aim, 1024, 0, 20, 'Hitscan', "BulletPuff");
-			Console.Printf("BSHIT hitscan 20 %d before %s after %s", before - mon.health, was, Seen(p));
+			Name gunName = 'RLAssaultRifleMinigun';
+			Class<Actor> gun = gunName;
+			if (!gun) { Console.Printf("BSNOTE no DRLA minigun"); step = 26; break; }
+			p.GiveInventory("RLAssaultRifleMinigun", 1);
+			p.GiveInventory("RLAssaultRifleMinigunClip", 200);
+			p.A_SelectWeapon("RLAssaultRifleMinigun");
+			delay = 70;
 			break;
 		}
-		case 5: Reset(true); p.SoundAlert(p); delay = 50; break;               // an earlier noise
-		case 6: Hit("heardbefore", p); break;
-		case 7: Reset(true); p.SoundAlert(p); delay = 50; break;               // an earlier noise
-		case 8: p.SoundAlert(p); Hit("heardtwice", p); break;                   // then the attack's own
-		case 9: Reset(true); p.SoundAlert(p); Hit("ownnoise", p); break;
-		case 10: Reset(true); p.SoundAlert(p); delay = 6; break;
-		case 11: Hit("ownflight", p); break;
-		case 12: Reset(); timer = -60; wait = mon.health; Console.Printf("BSPHASE fire %s", Seen(p)); break;
-		case 13: Console.Printf("BSHIT fire 0 %d before - after %s", wait - mon.health, Seen(p)); break;
+		case 24:
+			Reset(true);
+			timer = -70;
+			wait = mon.health;
+			Console.Printf("BSPHASE minigun %s weapon %s", Seen(p), players[0].ReadyWeapon ? players[0].ReadyWeapon.GetClassName() : 'none');
+			break;
+		case 25: Console.Printf("BSHIT minigun 0 %d before - after %s", wait - mon.health, Seen(p)); break;
 		default: Console.Printf("BSDONE"); done = true; break;
 		}
 	}

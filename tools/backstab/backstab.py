@@ -139,6 +139,7 @@ def run_one(skill, stock_mods, bonus=None):
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--"] + launch_args(runs, harness, uz, df, stock_mods)
     proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     reason, end, fired, released, n = "timeout", time.time() + timeout + 3, False, None, 0
+    mini_fired, mini_sent_before = False, None
 
     def send(cmds):
         nonlocal n
@@ -154,6 +155,12 @@ def run_one(skill, stock_mods, bonus=None):
             fired = True
             send(["+attack"])
             released = time.time() + 0.4
+        if "BSPHASE minigun" in body and not mini_fired:
+            mini_fired = True
+            time.sleep(0.3)  # sneak hits of the steps before have gone out
+            mini_sent_before = sum(int(x) for x in re.findall(r"backstab: sent (\d+) sneak hits", read(runs / "uz.log")))
+            send(["+attack"])
+            released = time.time() + 1.6  # about 22 tics of wind-up, then firing
         if released and time.time() >= released:
             send(["-attack"])
             released = None
@@ -185,7 +192,9 @@ def run_one(skill, stock_mods, bonus=None):
     for l in [l for l in uz.splitlines() if "damage bonus:" in l][:14]:
         print("   uz:", l.split("damage bonus: ", 1)[1][:150])
     expect = 1 + 4 * min(max(skill, 0), 100) / 100
-    ok = reason == "route finished" and all(k in hits for k in ("unaware", "alerted", "volley", "infight", "hitscan", "heardbefore", "heardtwice", "ownnoise", "ownflight", "spread"))
+    ok = reason == "route finished" and all(k in hits for k in ("unaware", "alerted", "volley", "infight", "hitscan", "silentafter", "heardtwice", "ownnoise", "ownflight", "windup", "noattack", "spread"))
+    mini_sent = sent - mini_sent_before if mini_sent_before is not None else None
+    with_minigun = "minigun" in hits
     spread_b = re.search(r"BSSPREAD B (-?\d+)", body)
     spread_sent = re.findall(r"backstab: sent (\d+) sneak hits", uz)
     ok = ok and spread_b is not None
@@ -195,21 +204,25 @@ def run_one(skill, stock_mods, bonus=None):
         hs_ratio = hits["hitscan"][1] / (base * 20 / 100) if base else 0
         print(f"   expected multiplier x{expect:g}; unaware {hits['unaware'][1]} / alerted {base} = x{ratio:.3f}; "
               f"volley {hits['volley'][1]} (3 x unaware = {3 * hits['unaware'][1]}); infight {hits['infight'][1]}; "
-              f"hitscan x{hs_ratio:.3f}; heard before {hits['heardbefore'][1]}, heard before + own noise {hits['heardtwice'][1]}, "
-              f"own noise only {hits['ownnoise'][1]}, own noise 6 tics before {hits['ownflight'][1]}; real gun: {hits.get('fire', ('', 'none'))[1]} health lost; "
+              f"hitscan x{hs_ratio:.3f}; earlier noise then silent attack {hits['silentafter'][1]}, earlier noise + own noise {hits['heardtwice'][1]}, "
+              f"own noise only {hits['ownnoise'][1]}, own noise 6 tics before {hits['ownflight'][1]}, wind-up (two noises 20 tics apart) {hits['windup'][1]}, "
+              f"hit outside any attack {hits['noattack'][1]}; real gun: {hits.get('fire', ('', 'none'))[1]} health lost; "
               f"spread A,B,A: A lost {hits['spread'][1]} (2 x unaware = {2 * hits['unaware'][1]}), B lost {spread_b[1]}, "
               f"events with 2 sneak hits: {spread_sent.count('2')}")
+        print(f"   DRLA minigun (wind-up): {hits['minigun'][1] if with_minigun else 'not run'} health lost, sneak hits during it: {mini_sent}")
         print(f"   Doom sent {sent} sneak hits; Daggerfall tallied {total} Backstabbing uses (expected {sent * USES_PER_SNEAK_HIT}); "
               f"published backstab bp {published}")
         ok = (not bonus or base == round(100 * bonus)) and abs(ratio - expect) <= 0.02 and hits["infight"][1] == base and hits["volley"][1] == 3 * hits["unaware"][1] \
             and abs(hs_ratio - expect) <= 0.06 \
-            and hits["heardbefore"][1] == base and hits["heardtwice"][1] == base \
+            and hits["silentafter"][1] == base and hits["heardtwice"][1] == base and hits["noattack"][1] == base \
+            and hits["windup"][1] == hits["unaware"][1] \
             and hits["ownnoise"][1] == hits["unaware"][1] and hits["ownflight"][1] == hits["unaware"][1] \
-            and all(hits[k][2] == "no-target+heard" for k in ("heardbefore", "heardtwice", "ownnoise", "ownflight")) \
-            and hits["unaware"][2] == "no-target" and hits["unaware"][3] == "target-player" and hits["alerted"][2] == "target-player" and sent == 8 and total == sent * USES_PER_SNEAK_HIT \
-            and hits["spread"][1] == 2 * hits["unaware"][1] and int(spread_b[1]) == hits["unaware"][1]
-        # sent exactly 8: 7 harness sneak hits (spread: A and B once each) + the real gun's first bullet; counting A twice
-        # in the spread would give 9. (Events batch per frame, so the per-event counts are not checked.)
+            and all(hits[k][2] == "no-target+heard" for k in ("silentafter", "heardtwice", "ownnoise", "ownflight", "windup", "noattack")) \
+            and hits["unaware"][2] == "no-target" and hits["unaware"][3] == "target-player" and hits["alerted"][2] == "target-player" and sent == (10 if with_minigun else 9) and total == sent * USES_PER_SNEAK_HIT \
+            and hits["spread"][1] == 2 * hits["unaware"][1] and int(spread_b[1]) == hits["unaware"][1] \
+            and (stock_mods or (with_minigun and hits["minigun"][1] > 0 and mini_sent == 1))
+        # sent exactly 10: 8 harness sneak hits (unaware, volley, hitscan, ownnoise, ownflight, windup, spread A and B once
+        # each), the real gun's first bullet and the minigun's first bullet; counting A twice in the spread adds one. (Events batch per frame, so the per-event counts are not checked.)
     kinds = sorted({l[:150] for l in read(REVIEW / "dfu" / "PortableAppdata" / "Player.log").splitlines() if "Exception" in l})
     print("   Player.log exception kinds:", len(kinds), *kinds[:3])
     print("   RESULT", "PASS" if ok else "FAIL")

@@ -85,6 +85,7 @@ void DD_TownsfolkDied(dfb_session *session, AActor *mo);
 void DD_ClimbFrame(dfb_session *session);
 void DD_RunningFrame(dfb_session *session, uint32_t worldContext); // dd_running.cpp
 void DD_BackstabFrame(dfb_session *session); // dd_backstab.cpp
+void DD_BackstabTic(player_t *player); // dd_backstab.cpp
 double DD_BackstabFactor(AActor *player, AActor *target, AActor *inflictor, int32_t backstabBp); // dd_backstab.cpp
 void DD_FacesFrame(dfb_session *session);
 bool DD_ClimbNetEvent(dfb_session *session, const char *name);
@@ -1302,6 +1303,7 @@ bool DD_BridgeHpHeal(player_t *player, int num, int max, bool *accepted)
 // assigns health, for example), then show Daggerfall's confirmed HP. Kills the pawn once Daggerfall says dead.
 void DD_BridgeHpThink(player_t *player)
 {
+	DD_BackstabTic(player); // follows the weapon for the backstab hearing rule; inactive without a session
 	if (!HpActive()) { hpMirroredPawn = nullptr; HpReleaseMax(); return; } // Re-adopt Daggerfall's value if it comes back
 	if (!HpIsBridgedPlayer(player) || !player->mo || player->playerstate != PST_LIVE) return;
 	HpFollowMax(player);

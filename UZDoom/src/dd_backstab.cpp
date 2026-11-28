@@ -4,7 +4,8 @@
 // Backstabbing uses (DoomerfallBackstab.cs).
 // DD_BackstabUnaware is the one place that decides "unaware"; the detection bar (gamedesign.md) will refine it there.
 // Nothing here runs without a bridge session: DD_BridgeDamageBonus calls in only for the bridged player's hits, and the
-// hearing hook (DD_BackstabHeard, from p_enemy.cpp) returns at once unless DD_BackstabFrame saw a session this frame.
+// hearing hook (DD_BackstabHeard, from p_enemy.cpp) and the tic hook (DD_BackstabTic) return at once unless
+// DD_BackstabFrame saw a session this frame.
 
 #include <algorithm>
 #include <cstring>
@@ -22,8 +23,7 @@ void DD_BridgeLog(const char *text);
 
 namespace
 {
-constexpr int AttackWindow = TICRATE; // tics from an attack's own noise to its hit (wind-up and bullet or rocket flight)
-constexpr int AlertCount = 8;
+constexpr int SpanCount = 8;
 
 bool active;              // a bridge session existed at the last frame
 uint32_t pendingHits;
@@ -34,14 +34,20 @@ uint32_t pendingHits;
 TArray<const AActor *> sneakTargets;
 int sneakTic = -1;
 
-// Hearing, in level totaltime (the clock of AActor::SpawnTime). firstHeard: when each monster started hearing the player
-// (its LastHeard became the player); keys are compared only, never dereferenced. alerts: the tics of the player's latest
-// noise alerts (gunshots and other noise the player makes).
+// Times are level totaltime (the clock of AActor::SpawnTime).
+// firstHeard: when each monster started hearing the player (its LastHeard became the player); keys are compared only,
+// never dereferenced.
 TMap<const AActor *, int> firstHeard;
-int alerts[AlertCount];
-int alertNext, alertsKept;
 const FLevelLocals *heardLevel;
 int heardMaptime;
+
+// The player's attacks: spans while the ready weapon is out of its ready state (it left A_WeaponReady to fire, wind up,
+// refire or reload) until it is ready again. One attack holds all its own noise: a wind-up's alert, the firing alert,
+// every refire of a held burst. end is -1 while it lasts.
+struct Span { int start, end; };
+Span spans[SpanCount];
+int spanNext, spansKept;
+bool inAttack;
 
 bool Live(AActor *a)
 {
@@ -53,50 +59,81 @@ AActor *BridgedPawn()
 	return playeringame[consoleplayer] ? players[consoleplayer].mo : nullptr;
 }
 
-// The tic of the noise the current attack itself raised: the player's newest alert at or before the attack began and
-// at most AttackWindow before it, or -1 if the attack made no noise.
-int AttackAlert(int attackStart)
+void ResetLevel(FLevelLocals *level)
 {
-	int best = -1;
-	for (int i = 0; i < alertsKept; i++)
+	if (level == heardLevel && level->maptime >= heardMaptime) { heardMaptime = level->maptime; return; }
+	firstHeard.Clear();
+	spansKept = spanNext = 0;
+	inAttack = false;
+	heardLevel = level;
+	heardMaptime = level->maptime;
+}
+
+// Follows the bridged player's weapon: an attack starts when the weapon is out of its ready state (setting any weapon
+// state clears WF_WEAPONREADY; A_WeaponReady sets it again) and ends when it is ready again. at: the time to stamp.
+void Sample(player_t *player, int at)
+{
+	const bool ready = !player->ReadyWeapon || (player->WeaponState & (WF_WEAPONREADY | WF_WEAPONREADYALT));
+	if (ready && inAttack)
 	{
-		const int t = alerts[i];
-		if (t <= attackStart && attackStart - t <= AttackWindow && t > best) best = t;
+		spans[(spanNext + SpanCount - 1) % SpanCount].end = at;
+		inAttack = false;
 	}
-	return best;
+	else if (!ready && !inAttack)
+	{
+		spans[spanNext] = { at, -1 };
+		spanNext = (spanNext + 1) % SpanCount;
+		spansKept = std::min(spansKept + 1, SpanCount);
+		inAttack = true;
+	}
+}
+
+// The start of the player's attack under way at time t, or -1 if the player was not attacking then.
+int AttackAt(int t)
+{
+	for (int i = 0; i < spansKept; i++)
+	{
+		const Span &s = spans[(spanNext + SpanCount - 1 - i) % SpanCount];
+		if (s.start <= t && (s.end < 0 || t < s.end)) return s.start;
+	}
+	return -1;
+}
+
+// Samples the weapon now, from inside the playsim (a weapon that fires on its first frame leaves the ready state and
+// alerts or hits in the same tic).
+void SampleNow(FLevelLocals *level)
+{
+	AActor *pawn = BridgedPawn();
+	if (pawn && pawn->player && pawn->Level == level) Sample(pawn->player, level->totaltime);
 }
 }
 
+// From DD_BridgeHpThink, at the start of each player's tic (P_PlayerThink): the weapon as the previous tic left it. A
+// weapon that left its ready state during the previous tic did so at time - 1, where its first noise came from.
+void DD_BackstabTic(player_t *player)
+{
+	if (!active || !player->mo || player->mo != BridgedPawn()) return;
+	ResetLevel(player->mo->Level);
+	Sample(player, inAttack ? player->mo->Level->totaltime : player->mo->Level->totaltime - 1);
+}
+
 // p_enemy.cpp NoiseMarkSector, just before a monster's LastHeard is set to soundtarget. Records when a monster starts
-// hearing the bridged player, and the player's alert itself.
+// hearing the bridged player.
 void DD_BackstabHeard(AActor *actor, AActor *soundtarget)
 {
 	if (!active || !soundtarget || soundtarget != BridgedPawn() || !actor) return;
-	FLevelLocals *level = actor->Level;
-	if (level != heardLevel || level->maptime < heardMaptime)
-	{
-		firstHeard.Clear();
-		alertsKept = alertNext = 0;
-		heardLevel = level;
-	}
-	heardMaptime = level->maptime;
-	const int now = level->totaltime;
-	const int newest = alertsKept ? alerts[(alertNext + AlertCount - 1) % AlertCount] : -1;
-	if (newest != now)
-	{
-		alerts[alertNext] = now;
-		alertNext = (alertNext + 1) % AlertCount;
-		alertsKept = std::min(alertsKept + 1, AlertCount);
-	}
-	if (actor->LastHeard != soundtarget) firstHeard[actor] = now;
+	ResetLevel(actor->Level);
+	SampleNow(actor->Level);
+	if (actor->LastHeard != soundtarget) firstHeard[actor] = actor->Level->totaltime;
 }
 
 // Unaware: an enemy (a monster not friendly to the player) that has not noticed the player: it has no live target and
 // is not alerted. Alerted means it heard someone (LastHeard), with one exception: the noise of the very attack that is
-// hitting it. A gun alerts every monster in earshot when it fires, before its bullets land, so that noise is too late
-// to count; any noise from the player before the current attack does count, however long ago it was.
-// attackStart: when the attack began (level totaltime): a projectile's spawn time, or now for an instant hit.
-bool DD_BackstabUnaware(AActor *player, AActor *target, int attackStart)
+// hitting it. A gun alerts every monster in earshot when it starts firing (and some wind up with an alert first), before
+// its bullets land, so that noise is too late to count; any noise from the player before the current attack began does
+// count, however long ago it was, and so does every noise when the hit comes from no attack of the player's.
+// attackTime: when the attack's hit left the player: a projectile's spawn time, or now for an instant hit.
+bool DD_BackstabUnaware(AActor *player, AActor *target, int attackTime)
 {
 	if (!target || target == player || !(target->flags3 & MF3_ISMONSTER) || !Live(target)) return false;
 	if (target->IsFriend(player)) return false;
@@ -105,8 +142,8 @@ bool DD_BackstabUnaware(AActor *player, AActor *target, int attackStart)
 	if (!Live(heard)) return true;
 	if (heard != player || target->Level != heardLevel) return false;
 	const int *since = firstHeard.CheckKey(target);
-	const int own = AttackAlert(attackStart);
-	return since && own >= 0 && *since >= own; // it first heard the player at this attack's own noise
+	const int start = AttackAt(attackTime);
+	return since && start >= 0 && *since >= start; // it first heard the player during this attack
 }
 
 // From DD_BridgeDamageBonus, for a hit by the bridged player: the backstab factor for this hit (1 when it is not a sneak
@@ -121,9 +158,12 @@ double DD_BackstabFactor(AActor *player, AActor *target, AActor *inflictor, int3
 	const bool sameAttack = sneakTargets.Find(target) < sneakTargets.Size();
 	if (!sameAttack)
 	{
-		const int now = target ? target->Level->totaltime : 0;
-		const int attackStart = inflictor && inflictor != player && !inflictor->player ? inflictor->SpawnTime : now;
-		if (!DD_BackstabUnaware(player, target, attackStart)) return 1.0;
+		if (!target) return 1.0;
+		ResetLevel(target->Level);
+		SampleNow(target->Level);
+		const int now = target->Level->totaltime;
+		const int attackTime = inflictor && inflictor != player && !inflictor->player ? inflictor->SpawnTime : now;
+		if (!DD_BackstabUnaware(player, target, attackTime)) return 1.0;
 		sneakTargets.Push(target);
 		pendingHits++;
 	}
