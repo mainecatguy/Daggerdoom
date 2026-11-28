@@ -450,8 +450,8 @@ class DoomerfallPistolsPerks : Inventory
 		// A bullet (puff) or a projectile hitting inside the firing action takes the live pool. A projectile in flight takes
 		// what its shot spent (once: its first hit), never the pool that refilled after it was fired.
 		int bonus = 0;
-		bool live = inflictor.bIsPuff || inflictor.GetAge() == 0;
-		int k = live ? flying.Size() : flying.Find(inflictor);
+		int k = flying.Find(inflictor);
+		bool live = k == flying.Size() && (inflictor.bIsPuff || inflictor.GetAge() == 0);
 		if (live) bonus = int(pool);
 		else if (k < flying.Size()) { bonus = flyingBonus[k]; flyingBonus[k] = 0; }
 		if (m == 1 && bonus <= 0) return;
