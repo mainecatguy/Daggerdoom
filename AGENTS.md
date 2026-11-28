@@ -71,6 +71,10 @@ Do not make wholesale game system design choices without the owner's preferences
 
 ## Open questions for the owner
 
+**Search for an answer before asking (owner, 2026-11-27).** Before raising a design question, search
+`gamedesign/decisions.md` and the topic files in `gamedesign/` (grep for the topic; do not read them whole). Ask only
+if you find no clear answer.
+
 If you are talking with the owner and `work/questions.md` is not empty, present its questions at the start of the conversation. Remove each question once it is answered.
 
 Worker agents never edit this file. In an overnight run, report questions through the `questions` status field. Otherwise, put them in a "Questions for the owner" section of your final report. The orchestrator triages them into this file.

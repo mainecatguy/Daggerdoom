@@ -20,3 +20,7 @@ Effects cast on others (Touch, Target, Area deliveries) are in "Magic: effects o
 Open questions for the owner:
 
 1. Should Doom's magical monster projectiles (Imp, Baron, Cacodemon fireballs and similar) count as Magic, so Spell Reflection, Absorption and Resistance protect against them? Doom has reflection built in (`MF2_REFLECTIVE`).
+
+Levitate speed (owner, 2026-11-27): the same percent of the player's speed as in Daggerfall, using the Doom player's
+current speed as the base, after the Running (Athletics) skill and the Speed attribute. The QA bot may fly without
+levitation, so this does not block QA or Mantellan Crux checks, but the magic system still needs doing.

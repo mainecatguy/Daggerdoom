@@ -10,6 +10,7 @@ This is a one-line-per-item index. Open an item's file only when you need its de
 
 ## MVP
 
+- [First dungeon visit too slow](backlog/first-dungeon-visit-speed.md): 7-47 s converting on first visit; revisit (owner, 2026-11-27).
 - [Remove the city return freeze](backlog/city-return-freeze.md): Returning to the City of Daggerfall still freezes for about 1.2 s.
 - [Run the trapdoor checks on every dungeon (low priority)](backlog/run-all-trapdoors.md): Full run across all dungeons. Not now (owner, 2026-11-24).
 - [Rotating walk-on trapdoors (axis 10)](backlog/axis10-trapdoors.md): Find how classic Daggerfall turns them. Not now.
@@ -17,6 +18,8 @@ This is a one-line-per-item index. Open an item's file only when you need its de
 - [Turn off Daggerfall's resets and respawns](backlog/turn-off-daggerfall-resets.md): Total persistence, no vanilla resets.
 - [Lightweight location record](backlog/location-record.md): Rebuild places from the seed and store only dead, wounded and awake mooks, used-up things and doors, in one Daggerfall copy. Replaces location ledger cards 2-3.
 - [Save size and load time](backlog/save-size-and-load-time.md): Measure load time with many cleared dungeons; segment world facts only if needed.
+- [Place record can be lost](backlog/place-record-resets.md): Locks and taken pickups reset; queued record dropped at start. Owner to check.
+- [Untaken pickups in the record](backlog/untaken-pickups-record.md): Store only taken ones; low priority.
 - [Rebuild load](backlog/rebuild-load.md): A save survives a broken Doom snapshot by rebuilding from Daggerfall's ledger. Stage 4 of the location state plan.
 - [Quest reward scaling](backlog/quest-reward-scaling.md): Future design for how quest rewards scale.
 - [Persistent Info toggle (on hold)](backlog/persistent-info-toggle.md): On hold until play-tested.
@@ -79,6 +82,7 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [Hotkey check uses plain squares only](backlog/hotkeys-plain-squares.md): A taken gun should fill its key when the plain squares are empty; today Ctrl and Alt also block it. Low value, waits on tokens.
 - [Inventory translation](backlog/inventory-translation.md): Translate DF items and DRLA gear both ways.
 - [Ammunition system](backlog/ammunition-system.md): Add material-tiered ammo as real inventory items.
+- [Auriel's Shield as a ring](backlog/auriels-shield-ring.md): Quest reward without shields; very low priority.
 - [Shield support](backlog/shield-support.md): Shields are removed for now; plan how they work in Doom.
 - [Armor as damage reduction](backlog/armor-damage-reduction.md): Card ready; approved formula and table (owner, 2026-11-27).
 - [Physical resistance from Frost](backlog/physical-resistance.md): Card ready; Frost sources at 1/5, cap 25%.
@@ -122,6 +126,7 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [Enemy-class enchantments](backlog/magic-enemy-class-enchantments.md): Potent Vs, Low Damage Vs, Health Leech, Vampiric, Ring of Namira; waits on enemy tagging.
 - [Strike artifacts](backlog/magic-strike-artifacts.md): Mace of Molag Bal, Mehrunes' Razor, Wabbajack; waits on Cast When Strikes.
 - [Lycanthropy and vampirism](backlog/lycanthropy-and-vampirism.md): Whole conditions and beast forms; needs owner design.
+- [Enchantment gap analysis](backlog/enchantment-gap-analysis.md): Review every enchantment against Doomerfall (owner, 2026-11-27).
 - [Enchantment drawbacks](backlog/magic-enchantment-drawbacks.md): Item Deteriorates, User Takes Damage, Extra Weight, Weakens Armor; later.
 - [Soul Bound](backlog/magic-soul-bound.md): Bind trapped souls into items; a broken item releases its creature in Doom.
 
@@ -130,8 +135,11 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [Daggerfall skills in Doom](backlog/skills-in-doom.md): Owner decisions: new gun skills, perks at 25/50/75/100, Jumping. In discussion.
 - [Rename Automatics to "Automatic Weapons"](backlog/automatic-weapons-label.md): Player-facing label (owner, 2026-11-26).
 - [Review Willpower's Daggerfall effects](backlog/willpower-effects-review.md): Magic resist saving throws and others still work (owner, 2026-11-26).
+- [Rethink Agility dodging](backlog/agility-dodge-rethink.md): The 15% evasion probably should not stay in its current form (owner, 2026-11-27).
 - [Dodging skill in Doom](backlog/dodging-skill.md): Needs a Doom definition, or removal (owner, 2026-11-26).
 - [DRLAX extended classes in the skill tree](backlog/drlax-classes-skill-tree.md): Revisit DRLAX classes for skills and perks (owner, 2026-11-26).
+- [Projectile shotguns get extra pellets](backlog/projectile-shotgun-pellets.md): Hard to code; later.
+- [Nanomachic Rifle mode](backlog/nanomachic-rifle-mode.md): Rifle in M14 mode; very low priority.
 - [Original weapon skills in Doom](backlog/original-weapon-skills.md): Short Blade, Long Blade, Axe, Blunt, Archery stay; make them work.
 - [Brutal Doom and a melee mod](backlog/brutal-melee-mods.md): Later, after mod compatibility research.
 - [Rifles skill](backlog/rifles-skill.md): New skill for rifles (was Marksmanship); no rifle counts as a pistol (owner, 2026-11-26). Later.
@@ -143,6 +151,7 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [Final Doom class and difficulty for New Game](backlog/full-daggerfall-new-game-flow.md): Replace the temporary prompt and fixed class.
 - [Doom monsters block fast travel](backlog/doom-monsters-block-fast-travel.md): Decide whether and how nearby Doom monsters block travel.
 - [Strong boss leaders and young titans](backlog/boss-leaders.md): Weak leaders with huge escorts; titans below area level 20 as rare surprises. Card ready.
+- [Underwater enemy markers (on hold)](backlog/underwater-markers.md): Only underwater-capable monsters there. Low priority; card ready.
 - [Improve the random enemy roster](backlog/improve-the-random-enemy-roster.md): Weight or tier the uniform random roster.
 - [Random or deterministic options](backlog/random-or-deterministic-options.md): Checkboxes for random loot and random encounter theming. Deterministic is the default.
 - [Quest targets in mook packs](backlog/quest-targets-in-mook-packs.md): Decide how quest targets map onto packs.
@@ -158,13 +167,16 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [Greater NPC bot variety](backlog/greater-npc-bot-variety.md): Add bot types for guards and classes.
 - [Status effects on mooks](backlog/status-effects-on-mooks.md): Extend DF status effects to Doom mooks.
 - [Should open doors block monster sight?](backlog/should-open-doors-block-monster-sight.md): Decide whether to match DF's door sight rule.
+- [Texture pack sharing](backlog/texture-pack-sharing.md): Daggerfall unpacks .dfmod textures to PNGs Doom reads (owner, 2026-11-27).
 - [Support texture packs and lighting mods](backlog/support-texture-packs-and-lighting-mods.md): Carry DF visual mods into the converter.
 
 ## Late development polish
 
 - [Review native Doom monster drops](backlog/review-native-doom-monster-drops.md): Doom monsters keep native drops for now. Decide later whether to keep them.
 - [Sort out keybinds](backlog/sort-out-keybinds.md): Resolve Doom, DF, and Doomerfall key conflicts.
+- [Convert Daggerfall Save](backlog/convert-daggerfall-save.md): Menu entry that loads a plain Daggerfall save, with a pistol and ammo. Low priority.
 - [Graceful save and load screen](backlog/graceful-save-and-load-screen.md): Stop showing "paused" during saves and loads.
 - [Spell Breaker becomes a ring](backlog/spellbreaker-ring.md): the quest artifact shield turns into a ring while shields are out.
 - [Report triage](backlog/report-triage.md): agent-report questions and oversights are not being triaged (93 files, 318 items); triage them and make it routine.
 - [Horseback riding](backlog/horseback-riding.md): riding a horse or cart changes Doom movement; effects, speeds and mounted combat open.
+- [Non-DRLA gun tiers](backlog/non-drla-gun-tiers.md): shops tier other mods' guns by WeaponValues.txt's inferred tiers for now; re-review whether a real DPS tier is wanted.

@@ -12,3 +12,5 @@ Agent question [20261123-233427], reported six times: should outdoor guard bots 
 
 Defect recorded 2026-11-27 (game designer, `gamedesign/decisions/20261127-outdoor-watchman-vanishes.md`): a town watchman shot outdoors vanishes after the blood splash, because Daggerfall turns him into a city watch knight and Doom relays guards only indoors (`dd_guards.cpp`). The same cause means crimes in town call guards that never reach Doom. The design's only fix is outdoor guard bots (this item).
 
+
+Owner, 2026-11-27: outdoor guards are now queued as todo card `outdoorguards` 01 (work/queue/outdoorguards/01.opus.outdoor-guard-bots.md). Guard behavior and pathfinding stay delayed.

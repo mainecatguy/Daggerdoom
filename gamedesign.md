@@ -30,6 +30,15 @@ Play through one Daggerfall dungeon (e.g., Privateer's Hold) and one town, fast-
 | **Progression & Skill XP** | **Daggerfall** | Combat, spellcasting, and traversal drive Daggerfall's use-based skill leveling; DRLX progression remains gear-centric. Doom play reports skill uses to Daggerfall (decisions log, 2026-11-26). Doom shows "You have reached level N" on a level-up (owner, 2026-11-26). Skill XP is 1 per 100 HP of damage dealt to enemies, each enemy counting at most its max HP, and every playable skill can be bought with it (owner, 2026-11-26). |
 | **Audio & Music** | **Daggerfall (music/UI/NPCs) + Doom (combat)** | Daggerfall supplies music, UI sounds, and NPC barks; Doom supplies combat SFX. |
 
+## Damage modifiers: "increased" adds, "more" multiplies (design rule)
+
+Unless a rule says otherwise, percentage damage bonuses are **"increased"**: they all add together into one pool, which
+then multiplies the damage once (+20% and +30% increased = +50%). A modifier stated as **"more"** (or "multiplicative")
+multiplies separately (20% more and 30% more = x1.2 x 1.3 = x1.56). This follows Path of Exile (owner, 2026-11-27: "unless
+otherwise specified, pure damage increased % modifiers are additive, and 'more' is multiplicative. Increased all adds
+together into one pool"). Rules already decided as multiplicative stay so, for example armor, physical resistance and
+Willpower on damage taken, and Intelligence with Personality on gun enchantments ("because that's fun").
+
 ## The world does not scale to the player (design principle)
 
 Unlike Daggerfall, the world never changes around the player to accommodate them. Doomerfall is totally indifferent to player level for scaling purposes and only cares about area level. Never use level scaling or any other artificial scaling of the game world that breaks the illusion that facts about the world are independent of facts about the player. This is a major feature of the mod and a major change from original Daggerfall.
@@ -79,6 +88,17 @@ Random events aim for Bayesian surprise: outcomes that meaningfully change what 
 - **Leans, not bans.** A place may make something common or rare, but should not make it impossible where that could starve the player, such as ammo for their gun.
 - **Randomness never bends approved rules.** For example, a genome may change what kind of item drops, never the material tier odds.
 - **Never adapt to the player.** Randomness uses only fixed facts about the place and its area level. There is no "smart loot" tuned to the player's guns, no pity timers based on the player's history, and no live tuning to how the player plays. See "The world does not scale to the player."
+
+### Adding things to random pools (owner, 2026-11-27)
+
+This covers loot, shop stock, pickups and monsters alike (owner: "that principle extends to monsters as well"). New
+things that can drop, be stocked or spawn are **added** to the existing random systems, never written over them: they
+must not crowd out or replace what can already appear. Work them into the existing systems (fixed seeds, area and shop
+identity, lots, Pitman-Yor reuse, U-shaped spreads, spiky places, rare exceptions) elegantly, and set their overall
+rate by a stated target (for example "about 1/10 as common as guns"). Agents get reasonable latitude in how they fit
+the new thing in, as long as these principles hold (owner: "any time there's randomization in these principles we need
+to not crowd other existing stuff out, we do need to respect existing systems, we need to elegantly incorporating what
+we're doing with the existing systems, and give the AI some reasonable latitude to do that").
 
 ## Material tiers (design principles)
 

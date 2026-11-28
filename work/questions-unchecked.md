@@ -1,0 +1,117 @@
+# Questions not yet checked by the game designer
+
+The note taker appends new questions from agent reports here (append only; one item per question, with source run ids, context and options; a repeat question gets its source added to the existing item). The Product Owner runs each through the game designer (answer, then challenge), strikes what the design settles, and moves only what is still open onto the numbered Q&A sheet (`work/notes/20261127-owner-qa.md`). Owner rule 2026-11-27.
+
+- [RESOLVED 2026-11-27 by owner: commit the frames; decisions/20261127-unchecked-owner.md] [20261127-134921-skillperks] Burn fire look: 8 flame frames from the Schism mod (renamed DDBFA0-H0, 15 KB) were committed into mods/doomerfall/src/sprites/burn/, relying on the owner's "we're okay on copyright" for extracting the Schism burn effect. Is committing them OK?
+  - Options: keep them committed; copy them from the local GameMods folder at pk3 build time (the look then depends on local files); fall back to the barely visible particle look
+  - Context: Card 07.opus.burn-system. The frames are recorded in art/README.md like the DRLA Light Carbine exception.
+  - Possibly answered by gamedesign/decisions/20261127-burn-fire-look-pick.md (covers picking the look; check whether it covers committing the frames)
+- [RESOLVED 2026-11-27 by owner: good enough as built, revisit later; decisions/20261127-unchecked-owner.md] [20261127-135114-shoplevels] Shops 6: with usually about one Daedric piece at the best smith (by fewer arrivals) as built, a level-30 smith averages about 7-10 goods against its stock target of 75. Is a sparse top weapon smith acceptable, and if not, what should change?
+  - Options: (a) let arrows, leather and chain fill the shelves outside the limit; (b) accept more Daedric pieces; (c) let Daedric sell faster
+  - Context: Card 06.opus.shop-identity. Three decisions together set this: approved 5% Daedric chance at level 30, value-based sell-off (Daedric stays about 30-100 days), and fewer arrivals. As built: about 0.4 Daedric-capable pieces a day, Daedric in stock on 65% of days, about 1.1 pieces on average. General stores, alchemists and other shops without weapons or armor still fill toward the target.
+  - Possibly answered by gamedesign/decisions/20261127-daedric-at-best-smith-owner.md
+- [RESOLVED 2026-11-27 by owner: OK as built; decisions/20261127-unchecked-owner.md] [20261127-135114-shoplevels] Shops 6: a level-30 general store now holds about as many Daedric pieces as the best smith (0.94 against 1.09 on an average day). Should general stores and pawn shops get a smaller weapon budget than smiths, so the best smith stays the place to look for Daedric?
+  - Options: smaller weapon budget for general stores and pawn shops; none other given
+  - Context: Card 06.opus.shop-identity. General stores also sell weapons, and the material budget is per building, whatever the shop type.
+- [RESOLVED 2026-11-27 by owner: good enough, revisit later; decisions/20261127-unchecked-owner.md] [20261127-135114-shoplevels] Shops 6, Daedric at the best smith: with the kept stock numbers (target 75) a level-30 weapon smith holds about 8 Daedric pieces (one on 99% of days), and usually about one needs about 8x fewer Daedric arrivals. Which rule gives, and if (a) or (b), should general stores and pawn shops follow the same rule as smiths?
+  - Options: (a) fewer weapons and plate reach top smiths (measured 1.1 Daedric, but about 7-10 goods instead of 75; general stores, alchemists and so on stay full); (b) keep stock numbers and fill the gap with goods that never roll a material (arrows, leather and chain, and after card 08 whatever the owner chooses); (c) a shelves-only rule lowering Daedric odds below the approved table; (d) shorter Daedric stays (owner struck this before); (e) accept about 8 at the best smiths (about 3.5 at level 20, about 1.3 at level 15)
+  - Context: Card 06.opus.shop-identity. New weapons arrive at exactly the approved 5% Daedric and Daedric sells at about 1-3% a day (stays 30-100 days); big-delivery rhythms only bring the count down to about 7. General stores and pawn shops hold about 2.3 Daedric pieces at level 30. Overlaps the sparse-smith item from the same report.
+  - Possibly answered by gamedesign/decisions/20261127-daedric-at-best-smith-owner.md
+- [RESOLVED 2026-11-27 by owner: keep as built, do not bend over backwards; decisions/20261127-unchecked-owner.md] [20261127-140808-skillmenu] Skill XP: should a monster that is resurrected (by an Arch-vile or a Colourful Hell healer) give Skill XP again for its new life? The agent leans no XP after a raise.
+  - Options: give XP again (current behavior, because the cap is max HP for each life); no XP after a raise (so revives cannot be farmed, as the research note suggested)
+  - Context: Card 01.opus.skill-purchase-menu.
+- [20261127-143351-r1-shoplevels, 20261127-143351-r2-shoplevels, 20261127-143351-r3-shoplevels] Worn estate and salvage goods: Daggerfall's classic price formula ignores condition, so 'cheaper' means lowering the item's stored value by its wear percentage, and a repaired worn item still sells for less than a new one. Keep that, or change it?
+  - Options: keep the lowered value; make the price recover on repair (needs a change to the economy formula); drop the price cut and keep only the wear
+  - Context: Card 07.opus.story-lots-and-exceptions. Wear in the round 2 build is 55-90% for estate goods and 35-80% for salvage.
+- [20261127-143351-r1-shoplevels] Shop lots should arrive whole, but a shelf has only about 2-3 free slots a day. May a lot push a shelf over its stock share by less than one lot (at most about 5 items per shelf), with sell-off bringing it back down?
+  - Options: none given
+  - Context: Card 07.opus.story-lots-and-exceptions. An estate kit split to one item tells no story.
+- [RESOLVED 2026-11-27 by owner via Manager: non-DRLA guns use WeaponValues.txt tiers for now; re-review in backlog non-drla-gun-tiers] [20261127-143351-r2-shoplevels, 20261127-143351-r3-shoplevels] For Doom weapon sets other than DRLA, shop rarity uses the tier WeaponValues.txt already infers from each weapon's role and power, not a computed DPS. Is that close enough to 'tier them off DPS', or do you want a real DPS-based tier for those sets?
+  - Options: keep the inferred tier; make a real DPS-based tier for those sets
+  - Context: Card 07.opus.story-lots-and-exceptions.
+- [20261127-143351-r2-shoplevels] The rare shop exceptions are building-type versions covering about 4% of days for those shop types. Is that share and set right, and should alchemists, clothiers, gem stores and booksellers get exceptions too?
+  - Options: none given
+  - Context: Card 07.opus.story-lots-and-exceptions. Shops 6 specialties (like 'archery outfitter') are not built. Set: weapon smith full plate suit, armorer archery shipment, pawn shop Doom gun in an estate lot, general store siege week, village smith one-weapon-kind week.
+- [20261127-143552-r1-skillperks, 20261127-143552-r2-skillperks] Energy Weapons 100 burst: the enemy you hit takes the converted damage, and nearby enemies only start burning for 40% of it, with no instant damage. Should the burst also deal direct damage to nearby enemies?
+  - Options: burn only for nearby enemies (as built); also deal direct damage to them
+  - Context: Card 08.opus.energy-weapons-burn. Radius is 128 units (from Revision 2).
+- [20261127-143552-r1-skillperks, 20261127-143552-r2-skillperks] Energy Weapons burn: only direct hits cause or convert burn; neither the perk's 20% splash nor a gun's own blast damage does. Is that the intended reading of 'Splash neither causes nor converts burn'?
+  - Options: direct hits only (as built); none other given
+  - Context: Card 08.opus.energy-weapons-burn. Related: gamedesign/decisions/20261127-energy-splash-per-hit-or-gun.md (Energy 25 splash and explosion damage).
+- [20261127-143552-r2-skillperks] Daggerfall's damage modifier applies to burn twice: to the hit that burn is a share of, then again to each burn tick and the converted damage because their source is the player. Keep the stacking, or should burn skip the second pass?
+  - Options: keep stacking (Shotguns made the same 'boosts stack' choice for slam damage); burn skips the second pass
+  - Context: Card 08.opus.energy-weapons-burn. In the paired run, 22.6 converted came out as 19 with a -10% character.
+- [20261127-162114-r1-skillmenu, 20261127-162114-r2-skillmenu, 20261127-162114-r3-skillmenu] Daggerfall Unity plays no sound for an ordinary skill point, so the agent used the arena fanfare for every skill point to sound different from a level-up. Keep it, or use another sound?
+  - Options: keep the arena fanfare (clip 32, 2.3 s); the level-up sound (clip 96, 3.8 s); another Daggerfall clip
+  - Context: Card 02.opus.skill-point-notification. Daggerfall plays the fanfare only when a primary skill reaches 100. It is one constant: DoomerfallPerks.SkillPointClip.
+- [20261127-162114-r1-skillmenu, 20261127-162114-r3-skillmenu] Once card 01 (the Skills menu) merges, should a point bought in the menu also show Daggerfall's 'Your <skill> skill has improved.' message, or is the sound enough since the open menu already shows the new value?
+  - Options: show the message too; sound only
+  - Context: Card 02.opus.skill-point-notification.
+- [RESOLVED 2026-11-27 by owner via Manager: plate and archery exceptions wait for shoplevels 06] [20261127-143351-r3-shoplevels] Shops 7: the archery outfitter plate shipment exception needs shop specialties, which the agent reports as not built, so it removed its stand-ins. Should it wait for Shops 6, or do you want a building-type exception in their place?
+  - Options: wait for Shops 6; a building-type exception (which one)
+  - Context: Card 07.opus.story-lots-and-exceptions, commit 93f3e411. Weapon smiths already stock armor and armorers already stock weapons. Remaining exceptions: pawn shop Doom gun, general store siege, village smith one-kind week. Related to the earlier r2 question on the exception set, which still lists the removed stand-ins.
+- [20261127-143351-r3-shoplevels] Shops 7: Doom gun tier weights for shop stock are 60/30/20/10/6 (common to legendary). Is that the rarity curve you want?
+  - Options: none given
+  - Context: Card 07.opus.story-lots-and-exceptions. Each roll picks a tier by weight among those the shop quality allows, then a gun in the tier. At quality-16 weapon smiths 7,502 guns came out common 61.9, uncommon 24.1, rare 11.1, very rare 2.9, legendary 0 percent (legendary needs quality 20). Survey: review/shop-lots/survey.txt.
+- [20261127-170741-r1-tabmenu] Tab menu labels: the SKILLS and ITEMS labels from Skyrim were renamed to CHARACTER and INVENTORY (MAGIC and MAP kept) to match the Daggerfall windows they open. Keep these or use the original Skyrim words?
+  - Options: keep CHARACTER and INVENTORY, or use SKILLS and ITEMS
+  - Context: Card 01.opus.tab-tween-menu. Labels are editable in mods/doomerfall/src/LANGUAGE.txt.
+- [20261127-170741-r1-tabmenu] Should Daggerfall time stop while Doom menus (the Tab menu, Escape) are open, as in Skyrim?
+  - Options: stop Daggerfall time, or leave it running
+  - Context: Card 01.opus.tab-tween-menu. Doom is paused while these menus are open, but the Daggerfall world clock probably keeps running, as it already does for the Escape menu.
+- [20261127-171339-r1-skillbasics] Should town building doors lock as in Daggerfall (houses, and closed shops at night) and use the same lockpick minigame and picks as dungeon doors? If so, should that be a new backlog card for the lockpick lane?
+  - Options: none given
+  - Context: Card 01.opus.daggerfall-interaction-skills. Doomerfall never locks building doors (DoomerfallTransition.cs says Doom does not lock building doors yet), so Lockpicking is never used on them.
+  - Possibly answered by gamedesign/decisions/20261127-starter-materials-doors-lockpicks-owner.md (doors stay as they are) or gamedesign/decisions/20261127-triage-q14-picking-crime.md
+- [20261127-171339-r1-skillbasics, 20261127-171339-r2-skillbasics] A failed pickpocket outdoors now commits the Pickpocketing crime and spawns city guards, but outdoor guards are not relayed to Doom, so none appears (as after murdering a townsperson). Is that acceptable for now, or should relaying outdoor guards get a todo card before pickpocketing is announced to players?
+  - Options: acceptable for now, or add a todo card for relaying outdoor guards first
+  - Context: Card 01.opus.daggerfall-interaction-skills. DoomerfallGuards relays only indoor guards to Doom.
+  - Possibly answered by gamedesign/decisions/20261124-outdoor-guards.md or gamedesign/decisions/20261127-triage-q14-picking-crime.md (outdoor guard response stays in the held guard item)
+- [20261127-173241-r1-shoplevels] Shops 7: Doom guns are rolled tier first, so the share of a tier does not depend on how many guns the loaded set has in it. Is that the intended rarer by tier rule, or should each gun be about as rare as any other gun of its tier?
+  - Options: keep tier-first rolls; scale tier weights by the number of guns in the tier
+  - Context: Card 07.opus.story-lots-and-exceptions. With the Doom set, the one very rare gun, the BFG9000, appears in about 2.5% of stocked guns, the same share as all 73 very rare DRLA guns together.
+- [20261127-175221-r1-attributes] Personality 0 cannot be shown in a live paired run, because Daggerfall kills a character with any live attribute at 0. Is a paired run at Personality 1 (x0.755) plus a harness check of the Doom formula at exactly 0 (x0.75) acceptable as the Personality 0 part of done?
+  - Options: none given beyond accepting it as built
+  - Context: Card 06.opus.personality.md. The kill-at-0 rule is in EntityEffectManager.
+- [20261127-175327-r1-skillbasics, 20261127-175327-r2-skillbasics] Running skill: Daggerfall Unity counts Running uses whenever the run key is held, even standing still, while the card said held and moving, so Doom counts nothing while standing. Keep the movement requirement?
+  - Options: keep as built (requires movement), or count whenever the run key is held as Daggerfall Unity does
+  - Context: Card 02.opus.running-levels.md.
+- [20261127-175327-r1-skillbasics] Choosing Horse or Cart in the transport menu stops Running uses (the Daggerfall rule), even though Doom still moves the player on foot because riding does nothing in Doom yet. Keep that, or count running in Doom whatever transport is chosen until riding exists?
+  - Options: keep the Daggerfall rule, or count running regardless of transport until riding exists in Doom
+  - Context: Card 02.opus.running-levels.md. Related: gamedesign/decisions/20261127-triage-q37-riding.md says riding must change Doom movement, with effects and speeds still open.
+- [20261127-175653-r1-ammoicon] Now that the loaded tier coloured icon replaces the word AMMO in the DRLA status bar ammo box, should the older Doomerfall overlay above the box (tinted icon plus name, such as Silver Bullets) stay, shrink to just the name, or be removed?
+  - Options: stay as is, shrink to just the name, or remove
+  - Context: Card 01.opus.equipped-ammo-icon-and-notice.md (ammoicon). The overlay came from ammotiers/05.
+- [20261127-175653-r1-ammoicon] Changing ammo with Change Ammo or the automatic out-of-ammo change shows a top notice (Loading Silver Bullets.), but swapping to a gun that remembers a different tier changes the loaded ammo and HUD icon with no notice. Should that gun swap also show a notice?
+  - Options: show a notice on gun swap, or keep no notice
+  - Context: Card 01.opus.equipped-ammo-icon-and-notice.md.
+- [20261127-183500-r1-skillbasics] Backstabbing: a monster counts as unaware until it has a live target, so a noise it heard but has not reacted to does not make it aware, and infighting monsters count as aware. Is that the reading you want until the detection bar exists, or should hearing a noise end unawareness?
+  - Options: keep the current reading, unaware until it has a live target. Or hearing a noise ends unawareness, which in practice limits backstabs to silent attacks
+  - Context: Card 03.opus.backstabbing. Doom alerts every monster in earshot on trigger pull, before bullets land, so counting heard noise (LastHeard) would make nearly every gunshot an aware hit.
+- [20261127-183307-r2-newgamedriver, 20261127-183307-r3-newgamedriver] Item 66 follow-up, New Game test driver tools/new_game/run_new_game.py: the message-box stall did not come back, but New Game on a busy machine takes 46 s or more, close to or past the default 50 s limit. Which follow-ups should go in as a small todo?
+  - Options: any or all of a - raise the default limit, keeping the two-character modes above it. b - stop with a clear message box ignored Y and Enter result after about 5 s on one box. c - commit the single-key popup check for N, Y and Enter, one key per box. Option d, added in r3, is the separate no-DRLA item below
+  - Context: Card 01.opus.newgame-driver-message-boxes. No stall in 13 runs in r2. The popup check is at review\newgame-keys\evidence\run_popup_keys.py and would move under tools/new_game/.
+- [20261127-183307-r3-newgamedriver] Item 66 follow-up d: should the no-DRLA mode of the New Game test driver skip doomerfall-drla.pk3, which currently makes those runs time out?
+  - Options: yes, as part of a small todo, or leave it. No other option given
+  - Context: Card 01.opus.newgame-driver-message-boxes, driver tools/new_game/run_new_game.py. Goes with options a to c in the item above.
+- [20261127-183525-r1-outdoorwater, 20261127-183525-r2-outdoorwater, 20261127-183525-r3-outdoorwater, 20261127-183525-r4-outdoorwater, 20261127-193328-r1-outdoorwater] Outdoor breath and monsters, goal item 59: do you want anything beyond Daggerfall outdoors, such as diving and drowning in outdoor water, or monsters slowed in it? Or is the faithful version, as built, right?
+  - Options: faithful Daggerfall as built, with no breath loss outdoors and monsters behaving as before; add diving and drowning outdoors; monsters slowed in water
+  - Context: Card 01.opus.outdoor-water-as-daggerfall. Daggerfall Unity only checks for underwater inside dungeons, in PlayerEnterExit; its outdoor water is a surface you swim on, and its enemies ignore outdoor water tiles. The goal text says the player 'runs out of breath as in Daggerfall Unity' and that 'monsters treat it as water'.
+  - Possibly answered by gamedesign/decisions/20261127-qa-batch9-owner.md item 59: outdoor sea and lakes behave as in Daggerfall, with swimming, Swimming skill and drowning
+- [20261127-183525-r1-outdoorwater, 20261127-183525-r2-outdoorwater, 20261127-183525-r3-outdoorwater] Swimming eye height: keep the full Daggerfall eye drop while swimming outdoors, or use a milder one for Doom combat?
+  - Options: keep the full Daggerfall drop; use a milder drop
+  - Context: Card 01.opus.outdoor-water-as-daggerfall. Daggerfall lowers the eye from 1.71 m to 0.21 m while swimming and Doom now copies that, about 6 of 48 view units. Collision height is unchanged, so swimming does not change how monster shots hit the player; Daggerfall also shrinks the body to 0.3 m.
+- [20261127-185409-r1-attributes, 20261127-185409-r2-attributes] Attribute rework: the Luck 5x super crit shows only as a bigger damage number, with no special cue. Do you want a visible or audible cue on a super crit, or is the bigger number enough?
+  - Options: a distinct damage-number color; a sound; the bigger number is enough
+  - Context: Card 08.opus.strength-agility-luck-rework. As built, the only sign is the larger damage number. Decision file: gamedesign/decisions/20261127-attribute-rework-owner.md
+- [20261127-190652-r1-shoplevels] Shops 6 and 7: the rare exception week of a shop (general store siege, village smith one-kind week) only changes deliveries that fall inside its 7-day window, so a 30-day big-delivery shop shows its siege week about 1 time in 4 and a 14-day shop about half the time. Is that fine, or should the exception get its own delivery?
+  - Options: fine as is; give the exception its own delivery (a 30-day shop would get an extra one)
+  - Context: Card 06.opus.shop-identity. Trickle and weekly shops always have a delivery inside the window.
+- [20261127-185409-r2-attributes] Attribute rework stacking: the decision file says the Strength and Agility gun bonuses are increased bonuses that add into one pool, with only the Luck crit a separate 5x, but the goal card says bonuses from different attributes multiply with each other and with other bonuses. Which do you want, multiply or add into the increased pool?
+  - Options: multiply, as the code does now following the goal card, or add into the increased pool
+  - Context: Card 08.opus.strength-agility-luck-rework. A shotgun at Strength 100 and Agility 100 gets 1.2 x 1.1 = 1.32x, while adding would give 1.30x. The card is BLOCKED partly on this.
+  - Possibly answered by gamedesign/decisions/20261127-attribute-rework-owner.md (Stacking: these are increased bonuses and add into one pool) and gamedesign/decisions/20261127-increased-vs-more-owner.md
+- [20261127-185409-r2-attributes] Luck super crit scope: should Luck roll for (a) explosion actors that a shot spawns and that blast from their Spawn state, including some cluster and chain sub-explosions, and (b) each repeated direct hit of a long-lived ripping projectile such as flamethrower flames?
+  - Options: yes or no for each of (a) and (b)
+  - Context: Card 08.opus.strength-agility-luck-rework. Today (a) never rolls, because an explosion rolls only when the exploding actor is in its Death, XDeath or Crash state (this stops napalm and plasma ground fire rolling every tick), and (b) rolls on each hit because they are direct hits, not damage over time.
+  - Possibly answered in part by gamedesign/decisions/20261127-attribute-rework-owner.md (hits, not burn ticks, and an explosion rolls once per blast)

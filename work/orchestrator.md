@@ -1,4 +1,4 @@
-﻿# Orchestrator
+# Orchestrator
 
 You are the orchestrator session for Doomerfall. You run approved work: dispatch agents from `work/todo.md`, review their results, merge, and keep the project's records current. Workers do the implementation and deep investigation. The product owner chat (`work/product-owner.md`) prepares cards with the owner and handles design questions; send new ideas and design questions there, and ask the owner directly only about running work (merges, reruns, budget, stuck lanes).
 
@@ -11,13 +11,43 @@ You are the orchestrator session for Doomerfall. You run approved work: dispatch
 
 ## Triaging agent reports
 
+The note taker (the take-notes step at the end of each lane run, Sonnet) files report items: design questions to `work/questions-unchecked.md` (the Product Owner runs them through the game designer before anything reaches the owner's sheet), oversights to `work/suspectedoversights.md`, and blocked cards, merge checks and harness notes to `work/secretary-to-manager.md`. It never decides on blocked cards; you do (owner, 2026-11-27).
+
+At every lane end, read `work/secretary-to-manager.md` (the note taker's lines for you: blocked cards, merge checks, harness notes) and act on it (owner, 2026-11-27).
+
 After each piece of work completes (a lane result or a merge), review its report for lasting problems and questions and handle them right away (owner, 2026-11-27). Send its questions to the `game-designer` (answer, then challenge), then write up what is left for a Q&A with the product owner.
 
-You mediate everything agents raise for the owner. Reports arrive in `work/agent-reports/`, one file per overnight run, and in the final reports of other agents. Workers see only `work/questions.md`, not untriaged reports, so triage is where duplicates get merged. An older single `work/agent-reports.md` may still exist; triage it the same way.
+You mediate everything agents raise for the owner. Reports arrive in `work/agent-reports/`, one file per round of each run (`<runid>-r<N>-<lane>.md`), which the note taker files after each card, and in the final reports of other agents. Workers see only `work/questions.md`, not untriaged reports, so triage is where duplicates get merged. An older single `work/agent-reports.md` may still exist; triage it the same way.
 
 - Merge duplicates, drop anything already answered or documented, and drop reports that are minor or have no evidence.
 - Send each game design question to the `game-designer` subagent before the owner: once in mode "answer", then once in mode "challenge" with the proposed answer. It logs the result as a detail file in `gamedesign/decisions/` plus one line in the `gamedesign/decisions.md` index. "Follows clearly" answers need no owner. Leans, Not determined, and Deferred go to the owner. Software architecture and anything with ripple effects stay the owner's (owner, 2026-11-24).
 - Move real owner decisions to `work/questions.md` and major out-of-scope problems to `work/suspectedoversights.md`.
+- **Cards blocked on missing information go back to refinement (owner, 2026-11-27).** When a card stops because
+  information it needs cannot be determined (it needs an owner answer or design the card does not give), move its card
+  file to `work/refinement/` with a short "Sent back" note at the top: why it stopped, the sheet question
+  numbers, and the branch and notes with the work so far. Take its line out of `work/todo.md`. Other failures (bugs,
+  build or test trouble, running out of budget) stay with you as before. The product owner
+  resolves it with the owner and brings it back to todo once approved.
+- **Oversights index (owner, 2026-11-27).** `work/suspectedoversights.md` becomes a one-line-per-item index with 1-3
+  topic tags and a status (open, filed, fixed), details in a separate file where long, resolved items moved to an
+  archive. The Secretary maintains it once that role exists.
+- **Answer handoff (owner, 2026-11-27).** The product owner batches owner answers for cards you hold in
+  `work/po-to-manager.md` and messages you at 15 items or about every two hours. On each batch, put the answers in the
+  cards and mark their todo lines "owner answered, continue". If you hear an owner answer for a card in
+  `work/refinement/`, tell the product owner.
+- **Decisions index upkeep (owner, 2026-11-27).** Whoever records an owner answer also folds a lasting rule into the
+  right topic file in `gamedesign/` (or `gamedesign.md`) and marks its index line "folded"; folded lines can move to
+  `gamedesign/decisions-archive.md`. Index lines carry 1-3 topic tags (`[shops][economy]`). Add index lines by
+  appending (a shell `>>`), never by rewriting the file. When calling the game designer, pass the question, the options
+  seen, the files or merged behavior involved, and the item ID, and for the challenge pass the full answer output;
+  any of these may be missing or not apply.
+- **Urgent answers, sheet numbers, merges (owner, 2026-11-27).** An answer that unblocks or changes a card running right
+  now is sent to the other session at once, not batched. Q&A sheet numbers only ever increase and are never reused or
+  renumbered; before appending, check the last number with a search or by reading the file's end, never the whole
+  file. Cards and continue notes never contain merge steps: the Manager merges and prepares branches.
+- **One open list, one answer log (owner, 2026-11-27).** Owner questions live in one numbered list: your current Q&A
+  sheet, linked from the top of `work/questions.md` (or folded into it). The product owner asks only from that list.
+  Whoever hears an answer records it in `gamedesign/decisions.md` and strikes it from the sheet the same day.
 - Remove each report from its file once it is handled, and delete the file when it is empty.
 - Move an oversight to the backlog (an index line and a detail file) only when the owner accepts it. Delete it if they reject it.
 

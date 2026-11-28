@@ -23,3 +23,6 @@ Ideas for after the initial release. These are not planned or approved work. If 
 - **Shopkeepers tell you about their shop** (owner, 2026-11-26: "could be cool as a future item but right now no"): a
   line on entry or from the shopkeeper about the shop's delivery day and specialty ("The caravan from Sentinel comes on
   Turdas"). Part E of `work/notes/20261126-shop-surprise-proposal.md`.
+- **Daggerfall Unity test bot** (owner, 2026-11-27, sheet item 70): a QA bot for Daggerfall Unity too, perhaps largely
+  sharing code with the Doom QA bot, so the same places can be compared in both games (for example whether Greensmith
+  Tower's dungeon entrance is reachable in Daggerfall itself).

@@ -8,3 +8,6 @@ center, we do not currently support the zoom levels of the Doom ui unless they'r
 
 Done when: the HUD shows fatigue and magicka as numbers next to health, ammo on the right and a compass at top centre,
 with live Daggerfall values, in a paired run; Doom's HUD size settings are supported only where that comes free.
+
+Also for the HUD rework (owner, 2026-11-27): escorted or rescued quest people show only as a face portrait on the HUD, as
+in Daggerfall ("face on hud only, no plan to change this. just portrait. add to hud rework.").
