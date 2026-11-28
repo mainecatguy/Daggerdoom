@@ -53,6 +53,7 @@ static partial class Program
 
     static int cell = 16, minX, minY, width, height;
     static string debugRow, debugLine;
+    static bool plainAngledArg;
     static List<(double z, bool up)>[] rawHits;
     static V3 entranceMarker;
     static int gapCells, skippedActions, relaxedStairs, postCount, nextInstance;
@@ -105,6 +106,8 @@ static partial class Program
             else if (args[a] == "--grid-collision") gridCollision = true; // old axis-aligned boundaries and flat planes
             else if (args[a] == "--map-name") OutputMapName = args[++a];
             else if (args[a] == "--catalog-names") catalogNames = true; // door and action visuals named by model, as in ddruntime.pk3
+            else if (args[a] == "--plain-angled") plainAngledArg = true; // comparison only: the angled pass before ramps and slivers
+            else if (args[a] == "--debug-chains") debugChains = args[++a]; // x0,y0,x1,y1: boundary chains there, with support and fit
             else if (args[a] == "--open-actions") openActions = true;            else if (args[a] == "--route-step") routeStep = int.Parse(args[++a]); // diagnostic: models jumping or climbing
             else name = args[a];
         }
@@ -113,6 +116,7 @@ static partial class Program
             Console.Error.WriteLine("usage: DungeonConverter \"<dungeon name>\" --out <dir> [--arena2 <dir>] [--cell 16]");
             return 2;
         }
+        smoothDungeon = !plainAngledArg;
         ApplyWorldScale(args.Contains("--cell"));
         Directory.CreateDirectory(outDir);
         if (!FindDungeon(arena2, name, out DFLocation location)) { Console.Error.WriteLine("dungeon not found: " + name); return 1; }
@@ -135,6 +139,7 @@ static partial class Program
         ApplyDoors(); // these spans become sight blockers only
         if (!gridCollision) AssignPlanes();
         AssignWater();
+        if (!gridCollision && smoothDungeon) AbsorbSlivers();
         if (args.Contains("--door-dump"))
         {
             foreach (var d in doors)
