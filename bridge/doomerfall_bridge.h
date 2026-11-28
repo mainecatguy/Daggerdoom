@@ -332,8 +332,8 @@ typedef struct dfb_face
 } dfb_face;
 
 #define DFB_SHEET_SLOT   0u
-#define DFB_SHEET_FORMAT_VERSION 11 /* 3: skill slots 4-6 are the gun skills, 7-12 unused; 4: slot 7 is Pistols; 5: slot 8 is Rifles; 6: slots 9-10 are Energy Weapons and Melee; 7: Automatics perk rules; 8: Explosives perk rules; 9: Shotguns perk rules; 10: Energy Weapons perk rules; 11: Energy Weapons burn rules */
-#define DFB_SHEET_INTS   181
+#define DFB_SHEET_FORMAT_VERSION 12 /* 3: skill slots 4-6 are the gun skills, 7-12 unused; 4: slot 7 is Pistols; 5: slot 8 is Rifles; 6: slots 9-10 are Energy Weapons and Melee; 7: Automatics perk rules; 8: Explosives perk rules; 9: Shotguns perk rules; 10: Energy Weapons perk rules; 11: Energy Weapons burn rules; 12: Pistols perk rules */
+#define DFB_SHEET_INTS   194
 #define DFB_SHEET_FORMAT 0    /* DFB_SHEET_FORMAT_VERSION */
 #define DFB_SHEET_EPOCH  1
 #define DFB_SHEET_VALID  2    /* 1 when this describes the current, fully loaded character */
@@ -379,10 +379,10 @@ typedef struct dfb_face
 #define DFB_CLIMB_GRASP    1   /* grab a wall while airborne; base 40 */
 #define DFB_CLIMB_CONTINUE 2   /* keep climbing; base 50 */
 #define DFB_CLIMB_REGAIN   3   /* regain a hold while slipping; base 20 */
-/* Slots 155-180: gun skill perk rules. Reserved: Daggerfall leaves them 0. Daggerfall sends the character sheet and
+/* Slots 155-193: gun skill perk rules. Reserved: Daggerfall leaves them 0. Daggerfall sends the character sheet and
    Doom applies the rules (architecture.md, "Character sheet and rules"): Doom computes these numbers from the skills
    above (mods/doomerfall/src/zscript/DoomerfallRules.zs, in this order). The Doom-only perk tests' fake Daggerfall
-   (tools/automatics, explosives, shotguns, energy) still writes hand-picked rule sets here, and their harness hands
+   (tools/automatics, explosives, shotguns, energy, pistols) still writes hand-picked rule sets here, and their harness hands
    them to Doom's rules in place of the computed ones. 0 means that rule is off.
    Automatics (work/backlog/skills-in-doom.md), from the live Automatics skill. */
 #define DFB_SHEET_AUTO_DAMAGE_BP      155  /* damage bonus in 1/10000ths (+0% to +60% by skill) */
@@ -414,6 +414,23 @@ typedef struct dfb_face
 #define DFB_SHEET_ENERGY_CONVERT_BP   178  /* a direct hit first turns this much of the enemy's burn into instant damage */
 #define DFB_SHEET_ENERGY_BURST_BP     179  /* that converted damage bursts out, setting enemies nearby burning for this ... */
 #define DFB_SHEET_ENERGY_BURST_RADIUS 180  /* ... much of it, within this many map units (0: no burst) */
+/* Pistols skill rules (work/backlog/skills-in-doom.md), reserved like the slots above: Daggerfall leaves them 0 and Doom
+   computes them from the live Pistols skill (DoomerfallRules.zs Pist*), applying them to guns whose skill is Pistols. Fast and slow pistols are placed as DRLA's
+   Scout class places them: by the gun's Scout damage multiplier (tools/pistols/scout_scale.py), fast at SCALE_FAST and
+   slow at SCALE_SLOW; each fire-rate multiplier goes linearly from its fast value to its slow value along that scale. */
+#define DFB_SHEET_PIST_SPRAY_FAST_BP   181  /* skill 25 damage multiplier for the fastest pistols, in 1/10000ths ... */
+#define DFB_SHEET_PIST_SPRAY_SLOW_BP   182  /* ... and for the slowest */
+#define DFB_SHEET_PIST_DEADEYE_FAST_BP 183  /* skill 75 Deadeye multiplier for the fastest pistols, in 1/10000ths ... */
+#define DFB_SHEET_PIST_DEADEYE_SLOW_BP 184  /* ... and for the slowest (multiplies with the skill 25 one; not the pool) */
+#define DFB_SHEET_PIST_SCALE_FAST      185  /* the DRLA Scout multiplier that counts as the fastest pistol (3) ... */
+#define DFB_SHEET_PIST_SCALE_SLOW      186  /* ... and as the slowest (8); a gun outside counts as the nearer end */
+#define DFB_SHEET_PIST_RELOAD_BP       187  /* reloads take this much less time, in 1/10000ths (20/40/60%) */
+#define DFB_SHEET_PIST_CARRY           188  /* 1: a killing hit's leftover damage carries on to the next enemy behind */
+#define DFB_SHEET_PIST_POOL            189  /* bonus damage pool size, spent by each pistol shot (added to its hit) ... */
+#define DFB_SHEET_PIST_POOL_REFILL_MS  190  /* ... refilling from empty in this long */
+#define DFB_SHEET_PIST_FRAGMENTS       191  /* shrapnel: each pistol hit bursts into this many fragments behind the enemy ... */
+#define DFB_SHEET_PIST_FRAGMENT_BP     192  /* ... each dealing this much of the hit's damage, in 1/10000ths ... */
+#define DFB_SHEET_PIST_FRAGMENT_TURN_CDEG 193 /* ... locking on to an enemy within this many 1/100ths of a degree of its path */
 
 /* Daggerfall screens Doom can ask for. Add new menus here. */
 #define DFB_UI_NONE        0u

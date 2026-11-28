@@ -18,7 +18,7 @@ from save_handshake_test import Event, DfState  # noqa: E402
 IWAD = Path(r"D:\dev\DoomDaggerfall\GameResources\wads\DOOM.WAD")
 MODS = Path(r"D:\dev\DoomDaggerfall\GameMods")
 DRLA = ["DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3"]
-SHEET_INTS, SHEET_FORMAT_VERSION = 181, 11
+SHEET_INTS, SHEET_FORMAT_VERSION = 194, 12
 RULES = {  # 167 damage, 168 reload cut, 169 pellets, 170 knock, 171 slam, 172 collide
     "off": {}, "dmg": {167: 7500}, "reload": {168: 3500}, "reloadheld": {168: 3500}, "p50": {169: 5000}, "p100": {169: 10000},
     "knock": {170: 10000, 171: 200}, "knock100": {169: 10000, 170: 20000, 171: 400}, "collide": {170: 10000, 171: 200, 172: 200}, "switch": {167: 7500}}

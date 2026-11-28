@@ -6,7 +6,8 @@
 //      Actor.DD_SheetStat / DD_SheetSkill / DD_SheetSkillBase / DD_SheetValue. Each reads -1 without a Daggerfall
 //      character, and then every rule here reads "no change", so stock Doom and plain WADs are unchanged.
 // Out: rule values and factors. The systems that act on them (DoomerfallAttributes.zs, DoomerfallJump.zs and the gun
-//      skill perks DoomerfallAutomatics.zs, DoomerfallExplosives.zs, DoomerfallShotguns.zs, DoomerfallEnergy.zs) hold
+//      skill perks DoomerfallAutomatics.zs, DoomerfallExplosives.zs, DoomerfallShotguns.zs, DoomerfallEnergy.zs,
+//      DoomerfallPistols.zs) hold
 //      no rule numbers of their own.
 //
 // A new perk or attribute adds its formula here, reading the sheet value it depends on, and its system asks for it.
@@ -24,6 +25,7 @@ class DoomerfallRules : StaticEventHandler
 	const SkillShotguns = 4;
 	const SkillAutomatics = 5;
 	const SkillExplosives = 6;
+	const SkillPistols = 7;
 	const SkillEnergy = 9;
 
 	// ---- Sheet reads ----
@@ -124,6 +126,21 @@ class DoomerfallRules : StaticEventHandler
 		EnergyConvertBp,     // a direct hit first turns this much of the enemy's burn into instant damage
 		EnergyBurstBp,       // 100: that converted damage bursts out, setting enemies nearby burning for this ...
 		EnergyBurstRadius,   // ... much of it, within this many map units
+		// Pistols. Fast and slow pistols are DRLA's Scout definition: the gun's Scout damage multiplier (DoomerfallPistols
+		// ScoutOf), fast at PistScaleFast and slow at PistScaleSlow; each fire-rate multiplier goes linearly between them.
+		PistSprayFastBp,     // 25: damage multiplier for the fastest pistols (x2.5) ...
+		PistSpraySlowBp,     // ... and for the slowest (x1.5)
+		PistDeadeyeFastBp,   // 75: Deadeye multiplier for the fastest pistols (x1.5) ...
+		PistDeadeyeSlowBp,   // ... and for the slowest (x3); multiplies with the 25 one, not the pool
+		PistScaleFast,       // the Scout multiplier that counts as the fastest pistol (3) ...
+		PistScaleSlow,       // ... and as the slowest (8)
+		PistReloadBp,        // reloads take this much less time: 20% at 25, 40% at 50, 60% at 75
+		PistCarry,           // 50: 1, a killing hit's leftover damage carries on to the next enemy behind
+		PistPool,            // 50: bonus damage pool spent by each pistol shot ...
+		PistPoolRefillMs,    // ... refilling from empty in this long
+		PistFragments,       // 100: each pistol hit bursts into this many fragments behind the enemy ...
+		PistFragmentBp,      // ... each dealing this much of the hit's damage ...
+		PistFragmentTurnCdeg,// ... locking on to an enemy within this many 1/100ths of a degree of its path
 		RuleCount
 	};
 
@@ -146,7 +163,8 @@ class DoomerfallRules : StaticEventHandler
 		if (rule <= AutoSunderMaxBp) return SkillAutomatics;
 		if (rule <= ExplChainRadius) return SkillExplosives;
 		if (rule <= ShotCollideDamage) return SkillShotguns;
-		return SkillEnergy;
+		if (rule <= EnergyBurstRadius) return SkillEnergy;
+		return SkillPistols;
 	}
 
 	// The rules themselves, from the skill's value.
@@ -185,6 +203,20 @@ class DoomerfallRules : StaticEventHandler
 		case EnergyConvertBp:    return perk >= 3 ? 4000 : perk == 2 ? 2000 : 0;
 		case EnergyBurstBp:      return perk >= 4 ? 4000 : 0;
 		case EnergyBurstRadius:  return perk >= 4 ? 128 : 0;
+
+		case PistSprayFastBp:    return skill >= 25 ? 25000 : 0;
+		case PistSpraySlowBp:    return skill >= 25 ? 15000 : 0;
+		case PistDeadeyeFastBp:  return skill >= 75 ? 15000 : 0;
+		case PistDeadeyeSlowBp:  return skill >= 75 ? 30000 : 0;
+		case PistScaleFast:      return skill >= 25 ? 3 : 0;
+		case PistScaleSlow:      return skill >= 25 ? 8 : 0;
+		case PistReloadBp:       return 2000 * min(perk, 3);
+		case PistCarry:          return skill >= 50 ? 1 : 0;
+		case PistPool:           return skill >= 50 ? 100 : 0;
+		case PistPoolRefillMs:   return skill >= 50 ? 500 : 0;
+		case PistFragments:      return skill >= 100 ? 3 : 0;
+		case PistFragmentBp:     return skill >= 100 ? 3300 : 0;
+		case PistFragmentTurnCdeg: return skill >= 100 ? 250 : 0;
 		}
 		return 0;
 	}

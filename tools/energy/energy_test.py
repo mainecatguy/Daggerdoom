@@ -23,7 +23,7 @@ from save_handshake_test import Event, DfState  # noqa: E402
 IWAD = Path(r"D:\dev\DoomDaggerfall\GameResources\wads\DOOM.WAD")
 MODS = Path(r"D:\dev\DoomDaggerfall\GameMods")
 DRLA = ["DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3"]
-SHEET_INTS, SHEET_FORMAT_VERSION = 181, 11
+SHEET_INTS, SHEET_FORMAT_VERSION = 194, 12
 RULES = {  # 173 damage, 174/175 splash bp/radius, 176 speed
     "off": {}, "dmg": {173: 5000}, "splash": {174: 2000, 175: 64}, "speed25": {176: 1500}, "speed": {176: 6000},
     # 177 burn, 178 convert, 179/180 burst bp/radius (DoomerfallRules.zs at skills 25/50/75/100)

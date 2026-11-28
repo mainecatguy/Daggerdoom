@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x042817d5c3dd6893ULL
+#define DFB_SCHEMA_HASH 0x0096bb9c59bdfed2ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -205,8 +205,8 @@ static_assert((DFB_FACES_FORMAT_VERSION) == (1u), DFB_STALE);
 static_assert((DFB_FACES_MAX) == (3u), DFB_STALE);
 static_assert((DFB_FACE_MAX_SIDE) == (64u), DFB_STALE);
 static_assert((DFB_SHEET_SLOT) == (0u), DFB_STALE);
-static_assert((DFB_SHEET_FORMAT_VERSION) == (11), DFB_STALE);
-static_assert((DFB_SHEET_INTS) == (181), DFB_STALE);
+static_assert((DFB_SHEET_FORMAT_VERSION) == (12), DFB_STALE);
+static_assert((DFB_SHEET_INTS) == (194), DFB_STALE);
 static_assert((DFB_SHEET_FORMAT) == (0), DFB_STALE);
 static_assert((DFB_SHEET_EPOCH) == (1), DFB_STALE);
 static_assert((DFB_SHEET_VALID) == (2), DFB_STALE);
@@ -275,6 +275,19 @@ static_assert((DFB_SHEET_ENERGY_BURN_BP) == (177), DFB_STALE);
 static_assert((DFB_SHEET_ENERGY_CONVERT_BP) == (178), DFB_STALE);
 static_assert((DFB_SHEET_ENERGY_BURST_BP) == (179), DFB_STALE);
 static_assert((DFB_SHEET_ENERGY_BURST_RADIUS) == (180), DFB_STALE);
+static_assert((DFB_SHEET_PIST_SPRAY_FAST_BP) == (181), DFB_STALE);
+static_assert((DFB_SHEET_PIST_SPRAY_SLOW_BP) == (182), DFB_STALE);
+static_assert((DFB_SHEET_PIST_DEADEYE_FAST_BP) == (183), DFB_STALE);
+static_assert((DFB_SHEET_PIST_DEADEYE_SLOW_BP) == (184), DFB_STALE);
+static_assert((DFB_SHEET_PIST_SCALE_FAST) == (185), DFB_STALE);
+static_assert((DFB_SHEET_PIST_SCALE_SLOW) == (186), DFB_STALE);
+static_assert((DFB_SHEET_PIST_RELOAD_BP) == (187), DFB_STALE);
+static_assert((DFB_SHEET_PIST_CARRY) == (188), DFB_STALE);
+static_assert((DFB_SHEET_PIST_POOL) == (189), DFB_STALE);
+static_assert((DFB_SHEET_PIST_POOL_REFILL_MS) == (190), DFB_STALE);
+static_assert((DFB_SHEET_PIST_FRAGMENTS) == (191), DFB_STALE);
+static_assert((DFB_SHEET_PIST_FRAGMENT_BP) == (192), DFB_STALE);
+static_assert((DFB_SHEET_PIST_FRAGMENT_TURN_CDEG) == (193), DFB_STALE);
 static_assert((DFB_UI_NONE) == (0u), DFB_STALE);
 static_assert((DFB_UI_TRAVEL_MAP) == (1u), DFB_STALE);
 static_assert((DFB_UI_INVENTORY) == (2u), DFB_STALE);

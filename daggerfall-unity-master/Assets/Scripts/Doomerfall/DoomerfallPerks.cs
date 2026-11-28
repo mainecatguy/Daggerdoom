@@ -51,6 +51,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             new Perk("Shotguns", 75, "Shotgun blasts knock enemies back and stagger them. The more pellets hit, the harder the shove, and big enemies move less. An enemy slammed into a wall takes up to 200 extra damage.", true),
             new Perk("Shotguns", 100, "Shotguns fire twice the pellets, and the knockback and wall slam are twice as strong (up to 400 damage).", true),
 
+            new Perk("Pistols", 25, "Pistols deal more damage the faster they fire: x2.5 for the fastest pistols, down to x1.5 for the slowest. Pistols reload 20% faster.", true),
+            new Perk("Pistols", 50, "Overkill: when a pistol shot kills, its leftover damage carries on through the body into the next enemy behind it. Every pistol shot, hit or miss, uses up a 100-damage bonus that is added to its damage if it hits; the bonus refills every half second. Pistols reload 40% faster.", true),
+            new Perk("Pistols", 75, "Deadeye: pistols deal more damage the slower they fire: x1.5 for the fastest pistols, up to x3 for the slowest, on top of the skill 25 bonus (but not the 100-damage bonus). Pistols reload 60% faster.", true),
+            new Perk("Pistols", 100, "Shrapnel: every pistol hit bursts into 3 fragments that fan out behind the enemy in a 30-degree V, each doing a third of the hit's damage, however far they fly. A fragment locks on to an enemy very close to its path.", true),
+
             new Perk("Automatics", 25, "Burst fire: the first 3 shots of a burst do 30% more damage. The bonus comes back 0.3 seconds after you stop firing.", true),
             new Perk("Automatics", 50, "Every second shot from an automatic weapon uses no ammo.", true),
             new Perk("Automatics", 75, "Each hit from an automatic weapon makes the enemy take 1% more damage from everything, up to 15%. It never wears off.", true),

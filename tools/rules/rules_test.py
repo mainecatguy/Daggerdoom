@@ -1,6 +1,7 @@
 """Doom's shared rules (mods/doomerfall/src/zscript/DoomerfallRules.zs) give the same numbers as the formulas they
 replaced: Daggerfall's perk rule files (DoomerfallAutomaticsRules.cs, DoomerfallExplosivesRules.cs,
-DoomerfallShotgunsRules.cs, DoomerfallEnergyRules.cs before 2026-11-27, ported below line for line), and the old Doom
+DoomerfallShotgunsRules.cs, DoomerfallEnergyRules.cs before 2026-11-27, and skillperks 05's DoomerfallPistolsRules.cs,
+ported below line for line), and the old Doom
 formulas in DoomerfallAttributes.zs, DoomerfallAgility.zs and DoomerfallJump.zs.
 
 usage: python quiet_run.py --timeout 120 -- python tools/rules/rules_test.py <uzdoom.exe> <work folder>
@@ -15,7 +16,7 @@ BAD = re.compile(r'Script error|zscript\S*, line \d+|\bFatal error|VM execution 
 
 
 def old_perks(skill):
-    """The four C# Fill(values, skill) methods, in DoomerfallRules.ERule order (the old sheet slots 155-180)."""
+    """The five C# Fill(values, skill) methods, in DoomerfallRules.ERule order (the old sheet slots 155-193)."""
     c = 0 if skill < 0 else 100 if skill > 100 else skill
     v = []
     # Automatics
@@ -33,6 +34,12 @@ def old_perks(skill):
     lv = c // 25
     v += [5000 * c // 100, 2000 if skill >= 25 else 0, 64 if skill >= 25 else 0, 1500 * (c // 25),
           [0, 5000, 10000, 12500, 15000][lv], [0, 0, 2000, 4000, 4000][lv], 4000 if lv == 4 else 0, 128 if lv == 4 else 0]
+    # Pistols
+    spray, deadeye, pool, shrapnel = skill >= 25, skill >= 75, skill >= 50, skill >= 100
+    steps = (1 if skill >= 75 else 0) + (1 if skill >= 50 else 0) + (1 if skill >= 25 else 0)
+    v += [25000 if spray else 0, 15000 if spray else 0, 15000 if deadeye else 0, 30000 if deadeye else 0,
+          3 if spray else 0, 8 if spray else 0, 2000 * steps, 1 if skill >= 50 else 0, 100 if pool else 0,
+          500 if pool else 0, 3 if shrapnel else 0, 3300 if shrapnel else 0, 250 if shrapnel else 0]
     return v
 
 
@@ -118,7 +125,7 @@ def main():
                 fail(f"luck {luck}: drop pattern differs")
         elif kind == "stat" and t[2:4] != ["-1", "0"]:
             fail(f"without a Daggerfall character Agility reads {t[2]} and HasCharacter {t[3]}")
-    want_counts = {"perk": 26 * 111, "get": 26, "attr": 102, "jump": 111, "fall": 401, "luck": 9, "stat": 1, "done": 1}
+    want_counts = {"perk": 39 * 111, "get": 39, "attr": 102, "jump": 111, "fall": 401, "luck": 9, "stat": 1, "done": 1}
     if counts != want_counts:
         fail(f"line counts {counts}, want {want_counts}")
     for b in bad[:20]:
