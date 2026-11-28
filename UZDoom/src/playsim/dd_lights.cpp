@@ -24,10 +24,17 @@
 
 int AttachLightDirect(AActor *self, int _lightid, int type, int color, int radius1, int radius2, int flags, double ofs_x, double ofs_y, double ofs_z, double param, double spoti, double spoto, double spotp, double intensity);
 int RemoveLight(AActor *self, int _lightid);
+int DDTreadmill_Place();	// dd_treadmill.cpp: 0 none, 1 exterior, 2 interior, 3 dungeon
 
 CVAR(Bool, dd_lights, true, CVAR_ARCHIVE)				// Daggerfall's lights in generated places.
 CVAR(Float, dd_light_range, 0.4f, CVAR_ARCHIVE)			// Doom light reach per Daggerfall Unity light range.
-CVAR(Int, dd_dungeon_light, 112, CVAR_ARCHIVE)			// Sector light in dungeons that have light records (was 176).
+// Sector light in dungeons that have light records (176 before lights, then 112 as dd_dungeon_light, which old
+// configs still hold and the dungeon script still reads). Daggerfall Unity's dungeon ambient is 0.12 of full, and the
+// DFMesh layer shows sector light / 176, so 0.12 would be 21; 32 fits Daggerfall Unity's camera best with the torch on
+// (tools/lightparity, work/notes/20261128-021156.md).
+CVAR(Int, dd_dungeon_ambient, 32, CVAR_ARCHIVE)
+CVAR(Bool, dd_torch, true, CVAR_ARCHIVE)				// Daggerfall Unity's player torch in dungeons.
+CVAR(Float, dd_torch_range, 1.f, CVAR_ARCHIVE)			// Torch reach per Daggerfall Unity's (scaled like dd_light_range).
 CVAR(Int, dd_interior_light, 48, CVAR_ARCHIVE)			// Sector light in building interiors (was 176).
 CVAR(Int, dd_citylights, -1, CVAR_NOSAVE)				// -1 follows Daggerfall's clock, 0 forces town lamps off, 1 on.
 
@@ -159,9 +166,57 @@ void DD_LightsSetCity(bool on)
 }
 
 // A save was loaded: its lamps are in whatever state they were saved in.
+namespace
+{
+int appliedDungeon = -1;	// the dungeon ambient and torch state last applied, or -1 after a new map or a load
+}
+
 void DD_LightsReset()
 {
 	appliedCity = -1;
+	appliedDungeon = -1;	// sectors and the torch come back as saved; TickDungeon applies the current settings again
+}
+
+namespace
+{
+
+// Daggerfall Unity lights its dungeons with a dark ambient (PlayerAmbientLight.DungeonAmbientLight, 0.12) and the
+// player's torch (EnablePlayerTorch: on in every dungeon unless the torch comes from items, which is off by default;
+// PlayerAdvanced prefab: white point light, intensity 1, range 6 m, 0.6 m above the body's center). The dungeon script
+// set its own sector light when it spawned the lights (action_objects.zs SpawnLights); this replaces it.
+void TickDungeon(FLevelLocals *Level, int place)
+{
+	AActor *pmo = Level->Players[consoleplayer]->mo;
+	if (!pmo) return;
+	static bool lit;
+	if (appliedDungeon == -1)	// once per map or load (and each tic of a dungeon's first second while it has no lights yet)
+	{
+		lit = false;
+		static PClass *lightClass = PClass::FindClass("DFDungeonLight");
+		if (place == 3 && *dd_lights && lightClass)
+		{
+			auto it = Level->GetThinkerIterator<AActor>();
+			while (AActor *mo = it.Next()) if (mo->IsKindOf(lightClass)) { lit = true; break; }
+		}
+		if (!lit && place == 3 && Level->maptime < TICRATE) return;	// the dungeon script may not have spawned them yet
+	}
+	const int want = lit && *dd_lights ? 1 + (*dd_torch ? 1 : 0) : 0;
+	if (want == appliedDungeon) return;
+	appliedDungeon = want;
+	if (lit)
+	{
+		const int ambient = clamp(*dd_dungeon_ambient, 0, 255);
+		for (auto &sec : Level->sectors) sec.SetLightLevel(ambient);
+	}
+	if (want == 2)
+	{
+		const double meter = DOOM_PER_METER * dd_light_range;	// Doom units per Daggerfall Unity meter (30 by default)
+		AttachLightDirect(pmo, FName("ddtorch").GetIndex(), 0, Color(1, 1, 1), int(6 * meter * dd_torch_range / 2 + 0.5), 0,
+			LF_ATTENUATE, 0, 0, (0.9 + 0.6) * 30, 0, 10, 25, 1000, 1.0);
+	}
+	else RemoveLight(pmo, FName("ddtorch").GetIndex());
+	if (lit) DD_DebugPrintf("DDLIGHTS dungeon ambient %d, torch %s\n", clamp(*dd_dungeon_ambient, 0, 255), want == 2 ? "on" : "off");
+}
 }
 
 // Switches town lamps when Daggerfall's clock or dd_citylights changes, or after a load.
@@ -169,7 +224,10 @@ void DD_LightsTick(FLevelLocals *Level)
 {
 	static int lastTime = 0;
 	if (Level->maptime < lastTime || Level->maptime <= 1) appliedCity = -1;	// a new map or a load: lamps may be in any state
+	// A new map or a load (also DD_LightsReset). Not every tic while the arrival freeze holds the map at maptime 1.
+	if (Level->maptime < lastTime || (Level->maptime <= 1 && lastTime > 1)) appliedDungeon = -1;
 	lastTime = Level->maptime;
+	TickDungeon(Level, DDTreadmill_Place());
 	const int want = *dd_lights && CityLightsOn() ? 1 : 0;
 	if (want == appliedCity) return;
 	appliedCity = want;
