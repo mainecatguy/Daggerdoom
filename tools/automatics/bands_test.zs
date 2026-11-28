@@ -35,16 +35,17 @@ class BandTest : EventHandler
 {
 	Array<String> cfgs, guns;
 	Array<int> lengths;
-	Array<double> pitches;
+	Array<double> pitches, sides;
+	Array<Actor> hitBy; // the distinct things (bullet puffs, projectiles) that damaged A this case
 	bool reported;
 	int c, phase, wait, t, shots, ammoStart, prevAmmo, hitsA, lostA, hitsB, lostB, endTic, hitTics, lastHitTic;
 	Actor a, b;
 
-	void Add(String cfg, String gun, int len, double pitch = 0)
+	void Add(String cfg, String gun, int len, double pitch = 0, double side = 0)
 	{
 		class<Actor> k = gun;
 		if (!k) { Console.Printf("BANDTEST absent %s", gun); return; }
-		cfgs.Push(cfg); guns.Push(gun); lengths.Push(len); pitches.Push(pitch);
+		cfgs.Push(cfg); guns.Push(gun); lengths.Push(len); pitches.Push(pitch); sides.Push(side);
 	}
 
 	// Every bullet a player fires, as the gun made it (to compare an extra bullet with the shot's own).
@@ -87,6 +88,10 @@ class BandTest : EventHandler
 		Add("bands", "RLMinigun", 300);
 		Add("extra100", "RLThompson", 80);
 		Add("extra100", "RLThompson", 80, -5); // looking 5 degrees up: autoaim lowers the shot onto A
+		// A fast-band projectile gun (bands_test.dec) with A off to the left (9 degrees, 300 away): only autoaim's +5.625 probe finds it.
+		Add("extra100", "BandTestProjectileUzi", 60, 0, 9);
+		Add("extra100", "BandTestProjectileUzi", 60, -5, 9);
+		Add("extra100", "BandTestNoAimUzi", 60, -5, 9); // no autoaim: shots fly along the view, up and to the right of A
 		Add("free3", "Chaingun", 90);
 		Add("free3", "RLBattleRifle", 90);
 		Add("big", "Chaingun", 90);
@@ -130,6 +135,7 @@ class BandTest : EventHandler
 	override void WorldThingDamaged(WorldEvent e)
 	{
 		if (!e.DamageSource || !e.DamageSource.player) return;
+		if (a && e.Thing == a && e.Inflictor && hitBy.Find(e.Inflictor) == hitBy.Size()) hitBy.Push(e.Inflictor);
 		if (a && e.Thing == a) { hitsA++; lostA += e.Damage; if (lastHitTic != level.maptime) { hitTics++; lastHitTic = level.maptime; } }
 		if (b && e.Thing == b) { hitsB++; lostB += e.Damage; }
 	}
@@ -181,8 +187,9 @@ class BandTest : EventHandler
 				mo.angle = 0; mo.pitch = pitches[c];
 				mo.vel = (0, 0, 0);
 				class<Actor> tk = cfg == "suppress" ? "BandTestMonster" : "BandTestTarget";
-				a = Actor.Spawn(tk, mo.Vec3Angle(120, 0));
-				b = cfg == "suppress" ? null : Actor.Spawn("BandTestTarget", mo.Vec3Angle(260, 0));
+				hitBy.Clear();
+				a = Actor.Spawn(tk, sides[c] ? mo.Vec3Angle(300, sides[c]) : mo.Vec3Angle(120, 0));
+				b = cfg == "suppress" || sides[c] ? null : Actor.Spawn("BandTestTarget", mo.Vec3Angle(260, 0));
 				hitsA = lostA = hitsB = lostB = hitTics = 0; lastHitTic = -1;
 				t = 0; shots = 0; ammoStart = AmmoNow(p); prevAmmo = ammoStart; endTic = -1;
 				Console.Printf("BANDTEST case %s %s band=%d tics=%d slot=%d pitch=%.1f", cfg, gun, DoomerfallAutomaticBands.BandOf(w),
@@ -212,13 +219,13 @@ class BandTest : EventHandler
 			if (refill) Fill(p, true);
 			prevAmmo = AmmoNow(p);
 			if (cfg == "suppress" && a) Console.Printf("BANDTEST speed tic %d %.4f", level.maptime, a.Speed);
-			int tail = cfg == "suppress" ? 200 : 20;
+			int tail = cfg == "suppress" ? 200 : sides[c] ? 40 : 20; // projectiles fly 300 units to A
 			if (++t >= lengths[c] + tail) phase = 5;
 			break;
 		}
 		case 5:
 		{
-			Console.Printf("BANDTEST end %s %s shots=%d hittics=%d ammo=%d->%d hitsA=%d lostA=%d hitsB=%d lostB=%d", cfg, gun, shots, hitTics, ammoStart, AmmoNow(p), hitsA, lostA, hitsB, lostB);
+			Console.Printf("BANDTEST end %s %s shots=%d hittics=%d ammo=%d->%d hitsA=%d lostA=%d hitsB=%d lostB=%d hitby=%d", cfg, gun, shots, hitTics, ammoStart, AmmoNow(p), hitsA, lostA, hitsB, lostB, hitBy.Size());
 			if (cfg == "big")
 			{
 				int hp = a.health;

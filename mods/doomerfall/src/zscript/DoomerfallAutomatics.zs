@@ -143,7 +143,6 @@ class DoomerfallAutomatics : StaticEventHandler
 			{
 				perks.shotMissile = m;
 				perks.shotMissileTic = level.maptime;
-				perks.shotCenter = (m.target.angle, m.target.BulletSlope()); // the aim the gun fired along
 			}
 		}
 	}
@@ -346,7 +345,6 @@ class DoomerfallAutomaticsPerks : Inventory
 	Vector2 bulletCenter;       // the gun's aim then: angle, autoaimed pitch
 	Actor shotMissile;
 	int shotMissileTic;
-	Vector2 shotCenter;         // the aim when that projectile was fired
 	bool extra;                 // while firing an extra bullet
 
 	// The last hit's damage after this gun's bonuses, before the enemy's own modifiers (penetration carries it on).
@@ -511,6 +509,71 @@ class DoomerfallAutomaticsPerks : Inventory
 		hitTic = level.maptime;
 	}
 
+	// The aim the engine gives a player's missile fired from this input angle (P_SpawnPlayerMissile, p_mobj.cpp): autoaim
+	// tries the angle, then 5.625 degrees right and left, and takes the first that finds a target, with the pitch to it;
+	// with free aim (autoaim 0.5 or less and freelook) only the angle itself. Returns whether it found a target; if not,
+	// the input angle and the view pitch (0 without freelook).
+	bool MissileAim(class<Actor> type, double input, out double an, out double pt)
+	{
+		static const double diffs[] = { 0, 5.625, -5.625 };
+		let d = GetDefaultByType(type);
+		double range = d && d.MaxTargetRange > 0 ? d.MaxTargetRange * 64 : 1024;
+		bool freeaim = level.IsFreelookAllowed() && owner.player.GetAutoaim() <= 0.5;
+		FTranslatedLineTarget t;
+		for (int i = 0; i < 3; i++)
+		{
+			an = input + diffs[i];
+			pt = owner.AimLineAttack(an, range, t, 0);
+			if (t.linetarget) return true;
+			if (freeaim) break;
+		}
+		an = input;
+		if (!level.IsFreelookAllowed()) pt = 0;
+		return false;
+	}
+
+	// The direction of a projectile shot's extra copy: the shot's own direction (yaw, pitch) mirrored about the aim the
+	// engine fired it along, so its spread is the gun's own. That aim depends on how the gun fired (A_FireProjectile):
+	//   no autoaim     (the weapon's NOAUTOAIM, a no-autoaim call, or autoaim found nothing): the player's angle and view
+	//                  pitch; the call's angle and pitch spread are around them.
+	//   autoaim        the engine's aim from the player's angle; the angle spread is added after it, the pitch is the
+	//                  target's.
+	//   aim at angle   (FPF_AIMATANGLE) autoaim from the player's angle plus the spread: the extra is aimed by the
+	//                  engine from the player's angle minus that spread.
+	// A no-autoaim call is told apart from autoaim by the pitch: autoaim's is exactly the pitch to its target.
+	String MirrorMissile(class<Actor> type, double yaw, double pitch, out double na, out double np, out Vector2 aim)
+	{
+		static const double diffs[] = { 0, 5.625, -5.625 };
+		let w = owner.player.ReadyWeapon;
+		double an0, p0;
+		aim = (owner.angle, owner.pitch);
+		String how = "no autoaim";
+		if (!(w && w.bNoAutoaim))
+		{
+			if (!MissileAim(type, owner.angle, an0, p0)) how = "no target";
+			else if (abs(Actor.DeltaAngle(p0, pitch)) < 0.01)
+			{
+				aim = (an0, p0);
+				how = "autoaim";
+			}
+			else
+			{
+				for (int i = 0; i < 3; i++)
+				{
+					double th = yaw - diffs[i], a2, p2;
+					if (!MissileAim(type, th, a2, p2) || abs(Actor.DeltaAngle(a2, yaw)) > 0.01 || abs(Actor.DeltaAngle(p2, pitch)) > 0.01) continue;
+					double th2 = owner.angle - Actor.DeltaAngle(owner.angle, th);
+					if (!MissileAim(type, th2, na, np)) { na = th2; np = owner.pitch; }
+					aim = (owner.angle, p0);
+					return "aim at angle";
+				}
+			}
+		}
+		na = aim.X - Actor.DeltaAngle(aim.X, yaw);
+		np = 2 * aim.Y - pitch;
+		return how;
+	}
+
 	// The fast band: once per shot, a chance of one more bullet, free. Runs in the player's DoEffect, after the players
 	// acted (P_PlayerThink) and WorldTick, so this tic's shot, its first bullet and its projectiles are all known; the
 	// player's own thinker runs before projectiles spawned this tic move.
@@ -532,7 +595,9 @@ class DoomerfallAutomaticsPerks : Inventory
 			double speed = m.Vel.Length();
 			double ma = speed > 0 ? atan2(m.Vel.Y, m.Vel.X) : m.angle;
 			double mp = speed > 0 ? -atan2(m.Vel.Z, m.Vel.XY.Length()) : m.pitch;
-			double na = shotCenter.X - Actor.DeltaAngle(shotCenter.X, ma), np = 2 * shotCenter.Y - mp;
+			double na, np;
+			Vector2 aim;
+			String how = MirrorMissile(m.GetClass(), ma, mp, na, np, aim);
 			let c = Actor.Spawn(m.GetClass(), m.pos, NO_REPLACE);
 			if (c)
 			{
@@ -543,7 +608,8 @@ class DoomerfallAutomaticsPerks : Inventory
 				c.Vel = (cos(na) * cos(np), sin(na) * cos(np), -sin(np)) * speed;
 				let mt = DoomerfallShotTag.Of(m), ct = DoomerfallShots.Tag(c);
 				if (ct && mt) { ct.burstSet = true; ct.autoBurst = mt.autoBurst; ct.autoBand = mt.autoBand; }
-				DoomerfallAutomatics.Log(String.Format("extra projectile %s from %s tic %d", c.GetClassName(), w.GetClassName(), now));
+				DoomerfallAutomatics.Log(String.Format("extra projectile %s from %s angle %.3f pitch %.3f (first %.3f %.3f, aim %.3f %.3f, %s) tic %d",
+					c.GetClassName(), w.GetClassName(), na, np, ma, mp, aim.X, aim.Y, how, now));
 				if (c.bMissile) c.CheckMissileSpawn(owner.radius);
 			}
 		}

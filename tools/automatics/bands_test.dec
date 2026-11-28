@@ -1,0 +1,44 @@
+// Test-only guns for tools/automatics/bands_test.py (not part of the game). No DRLA fast-band projectile gun is an
+// Automatic (the Hurricane Cannon and Flamethrower are Explosives, the plasma guns Energy), so these give the extra
+// projectile path a gun to run on: subclasses of the Burst Cannon Uzi (an owner-listed Automatic, 1 tic, fast band)
+// that fire a plain test ball every tic (DRLA replaces PlasmaBall) with +-2 degrees of angle spread instead of bullets. One trigger pull fires 30 shots
+// from the gun's own states (so they are fired while the player acts, as in play, not from the harness's call).
+actor BandTestProjectileUzi : RLBurstCannonUzi
+{
+	States
+	{
+	Fire:
+		TNT1 AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 1 A_FireCustomMissile("BandTestBall", frandom(-2, 2), 1)
+		Goto Ready
+	}
+}
+
+// The same with FPF_NOAUTOAIM (4): the shot flies along the view, not autoaim.
+actor BandTestNoAimUzi : RLBurstCannonUzi
+{
+	States
+	{
+	Fire:
+		TNT1 AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA 1 A_FireCustomMissile("BandTestBall", frandom(-2, 2), 1, 0, 0, 4)
+		Goto Ready
+	}
+}
+
+// A plain projectile (DRLA replaces the stock PlasmaBall with its own).
+actor BandTestBall
+{
+	Radius 6
+	Height 8
+	Speed 25
+	Damage 5
+	Projectile
+	States
+	{
+	Spawn:
+		BAL1 A -1
+		Stop
+	Death:
+		BAL1 C 4
+		Stop
+	}
+}

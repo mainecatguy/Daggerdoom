@@ -36,6 +36,8 @@ PEN = re.compile(r"automatics: penetrate (\S+) -> (\S+) damage (\d+)")
 EXTRA = re.compile(r"automatics: extra (bullet|projectile)")
 XB = re.compile(r"automatics: extra bullet from \S+ damage (\d+) type (\S+) puff (\S+) flags (\d+) angle (-?[\d.]+) pitch (-?[\d.]+) "
                 r"\(first (-?[\d.]+) (-?[\d.]+), aim (-?[\d.]+) (-?[\d.]+)\) tic (\d+)")
+XP = re.compile(r"automatics: extra projectile (\S+) from \S+ angle (-?[\d.]+) pitch (-?[\d.]+) \(first (-?[\d.]+) (-?[\d.]+), "
+                r"aim (-?[\d.]+) (-?[\d.]+), ([\w ]+)\) tic (\d+)")
 BUL = re.compile(r"BANDTEST bullet tic (\d+) damage (\d+) type (\S+) puff (\S+) flags (\d+) angle (-?[\d.]+) pitch (-?[\d.]+)")
 REPORT = re.compile(r"BANDTEST report (\w+) (\d) (\d) band=(\d) tics=(\d+)")
 # Bands as the gun fires now (DECORATE, derive_bands.py): the Grammaton Beretta semi 18 slow, burst 2 fast, full auto
@@ -84,11 +86,12 @@ def cases_of(lines):
         if m := re.search(r"BANDTEST case (\w+) (\w+) band=(\d) tics=(\d+) slot=(-?\d+)", l):
             cur = {"cfg": m.group(1), "gun": m.group(2), "band": int(m.group(3)), "tics": int(m.group(4)), "slot": int(m.group(5)),
                    "hits": [], "pens": [], "extras": 0, "sup": [], "speed": [], "shots": 0, "bullets": {}, "xb": [], "shot_tics": [],
-                   "pitch": float(m2.group(1)) if (m2 := re.search(r"pitch=(-?[\d.]+)", l)) else 0.0}
+                   "xp": [], "pitch": float(m2.group(1)) if (m2 := re.search(r"pitch=(-?[\d.]+)", l)) else 0.0}
             cases.append(cur)
         elif not cur:
             continue
-        elif m := re.search(r"BANDTEST end \w+ \w+ shots=(\d+) hittics=(\d+) ammo=(-?\d+)->(-?\d+) hitsA=(\d+) lostA=(\d+) hitsB=(\d+) lostB=(\d+)", l):
+        elif m := re.search(r"BANDTEST end \w+ \w+ shots=(\d+) hittics=(\d+) ammo=(-?\d+)->(-?\d+) hitsA=(\d+) lostA=(\d+) hitsB=(\d+) lostB=(\d+) hitby=(\d+)", l):
+            cur["hitby"] = int(m.group(9))
             cur.update(shots=int(m.group(1)), hittics=int(m.group(2)), used=int(m.group(3)) - int(m.group(4)), hitsA=int(m.group(5)),
                        lostA=int(m.group(6)), hitsB=int(m.group(7)), lostB=int(m.group(8)))
         elif b := BUL.search(l):
@@ -107,6 +110,8 @@ def cases_of(lines):
             cur["extras"] += 1
             if x := XB.search(l):
                 cur["xb"].append(x.groups())
+            if x := XP.search(l):
+                cur["xp"].append(x.groups())
         elif s := SUP.search(l):
             cur["sup"].append((float(s.group(1)), float(s.group(2))))
     return cases
@@ -126,7 +131,7 @@ def analyse(lines):
     got = {(m.group(1), int(m.group(2)), int(m.group(3))): (int(m.group(4)), int(m.group(5))) for l in lines if (m := REPORT.search(l))}
     for k, want in WANT_REPORT.items():
         check(f"band of {k[0]} mode {k[1]}{' alt fire' if k[2] else ''} is {want} (band, tics)", got.get(k) == want, got.get(k))
-    want_band = {"Chaingun": (1, 4), "RLBattleRifle": (1, 4), "RLUzi": (2, 3), "RLThompson": (3, 2), "RLMinigun": (3, 1)}
+    want_band = {"BandTestProjectileUzi": (3, 1), "BandTestNoAimUzi": (3, 1), "Chaingun": (1, 4), "RLBattleRifle": (1, 4), "RLUzi": (2, 3), "RLThompson": (3, 2), "RLMinigun": (3, 1)}
     for c in cases_of(lines):
         tag = f"{c['cfg']} {c['gun']}"
         auto = c["slot"] == 5
@@ -158,7 +163,23 @@ def analyse(lines):
             check(f"{tag}: extra bullet on about 10% of shots ({c['extras']} of {c['shots']} = {rate:.3f})", lo <= rate <= hi)
         if c["cfg"] == "bands" and c["band"] in (1, 2):
             check(f"{tag}: no extra bullets outside the fast band", c["extras"] == 0)
-        if c["cfg"] == "extra100":
+        if c["cfg"] == "extra100" and c["gun"].startswith("BandTest"):
+            # A projectile gun: A is 9 degrees left and 300 away (40 radius: 1.4 to 16.6 degrees), so the engine's autoaim turns each shot by 5.625 degrees.
+            # The extra flies along the shot's own direction mirrored about that turned aim (same spread), and hits A.
+            # Without autoaim the aim is the view (angle 0, pitch -5) and nothing is turned.
+            noaim = c["gun"] == "BandTestNoAimUzi"
+            want = ("no autoaim", 0.0, c["pitch"]) if noaim else ("autoaim", 5.625, None)
+            bad = [] if c["xp"] else ["no extra projectiles"]
+            bad += [x for x in c["xp"] if x[7] != want[0] or abs(float(x[5]) - want[1]) > 0.05 or (noaim and abs(float(x[6]) - want[2]) > 0.05)
+                   or abs(float(x[1]) + float(x[3]) - 2 * float(x[5])) > 2e-3 or abs(float(x[2]) + float(x[4]) - 2 * float(x[6])) > 2e-3]
+            check(f"{tag}: an extra projectile on every shot ({c['extras']} for {c['shots']} shots)",
+                  len(c["xp"]) == c["extras"] and c["extras"] >= 0.9 * c["shots"] and c["shots"] >= 3, (c["extras"], c["shots"]))
+            check(f"{tag}: view pitch {c['pitch']}, every extra projectile mirrors the shot about the engine's autoaim "
+                  f"({want[0]}, aims {sorted({x[5] + ' ' + x[6] for x in c['xp']})[:3]})", not bad, bad[:2])
+            if not noaim:
+                check(f"{tag}: the extra projectiles hit A too ({c.get('hitby')} projectiles hit A of {c['shots'] + c['extras']} fired)",
+                      c.get("hitby", 0) >= 0.9 * (c["shots"] + c["extras"]), c.get("hitby"))
+        elif c["cfg"] == "extra100":
             check(f"{tag}: an extra bullet on every shot ({c['extras']} for {c['shots']} shots), and they hit (A hit {c['hitsA']} times)",
                   c["extras"] >= 0.9 * c["shots"] and c["extras"] <= c["shots"] + 1 and c["hitsA"] >= 1.5 * c["shots"], (c["extras"], c["shots"]))
             check(f"{tag}: extra bullets spend no ammo (used {c['used']} for {c['shots']} shots)", c["used"] <= c["shots"] + 2 or c["used"] < 0)
@@ -221,6 +242,7 @@ def main():
     harness = work / "bandtest.pk3"
     with zipfile.ZipFile(harness, "w") as z:
         z.write(HERE / "bands_test.zs", "zscript.txt")
+        z.write(HERE / "bands_test.dec", "decorate.txt")
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "BandTest" }\n')
     peer = at.Peer(dll)
     try:
