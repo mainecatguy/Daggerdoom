@@ -49,8 +49,7 @@ QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 IWAD = r"D:\dev\DoomDaggerfall\GameResources\wads\DOOM2.WAD"
 DAGGER = r"D:\dev\DoomDaggerfall\GameResources\DAGGER"
 FATAL = ("Fatal", "FATAL", "VM execution aborted", "Script error")
-TIMEOUT = 90  # Boot, about twenty wizard screens, and the trip into the dungeon: ~40 s alone, over 50 s while other lanes run.
-BOX_TRIES = 10  # Y and Enter this many times (~5 s) without the box closing: stop and say so, rather than time out.
+TIMEOUT = 50  # Boot, about twenty wizard screens, and the trip into the dungeon.
 TEST_MARK = 0x8000
 SURFACE = [1280, 800]
 OK = (282, 183)
@@ -111,11 +110,7 @@ def click(hwnd, x, y, times=1):
 
 def top_window(df_log):
     found = re.findall(r"ui: top window is (\w+)", read(df_log))
-    top_window.changes = len(found)  # A second box right after the first has the same name but is a new window.
     return found[-1] if found else ""
-
-
-top_window.changes = 0
 
 
 def act(hwnd, top, tries):
@@ -157,7 +152,6 @@ def act(hwnd, top, tries):
 
 
 act.watched = False
-plain_act = act  # Callers may replace act (e.g. clicking through boxes); the stuck-box check is only for this one.
 
 
 def main():
@@ -205,7 +199,7 @@ def main():
     proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     confirmed = False
     deadline = time.time() + limit
-    result, hwnd, tries, box_tries, last = "timeout", None, 0, 0, ""
+    result, hwnd, tries, last = "timeout", None, 0, ""
     goal = "backed out" if mode == "back" else "both games running"
     try:
         while time.time() < deadline and proc.poll() is None:
@@ -239,9 +233,7 @@ def main():
             hwnd = hwnd or doom_window(launcher)
             if not hwnd:
                 continue
-            seen = top_window.changes
             top = top_window(df_log)
-            box_tries = box_tries + 1 if top == last and top_window.changes == seen else 0
             tries = tries + 1 if top == last else 0
             last = top
             if mode == "back":
@@ -249,9 +241,6 @@ def main():
                 key(hwnd, 0x1B)
                 time.sleep(0.4)
             else:
-                if act is plain_act and "MessageBox" in top and box_tries >= BOX_TRIES:
-                    result = f"stuck: Daggerfall's {top} ignored Y and Enter {box_tries} times (see work/notes/20261127-183307.md)"
-                    break
                 act(hwnd, top, tries)
                 time.sleep(0.15)
     finally:
