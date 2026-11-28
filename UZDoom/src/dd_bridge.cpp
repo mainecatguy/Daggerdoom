@@ -85,6 +85,7 @@ void DD_TownsfolkDied(dfb_session *session, AActor *mo);
 void DD_ClimbFrame(dfb_session *session);
 void DD_FacesFrame(dfb_session *session);
 bool DD_ClimbNetEvent(dfb_session *session, const char *name);
+bool DD_SkillXpNetEvent(dfb_session *session, const char *name); // dd_skillxp.cpp
 bool DD_GuardsEvent(const dfb_event &e);
 bool DD_DoorsEvent(const dfb_event &e);
 bool DD_DoorsNetEvent(dfb_session *session, const char *name);
@@ -656,6 +657,7 @@ const char *UiCommandName(uint32_t id)
 	if (id == DFB_UI_SPELLBOOK) return "netevent df_spellbook";
 	if (id == DFB_UI_STATUS) return "netevent df_status";
 	if (id == DFB_UI_TRANSPORT) return "netevent df_transport";
+	if (id == DFB_UI_SKILLS) return "netevent df_skills";
 	return id == DFB_UI_INVENTORY || id == DFB_UI_LOOT ? "netevent df_inventory" : id == DFB_UI_MAP ? "netevent df_map" : "netevent df_fast_travel";
 }
 
@@ -953,7 +955,7 @@ void DD_BridgeMonsterDied(AActor *mo)
 // A ZScript pickup request, seen as its network event runs. False for every other event and outside a session.
 bool DD_BridgeItemNetEvent(const char *name)
 {
-	return session && (DD_ItemsNetEvent(session, name) || DD_InfoNetEvent(session, name) || DD_ClimbNetEvent(session, name) || DD_DoorsNetEvent(session, name) || DD_SetupNetEvent(name));
+	return session && (DD_ItemsNetEvent(session, name) || DD_InfoNetEvent(session, name) || DD_ClimbNetEvent(session, name) || DD_SkillXpNetEvent(session, name) || DD_DoorsNetEvent(session, name) || DD_SetupNetEvent(name));
 }
 
 bool DD_IsDrlaSpawner(AActor *mo);
@@ -1003,7 +1005,7 @@ bool DD_BridgeNetEvent(const char *name)
 	if (!session) return false;
 	const bool inventory = !strcmp(name, "df_inventory"), journal = !strcmp(name, "df_journal"), rest = !strcmp(name, "df_rest");
 	const uint32_t window = !strcmp(name, "df_character") ? DFB_UI_CHARACTER : !strcmp(name, "df_spellbook") ? DFB_UI_SPELLBOOK
-		: !strcmp(name, "df_status") ? DFB_UI_STATUS : DFB_UI_NONE;
+		: !strcmp(name, "df_status") ? DFB_UI_STATUS : !strcmp(name, "df_skills") ? DFB_UI_SKILLS : DFB_UI_NONE;
 	const bool transport = !strcmp(name, "df_transport"), map = !strcmp(name, "df_map");
 	if (!inventory && !journal && !rest && !window && !transport && !map && strcmp(name, "df_fast_travel")) return false;
 	if (uiState != UiClosed)
@@ -1017,7 +1019,7 @@ bool DD_BridgeNetEvent(const char *name)
 		OpenMap();
 		return true;
 	}
-	if (inventory || window) // Character sheet, spellbook and status: Daggerfall's own windows, with its own refusals.
+	if (inventory || window) // Character sheet, spellbook, status and skills: Daggerfall's own windows, with its own refusals.
 	{
 		OpenUi(inventory ? DFB_UI_INVENTORY : window, inventory ? 0 : ownState.world_context); // The sheet's journal travels only from outdoors.
 		return true;

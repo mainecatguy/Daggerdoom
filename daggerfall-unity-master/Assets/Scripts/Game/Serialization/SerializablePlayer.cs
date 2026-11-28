@@ -125,6 +125,7 @@ namespace DaggerfallWorkshop.Game.Serialization
             data.playerEntity.timeOfLastSkillIncreaseCheck = entity.TimeOfLastSkillIncreaseCheck;
             data.playerEntity.skillsRecentlyRaised = entity.SkillsRecentlyRaised;
             data.playerEntity.timeOfLastSkillTraining = entity.TimeOfLastSkillTraining;
+            data.playerEntity.skillXp = entity.SkillXp; // Doomerfall
             data.playerEntity.startingLevelUpSkillSum = entity.StartingLevelUpSkillSum;
             data.playerEntity.currentLevelUpSkillSum = entity.CurrentLevelUpSkillSum;
             data.playerEntity.equipTable = entity.ItemEquipTable.SerializeEquipTable();
@@ -297,6 +298,7 @@ namespace DaggerfallWorkshop.Game.Serialization
                 entity.ClearLegacyLanguageProgress(); // Doomerfall: a pre-gun-skills save
             entity.TimeOfLastSkillIncreaseCheck = data.playerEntity.timeOfLastSkillIncreaseCheck;
             entity.TimeOfLastSkillTraining = data.playerEntity.timeOfLastSkillTraining;
+            entity.SkillXp = data.playerEntity.skillXp; // Doomerfall
             entity.StartingLevelUpSkillSum = data.playerEntity.startingLevelUpSkillSum;
             if ((entity.CurrentLevelUpSkillSum = data.playerEntity.currentLevelUpSkillSum) == 0)
                 entity.SetCurrentLevelUpSkillSum();

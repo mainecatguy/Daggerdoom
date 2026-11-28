@@ -171,6 +171,11 @@ extern "C" {
 #define DFB_KIND_AMMO_UNLOAD   178  /* DF to UZ; request is a number; status 1 is automatic (refused while the magazine holds rounds); cls is the reserve class */
 #define DFB_KIND_AMMO_UNLOADED 179  /* UZ to DF; request echoes AMMO_UNLOAD; status is the rounds taken out of the magazine, or 0xFFFFFFFF refused */
 #define DFB_KIND_AMMO_LOADED   180  /* DF to UZ; request is the loaded tier (0xFFFFFFFF none), status the ammo type (0 Clip to 3 Cell); cls is the ammo's tags, comma separated */
+/* Skill XP (owner, 2026-11-26). Doom tallies the damage the player deals to monsters, townspeople and guards (each
+   hit counting at most the health it took) and reports whole amounts about once a second: 1 Skill XP per 100 HP in
+   all, and 1 use of the gun's skill per 250 HP dealt with that skill's guns. Doom keeps the remainders. Daggerfall
+   adds the XP to its pool and tallies the uses with its own skill advancement. */
+#define DFB_KIND_SKILL_XP      181  /* UZ to DF; payload: dfb_skill_xp */
 
 /* Locked doors. Doom owns each live lock on the current map (its door's lock value: the converted map's starting lock,
    then action records and picks) and runs Daggerfall's door order itself. Daggerfall owns the rules and the player: it is
@@ -417,6 +422,7 @@ typedef struct dfb_face
 /* Daggerfall's transport menu (foot, horse, cart, ship). Context is Doom's DFB_WORLD_* plus DFB_TRANSPORT_AIRBORNE,
    for Daggerfall's indoor and on-the-ground checks. */
 #define DFB_UI_TRANSPORT  14u
+#define DFB_UI_SKILLS     15u  /* Doomerfall's skill purchase menu (Skill XP) */
 #define DFB_TRANSPORT_AIRBORNE 0x100u /* Doom's player is in the air or swimming */
 
 #define DFB_REST_MONSTERS_NEAR 1u /* a hostile Doom monster sees the player or is within Daggerfall's resting distance */
@@ -703,6 +709,14 @@ typedef struct dfb_climb_uses
 	uint32_t uses;        /* skill rolls since the last event, pass or fail */
 	uint32_t pad;
 } dfb_climb_uses;
+
+typedef struct dfb_skill_xp
+{
+	uint32_t xp;          /* Skill XP earned since the last event */
+	int32_t skill;        /* DFCareer.Skills slot that earned uses, or -1 */
+	uint32_t uses;        /* uses of that skill since the last event */
+	uint32_t pad;
+} dfb_skill_xp;
 
 typedef struct dfb_npc_use
 {

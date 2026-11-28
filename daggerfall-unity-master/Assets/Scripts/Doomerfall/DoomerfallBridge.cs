@@ -162,6 +162,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DoomerfallAgilityTest.Attach(this, sync); // test only: -dfagilitytest
             DoomerfallWillpowerTest.Attach(this, sync); // test only: -dfwillpowertest
             DoomerfallLuckTest.Attach(this, sync); // test only: -dflucktest
+            DoomerfallSkillXpTest.Attach(gameObject, sync, Environment.GetCommandLineArgs()); // test only: -dfskillxptest
             faces = new DoomerfallFaces(this);
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dffacetest") >= 0)
                 gameObject.AddComponent<DoomerfallFaceTest>().Init(this, sync); // Test only
@@ -185,6 +186,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             ui =gameObject.AddComponent<DoomerfallUi>();
             ui.Init(this);
             DoomerfallRest.Begin(this);
+            DoomerfallSkillXp.Begin(this);
             save = gameObject.AddComponent<DoomerfallSave>();
             save.Init(this, sync, hp, Environment.GetCommandLineArgs());
             items = gameObject.AddComponent<DoomerfallItems>();
@@ -534,6 +536,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     case Dfb.KIND_CLIMB_USES:
                         DoomerfallClimb.OnUses(this, ev.climbUses.uses);
                         break;
+                    case Dfb.KIND_SKILL_XP:
+                        DoomerfallSkillXp.OnEvent(this, ev.skillXp.xp, ev.skillXp.skill, ev.skillXp.uses);
+                        break;
                     case Dfb.KIND_NPC_USE:
                         ui.Talk.OnUse(ev.npcUse.request, ev.npcUse.id, ev.npcUse.mode, ev.npcUse.distance);
                         break;
@@ -627,6 +632,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             WorldLevel.DungeonProvider = null;
             FormulaHelper.DoomerfallMaterialRoll = null;
             DoomerfallRest.End();
+            DoomerfallSkillXp.End();
             WorldLevel.ShopProvider = null;
             if (sheet != null) sheet.Dispose();
             if (session != IntPtr.Zero) DfbNative.dfb_close(session);

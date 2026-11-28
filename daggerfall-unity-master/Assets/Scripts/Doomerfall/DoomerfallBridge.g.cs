@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x17f0520c4bec4ea8UL;
+        public const ulong SchemaHash = 0x0b8952b91cbe7378UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -114,6 +114,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_AMMO_UNLOAD = 178;  // DF to UZ; request is a number; status 1 is automatic (refused while the magazine holds rounds); cls is the reserve class
         public const ushort KIND_AMMO_UNLOADED = 179;  // UZ to DF; request echoes AMMO_UNLOAD; status is the rounds taken out of the magazine, or 0xFFFFFFFF refused
         public const ushort KIND_AMMO_LOADED = 180;  // DF to UZ; request is the loaded tier (0xFFFFFFFF none), status the ammo type (0 Clip to 3 Cell); cls is the ammo's tags, comma separated
+        public const ushort KIND_SKILL_XP = 181;  // UZ to DF; payload: dfb_skill_xp
         public const ushort KIND_DOOR_USE = 190;  // UZ to DF; Use on a shut door Doom holds locked; state is its live lock value; payload: dfb_door
         public const ushort KIND_DOOR_STATE = 191;  // DF to UZ; an answer to DOOR_USE (flags DFB_DOOR_PICK or _OPEN); payload: dfb_door
         public const ushort KIND_LOCKPICK = 192;  // UZ to DF; the minigame result for a DFB_DOOR_PICK answer; state is DFB_PICK_*; Doom opens the door itself on a hit; payload: dfb_door
@@ -285,6 +286,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint UI_SPELLBOOK = 12;  // Daggerfall's spellbook, refused with Daggerfall's own message when none is carried
         public const uint UI_STATUS = 13;  // Daggerfall's status boxes (its Status key): where the player is and the time, then health; context is Doom's DFB_WORLD_*
         public const uint UI_TRANSPORT = 14;
+        public const uint UI_SKILLS = 15;  // Doomerfall's skill purchase menu (Skill XP)
         public const uint TRANSPORT_AIRBORNE = 0x100;  // Doom's player is in the air or swimming
         public const uint REST_MONSTERS_NEAR = 1;  // a hostile Doom monster sees the player or is within Daggerfall's resting distance
         public const uint REST_NOT_GROUNDED = 2;  // Doom's player is in the air or swimming
@@ -344,8 +346,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint TOWNSFOLK_INTERIOR = 1;
 
         // Native size of every generated struct, for the attach check.
-        public static readonly Type[] StructTypes = { typeof(DfbFaces), typeof(DfbFace), typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbPlainLoad), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbWorldContainer), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbInfoRequest), typeof(DfbInfoText), typeof(DfbDoomItem), typeof(DfbDoor), typeof(DfbItemArt), typeof(DfbClimbUses), typeof(DfbNpcUse), typeof(DfbNpcUseResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbEncounterArea), typeof(DfbEncounterText), typeof(DfbPlace), typeof(DfbPlaceName), typeof(DfbPlaceFact), typeof(DfbPlacePlan), typeof(DfbNpc), typeof(DfbTownsfolk), typeof(DfbTownsperson), typeof(DfbTownspersonDeath), typeof(DfbGuardSpawn), typeof(DfbGuardDeath), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
-        public static readonly int[] StructSizes = { 8, 16, 64, 24, 24, 24, 24, 24, 48, 32, 48, 48, 32, 16, 48, 40, 16, 48, 32, 48, 48, 32, 464, 8, 24, 16, 32, 32, 48, 48, 32, 48, 48, 32, 16, 32, 40, 24, 40, 8, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
+        public static readonly Type[] StructTypes = { typeof(DfbFaces), typeof(DfbFace), typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbPlainLoad), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbWorldContainer), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbInfoRequest), typeof(DfbInfoText), typeof(DfbDoomItem), typeof(DfbDoor), typeof(DfbItemArt), typeof(DfbClimbUses), typeof(DfbSkillXp), typeof(DfbNpcUse), typeof(DfbNpcUseResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbEncounterArea), typeof(DfbEncounterText), typeof(DfbPlace), typeof(DfbPlaceName), typeof(DfbPlaceFact), typeof(DfbPlacePlan), typeof(DfbNpc), typeof(DfbTownsfolk), typeof(DfbTownsperson), typeof(DfbTownspersonDeath), typeof(DfbGuardSpawn), typeof(DfbGuardDeath), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
+        public static readonly int[] StructSizes = { 8, 16, 64, 24, 24, 24, 24, 24, 48, 32, 48, 48, 32, 16, 48, 40, 16, 48, 32, 48, 48, 32, 464, 8, 16, 24, 16, 32, 32, 48, 48, 32, 48, 48, 32, 16, 32, 40, 24, 40, 8, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
     }
 
     static class DfbBytes
@@ -443,6 +445,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public DfbInfoText infoText;  // INFO_TEXT, INFO_NAME, LOOK_TEXT, HUD_TEXT, DOOR_TEXT
         [FieldOffset(16)] public DfbDoomItem doomItem;  // DOOM_ITEM_TAKE, DOOM_ITEM_RESULT, DOOM_ITEM_USE, DOOM_ITEM_USED, DOOM_ITEM_ART_REQUEST, DOOM_ITEM_ART, STARTER
         [FieldOffset(16)] public DfbClimbUses climbUses;  // CLIMB_USES
+        [FieldOffset(16)] public DfbSkillXp skillXp;  // SKILL_XP
         [FieldOffset(16)] public DfbDoor door;  // DOOR_USE, DOOR_STATE, LOCKPICK
         [FieldOffset(16)] public DfbPlainLoad plainLoad;  // PLAIN_LOAD
         [FieldOffset(16)] public DfbNpcUse npcUse;  // NPC_USE
@@ -994,6 +997,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
     {
         [FieldOffset(0)] public uint uses;  // skill rolls since the last event, pass or fail
         [FieldOffset(4)] public uint pad;
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 16)]
+    struct DfbSkillXp
+    {
+        [FieldOffset(0)] public uint xp;  // Skill XP earned since the last event
+        [FieldOffset(4)] public int skill;  // DFCareer.Skills slot that earned uses, or -1
+        [FieldOffset(8)] public uint uses;  // uses of that skill since the last event
+        [FieldOffset(12)] public uint pad;
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 24)]
