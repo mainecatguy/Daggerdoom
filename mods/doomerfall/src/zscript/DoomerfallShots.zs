@@ -37,6 +37,7 @@ class DoomerfallShotTag : Inventory
 	bool burstSet;          // Automatics has decided autoBurst (at the spawn event, or at a point-blank hit before it)
 	bool carrier;           // not a shot: a puff or a gun's helper actor that only passes the gun on to what it spawns
 	transient int serial;   // the owner's spawn serial (Actor.DD_SpawnSerial), its key in DoomerfallShots' serial buckets
+	int autoBand;           // Automatics: the gun's fire-rate band as it fired (DoomerfallAutomaticBands), set with autoBurst
 
 	Default
 	{
@@ -63,6 +64,7 @@ class DoomerfallShotTag : Inventory
 		generation = t.generation + 1;
 		autoBurst = t.autoBurst;
 		burstSet = t.burstSet;
+		autoBand = t.autoBand;
 	}
 }
 

@@ -227,10 +227,25 @@ Uzi and its variants are Automatics too.
 - **Damage:** automatic guns do more damage as the skill rises, up to 60% more at 100.
 - **25, burst fire:** the first 3 shots of each burst do 30% more damage. Let go of the trigger for a moment (0.3
   seconds) and the next burst gets the bonus again, so short bursts hit harder than holding the trigger down.
-- **50:** every second shot uses no ammo.
+- **25, ammo:** every third shot uses no ammo. The count starts again when you put the gun away.
+- **50:** every second shot uses no ammo (this replaces the 25 saving).
+- **50, fire-rate bonus:** every automatic gun has a speed of its own, set by the time between its shots, and gets
+  a bonus to match ("tics" are Doom's 1/35-second steps; the gun's own speed, without mods):
+  - **Slow guns** (4 or more tics between shots, such as the Battle Rifle and the stock chaingun): each bullet does
+    25 more damage and passes through one more enemy, hitting the next one behind with full damage.
+  - **Medium guns** (3 tics, such as the Uzi): each bullet does 7 more damage and passes through one more enemy.
+  - **Fast guns** (1-2 tics, such as the minigun and the Thompson): each shot has a 10% chance to fire one extra
+    bullet for free, a copy of the shot's own bullet with the same damage and spread.
+  - The extra damage counts as part of the bullet's own damage, so every percentage bonus increases it too.
+  - A gun with firing modes counts at the speed of the mode you use: the Grammaton Cleric Beretta is a slow gun in
+    single and full-auto fire and a fast gun in burst fire. An alternate fire that shoots has its own speed. A gun
+    that spins up counts at full speed.
 - **75:** each hit makes the enemy take 1% more damage from everything, yours and anyone else's, up to 15%. It never
   wears off for that enemy.
-- **100:** automatic guns use only 1 ammo for every 4 shots.
+- **75, suppression:** each hit slows the enemy's movement by 5% more, up to 40%. Its attacks are not slowed. The
+  slow fades away over 5 seconds after your last hit, and a new hit adds to what is left.
+- **100:** automatic guns use only 1 ammo for every 4 shots. Each hit now makes the enemy take 2% more damage from
+  everything, up to 30% in total.
 - The bonuses add up: a burst shot at 100 does 1.6 x 1.3, about twice the damage.
 - Only hits from the automatic gun itself get these bonuses. A rocket, grenade or exploding barrel that goes off while
   you hold an automatic gets nothing. A shot from an automatic gun keeps its bonus even if you switch weapons, or

@@ -22,7 +22,8 @@ def old_perks(skill):
     # Automatics
     burst = skill >= 25
     v += [6000 * c // 100, 3000 if burst else 0, 3 if burst else 0, 300 if burst else 0,
-          4 if skill >= 100 else 2 if skill >= 50 else 1, 100 if skill >= 75 else 0, 1500 if skill >= 75 else 0]
+          4 if skill >= 100 else 2 if skill >= 50 else 1,
+          200 if skill >= 100 else 100 if skill >= 75 else 0, 3000 if skill >= 100 else 1500 if skill >= 75 else 0]  # skillperks 09
     # Explosives
     chain = skill >= 100
     v += [6000 * c // 100, 9900 if skill >= 75 else 9500 if skill >= 25 else 0, 0, 2500 if chain else 0, 128 if chain else 0]
@@ -40,6 +41,11 @@ def old_perks(skill):
     v += [25000 if spray else 0, 15000 if spray else 0, 15000 if deadeye else 0, 30000 if deadeye else 0,
           3 if spray else 0, 8 if spray else 0, 2000 * steps, 1 if skill >= 50 else 0, 100 if pool else 0,
           500 if pool else 0, 3 if shrapnel else 0, 3300 if shrapnel else 0, 250 if shrapnel else 0]
+    # More Automatics: skillperks 09's DoomerfallAutomaticsRules.cs Fill (agent/skillperks-20261128-011753), slots 194-202
+    per = 4 if skill >= 100 else 2 if skill >= 50 else 1
+    bands, suppress = skill >= 50, skill >= 75
+    v += [3 if skill >= 25 and per == 1 else 0, 25 if bands else 0, 1 if bands else 0, 7 if bands else 0, 1 if bands else 0,
+          1000 if bands else 0, 500 if suppress else 0, 4000 if suppress else 0, 5000 if suppress else 0]
     return v
 
 

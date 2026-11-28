@@ -102,8 +102,8 @@ class DoomerfallRules : StaticEventHandler
 		AutoBurstShots,      // ... on the first this many shots of a burst ...
 		AutoBurstResetMs,    // ... which restarts this long after the last shot
 		AutoShotsPerAmmo,    // one ammo per this many shots: 2 at 50, 4 at 100; 1 or 0 is normal use
-		AutoSunderBp,        // 75: each hit makes the enemy take this much more damage from all sources ...
-		AutoSunderMaxBp,     // ... permanently, up to this much
+		AutoSunderBp,        // 75: each hit makes the enemy take this much more damage from all sources (1%; 2% at 100) ...
+		AutoSunderMaxBp,     // ... permanently, up to this much (15%; 30% at 100, the total, not added to 75's)
 		// Explosives
 		ExplDamageBp,        // damage bonus, +0% to +60% by skill
 		ExplSelfCutBp,       // the player's own splash damage is cut by this much: 95% at 25, 99% at 75
@@ -141,6 +141,18 @@ class DoomerfallRules : StaticEventHandler
 		PistFragments,       // 100: each pistol hit bursts into this many fragments behind the enemy ...
 		PistFragmentBp,      // ... each dealing this much of the hit's damage ...
 		PistFragmentTurnCdeg,// ... locking on to an enemy within this many 1/100ths of a degree of its path
+		// More Automatics (skillperks 09; gamedesign/decisions/20261127-automatics-tuning-owner.md). Added after the
+		// Pistols rules so the test harnesses' sheet slots (155 + rule) keep their places. A gun's band is its own base
+		// tics between shots (DoomerfallAutomaticBands: 4+ slow, 3 middle, 1-2 fast).
+		AutoFreeEvery,       // 25-49: every this many-th shot spends no ammo (3); 0 from 50, so it never stacks with AutoShotsPerAmmo
+		AutoSlowDamage,      // 50: slow band, each bullet gets this much base damage (25) ...
+		AutoSlowPen,         // ... and passes through this many more enemies (1)
+		AutoMidDamage,       // 50: middle band, the same two (7 ...
+		AutoMidPen,          // ... and 1)
+		AutoFastExtraBp,     // 50: fast band, each shot's chance of one extra free bullet (10%)
+		AutoSuppressBp,      // 75: each hit slows the enemy's movement by this much more (5%) ...
+		AutoSuppressMaxBp,   // ... up to this much (40%) ...
+		AutoSuppressFadeMs,  // ... fading evenly to nothing over this long after the last hit (5 s)
 		RuleCount
 	};
 
@@ -164,7 +176,8 @@ class DoomerfallRules : StaticEventHandler
 		if (rule <= ExplChainRadius) return SkillExplosives;
 		if (rule <= ShotCollideDamage) return SkillShotguns;
 		if (rule <= EnergyBurstRadius) return SkillEnergy;
-		return SkillPistols;
+		if (rule <= PistFragmentTurnCdeg) return SkillPistols;
+		return SkillAutomatics;
 	}
 
 	// The rules themselves, from the skill's value.
@@ -179,8 +192,8 @@ class DoomerfallRules : StaticEventHandler
 		case AutoBurstShots:     return skill >= 25 ? 3 : 0;
 		case AutoBurstResetMs:   return skill >= 25 ? 300 : 0;
 		case AutoShotsPerAmmo:   return skill >= 100 ? 4 : skill >= 50 ? 2 : 1;
-		case AutoSunderBp:       return skill >= 75 ? 100 : 0;
-		case AutoSunderMaxBp:    return skill >= 75 ? 1500 : 0;
+		case AutoSunderBp:       return skill >= 100 ? 200 : skill >= 75 ? 100 : 0;
+		case AutoSunderMaxBp:    return skill >= 100 ? 3000 : skill >= 75 ? 1500 : 0;
 
 		case ExplDamageBp:       return 6000 * s / 100;
 		case ExplSelfCutBp:      return skill >= 75 ? 9900 : skill >= 25 ? 9500 : 0;
@@ -217,6 +230,16 @@ class DoomerfallRules : StaticEventHandler
 		case PistFragments:      return skill >= 100 ? 3 : 0;
 		case PistFragmentBp:     return skill >= 100 ? 3300 : 0;
 		case PistFragmentTurnCdeg: return skill >= 100 ? 250 : 0;
+
+		case AutoFreeEvery:      return skill >= 25 && skill < 50 ? 3 : 0;
+		case AutoSlowDamage:     return skill >= 50 ? 25 : 0;
+		case AutoSlowPen:        return skill >= 50 ? 1 : 0;
+		case AutoMidDamage:      return skill >= 50 ? 7 : 0;
+		case AutoMidPen:         return skill >= 50 ? 1 : 0;
+		case AutoFastExtraBp:    return skill >= 50 ? 1000 : 0;
+		case AutoSuppressBp:     return skill >= 75 ? 500 : 0;
+		case AutoSuppressMaxBp:  return skill >= 75 ? 4000 : 0;
+		case AutoSuppressFadeMs: return skill >= 75 ? 5000 : 0;
 		}
 		return 0;
 	}

@@ -868,6 +868,7 @@ class Actor : Thinker native
 	native clearscope static int DD_SheetValue(int index); // [Doomerfall] one DFB_SHEET_* value of Daggerfall's character sheet, or -1 without a Daggerfall character
 	native clearscope static int DD_PlayerFlags(); // [Doomerfall] Daggerfall's falling damage exemptions (1 Slowfall, 2 outdoor water, 4 Water Walking), 0 without a bridge session
 	native clearscope static bool DD_OutdoorSwimming(); // [Doomerfall] the console player swims on Daggerfall's outdoor water (dd_bridge.cpp), false without a bridge session
+	native clearscope static int DD_DamageBonusBp(); // [Doomerfall] Daggerfall's damage bonus on the player's hits, in 1/10000ths, 0 without a bridge session
 	virtual clearscope int GetMaxHealth(bool withupgrades = false) const	// this only exists to make checks for player health easier so they can avoid the type check and just call this method.
 	{
 		return SpawnHealth();

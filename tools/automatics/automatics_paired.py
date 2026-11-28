@@ -35,7 +35,12 @@ HIT = re.compile(r"automatics: hit (\S+) with (\S+) shot (\d+)( burst)?: (\d+) -
 def rules(skill):
     s = max(0, min(skill, 100))
     return {"dmg": 6000 * s // 100, "burstbp": 3000 if skill >= 25 else 0, "burstn": 3 if skill >= 25 else 0,
-            "per": 4 if skill >= 100 else 2 if skill >= 50 else 1, "sunder": "100/1500" if skill >= 75 else "0/0"}
+            "per": 4 if skill >= 100 else 2 if skill >= 50 else 1,
+            "sunder": "200/3000" if skill >= 100 else "100/1500" if skill >= 75 else "0/0"}
+
+
+def free_every(skill):
+    return 3 if 25 <= skill < 50 else 0  # skillperks 09: every third shot free at 25, replaced by 50's one per 2
 
 
 def assemble(play, base, build, dll):
@@ -129,7 +134,9 @@ def analyse(out, text, dft, fatal):
     # 20 lasts only one second (the test lowers then raises), so whole cycles are needed at 26 and up.
     check("cycles at every step (26, 50, 75, 100)", all(s in seen for s in (26, 50, 75, 100)), seen)
     # Ammo per trigger pull without ammo saving (cycles below 50), the baseline for one ammo per n shots.
-    base = [c["end"]["used"] / c["end"]["shots"] for c in done if rules(c["skill"])["per"] == 1 and c["end"]["shots"]]
+    # (Skill 25-49 spends ammo on two shots of three, so its use is scaled back up to the baseline.)
+    base = [c["end"]["used"] / c["end"]["shots"] * (1.5 if free_every(c["skill"]) else 1)
+            for c in done if rules(c["skill"])["per"] == 1 and c["end"]["shots"]]
     per_pull = sum(base) / len(base) if base else 1
     report.append(f"ammo per pull without saving: {per_pull:.2f}")
     for c in done:
@@ -145,9 +152,9 @@ def analyse(out, text, dft, fatal):
         e = c["end"]
         # A DRLA Chaingun pull fires a short string; every landed bullet has a hit line (all skills here have a bonus).
         bullets = len(c["all"])
-        expect_used = e["shots"] * per_pull / want["per"]
+        expect_used = e["shots"] * per_pull / want["per"] * (2 / 3 if free_every(c["skill"]) else 1)
         check("ammo follows one ammo per n shots", abs(e["used"] - expect_used) <= 1.01, f"skill {c['skill']}: used {e['used']} for {e['shots']} pulls, want {expect_used:.1f} (per {want['per']})")
-        expect_probe = 100 + (min(bullets, 15) if want["sunder"] != "0/0" else 0)
+        expect_probe = 100 + (min(2 * bullets, 30) if want["sunder"] == "200/3000" else min(bullets, 15) if want["sunder"] != "0/0" else 0)
         check("sunder: the probe hit shows the stacks", e["probe"] == expect_probe, f"skill {c['skill']}: probe {e['probe']} want {expect_probe} ({bullets} bullets hit)")
         report.append(f"skill {c['skill']}: pulls {e['shots']} bullets hit {bullets} ammo used {e['used']} probe {e['probe']} "
                       f"bonus shots {sum(1 for _, _, hl in c['shots'] if hl)}")
