@@ -2,7 +2,7 @@
 
 usage: sale_test.py assemble | run NAME --building TYPE [--group N] | check
 
-assemble  builds review/weapon-values from the staged integration build (review/magicmenu-stage: UZDoom, launcher,
+assemble  builds review/weaponvalues-02 from the staged integration build (review/batch10-stage: UZDoom, launcher,
           bridge, town data) plus this checkout's Daggerfall Unity build and Doomerfall PK3s, and writes play.bat.
 run       walks into the first building of TYPE (WeaponSmith, PawnShop, GeneralStore...) in town group N (default the
           city 9183, which has a weaponsmith and pawn shops; 7154 has only a general store) with both
@@ -28,8 +28,8 @@ argv, sys.argv = sys.argv, sys.argv[:1]
 import install  # noqa: E402  (only for its registry isolation)
 sys.argv = argv
 
-REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\weapon-values")
-SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\magicmenu-stage")
+REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\weaponvalues-02")
+SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\batch10-stage")
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
 MODS = GAME.parent / "GameMods"
@@ -133,7 +133,8 @@ class WVDemoStart : StaticEventHandler
     dagger = GAME / "DAGGER"
     (REVIEW / "play.bat").write_text(
         "@echo off\r\n"
-        "rem Doom weapons have a gold value and a weight. You start in a city facing its weaponsmith, with DRLA. The city has pawn shops too.\r\n"
+        "rem weaponvalues 02: Doom gun prices are a fifth of before (a legendary costs 2x its Daggerfall base weapon), and a gun's weight follows its\r\n"
+        "rem material as a Daggerfall weapon's does (Steel and Daedric x1.25, Dwarven x0.75, Ebony x0.5). You start in a city facing its weaponsmith, with DRLA.\r\n"
         "rem Pick up a Doom gun (or use the one you have), go in with Use, Use the shopkeeper and choose Sell: Doom guns are listed with their price.\r\n"
         "rem Info (Q) on a gun in the inventory shows its weight. Pawn shops, armorers and general stores buy them too. The gun you are holding is not offered.\r\n"
         "rem E is Interact, Q is Info, I opens the inventory, K opens fast travel.\r\n"

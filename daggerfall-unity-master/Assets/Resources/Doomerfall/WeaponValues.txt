@@ -2,8 +2,12 @@
 # script's tables (or this file by hand) and rebuild Daggerfall Unity. Read by DoomerfallWeaponValues.cs.
 #
 # value = base price of the role's Daggerfall weapon x Daggerfall's material rule (x3 x 1..512, Iron..Daedric)
-#         x the tier multiplier x share. A Doom item without a material (not a gun) counts as Iron.
-# weight is in kilograms and does not change with material.
+#         x the tier multiplier x share x scale, at least 1. A Doom item without a material (not a gun) counts as Iron.
+# weight is the Iron weight in kilograms. A gun of another material changes it by Daggerfall's weapon material rule.
+#
+# scale <factor>: every value x this. Owner (2026-11-27): a legendary (x10) costs 2x its base Daggerfall weapon of the
+# same material, so 2 / 10 = 0.2; the tiers keep their proportions.
+scale 0.2
 #
 # cap <gold>: largest value any Doom weapon may have before shop pricing (0 = no cap). Daggerfall shops pay
 # with letters of credit and have no gold limit, so no cap is set.

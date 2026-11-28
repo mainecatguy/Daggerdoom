@@ -396,9 +396,11 @@ come back when you leave and return, or when you load a save.
 Every Doom weapon (DRLA, Doom, Heretic, Hexen and Schism) has a gold value and a weight. **Value** starts from the
 Daggerfall weapon closest in role (a pistol is priced like a dagger, a shotgun like a broadsword, a rocket launcher
 like a claymore, a BFG like a dai-katana), then goes up with the gun's material exactly as Daggerfall weapons do, and
-with its rarity: common x1, uncommon x2, rare x3, very rare x6, legendary x10. A Daedric legendary gun is worth a
-fortune. **Weight** depends on what the weapon is and how big it is: a pistol about 1 kg, a shotgun 3 to 4 kg, a
-chaingun about 10 kg, a BFG 15 to 20 kg. Material does not change it. Info on a gun shows its weight.
+with its rarity. A common gun is worth a fifth of that Daggerfall weapon in the same material, uncommon two fifths,
+rare three fifths, very rare 1.2 times, and legendary twice: a Daedric legendary BFG is worth twice a Daedric
+dai-katana. **Weight** depends on what the weapon is and how big it is: an Iron pistol about 1 kg, a shotgun 3 to 4
+kg, a chaingun about 10 kg, a BFG 15 to 20 kg. Material changes it as it does Daggerfall weapons: Steel and Daedric
+guns are a quarter heavier, Dwarven a quarter lighter, Ebony half the weight. Info on a gun shows its weight.
 
 Weapon smiths, armorers, pawn shops and general stores buy Doom weapons, as they buy Daggerfall weapons. The gun you
 are holding is not offered for sale; switch to another gun first if you want to sell it.

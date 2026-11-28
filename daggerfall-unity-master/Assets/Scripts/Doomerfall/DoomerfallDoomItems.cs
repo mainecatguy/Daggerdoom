@@ -385,12 +385,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             PlayerEntity player = GameManager.HasInstance ? GameManager.Instance.PlayerEntity : null;
             if (player == null || sync.LoadRunning || GameManager.IsGamePaused || cls.Length == 0)
                 status = Dfb.ITEM_REFUSED;
-            else if (CanHold(1, DoomerfallWeaponValues.WeightOf(cls), player.MaxEncumbrance, player.CarriedWeight) <= 0)
+            // The weight check uses the item's own weight, which for a gun depends on its material, so it is made first.
+            DoomerfallDoomItem taken = status == Dfb.ITEM_TAKEN ? DoomerfallDoomItem.Create(cls, flags, lootSeed, carried) : null;
+            if (taken != null && CanHold(1, taken.weightInKg, player.MaxEncumbrance, player.CarriedWeight) <= 0)
+            {
                 status = Dfb.ITEM_TOO_HEAVY;
-            DoomerfallDoomItem taken = null;
+                taken = null;
+            }
             if (status == Dfb.ITEM_TAKEN)
             {
-                taken = DoomerfallDoomItem.Create(cls, flags, lootSeed, carried);
                 if (taken.IsGun && takeStateRequest == request)
                     taken.GunState = string.Join(";", takeState.ToArray()); // A DRLA modded pickup's mods.
                 player.Items.AddItem(taken);
