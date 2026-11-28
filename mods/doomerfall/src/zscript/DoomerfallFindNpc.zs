@@ -28,8 +28,8 @@ class DoomerfallFindNpcMenu : GenericMenu
 	bool wantEntry, waiting, focusList, focusWhenReady;
 	int selected, top;
 	String sentText, lastText;
-	int changedAt;
-	bool sentOnce;
+	int changedAt, openedAt;
+	bool sentOnce, opening;
 
 	override void Init(Menu parent)
 	{
@@ -37,8 +37,31 @@ class DoomerfallFindNpcMenu : GenericMenu
 		events = DoomerfallFindNpcEvents(StaticEventHandler.Find("DoomerfallFindNpcEvents"));
 		if (events && events.listReady) { focusList = true; return; } // the engine opened this to pick from a list
 		if (events) { events.answered = false; events.listReady = false; events.labels.Clear(); }
-		wantEntry = true; // opened on the first tick: this menu is activated after Init, which would bury it
+		// Opens on the list of the active quests' NPCs (arrows, Enter, mouse); typing a letter opens the text box with it.
+		// Doom's text box ignores Enter while empty, so the list cannot be reached from an empty box.
+		focusList = true;
+		opening = true;
+		openedAt = MSTime();
 		AskList("");
+	}
+
+	override bool OnUIEvent(UIEvent ev)
+	{
+		// The key that opened this menu may still send its character: ignore characters for a moment after opening.
+		if (!entry && ev.Type == UIEvent.Type_Char && ev.KeyChar > 32 && MSTime() - openedAt > 250)
+		{
+			OpenEntry(String.Format("%c", ev.KeyChar));
+			return true;
+		}
+		return Super.OnUIEvent(ev);
+	}
+
+	void OpenEntry(String text)
+	{
+		focusList = false;
+		opening = false;
+		entry = TextEnterMenu.OpenTextEnter(self, NewSmallFont, text, -1, false);
+		entry.ActivateMenu();
 	}
 
 	void AskList(String text)
@@ -105,11 +128,15 @@ class DoomerfallFindNpcMenu : GenericMenu
 	override void Ticker()
 	{
 		Super.Ticker();
+		if (opening && events && events.listReady)
+		{
+			opening = false;
+			if (events.labels.Size() == 0) wantEntry = true; // no quest names anyone: straight to typing
+		}
 		if (wantEntry)
 		{
-			wantEntry = false;
-			entry = TextEnterMenu.OpenTextEnter(self, NewSmallFont, "", -1, false);
-			entry.ActivateMenu();
+			wantEntry = false; // opened from the ticker: this menu is activated after Init, which would bury it
+			OpenEntry("");
 			return;
 		}
 		if (focusWhenReady && events && events.listReady)
@@ -145,7 +172,7 @@ class DoomerfallFindNpcMenu : GenericMenu
 		int s = Scale();
 		int x = Screen.GetWidth() / 6, y = Screen.GetHeight() / 5;
 		Screen.Dim(0, 0.6, 0, 0, Screen.GetWidth(), Screen.GetHeight());
-		String title = focusList ? "Find NPC: pick one (arrows + Enter, or click), Esc to cancel"
+		String title = focusList ? "Find NPC: pick one (arrows + Enter, or click), or type part of a name; Esc to cancel"
 			: "Find NPC: type part of a name to filter, Enter to pick from the list";
 		Screen.DrawText(NewSmallFont, Font.CR_GOLD, x, y, title, DTA_ScaleX, s, DTA_ScaleY, s);
 		if (!focusList)

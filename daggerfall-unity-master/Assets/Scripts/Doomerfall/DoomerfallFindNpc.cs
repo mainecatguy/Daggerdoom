@@ -23,6 +23,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
     {
         const int MaxSent = 30;
         const float DoomPerDaggerfall = 0.75f;
+        const double NearTown = 32768; // Daggerfall units (a map pixel): a location this close may share Doom's stitched town map (the test's dungeon is ~600 m from its town)
 
         struct Hit
         {
@@ -47,6 +48,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             public string query;
             public string[] words;
             public bool list, questPass;
+            public readonly List<DFLocation> towns = new List<DFLocation>(); // [0] the current location, then the nearby ones
             public readonly List<Hit> hits = new List<Hit>();
             public readonly HashSet<string> seen = new HashSet<string>();
         }
@@ -102,6 +104,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             c.building = c.inBuilding ? c.game.PlayerEnterExit.BuildingDiscoveryData.buildingKey : 0;
             c.mapId = c.gps.HasCurrentLocation ? c.gps.CurrentLocation.MapTableData.MapId : -1;
             c.town = c.gps.HasCurrentLocation ? c.gps.CurrentLocation.Name : "";
+            Towns(c);
             c.questPass = true;
             QuestPeople(c);
             c.questPass = false;
@@ -213,14 +216,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             z = at.z * units;
         }
 
-        // The world point of a building's door in the current town (or the dungeon entrance for key 0), outdoors only.
-        static bool DoorOf(Context c, int key, out double x, out double z)
+        // The world point of the current location's dungeon entrance, outdoors only (from Daggerfall's scene).
+        static bool DungeonDoor(Context c, out double x, out double z)
         {
             x = z = 0;
             if (!c.outside)
                 return false;
-            if (key != 0)
-                return BuildingDoor(c, key, out x, out z);
             DaggerfallLocation location = c.game.StreamingWorld.CurrentPlayerLocationObject;
             if (!location)
                 return false;
@@ -243,12 +244,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         // A building's door from the map data alone (as RMBLayout.AddModels places models and GetStaticDoors their
         // doors), since Daggerfall's town scene is inert under Doom and may hold no door lists. World units as
         // TownRoster: location rect origin + block offset + block-local position. Falls back to the building's origin.
-        static bool BuildingDoor(Context c, int key, out double x, out double z)
+        static bool BuildingDoor(Context c, DFLocation location, int key, out double x, out double z)
         {
             x = z = 0;
-            if (!c.gps.HasCurrentLocation)
+            if (!c.outside)
                 return false;
-            DFLocation location = c.gps.CurrentLocation;
             int width = location.Exterior.ExteriorData.Width, height = location.Exterior.ExteriorData.Height;
             int bx, by, r;
             BuildingDirectory.ReverseBuildingKey(key, out bx, out by, out r);
@@ -289,15 +289,50 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return true;
         }
 
-        // Someone inside a building of the current town: its door when outside, a note when elsewhere.
-        static void InBuilding(Context c, string name, int key, int rank, string tag)
+        // Someone inside a building of a town here (c.towns[town]): its door when outside, a note when elsewhere.
+        static void InBuilding(Context c, string name, string building, int town, int key, int rank, string tag)
         {
-            string building = BuildingName(c, key);
+            if (string.IsNullOrEmpty(building))
+                building = town == 0 ? BuildingName(c, key) : "a building";
             double x, z;
-            if (DoorOf(c, key, out x, out z))
-                Add(c, name, tag + "in " + building, Dfb.FIND_WORLD, 0, x, z, rank);
+            if (BuildingDoor(c, c.towns[town], key, out x, out z))
+                Add(c, name, tag + "in " + building + (town == 0 ? "" : ", " + c.towns[town].Name), Dfb.FIND_WORLD, 0, x, z, rank);
             else
-                Add(c, name, tag + "in " + building + ", " + c.town, Dfb.FIND_ELSEWHERE, 0, 0, 0, rank);
+                Add(c, name, tag + "in " + building + ", " + c.towns[town].Name, Dfb.FIND_ELSEWHERE, 0, 0, 0, rank);
+        }
+
+        // The current location and the locations near the player: Doom stitches neighbouring locations into one town map
+        // (a dungeon beside a town), while Daggerfall's current location is only the nearest of them.
+        static void Towns(Context c)
+        {
+            if (!c.gps.HasCurrentLocation)
+                return;
+            c.towns.Add(c.gps.CurrentLocation);
+            DaggerfallConnect.Utility.DFPosition at = c.gps.CurrentMapPixel;
+            ContentReader reader = DaggerfallUnity.Instance.ContentReader;
+            for (int dy = -1; dy <= 1; dy++)
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    ContentReader.MapSummary summary;
+                    DFLocation location;
+                    if (!reader.HasLocation(at.X + dx, at.Y + dy, out summary) || !reader.GetLocation(summary.RegionIndex, summary.MapIndex, out location))
+                        continue;
+                    if (location.MapTableData.MapId == c.mapId || location.Exterior.ExteriorData.Width <= 0)
+                        continue;
+                    Rect r = DaggerfallLocation.GetLocationRect(location);
+                    double ox = Math.Max(0, Math.Max(r.xMin - c.gps.WorldX, c.gps.WorldX - r.xMax));
+                    double oz = Math.Max(0, Math.Max(r.yMin - c.gps.WorldZ, c.gps.WorldZ - r.yMax));
+                    if (ox <= NearTown && oz <= NearTown)
+                        c.towns.Add(location);
+                }
+        }
+
+        static int TownOf(Context c, int mapId)
+        {
+            for (int i = 0; i < c.towns.Count; i++)
+                if (c.towns[i].MapTableData.MapId == mapId)
+                    return i;
+            return -1;
         }
 
         static void QuestPeople(Context c)
@@ -333,14 +368,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
             SiteDetails site = place.SiteDetails;
             string building = site.buildingKey != 0 && !string.IsNullOrEmpty(site.buildingName) ? site.buildingName : site.siteType == SiteTypes.Dungeon ? "the dungeon" : "";
-            if (site.mapId != c.mapId)
+            int town = TownOf(c, site.mapId);
+            if (town < 0 || (town > 0 && (site.siteType != SiteTypes.Building || site.buildingKey == 0)))
             {
                 string where = (building.Length > 0 ? building + ", " : "") + site.locationName + " (" + site.regionName + ")";
                 Add(c, name, "quest NPC in " + where, Dfb.FIND_ELSEWHERE, 0, 0, 0, rank);
                 return;
             }
             // In this location. Inside the very site, point at the live NPC.
-            bool here = site.siteType == SiteTypes.Dungeon ? c.inDungeon : c.inBuilding && site.buildingKey == c.building;
+            bool here = town == 0 && (site.siteType == SiteTypes.Dungeon ? c.inDungeon : c.inBuilding && site.buildingKey == c.building);
             if (here && c.space)
             {
                 foreach (StaticNPC npc in ActiveGameObjectDatabase.GetActiveStaticNPCs(true))
@@ -362,14 +398,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (site.siteType == SiteTypes.Dungeon)
             {
                 double x, z;
-                if (DoorOf(c, 0, out x, out z))
+                if (site.mapId == c.mapId && DungeonDoor(c, out x, out z))
                     Add(c, name, "quest NPC in " + site.locationName, Dfb.FIND_WORLD, 0, x, z, rank);
                 else
                     Add(c, name, "quest NPC in " + site.locationName, Dfb.FIND_ELSEWHERE, 0, 0, 0, rank);
                 return;
             }
             if (site.buildingKey != 0)
-                InBuilding(c, name, site.buildingKey, rank, "quest NPC ");
+                InBuilding(c, name, site.buildingName, town, site.buildingKey, rank, "quest NPC ");
             else
                 Add(c, name, "quest NPC in " + site.locationName, Dfb.FIND_ELSEWHERE, 0, 0, 0, rank);
         }
@@ -422,15 +458,21 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
         }
 
-        // Every building's residents in the current town, named as StaticNPC names them (SetLayoutData, GetDisplayName).
+        // Every building's residents in the towns here, named as StaticNPC names them (SetLayoutData, GetDisplayName).
         static void Residents(Context c)
         {
-            if (!c.gps.HasCurrentLocation)
-                return;
-            DFLocation location = c.gps.CurrentLocation;
+            int scanned = 0;
+            for (int t = 0; t < c.towns.Count; t++)
+                scanned += Residents(c, t);
+            c.bridge.LogLine("findnpc: residents scanned " + scanned + " in " + c.towns.Count + " locations");
+        }
+
+        static int Residents(Context c, int town)
+        {
+            DFLocation location = c.towns[town];
             int width = location.Exterior.ExteriorData.Width, height = location.Exterior.ExteriorData.Height;
             if (width <= 0 || height <= 0)
-                return;
+                return 0;
             DFBlock[] blocks = RMBLayout.GetLocationBuildingData(location);
             int locationIndex = location.LocationIndex;
             NameHelper.BankTypes bank = c.gps.GetNameBankOfCurrentRegion();
@@ -450,7 +492,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                             if (people == null || people.Length == 0)
                                 continue;
                             int key = BuildingDirectory.MakeBuildingKey((byte)x, (byte)y, (byte)r);
-                            if (c.inBuilding && key == c.building)
+                            if (town == 0 && c.inBuilding && key == c.building)
                                 continue; // LoadedNpcs has them, with who is present
                             foreach (DFBlock.RmbBlockPeopleRecord p in people)
                             {
@@ -467,13 +509,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                                 }
                                 int rank;
                                 if (Matches(c, name, out rank))
-                                    InBuilding(c, name, key, rank, "");
+                                    InBuilding(c, name, null, town, key, rank, "");
                             }
                         }
                     }
             }
             finally { DFRandom.Seed = keep; }
-            c.bridge.LogLine("findnpc: residents scanned " + scanned);
+            return scanned;
         }
 
         static void Townspeople(Context c, DoomerfallTownspeople townspeople)
@@ -496,7 +538,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     if (c.inBuilding && key == c.building)
                         Add(c, p.Name, "townsperson, here", Dfb.FIND_ACTOR_LOCAL, p.id, 0, 0, rank);
                     else
-                        InBuilding(c, p.Name, key, rank, "townsperson ");
+                        InBuilding(c, p.Name, null, 0, key, rank, "townsperson ");
                     continue;
                 }
                 TownPose pose = roster.Pose(p, step, hours);

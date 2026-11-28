@@ -94,19 +94,36 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
             KeyValuePair<Quest, Person> far = people[0], moved = people[1];
             Write(string.Format("FT far {0}|{1}", far.Value.DisplayName, PlaceOf(far.Key, far.Value).SiteDetails.locationName));
-            // The middle building of this town from the block data (Daggerfall's town scene is inert under Doom).
+            // The middle building of the town here, from the block data (Daggerfall's town scene is inert under Doom). The
+            // test town map stitches a town beside Privateer's Hold, so it may be a neighbouring location's.
             var keys = new List<int>();
-            DaggerfallConnect.DFBlock[] blocks = RMBLayout.GetLocationBuildingData(game.PlayerGPS.CurrentLocation);
-            int w = game.PlayerGPS.CurrentLocation.Exterior.ExteriorData.Width;
-            for (int i = 0; i < blocks.Length; i++)
-                for (int r = 0; r < blocks[i].RmbBlock.SubRecords.Length; r++)
-                    if (blocks[i].RmbBlock.SubRecords[r].Exterior.Block3dObjectRecords.Length > 0)
-                        keys.Add(BuildingDirectory.MakeBuildingKey((byte)(i % w), (byte)(i / w), (byte)r));
-            int key = keys.Count > 0 ? keys[keys.Count / 2] : 0;
-            Write("FT buildings " + keys.Count);
-            PlayerGPS.DiscoveredBuilding b;
-            string buildingName = game.PlayerGPS.GetBaseBuildingDiscoveryData(key, out b) ? b.displayName : "test building";
             DaggerfallConnect.DFLocation location = game.PlayerGPS.CurrentLocation;
+            var candidates = new List<DaggerfallConnect.DFLocation> { location };
+            DaggerfallConnect.Utility.DFPosition at = game.PlayerGPS.CurrentMapPixel;
+            for (int dy = -1; dy <= 1; dy++)
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    ContentReader.MapSummary summary;
+                    DaggerfallConnect.DFLocation near;
+                    if (DaggerfallUnity.Instance.ContentReader.HasLocation(at.X + dx, at.Y + dy, out summary) && DaggerfallUnity.Instance.ContentReader.GetLocation(summary.RegionIndex, summary.MapIndex, out near))
+                        candidates.Add(near);
+                }
+            foreach (DaggerfallConnect.DFLocation candidate in candidates)
+            {
+                int w = candidate.Exterior.ExteriorData.Width;
+                if (w <= 0 || candidate.Exterior.ExteriorData.Height <= 0)
+                    continue;
+                DaggerfallConnect.DFBlock[] blocks = RMBLayout.GetLocationBuildingData(candidate);
+                for (int i = 0; i < blocks.Length; i++)
+                    for (int r = 0; r < blocks[i].RmbBlock.SubRecords.Length; r++)
+                        if (blocks[i].RmbBlock.SubRecords[r].Exterior.Block3dObjectRecords.Length > 0 && blocks[i].RmbBlock.FldHeader.BuildingDataList[r].BuildingType != DaggerfallConnect.DFLocation.BuildingTypes.Special1)
+                            keys.Add(BuildingDirectory.MakeBuildingKey((byte)(i % w), (byte)(i / w), (byte)r));
+                if (keys.Count >= 4) { location = candidate; break; }
+                keys.Clear();
+            }
+            int key = keys.Count > 0 ? keys[keys.Count / 2] : 0;
+            Write("FT buildings " + keys.Count + " in " + location.Name);
+            string buildingName = "the test building";
             Place place = PlaceOf(moved.Key, moved.Value);
             SiteDetails site = new SiteDetails
             {

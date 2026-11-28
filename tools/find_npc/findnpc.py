@@ -70,7 +70,7 @@ def write_demo():
     (REVIEW / "play.bat").write_text(
         "@echo off\r\n"
         "rem Find an NPC by name (a debug aid, dev mode only). Starts in the town outside Privateer's Hold with DRLA, dev mode on.\r\n"
-        "rem Press N (or type dd_findnpc in the console). The box lists the NPCs your active quests name: Enter, arrows, Enter to pick.\r\n"
+        "rem Press N (or type dd_findnpc in the console). The box lists the NPCs your active quests name: arrows + Enter (or click) to pick.\r\n"
         "rem Or type any part of a name (any word, small typos are fine) to filter it, closest first, then everyone; Enter picks.\r\n"
         "rem A gold chevron then points at their building's door when you are outside, or at the NPC when you are in the same\r\n"
         "rem building; at the screen edge when off screen, with the name and distance. Someone in another place is shown as text.\r\n"
@@ -137,7 +137,7 @@ class Run:
         return mark
 
     def pick(self, name, n):
-        """Picks a name from the list the find menu opens with, without typing: Enter, Down to its row, Enter."""
+        """Picks a name from the list the find menu opens with, without typing: Down to its row, Enter."""
         df_mark = len(read(self.df_log))
         if not self.wait(self.console, r"FNMENU %d" % n, 90):
             raise RuntimeError(f"find menu {n} did not open")
@@ -151,8 +151,6 @@ class Run:
             return mark
         doom = sk["doom_driver"](self.launcher, self.uz_log)
         time.sleep(1.0)
-        doom.tap(VK_ENTER)
-        time.sleep(0.4)
         for _ in range(index):
             doom.tap(VK_DOWN)
             time.sleep(0.15)

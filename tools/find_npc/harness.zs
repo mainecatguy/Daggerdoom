@@ -23,7 +23,7 @@ class FNHarness : StaticEventHandler // Static: it must keep its stage across th
 		if (!due) return;
 		if (stage == 0 && menus == 2)
 		{
-			if (!sentGo) { sentGo = true; EventHandler.SendNetworkEvent("fn_go"); }
+			if (!sentGo && level.maptime - closedAt > 700) { sentGo = true; EventHandler.SendNetworkEvent("fn_go"); }
 			return;
 		}
 		menus++;
