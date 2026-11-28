@@ -6,19 +6,21 @@
 using DaggerfallWorkshop.Game.Questing;
 using DaggerfallWorkshop.Game.Questing.Actions;
 using DaggerfallWorkshop.Game.UserInterface;
+using DaggerfallWorkshop.Game.UserInterfaceWindows;
 using UnityEngine;
 
 namespace DaggerfallWorkshop.Game.Doomerfall
 {
     internal sealed class DoomerfallQuestNpcTest : MonoBehaviour
     {
-        const float HideAfter = 3f, RestoreAfter = 6f;
+        const float HideAfter = 3f, RestoreAfter = 6f, ArmAfter = 3f;
 
         DoomerfallBridge bridge;
         Quest quest;
         Symbol symbol;
-        float at;
+        float at, hudSince = -1;
         int step;
+        bool armed;
 
         internal void Init(DoomerfallBridge owner)
         {
@@ -31,6 +33,16 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return;
             // Using a quest Person may open the talk window, or a quest message box when the Person is a turn-in.
             bool talking = !(DaggerfallUI.UIManager.TopWindow is DaggerfallHUD);
+            // Armed only after the HUD has shown for a while, so a load's own windows do not count as a talk.
+            if (!armed)
+            {
+                if (talking)
+                    hudSince = -1;
+                else if (hudSince < 0)
+                    hudSince = Time.unscaledTime;
+                armed = hudSince >= 0 && Time.unscaledTime - hudSince >= ArmAfter;
+                return;
+            }
             if (step == 0)
             {
                 StaticNPC npc = talking ? PlacedNpc() : null;
