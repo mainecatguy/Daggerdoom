@@ -9,7 +9,9 @@ in town (DDT07154) with DRLA, adds jump_probe.zs as its own pk3, and checks the 
   - Daggerfall's HP drops by that damage (hp before and after);
   - walking off the ledge without jumping still allows the double jump at 75 (none at 0) (Q&A item 8);
   - every jump, from the ground or in mid-air, adds one Jumping use in Daggerfall (Q&A item 7): Daggerfall's
-    "skillxp: ... 1 uses of skill 3" lines match the jumps the probe made.
+    "skillxp: ... 1 uses of skill 3" lines match the jumps the probe made;
+  - with a high-jump power (Strength 2, as DRLA's Antigrav boots) at Jumping 0, the safe fall is still 1.5 times the
+    measured (about 4 times higher) jump, with the same edge drops.
 
 usage: run_jump_test.py <play folder> <run dir>      (the run folder is deleted and recreated)"""
 import os, re, shutil, subprocess, sys, zipfile
@@ -79,8 +81,11 @@ def factor(s):
     return 1 + s / 100 + (0.25 if s >= 25 else 0)
 
 
-def check(lines):
+def check(all_test_lines):
     fails = []
+    lines = [l for l in all_test_lines if "JUMPTEST boots" not in l]
+    boots = [l.replace("JUMPTEST boots", "JUMPTEST") for l in all_test_lines if "JUMPTEST boots" in l]
+    fails += check_boots(boots)
     jumps = {int(m.group(1)): m for m in (re.search(r"jump level=(\d+) firstrise=([\d.-]+) totalrise=([\d.-]+) airjumps=(\d+) landdz=([\d.-]+) falldamage=(\d+)", l) for l in lines) if m}
     falls = [m for m in (re.search(r"(drop|edge|ledge) level=(\d+) fell=([\d.-]+) falldamage=(\d+) expected=(\d+) hp=(-?\d+)->(-?\d+) safe=([\d.]+)", l) for l in lines) if m]
     if not any("JUMPTEST done" in l for l in lines):
@@ -130,6 +135,31 @@ def check(lines):
         print("FAIL", f)
     print("JUMP TEST", "PASS" if not fails else "FAIL")
     return 1 if fails else 0
+
+
+def check_boots(lines):
+    """The high-jump pass at Jumping 0: jump about 4x the plain 36 units, safe fall 1.5x the measured jump."""
+    fails = []
+    if not any("power=1" in l for l in lines):
+        return ["the boots pass did not get its high-jump power"]
+    j = [m for m in (re.search(r"jump level=0 firstrise=([\d.-]+)", l) for l in lines) if m]
+    if not j:
+        return ["no boots jump line"]
+    rise = float(j[0].group(1))
+    if rise < 3.5 * 36:
+        fails.append(f"boots jump rose {rise}, want about 4 x 36")
+    falls = [m for m in (re.search(r"(drop|edge) level=0 fell=([\d.-]+) falldamage=(\d+) expected=(\d+) hp=(-?\d+)->(-?\d+) safe=([\d.]+)", l) for l in lines) if m]
+    edges = []
+    for m in falls:
+        kind, fell, dmg, want, hp0, hp1, safe = m.group(1), float(m.group(2)), int(m.group(3)), int(m.group(4)), int(m.group(5)), int(m.group(6)), float(m.group(7))
+        rule = max(0, int(5 * ((fell - safe) / 30)))
+        if dmg != want or want != rule: fails.append(f"boots {kind}: fell {fell}, safe {safe}, damage {dmg}, expected {want}, rule {rule}")
+        if hp0 - hp1 != dmg: fails.append(f"boots {kind}: HP went {hp0}->{hp1}, not down by {dmg}")
+        if abs(safe - 1.5 * rise) > 1.0: fails.append(f"boots {kind}: safe fall {safe}, not 1.5 x the jump height {rise}")
+        if kind == "edge": edges.append((fell, safe, dmg))
+    if len(edges) != 2 or edges[0][2] != 0 or edges[0][0] >= edges[0][1] or edges[1][2] != 5:
+        fails.append(f"boots safe fall edge: {edges}, want no damage just under and 5 HP 1.1 m over")
+    return fails
 
 
 if __name__ == "__main__":

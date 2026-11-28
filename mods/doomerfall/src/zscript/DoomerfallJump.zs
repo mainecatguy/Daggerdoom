@@ -160,7 +160,7 @@ class DoomerfallJump : StaticEventHandler
 	void Land(PlayerInfo p, PlayerPawn mo, DoomerfallJumpState s)
 	{
 		double fell = s.fallStartZ - mo.pos.z;
-		double safe = DoomerfallRules.SafeFall(DoomerfallRules.JumpHeight(mo.JumpZ, mo.GetGravity()));
+		double safe = DoomerfallRules.SafeFall(DoomerfallRules.JumpHeight(mo.JumpZ * HighJumpFactor(mo), mo.GetGravity()));
 		int damage = DoomerfallRules.FallDamage(fell, safe);
 		if (damage > 0 && (Actor.DD_PlayerFlags() & FlagOutdoorWater))
 		{
@@ -169,6 +169,19 @@ class DoomerfallJump : StaticEventHandler
 		}
 		if (fell > UnitsPerMetre) DDLog.Debug(String.Format("DFJUMP land fell=%.1f safe=%.1f damage=%d Jumping=%d", fell, safe, damage, JumpSkill()));
 		if (damage > 0) mo.DamageMobj(null, null, damage, 'Falling', DMG_NO_ARMOR | DMG_NO_FACTOR | DMG_NO_PROTECT | DMG_NO_ENHANCE);
+	}
+
+	// The ground jump's high-jump factor, as PlayerPawn.CheckJump picks it: the best PowerHighJump's Strength
+	// (DRLA's Antigrav boots give one), or 1 without any. The safe fall follows the jump the player really has.
+	static double HighJumpFactor(Actor mo)
+	{
+		double f = 0;
+		for (let i = mo.Inv; i; i = i.Inv)
+		{
+			let pp = PowerHighJump(i);
+			if (pp && pp.Strength > f) f = pp.Strength;
+		}
+		return f > 0 ? f : 1;
 	}
 
 	// One more jump in mid-air, at the same strength as a jump from the ground.
