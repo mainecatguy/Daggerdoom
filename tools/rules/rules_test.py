@@ -131,7 +131,8 @@ def main():
                 fail(f"luck {luck}: drop pattern differs")
         elif kind == "stat" and t[2:4] != ["-1", "0"]:
             fail(f"without a Daggerfall character Agility reads {t[2]} and HasCharacter {t[3]}")
-    want_counts = {"perk": 39 * 111, "get": 39, "attr": 102, "jump": 111, "fall": 401, "luck": 9, "stat": 1, "done": 1}
+    rules = len(old_perks(0))  # 48: 39, plus skillperks 09's nine
+    want_counts = {"perk": rules * 111, "get": rules, "attr": 102, "jump": 111, "fall": 401, "luck": 9, "stat": 1, "done": 1}
     if counts != want_counts:
         fail(f"line counts {counts}, want {want_counts}")
     for b in bad[:20]:
