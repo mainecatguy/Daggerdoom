@@ -52,8 +52,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             doomState = 0;
         }
 
-        /// <summary>For GameManager.AreEnemiesNearby while resting: Doom's monsters were near when the rest was asked for.
-        /// Doom is paused behind the window, so they stay where they were.</summary>
+        /// <summary>For GameManager.AreEnemiesNearby while resting: Doom's living hostile monsters or guard bots were near
+        /// when the rest was asked for. Doom is paused behind the window, so they stay where they were. For a rest from Doom
+        /// this is the whole answer: Daggerfall's hidden enemies, guard copies and foe spawners stand where Doom's monsters
+        /// were placed but are not removed when Doom kills them, so they would refuse rest beside a dead pack.</summary>
         public static bool DoomMonstersNear { get { return fromDoom && (doomState & Dfb.REST_MONSTERS_NEAR) != 0; } }
 
         /// <summary>For DaggerfallUI's rest check: true when this rest came from Doom, with Doom's answer to
