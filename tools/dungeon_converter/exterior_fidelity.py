@@ -48,6 +48,12 @@ def cases(report):
     return found
 
 
+def reach(report):
+    """'N of M' reachable legal positions, from the report (written whether or not the Daggerfall side was cached)."""
+    m = re.search(r"reachable legal positions (\d+ of \d+)", open(report, encoding="utf-8").read())
+    return m.group(1) if m else None
+
+
 def run(group, out_dir, extra, converter):
     work = os.path.join(out_dir, str(group))
     os.makedirs(work, exist_ok=True)
@@ -69,7 +75,7 @@ def run(group, out_dir, extra, converter):
         "headline": float(m.group(2)) if m else None,
         "metric_s": float(m.group(3)) if m else None,
         "cases": c,
-        "reach": grab(r"fidelity: (\d+ of \d+) legal positions reachable", str),
+        "reach": reach(os.path.join(work, m.group(1) + ".fidelity.txt")) if m else None,
         "ms": grab(r"convert time (\d+) ms", int),
         "sectors": grab(r"sectors (\d+)", int),
         "lines": grab(r"lines (\d+)", int),

@@ -29,7 +29,9 @@ static partial class Program
     {
         var asm = typeof(Program).Assembly;
         var root = typeof(Program).GetMethod(nameof(LoadOrBuildDfSide), BindingFlags.NonPublic | BindingFlags.Static);
-        var seen = new HashSet<MethodBase> { root };
+        // The face grid (cells, column tops) feeds the air flood, SkyOpen and the tiers but is built in RunFidelity.
+        var grid = typeof(FidMeshGrid).GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)[0];
+        var seen = new HashSet<MethodBase> { root, grid };
         var queue = new Queue<MethodBase>(seen);
         var bodies = new List<string>();
         while (queue.Count > 0)

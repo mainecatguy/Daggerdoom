@@ -257,7 +257,10 @@ static partial class Program
     {
         double hash = 0;
         foreach (var t in tris) hash += t.A.X * 1.000001 + t.B.Y * 3.000003 + t.C.Z * 7.000007 + t.N.Z;
-        string key = FormattableString.Invariant($"{FidVersion}|{FidCodeHash()}|{slug}|{PlayerScale.DoomUnitsPerDaggerfallUnit}|{PlayerScale.DaggerfallBody}|{FidExterior}|{FidStep}|{FidKeepScale}|{tris.Count}|{hash:R}");
+        fidSlug = slug;
+        Console.WriteLine("fidelity: code hash " + FidCodeHash());
+        // The entrance seeds the reach flood and comes from geometry loading, which the code hash does not reach.
+        string key = FormattableString.Invariant($"{FidVersion}|{FidCodeHash()}|{slug}|{entrance.X:R},{entrance.Y:R},{entrance.Z:R}|{PlayerScale.DoomUnitsPerDaggerfallUnit}|{PlayerScale.DaggerfallBody}|{FidExterior}|{FidStep}|{FidKeepScale}|{tris.Count}|{hash:R}");
         string path = fidelityCache == null ? null : Path.Combine(fidelityCache, slug + ".dfside.bin");
         cached = false;
         if (path != null && File.Exists(path))
@@ -356,24 +359,63 @@ static partial class Program
                         || colStart[c - w] == colStart[c - w + 1] || colStart[c + w] == colStart[c + w + 1];
                     if (edge) { reached[last] = true; open.Enqueue((i, j, last)); }
                 }
+        // Each legal floor's move in each direction, as FloodDf takes it (Parity.cs): the lift is a rise, or less under a
+        // low ceiling over the next column; the body lands on the highest floor at or below that; the move needs a clear
+        // knee-height line and a body that fits there. Computed in parallel, then flooded.
+        var dirs = new[] { (1, 0), (-1, 0), (0, 1), (0, -1) };
+        var move = new int[total * 4];
+        Parallel.For(0, h, j =>
+        {
+            for (int i = 0; i < w; i++)
+                for (int n = colStart[i + j * w]; n < colStart[i + j * w + 1]; n++)
+                    for (int d = 0; d < 4; d++)
+                    {
+                        move[n * 4 + d] = -1;
+                        if (!fl[n]) continue;
+                        int ni = i + dirs[d].Item1, nj = j + dirs[d].Item2;
+                        if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue;
+                        double x = gx + i * Pitch, y = gy + j * Pitch, nx = gx + ni * Pitch, ny = gy + nj * Pitch;
+                        double lift = rise + 1, roof = Cast(new V3(nx, ny, fz[n] + 2), new V3(0, 0, 1), lift);
+                        if (roof >= 0) lift = roof + 1.5;
+                        int c = ni + nj * w;
+                        for (int m = colStart[c]; m < colStart[c + 1]; m++)
+                        {
+                            if (fz[m] > fz[n] + lift) continue;
+                            if (fl[m] && !LineBlocked(new V3(x, y, fz[n] + FloodKnee), new V3(nx, ny, fz[m] + FloodKnee))) move[n * 4 + d] = m;
+                            break; // the highest floor within the lift is where the body lands
+                        }
+                    }
+        });
         while (open.Count > 0)
         {
             var (i, j, n) = open.Dequeue();
             result.Add((new V3(gx + i * Pitch, gy + j * Pitch, fz[n]), fc[n]));
-            foreach (var (di, dj) in new[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
+            for (int d = 0; d < 4; d++)
             {
-                int ni = i + di, nj = j + dj;
-                if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue;
-                int c = ni + nj * w;
-                for (int m = colStart[c]; m < colStart[c + 1]; m++)
-                {
-                    if (fz[m] > fz[n] + rise) continue;
-                    if (fl[m] && !reached[m]) { reached[m] = true; open.Enqueue((ni, nj, m)); }
-                    break; // the highest floor within a rise is where the body lands
-                }
+                int m = move[n * 4 + d];
+                if (m >= 0 && !reached[m]) { reached[m] = true; open.Enqueue((i + dirs[d].Item1, j + dirs[d].Item2, m)); }
             }
         }
+        if (!FidExterior && fidelityDir != null) FloodCheck(result, height);
         Console.WriteLine($"fidelity: {result.Count} of {allLegal} legal positions reachable from the entrance");        return result;
+    }
+
+    // Saved evidence for the reach flood: Parity.cs's FloodDf (validated against Unity) from the same seed, compared by
+    // 16-unit column and 16-unit height band. Dungeons only (an exterior FloodDf takes too long). Written to
+    // <slug>.floodcheck.txt when the Daggerfall side is built.
+    static string fidSlug;
+    static void FloodCheck(List<(V3 at, double ceiling)> mine, double height)
+    {
+        if (mine.Count == 0) return;
+        var df = FloodDf(new List<V3> { mine[0].at }, height);
+        (int, int, int) Key(V3 p) => ((int)Math.Floor(p.X / 16), (int)Math.Floor(p.Y / 16), (int)Math.Floor(p.Z / 16));
+        var a = new HashSet<(int, int, int)>(df.Values.Select(v => Key(v.at)));
+        var b = new HashSet<(int, int, int)>(mine.Select(v => Key(v.at)));
+        bool Near(HashSet<(int, int, int)> set, (int x, int y, int z) k) { for (int dz = -1; dz <= 1; dz++) if (set.Contains((k.x, k.y, k.z + dz))) return true; return false; }
+        var onlyMine = b.Where(k => !Near(a, k)).ToList();
+        var text = new StringBuilder(FormattableString.Invariant($"reach flood vs FloodDf from the same seed, by 16-unit cell (height within one band): FloodDf {a.Count}, this flood {b.Count}, FloodDf not reached here {a.Count(k => !Near(b, k))}, reached here not by FloodDf {onlyMine.Count}\n"));
+        foreach (var k in onlyMine.Take(200)) text.Append(FormattableString.Invariant($"  only here: {k.Item1 * 16 + 8},{k.Item2 * 16 + 8},{k.Item3 * 16 + 8}\n"));
+        File.WriteAllText(Path.Combine(fidelityDir, fidSlug + ".floodcheck.txt"), text.ToString());
     }
 
     static long FidKey(int i, int j, int k) => ((long)(i + (1 << 20)) << 42) | ((long)(j + (1 << 20)) << 21) | (long)(k + (1 << 20));
