@@ -16,6 +16,7 @@ import time
 from collections import defaultdict
 
 STEP = 24  # Doom's step height: a smoothed segment may not climb more than this between samples.
+LEV_COST = 1e6  # A levitation link costs more than any walk, so a plan flies as few times as it can.
 
 
 class Graph:
@@ -93,7 +94,7 @@ class Graph:
             x, y, f, *_ = self.nodes[n]
             for m, _door in self.links[n]:
                 mx, my, mf, *_ = self.nodes[m]
-                ng = g + math.hypot(mx - x, my - y) + abs(mf - f) * 0.5
+                ng = g + math.hypot(mx - x, my - y) + abs(mf - f) * 0.5 + (LEV_COST if (n, m) in self.lev else 0)
                 if ng < cost.get(m, 1e18):
                     cost[m], came[m] = ng, n
                     heapq.heappush(frontier, (ng + h(m), ng, m))
@@ -161,12 +162,25 @@ class Graph:
         if path is None:
             return {"ok": False, "error": "no walking route (needs levitation, a key, or is cut off)", "expanded": expanded,
                     "ms": round((t_astar - t) * 1000, 1)}
-        way = self.smooth(path)
+        # Split at levitation links: each walk is smoothed on its own and each flight is one link (from the last walk
+        # waypoint up to the ledge node beside it).
+        segments, run = [], [path[0]]
+        for p, q in zip(path, path[1:]):
+            if (p, q) in self.lev:
+                segments.append({"fly": False, "nodes": run})
+                segments.append({"fly": True, "nodes": [p, q]})
+                run = [q]
+            else:
+                run.append(q)
+        segments.append({"fly": False, "nodes": run})
+        xyz = lambda n: [self.nodes[n][0], self.nodes[n][1], self.nodes[n][2]]
+        segments = [{"fly": s["fly"], "waypoints": [xyz(n) for n in (s["nodes"][1:] if s["fly"] else self.smooth(s["nodes"])[1:])]}
+                    for s in segments if s["fly"] or len(s["nodes"]) > 1]
         t_end = time.perf_counter()
         length = sum(math.hypot(self.nodes[p][0] - self.nodes[q][0], self.nodes[p][1] - self.nodes[q][1]) for p, q in zip(path, path[1:]))
         return {"ok": True, "levitate": sum((p, q) in self.lev for p, q in zip(path, path[1:])), "nodes": len(path), "expanded": expanded, "length": round(length), "doors": sum(self.nodes[p][4] for p in path),
                 "astar_ms": round((t_astar - t) * 1000, 1), "smooth_ms": round((t_end - t_astar) * 1000, 1),
-                "waypoints": [[self.nodes[p][0], self.nodes[p][1], self.nodes[p][2]] for p in way[1:]]}
+                "waypoints": [w for s in segments for w in s["waypoints"]], "segments": segments}
 
 
 def bench(g, pairs):

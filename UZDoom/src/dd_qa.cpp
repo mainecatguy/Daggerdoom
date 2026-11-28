@@ -4,7 +4,8 @@
 // qa.py appends one command per line to <folder>/inbox.txt: "<id> <command> [args]". Answers and events are JSON
 // lines appended to <folder>/outbox.jsonl. Commands run inside the game tic (DD_QaTick), so world reads are
 // consistent and nothing is changed from between tics. move_to is honest: it steers through the player's own
-// input (DD_QaInput, called from G_BuildTiccmd), so Doom's real physics move the player.
+// input (DD_QaInput, called from G_BuildTiccmd), so Doom's real physics move the player. fly_to is the QA bot's own
+// flight, standing in for Levitate (which Doomerfall does not have yet): Doom flight on for that one job only.
 
 #include <algorithm>
 #include <cinttypes>
@@ -34,7 +35,7 @@
 #include "dd_guards.h"
 #include "playsim/dd_treadmill.h"
 
-extern int forwardmove[2];
+extern int forwardmove[2], sidemove[2];
 EXTERN_CVAR(Int, dd_sync_df_phase)
 
 namespace
@@ -54,6 +55,9 @@ struct MoveJob
 	int startTic = 0, limitTics = 0, lastProgressTic = 0;
 	double bestDist = 1e30;
 	DVector3 start;
+	bool fly = false;	// fly_to: the QA bot's own flight, in place of Levitate (which Doomerfall does not have yet).
+	bool landing = false;	// Over the goal with flight off, falling onto it.
+	double goalZ = 0;
 } move;
 
 int qaPress;	// Buttons pressed for one built command (use).
@@ -161,6 +165,28 @@ AActor *FindRef(FLevelLocals *Level, const char *ref)
 	return nullptr;
 }
 
+// The QA bot's flight is the player's own Doom flight (the fly cheat's flags), steered by the fly input like the
+// fly-up and fly-down keys. It is on only during a fly_to job and always ends with it.
+void SetFlight(AActor *pmo, bool on)
+{
+	if (on) { pmo->flags2 |= MF2_FLY; pmo->flags |= MF_NOGRAVITY; }
+	else { pmo->flags2 &= ~MF2_FLY; pmo->flags &= ~MF_NOGRAVITY; }
+}
+
+// Every flight ends here or in TickMove, and both report it as a flew event, which the run summary lists.
+void FlewEvent(AActor *pmo, const char *result)
+{
+	Event("flew", FStringf("\"result\":\"%s\",\"from\":[%.1f,%.1f,%.1f],\"to\":[%.1f,%.1f,%.1f]", result, move.start.X, move.start.Y, move.start.Z,
+		pmo->X(), pmo->Y(), pmo->Z()).GetChars());
+}
+
+void EndJob(AActor *pmo, const char *result)
+{
+	if (move.active && move.fly && pmo) { SetFlight(pmo, false); FlewEvent(pmo, result ? result : "ended"); }
+	if (move.active && result) Reply(move.id, FStringf("\"done\":true,\"result\":\"%s\"", result).GetChars());
+	move.active = false;
+}
+
 void Run(FLevelLocals *Level, const std::string &line)
 {
 	AActor *pmo = Level->Players[consoleplayer]->mo;
@@ -180,11 +206,15 @@ void Run(FLevelLocals *Level, const std::string &line)
 		sscanf(rest, "%lf %d %31s", &radius, &limit, only);
 		CmdActors(Level, id, pmo, radius, limit, only);
 	}
-	else if (!stricmp(cmd, "move_to"))
+	else if (!stricmp(cmd, "move_to") || !stricmp(cmd, "fly_to"))
 	{
-		double x, y, tolerance = 24, seconds = 30;
-		if (sscanf(rest, "%lf %lf %lf %lf", &x, &y, &tolerance, &seconds) < 2) { Reply(id, "\"ok\":false,\"error\":\"move_to x y [tolerance] [seconds]\""); return; }
-		if (move.active) Reply(move.id, "\"done\":true,\"result\":\"replaced\"");
+		// fly_to x y z: rise to z, cross to (x, y), turn flight off and land there. Only for spots that would need
+		// Levitate; qa.py goto uses it on the walk graph's levitation links only, and lists every flight.
+		const bool fly = !stricmp(cmd, "fly_to");
+		double x, y, z = 0, tolerance = fly ? 12 : 24, seconds = 30;
+		const int got = fly ? sscanf(rest, "%lf %lf %lf %lf %lf", &x, &y, &z, &tolerance, &seconds) : sscanf(rest, "%lf %lf %lf %lf", &x, &y, &tolerance, &seconds);
+		if (got < (fly ? 3 : 2)) { Reply(id, fly ? "\"ok\":false,\"error\":\"fly_to x y z [tolerance] [seconds]\"" : "\"ok\":false,\"error\":\"move_to x y [tolerance] [seconds]\""); return; }
+		EndJob(pmo, "replaced");
 		move = MoveJob();
 		move.id = id;
 		move.active = true;
@@ -193,12 +223,14 @@ void Run(FLevelLocals *Level, const std::string &line)
 		move.start = pmo->Pos();
 		move.startTic = move.lastProgressTic = Level->maptime;
 		move.limitTics = int(seconds * TICRATE);
-		Reply(id, FStringf("\"ok\":true,\"job\":\"%s\",\"from\":[%.1f,%.1f,%.1f]", id, pmo->X(), pmo->Y(), pmo->Z()).GetChars());
+		move.fly = fly;
+		move.goalZ = z;
+		if (fly) SetFlight(pmo, true);
+		Reply(id, FStringf("\"ok\":true,\"job\":\"%s\",\"fly\":%d,\"from\":[%.1f,%.1f,%.1f]", id, fly, pmo->X(), pmo->Y(), pmo->Z()).GetChars());
 	}
 	else if (!stricmp(cmd, "stop"))
 	{
-		if (move.active) Reply(move.id, "\"done\":true,\"result\":\"stopped\"");
-		move.active = false;
+		EndJob(pmo, "stopped");
 		Reply(id, "\"ok\":true");
 	}
 	else if (!stricmp(cmd, "use"))	// One press of the player's own Use button.
@@ -246,18 +278,34 @@ void TickMove(FLevelLocals *Level, AActor *pmo)
 	const double d = (move.goal - pmo->Pos().XY()).Length();
 	const int now = Level->maptime;
 	const char *result = nullptr;
-	if (d <= move.tolerance) result = "arrived";
+	if (move.fly && d <= move.tolerance && !move.landing && pmo->Z() >= move.goalZ - 2)
+	{
+		SetFlight(pmo, false);	// Over the goal: flight off, and gravity lands the player.
+		move.landing = true;
+		move.lastProgressTic = now;
+	}
+	if (move.landing)
+	{
+		if (pmo->Z() <= pmo->floorz + 1 && pmo->Vel.Z == 0) result = pmo->floorz >= move.goalZ - 8 ? "arrived" : "missed";
+		else if (now - move.lastProgressTic > TICRATE * 3) result = "stuck";
+	}
+	else if (d <= move.tolerance && !move.fly) result = "arrived";
 	else if (now - move.startTic > move.limitTics) result = "timeout";
 	else
 	{
-		if (d < move.bestDist - 2) { move.bestDist = d; move.lastProgressTic = now; }
+		// A flight counts climbing toward the goal height as progress too.
+		const double left = move.fly ? d + fabs(move.goalZ + 8 - pmo->Z()) : d;
+		if (left < move.bestDist - 2) { move.bestDist = left; move.lastProgressTic = now; }
 		if (now - move.lastProgressTic > TICRATE * 2) result = "stuck";
 	}
 	if (pmo->health <= 0) result = "died";
 	if (!result) return;
+	if (move.fly) SetFlight(pmo, false);
 	move.active = false;
-	Reply(move.id, FStringf("\"done\":true,\"result\":\"%s\",\"honest\":true,\"dist\":%.1f,\"tics\":%d,\"travelled\":%.1f,%s", result, d, now - move.startTic,
-		(pmo->Pos() - move.start).Length(), Where(pmo).GetChars()).GetChars());
+	FString flew = move.fly ? FStringf(",\"flew\":true,\"fly_from\":[%.1f,%.1f,%.1f],\"goal_z\":%.1f", move.start.X, move.start.Y, move.start.Z, move.goalZ) : FString();
+	Reply(move.id, FStringf("\"done\":true,\"result\":\"%s\",\"honest\":true%s,\"dist\":%.1f,\"tics\":%d,\"travelled\":%.1f,%s", result, flew.GetChars(), d,
+		now - move.startTic, (pmo->Pos() - move.start).Length(), Where(pmo).GetChars()).GetChars());
+	if (move.fly) FlewEvent(pmo, result);
 }
 }
 
@@ -336,12 +384,37 @@ void DD_QaInput(int &forward, int &side, int &fly, uint32_t &buttons, uint32_t &
 	if (qaDir.IsEmpty()) return;
 	buttons |= qaPress;
 	qaPress = 0;
-	if (!move.active || gamestate != GS_LEVEL || !players[consoleplayer].mo) return;
+	if (!move.active || move.landing || gamestate != GS_LEVEL || !players[consoleplayer].mo) return;
 	AActor *pmo = players[consoleplayer].mo;
 	const DVector2 to = move.goal - pmo->Pos().XY();
+	if (move.fly)	// Fly up or down to just over the goal's floor, as the fly keys would, and cross only once above it.
+	{
+		const double dz = move.goalZ + 8 - pmo->Z();
+		fly += int(clamp(dz * 64, -768., 768.));
+		if (dz > 6)	// Rising: hold the take-off spot with the move and strafe keys, so drift cannot carry it under the ledge.
+		{
+			const DVector2 off = move.start.XY() - pmo->Pos().XY();
+			const double len = off.Length(), yaw = pmo->Angles.Yaw.Radians();
+			if (len > 3)
+			{
+				forward += int(forwardmove[0] * (off.X * cos(yaw) + off.Y * sin(yaw)) / len);
+				side += int(sidemove[0] * (off.X * sin(yaw) - off.Y * cos(yaw)) / len);
+			}
+			return;
+		}
+	}
 	const double want = atan2(to.Y, to.X) * 57.29577951308232;
 	double delta = remainder(want - pmo->Angles.Yaw.Degrees(), 360.);
 	delta = clamp(delta * 0.6, -60., 60.);	// Commands are built ahead of the tic that applies them, so turn part way.
 	viewAngle += uint32_t(int(delta / 360. * 4294967296.));
-	if (fabs(delta) < 45) forward += forwardmove[to.Length() > 96 ? 1 : 0];	// Run once roughly facing the goal; walk the last stretch.
+	if (fabs(delta) >= 45) return;
+	if (move.tolerance <= 8 && !move.fly)	// A precise stop: release, or tap back, when the slide (about 10x speed) would overshoot.
+	{
+		const double slide = (pmo->Vel.X * to.X + pmo->Vel.Y * to.Y) / std::max(to.Length(), 1e-6) * 10;
+		if (slide > to.Length() + 16) forward -= forwardmove[0];
+		else if (slide < to.Length()) forward += forwardmove[0];
+		return;
+	}
+	if (move.fly) forward += forwardmove[0] / (to.Length() > 64 ? 1 : 2);	// Cross slowly: the landing has no friction to stop a slide.
+	else forward += forwardmove[to.Length() > 96 ? 1 : 0];	// Run once roughly facing the goal; walk the last stretch.
 }
