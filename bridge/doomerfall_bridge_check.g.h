@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x0096bb9c59bdfed2ULL
+#define DFB_SCHEMA_HASH 0x43dca39f4e1c0b8eULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -74,6 +74,16 @@ static_assert((DFB_KIND_INFO_NAME) == (92), DFB_STALE);
 static_assert((DFB_KIND_LOOK) == (93), DFB_STALE);
 static_assert((DFB_KIND_LOOK_TEXT) == (94), DFB_STALE);
 static_assert((DFB_KIND_HUD_TEXT) == (95), DFB_STALE);
+static_assert((DFB_KIND_FIND_NPC) == (96), DFB_STALE);
+static_assert((DFB_KIND_FIND_TEXT) == (97), DFB_STALE);
+static_assert((DFB_KIND_FIND_MATCH) == (98), DFB_STALE);
+static_assert((DFB_KIND_FIND_END) == (99), DFB_STALE);
+static_assert((DFB_FIND_ACTOR_WORLD) == (1u), DFB_STALE);
+static_assert((DFB_FIND_ACTOR_LOCAL) == (2u), DFB_STALE);
+static_assert((DFB_FIND_WORLD) == (3u), DFB_STALE);
+static_assert((DFB_FIND_LOCAL) == (4u), DFB_STALE);
+static_assert((DFB_FIND_ELSEWHERE) == (5u), DFB_STALE);
+static_assert((DFB_FIND_LIST) == (1u), DFB_STALE);
 static_assert((DFB_KIND_DOOM_ITEM_TAKE) == (140), DFB_STALE);
 static_assert((DFB_KIND_DOOM_ITEM_RESULT) == (141), DFB_STALE);
 static_assert((DFB_KIND_DOOM_ITEM_USE) == (142), DFB_STALE);

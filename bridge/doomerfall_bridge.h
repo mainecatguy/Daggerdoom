@@ -113,6 +113,18 @@ extern "C" {
 /* A message Daggerfall shows on its HUD by itself, not as an answer: every AddHUDText, PopupMessage and
    SetMidScreenText outside an Info or Use capture, and the level-up line. Doom shows it once no Daggerfall menu is open. */
 #define DFB_KIND_HUD_TEXT      95  /* DF to UZ; payload: dfb_info_text, request = ms Daggerfall holds the line, 0 for its default; DFB_INFO_MORE as on INFO_TEXT */
+/* Debug find-NPC (dd_dev only; UZDoom/src/dd_findnpc.cpp, DoomerfallFindNpc.cs). Doom sends a name, full or partial;
+   Daggerfall answers with each match as a FIND_TEXT label then a FIND_MATCH target, then FIND_END. Reads only. */
+#define DFB_KIND_FIND_NPC      96  /* UZ to DF; payload: dfb_info_text, text is the name typed */
+#define DFB_KIND_FIND_TEXT     97  /* DF to UZ; the next match's label; payload: dfb_info_text; DFB_INFO_MORE as on INFO_TEXT */
+#define DFB_KIND_FIND_MATCH    98  /* DF to UZ; payload: dfb_info_request, target DFB_FIND_*, id and world_x/world_z as that says */
+#define DFB_KIND_FIND_END      99  /* DF to UZ; payload: dfb_info_request, id is the number of matches found (more than were sent if over the cap) */
+#define DFB_FIND_ACTOR_WORLD   1u  /* id is an NPC or townsperson id Doom may draw; if absent, world_x/world_z is its Daggerfall world point */
+#define DFB_FIND_ACTOR_LOCAL   2u  /* as ACTOR_WORLD, but the fallback point is Doom map units in the current building or dungeon */
+#define DFB_FIND_WORLD         3u  /* outdoors: world_x/world_z is a Daggerfall world point (a building's door) */
+#define DFB_FIND_LOCAL         4u  /* world_x/world_z is a point in Doom map units in the current building or dungeon */
+#define DFB_FIND_ELSEWHERE     5u  /* not in this area; the label says where */
+#define DFB_FIND_LIST          1u  /* dfb_info_text.style on FIND_NPC: the pick list; empty text lists the active quests' NPCs, typed text lists those first */
 
 /* Doom items held by Daggerfall. A Doom item is named by the Doom world pickup class the player took. Daggerfall
    keeps the record in its inventory and save; Doom draws the sprite and applies the item when it is used. */

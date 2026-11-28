@@ -75,6 +75,9 @@ void DD_InfoUiClosed();
 bool DD_InfoNetEvent(dfb_session *session, const char *name);
 bool DD_LookEvent(const dfb_event &e);
 void DD_LookFrame(dfb_session *session);
+bool DD_FindNpcEvent(const dfb_event &e); // dd_findnpc.cpp, debug find-NPC (dd_dev)
+void DD_FindNpcFrame(dfb_session *session);
+bool DD_FindNpcNetEvent(dfb_session *session, const char *name);
 bool DD_TownsfolkEvent(const dfb_event &e);
 void DD_TownsfolkFrame(dfb_session *session, uint32_t context);
 void DD_TownsfolkResync();
@@ -359,7 +362,7 @@ void HandleEvent(const dfb_event &e, int64_t now)
 		Log("hello from Daggerfall (seq %u)", e.seq);
 		break;
 	default:
-		if (!DD_ItemsEvent(e) && !DD_MonstersEvent(e) && !DD_LocationsEvent(e) && !DD_NpcsEvent(e) && !DD_InfoEvent(e) && !DD_LookEvent(e) && !DD_TownsfolkEvent(e) && !DD_GuardsEvent(e) && !DD_DoorsEvent(e)) unknownKinds++; // contract rule 7: skip, never fatal
+		if (!DD_ItemsEvent(e) && !DD_MonstersEvent(e) && !DD_LocationsEvent(e) && !DD_NpcsEvent(e) && !DD_InfoEvent(e) && !DD_LookEvent(e) && !DD_FindNpcEvent(e) && !DD_TownsfolkEvent(e) && !DD_GuardsEvent(e) && !DD_DoorsEvent(e)) unknownKinds++; // contract rule 7: skip, never fatal
 		break;
 	}
 }
@@ -1008,7 +1011,7 @@ void DD_BridgeMonsterDied(AActor *mo)
 // A ZScript pickup request, seen as its network event runs. False for every other event and outside a session.
 bool DD_BridgeItemNetEvent(const char *name)
 {
-	return session && (DD_ItemsNetEvent(session, name) || DD_InfoNetEvent(session, name) || DD_ClimbNetEvent(session, name) || DD_SkillXpNetEvent(session, name) || DD_DoorsNetEvent(session, name) || DD_SetupNetEvent(name));
+	return session && (DD_ItemsNetEvent(session, name) || DD_InfoNetEvent(session, name) || DD_FindNpcNetEvent(session, name) || DD_ClimbNetEvent(session, name) || DD_SkillXpNetEvent(session, name) || DD_DoorsNetEvent(session, name) || DD_SetupNetEvent(name));
 }
 
 bool DD_IsDrlaSpawner(AActor *mo);
@@ -2851,6 +2854,7 @@ void DD_BridgeFrame()
 	DD_GuardsFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
 	DD_DoorsFrame(ownState.world_context, ownState.space_valid != 0, ownState.space_target);
 	DD_LookFrame(session);
+	DD_FindNpcFrame(session);
 
 	ownState.uz_heartbeat++;
 	ownState.uz_tic = gametic;

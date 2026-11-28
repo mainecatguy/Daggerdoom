@@ -386,6 +386,7 @@ void DD_BridgeDrawLoading(); // Doomerfall
 void DD_BridgeDrawUi(); // Doomerfall
 bool DD_BridgeUiActive(); // Doomerfall
 void DD_FacesDraw(); // Doomerfall
+void DD_FindNpcDraw(); // Doomerfall
 
 // EXTERNAL DATA DECLARATIONS ----------------------------------------------
 
@@ -1412,6 +1413,7 @@ void D_Display ()
 				StatusBar->DrawTopStuff (HUD_StatusBar);
 			}
 			DD_FacesDraw(); // Doomerfall: quest follower faces, none outside a bridge session
+			DD_FindNpcDraw(); // Doomerfall: debug find-NPC marker (dd_findnpc.cpp), none without one
 			//stb.Unclock();
 			//Printf("Stbar = %f\n", stb.TimeMS());
 		}
