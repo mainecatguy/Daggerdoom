@@ -311,6 +311,12 @@ few are big depots and some are nearly empty. Better shops stock more. Regular a
 Regular ammo has no material, so it goes by its plain name: Bullets, Shells, Rockets, Energy Cells. Every other tier
 puts its material first, such as Silver Bullets.
 
+**Changing ammo.** The **Change Ammo** control (Options, Customize Controls, Doomerfall Controls) loads the next tier
+you carry for the gun in your hands. The gun reloads with it, and a notice such as "Loading Silver Bullets." shows at
+the top of the screen. The loaded ammo's icon, in its tier's colour, takes the place of the word AMMO in the status
+bar's ammo box (on the fullscreen HUD it is the icon beside your reserve count), so you can always see which ammo is in
+the gun.
+
 Health, ammo and powerups lie around only in dungeons, about one or two per room. Houses, shops and other buildings
 have none: rest to heal. Across all dungeons about 3 in 10 pickups are health, 3 in 10 bullets, a quarter shells, 1 in
 10 rockets and a few energy cells, but each dungeon has its own leaning: some are full of shells, a few are rocket or

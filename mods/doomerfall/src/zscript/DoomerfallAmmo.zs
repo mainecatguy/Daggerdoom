@@ -159,6 +159,33 @@ class DoomerfallAmmoTiers : StaticEventHandler
 				DTA_DestWidthF, size.x * s, DTA_DestHeightF, size.y * s, DTA_TopOffset, 0, DTA_LeftOffset, 0,
 				DTA_TranslationIndex, Translation.GetID(String.Format("DFAmmoTier%d", loadedTier)));
 		}
+		DrawBarIcon(p);
+	}
+
+	// DRLA's status bar (screen size 10 or less, statusbar.txt "statusbar normal, forcescaled") draws no ammo icon: the
+	// word "AMMO" is painted into its ammo box (RLZHUD1, centred at 160,100 of the bar's 320x200). The loaded tier's
+	// icon covers that word, in the bar's own 320x200 coordinates. The fullscreen HUDs draw the reserve item's Icon
+	// instead, which TickIcons sets.
+	const BarLabelX = 255; // The word's black panel in the bar: x 255-266, y 172-197.
+	const BarLabelY = 172;
+	const BarLabelW = 12;
+	const BarLabelH = 26;
+
+	ui void DrawBarIcon(PlayerInfo p)
+	{
+		if (CVar.FindCVar("screenblocks").GetInt() > 10 || !TexMan.CheckForTexture("RLZHUD1", TexMan.Type_Any).IsValid()) return;
+		class<Inventory> special = String.Format("%s", "RLSpecialHUD"); // Looked up at run time: only DRLA has it.
+		if (special && p.mo.FindInventory(special)) return; // DRLA draws another bar then.
+		TextureID icon = TexMan.CheckForTexture(String.Format("DFAI%s%d", ICONLETTERS[loadedType], loadedTier), TexMan.Type_Any);
+		if (!icon.IsValid()) return;
+		Vector2 pos, size;
+		[pos, size] = Screen.VirtualToRealCoords((BarLabelX, BarLabelY), (BarLabelW, BarLabelH), (320, 200));
+		Screen.Clear(int(pos.x), int(pos.y), int(ceil(pos.x + size.x)), int(ceil(pos.y + size.y)), Color(255, 0, 0, 0));
+		Vector2 tex = TexMan.GetScaledSize(icon);
+		double s = min((BarLabelW - 2) / tex.x, (BarLabelH - 2) / tex.y);
+		Vector2 at = (BarLabelX + (BarLabelW - tex.x * s) / 2, BarLabelY + (BarLabelH - tex.y * s) / 2);
+		[pos, size] = Screen.VirtualToRealCoords(at, tex * s, (320, 200));
+		Screen.DrawTexture(icon, false, pos.x, pos.y, DTA_DestWidthF, size.x, DTA_DestHeightF, size.y, DTA_TopOffset, 0, DTA_LeftOffset, 0);
 	}
 
 	override void WorldUnloaded(WorldEvent e)
@@ -226,8 +253,34 @@ class DoomerfallAmmoTiers : StaticEventHandler
 		pendingSeed.Push(inv.DD_LootSeed());
 	}
 
+	// The status bar's ammo symbol is the loaded tier's tinted icon (owner, 2026-11-27: "that's how players will know what
+	// kind of ammo they have equipped"). The player's reserve item of the loaded type takes DFAI<type><tier> from
+	// TEXTURES.ammoicons (tools/ammoicon/make_textures.py); the other reserve items keep their class's own icon. Checked
+	// every tic, because Doom makes a reserve item afresh when that ammo first arrives. Only in a Daggerfall session.
+	static const String ICONLETTERS[] = { "C", "S", "R", "E" };
+	static const String RESERVES[] = { "Clip", "Shell", "RocketAmmo", "Cell" };
+
+	void TickIcons()
+	{
+		let mo = players[consoleplayer].mo;
+		if (!mo) return;
+		for (int t = 0; t < RESERVES.Size(); t++)
+		{
+			let inv = mo.FindInventory(RESERVES[t]);
+			if (!inv) continue;
+			TextureID want = GetDefaultByType(inv.GetClass()).Icon;
+			if (t == loadedType && loadedTier >= 0)
+			{
+				TextureID tinted = TexMan.CheckForTexture(String.Format("DFAI%s%d", ICONLETTERS[t], loadedTier), TexMan.Type_Any);
+				if (tinted.IsValid()) want = tinted;
+			}
+			if (inv.Icon != want) inv.Icon = want;
+		}
+	}
+
 	override void WorldTick()
 	{
+		if (rules && consoleplayer >= 0) TickIcons();
 		if (reloadGun) TickReload();
 		if (luckKind.Size() > 0) SpawnLuckDrops();
 		for (int i = pending.Size() - 1; i >= 0; i--)
