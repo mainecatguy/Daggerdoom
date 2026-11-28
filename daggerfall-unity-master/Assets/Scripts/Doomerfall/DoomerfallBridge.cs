@@ -533,6 +533,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     case Dfb.KIND_CLIMB_USES:
                         DoomerfallClimb.OnUses(this, ev.climbUses.uses);
                         break;
+                    case Dfb.KIND_RUN_TIME:
+                        DoomerfallRunning.OnRunTime(this, ev.runTime.tics);
+                        break;
                     case Dfb.KIND_NPC_USE:
                         ui.Talk.OnUse(ev.npcUse.request, ev.npcUse.id, ev.npcUse.mode, ev.npcUse.distance);
                         break;

@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x38b14661e0e54c35ULL
+#define DFB_SCHEMA_HASH 0x309a78209f91c7e3ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -104,6 +104,7 @@ static_assert((DFB_GUN_CLEAR) == (2u), DFB_STALE);
 static_assert((DFB_GUN_SELECT) == (3u), DFB_STALE);
 static_assert((DFB_GUN_FIST) == (4u), DFB_STALE);
 static_assert((DFB_KIND_CLIMB_USES) == (170), DFB_STALE);
+static_assert((DFB_KIND_RUN_TIME) == (169), DFB_STALE);
 static_assert((DFB_KIND_AMMO) == (171), DFB_STALE);
 static_assert((DFB_KIND_AMMO_ADD) == (172), DFB_STALE);
 static_assert((DFB_KIND_AMMO_READY) == (173), DFB_STALE);
@@ -654,6 +655,12 @@ static_assert(offsetof(dfb_climb_uses, uses) == 0, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_climb_uses::uses), uint32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_climb_uses, pad) == 4, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_climb_uses::pad), uint32_t>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_run_time) == 8, DFB_STALE);
+static_assert(offsetof(dfb_run_time, tics) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_run_time::tics), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_run_time, pad) == 4, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_run_time::pad), uint32_t>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_npc_use) == 24, DFB_STALE);
 static_assert(offsetof(dfb_npc_use, id) == 0, DFB_STALE);

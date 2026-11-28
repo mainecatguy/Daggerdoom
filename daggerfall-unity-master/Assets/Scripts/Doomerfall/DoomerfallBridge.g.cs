@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x38b14661e0e54c35UL;
+        public const ulong SchemaHash = 0x309a78209f91c7e3UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -104,6 +104,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint GUN_SELECT = 3;  // Doom already holds cls as the active gun; raise it
         public const uint GUN_FIST = 4;  // cls is empty; raise the fist (given if missing); the active gun stays in Doom, lowered
         public const ushort KIND_CLIMB_USES = 170;  // UZ to DF; Daggerfall tallies this many Climbing skill uses; payload: dfb_climb_uses
+        public const ushort KIND_RUN_TIME = 169;  // UZ to DF; the player ran this many Doom tics (35 a second); payload: dfb_run_time
         public const ushort KIND_AMMO = 171;  // UZ to DF; status is Doom's count; request is the last AMMO_ADD Doom applied
         public const ushort KIND_AMMO_ADD = 172;  // DF to UZ; status is a signed 32-bit delta to add (Doom's count stops at 0)
         public const ushort KIND_AMMO_READY = 173;  // UZ to DF; the ready weapon changed; cls is the reserve ammo class it uses, or empty for none
@@ -340,8 +341,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint TOWNSFOLK_INTERIOR = 1;
 
         // Native size of every generated struct, for the attach check.
-        public static readonly Type[] StructTypes = { typeof(DfbFaces), typeof(DfbFace), typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbPlainLoad), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbWorldContainer), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbInfoRequest), typeof(DfbInfoText), typeof(DfbDoomItem), typeof(DfbDoor), typeof(DfbItemArt), typeof(DfbClimbUses), typeof(DfbNpcUse), typeof(DfbNpcUseResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbEncounterArea), typeof(DfbEncounterText), typeof(DfbPlace), typeof(DfbPlaceName), typeof(DfbPlaceFact), typeof(DfbPlacePlan), typeof(DfbNpc), typeof(DfbTownsfolk), typeof(DfbTownsperson), typeof(DfbTownspersonDeath), typeof(DfbGuardSpawn), typeof(DfbGuardDeath), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
-        public static readonly int[] StructSizes = { 8, 16, 64, 24, 24, 24, 24, 24, 48, 32, 48, 48, 32, 16, 48, 40, 16, 48, 32, 48, 48, 32, 464, 8, 24, 16, 32, 32, 48, 48, 32, 48, 48, 32, 16, 32, 40, 24, 40, 8, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
+        public static readonly Type[] StructTypes = { typeof(DfbFaces), typeof(DfbFace), typeof(DfbEvent), typeof(DfbPing), typeof(DfbArea), typeof(DfbUiCommand), typeof(DfbUiInput), typeof(DfbUiState), typeof(DfbUiResult), typeof(DfbTravel), typeof(DfbNewGame), typeof(DfbPlainLoad), typeof(DfbTransition), typeof(DfbWorldItems), typeof(DfbWorldItem), typeof(DfbWorldContainer), typeof(DfbItemTake), typeof(DfbItemResult), typeof(DfbInfoRequest), typeof(DfbInfoText), typeof(DfbDoomItem), typeof(DfbDoor), typeof(DfbItemArt), typeof(DfbClimbUses), typeof(DfbRunTime), typeof(DfbNpcUse), typeof(DfbNpcUseResult), typeof(DfbMonsterDeath), typeof(DfbMonster), typeof(DfbEncounterArea), typeof(DfbEncounterText), typeof(DfbPlace), typeof(DfbPlaceName), typeof(DfbPlaceFact), typeof(DfbPlacePlan), typeof(DfbNpc), typeof(DfbTownsfolk), typeof(DfbTownsperson), typeof(DfbTownspersonDeath), typeof(DfbGuardSpawn), typeof(DfbGuardDeath), typeof(DfbSurfaceFrame), typeof(DfbHpEvent), typeof(DfbSaveRequest), typeof(DfbSaveReply), typeof(DfbLoadRequest), typeof(DfbSaveDone), typeof(DfbHello), typeof(DfbDfState), typeof(DfbUzState), typeof(DfbStats) };
+        public static readonly int[] StructSizes = { 8, 16, 64, 24, 24, 24, 24, 24, 48, 32, 48, 48, 32, 16, 48, 40, 16, 48, 32, 48, 48, 32, 464, 8, 8, 24, 16, 32, 32, 48, 48, 32, 48, 48, 32, 16, 32, 40, 24, 40, 8, 40, 24, 16, 40, 32, 8, 16, 256, 256, 56 };
     }
 
     static class DfbBytes
@@ -439,6 +440,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public DfbInfoText infoText;  // INFO_TEXT, INFO_NAME, LOOK_TEXT, HUD_TEXT, DOOR_TEXT
         [FieldOffset(16)] public DfbDoomItem doomItem;  // DOOM_ITEM_TAKE, DOOM_ITEM_RESULT, DOOM_ITEM_USE, DOOM_ITEM_USED, DOOM_ITEM_ART_REQUEST, DOOM_ITEM_ART, STARTER
         [FieldOffset(16)] public DfbClimbUses climbUses;  // CLIMB_USES
+        [FieldOffset(16)] public DfbRunTime runTime;  // RUN_TIME
         [FieldOffset(16)] public DfbDoor door;  // DOOR_USE, DOOR_STATE, LOCKPICK
         [FieldOffset(16)] public DfbPlainLoad plainLoad;  // PLAIN_LOAD
         [FieldOffset(16)] public DfbNpcUse npcUse;  // NPC_USE
@@ -989,6 +991,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
     struct DfbClimbUses
     {
         [FieldOffset(0)] public uint uses;  // skill rolls since the last event, pass or fail
+        [FieldOffset(4)] public uint pad;
+    }
+
+    [StructLayout(LayoutKind.Explicit, Size = 8)]
+    struct DfbRunTime
+    {
+        [FieldOffset(0)] public uint tics;  // game tics spent running since the last event
         [FieldOffset(4)] public uint pad;
     }
 

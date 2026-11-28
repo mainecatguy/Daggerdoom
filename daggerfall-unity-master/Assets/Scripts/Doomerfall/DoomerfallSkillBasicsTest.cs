@@ -98,7 +98,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         }
 
         // The raw tally at which PlayerEntity.RaiseSkills raises this skill (its reflexes scaling undone).
-        static int UsesToAdvance(PlayerEntity player, DFCareer.Skills skill)
+        internal static int UsesToAdvance(PlayerEntity player, DFCareer.Skills skill)
         {
             int needed = FormulaHelper.CalculateSkillUsesForAdvancement(player.Skills.GetPermanentSkillValue(skill),
                 DaggerfallSkills.GetAdvancementMultiplier(skill), player.Career.AdvancementMultiplier, player.Level);
