@@ -318,10 +318,12 @@ Pistols covers pistols, such as the stock pistol, the Pistol, the Handcannon and
 
 ## Falling and jumping
 
-In Daggerfall's world, falls hurt, by Daggerfall's own rule:
+In Daggerfall's world, falls hurt:
 
-- A fall is measured from where you left the ground to where you land. The first **5 metres** are free; every metre
-  past that costs **5 HP**. A 9 metre drop costs 20 HP, a 15 metre drop 50 HP. Armor does not help.
+- A fall is measured from where you left the ground to where you land. A fall up to **1.5 times your jump height** is
+  free; every metre past that costs **5 HP**. The better you jump, the farther you can fall: the free fall is 1.8 m at
+  Jumping 0, 2.6 m at 25, 3.1 m at 50, 3.5 m at 75 and 3.9 m at 100. A 9 metre drop costs 36 HP at Jumping 0 and
+  25 HP at 100. Armor does not help.
 - A jump that lands where it started never hurts, however high it goes, double and triple jumps included.
 - Grabbing a wall while climbing starts the fall over from there.
 - Landing outdoors on a sea or lake tile never hurts, as in Daggerfall.
@@ -334,11 +336,10 @@ Your **Jumping** skill (the permanent value on your character sheet) changes how
 - **25:** a sudden boost of 25% more height on top of that (so at 100 your jumps are 2.25 times as high).
 - **50:** double jump. Press Jump again in mid-air to jump once more, as strong as a jump from the ground. You can
   also use it after walking off an edge.
-- **75:** falling no longer hurts you.
 - **100:** triple jump. You can jump twice in mid-air.
 
-Below 75, Jumping does not lower falling damage yet. Jumping does not train by jumping in Doom yet; train it at a
-guild.
+Higher jumps also mean longer safe falls (above). Every jump trains Jumping, as in Daggerfall: each jump from the
+ground and each double or triple jump in mid-air counts once.
 
 ## Swimming outdoors
 
