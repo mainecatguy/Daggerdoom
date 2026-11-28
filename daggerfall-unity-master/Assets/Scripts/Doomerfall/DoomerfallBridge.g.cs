@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x65dc0a36851459beUL;
+        public const ulong SchemaHash = 0x396641c6e74eaf0dUL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -74,6 +74,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_LOOK = 93;  // UZ to DF; payload: dfb_info_request, target DFB_INFO_NPC, _TOWNSPERSON, _PILE, _BUILDING or _DOOM_GUN
         public const ushort KIND_LOOK_TEXT = 94;  // DF to UZ; the label for that request, empty for none; payload: dfb_info_text; DFB_INFO_MORE as on INFO_TEXT
         public const ushort KIND_HUD_TEXT = 95;  // DF to UZ; payload: dfb_info_text, request = ms Daggerfall holds the line, 0 for its default; DFB_INFO_MORE as on INFO_TEXT
+        public const ushort KIND_FIND_NPC = 96;  // UZ to DF; payload: dfb_info_text, text is the name typed
+        public const ushort KIND_FIND_TEXT = 97;  // DF to UZ; the next match's label; payload: dfb_info_text; DFB_INFO_MORE as on INFO_TEXT
+        public const ushort KIND_FIND_MATCH = 98;  // DF to UZ; payload: dfb_info_request, target DFB_FIND_*, id and world_x/world_z as that says
+        public const ushort KIND_FIND_END = 99;  // DF to UZ; payload: dfb_info_request, id is the number of matches found (more than were sent if over the cap)
+        public const uint FIND_ACTOR_WORLD = 1;  // id is an NPC or townsperson id Doom may draw; if absent, world_x/world_z is its Daggerfall world point
+        public const uint FIND_ACTOR_LOCAL = 2;  // as ACTOR_WORLD, but the fallback point is Doom map units in the current building or dungeon
+        public const uint FIND_WORLD = 3;  // outdoors: world_x/world_z is a Daggerfall world point (a building's door)
+        public const uint FIND_LOCAL = 4;  // world_x/world_z is a point in Doom map units in the current building or dungeon
+        public const uint FIND_ELSEWHERE = 5;  // not in this area; the label says where
         public const ushort KIND_DOOM_ITEM_TAKE = 140;  // UZ to DF; the player pressed Use on a Doom item, which waits for the answer; payload: dfb_doom_item
         public const ushort KIND_DOOM_ITEM_RESULT = 141;  // DF to UZ; status DFB_ITEM_TAKEN, DFB_ITEM_TOO_HEAVY, or DFB_ITEM_REFUSED; payload: dfb_doom_item
         public const ushort KIND_DOOM_ITEM_USE = 142;  // DF to UZ; the player used this item in Daggerfall's inventory; payload: dfb_doom_item
@@ -442,8 +451,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public DfbItemTake itemTake;  // ITEM_TAKE, DOOM_ITEM_ID
         [FieldOffset(16)] public DfbItemResult itemResult;  // ITEM_RESULT
         [FieldOffset(16)] public DfbWorldContainer worldContainer;  // CONTAINER
-        [FieldOffset(16)] public DfbInfoRequest infoRequest;  // INFO, LOOK
-        [FieldOffset(16)] public DfbInfoText infoText;  // INFO_TEXT, INFO_NAME, LOOK_TEXT, HUD_TEXT, DOOR_TEXT
+        [FieldOffset(16)] public DfbInfoRequest infoRequest;  // INFO, LOOK, FIND_MATCH, FIND_END
+        [FieldOffset(16)] public DfbInfoText infoText;  // INFO_TEXT, INFO_NAME, LOOK_TEXT, HUD_TEXT, FIND_NPC, FIND_TEXT, DOOR_TEXT
         [FieldOffset(16)] public DfbDoomItem doomItem;  // DOOM_ITEM_TAKE, DOOM_ITEM_RESULT, DOOM_ITEM_USE, DOOM_ITEM_USED, DOOM_ITEM_ART_REQUEST, DOOM_ITEM_ART, STARTER
         [FieldOffset(16)] public DfbClimbUses climbUses;  // CLIMB_USES
         [FieldOffset(16)] public DfbRunTime runTime;  // RUN_TIME

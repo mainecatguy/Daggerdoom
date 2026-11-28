@@ -27,4 +27,5 @@ OptionMenu "DoomerfallControlsMenu"
 	Control "Info", "netevent df_info"
 	Control "Status (location, time, health)", "netevent df_status"
 	Control "Change Ammo", "netevent df_change_ammo"
+	Control "Find NPC by name (dev mode only)", "dd_findnpc"
 }

@@ -536,3 +536,11 @@ words painted into the menu pictures (such as the character sheet's headings and
   they are.
 - A Daggerfall Unity texture pack that replaces a menu picture shows as the pack made it. If it replaces one of the
   four popups' pictures, that popup keeps the pack's own painted row words instead of drawing them as text.
+
+## Developer tools (dev mode)
+
+- Find NPC (dev mode only, `dd_dev 1`): press N (Doomerfall Controls, "Find NPC by name") or type `dd_findnpc [name]`
+  in the console, then a full or partial name; pick from the list if several match. A gold chevron points at the
+  building they are in when you are outside, or at the NPC when you share their building or dungeon, with the name and
+  distance (at the screen edge when off screen). Someone in another place is named in text with the place and
+  building. It clears when you change area or search again.
