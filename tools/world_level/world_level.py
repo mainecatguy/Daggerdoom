@@ -1,7 +1,7 @@
 """World level test: the same place gives the same loot, gold, and enemies at any player level.
 
 usage: world_level.py assemble [LANE] | run LEVEL | compare LEVEL_A LEVEL_B
-assemble: builds review\\world-level from review\\questfaces(UZDoom, launcher, bridge DLL, data; same bridge header)
+assemble: builds review\\world-level from review\\batch14-stage (UZDoom, launcher, bridge DLL, data)
           and this worktree's Daggerfall Unity build. With LANE, UZDoom, launcher and bridge DLL come instead from
           D:\\dev\\DoomDaggerfall-build\\{uzdoom,launcher,bridge}-LANE\\Release (needed after a bridge header merge).
 run:      paired games, minimized, with Daggerfall's -dfworldleveltest LEVEL (the player's level is set to LEVEL, then
@@ -10,11 +10,12 @@ compare:  compares two runs' "area" rolls (must match) and "control" rolls (no a
 odds:     world_level.py odds LEVEL: material shares of piles, shelves, containers, magic items and enemy equipment
           rolled at area levels 1, 10, 20, 30 in that run, against the owner's approved table; plus the classic
           formula at level 20 with the Doomerfall hook off, which must differ. Also quest reward magic items rolled with
-          the player at level 1, which must follow the approved odds at the fixed quest reward level (20).
+          the player at level 1 at area levels 1 and 20, which must follow the approved odds at those area levels.
           Doom weapon items ("doomguns") must match the approved table on their own at each level, and one rolled
           gun must keep its material, name and info through Daggerfall's item save format ("doomgun roundtrip").
 """
 import math
+import os
 import re
 import shutil
 import subprocess
@@ -30,8 +31,10 @@ import install  # noqa: E402  (only for its registry isolation)
 sys.argv = argv
 
 REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\world-level")
-# UZDoom, launcher and bridge DLL from the questfaces lane, the last change to bridge/doomerfall_bridge.h (db43379).
-BASE = Path(r"D:\dev\DoomDaggerfall-loop\review\questfaces")
+# Data (cache, converter, overworld) and UZDoom resources from a staged review build; review\questfaces is gone.
+# Pass a LANE to assemble so UZDoom, launcher and bridge DLL match this worktree's bridge header.
+# WORLD_LEVEL_BASE overrides the folder.
+BASE = Path(os.environ.get("WORLD_LEVEL_BASE", r"D:\dev\DoomDaggerfall-loop\review\batch14-stage"))
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
 MODS = GAME.parent / "GameMods"
@@ -113,7 +116,7 @@ def run(level):
         proc.wait()
     print("stopped:", reason)
     for line in read(df_log).splitlines():
-        if ("worldleveltest" in line and " area " not in line) or "questreward: reward" in line or "questreward: control" in line or "area level" in line or "Exception" in line or "error" in line.lower():
+        if ("worldleveltest" in line and " area " not in line) or ("questreward:" in line and " quest " not in line) or "area level" in line or "Exception" in line or "error" in line.lower():
             print("df", line[:300])
 
 

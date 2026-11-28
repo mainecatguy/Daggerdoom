@@ -595,6 +595,13 @@ Daggerfall. Press **Use (E)** on them to talk, hand over quest items, or collect
 them, or sends them somewhere else, they disappear from that spot. Items a quest leaves lying in a building do not show
 up yet.
 
+### Quest rewards
+
+Gold and magic items a quest pays depend on the level of the town where you took the quest (the level the travel map
+shows), not on your own level. A gold quest in a level 1 town pays roughly 75 to 100 gold; in a town of level 18 or
+more it pays about ten times that. The region's prices shift these amounts a little. Guild quests still pay by your
+rank in the guild.
+
 ## Entering a place
 
 - When you go through a door into or out of a dungeon or building, or walk out of a town, the game pauses until the
