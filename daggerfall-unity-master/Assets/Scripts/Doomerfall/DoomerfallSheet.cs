@@ -210,6 +210,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DoomerfallExplosivesRules.Fill(values, player);
             DoomerfallShotgunsRules.Fill(values, player);
             DoomerfallEnergyRules.Fill(values, player);
+            DoomerfallPistolsRules.Fill(values, player);
         }
 
         // The checksum lets a test compare this line with Doom's copy of the same version.

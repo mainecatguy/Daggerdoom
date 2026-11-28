@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x65dc0a36851459beULL
+#define DFB_SCHEMA_HASH 0x37251a22f2b40a03ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -202,8 +202,8 @@ static_assert((DFB_FACES_FORMAT_VERSION) == (1u), DFB_STALE);
 static_assert((DFB_FACES_MAX) == (3u), DFB_STALE);
 static_assert((DFB_FACE_MAX_SIDE) == (64u), DFB_STALE);
 static_assert((DFB_SHEET_SLOT) == (0u), DFB_STALE);
-static_assert((DFB_SHEET_FORMAT_VERSION) == (11), DFB_STALE);
-static_assert((DFB_SHEET_INTS) == (181), DFB_STALE);
+static_assert((DFB_SHEET_FORMAT_VERSION) == (12), DFB_STALE);
+static_assert((DFB_SHEET_INTS) == (194), DFB_STALE);
 static_assert((DFB_SHEET_FORMAT) == (0), DFB_STALE);
 static_assert((DFB_SHEET_EPOCH) == (1), DFB_STALE);
 static_assert((DFB_SHEET_VALID) == (2), DFB_STALE);
@@ -272,6 +272,19 @@ static_assert((DFB_SHEET_ENERGY_BURN_BP) == (177), DFB_STALE);
 static_assert((DFB_SHEET_ENERGY_CONVERT_BP) == (178), DFB_STALE);
 static_assert((DFB_SHEET_ENERGY_BURST_BP) == (179), DFB_STALE);
 static_assert((DFB_SHEET_ENERGY_BURST_RADIUS) == (180), DFB_STALE);
+static_assert((DFB_SHEET_PIST_RESERVED_1) == (181), DFB_STALE);
+static_assert((DFB_SHEET_PIST_RESERVED_2) == (182), DFB_STALE);
+static_assert((DFB_SHEET_PIST_RESERVED_3) == (183), DFB_STALE);
+static_assert((DFB_SHEET_PIST_RESERVED_4) == (184), DFB_STALE);
+static_assert((DFB_SHEET_PIST_RESERVED_5) == (185), DFB_STALE);
+static_assert((DFB_SHEET_PIST_RESERVED_6) == (186), DFB_STALE);
+static_assert((DFB_SHEET_PIST_RELOAD_BP) == (187), DFB_STALE);
+static_assert((DFB_SHEET_PIST_CARRY) == (188), DFB_STALE);
+static_assert((DFB_SHEET_PIST_POOL) == (189), DFB_STALE);
+static_assert((DFB_SHEET_PIST_POOL_REFILL_MS) == (190), DFB_STALE);
+static_assert((DFB_SHEET_PIST_FRAGMENTS) == (191), DFB_STALE);
+static_assert((DFB_SHEET_PIST_FRAGMENT_BP) == (192), DFB_STALE);
+static_assert((DFB_SHEET_PIST_FRAGMENT_TURN) == (193), DFB_STALE);
 static_assert((DFB_UI_NONE) == (0u), DFB_STALE);
 static_assert((DFB_UI_TRAVEL_MAP) == (1u), DFB_STALE);
 static_assert((DFB_UI_INVENTORY) == (2u), DFB_STALE);

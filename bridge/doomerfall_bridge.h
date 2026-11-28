@@ -326,8 +326,8 @@ typedef struct dfb_face
 } dfb_face;
 
 #define DFB_SHEET_SLOT   0u
-#define DFB_SHEET_FORMAT_VERSION 11 /* 3: skill slots 4-6 are the gun skills, 7-12 unused; 4: slot 7 is Pistols; 5: slot 8 is Rifles; 6: slots 9-10 are Energy Weapons and Melee; 7: Automatics perk rules; 8: Explosives perk rules; 9: Shotguns perk rules; 10: Energy Weapons perk rules; 11: Energy Weapons burn rules */
-#define DFB_SHEET_INTS   181
+#define DFB_SHEET_FORMAT_VERSION 12 /* 3: skill slots 4-6 are the gun skills, 7-12 unused; 4: slot 7 is Pistols; 5: slot 8 is Rifles; 6: slots 9-10 are Energy Weapons and Melee; 7: Automatics perk rules; 8: Explosives perk rules; 9: Shotguns perk rules; 10: Energy Weapons perk rules; 11: Energy Weapons burn rules; 12: Pistols perk rules */
+#define DFB_SHEET_INTS   194
 #define DFB_SHEET_FORMAT 0    /* DFB_SHEET_FORMAT_VERSION */
 #define DFB_SHEET_EPOCH  1
 #define DFB_SHEET_VALID  2    /* 1 when this describes the current, fully loaded character */
@@ -407,6 +407,22 @@ typedef struct dfb_face
 #define DFB_SHEET_ENERGY_CONVERT_BP   178  /* a direct hit first turns this much of the enemy's burn into instant damage */
 #define DFB_SHEET_ENERGY_BURST_BP     179  /* that converted damage bursts out, setting enemies nearby burning for this ... */
 #define DFB_SHEET_ENERGY_BURST_RADIUS 180  /* ... much of it, within this many map units (0: no burst) */
+/* Pistols skill rules (work/backlog/skills-in-doom.md), from the live Pistols skill. Daggerfall decides them and Doom
+   applies them to guns whose skill is Pistols. 0 means that rule is off. Slots 181-186 are reserved for the skill 25
+   and 75 fire-rate multipliers, whose rules are open (owner): always 0, Doom reads nothing from them. */
+#define DFB_SHEET_PIST_RESERVED_1      181
+#define DFB_SHEET_PIST_RESERVED_2      182
+#define DFB_SHEET_PIST_RESERVED_3      183
+#define DFB_SHEET_PIST_RESERVED_4      184
+#define DFB_SHEET_PIST_RESERVED_5      185
+#define DFB_SHEET_PIST_RESERVED_6      186
+#define DFB_SHEET_PIST_RELOAD_BP       187  /* reloads take this much less time, in 1/10000ths (20/40/60%) */
+#define DFB_SHEET_PIST_CARRY           188  /* 1: a killing hit's leftover damage carries on to the next enemy behind */
+#define DFB_SHEET_PIST_POOL            189  /* bonus damage pool size, spent by each pistol shot (added to its hit) ... */
+#define DFB_SHEET_PIST_POOL_REFILL_MS  190  /* ... refilling from empty in this long */
+#define DFB_SHEET_PIST_FRAGMENTS       191  /* shrapnel: each pistol hit bursts into this many fragments behind the enemy ... */
+#define DFB_SHEET_PIST_FRAGMENT_BP     192  /* ... each dealing this much of the hit's damage, in 1/10000ths ... */
+#define DFB_SHEET_PIST_FRAGMENT_TURN   193  /* ... turning to an enemy within this many degrees of its path */
 
 /* Daggerfall screens Doom can ask for. Add new menus here. */
 #define DFB_UI_NONE        0u

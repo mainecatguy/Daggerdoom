@@ -112,8 +112,8 @@ Impish) are gone: you can no longer calm monsters by speaking to them.
   maker cannot make Enhances Skill items for the weapon skills.
 - A character imported from a classic Daggerfall save starts the weapon skills untrained; their old language values
   and practice are not carried over.
-- Automatics, Explosives and Shotguns change how their guns behave (see "Automatics", "Explosives" and "Shotguns"
-  below). The other gun skills do not yet.
+- Automatics, Explosives, Shotguns and Pistols change how their guns behave (see "Automatics", "Explosives",
+  "Shotguns" and "Pistols" below). The other gun skills do not yet.
 
 ### Class skills
 
@@ -198,7 +198,7 @@ A skill earns a **perk** when it reaches 25, 50, 75 and 100. You can read every 
 - If the skill rises while a menu is open, for example while training or travelling, the window appears once
   you are back in the game. Several perks at once share one window.
 - Loading a save does not show perks you already have.
-- So far, Jumping and the gun skills (Shotguns, Automatics and Explosives) have perks. The window says when a perk
+- So far, Jumping and the gun skills (Shotguns, Automatics, Explosives and Pistols) have perks. The window says when a perk
   does not work yet.
 
 ### Automatics
@@ -270,6 +270,24 @@ Energy Weapons covers plasma, laser and BFG guns, such as the stock Plasma Rifle
 - **100:** burn rises to 150%. The burn a hit turns into damage also bursts out, setting nearby enemies burning. The
   burst never hurts you, and it does not set off more bursts: hit those enemies to burst them in turn.
 - Energy projectiles fly 15% faster at each of 25, 50, 75 and 100.
+
+### Pistols
+
+Pistols covers pistols, such as the stock pistol, the Pistol, the Handcannon and the Marksman Pistol. Rifles never count.
+
+- **25:** pistols reload 20% faster.
+- **50:** pistols reload 40% faster. **Overkill:** when a pistol shot kills an enemy, the damage left over goes on through
+  the body into the next enemy behind it, and on again if that one dies too, until the damage runs out. **Bonus
+  damage:** your next pistol shot does 100 extra damage if it hits; a miss wastes it. The bonus refills in half a
+  second, so a pistol that fires a little slower than that gets it on every shot.
+- **75:** pistols reload 60% faster.
+- **100: Shrapnel.** Every pistol hit, and every overkill hit, bursts into 3 fragments that fly on behind the enemy in a
+  V, each doing a third of that hit's damage. A fragment never hurts the enemy it came out of, and fragments do not
+  burst again or carry overkill. A fragment swerves into an enemy that is almost in its path.
+- Overkill and fragments fly level from where the shot hit, and stop at walls like bullets.
+- The stock Doom pistol has no reload, so the faster reloads do nothing for it; everything else works with it.
+- Planned but not working yet: fast-firing pistols will deal more damage at 25, and slow-firing pistols more at 75.
+- These only work in the Daggerfall world, and your current skill counts.
 
 ## Falling and jumping
 
