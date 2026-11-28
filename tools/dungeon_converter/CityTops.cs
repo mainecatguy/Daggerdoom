@@ -14,6 +14,7 @@ static partial class Program
         {
             public static bool LegacyVoid; // --legacy-void: the old open-topped cells, kept only to measure the baseline
             public int TopCells, RestoredCells, ClampedRoofCells;
+            public readonly List<(double x, double y, double top, double walk)> Tops = new List<(double, double, double, double)>(); // cells given a model top at least a body above the street, for the flight test
             const double RoofSlack = 4; // a sloped roof may overshoot its cell's model top by this much at a corner
             double[] ownerGround;
             float[] columnTop; // highest model surface touching each cell, roof overhangs included
@@ -56,14 +57,16 @@ static partial class Program
                         // Such a cell takes a flat top at the highest model surface it actually holds.
                         double model = Math.Max(columnTop[c], baseZ), cx = x0 + (c % W) * cell, cy = y0 + (c / W) * cell, high = double.MinValue;
                         foreach (var (px, py) in new[] { (cx, cy), (cx + cell, cy), (cx, cy + cell), (cx + cell, cy + cell) }) high = Math.Max(high, CollisionTop(c, px, py));
-                        if (high > model + RoofSlack) { roofPlane[c] = FlatPlane(Math.Floor(model)); ClampedRoofCells++; }
+                        if (high > model + RoofSlack && !LegacyVoid) { roofPlane[c] = FlatPlane(Math.Floor(model)); ClampedRoofCells++; }
                         continue;
                     }
                     if (floor[c] != short.MinValue) continue;
                     // Open ground the walk from the start cannot reach (a walled yard, a wall walk) keeps its own floor.
-                    if (raster[c] != short.MinValue) { floor[c] = raster[c]; RestoredCells++; continue; }
-                    double top = StackTop(Both(hits[c], overhangs[c]), WalkFloor(hits[c], baseZ));
-                    floor[c] = (short)(Math.Round(top / 4) * 4);
+                    if (raster[c] != short.MinValue) { if (!LegacyVoid) { floor[c] = raster[c]; RestoredCells++; } continue; }
+                    double walk = WalkFloor(hits[c], baseZ), top = Math.Round(StackTop(Both(hits[c], overhangs[c]), walk) / 4) * 4;
+                    if (top - walk >= Body) Tops.Add((x0 + (c % W + 0.5) * cell, y0 + (c / W + 0.5) * cell, top, walk));
+                    if (LegacyVoid) continue;
+                    floor[c] = (short)top;
                     TopCells++;
                 }
             }

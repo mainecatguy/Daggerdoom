@@ -65,6 +65,11 @@ def run(group, out_dir, extra):
 
 
 def main():
+    lines = []
+    def emit(text):
+        print(text)
+        lines.append(text)
+
     ap = argparse.ArgumentParser()
     ap.add_argument("--out")
     ap.add_argument("--find")
@@ -78,20 +83,22 @@ def main():
     groups = [tuple(x.split("=")) for x in a.groups.split(",") if x] or GROUPS
     extra = (["--legacy-void"] if a.legacy_void else []) + ["--raster", a.raster]
     failed = False
-    totals = {"error": 0.0, "fine": 0, "ms": 0, "phantom": 0, "sky": 0, "tall": 0}
-    print("| Location | Group | Height check | Open to sky | Too tall (raster) | Mean abs error | Excess | Missing | Phantom (fine) | Too low (fine) | Sectors | Lines | Convert ms |")
-    print("|---|---|---|---|---|---|---|---|---|---|---|---|---|")
+    totals = {"error": 0.0, "fine": 0, "ms": 0, "phantom": 0, "sky": 0, "tall": 0, "toolow": 0}
+    emit("| Location | Group | Height check | Open to sky | Too tall (raster) | Mean abs error | Excess | Missing | Phantom (fine) | Too low (fine) | Sectors | Lines | Convert ms |")
+    emit("|---|---|---|---|---|---|---|---|---|---|---|---|---|")
     for label, gid in groups:
         r = run(int(gid), a.out, extra)
         failed |= not r["pass"]
-        print(f"| {label} | {gid} | {'PASS' if r['pass'] else 'FAIL'} | {r['sky']} | {r['tall']} | {r['error']} | {r['excess']} | {r['missing']} | {r['phantom']} | {r['toolow']} | {r['sectors']} | {r['lines']} | {r['ms']} |")
+        emit(f"| {label} | {gid} | {'PASS' if r['pass'] else 'FAIL'} | {r['sky']} | {r['tall']} | {r['error']} | {r['excess']} | {r['missing']} | {r['phantom']} | {r['toolow']} | {r['sectors']} | {r['lines']} | {r['ms']} |")
         if r["error"] is not None:
             totals["error"] += r["error"] * r["fine"]
             totals["fine"] += r["fine"]
-        for k in ("ms", "phantom", "sky", "tall"):
+        for k in ("ms", "phantom", "sky", "tall", "toolow"):
             totals[k] += r[k] or 0
     if totals["fine"]:
-        print(f"\nOverall (fine-cell weighted) mean abs error {totals['error'] / totals['fine']:.2f} units; open to sky {totals['sky']}; too tall {totals['tall']}; phantom {totals['phantom']}; convert {totals['ms']} ms total")
+        emit(f"\nOverall (fine-cell weighted) mean abs error {totals['error'] / totals['fine']:.2f} units; open to sky {totals['sky']}; too tall {totals['tall']}; phantom {totals['phantom']}; too low {totals['toolow']}; convert {totals['ms']} ms total")
+    with open(os.path.join(a.out, "summary.md"), "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
     return 1 if failed else 0
 
 
