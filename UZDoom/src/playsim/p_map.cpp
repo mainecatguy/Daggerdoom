@@ -51,6 +51,7 @@
 #include "p_linetracedata.h"
 #include "p_lnspec.h"
 #include "p_local.h"
+#include "dd_shotsource.h" // [Doomerfall]
 #include "p_maputl.h"
 #include "p_spec.h"
 #include "p_terrain.h"
@@ -5195,6 +5196,7 @@ AActor *P_LinePickActor(AActor *t1, DAngle angle, double distance, DAngle pitch,
 
 void P_TraceBleed(int damage, const DVector3 &pos, AActor *actor, DAngle angle, DAngle pitch)
 {
+	DDShotScope shotScope(nullptr); // [Doomerfall] no shot parent for spawns here (dd_shotsource.cpp)
 	if (!cl_bloodsplats)
 		return;
 

@@ -1,21 +1,23 @@
 // [Doomerfall] Exact spawn parents for the Doomerfall mod's shot tags (mods/doomerfall/src/zscript/DoomerfallShots.zs).
 //
-// When an actor is spawned, the actor responsible is the one whose state action, PostBeginPlay or death is running
-// (DD_ActingActor, dd_lootrng.h), or else the actor whose Tick is running (a ZScript Tick override that spawns trails
-// or fragments, or a missile exploding as it moves). The new actor records that parent's spawn serial in ddSpawnedBy.
-// Serials are handed out lazily (to actors that spawn something, or that the mod asks about) from a counter that never
-// repeats in a run.
-// Neither field is saved: a game loaded from a save hands out new serials, and the mod only reads ddSpawnedBy in the
-// tic an actor is spawned. Nothing is recorded outside bridge sessions, so stock Doom never touches these fields.
+// When an actor is spawned, its parent is the actor whose state action, PostBeginPlay or death is running
+// (DD_ShotActing, set by DDShotScope beside the fixed-loot scopes in FState::CallAction, CallPostBeginPlay and Die).
+// Nothing else counts: not the actor whose Tick is running (blood a missile sheds as it moves is not its shot), and
+// nobody inside damage processing or blood spawning (P_DamageMobj, DoDamageMobj, P_SpawnBlood, P_BloodSplatter*,
+// P_RipperBlood, P_TraceBleed set it to null), so things spawned on a hit, such as a damage handler's splash, are
+// nobody's shots; a victim's death inside the damage sets it again to the victim. A missile that explodes is in its
+// death state's actions, so what it spawns there names it. The new actor records the parent's spawn serial in
+// ddSpawnedBy. Serials are handed out lazily (to actors that spawn something, or when the mod asks) from a counter that
+// never repeats in a run. Neither field is saved: a game loaded from a save hands out new serials, and the mod only
+// reads ddSpawnedBy in the tic an actor is spawned. Nothing is recorded outside bridge sessions.
 
 #include "actor.h"
-#include "dd_lootrng.h"
 #include "dd_shotsource.h"
 #include "vm.h"
 
 bool DD_BridgeHasSession();
 
-DThinker *DD_TickingThinker;
+AActor *DD_ShotActing;
 
 namespace
 {
@@ -35,8 +37,7 @@ namespace
 void DD_ShotSourceSpawned(AActor *mo)
 {
 	if (!DD_BridgeHasSession()) return;
-	AActor *from = DD_ActingActor;
-	if (!from && DD_TickingThinker && DD_TickingThinker->IsKindOf(RUNTIME_CLASS(AActor))) from = static_cast<AActor *>(DD_TickingThinker);
+	AActor *from = DD_ShotActing;
 	if (from && from != mo && !(from->ObjectFlags & OF_EuthanizeMe)) mo->ddSpawnedBy = SerialOf(from);
 }
 

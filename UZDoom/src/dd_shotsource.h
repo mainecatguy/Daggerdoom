@@ -3,16 +3,18 @@
 // the things a shot spawns. Records nothing outside bridge sessions: stock Doom and standard WADs are unchanged.
 
 class AActor;
-class DThinker;
 
-extern DThinker *DD_TickingThinker;	// The thinker whose Tick is running (scoped by DDTickScope).
-struct DDTickScope
+// The actor whose state action, PostBeginPlay or death is running: what it spawns names it as the parent. Null inside
+// damage processing and blood spawning (DDShotScope(nullptr)), so blood and things spawned on a hit (a damage
+// handler's splash) are nobody's shots.
+extern AActor *DD_ShotActing;
+struct DDShotScope
 {
-	DThinker *prev;
-	explicit DDTickScope(DThinker *th) : prev(DD_TickingThinker) { DD_TickingThinker = th; }
-	~DDTickScope() { DD_TickingThinker = prev; }
-	DDTickScope(const DDTickScope &) = delete;
-	DDTickScope &operator=(const DDTickScope &) = delete;
+	AActor *prev;
+	explicit DDShotScope(AActor *mo) : prev(DD_ShotActing) { DD_ShotActing = mo; }
+	~DDShotScope() { DD_ShotActing = prev; }
+	DDShotScope(const DDShotScope &) = delete;
+	DDShotScope &operator=(const DDShotScope &) = delete;
 };
 
-void DD_ShotSourceSpawned(AActor *mo);	// Just spawned: remember the actor whose action or tick made it (ddSpawnedBy).
+void DD_ShotSourceSpawned(AActor *mo);	// Just spawned: remember DD_ShotActing as its parent (ddSpawnedBy).

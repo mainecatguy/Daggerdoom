@@ -55,8 +55,14 @@ def analyse(name, lines, check):
         real = [t for t in tags if not t.group(7)]
         guns = {t.group(2) for t in tags}
         check(name, f"{c}: both guns' shots were tagged", {a, b} <= guns, guns)
-        near = [t.group(0) for t in tags if t.group(6) not in ("fired", "child", "carried")]
-        check(name, f"{c}: {len(tags)} tags, all from the exact spawner", tags and not near, near[:3])
+        # The nearest rule may still tag spawns that no gun's chain reaches (a barrel's napalm aimed at the player: the
+        # old behaviour), never a class the guns' chains spawn.
+        chain_classes = {x.group(1) for x in spawned if x.group(7) != "other"}
+        near = [t.group(0) for t in tags if t.group(6) not in ("fired", "child", "carried") and t.group(1) in chain_classes]
+        check(name, f"{c}: {len(tags)} tags; none of the guns' chains uses the nearest rule", tags and not near, near[:3])
+        old = sorted({t.group(1) for t in tags if t.group(6) == "near"})
+        if old:
+            print(f"  {name} {c}: nearest-rule tags outside the guns' chains (unchanged old behaviour): {old}")
         # Done-when: every actor whose spawn chain (engine ground truth, logged by the harness) reaches a gun firing
         # in this case carries a tag naming that gun. Actors the chain does not tie to the player (DRLA's own world
         # helpers) are listed, not judged.
@@ -67,15 +73,22 @@ def analyse(name, lines, check):
         other = sorted({s.group(1) for s in spawned if s.group(7) == "other"})
         if other:
             print(f"  {name} {c}: not from the guns (not judged): {other}")
-        check(name, f"{c}: nothing outside the guns' spawn chains was tagged", not any(s.group(7) == "other" and s.group(2) != "None" for s in spawned),
-              [s.group(0) for s in spawned if s.group(7) == "other" and s.group(2) != "None"][:3])
+        nearonly = {t.group(1) for t in tags if t.group(6) == "near"} - {t.group(1) for t in tags if t.group(6) != "near"}
+        extra = [x.group(0) for x in spawned if x.group(7) == "other" and x.group(2) != "None" and x.group(1) not in nearonly]
+        check(name, f"{c}: nothing outside the guns' spawn chains was tagged by the exact path", not extra, extra[:3])
+        # Blood from the hits and an effect a damage handler spawns during a hit (like Energy's splash and burn burst)
+        # appear and are nobody's shots.
+        for kind in ("GunSrcBlood", "GunSrcSideFx"):
+            k = [x for x in spawned if x.group(1) == kind]
+            check(name, f"{c}: {len(k)} {kind} spawned during hits, none tagged or chained to a gun",
+                  (k or kind == "GunSrcBlood") and all(x.group(2) == "None" and x.group(7) == "other" for x in k), [x.group(0) for x in k if x.group(2) != "None" or x.group(7) != "other"][:3])
         by_class = {}
         for s in shot:
             by_class.setdefault(s.group(1), set()).add(s.group(2))
         print(f"  {name} {c}: " + ", ".join(f"{k}->{'/'.join(sorted(v))}" for k, v in sorted(by_class.items())))
         if a.startswith("GunSrc"):
             fam = {"A": "GunSrcGunA", "B": "GunSrcGunB", "C": "GunSrcGunC", "D": "GunSrcGunD"}
-            wrong = [s.group(0) for s in spawned if fam.get(s.group(1)[-1]) != s.group(2)]
+            wrong = [s.group(0) for s in shot if fam.get(s.group(1)[-1]) != s.group(2)]
             check(name, f"{c}: every spawned actor carries its own family's gun", spawned and not wrong, wrong[:3])
             badcarrier = [s.group(0) for s in spawned if (s.group(4) == "1") != (s.group(1) in CARRIERS)]
             check(name, f"{c}: only the puff and the helper are carriers", not badcarrier, badcarrier[:3])

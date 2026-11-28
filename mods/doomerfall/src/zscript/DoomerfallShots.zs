@@ -11,9 +11,11 @@
 //              fragments and their spawns take their own shot's gun, however close the other gun's shots are.
 //   carrier    a puff, or any other non-projectile the player's own action spawns while the gun fires (DRLA's recoil
 //              and reload effects, a launcher's spawner actor), gets a carrier tag: it is not a shot (Find and Tag
-//              ignore it, as they ignored it untagged before), it only passes the gun on to its spawns. Something the
-//              player's action spawns while the gun does not fire is no gun's: untagged (never a nearby shot's child).
-//   Otherwise (spawned by a monster, a barrel or a script, or by nobody the engine knows) the old rules:
+//              ignore it, as they ignored it untagged before), it only passes the gun on to its spawns.
+//              The engine names no parent for blood or for anything spawned during a hit's damage (an Energy splash or
+//              burn burst, a handler's effect), so those are never a shot's child.
+//   Otherwise (spawned by a monster, a barrel or a script, by the player with the gun not firing, or by nobody the
+//   engine knows) the old rules, unchanged:
 //   fired      a projectile (MISSILE flag, or by default if it already exploded at point blank) whose target is the player, spawned next to the player while the trigger is down or the gun
 //              is mid-fire, is the held gun's shot (generation 0).
 //   spawned    an actor whose target is the player (A_SpawnItemEx, A_CustomMissile and the like set it to the player
@@ -228,13 +230,14 @@ class DoomerfallShots : StaticEventHandler
 		// the held gun for whatever it spawns.
 		if (byPlayer && firing && !m.bIsPuff && (m.bMissile || m.default.bMissile)) return NewTag(m, null, false, "fired", 0, pmo);
 		if (m.bIsPuff) return byPlayer && firing ? NewTag(m, null, true, "fired", 0, pmo) : null;
-		// Anything else the player's own action spawned is never a nearby shot's child (that guess gave DRLA's
-		// RLRocketLauncherRecoil the other gun's tag). While the gun fires it is the gun's helper (DRLA's recoil and
-		// reload effects, a launcher's spawner actor): it carries the held gun, so whatever it fires is that gun's shot
-		// (generation 0). With the gun not firing it is no gun's (an item's or a script's): untagged.
-		if (byPlayer) return firing ? NewTag(m, null, true, "fired", -1, pmo) : null;
+		// Anything else the player's own action spawned while the gun fires is the gun's helper (DRLA's recoil and
+		// reload effects, a launcher's spawner actor), never a nearby shot's child (that guess gave DRLA's
+		// RLRocketLauncherRecoil the other gun's tag): it carries the held gun, so whatever it fires is that gun's shot
+		// (generation 0).
+		if (byPlayer && firing) return NewTag(m, null, true, "fired", -1, pmo);
 
-		// Spawned by something else (a monster, a barrel, a script) or by nobody known: the old rules.
+		// Spawned by something else (a monster, a barrel, a script), by the player with the gun not firing, or by
+		// nobody known (blood, things spawned during a hit's damage): the old rules, unchanged.
 		return Nearest(m, pmo, firing);
 	}
 

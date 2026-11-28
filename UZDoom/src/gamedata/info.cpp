@@ -25,6 +25,7 @@
 
 #include "actor.h"
 #include "dd_lootrng.h" // [Doomerfall]
+#include "dd_shotsource.h" // [Doomerfall]
 #include "c_dispatch.h"
 #include "d_main.h"
 #include "d_net.h"
@@ -151,6 +152,7 @@ bool FState::CallAction(AActor *self, AActor *stateowner, FStateParamInfo *info,
 	if (ActionFunc != nullptr)
 	{
 		DDLootScope lootScope(self); // [Doomerfall] fixed loot: no-op unless self carries a loot state
+		DDShotScope shotScope(self); // [Doomerfall] shot parent (dd_shotsource.cpp)
 		ActionCycles.Clock();
 
 		// If the function returns a state, store it at *stateret.

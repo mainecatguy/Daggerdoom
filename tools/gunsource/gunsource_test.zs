@@ -24,11 +24,21 @@ class GunSrcTarget : Actor
 		Height 56;
 		+SHOOTABLE
 		+SOLID
-		+NOBLOOD
 		+DONTTHRUST
+		BloodType "GunSrcBlood"; // it bleeds: blood is nobody's shot
 		+NOGRAVITY
 	}
 	States { Spawn: PLAY A -1; Stop; }
+}
+
+class GunSrcBlood : Blood {}
+
+// Spawned by the harness from WorldThingDamaged, the way DoomerfallEnergy spawns its splash and burn burst during a
+// hit's damage: never a shot's child.
+class GunSrcSideFx : Actor
+{
+	Default { +NOBLOCKMAP +NOGRAVITY }
+	States { Spawn: TNT1 A 2; Stop; }
 }
 
 class GunSrc play
@@ -219,6 +229,7 @@ class GunSourceTest : EventHandler
 		// Every hit on a target, whoever Doom names as its source (a puff's or a helper's spawns name the puff or the
 		// helper): the tag behind it, for the player.
 		if (!e.Thing || !(e.Thing is "GunSrcTarget")) return;
+		Actor.Spawn("GunSrcSideFx", e.Thing.pos);
 		class<Weapon> gun;
 		int skill;
 		DoomerfallShotTag tag;
