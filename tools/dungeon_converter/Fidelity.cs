@@ -21,8 +21,12 @@ using System.Threading.Tasks;
 static partial class Program
 {
     static string fidelityDir, fidelityCache;
-    const int FidVersion = 2;
-    const double FidStep = 2, FidCap = 32, FidVoxel = 16, FidLevOffset = 4;
+    const int FidVersion = 3; // the cache key also holds a hash of the code that builds the Daggerfall side (FidCodeHash.cs)
+    const double FidCap = 32, FidVoxel = 16, FidLevOffset = 4;
+    // Exteriors (CityFidelity.cs) sample on a coarser grid and keep a fixed share of every tier, so a whole town fits in
+    // memory; the kept samples stand for more area, so the score stays unbiased. Exteriors have open sky: see Tier.
+    static double FidStep = 2, FidKeepScale = 1;
+    static bool FidExterior;
     // From DoomerfallClimb.zs: SteepNormalZ (steeper surfaces are climbed) and Touch (reach beyond the body radius).
     // Climbing has no height limit (holding still never slips), so the climb band reaches the ceiling over the floor.
     const double FidSteepZ = 0.34202, FidTouch = 12;
@@ -45,16 +49,18 @@ static partial class Program
     {
         var clock = System.Diagnostics.Stopwatch.StartNew();
         Directory.CreateDirectory(fidelityDir);
-        var meshGrid = new FidMeshGrid(tris, 8);
-        var df = LoadOrBuildDfSide(slug, meshGrid, out bool cached);
+        var meshGrid = new FidMeshGrid(tris, FidExterior ? 16 : 8); // the cell size changes only the speed; outdoors the terrain is large
+        Console.WriteLine(FormattableString.Invariant($"fidelity: face grid {clock.Elapsed.TotalSeconds:F1} s"));
+        var df = LoadOrBuildDfSide(slug, meshGrid, entrance, out bool cached);
         double dfSeconds = clock.Elapsed.TotalSeconds;
+        if (double.IsNaN(entrance.Z) && df.Legal.Length > 0) entrance = new V3(df.Legal[0].x, df.Legal[0].y, df.Legal[0].z); // the flood's seed comes first
         var map = FidMap.Read(wadPath);
         // Samples are kept in proportion to their tier's weight, each then standing for more area, so the score stays
         // unbiased. Selection hashes the lattice index (faces) or the position (collision), so variants compare alike.
         var coll = map.Samples(FidStep, (ref FSample s) =>
         {
             s.Tier = df.Tier(s.X, s.Y, s.Z, s.NX, s.NY, s.NZ);
-            double keep = TierKeep[s.Tier];
+            double keep = TierKeep[s.Tier] * FidKeepScale;
             if (keep < 1 && Hash01(((ulong)BitConverter.SingleToUInt32Bits(s.X) << 32) ^ BitConverter.SingleToUInt32Bits(s.Y) ^ ((ulong)BitConverter.SingleToUInt32Bits(s.Z) << 16)) >= keep) return false;
             s.Area = (float)(s.Area / keep);
             return true;
@@ -82,7 +88,7 @@ static partial class Program
         var csv = new StringBuilder("map,direction,tier,area,samples,mean,p95,in1,in2,in4,front1,front2,front4,behind1,behind2,behind4\n");
         double headline = Headline(mesh, coll);
         report.Append(FormattableString.Invariant($"Collision fidelity: {slug}\nheadline (tier-weighted mean error, both directions, units; lower is better): {headline:F3}\n"));
-        report.Append(FormattableString.Invariant($"samples: mesh {mesh.Length}, collision {coll.Length}; legal positions {df.Legal.Length}, air voxels {df.AirCount}; Daggerfall side {(cached ? "cached" : "built")} {dfSeconds:F1} s, collision sampling {sampleSeconds:F1} s, total {total:F1} s\n"));
+        report.Append(FormattableString.Invariant($"samples: mesh {mesh.Length}, collision {coll.Length}; reachable legal positions {df.Legal.Length} of {df.AllLegal}, air voxels {df.AirCount}; Daggerfall side {(cached ? "cached" : "built")} {dfSeconds:F1} s, collision sampling {sampleSeconds:F1} s, total {total:F1} s\n"));
         report.Append("errors are in map units, capped at " + FidCap + "; front = collision in front of the visible face, behind = behind it\n\n");
         foreach (var (dir, set) in new[] { ("mesh_to_collision", mesh), ("collision_to_mesh", coll) })
         {
@@ -105,6 +111,7 @@ static partial class Program
             report.Append('\n');
         }
         csv.Append(FormattableString.Invariant($"{slug},headline,all,0,{mesh.Length + coll.Length},{headline:F4},0,0,0,0,0,0,0,0,0,0\n"));
+        report.Append(Cases(mesh, coll, csv, slug));
         report.Append(WorstPlaces(mesh, coll, df, meshGrid, entrance, slug));
         File.WriteAllText(Path.Combine(fidelityDir, slug + ".fidelity.txt"), report.ToString());
         File.WriteAllText(Path.Combine(fidelityDir, slug + ".fidelity.csv"), csv.ToString());
@@ -113,6 +120,33 @@ static partial class Program
     }
 
     static readonly double[] TierKeep = { 1.0, 0.3, 0.1, 0.1 };
+
+    // The failure kinds the exterior card names, by tier, from the same samples as the headline:
+    //  walkable top missing: a visible floor (up to 70 degrees) whose collision is more than a step below it, so the
+    //    player sinks into it or falls through (a roofless wall walk with no collision top, for example);
+    //  phantom wall: collision wall more than 4 units in front of every visible face (an invisible wall);
+    //  invisible ledge: collision floor more than a step above every visible face.
+    static string Cases(FSample[] mesh, FSample[] coll, StringBuilder csv, string slug)
+    {
+        double step = PlayerScale.Step;
+        var text = new StringBuilder("Failure cases: bad area / tier area, map units^2 (contact | climb | levitation | unreached)\n");
+        void Row(string name, FSample[] set, Func<FSample, bool> kind, Func<FSample, bool> bad)
+        {
+            var area = new double[4]; var all = new double[4];
+            foreach (var x in set) if (kind(x)) { all[x.Tier] += x.Area; if (bad(x)) area[x.Tier] += x.Area; }
+            text.Append($"  {name,-22}");
+            for (int t = 0; t < 4; t++)
+            {
+                text.Append(FormattableString.Invariant($" {area[t],10:F0} / {all[t],-10:F0}{(t < 3 ? " |" : "")}"));
+                csv.Append(FormattableString.Invariant($"{slug},case {name},{TierName[t]},{area[t]:F1},0,{(all[t] > 0 ? area[t] / all[t] : 0):F6},0,0,0,0,0,0,0,0,0,0\n"));
+            }
+            text.Append('\n');
+        }
+        Row("walkable top missing", mesh, x => x.NZ >= FidSteepZ, x => x.Error < -step);
+        Row("phantom wall", coll, x => Math.Abs(x.NZ) < WallNormalZ, x => x.Error > 4);
+        Row("invisible ledge", coll, x => x.NZ >= FidSteepZ, x => x.Error > step);
+        return text.Append('\n').ToString();
+    }
 
     delegate bool FidAdmit(ref FSample s);
 
@@ -203,22 +237,127 @@ static partial class Program
         return text.ToString();
     }
 
-    static FidDfSide LoadOrBuildDfSide(string slug, FidMeshGrid grid, out bool cached)
+    static FidDfSide LoadOrBuildDfSide(string slug, FidMeshGrid grid, V3 entrance, out bool cached)
     {
         double hash = 0;
         foreach (var t in tris) hash += t.A.X * 1.000001 + t.B.Y * 3.000003 + t.C.Z * 7.000007 + t.N.Z;
-        string key = FormattableString.Invariant($"{FidVersion}|{slug}|{PlayerScale.DoomUnitsPerDaggerfallUnit}|{PlayerScale.DaggerfallBody}|{tris.Count}|{hash:R}");
+        string key = FormattableString.Invariant($"{FidVersion}|{FidCodeHash()}|{slug}|{PlayerScale.DoomUnitsPerDaggerfallUnit}|{PlayerScale.DaggerfallBody}|{FidExterior}|{FidStep}|{FidKeepScale}|{tris.Count}|{hash:R}");
         string path = fidelityCache == null ? null : Path.Combine(fidelityCache, slug + ".dfside.bin");
         cached = false;
         if (path != null && File.Exists(path))
         {
-            var loaded = FidDfSide.Load(path, key, tris);
+            var loaded = FidDfSide.Load(path, key, tris, grid);
             if (loaded != null) { cached = true; return loaded; }
         }
-        IndexTris(tris);
-        var df = FidDfSide.Build(LegalPositions(), tris, grid);
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var legal = FidLegal(entrance, out int allLegal);
+        double legalSeconds = watch.Elapsed.TotalSeconds;
+        var df = FidDfSide.Build(legal, tris, grid);
+        df.AllLegal = allLegal;
+        Console.WriteLine(FormattableString.Invariant($"fidelity: Daggerfall side legal positions {legalSeconds:F1} s, air and tiers {watch.Elapsed.TotalSeconds - legalSeconds:F1} s"));
         if (path != null) { Directory.CreateDirectory(fidelityCache); df.Save(path, key); }
         return df;
+    }
+
+    // Every standing position Daggerfall's body fits (LegalPositions' rule in Parity.cs, rows in parallel; outdoors a
+    // column with no ceiling is open sky), and of those the ones the player walks to from the entrance: 8-unit moves onto
+    // the highest floor in the next column at most a rise above (Parity.cs's FloodDf rise), dropping any height, where
+    // the body fits. Doors open. Teleports, lifts, jumps, climbing and levitation are not followed: surfaces only those
+    // reach fall to the levitation or unreached tiers. Returns the reachable positions with the ceiling over each.
+    static List<(V3 at, double ceiling)> FidLegal(V3 entrance, out int allLegal)
+    {
+        IndexTris(tris);
+        const int Pitch = 8;
+        double x0 = tris.Min(t => Math.Min(t.A.X, Math.Min(t.B.X, t.C.X))), x1 = tris.Max(t => Math.Max(t.A.X, Math.Max(t.B.X, t.C.X)));
+        double y0 = tris.Min(t => Math.Min(t.A.Y, Math.Min(t.B.Y, t.C.Y))), y1 = tris.Max(t => Math.Max(t.A.Y, Math.Max(t.B.Y, t.C.Y)));
+        double top = tris.Max(t => Math.Max(t.A.Z, Math.Max(t.B.Z, t.C.Z))) + 8, height = PlayerScale.Height;
+        double bottom = tris.Min(t => Math.Min(t.A.Z, Math.Min(t.B.Z, t.C.Z))) - 1;
+        double gx = Math.Floor(x0 / Pitch) * Pitch + 4, gy = Math.Floor(y0 / Pitch) * Pitch + 4;
+        int w = Math.Max(0, (int)Math.Floor((x1 - gx) / Pitch) + 1), h = Math.Max(0, (int)Math.Floor((y1 - gy) / Pitch) + 1);
+        var rows = new List<(float z, float ceiling, bool legal)>[h];
+        var rowStart = new int[h][];
+        Parallel.For(0, h, j =>
+        {
+            var list = new List<(float, float, bool)>();
+            var starts = new int[w + 1];
+            for (int i = 0; i < w; i++)
+            {
+                starts[i] = list.Count;
+                double x = gx + i * Pitch, y = gy + j * Pitch, z = top;
+                while (z > bottom)
+                {
+                    // A cast reaches ProbeRange: below a tall map's top (a mountain in an exterior margin) keep going down.
+                    if (!FloorBelow(new V3(x, y, z), out var floor)) { z -= ProbeRange - 8; continue; }
+                    double roof = Cast(new V3(x, y, floor.Z + 2), new V3(0, 0, 1), ProbeRange);
+                    bool sky = roof < 0 && FidExterior;
+                    bool legal = (sky || roof >= height - 2) && !BodyBlocked(floor, PlayerScale.Radius, height);
+                    list.Add(((float)floor.Z, (float)(sky ? top + ProbeRange : floor.Z + 2 + roof), legal));
+                    z = floor.Z - 1;
+                }
+            }
+            starts[w] = list.Count;
+            rows[j] = list; rowStart[j] = starts;
+        });
+        var colStart = new int[w * h + 1];
+        int total = 0;
+        for (int j = 0; j < h; j++) for (int i = 0; i < w; i++) { colStart[i + j * w] = total; total += rowStart[j][i + 1] - rowStart[j][i]; }
+        colStart[w * h] = total;
+        var fz = new float[total]; var fc = new float[total]; var fl = new bool[total];
+        for (int j = 0; j < h; j++)
+            for (int n = 0; n < rows[j].Count; n++) { int at = colStart[j * w] + n; (fz[at], fc[at], fl[at]) = rows[j][n]; }
+        allLegal = fl.Count(b => b);
+
+        // Seed: the legal position nearest the entrance, at or below it.
+        int seed = -1, sc = 0;
+        double best = double.MaxValue;
+        for (int radius = 16; seed < 0 && radius <= 256; radius *= 2)
+            for (int j = Math.Max(0, (int)Math.Floor((entrance.Y - radius - gy) / Pitch)); j <= Math.Min(h - 1, (int)Math.Ceiling((entrance.Y + radius - gy) / Pitch)); j++)
+                for (int i = Math.Max(0, (int)Math.Floor((entrance.X - radius - gx) / Pitch)); i <= Math.Min(w - 1, (int)Math.Ceiling((entrance.X + radius - gx) / Pitch)); i++)
+                    for (int n = colStart[i + j * w]; n < colStart[i + j * w + 1]; n++)
+                    {
+                        // An exterior start has no height (NaN): the street is the lowest legal floor in the nearest column.
+                        bool street = double.IsNaN(entrance.Z);
+                        if (!fl[n] || (!street && fz[n] > entrance.Z + PlayerScale.Step + 8)) continue;
+                        double dx = gx + i * Pitch - entrance.X, dy = gy + j * Pitch - entrance.Y, dz = street ? 0 : fz[n] - entrance.Z, d = dx * dx + dy * dy + dz * dz;
+                        if (d < best || (street && d == best && fz[n] < fz[seed])) { best = d; seed = n; sc = i + j * w; }
+                    }
+        var reached = new bool[total];
+        var result = new List<(V3 at, double ceiling)>();
+        if (seed < 0) { Console.WriteLine(FormattableString.Invariant($"fidelity: no legal position near the entrance {entrance.X:F0},{entrance.Y:F0},{entrance.Z:F0} (grid {gx:F0}..{gx + w * Pitch:F0}, {gy:F0}..{gy + h * Pitch:F0}); nothing is reachable")); return result; }
+        double rise = Math.Max(PlayerScale.Step, ParityCell);
+        var open = new Queue<(int i, int j, int n)>();
+        reached[seed] = true;
+        open.Enqueue((sc % w, sc / w, seed));
+        // Outdoors Daggerfall's world goes on past the converted area, so the player can also walk in from the
+        // wilderness: the ground (lowest legal floor) of every column beside one with no floor at all, the map's edge.
+        if (FidExterior)
+            for (int j = 0; j < h; j++)
+                for (int i = 0; i < w; i++)
+                {
+                    int c = i + j * w, last = colStart[c + 1] - 1;
+                    if (last < colStart[c] || !fl[last] || reached[last]) continue;
+                    bool edge = i == 0 || j == 0 || i == w - 1 || j == h - 1 || colStart[c - 1] == colStart[c] || colStart[c + 2] == colStart[c + 1]
+                        || colStart[c - w] == colStart[c - w + 1] || colStart[c + w] == colStart[c + w + 1];
+                    if (edge) { reached[last] = true; open.Enqueue((i, j, last)); }
+                }
+        while (open.Count > 0)
+        {
+            var (i, j, n) = open.Dequeue();
+            result.Add((new V3(gx + i * Pitch, gy + j * Pitch, fz[n]), fc[n]));
+            foreach (var (di, dj) in new[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
+            {
+                int ni = i + di, nj = j + dj;
+                if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue;
+                int c = ni + nj * w;
+                for (int m = colStart[c]; m < colStart[c + 1]; m++)
+                {
+                    if (fz[m] > fz[n] + rise) continue;
+                    if (fl[m] && !reached[m]) { reached[m] = true; open.Enqueue((ni, nj, m)); }
+                    break; // the highest floor within a rise is where the body lands
+                }
+            }
+        }
+        Console.WriteLine($"fidelity: {result.Count} of {allLegal} legal positions reachable from the entrance");        return result;
     }
 
     static long FidKey(int i, int j, int k) => ((long)(i + (1 << 20)) << 42) | ((long)(j + (1 << 20)) << 21) | (long)(k + (1 << 20));
@@ -228,7 +367,10 @@ static partial class Program
     sealed class FidDfSide
     {
         public FSample[] Samples;
+        // Legal positions the player can walk to from the entrance (FidLegal); AllLegal counts every legal position.
         public (float x, float y, float z, float ceiling)[] Legal;
+        public int AllLegal;
+        FidMeshGrid grid;
         // Air as a dense bit set over the faces' voxel box (origin ai, aj, ak; size aw, ah, ad).
         public ulong[] AirBits;
         public int ai, aj, ak, aw, ah, ad, AirCount;
@@ -302,13 +444,27 @@ static partial class Program
                     }
             }
             if (climb) return 1;
-            return AirAt((int)Math.Floor((x + nx * FidLevOffset) / FidVoxel), (int)Math.Floor((y + ny * FidLevOffset) / FidVoxel), (int)Math.Floor((z + nz * FidLevOffset) / FidVoxel)) ? (byte)2 : (byte)3;
+            double ox = x + nx * FidLevOffset, oy = y + ny * FidLevOffset, oz = z + nz * FidLevOffset;
+            if (AirAt((int)Math.Floor(ox / FidVoxel), (int)Math.Floor(oy / FidVoxel), (int)Math.Floor(oz / FidVoxel))) return 2;
+            // Outdoors a levitating player comes down from the open sky: any face whose open side has no face above it
+            // and ground below it is in reach.
+            if (FidExterior && grid.SkyOpen(new V3(ox, oy, oz))) return 2;
+            return 3;
         }
 
         public static FidDfSide Build(List<(V3 at, double ceiling)> legal, List<Tri> faces, FidMeshGrid grid)
         {
-            var df = new FidDfSide { Legal = legal.Select(l => ((float)l.at.X, (float)l.at.Y, (float)l.at.Z, (float)l.ceiling)).ToArray() };
+            var df = new FidDfSide { Legal = legal.Select(l => ((float)l.at.X, (float)l.at.Y, (float)l.at.Z, (float)l.ceiling)).ToArray(), grid = grid };
             df.IndexLegal();
+            if (FidExterior)
+            {
+                // Outdoors the open air is the sky (Tier's SkyOpen test), so the room flood is not run.
+                df.ai = df.aj = df.ak = 0; df.aw = df.ah = df.ad = 1; df.AirBits = new ulong[1];
+                df.Samples = Lattice(faces);
+                var outdoor = df.Samples;
+                Parallel.For(0, outdoor.Length, n => outdoor[n].Tier = df.Tier(outdoor[n].X, outdoor[n].Y, outdoor[n].Z, outdoor[n].NX, outdoor[n].NY, outdoor[n].NZ));
+                return df;
+            }
             // Air connected to legal positions: 16-unit voxels, stepping between centers wherever no face is crossed.
             double x0 = faces.Min(t => Math.Min(t.A.X, Math.Min(t.B.X, t.C.X))), x1 = faces.Max(t => Math.Max(t.A.X, Math.Max(t.B.X, t.C.X)));
             double y0 = faces.Min(t => Math.Min(t.A.Y, Math.Min(t.B.Y, t.C.Y))), y1 = faces.Max(t => Math.Max(t.A.Y, Math.Max(t.B.Y, t.C.Y)));
@@ -361,29 +517,40 @@ static partial class Program
                 ks[n] = area < 1e-6 ? 0 : Math.Max(1, Math.Max((int)Math.Ceiling(Math.Sqrt(area / (FidStep * FidStep))), (int)Math.Ceiling(longest / 8)));
                 start[n + 1] = start[n] + (long)ks[n] * ks[n];
             }
-            var samples = new FSample[start[faces.Count]];
+            // With FidKeepScale < 1 (exteriors) a fixed hashed share of the lattice is kept, chosen by lattice index.
+            bool thin = FidKeepScale < 1;
+            var samples = thin ? null : new FSample[start[faces.Count]];
+            var parts = thin ? new FSample[faces.Count][] : null;
             Parallel.For(0, faces.Count, n =>
             {
                 int k = ks[n];
                 if (k == 0) return;
                 var t = faces[n];
                 V3 e1 = Sub(t.B, t.A), e2 = Sub(t.C, t.A), cr = Cross(e1, e2);
-                float each = (float)(0.5 * Math.Sqrt(Dot(cr, cr)) / (k * k));
+                float each = (float)(0.5 * Math.Sqrt(Dot(cr, cr)) / (k * k) / (thin ? FidKeepScale : 1));
                 byte cls = OrientClass(t.N.X, t.N.Y, t.N.Z);
                 long at = start[n];
-                void Add(double u, double v) => samples[at++] = new FSample
+                var local = thin ? new List<FSample>() : null;
+                void Add(double u, double v)
                 {
-                    X = (float)(t.A.X + e1.X * u + e2.X * v), Y = (float)(t.A.Y + e1.Y * u + e2.Y * v), Z = (float)(t.A.Z + e1.Z * u + e2.Z * v),
-                    NX = (float)t.N.X, NY = (float)t.N.Y, NZ = (float)t.N.Z, Area = each, Cls = cls,
-                };
+                    var s = new FSample
+                    {
+                        X = (float)(t.A.X + e1.X * u + e2.X * v), Y = (float)(t.A.Y + e1.Y * u + e2.Y * v), Z = (float)(t.A.Z + e1.Z * u + e2.Z * v),
+                        NX = (float)t.N.X, NY = (float)t.N.Y, NZ = (float)t.N.Z, Area = each, Cls = cls,
+                    };
+                    if (!thin) samples[at] = s;
+                    else if (Hash01((ulong)at ^ 0xA5A5A5A500000000UL) < FidKeepScale) local.Add(s);
+                    at++;
+                }
                 for (int i = 0; i < k; i++)
                     for (int j = 0; i + j < k; j++)
                     {
                         Add((i + 1.0 / 3) / k, (j + 1.0 / 3) / k);
                         if (i + j < k - 1) Add((i + 2.0 / 3) / k, (j + 2.0 / 3) / k);
                     }
+                if (thin) parts[n] = local.ToArray();
             });
-            return samples;
+            return thin ? parts.Where(q => q != null).SelectMany(q => q).ToArray() : samples;
         }
 
         // A standing spot that sees the target: the nearest legal position 48 to 384 units away with a clear line.
@@ -408,6 +575,7 @@ static partial class Program
             w.Write(key);
             w.Write(Samples.Length);
             w.Write(Samples.Select(s => s.Tier).ToArray()); // the lattice itself is rebuilt from the faces
+            w.Write(AllLegal);
             w.Write(Legal.Length);
             foreach (var l in Legal) { w.Write(l.x); w.Write(l.y); w.Write(l.z); w.Write(l.ceiling); }
             foreach (int v in new[] { ai, aj, ak, aw, ah, ad, AirCount, AirBits.Length }) w.Write(v);
@@ -416,14 +584,15 @@ static partial class Program
             w.Write(bytes);
         }
 
-        public static FidDfSide Load(string path, string key, List<Tri> faces)
+        public static FidDfSide Load(string path, string key, List<Tri> faces, FidMeshGrid grid)
         {
             using var r = new BinaryReader(File.OpenRead(path));
             if (r.ReadString() != key) return null;
-            var df = new FidDfSide { Samples = Lattice(faces) };
+            var df = new FidDfSide { Samples = Lattice(faces), grid = grid };
             if (r.ReadInt32() != df.Samples.Length) return null;
             var tiers = r.ReadBytes(df.Samples.Length);
             for (int n = 0; n < df.Samples.Length; n++) df.Samples[n].Tier = tiers[n];
+            df.AllLegal = r.ReadInt32();
             df.Legal = new (float, float, float, float)[r.ReadInt32()];
             for (int n = 0; n < df.Legal.Length; n++) df.Legal[n] = (r.ReadSingle(), r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
             df.ai = r.ReadInt32(); df.aj = r.ReadInt32(); df.ak = r.ReadInt32(); df.aw = r.ReadInt32(); df.ah = r.ReadInt32(); df.ad = r.ReadInt32();
@@ -442,6 +611,8 @@ static partial class Program
         readonly double g;
         readonly Dictionary<long, int[]> cells;
 
+        readonly Dictionary<long, int> columnTop = new Dictionary<long, int>(); // highest cell layer with a face, by column
+
         public FidMeshGrid(List<Tri> faces, double cellSize)
         {
             T = faces; g = cellSize;
@@ -454,18 +625,40 @@ static partial class Program
                 int k0 = C(Math.Min(t.A.Z, Math.Min(t.B.Z, t.C.Z))), k1 = C(Math.Max(t.A.Z, Math.Max(t.B.Z, t.C.Z)));
                 // A plane test keeps big sloped or diagonal faces out of the cells they only pass near.
                 double d = Dot(t.N, t.A), half = g * 0.5 * (Math.Abs(t.N.X) + Math.Abs(t.N.Y) + Math.Abs(t.N.Z)) + 1e-6;
-                for (int k = k0; k <= k1; k++)
-                    for (int j = j0; j <= j1; j++)
-                        for (int i = i0; i <= i1; i++)
+                for (int j = j0; j <= j1; j++)
+                    for (int i = i0; i <= i1; i++)
+                    {
+                        // Only the layers the plane test can pass (big terrain and floor faces span many cells); the test
+                        // below still decides, so the cells are the same as testing every layer.
+                        int ka = k0, kb = k1;
+                        if (Math.Abs(t.N.Z) > 1e-3)
+                        {
+                            double rest = d - t.N.X * (i + 0.5) * g - t.N.Y * (j + 0.5) * g;
+                            double za = (rest - half) / (t.N.Z * g) - 0.5, zb = (rest + half) / (t.N.Z * g) - 0.5;
+                            ka = Math.Max(k0, (int)Math.Floor(Math.Min(za, zb)) - 1); kb = Math.Min(k1, (int)Math.Ceiling(Math.Max(za, zb)) + 1);
+                        }
+                        for (int k = ka; k <= kb; k++)
                         {
                             var c = new V3((i + 0.5) * g, (j + 0.5) * g, (k + 0.5) * g);
                             if (Math.Abs(Dot(t.N, c) - d) > half) continue;
                             long key = FidKey(i, j, k);
                             if (!build.TryGetValue(key, out var l)) build[key] = l = new List<int>();
                             l.Add(n);
+                            long column = ((long)i << 32) | (uint)j;
+                            if (!columnTop.TryGetValue(column, out int top) || top < k) columnTop[column] = k;
                         }
+                    }
             }
             cells = build.ToDictionary(kv => kv.Key, kv => kv.Value.ToArray());
+        }
+
+        // Open to the sky: no face straight above p, and an upward-facing face (ground or a roof) below it.
+        public bool SkyOpen(V3 p)
+        {
+            if (!columnTop.TryGetValue(((long)C(p.X) << 32) | (uint)C(p.Y), out int top)) return false;
+            double above = (top + 1) * g - p.Z;
+            if (above > 0 && VerticalHit(p, 1, above + 1) != 0) return false;
+            return VerticalHit(p, -1, 4096) > 0;
         }
 
         int C(double v) => (int)Math.Floor(v / g);
@@ -591,7 +784,7 @@ static partial class Program
     {
         struct Plane { public double A, B, C; public double Z(double x, double y) => A + B * x + C * y; } // z = A + Bx + Cy
         sealed class Line { public double AX, AY, BX, BY; public int Front = -1, Back = -1, Special, Arg0, Arg1; }
-        sealed class Sector { public int Floor, Ceiling, Id; public bool Control; public List<(int bottom, int top)> Slabs = new List<(int, int)>(); }
+        sealed class Sector { public int Floor, Ceiling, Id; public bool Control, Sky; public List<(int bottom, int top)> Slabs = new List<(int, int)>(); }
         readonly List<Plane> planes = new List<Plane>();
         readonly List<Line> lines = new List<Line>();
         readonly List<Sector> sectors = new List<Sector>();
@@ -654,7 +847,7 @@ static partial class Program
                             planes.Add(Math.Abs(c) > 1e-12 ? new Plane { A = -D(name + "_d") / c, B = -D(name + "_a") / c, C = -D(name + "_b") / c } : new Plane { A = height });
                             return planes.Count - 1;
                         }
-                        sectors.Add(new Sector { Floor = PlaneOf("floorplane", D("heightfloor")), Ceiling = PlaneOf("ceilingplane", D("heightceiling")), Id = I("id") });
+                        sectors.Add(new Sector { Floor = PlaneOf("floorplane", D("heightfloor")), Ceiling = PlaneOf("ceilingplane", D("heightceiling")), Id = I("id"), Sky = f.TryGetValue("textureceiling", out var ct) && ct == "F_SKY1" });
                         break;
                 }
             }
@@ -811,7 +1004,8 @@ static partial class Program
                         for (int k = 0; k < n; k++)
                         {
                             AddFlat(local, admit, x, y, lo[k], planes[lp[k]], true, w * step);
-                            AddFlat(local, admit, x, y, hi[k], planes[hp[k]], false, w * step);
+                            // A sky ceiling is the map's height limit, not a surface: Daggerfall's sky is open.
+                            if (!(sectors[s].Sky && hp[k] == sectors[s].Ceiling)) AddFlat(local, admit, x, y, hi[k], planes[hp[k]], false, w * step);
                         }
                     }
                     if (first >= xb) { At((xa + xb) / 2, xb - xa); continue; }
@@ -843,6 +1037,8 @@ static partial class Program
             Span<double> flo = stackalloc double[16], fhi = stackalloc double[16], blo = stackalloc double[16], bhi = stackalloc double[16];
             Span<int> p1 = stackalloc int[16], p2 = stackalloc int[16];
             int front = l.Front >= 0 && !sectors[l.Front].Control ? l.Front : -1, back = l.Back >= 0 && !sectors[l.Back].Control ? l.Back : -1;
+            // Outdoors every cell has a sector, so a one-sided line is the converted map's outer edge, not an object.
+            if (FidExterior && (front < 0 || back < 0)) return;
             for (int k = 0; k < pieces; k++)
             {
                 double f = (k + 0.5) / pieces, x = l.AX + dx * f, y = l.AY + dy * f;

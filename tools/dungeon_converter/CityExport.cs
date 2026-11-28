@@ -178,7 +178,7 @@ static partial class Program
             File.WriteAllText(Path.Combine(outDir, slug + ".stats.txt"), report);
             Console.WriteLine(report);
             if (args.Contains("--fidelity")) { File.WriteAllText(Path.Combine(outDir, slug + ".tops.txt"), Collision.TopSamples(rasters, 300)); File.WriteAllText(Path.Combine(outDir, slug + ".doors.txt"), string.Join("\n", scene.DoorLines) + "\n"); }
-            if (args.Contains("--fidelity")) { string fidelity = Collision.Fidelity(rasters, scene.Colliders, scene.ColliderOwners); File.WriteAllText(Path.Combine(outDir, slug + ".fidelity.txt"), fidelity); Console.Write(fidelity); }
+            if (args.Contains("--fidelity")) ExteriorMetric(wad, slug, outDir, Arg("--fidelity-cache", null), scene, bx0, bx1, by0, by1, map.StartX, map.StartY);
             if (ddtPath != null) return 0; // A missing prop is reported above and does not stop the player from entering.
             return scene.BadTextures == 0 && scene.Missing == 0 && heightsPass ? 0 : 1;
         }
