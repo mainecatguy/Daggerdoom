@@ -19,8 +19,13 @@ sys.path.insert(0, str(REPO / "tools" / "automatics"))
 from automatics_test import Peer, MODS, DRLA, BAD  # noqa: E402
 from shottag_test import launch  # noqa: E402
 
-TAG = re.compile(r"shots: tag (\S+) gun (\S+) skill (-?\d+) gen (\d+) tic (\d+) by (\S+)")
+TAG = re.compile(r"shots: tag (\S+) gun (\S+) skill (-?\d+) gen (-?\d+) tic (\d+) by (\S+)( carrier)?")
 HIT = re.compile(r"GUNSRC hit inf=(\S+) found=(\d) gen=(-?\d+) gun=(\S+) held=(\S+) tic=(\d+)")
+SPAWN = re.compile(r"GUNSRC spawned (\S+) gun=(\S+) gen=(-?\d+) carrier=(\d) missile=(\d) puff=(\d) root=(\S+)")
+# Real (non-carrier) tags per harness family in one case: bomb, 3 blasts, 2 fragments, 3 sparks, 3 embers; gun C's
+# bullet makes one puff (a carrier) whose fragment gives fragment, blast, spark, ember.
+FAMILY_TAGS = {"A": 12, "B": 12, "C": 4, "D": 12}
+CARRIERS = {"GunSrcPuffC", "GunSrcHelperD"}
 
 
 def analyse(name, lines, check):
@@ -32,7 +37,7 @@ def analyse(name, lines, check):
     for l in lines:
         if m := re.search(r"GUNSRC case (\S+) (\S+)", l):
             cur = (m.group(1), m.group(2))
-            cases[cur] = {"tags": [], "hits": [], "held": 0}
+            cases[cur] = {"tags": [], "hits": [], "spawned": [], "held": 0}
         elif cur and "GUNSRC end" in l:
             cur = None
         elif cur and (m := re.search(r"GUNSRC held (\d+)", l)):
@@ -41,34 +46,59 @@ def analyse(name, lines, check):
             cases[cur]["tags"].append(m)
         elif cur and (m := HIT.search(l)):
             cases[cur]["hits"].append(m)
-    check(name, "cases ran", bool(cases), list(cases))
+        elif cur and (m := SPAWN.search(l)):
+            cases[cur]["spawned"].append(m)
+    check(name, "cases ran", len(cases) >= 2, list(cases))
     for (a, b), d in cases.items():
         c = f"{a}+{b}"
-        tags, hits = d["tags"], d["hits"]
-        check(name, f"{c}: gun A's shot held in the pack", d["held"] > 0, d["held"])
+        tags, hits, spawned = d["tags"], d["hits"], d["spawned"]
+        real = [t for t in tags if not t.group(7)]
         guns = {t.group(2) for t in tags}
         check(name, f"{c}: both guns' shots were tagged", {a, b} <= guns, guns)
-        near = [t.group(0) for t in tags if t.group(6) not in ("fired", "child")]
+        near = [t.group(0) for t in tags if t.group(6) not in ("fired", "child", "carried")]
         check(name, f"{c}: {len(tags)} tags, all from the exact spawner", tags and not near, near[:3])
+        # Done-when: every actor whose spawn chain (engine ground truth, logged by the harness) reaches a gun firing
+        # in this case carries a tag naming that gun. Actors the chain does not tie to the player (DRLA's own world
+        # helpers) are listed, not judged.
+        shot = [s for s in spawned if s.group(7) != "other"]
+        wrong = [s.group(0) for s in shot if s.group(2) != s.group(7)]
+        check(name, f"{c}: all {len(shot)} actors the two guns' shots spawned carry their own gun's tag", shot and not wrong, wrong[:5])
+        check(name, f"{c}: both guns are roots", {a, b} <= {s.group(7) for s in shot}, {s.group(7) for s in shot})
+        other = sorted({s.group(1) for s in spawned if s.group(7) == "other"})
+        if other:
+            print(f"  {name} {c}: not from the guns (not judged): {other}")
+        check(name, f"{c}: nothing outside the guns' spawn chains was tagged", not any(s.group(7) == "other" and s.group(2) != "None" for s in spawned),
+              [s.group(0) for s in spawned if s.group(7) == "other" and s.group(2) != "None"][:3])
         by_class = {}
-        for t in tags:
-            by_class.setdefault(t.group(1), set()).add(t.group(2))
-        both = {k: v for k, v in by_class.items() if len(v) > 1}
-        check(name, f"{c}: no class tagged under both guns", not both, both)
+        for s in shot:
+            by_class.setdefault(s.group(1), set()).add(s.group(2))
         print(f"  {name} {c}: " + ", ".join(f"{k}->{'/'.join(sorted(v))}" for k, v in sorted(by_class.items())))
-        if a == "GunSrcGunA":
-            wrong = [t.group(0) for t in tags if {"A": a, "B": b}.get(t.group(1)[-1]) != t.group(2)]
-            check(name, f"{c}: every tag names its own family's gun", tags and not wrong, wrong[:3])
-            fragsB = [t for t in tags if t.group(1) == "GunSrcFragB"]
-            check(name, f"{c}: B's fragments, born beside A's held bomb, carry gun B", len(fragsB) == 2 and all(t.group(2) == b for t in fragsB),
-                  [t.group(0) for t in fragsB])
-            gens = {(t.group(1)[-1], int(t.group(4))) for t in tags}
-            check(name, f"{c}: generations 0, 1 and 2 for both guns", {(x, g) for x in "AB" for g in (0, 1, 2)} <= gens, sorted(gens))
-            badhit = [h.group(0) for h in hits if h.group(2) != "1" or {"A": a, "B": b}.get(h.group(1)[-1]) != h.group(4)]
-            infl = {h.group(1) for h in hits}
+        if a.startswith("GunSrc"):
+            fam = {"A": "GunSrcGunA", "B": "GunSrcGunB", "C": "GunSrcGunC", "D": "GunSrcGunD"}
+            wrong = [s.group(0) for s in spawned if fam.get(s.group(1)[-1]) != s.group(2)]
+            check(name, f"{c}: every spawned actor carries its own family's gun", spawned and not wrong, wrong[:3])
+            badcarrier = [s.group(0) for s in spawned if (s.group(4) == "1") != (s.group(1) in CARRIERS)]
+            check(name, f"{c}: only the puff and the helper are carriers", not badcarrier, badcarrier[:3])
+            for g in (a[-1], b[-1]):
+                n = sum(1 for t in real if t.group(1)[-1] == g and t.group(2) == fam[g])
+                check(name, f"{c}: gun {g}: {FAMILY_TAGS[g]} real tags expected, got {n}", n == FAMILY_TAGS[g], n)
+                for kind in ("Spark", "Ember"):
+                    k = [s for s in spawned if s.group(1) == f"GunSrc{kind}{g}"]
+                    check(name, f"{c}: gun {g}: every {kind.lower()} (spawned without SXF_TRANSFERPOINTERS) carries gun {g}",
+                          k and all(s.group(2) == fam[g] for s in k), [s.group(0) for s in k][:3])
+            if a == "GunSrcGunA":
+                check(name, f"{c}: gun A's shot held in the pack", d["held"] > 0, d["held"])
+                fragsB = [t for t in real if t.group(1) == "GunSrcFragB"]
+                check(name, f"{c}: B's fragments, born beside A's held bomb, carry gun B", len(fragsB) == 2 and all(t.group(2) == b for t in fragsB),
+                      [t.group(0) for t in fragsB])
+            gens = {(t.group(1)[-1], int(t.group(4))) for t in real}
+            want = {"A": {0, 1, 2, 3}, "B": {0, 1, 2, 3}, "C": {1, 2, 3, 4}, "D": {0, 1, 2, 3}}
+            check(name, f"{c}: generations", all(want[g] <= {x for f, x in gens if f == g} for g in (a[-1], b[-1])), sorted(gens))
+            badhit = [h.group(0) for h in hits if h.group(1).startswith("GunSrc") and not h.group(1).startswith("GunSrcPuff")
+                      and (h.group(2) != "1" or fam.get(h.group(1)[-1]) != h.group(4))]
             check(name, f"{c}: {len(hits)} hits, each credited to its own gun", hits and not badhit, badhit[:3])
-            check(name, f"{c}: both guns' fragments' blasts hit the pack", {"GunSrcBlastA", "GunSrcBlastB"} <= infl, infl)
         else:
+            check(name, f"{c}: gun A's shot held in the pack", d["held"] > 0, d["held"])
             badhit = [h.group(0) for h in hits if h.group(2) != "1" or h.group(4) not in (a, b)]
             check(name, f"{c}: {len(hits)} hits, all found and credited to one of the two guns", hits and not badhit, badhit[:3])
             hitguns = {}

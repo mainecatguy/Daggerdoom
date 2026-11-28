@@ -5,17 +5,22 @@
 // actor's inventory, so Doom's own saves keep it with the projectile. Daggerfall never sees it.
 //
 //   exact      first, the engine names the actor whose action or tick spawned the new actor (Actor.DD_SpawnedBy,
-//              UZDoom/src/dd_shotsource.cpp). Spawned by the player while the gun fires: a projectile is the held gun's
-//              shot. Spawned by a tagged shot (live, or destroyed this tic): it copies that shot's tag. So in a fight
-//              with two guns, each shot's fragments take their own shot's gun, however close the other gun's shots are.
-//              Only when the spawner is something else (a helper actor, a dying monster) do the rules below decide.
+//              UZDoom/src/dd_shotsource.cpp). Spawned by a tagged shot or a carrier (live, or destroyed this tic): it
+//              copies that tag, whatever its target is. Spawned by the player while the gun fires: a projectile is the
+//              held gun's shot, and a puff becomes a carrier of the held gun. So in a fight with two guns, each shot's
+//              fragments and their spawns take their own shot's gun, however close the other gun's shots are.
+//   carrier    a puff, or any other non-projectile the player's own action spawns while the gun fires (DRLA's recoil
+//              and reload effects, a launcher's spawner actor), gets a carrier tag: it is not a shot (Find and Tag
+//              ignore it, as they ignored it untagged before), it only passes the gun on to its spawns. Something the
+//              player's action spawns while the gun does not fire is no gun's: untagged (never a nearby shot's child).
+//   Otherwise (spawned by a monster, a barrel or a script, or by nobody the engine knows) the old rules:
 //   fired      a projectile (MISSILE flag, or by default if it already exploded at point blank) whose target is the player, spawned next to the player while the trigger is down or the gun
 //              is mid-fire, is the held gun's shot (generation 0).
 //   spawned    an actor whose target is the player (A_SpawnItemEx, A_CustomMissile and the like set it to the player
 //              for anything a player's missile spawns), spawned near a tagged actor that is alive or was destroyed this
 //              tic, is that actor's child: it copies the tag (generation + 1). When both rules fit, the nearer wins.
 //   hitscan    bullets keep the simple rule: a puff's hit lands in the tic it is fired, so the held gun fired it
-//              (DoomerfallShots.Find answers that for a puff). Puffs are not tagged.
+//              (DoomerfallShots.Find answers that for a puff). A puff holds only a carrier tag.
 // Items, monsters and players are never tagged. Without a Daggerfall character nothing is tagged, so a Doom-only game
 // is unchanged.
 class DoomerfallShotTag : Inventory
@@ -28,7 +33,8 @@ class DoomerfallShotTag : Inventory
 	int generation;         // 0: fired by the gun; 1: spawned by that shot; and so on
 	bool autoBurst;         // Automatics: the shot was one of a burst's first shots (DoomerfallAutomatics)
 	bool burstSet;          // Automatics has decided autoBurst (at the spawn event, or at a point-blank hit before it)
-	transient int fromSerial; // detached from a destroyed shot (DoomerfallShots.fallen): that shot's spawn serial
+	bool carrier;           // not a shot: a puff or a gun's helper actor that only passes the gun on to what it spawns
+	transient int serial;   // the owner's spawn serial (Actor.DD_SpawnSerial), its key in DoomerfallShots' serial buckets
 
 	Default
 	{
@@ -58,6 +64,8 @@ class DoomerfallShotTag : Inventory
 	}
 }
 
+class DoomerfallShotBucket play { Array<DoomerfallShotTag> tags; }
+
 class DoomerfallShots : StaticEventHandler
 {
 	const SheetValid = 2; // DFB_SHEET_VALID (bridge/doomerfall_bridge.h)
@@ -67,6 +75,36 @@ class DoomerfallShots : StaticEventHandler
 	// their pos is where the actor died). Both rebuilt after a save loads.
 	Array<Actor> tagged;
 	Array<DoomerfallShotTag> fallen;
+	// Every live and fallen tag, by its owner's spawn serial (BucketOf). ZScript 3.3 has no Map.
+	const BucketCount = 256;
+	Array<DoomerfallShotBucket> buckets;
+
+	DoomerfallShotBucket BucketOf(int serial)
+	{
+		if (buckets.Size() != BucketCount)
+		{
+			buckets.Clear();
+			for (int i = 0; i < BucketCount; i++) buckets.Push(new("DoomerfallShotBucket"));
+		}
+		return buckets[serial & (BucketCount - 1)];
+	}
+
+	DoomerfallShotTag BySerial(int serial)
+	{
+		let b = BucketOf(serial);
+		for (int i = b.tags.Size() - 1; i >= 0; i--)
+		{
+			let t = b.tags[i];
+			if (!t) b.tags.Delete(i);
+			else if (t.serial == serial) return t;
+		}
+		return null;
+	}
+
+	void ClearSerials()
+	{
+		for (int i = 0; i < buckets.Size(); i++) buckets[i].tags.Clear();
+	}
 
 	int logged;
 	static void Log(String msg)
@@ -101,7 +139,7 @@ class DoomerfallShots : StaticEventHandler
 			// A shot that hit at point blank deals its damage inside the firing action, before its spawn event.
 			if (!tag && inflictor.GetAge() == 0) tag = Tag(inflictor);
 		}
-		if (!tag || tag.shooter != player) { tag = null; return false; }
+		if (!tag || tag.carrier || tag.shooter != player) { tag = null; return false; }
 		gun = tag.gun;
 		skill = tag.skill;
 		return true;
@@ -119,7 +157,7 @@ class DoomerfallShots : StaticEventHandler
 			let a = h.tagged[i];
 			if (!a || a.bMissile || !a.default.bMissile || !a.CurState || a.tics != a.CurState.Tics) continue;
 			let t = DoomerfallShotTag.Of(a);
-			if (t && t.shooter == player) return t;
+			if (t && !t.carrier && t.shooter == player) return t;
 		}
 		return null;
 	}
@@ -129,15 +167,18 @@ class DoomerfallShots : StaticEventHandler
 		return Actor.DD_SheetValue(SheetValid) == 1;
 	}
 
-	// The tag of a newly spawned actor, tagging it first if a rule above fits. Safe to call more than once.
+	// The tag of a newly spawned actor, tagging it first if a rule above fits. Safe to call more than once. A carrier
+	// (a puff, or a helper the firing gun made) is not a shot: null for it.
 	static DoomerfallShotTag Tag(Actor m)
 	{
-		if (!m || !m.target || !m.target.player || m.target.player.mo != m.target) return null;
+		if (!m) return null;
 		let have = DoomerfallShotTag.Of(m);
-		if (have) return have;
-		if (m.bIsPuff || m.bIsMonster || m.player || m is "Inventory" || !Active()) return null;
+		if (have) return have.carrier ? null : have;
+		if (m.bIsMonster || m.player || m is "Inventory" || !Active()) return null;
 		let h = DoomerfallShots(StaticEventHandler.Find("DoomerfallShots"));
-		return h ? h.Classify(m) : null;
+		if (!h) return null;
+		let t = h.Classify(m);
+		return t && !t.carrier ? t : null;
 	}
 
 	// The held gun is firing (trigger down, or the gun mid-fire).
@@ -147,34 +188,60 @@ class DoomerfallShots : StaticEventHandler
 		return w && (p.attackdown || ((p.cmd.buttons | p.oldbuttons) & (BT_ATTACK | BT_ALTATTACK)) || !(p.WeaponState & WF_WEAPONREADY));
 	}
 
+	private static bool IsPlayerBody(Actor a)
+	{
+		return a && a.player && a.player.mo == a;
+	}
+
+	// The body of the player with this spawn serial, or null.
+	private static Actor PlayerBySerial(int serial)
+	{
+		for (int i = 0; i < MAXPLAYERS; i++)
+		{
+			if (!playeringame[i] || !players[i].mo) continue;
+			if (players[i].mo.DD_SpawnSerial() == serial) return players[i].mo;
+		}
+		return null;
+	}
+
 	private DoomerfallShotTag Classify(Actor m)
 	{
-		let pmo = m.target;
-		let p = pmo.player;
-
 		// [Doomerfall engine hook] The exact spawner (dd_shotsource.cpp): the actor whose action or tick spawned m.
-		// The player: the held gun fired it if it is a projectile. A tagged shot, live or destroyed this tic: its child.
-		// Anything else (a helper actor, a dying monster) leaves the nearest-parent rule below to decide.
+		// Spawned by a tagged shot or a carrier (live, or destroyed this tic): m is its child, whatever m's target is
+		// (an actor a blast spawns without SXF_TRANSFERPOINTERS targets the blast, not the player). A puff stays a
+		// carrier; anything else becomes a real shot.
 		int from = m.DD_SpawnedBy();
 		if (from)
 		{
-			if (from == pmo.DD_SpawnSerial())
-				return (m.bMissile || m.default.bMissile) && Firing(p) ? NewTag(m, null, "fired") : null;
-			for (int i = 0; i < tagged.Size(); i++)
-			{
-				let a = tagged[i];
-				if (!a || a == m || a.DD_SpawnSerial() != from) continue;
-				let t = DoomerfallShotTag.Of(a);
-				if (t && t.shooter == pmo) return NewTag(m, t, "child");
-			}
-			for (int i = 0; i < fallen.Size(); i++)
-			{
-				let t = fallen[i];
-				if (t && t.fromSerial == from && t.shooter == pmo) return NewTag(m, t, "child");
-			}
+			let src = BySerial(from);
+			if (src && src.shooter) return NewTag(m, src, m.bIsPuff, src.carrier ? "carried" : "child");
 		}
 
-		// The nearest tagged actor of this player: a possible parent.
+		// The player who spawned it (a puff has no target unless PUFFGETSOWNER), else the player it targets.
+		Actor spawner = from ? PlayerBySerial(from) : null;
+		let pmo = spawner ? spawner : m.target;
+		if (!IsPlayerBody(pmo)) return null;
+		let p = pmo.player;
+		bool firing = Firing(p);
+		bool byPlayer = spawner != null;
+		// Spawned by the player's own action while the gun fires: a projectile is the held gun's shot; a puff carries
+		// the held gun for whatever it spawns.
+		if (byPlayer && firing && !m.bIsPuff && (m.bMissile || m.default.bMissile)) return NewTag(m, null, false, "fired", 0, pmo);
+		if (m.bIsPuff) return byPlayer && firing ? NewTag(m, null, true, "fired", 0, pmo) : null;
+		// Anything else the player's own action spawned is never a nearby shot's child (that guess gave DRLA's
+		// RLRocketLauncherRecoil the other gun's tag). While the gun fires it is the gun's helper (DRLA's recoil and
+		// reload effects, a launcher's spawner actor): it carries the held gun, so whatever it fires is that gun's shot
+		// (generation 0). With the gun not firing it is no gun's (an item's or a script's): untagged.
+		if (byPlayer) return firing ? NewTag(m, null, true, "fired", -1, pmo) : null;
+
+		// Spawned by something else (a monster, a barrel, a script) or by nobody known: the old rules.
+		return Nearest(m, pmo, firing);
+	}
+
+	// The rules from before the engine hook: the nearest tagged shot of this player within ChildReach, or the held
+	// gun's shot for a projectile next to the player while the gun fires.
+	private DoomerfallShotTag Nearest(Actor m, Actor pmo, bool firing)
+	{
 		DoomerfallShotTag parent = null;
 		double best = ChildReach;
 		for (int i = 0; i < tagged.Size(); i++)
@@ -182,20 +249,18 @@ class DoomerfallShots : StaticEventHandler
 			let a = tagged[i];
 			if (!a || a == m) continue;
 			let t = DoomerfallShotTag.Of(a);
-			if (!t || t.shooter != pmo) continue;
+			if (!t || t.carrier || t.shooter != pmo) continue;
 			double d = a.Distance3D(m);
 			if (d < best) { best = d; parent = t; }
 		}
 		for (int i = 0; i < fallen.Size(); i++)
 		{
 			let t = fallen[i];
-			if (!t || t.shooter != pmo) continue;
+			if (!t || t.carrier || t.shooter != pmo) continue;
 			double d = (m.pos - t.pos).Length();
 			if (d < best) { best = d; parent = t; }
 		}
 
-		// The held gun firing it.
-		bool firing = Firing(p);
 		double fromPlayer = m.Distance2D(pmo);
 		// A sibling fired in the same tic (a spray of shrapnel or pellets) is not a parent.
 		bool sibling = parent && parent.generation == 0 && parent.fireTic == level.maptime;
@@ -204,20 +269,26 @@ class DoomerfallShots : StaticEventHandler
 		bool fired = (m.bMissile || m.default.bMissile) && firing && fromPlayer <= pmo.radius + m.radius + 64 && (!parent || sibling || fromPlayer <= best);
 
 		if (!fired && !parent) return null;
-		return NewTag(m, fired ? null : parent, "near");
+		return NewTag(m, fired ? null : parent, false, "near");
 	}
 
-	// Tags m: a copy of parent's tag, or with no parent the held gun's shot.
-	private DoomerfallShotTag NewTag(Actor m, DoomerfallShotTag parent, String how)
+	// Tags m: a copy of parent's tag (generation + 1), or with no parent the held gun of shooter (default: m's target; generation gen).
+	// A carrier tag only passes the gun on to m's own spawns.
+	private DoomerfallShotTag NewTag(Actor m, DoomerfallShotTag parent, bool carrier, String how, int gen = 0, Actor shooter = null)
 	{
-		let pmo = m.target;
-		let w = pmo.player.ReadyWeapon;
-		if (!parent && !w) return null;
+		Weapon w = null;
+		if (!shooter) shooter = m.target;
+		if (!parent)
+		{
+			if (!IsPlayerBody(shooter)) return null;
+			w = shooter.player.ReadyWeapon;
+			if (!w) return null;
+		}
 		let tag = DoomerfallShotTag(Actor.Spawn("DoomerfallShotTag"));
 		if (!tag) return null;
 		if (!parent)
 		{
-			tag.shooter = pmo;
+			tag.shooter = shooter;
 			tag.gun = w.GetClass();
 			int first, second;
 			[first, second] = DoomerfallWeaponCategory.Both(w);
@@ -225,12 +296,20 @@ class DoomerfallShots : StaticEventHandler
 			tag.second = second;
 			tag.skill = DoomerfallWeaponCategory.SkillSlotOf(w);
 			tag.fireTic = level.maptime;
+			tag.generation = gen;
 		}
-		else tag.CopyFrom(parent);
+		else
+		{
+			tag.CopyFrom(parent);
+			if (tag.generation == 0) tag.fireTic = level.maptime; // fired through a helper: fired now
+		}
+		tag.carrier = carrier;
 		tag.AttachToOwner(m);
+		tag.serial = m.DD_SpawnSerial();
+		BucketOf(tag.serial).tags.Push(tag);
 		tagged.Push(m);
-		Log(String.Format("tag %s gun %s skill %d gen %d tic %d by %s", m.GetClassName(), tag.gun ? tag.gun.GetClassName() : 'None',
-			tag.skill, tag.generation, level.maptime, how));
+		Log(String.Format("tag %s gun %s skill %d gen %d tic %d by %s%s", m.GetClassName(), tag.gun ? tag.gun.GetClassName() : 'None',
+			tag.skill, tag.generation, level.maptime, how, carrier ? " carrier" : ""));
 		return tag;
 	}
 
@@ -242,12 +321,15 @@ class DoomerfallShots : StaticEventHandler
 	override void WorldThingDestroyed(WorldEvent e)
 	{
 		let a = e.Thing;
-		if (!a || !a.target || !a.target.player) return;
+		if (!a || a is "Inventory") return;
 		let t = DoomerfallShotTag.Of(a);
-		if (!t && a.GetAge() == 0) t = Tag(a); // gone before its spawn event (point blank, or into a wall)
+		if (!t && a.GetAge() == 0 && Active()) // gone before its spawn event (point blank, or into a wall)
+		{
+			Tag(a);
+			t = DoomerfallShotTag.Of(a);
+		}
 		if (!t) return;
 		// Keep the tag (not the dying actor) until the next tic, for whatever the actor spawned as it died.
-		t.fromSerial = a.DD_SpawnSerial();
 		a.RemoveInventory(t);
 		t.SetXYZ(a.pos);
 		fallen.Push(t);
@@ -255,7 +337,15 @@ class DoomerfallShots : StaticEventHandler
 
 	override void WorldTick()
 	{
-		for (int i = 0; i < fallen.Size(); i++) if (fallen[i]) fallen[i].Destroy();
+		for (int i = 0; i < fallen.Size(); i++)
+		{
+			let t = fallen[i];
+			if (!t) continue;
+			let b = BucketOf(t.serial);
+			int at = b.tags.Find(t);
+			if (at < b.tags.Size()) b.tags.Delete(at);
+			t.Destroy();
+		}
 		fallen.Clear();
 		for (int i = tagged.Size() - 1; i >= 0; i--) if (!tagged[i]) tagged.Delete(i);
 	}
@@ -264,12 +354,15 @@ class DoomerfallShots : StaticEventHandler
 	{
 		tagged.Clear();
 		fallen.Clear();
+		ClearSerials();
 		let it = ThinkerIterator.Create("DoomerfallShotTag", Thinker.STAT_INVENTORY);
 		DoomerfallShotTag t;
 		while (t = DoomerfallShotTag(it.Next()))
 		{
-			if (t.owner) tagged.Push(t.owner);
-			else t.Destroy(); // a dead shot's tag saved mid-tic
+			if (!t.owner) { t.Destroy(); continue; } // a dead shot's tag saved mid-tic
+			tagged.Push(t.owner);
+			t.serial = t.owner.DD_SpawnSerial(); // serials are not saved: a new one
+			BucketOf(t.serial).tags.Push(t);
 		}
 		if (tagged.Size()) Log(String.Format("loaded %d tagged actors", tagged.Size()));
 	}
@@ -278,5 +371,6 @@ class DoomerfallShots : StaticEventHandler
 	{
 		tagged.Clear();
 		fallen.Clear();
+		ClearSerials();
 	}
 }

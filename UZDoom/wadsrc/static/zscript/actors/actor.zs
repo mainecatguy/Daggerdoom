@@ -856,7 +856,7 @@ class Actor : Thinker native
 	native clearscope int DD_LootSeed(); // [Doomerfall] fixed loot seed of a drop (dd_lootrng.cpp), folded to 32 bits; 0 on stock actors
 	native void DD_TakeLootId(Actor from); // [Doomerfall] take over another item loot identity (dd_lootrng.cpp)
 	native clearscope int DD_SpawnedBy(); // [Doomerfall] spawn serial of the actor that spawned this one, 0 if unknown (dd_shotsource.cpp)
-	native clearscope int DD_SpawnSerial(); // [Doomerfall] this actor's spawn serial, 0 if it has spawned nothing (dd_shotsource.cpp)
+	native int DD_SpawnSerial(); // [Doomerfall] this actor's spawn serial, handed out on first ask (dd_shotsource.cpp)
 	native double DD_MoveRadius(); // [Doomerfall] narrowest width against level geometry: a monster's squeeze width on Daggerfall maps, otherwise radius
 	native static double DD_MonsterMoveScale(); // [Doomerfall] 10.5 / 16 on Daggerfall maps, otherwise 1
 	native clearscope static bool DD_InRuntimeDungeon(); // [Doomerfall] the current map is a dungeon converted during play (dd_treadmill.cpp)
