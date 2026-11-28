@@ -217,10 +217,21 @@ class Run:
             self.check_follow(draws, "(a)")
         else:
             self.case(False, "(a) the marker was drawn")
-        # Into building door 0: the marker clears.
-        mark = len(read(self.uz_log))
+        # At building door 0 (the harness teleports there, which clears the marker as a travel): type, Esc, reopen.
+        if not self.wait(self.console, r"FNMENU 3", 90):
+            raise RuntimeError("find menu 3 did not open")
+        doom = sk["doom_driver"](self.launcher, self.uz_log)
+        time.sleep(1.0)
+        doom.type("x")
+        time.sleep(1.0)
+        doom.tap(VK_ESC)
+        # Reopened (menu 4): a fresh "" list must be asked for and show the quest NPCs; pick the local one again.
+        mark = self.pick(name, 4)
+        m = self.wait(self.uz_log, r"findnpc: marker on (.*), target kind", 8, mark)
+        self.case(m and name in m.group(1), f"after Esc and reopening, picked again at the door: {m and m.group(1)}")
+        # Through the door: the marker clears as an area change, not a travel.
         m = self.wait(self.uz_log, r"findnpc: marker cleared \((.*)\)", 90, mark)
-        self.case(m, f"area change clears the marker: {m and m.group(1)}")
+        self.case(m and m.group(1) in ("area changed", "map changed"), f"entering the building clears the marker: {m and m.group(1)}")
         if self.wait(self.uz_log, r"Daggerfall opened menu 7 at", 30, mark):
             time.sleep(1.0)
             sk["doom_driver"](self.launcher, self.uz_log).tap(VK_ESC)
@@ -231,7 +242,7 @@ class Run:
             return
         # (b) a resident while inside their building.
         name = residents[0]
-        mark = self.find(name.split()[-1].lower(), 3)  # one word of the name
+        mark = self.find(name.split()[-1].lower(), 5)  # one word of the name
         m = self.wait(self.uz_log, r"findnpc: marker on (.*), target kind (\d+) id (\S+)", 8, mark)
         self.case(m and name in m.group(1) and m.group(2) in ("2", "4") and "here" in m.group(1), f"(b) resident inside points at the NPC: {m and m.groups()}")
         time.sleep(9.0)

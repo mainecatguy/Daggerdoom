@@ -9,7 +9,9 @@ class FNHarness : StaticEventHandler // Static: it must keep its stage across th
 	int stage, timer;
 	bool ready;
 	ui int menus, closedAt;
-	ui bool wasOpen, sentGo;
+	ui bool wasOpen, sentGo, sentUse;
+	bool useArmed;
+	int useTimer;
 
 	// Posted key presses reach Doom only while a menu captures input (in play it reads raw input), so the harness
 	// opens the find menu the N key opens: twice outdoors, ten seconds after the last closed, then once indoors.
@@ -19,7 +21,11 @@ class FNHarness : StaticEventHandler // Static: it must keep its stage across th
 		if (wasOpen && !open) closedAt = level.maptime;
 		wasOpen = open;
 		if (open || !playeringame[0]) return;
-		bool due = stage == 0 ? level.maptime > 140 && level.maptime - closedAt > 350 : stage == 2 && timer > 160 && menus == 2;
+		// At the door (stage 1): menu 3 is typed into and closed with Esc, menu 4 sets a marker there, then the door is used.
+		if (stage == 1 && menus == 4 && !sentUse && level.maptime - closedAt > 105) { sentUse = true; EventHandler.SendNetworkEvent("fn_use"); }
+		bool due = stage == 0 ? level.maptime > 140 && level.maptime - closedAt > 350
+			: stage == 1 ? timer > 70 && (menus == 2 || (menus == 3 && level.maptime - closedAt > 70))
+			: stage == 2 && timer > 160 && menus == 4;
 		if (!due) return;
 		if (stage == 0 && menus == 2)
 		{
@@ -35,6 +41,7 @@ class FNHarness : StaticEventHandler // Static: it must keep its stage across th
 	override void NetworkProcess(ConsoleEvent e)
 	{
 		if (e.Name == "fn_go" && stage == 0) { stage = 1; timer = 0; Console.Printf("FNSTAGE 1 walking in"); }
+		if (e.Name == "fn_use" && stage == 1) { useArmed = true; useTimer = 0; Console.Printf("FNSTAGE 1 using the door"); }
 	}
 
 	override void WorldTick()
@@ -60,7 +67,8 @@ class FNHarness : StaticEventHandler // Static: it must keep its stage across th
 				p.SetOrigin((door.xy + normal * 48, door.z), false);
 				p.vel = (0, 0, 0);
 				p.angle = atan2(-normal.y, -normal.x);
-				if (timer == 12 || timer % 140 == 139) CVar.FindCVar("dd_tm_use").SetInt(1);
+				if (useArmed && (useTimer == 12 || useTimer % 140 == 139)) CVar.FindCVar("dd_tm_use").SetInt(1);
+				if (useArmed) useTimer++;
 			}
 			break;
 		case 2:

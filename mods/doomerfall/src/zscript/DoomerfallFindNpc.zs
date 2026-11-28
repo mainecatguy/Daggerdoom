@@ -7,6 +7,8 @@ class DoomerfallFindNpcEvents : StaticEventHandler
 {
 	ui Array<String> labels;
 	ui bool listReady, answered;
+	ui bool pickOpen; // one shot: the engine is opening the menu to pick from this list (no menu was open when it came)
+	ui bool listAsked; // a list the menu asked for is on its way: its answer never opens the menu, even after Esc
 
 	override void InterfaceProcess(ConsoleEvent e)
 	{
@@ -14,7 +16,7 @@ class DoomerfallFindNpcEvents : StaticEventHandler
 		String what = e.Name.Mid(7);
 		if (what == "clear") { labels.Clear(); listReady = false; }
 		else if (what.Left(5) == "item:") labels.Push(what.Mid(5));
-		else if (what == "list") listReady = true;
+		else if (what == "list") { listReady = true; pickOpen = Menu.GetCurrentMenu() == null && !listAsked; listAsked = false; }
 		else if (what == "done" || what == "none") answered = true;
 	}
 }
@@ -35,7 +37,8 @@ class DoomerfallFindNpcMenu : GenericMenu
 	{
 		Super.Init(parent);
 		events = DoomerfallFindNpcEvents(StaticEventHandler.Find("DoomerfallFindNpcEvents"));
-		if (events && events.listReady) { focusList = true; return; } // the engine opened this to pick from a list
+		if (events && events.pickOpen) { events.pickOpen = false; focusList = true; return; } // the engine opened this to pick
+		if (events) events.pickOpen = false;
 		if (events) { events.answered = false; events.listReady = false; events.labels.Clear(); }
 		// Opens on the list of the active quests' NPCs (arrows, Enter, mouse); typing a letter opens the text box with it.
 		// Doom's text box ignores Enter while empty, so the list cannot be reached from an empty box.
@@ -68,7 +71,7 @@ class DoomerfallFindNpcMenu : GenericMenu
 	{
 		sentText = text;
 		sentOnce = true;
-		if (events) events.listReady = false; // until this answer: Enter must not pick from the old list
+		if (events) { events.listReady = false; events.listAsked = true; } // until this answer: Enter must not pick from the old list
 		EventHandler.SendNetworkEvent("ddfindlist:" .. text);
 	}
 
@@ -139,6 +142,8 @@ class DoomerfallFindNpcMenu : GenericMenu
 			OpenEntry("");
 			return;
 		}
+		// The text box went away without Enter (Esc closes it alone, as MKEY_Back): close this menu with it.
+		if (!focusList && !entry && !waiting && !focusWhenReady) { Close(); return; }
 		if (focusWhenReady && events && events.listReady)
 		{
 			focusWhenReady = false;
