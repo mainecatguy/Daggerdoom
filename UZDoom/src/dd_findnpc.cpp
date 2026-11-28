@@ -68,6 +68,8 @@ int topUntil = -1;   // gametic; -1 keeps it while the marker lasts
 // The last frame's drawing, for the log.
 double drawnX = -1, drawnY = -1;
 bool drawnOn, drawn;
+DVector3 drawnView;   // the viewpoint that frame was drawn from
+double drawnYaw, drawnCentre;
 double loggedX = -1e9;
 bool loggedOn;
 int nextLog;
@@ -358,10 +360,8 @@ void DD_FindNpcFrame(dfb_session *session)
 		nextLog = gametic + 17;
 		loggedX = drawnX;
 		loggedOn = drawnOn;
-		player_t *p = consoleplayer >= 0 ? &players[consoleplayer] : nullptr;
-		const DVector3 me = p && p->mo ? p->mo->Pos() : DVector3();
-		Log("findnpc: draw %s screen %.0f %.0f target %.1f %.1f %.1f player %.1f %.1f yaw %.1f distance %.0f actor %d", drawnOn ? "on" : "edge", drawnX, drawnY,
-			target.X, target.Y, target.Z, me.X, me.Y, p && p->mo ? p->mo->Angles.Yaw.Degrees() : 0.0, (target.XY() - me.XY()).Length(), int(actorFound));
+		Log("findnpc: draw %s screen %.0f %.0f target %.1f %.1f %.1f player %.1f %.1f yaw %.1f distance %.0f actor %d centre %.0f", drawnOn ? "on" : "edge", drawnX, drawnY,
+			target.X, target.Y, target.Z, drawnView.X, drawnView.Y, drawnYaw, (target.XY() - drawnView.XY()).Length(), int(actorFound), drawnCentre);
 	}
 }
 
@@ -401,5 +401,8 @@ void DD_FindNpcDraw()
 	drawnX = sx;
 	drawnY = sy;
 	drawnOn = on;
+	drawnView = r_viewpoint.Pos;
+	drawnYaw = r_viewpoint.Angles.Yaw.Degrees();
+	drawnCentre = viewwindowx + viewwidth / 2.0;
 	drawn = true;
 }

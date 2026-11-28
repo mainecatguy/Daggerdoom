@@ -169,6 +169,21 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     return true;
                 }
             }
+            // Daggerfall's inert town may hold no door lists; the building footprints (as Info uses) give its centre.
+            foreach (DaggerfallStaticBuildings collection in location.GetComponentsInChildren<DaggerfallStaticBuildings>())
+            {
+                if (key == 0 || collection.Buildings == null)
+                    continue;
+                foreach (StaticBuilding b in collection.Buildings)
+                {
+                    if (b.buildingKey != key)
+                        continue;
+                    Vector3 origin = (Vector3)b.modelMatrix.GetColumn(3) + collection.transform.position;
+                    Quaternion rotation = Quaternion.LookRotation(b.modelMatrix.GetColumn(2), b.modelMatrix.GetColumn(1));
+                    ToWorld(c, origin + rotation * b.centre, out x, out z);
+                    return true;
+                }
+            }
             return false;
         }
 

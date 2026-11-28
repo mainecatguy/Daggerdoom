@@ -31,9 +31,10 @@ class DoomerfallFindNpcMenu : GenericMenu
 		events = DoomerfallFindNpcEvents(StaticEventHandler.Find("DoomerfallFindNpcEvents"));
 		if (events && events.listReady) return; // the engine opened this to pick from a list
 		if (events) { events.answered = false; events.labels.Clear(); }
-		entry = TextEnterMenu.OpenTextEnter(self, NewSmallFont, "", -1, false);
-		entry.ActivateMenu();
+		wantEntry = true; // opened on the first tick: this menu is activated after Init, which would bury it
 	}
+
+	bool wantEntry;
 
 	override bool MenuEvent(int mkey, bool fromcontroller)
 	{
@@ -85,6 +86,13 @@ class DoomerfallFindNpcMenu : GenericMenu
 	override void Ticker()
 	{
 		Super.Ticker();
+		if (wantEntry)
+		{
+			wantEntry = false;
+			entry = TextEnterMenu.OpenTextEnter(self, NewSmallFont, "", -1, false);
+			entry.ActivateMenu();
+			return;
+		}
 		if (waiting && events && (events.answered || events.listReady))
 		{
 			waiting = false;

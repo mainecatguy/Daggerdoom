@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using DaggerfallWorkshop.Game.Questing;
+using DaggerfallWorkshop.Utility;
 using UnityEngine;
 
 namespace DaggerfallWorkshop.Game.Doomerfall
@@ -91,7 +92,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 Write("FT error only " + people.Count + " placed quest people");
                 return;
             }
-            KeyValuePair<Quest, Person> far = people[0], moved = people[people.Count - 1];
+            KeyValuePair<Quest, Person> far = people[0], moved = people[1];
             Write(string.Format("FT far {0}|{1}", far.Value.DisplayName, PlaceOf(far.Key, far.Value).SiteDetails.locationName));
             // A building of this town other than the lowest-keyed one (the test walks into a building by door row 0).
             var keys = new SortedSet<int>();
@@ -100,9 +101,23 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     foreach (StaticDoor d in c.Doors)
                         if (d.doorType == DoorTypes.Building && d.buildingKey != 0)
                             keys.Add(d.buildingKey);
+            foreach (DaggerfallStaticBuildings c in game.StreamingWorld.CurrentPlayerLocationObject.GetComponentsInChildren<DaggerfallStaticBuildings>())
+                if (c.Buildings != null)
+                    foreach (StaticBuilding sb in c.Buildings)
+                        if (sb.buildingKey != 0)
+                            keys.Add(sb.buildingKey);
             int key = 0, n = 0;
             foreach (int k in keys)
                 if (n++ == keys.Count / 2) key = k;
+            if (key == 0) // the scene holds no buildings yet: a building with people, from the block data
+            {
+                DaggerfallConnect.DFBlock[] blocks = RMBLayout.GetLocationBuildingData(game.PlayerGPS.CurrentLocation);
+                int w = game.PlayerGPS.CurrentLocation.Exterior.ExteriorData.Width;
+                for (int i = blocks.Length - 1; i >= 0 && key == 0; i--)
+                    for (int r = 0; r < blocks[i].RmbBlock.SubRecords.Length && key == 0; r++)
+                        if (blocks[i].RmbBlock.SubRecords[r].Interior.BlockPeopleRecords.Length > 0)
+                            key = BuildingDirectory.MakeBuildingKey((byte)(i % w), (byte)(i / w), (byte)r);
+            }
             PlayerGPS.DiscoveredBuilding b;
             string buildingName = game.PlayerGPS.GetBaseBuildingDiscoveryData(key, out b) ? b.displayName : "test building";
             DaggerfallConnect.DFLocation location = game.PlayerGPS.CurrentLocation;

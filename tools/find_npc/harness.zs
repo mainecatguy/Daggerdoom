@@ -8,6 +8,29 @@ class FNHarness : StaticEventHandler // Static: it must keep its stage across th
 	static const double DOORDATA[] = { @DOOR@ };
 	int stage, timer;
 	bool ready;
+	ui int menus, closedAt;
+	ui bool wasOpen, sentGo;
+
+	// Posted key presses reach Doom only while a menu captures input (in play it reads raw input), so the harness
+	// opens the find menu the N key opens: twice outdoors, ten seconds after the last closed, then once indoors.
+	override void UiTick()
+	{
+		bool open = Menu.GetCurrentMenu() != null;
+		if (wasOpen && !open) closedAt = level.maptime;
+		wasOpen = open;
+		if (open || !playeringame[0]) return;
+		bool due = stage == 0 ? level.maptime > 140 && level.maptime - closedAt > 350 : stage == 2 && timer > 160 && menus == 2;
+		if (!due) return;
+		if (stage == 0 && menus == 2)
+		{
+			if (!sentGo) { sentGo = true; EventHandler.SendNetworkEvent("fn_go"); }
+			return;
+		}
+		menus++;
+		Console.Printf("FNMENU %d", menus);
+		Menu.SetMenu("DoomerfallFindNpcMenu");
+		wasOpen = true;
+	}
 
 	override void NetworkProcess(ConsoleEvent e)
 	{
@@ -52,6 +75,9 @@ class FNHarness : StaticEventHandler // Static: it must keep its stage across th
 		Actor mo;
 		let it = ThinkerIterator.Create("Actor");
 		while (mo = Actor(it.Next()))
-			if (mo.bISMONSTER && !mo.player && !(String(mo.GetClassName()).Left(2) ~== "DF")) mo.Destroy(); // keep NPCs and townspeople
+		{
+			String cls = mo.GetClassName();
+			if (mo.bISMONSTER && !mo.player && !(cls.Left(2) ~== "DF")) mo.Destroy(); // keep NPCs and townspeople
+		}
 	}
 }
