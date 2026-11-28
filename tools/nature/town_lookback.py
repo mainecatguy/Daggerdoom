@@ -31,6 +31,15 @@ class LookBack : StaticEventHandler
 
 	int CV(String n) { return CVar.FindCVar(n).GetInt(); }
 
+	// The distant view's flats (render only, not actors), written by the engine's -ddhorizontest dump.
+	void DumpRing(String tag, PlayerPawn p)
+	{
+		let cv = CVar.FindCVar("dd_horizon_dump");
+		if (!cv) { Console.Printf("LBK %s ring dump unavailable", tag); return; }
+		cv.SetString(String.Format("%.2f %.2f %.1f @OUT@/ring-%s.txt", p.pos.x, p.pos.y, @RADIUS@, tag));
+		Console.Printf("LBK %s ring player=%.2f,%.2f,%.2f", tag, p.pos.x, p.pos.y, p.pos.z);
+	}
+
 	void Dump(String tag, PlayerPawn p)
 	{
 		Console.Printf("LBK %s map=%s player=%.2f,%.2f,%.2f angle=%.1f pitch=%.1f camera=%.2f,%.2f,%.2f origin=%d,%d", tag, level.MapName, p.pos.x, p.pos.y, p.pos.z, p.angle, p.pitch, players[0].camera.pos.x, players[0].camera.pos.y, players[0].camera.pos.z, CV("dd_tm_originx"), CV("dd_tm_originy"));
@@ -76,6 +85,7 @@ class LookBack : StaticEventHandler
 		case 2:	// on the overworld at the look point
 			p.vel = (0, 0, 0);
 			if (timer == 20) Dump("over", p);
+			if (timer == 100) DumpRing("over", p);
 			if (timer == 20 || timer == 100) level.MakeScreenShot();
 			if (timer == 110) { phase = 3; timer = 0; }
 			break;
@@ -97,6 +107,7 @@ class LookBack : StaticEventHandler
 		case 4:	// on the town map at the same world point
 			p.vel = (0, 0, 0);
 			if (timer == 20) { Dump("town", p); Console.Printf("LBK intown=%d", CV("dd_tm_intown")); }
+			if (timer == 100) DumpRing("town", p);
 			if (timer == 20 || timer == 100) level.MakeScreenShot();
 			if (timer == 110) { phase = 9; timer = 0; }
 			break;
@@ -158,7 +169,7 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     (lx, ly), (ex, ey) = a.look.split(","), a.entry.split(",")
     text = (ZS.replace("@START@", a.start).replace("@LX@", lx).replace("@LY@", ly).replace("@EX@", ex).replace("@EY@", ey)
-            .replace("@YAW@", a.yaw + ".0").replace("@RADIUS@", str(a.radius)))
+            .replace("@YAW@", a.yaw + ".0").replace("@RADIUS@", str(a.radius)).replace("@OUT@", out.resolve().as_posix()))
     harness = out / "lookback.pk3"
     with zipfile.ZipFile(harness, "w") as z:
         z.writestr("zscript.txt", text)
@@ -166,12 +177,12 @@ def main():
     cache = out / "cache"
     cache.mkdir(exist_ok=True)
     log = out / "log-lookback.txt"	# the engine names the file log-<name>.txt
-    for old in [log, *out.glob("*.png")]:
+    for old in [log, *out.glob("*.png"), *out.glob("ring-*.txt")]:
         if old.exists():
             old.unlink()
     game = [a.exe, "-iwad", IWAD, "-file", str(data / "ddruntime.pk3"), str(data / "overworld.pk3"), str(harness), "-config", str(out / "test.ini"),
             "-nosound", "-noautoload", "-nomonsters", "-skill", "3", "-ddtowncache", str(cache),
-            "-ddconverter", str(data / "converter" / "DungeonConverter.exe"), "-ddarena2", ARENA2, "+logfile", "lookback",
+            "-ddconverter", str(data / "converter" / "DungeonConverter.exe"), "-ddarena2", ARENA2, "-ddhorizontest", "+logfile", "lookback",
             "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0",
             "+vid_scalemode", "5", "+vid_scale_customwidth", "1280", "+vid_scale_customheight", "720", "+screenblocks", "12", "+r_drawplayersprites", "0",
             "+enablescriptscreenshot", "1", "+screenshot_type", "png", "+screenshot_dir", str(out), "+map", "DDOVER01"]
@@ -189,8 +200,45 @@ def main():
         return
     for r in (4, 6, 10, 20):
         no, nt, ng, miss, extra, dz = compare(flats["over"], flats["town"], r * 192.0)
-        print(f"within {r:2d} tiles: overworld {no}, town map {nt}, same sprite within 1 unit {ng}, "
+        print(f"actors only, within {r:2d} tiles: overworld {no}, town map {nt}, same sprite within 1 unit {ng}, "
               f"missing on town map {len(miss)}, extra on town map {len(extra)}, worst height difference {dz:.2f}")
+    # The distant view's flats (render only), drawn where the running map spawns no actor.
+    ring = {}
+    for tag in ("over", "town"):
+        ring[tag] = read_ring(out / f"ring-{tag}.txt", player_z(info, tag))
+        if ring[tag] is None:
+            print(f"ring {tag}: no dump (engine without -ddhorizontest support?)")
+            return
+        print(f"ring {tag}: complete={ring[tag][0]} flats within radius {len(ring[tag][1])}")
+    dup = [f for f in ring["town"][1] if any(g[3] == f[3] and math.hypot(g[0] - f[0], g[1] - f[1]) < 1.0 for g in flats["town"])]
+    print(f"town map: ring flats on the same spot as an actor flat (drawn twice): {len(dup)}")
+    for r in (4, 6, 10, 20):
+        no, nt, ng, miss, extra, dz = compare(flats["over"] + ring["over"][1], flats["town"] + ring["town"][1], r * 192.0)
+        print(f"actors + distant view, within {r:2d} tiles: overworld {no}, town map {nt}, same sprite within 1 unit {ng}, "
+              f"missing on town map {len(miss)}, extra on town map {len(extra)}, worst height difference {dz:.2f}")
+    no, nt, ng, miss, extra, dz = compare(flats["over"] + ring["over"][1], flats["town"] + ring["town"][1], a.radius)
+    print("RESULT:", "PASS" if not miss and not extra and dz < 1.0 and ring["town"][0] and not dup else "FAIL")
+
+
+def player_z(info, tag):
+    for line in info:
+        m = re.match(rf"LBK {tag} ring player=([-\d.]+),([-\d.]+),([-\d.]+)", line)
+        if m:
+            return float(m.group(3))
+    return 0.0
+
+
+def read_ring(path, pz):
+    """The engine's ring dump: x, y relative to the player, absolute z (made relative here), texture."""
+    if not path.exists():
+        return None
+    lines = path.read_text().splitlines()
+    complete = lines[0].strip() == "complete 1"
+    flats = []
+    for line in lines[1:]:
+        f = line.split()
+        flats.append((float(f[0]), float(f[1]), float(f[2]) - pz, f[3]))
+    return complete, flats
 
 
 if __name__ == "__main__":

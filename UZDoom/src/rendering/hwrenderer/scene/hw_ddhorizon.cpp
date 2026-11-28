@@ -435,3 +435,11 @@ void DDHorizon_Draw(HWDrawInfo *di, FRenderState &state)
 	state.EnableFog(true);
 	state.SetVertexBuffer(screen->mVertexData);
 }
+
+bool DDHorizon_NearFlats(std::vector<DDHorizonPlacedFlat> &out)
+{
+	DDHorizonFrame f;
+	if (!DDTreadmill_HorizonFrame(f)) return false;
+	for (const NearFlat &n : nearFlats) out.push_back({ n.x + flatAnchorX * TILE + f.offX, n.y + flatAnchorY * TILE + f.offY, n.z + f.offZ, n.texture });
+	return haveBuilt && !flatsIncomplete && flatsBuilt == built;
+}
