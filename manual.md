@@ -54,10 +54,13 @@ count while they last.
 
 - **Strength:** your melee hits do more damage: +1% per point, so +50% at 50 and double damage at 100. Melee means
   your fists and kicks and weapons that use the Melee skill, such as the chainsaw, the Ripper and the Energysaw.
-  Shots fired from a gun never get it, even if they land after you switch to your fists. Strength above 100 counts
-  as 100.
-- **Agility:** you reload and switch weapons faster: up to 40% faster at 100 (20% at 50). You also get a chance to
-  dodge damage completely: 15% at 100 (7.5% at 50). Agility above 100 counts as 100.
+  Strength also changes the damage of shotguns, explosives and automatic weapons: 20% less at 0, normal at 50, 20%
+  more at 100. Other guns don't get it. What counts is the weapon that made the attack, so a rocket you fired
+  still counts as an explosive if it lands after you switch to your fists. Strength above 100 counts as 100.
+- **Agility:** changes the damage of every gun: 10% less at 0, normal at 50, 10% more at 100. Rifles and pistols get
+  that much again, so they range from 20% less to 20% more. Fists and melee weapons don't get it. You also reload and
+  switch weapons faster: up to 40% faster at 100 (20% at 50). Agility does not let you dodge. Agility above 100
+  counts as 100.
 - **Speed:** how fast you walk and run in Doom. 50 is normal speed; 0 is 25% slower and 100 is 25% faster. It does
   not change how fast you climb or how high you jump. Speed above 100 counts as 100.
 - **Endurance:** raises your maximum HP (see Health).
@@ -67,8 +70,11 @@ count while they last.
 - **Luck:** every monster that dies, whoever killed it, has a chance to drop ammo: half your Luck, in percent (25% at
   50, 50% at 100; no chance at 0). The ammo is one small dropped pickup of a random type (bullets, shells, rockets or
   cells), of the usual materials for the area. Summoned and revived monsters never drop anything, and town guards are
-  not monsters, so they never roll. Luck never changes what else monsters drop. Luck above 100 counts as 100. Luck
-  keeps all its usual Daggerfall effects too.
+  not monsters, so they never roll. Luck never changes what else monsters drop.
+  Above 50, Luck also gives you a chance for a super critical hit that does 5 times the damage: 0.1% per point
+  above 50, so 5% at 100 and none at 50 or below. Each bullet, pellet, punch or projectile hit rolls once. An
+  explosion rolls once, and a lucky explosion is critical on everything it hits. Burning and other damage over time
+  is never critical. Luck above 100 counts as 100. Luck keeps all its usual Daggerfall effects too.
 - **Intelligence** and **Personality:** work as in Daggerfall (Intelligence sets your spell points; Personality helps
   when talking, trading and dealing with people).
 

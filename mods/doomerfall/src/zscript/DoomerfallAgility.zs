@@ -1,7 +1,7 @@
 // Agility in Doom (owner, 2026-11-26; manual.md "Attributes"). Daggerfall owns the character sheet and sends its live
-// attributes (Actor.DD_SheetStat, -1 without a Daggerfall character); Doom applies Agility here:
-//   - reloads and weapon switches run up to 40% faster (x1.4 animation speed at 100);
-//   - a chance to evade damage entirely, up to 15% at 100.
+// attributes (Actor.DD_SheetStat, -1 without a Daggerfall character); Doom applies Agility here: reloads and weapon
+// switches run up to 40% faster (x1.4 animation speed at 100). Agility's firearm damage is DoomerfallAttributes'. The
+// old dodge chance is gone (owner, 2026-11-27: gamedesign/decisions/20261127-attribute-rework-owner.md).
 // Linear from 0 at Agility 0; values are clamped to 0..100 and read live, so a change on the sheet applies at once.
 // Without a Daggerfall character the item is never given, so stock Doom and plain WADs are unchanged.
 
@@ -9,7 +9,6 @@ class DoomerfallAgilityEffects : Inventory
 {
 	const AgilityStat = 3;           // DFCareer.Stats.Agility
 	const MaxHandlingBonus = 0.40;   // reload and switch speed at 100
-	const MaxEvadeChance = 0.15;     // at 100
 
 	double handlingCarry; // fractional extra weapon tics owed while reloading or switching
 
@@ -33,12 +32,6 @@ class DoomerfallAgilityEffects : Inventory
 	{
 		int v = Live();
 		return v <= 0 ? 0.0 : MaxHandlingBonus * v / 100.0;
-	}
-
-	static double EvadeChance()
-	{
-		int v = Live();
-		return v <= 0 ? 0.0 : MaxEvadeChance * v / 100.0;
 	}
 
 	// Reload states: DRLA names them Reload, ReloadWorking, ReloadFinish2, FancyReload, GrenadeReload, ZoomInReload and
@@ -87,16 +80,6 @@ class DoomerfallAgilityEffects : Inventory
 		if (handlingCarry < 1) return;
 		handlingCarry -= 1;
 		ExtraTic(psp);
-	}
-
-	// Defensive only: the damage is evaded entirely (damage 0, so no pain, push or Daggerfall HP loss). The owner's
-	// rule is "a chance to evade damage", so any damage counts, whoever or whatever deals it. Only Doom's
-	// unstoppable damage is left alone: telefrags (which free a blocked teleport destination) and DMG_FORCED.
-	override void ModifyDamage(int damage, Name damageType, out int newdamage, bool passive, Actor inflictor, Actor source, int flags, double angle)
-	{
-		if (!passive || damage <= 0 || (flags & DMG_FORCED) || damageType == 'Telefrag') return;
-		double chance = EvadeChance();
-		if (chance > 0 && Random[DoomerfallEvade](0, 9999) < chance * 10000) newdamage = 0;
 	}
 }
 
