@@ -1318,8 +1318,9 @@ int DD_BridgeDamageBonus(AActor *source, AActor *target, AActor *inflictor, int 
 	if (logged < 200)
 	{
 		logged++;
-		Log("damage bonus: %s hit by the player, %d -> %d (%d bp, backstab x%.4g)",
-			target ? target->GetClass()->TypeName.GetChars() : "?", damage, scaled, bp, backstab);
+		// "(N bp)" stays as it was before Backstabbing (tools/ammo/ammo.py and tools/energy/energy_test.py read it).
+		Log("damage bonus: %s hit by the player, %d -> %d (%d bp)%s", target ? target->GetClass()->TypeName.GetChars() : "?",
+			damage, scaled, bp, backstab != 1.0 ? FStringf(" backstab x%.4g", backstab).GetChars() : "");
 	}
 	return scaled;
 }
