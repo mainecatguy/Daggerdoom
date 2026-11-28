@@ -9,6 +9,9 @@ The goal card is short on purpose. It holds the problem, the owner's decisions a
 - Build and run the real thing whenever practical.
 - Start every program that opens a window through `quiet_run.py`, as `AGENTS.md` says. Never start UZDoom,
   Daggerfall Unity, the launcher, or Unity any other way.
+- Stop only processes your own run started, by their process id (`taskkill /T /PID <pid>`). Never kill by program
+  name (`taskkill /IM`, `Stop-Process -Name`, filters on loaded modules): the owner's game and other lanes' tests run
+  the same programs, and on 2026-11-28 such a kill crashed the owner's game.
 - Stay on this goal. If you find unrelated problems, note them and move on. Report only the major ones in `oversights`, as described below.
 - Make ordinary engineering calls and constrained judgment calls within the owner's design. Do not make wholesale game system design choices. Ask instead, and finish everything that does not depend on the answer.
 - Do not push, merge, rebase, reset, or switch branches.
