@@ -94,6 +94,15 @@ CUSTOM_CVAR(Int, gl_fuzztype, 8, CVAR_ARCHIVE)
 //
 //==========================================================================
 
+// [Doomerfall] Daggerfall exteriors: actor sprites that are not fullbright (trees, flats, monsters) take Daggerfall's
+// flat daylight like the ground, instead of Doom's distance darkening (hw_flats.cpp; owner, 2026-11-27, Q&A 29/30).
+// Dynamic lights still add on top; fullbright frames, fullbright views and the fuzz style are untouched.
+void DD_ExteriorGroundLight(FRenderState &state, ELightMode lightmode, int rel, const FColormap &cm, float alpha);	// hw_flats.cpp
+static bool DD_SpriteDaylight(HWDrawInfo *di, AActor *actor, bool fullbright, const FRenderStyle &style)
+{
+	return actor && !fullbright && !di->isFullbrightScene() && style.BlendOp != STYLEOP_Shadow;
+}
+
 void HWSprite::DrawSprite(HWDrawInfo *di, FRenderState &state, bool translucent)
 {
 	bool additivefog = false;
@@ -211,7 +220,8 @@ void HWSprite::DrawSprite(HWDrawInfo *di, FRenderState &state, bool translucent)
 	}
 
 	if (!foglayer) SetFog(state, di->Level, di->lightmode, foglevel, rel, di->isFullbrightScene(), &Colormap, additivefog);
-	else
+	if (!foglayer && DD_SpriteDaylight(di, actor, fullbright, RenderStyle)) DD_ExteriorGroundLight(state, di->lightmode, rel, Colormap, trans);	// [Doomerfall]
+	if (foglayer)
 	{
 		state.EnableFog(false);
 		state.SetFog(0, 0);
@@ -262,6 +272,7 @@ void HWSprite::DrawSprite(HWDrawInfo *di, FRenderState &state, bool translucent)
 			if (!foglayer)
 			{
 				SetFog(state, di->Level, di->lightmode, thislight, rel, di->isFullbrightScene(), &thiscm, additivefog);
+				if (DD_SpriteDaylight(di, actor, fullbright, RenderStyle)) DD_ExteriorGroundLight(state, di->lightmode, rel, thiscm, trans);	// [Doomerfall]
 			}
 			SetSplitPlanes(state, *topplane, *lowplane);
 		}

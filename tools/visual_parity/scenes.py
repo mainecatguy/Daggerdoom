@@ -100,7 +100,7 @@ def capture_df(spots, out, timeout):
     return c.capture_daggerfall(lines, out, timeout, "df_scenes")
 
 
-def capture_doomerfall(spots, out, work, timeout):
+def capture_doomerfall(spots, out, work, timeout, uz_args=()):
     session = out / "session"
     os.environ["DDQA_SESSION"] = str(session)
     sys.path.insert(0, str(c.REPO / "tools" / "qa"))
@@ -112,7 +112,7 @@ def capture_doomerfall(spots, out, work, timeout):
         shutil.rmtree(qa.QA)
     qa.QA.mkdir(parents=True)
     qa.INBOX.write_text("")
-    proc = subprocess.Popen(c.paired_command(work, run, timeout, uz_extra=["+screenblocks", "12"], qa=qa.QA),
+    proc = subprocess.Popen(c.paired_command(work, run, timeout, uz_extra=["+screenblocks", "12", *uz_args], qa=qa.QA),
                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     log = {"spots": []}
     try:
@@ -179,6 +179,7 @@ def main():
     ap.add_argument("--timeout", type=int, default=420)
     ap.add_argument("--skip-df", action="store_true")
     ap.add_argument("--skip-doom", action="store_true")
+    ap.add_argument("--uz-arg", action="append", default=[], help="extra UZDoom argument, repeatable (e.g. --uz-arg=+dd_dungeon_light --uz-arg=64)")
     args = ap.parse_args()
     out = args.out.resolve()
     c.ensure_outside_repo(out)
@@ -189,7 +190,7 @@ def main():
     (out / "spots.json").write_text(json.dumps(spots, indent=1))
     if not args.skip_doom:
         c.prepare(work)
-        capture_doomerfall(spots, out, work, args.timeout)
+        capture_doomerfall(spots, out, work, args.timeout, args.uz_arg)
     if not args.skip_df:
         capture_df(spots, out, 300)
     cards, rows = [], []
