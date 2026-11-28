@@ -77,6 +77,28 @@ class BandTest : EventHandler
 		w.bAltFire = was;
 	}
 
+	// A target 260 (else 200) away in the open, the player turned `side` degrees right of it, where autoaim's straight
+	// probe misses it and its +5.625 degree probe finds it (P_SpawnPlayerMissile tries 0, +5.625, -5.625).
+	Actor PlaceAside(Actor mo, class<Actor> tk, double side)
+	{
+		for (int d = 260; d >= 200; d -= 60)
+		{
+			for (double th = 0; th < 360; th += 15)
+			{
+				let t = Actor.Spawn(tk, mo.Vec3Angle(d, th));
+				if (!t) continue;
+				FTranslatedLineTarget lt0, lt1;
+				mo.angle = th - side;
+				mo.AimLineAttack(mo.angle, 1024, lt0, 0);
+				mo.AimLineAttack(mo.angle + 5.625, 1024, lt1, 0);
+				if (t.TestMobjLocation() && mo.CheckSight(t) && lt0.linetarget != t && lt1.linetarget == t) return t;
+				t.Destroy();
+			}
+		}
+		mo.angle = -side;
+		return Actor.Spawn(tk, mo.Vec3Angle(260, 0));
+	}
+
 	override void OnRegister()
 	{
 		Add("off", "Chaingun", 60);
@@ -88,10 +110,11 @@ class BandTest : EventHandler
 		Add("bands", "RLMinigun", 300);
 		Add("extra100", "RLThompson", 80);
 		Add("extra100", "RLThompson", 80, -5); // looking 5 degrees up: autoaim lowers the shot onto A
-		// A fast-band projectile gun (bands_test.dec) with A off to the left (9 degrees, 300 away): only autoaim's +5.625 probe finds it.
-		Add("extra100", "BandTestProjectileUzi", 60, 0, 9);
-		Add("extra100", "BandTestProjectileUzi", 60, -5, 9);
-		Add("extra100", "BandTestNoAimUzi", 60, -5, 9); // no autoaim: shots fly along the view, up and to the right of A
+		// A fast-band projectile gun (bands_test.dec), the player turned 12 degrees right of A (260 away, 40 radius: 8.7
+		// degrees either side): only autoaim's +5.625 probe finds it.
+		Add("extra100", "BandTestProjectileUzi", 60, 0, 12);
+		Add("extra100", "BandTestProjectileUzi", 60, -5, 12);
+		Add("extra100", "BandTestNoAimUzi", 60, -5, 12); // no autoaim: shots fly along the view, up and to the right of A
 		Add("free3", "Chaingun", 90);
 		Add("free3", "RLBattleRifle", 90);
 		Add("big", "Chaingun", 90);
@@ -188,12 +211,13 @@ class BandTest : EventHandler
 				mo.vel = (0, 0, 0);
 				class<Actor> tk = cfg == "suppress" ? "BandTestMonster" : "BandTestTarget";
 				hitBy.Clear();
-				a = Actor.Spawn(tk, sides[c] ? mo.Vec3Angle(300, sides[c]) : mo.Vec3Angle(120, 0));
+				a = sides[c] ? PlaceAside(mo, tk, sides[c]) : Actor.Spawn(tk, mo.Vec3Angle(120, 0));
 				b = cfg == "suppress" || sides[c] ? null : Actor.Spawn("BandTestTarget", mo.Vec3Angle(260, 0));
+				if (sides[c] && (!a.TestMobjLocation() || !mo.CheckSight(a))) Console.Printf("BANDTEST target blocked %s %s fits %d sight %d at %.0f %.0f", cfg, gun, a.TestMobjLocation(), mo.CheckSight(a), a.pos.x, a.pos.y);
 				hitsA = lostA = hitsB = lostB = hitTics = 0; lastHitTic = -1;
 				t = 0; shots = 0; ammoStart = AmmoNow(p); prevAmmo = ammoStart; endTic = -1;
-				Console.Printf("BANDTEST case %s %s band=%d tics=%d slot=%d pitch=%.1f", cfg, gun, DoomerfallAutomaticBands.BandOf(w),
-					DoomerfallAutomaticBands.TicsOf(w.GetClass(), mo, w.bAltFire), DoomerfallWeaponCategory.SkillSlotOf(w), mo.pitch);
+				Console.Printf("BANDTEST case %s %s band=%d tics=%d slot=%d pitch=%.1f angle=%.1f", cfg, gun, DoomerfallAutomaticBands.BandOf(w),
+					DoomerfallAutomaticBands.TicsOf(w.GetClass(), mo, w.bAltFire), DoomerfallWeaponCategory.SkillSlotOf(w), mo.pitch, mo.angle);
 				phase = 4;
 			}
 			else if (++wait > 175) { Console.Printf("BANDTEST noselect %s %s", cfg, gun); c++; phase = 0; }

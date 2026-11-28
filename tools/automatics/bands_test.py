@@ -30,7 +30,7 @@ at.RULES.update({
     "big": {160: 200, 161: 3000, 159: 4},
     "suppress": {200: 500, 201: 4000, 202: 5000},
 })
-BAD = re.compile(r'Script error, "(doomerfall|bandtest)\.pk3|(doomerfall|bandtest)\.pk3:zscript\S*, line \d+|\bFatal error|VM execution aborted', re.I)
+BAD = re.compile(r'Script error, "(doomerfall|bandtest)\.pk3|(doomerfall|bandtest)\.pk3:zscript\S*, line \d+|\bFatal error|VM execution aborted|not implemented for', re.I)
 HIT = re.compile(r"automatics: hit (\S+) with (\S+) shot (\d+)( burst)?: (\d+) -> (\d+) \(x([\d.]+)\) tic (\d+) by (\S+) flat (\d+)( extra)?")
 PEN = re.compile(r"automatics: penetrate (\S+) -> (\S+) damage (\d+)")
 EXTRA = re.compile(r"automatics: extra (bullet|projectile)")
@@ -86,7 +86,8 @@ def cases_of(lines):
         if m := re.search(r"BANDTEST case (\w+) (\w+) band=(\d) tics=(\d+) slot=(-?\d+)", l):
             cur = {"cfg": m.group(1), "gun": m.group(2), "band": int(m.group(3)), "tics": int(m.group(4)), "slot": int(m.group(5)),
                    "hits": [], "pens": [], "extras": 0, "sup": [], "speed": [], "shots": 0, "bullets": {}, "xb": [], "shot_tics": [],
-                   "xp": [], "pitch": float(m2.group(1)) if (m2 := re.search(r"pitch=(-?[\d.]+)", l)) else 0.0}
+                   "xp": [], "pitch": float(m2.group(1)) if (m2 := re.search(r"pitch=(-?[\d.]+)", l)) else 0.0,
+                   "angle": float(m3.group(1)) if (m3 := re.search(r"angle=(-?[\d.]+)", l)) else 0.0}
             cases.append(cur)
         elif not cur:
             continue
@@ -132,11 +133,18 @@ def analyse(lines):
     for k, want in WANT_REPORT.items():
         check(f"band of {k[0]} mode {k[1]}{' alt fire' if k[2] else ''} is {want} (band, tics)", got.get(k) == want, got.get(k))
     want_band = {"BandTestProjectileUzi": (3, 1), "BandTestNoAimUzi": (3, 1), "Chaingun": (1, 4), "RLBattleRifle": (1, 4), "RLUzi": (2, 3), "RLThompson": (3, 2), "RLMinigun": (3, 1)}
+    blocked = [l for l in lines if "BANDTEST target blocked" in l]
+    check("every target placed aside (projectile cases) stands in the open, in the player's sight", not blocked, blocked[:3])
     for c in cases_of(lines):
         tag = f"{c['cfg']} {c['gun']}"
         auto = c["slot"] == 5
         check(f"{tag}: an Automatics gun, band {want_band[c['gun']]}", auto and (c["band"], c["tics"]) == want_band[c["gun"]], c)
-        check(f"{tag}: fired and hit A", c["shots"] >= 3 and c.get("hitsA", 0) > 0, c.get("shots"))
+        if c["gun"] == "BandTestNoAimUzi":
+            # Without autoaim the shots fly along the view, 12 degrees right of A's centre. They may still graze A (its square
+            # box and the ball's radius reach about 13 degrees at 260), so whether they are turned is checked by the aim below.
+            check(f"{tag}: fired ({c.get('hitsA')} hits on A)", c["shots"] >= 3, c.get("shots"))
+        else:
+            check(f"{tag}: fired and hit A", c["shots"] >= 3 and c.get("hitsA", 0) > 0, c.get("shots"))
         flat = {1: 25, 2: 7}.get(c["band"], 0) if c["cfg"] == "bands" else 0
         pen = c["cfg"] == "bands" and c["band"] in (1, 2)
         if c["cfg"] in ("off", "bands", "extra100"):
@@ -164,14 +172,20 @@ def analyse(lines):
         if c["cfg"] == "bands" and c["band"] in (1, 2):
             check(f"{tag}: no extra bullets outside the fast band", c["extras"] == 0)
         if c["cfg"] == "extra100" and c["gun"].startswith("BandTest"):
-            # A projectile gun: A is 9 degrees left and 300 away (40 radius: 1.4 to 16.6 degrees), so the engine's autoaim turns each shot by 5.625 degrees.
-            # The extra flies along the shot's own direction mirrored about that turned aim (same spread), and hits A.
-            # Without autoaim the aim is the view (angle 0, pitch -5) and nothing is turned.
+            # A projectile gun: the player faces 12 degrees right of A, 260 away (40 radius: 8.7 degrees either side), so the
+            # engine's autoaim turns each shot 5.625 degrees left. The extra flies along the shot's own direction mirrored
+            # about that turned aim (same spread), and hits A. Without autoaim the aim is the view (angle, pitch -5).
             noaim = c["gun"] == "BandTestNoAimUzi"
-            want = ("no autoaim", 0.0, c["pitch"]) if noaim else ("autoaim", 5.625, None)
+            want = ("no autoaim", c["angle"], c["pitch"]) if noaim else ("autoaim", c["angle"] + 5.625, None)
+
+            def dang(a, b):  # a - b as the shortest turn, in degrees
+                return (float(a) - float(b) + 180) % 360 - 180
             bad = [] if c["xp"] else ["no extra projectiles"]
-            bad += [x for x in c["xp"] if x[7] != want[0] or abs(float(x[5]) - want[1]) > 0.05 or (noaim and abs(float(x[6]) - want[2]) > 0.05)
-                   or abs(float(x[1]) + float(x[3]) - 2 * float(x[5])) > 2e-3 or abs(float(x[2]) + float(x[4]) - 2 * float(x[6])) > 2e-3]
+            bad += [x for x in c["xp"] if x[7] != want[0] or abs(dang(x[5], want[1])) > 0.05 or (noaim and abs(float(x[6]) - want[2]) > 0.05)
+                   or abs(dang(x[1], x[5]) + dang(x[3], x[5])) > 2e-3 or abs(float(x[2]) + float(x[4]) - 2 * float(x[6])) > 2e-3]
+            # The shots really spread: the gun's +-2 degrees, so the mirror is not trivially the shot itself.
+            spread = [abs(dang(x[3], x[5])) for x in c["xp"]]
+            check(f"{tag}: the shots spread about the aim (largest {max(spread, default=0):.2f} degrees)", spread and max(spread) > 0.5, spread[:5])
             check(f"{tag}: an extra projectile on every shot ({c['extras']} for {c['shots']} shots)",
                   len(c["xp"]) == c["extras"] and c["extras"] >= 0.9 * c["shots"] and c["shots"] >= 3, (c["extras"], c["shots"]))
             check(f"{tag}: view pitch {c['pitch']}, every extra projectile mirrors the shot about the engine's autoaim "
