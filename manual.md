@@ -118,6 +118,9 @@ Impish) are gone: you can no longer calm monsters by speaking to them.
   and revolver, including plasma pistols and pistols that fire shotgun shells. Rifles covers ballistic
   semi-automatic and single-shot rifles that are not explosives, energy weapons, shotguns or pistols.
 - No rifle counts as a pistol.
+- Governing attributes, as shown next to each skill on the character sheet: Shotguns, Explosives and Melee use
+  Strength; Automatics, Pistols, Rifles and Energy Weapons use Agility. As in Daggerfall Unity, a skill's governing
+  attribute is only shown there: raising the attribute does not make the skill advance faster.
 - **Energy Weapons** covers guns that use cells (plasma rifles, lasers, railguns, BFGs) and energy guns that recharge
   instead of using cells (the nuclear plasma guns and BFGs), even when they fire like an automatic. Energy pistols and
   energy shotguns belong to two skills (below).
