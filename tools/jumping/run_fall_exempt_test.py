@@ -3,7 +3,8 @@ DoomerfallJump.zs). Runs a play folder made by scripts/play/install.py like run_
 Daggerfall's sync test character), with Daggerfall's -dffalltest (Slowfall on and off every 20 s, water tile reports)
 and fall_exempt_probe.zs. Checks, at Jumping 0, for 9 m drops:
   - with Slowfall reported by Daggerfall: no damage;
-  - after it ends: Daggerfall's rule (20 HP), and Daggerfall's HP drops by it;
+  - after it ends: the falling damage rule (5 HP a metre past 1.5 jump heights: 36 HP at Jumping 0), and
+    Daggerfall's HP drops by it;
   - with --water DX DY (an offset in Doom units from the start, from an earlier run's "fall test: ... nearest" line):
     over outdoor water, no damage.
 
@@ -78,7 +79,7 @@ def main():
 def check(lines, water, want_water):
     fails = []
     got = {m.group(1): m for m in (re.search(r"FALLTEST (\w+) fell=([\d.-]+) falldamage=(\d+) rule=(\d+) flags_at_drop=(\d+) "
-                                             r"flags_now=(\d+) hp=(-?\d+)->(-?\d+)", l) for l in lines) if m}
+                                             r"flags_now=(\d+) hp=(-?\d+)->(-?\d+) safe=([\d.]+)", l) for l in lines) if m}
     if not any("FALLTEST done" in l for l in lines):
         fails.append("the probe did not finish")
     m = got.get("slowfall_on")
@@ -91,7 +92,7 @@ def check(lines, water, want_water):
         fails.append("no drop after Slowfall")
     else:
         fell, dmg, rule, hp0, hp1 = float(m.group(2)), int(m.group(3)), int(m.group(4)), int(m.group(7)), int(m.group(8))
-        if int(m.group(5)) & 1 or dmg != rule or rule != max(0, int(5 * (fell / 30 - 5))) or rule == 0 or hp0 - hp1 != dmg:
+        if int(m.group(5)) & 1 or dmg != rule or rule != max(0, int(5 * ((fell - float(m.group(9))) / 30))) or rule == 0 or hp0 - hp1 != dmg:
             fails.append(f"drop after Slowfall: {m.group(0)}")
     if want_water:
         m = got.get("water")

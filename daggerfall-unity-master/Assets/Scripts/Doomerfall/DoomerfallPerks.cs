@@ -43,7 +43,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         {
             new Perk("Jumping", 25, "Your jumps get a sudden boost of 25% extra height.", true),
             new Perk("Jumping", 50, "Double jump: jump once more in mid-air.", true),
-            new Perk("Jumping", 75, "Falling no longer hurts you.", true),
+            // Jumping 75 is open again: its "falling no longer hurts" perk became the safe fall height of 1.5 jump
+            // heights, which grows with every point (owner, 2026-11-27, Q&A item 6).
             new Perk("Jumping", 100, "Triple jump: jump twice more in mid-air.", true),
 
             new Perk("Shotguns", 25, "Shotguns reload about 35% faster.", true),

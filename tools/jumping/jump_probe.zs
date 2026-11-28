@@ -2,21 +2,23 @@
 // Daggerfall map, sets DoomerfallJump's test skill to 0, 25, 50, 75 and 100 in turn and at each level:
 //   jump in place, pressing Jump again at each apex (three tries), and reports the first rise, the total rise, the
 //   mid-air jumps made and any falling damage ("JUMPTEST jump ...");
-//   drops the player from 9 m above the ground and reports the falling damage against Daggerfall's rule
-//   ("JUMPTEST drop ...");
-// and at 0 and 75 walks the player off a real ledge found near the start ("JUMPTEST ledge ..."). Ends with
-// "JUMPTEST done". tools/jumping/run_jump_test.py runs it and checks the lines.
+//   drops the player from 9 m above the ground and reports the falling damage against the rule, with the safe fall
+//   height (1.5 jump heights) ("JUMPTEST drop ...");
+//   drops the player from just under the safe height and from 1.1 m over it ("JUMPTEST edge ...");
+// and at 0 and 75 walks the player off a real ledge found near the start, pressing Jump once in mid-air, which is a
+// double jump at 75 ("JUMPTEST ledge ..."). Every jump the probe sees is counted ("JUMPTEST jumps total=N"), so the
+// runner can match Daggerfall's Jumping tallies. Then the jump, drop and edge drops run once more at 0 with a
+// high-jump power (PowerHighJump, Strength 2, as DRLA's Antigrav boots), on lines starting "JUMPTEST boots". Ends with "JUMPTEST done". tools/jumping/run_jump_test.py runs it and checks the lines.
 class DoomerfallJumpTest : StaticEventHandler
 {
 	static const int levels[] = { 0, 25, 50, 75, 100 };
 	const LevelCount = 5;
-	const HighDropUnits = 2400.0; // 80 m
 	const DropUnits = 270.0;   // 9 m: Daggerfall's rule gives 5 * (9 - 5) = 20 HP
 	const Settle = 70;
 
-	int phase, t, li, airJumps, damage, hpBefore, presses;
-	double z0, firstRise, maxZ, lastVelZ, ledgeHigh;
-	bool sawApex, active, finished, ledgeTried;
+	int phase, t, li, airJumps, damage, hpBefore, presses, edge, totalJumps, ledgeAirJumps;
+	double z0, firstRise, maxZ, lastVelZ, ledgeHigh, safe;
+	bool sawApex, active, finished, ledgeTried, ledgePressed, boots;
 	Vector2 ledgeAt, ledgeDir;
 
 	override void OnRegister() { SetOrder(-100); } // before DoomerfallJump, so a press set here is what it reads
@@ -73,11 +75,14 @@ class DoomerfallJumpTest : StaticEventHandler
 		if (phase == 3) // landed: report after the hit, if any, reached Daggerfall
 		{
 			if (t < Settle) return;
-			Console.Printf("JUMPTEST jump level=%d firstrise=%.1f totalrise=%.1f airjumps=%d landdz=%.1f falldamage=%d", lv, firstRise,
+			Console.Printf("%s jump level=%d firstrise=%.1f totalrise=%.1f airjumps=%d landdz=%.1f falldamage=%d", Tag(), lv, firstRise,
 				maxZ - z0, airJumps, mo.pos.z - z0, damage);
+			totalJumps += 1 + airJumps;
+			safe = DoomerfallRules.SafeFall(DoomerfallRules.JumpHeight(mo.JumpZ * DoomerfallJump.HighJumpFactor(mo), mo.GetGravity()));
+			edge = 0;
 			// Drop from 9 m (less if the ceiling is low).
-			// At 75 (immune) also an 80 m drop, so a very fast landing is still seen as a landing (DFJUMP land ... immune).
-			double h = min(lv == 75 ? HighDropUnits : DropUnits, mo.ceilingz - mo.pos.z - mo.height - 8);
+			// (Until jumpfollowup 01 this was an 80 m drop at 75, where falling was harmless; now it would kill.)
+			double h = min(DropUnits, mo.ceilingz - mo.pos.z - mo.height - 8);
 			z0 = mo.pos.z; damage = 0; hpBefore = p.health;
 			mo.SetOrigin(mo.pos + (0, 0, h), false);
 			mo.vel = (0, 0, 0);
@@ -90,10 +95,29 @@ class DoomerfallJumpTest : StaticEventHandler
 			if (t < 3 || !Grounded(mo)) { if (t > 400) { phase = 6; t = 0; } return; }
 			if (t < Settle) return;
 			double fell = maxZ - mo.pos.z;
-			int expect = DoomerfallRules.FallImmune(lv) ? 0 : DoomerfallRules.FallDamage(fell);
-			Console.Printf("JUMPTEST drop level=%d fell=%.1f falldamage=%d expected=%d hp=%d->%d", lv, fell, damage, expect, hpBefore, p.health);
+			int expect = DoomerfallRules.FallDamage(fell, safe);
+			Console.Printf("%s %s level=%d fell=%.1f falldamage=%d expected=%d hp=%d->%d safe=%.1f", Tag(), edge ? "edge" : "drop", lv, fell,
+				damage, expect, hpBefore, p.health, safe);
 			mo.GiveBody(1000);
-			phase = (lv == 0 || lv == 75) ? 5 : 6; t = 0;
+			if (edge < 2)
+			{
+				// Next: just under the safe height (no damage), then 1.1 m over it (5 HP).
+				edge++;
+				phase = 8; t = 0;
+				return;
+			}
+			phase = (lv == 0 || lv == 75) && !boots ? 5 : 6; t = 0;
+			return;
+		}
+		if (phase == 8) // an edge drop, once the heal reached Daggerfall
+		{
+			if (t < Settle) return;
+			double h = edge == 1 ? safe - 3 : safe + 33;
+			damage = 0; hpBefore = p.health;
+			mo.SetOrigin(mo.pos + (0, 0, h), false);
+			mo.vel = (0, 0, 0);
+			maxZ = mo.pos.z;
+			phase = 4; t = 0;
 			return;
 		}
 		if (phase == 5) // walk off a real ledge
@@ -106,17 +130,26 @@ class DoomerfallJumpTest : StaticEventHandler
 				mo.SetOrigin((ledgeAt, ledgeHigh), false);
 				mo.vel = (0, 0, 0);
 				mo.angle = atan2(ledgeDir.y, ledgeDir.x);
-				damage = 0;
+				damage = 0; ledgeAirJumps = 0; ledgePressed = false;
 				return;
 			}
 			if (t == 34) hpBefore = p.health; // after the last heal reached Daggerfall
 			if (t < 35) return; // stand on the ledge first, so the fall starts from real ground
-			if (t < 75 && Grounded(mo)) { mo.vel.xy = ledgeDir * 6; return; }
-			if (!Grounded(mo) && t < 400) return;
+			if (t < 75 && Grounded(mo)) { mo.vel.xy = ledgeDir * 6; lastVelZ = mo.vel.z; return; }
+			if (!Grounded(mo) && t < 400)
+			{
+				// Walked off without jumping: press Jump once on the way down (the double jump at 50 and up).
+				if (mo.vel.z > lastVelZ + 1 && mo.vel.z > 1) ledgeAirJumps++;
+				if (!ledgePressed && mo.vel.z < -2) { p.cmd.buttons |= BT_JUMP; ledgePressed = true; }
+				lastVelZ = mo.vel.z;
+				return;
+			}
 			if (t < 75 + Settle) return;
 			double fell = ledgeHigh - mo.pos.z;
-			int expect = DoomerfallRules.FallImmune(lv) ? 0 : DoomerfallRules.FallDamage(fell);
-			Console.Printf("JUMPTEST ledge level=%d fell=%.1f falldamage=%d expected=%d hp=%d->%d", lv, fell, damage, expect, hpBefore, p.health);
+			int expect = DoomerfallRules.FallDamage(fell, safe);
+			Console.Printf("JUMPTEST ledge level=%d fell=%.1f falldamage=%d expected=%d hp=%d->%d safe=%.1f airjumps=%d", lv, fell, damage,
+				expect, hpBefore, p.health, safe, ledgeAirJumps);
+			totalJumps += ledgeAirJumps;
 			mo.GiveBody(1000);
 			phase = 6; t = 0;
 			return;
@@ -124,9 +157,25 @@ class DoomerfallJumpTest : StaticEventHandler
 		if (phase == 6)
 		{
 			mo.GiveBody(1000);
-			li++;
 			phase = 1; t = 0;
-			if (li >= LevelCount) { phase = 7; t = 0; }
+			if (boots)
+			{
+				// Done with the boots pass: take the power away again.
+				let pw = mo.FindInventory("PowerHighJump");
+				if (pw) pw.Destroy();
+				li = LevelCount;
+				phase = 7;
+			}
+			else if (++li >= LevelCount)
+			{
+				// Once more at Jumping 0 with a high-jump power (Strength 2, as DRLA's Antigrav boots): the jump is
+				// about 4 times as high, and the safe fall must follow it ("JUMPTEST boots ..." lines).
+				boots = true;
+				li = 0;
+				let pw = Powerup(mo.GiveInventoryType("PowerHighJump"));
+				if (pw) pw.EffectTics = 35 * 600;
+				Console.Printf("JUMPTEST boots power=%d", pw != null);
+			}
 		}
 		if (phase == 7) // a mod changes JumpZ while active: it is kept as the base and scaled (x1.5 at 100)
 		{
@@ -137,9 +186,12 @@ class DoomerfallJumpTest : StaticEventHandler
 			mo.JumpZ = mo.default.JumpZ * 1.5; // back to what the handler set from the default
 			j.testSkill = -1;
 			finished = true;
+			Console.Printf("JUMPTEST jumps total=%d", totalJumps);
 			Console.Printf("JUMPTEST done");
 		}
 	}
+
+	String Tag() { return boots ? "JUMPTEST boots" : "JUMPTEST"; }
 
 	// A roof next to the street: the nearest walls around the player (traced at chest height), then a trace straight
 	// down from high above a point 40 units past each wall. A top surface 6 to 15 m above the street is a ledge; the

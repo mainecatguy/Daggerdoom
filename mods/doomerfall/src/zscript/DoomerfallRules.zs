@@ -78,17 +78,34 @@ class DoomerfallRules : StaticEventHandler
 	}
 	// Extra jumps in mid-air: one at 50, two at 100.
 	clearscope static int AirJumps(int s) { return s >= 100 ? 2 : s >= 50 ? 1 : 0; }
-	// No falling damage from 75. Below 75 Jumping does not reduce it (the owner has not chosen a curve yet).
-	clearscope static bool FallImmune(int s) { return s >= 75; }
-
-	// Daggerfall's falling damage (PlayerHealth.ApplyPlayerFallDamage): every metre past 5 costs 5 HP.
-	const UnitsPerMetre = 30.0;    // Doom maps are Daggerfall's layout at 75%, and Daggerfall has 40 units per metre
-	const FallThreshold = 5.0;     // metres of fall that do no damage
-	const FallHPPerMetre = 5.0;    // HP per metre past the threshold
-	clearscope static int FallDamage(double units)
+	// Jumping uses per jump, from the ground or in mid-air (owner, 2026-11-27, Q&A item 7): Daggerfall's rate,
+	// PlayerEntity.FixedUpdate's TallySkill(Jumping, 1) once per jump.
+	const JumpingUsesPerJump = 1;
+	// The height of a jump from the ground, in map units, by Doom's own physics: each tic the player moves by their
+	// vertical speed and then loses gravity from it (P_ZMovement, FallAndSink). jumpZ is PlayerPawn.JumpZ, gravity
+	// the player's per-tic gravity (Actor.GetGravity: 1 on a normal map). JumpZ 8 rises 36 units (1.2 m).
+	clearscope static double JumpHeight(double jumpZ, double gravity)
 	{
-		double metres = units / UnitsPerMetre;
-		return metres > FallThreshold ? int(FallHPPerMetre * (metres - FallThreshold)) : 0;
+		double v = jumpZ * 35 / TICRATE;
+		if (v <= 0) return 0;
+		if (gravity <= 0) return 1e9;
+		double n = floor(v / gravity);
+		return (n + 1) * v - gravity * n * (n + 1) / 2;
+	}
+
+	// Falling damage (owner, 2026-11-27, Q&A item 6, gamedesign/decisions/20261127-qa-batch1-owner.md): a fall up
+	// to 1.5 times the player's jump height is free, so the safe height grows with Jumping as the jump does. Every
+	// metre past it costs 5 HP, Daggerfall's rate (PlayerHealth.ApplyPlayerFallDamage: 5 HP a metre past 5 m).
+	// With Doom's default JumpZ (8) and gravity the safe fall is 1.8 m at Jumping 0, 2.6 m at 25, 3.1 m at 50,
+	// 3.5 m at 75 and 3.9 m at 100.
+	const UnitsPerMetre = 30.0;    // Doom maps are Daggerfall's layout at 75%, and Daggerfall has 40 units per metre
+	const SafeFallJumps = 1.5;     // the safe fall, in jump heights
+	const FallHPPerMetre = 5.0;    // HP per metre past the safe fall
+	clearscope static double SafeFall(double jumpHeight) { return SafeFallJumps * jumpHeight; }
+	clearscope static int FallDamage(double units, double safeUnits)
+	{
+		double past = (units - safeUnits) / UnitsPerMetre;
+		return past > 0 ? int(FallHPPerMetre * past) : 0;
 	}
 
 	// ---- Gun skill perks (work/backlog/skills-in-doom.md and the perks cards), from the live skill, so a drained or

@@ -16,9 +16,14 @@ class RulesTest : EventHandler
 				DoomerfallRules.AgilityHandlingBonus(v), DoomerfallRules.StrengthGunFactor(v), DoomerfallRules.AgilityGunFactor(v, false),
 				DoomerfallRules.AgilityGunFactor(v, true), DoomerfallRules.LuckCritChance(v));
 		for (int s = -5; s <= 105; s++)
-			Console.Printf("RULESTEST jump %d %.6f %d %d", s, DoomerfallRules.JumpHeightFactor(s), DoomerfallRules.AirJumps(s), DoomerfallRules.FallImmune(s));
+			Console.Printf("RULESTEST jump %d %.6f %d %.6f", s, DoomerfallRules.JumpHeightFactor(s), DoomerfallRules.AirJumps(s),
+				DoomerfallRules.SafeFall(DoomerfallRules.JumpHeight(8 * sqrt(DoomerfallRules.JumpHeightFactor(s)), 1)));
 		for (int u = 0; u <= 1200; u += 3)
-			Console.Printf("RULESTEST fall %d %d", u, DoomerfallRules.FallDamage(u));
+			Console.Printf("RULESTEST fall %d %d %d", u, DoomerfallRules.FallDamage(u, 54), DoomerfallRules.FallDamage(u, 117));
+		static const double hj[] = { 8, 9.5, 12, 0, 8 };
+		static const double hg[] = { 1, 1, 1, 1, 0.5 };
+		for (int i = 0; i < hj.Size(); i++)
+			Console.Printf("RULESTEST height %.2f %.2f %.6f", hj[i], hg[i], DoomerfallRules.JumpHeight(hj[i], hg[i]));
 		static const int lucks[] = { -1, 0, 1, 25, 50, 99, 100, 101, 150 };
 		for (int i = 0; i < lucks.Size(); i++)
 		{

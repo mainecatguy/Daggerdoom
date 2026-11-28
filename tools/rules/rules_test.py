@@ -7,7 +7,7 @@ formulas in DoomerfallAttributes.zs, DoomerfallAgility.zs and DoomerfallJump.zs.
 usage: python quiet_run.py --timeout 120 -- python tools/rules/rules_test.py <uzdoom.exe> <work folder>
 Runs DOOM.WAD E1M1 with doomerfall.pk3 and a harness that prints every rule over its whole input range, no bridge.
 """
-import re, subprocess, sys, time, zipfile
+import math, re, subprocess, sys, time, zipfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
@@ -62,12 +62,24 @@ def old_attr(v):
 
 def old_jump(s):
     k = max(0, min(100, s))
-    return 1.0 + k / 100.0 + (0.25 if k >= 25 else 0.0), 2 if s >= 100 else 1 if s >= 50 else 0, 1 if s >= 75 else 0
+    f = 1.0 + k / 100.0 + (0.25 if k >= 25 else 0.0)
+    return f, 2 if s >= 100 else 1 if s >= 50 else 0, 1.5 * sim_height(8 * math.sqrt(f), 1)
 
 
-def old_fall(units):
-    m = units / 30.0
-    return int(5.0 * (m - 5.0)) if m > 5.0 else 0
+def sim_height(v, g):
+    """The apex of a jump by stepping Doom's physics: move by the speed, then lose gravity (P_ZMovement)."""
+    z = top = 0.0
+    while v > 0:
+        z += v
+        top = max(top, z)
+        v -= g
+    return top
+
+
+def new_fall(units, safe):
+    """Falling damage since jumpfollowup 01 (owner, Q&A item 6): 5 HP per metre past 1.5 jump heights."""
+    m = (units - safe) / 30.0
+    return int(5.0 * m) if m > 0 else 0
 
 
 def main():
@@ -119,12 +131,16 @@ def main():
         elif kind == "jump":
             s = int(t[2])
             want = old_jump(s)
-            if abs(float(t[3]) - want[0]) > 1e-6 or int(t[4]) != want[1] or int(t[5]) != want[2]:
-                fail(f"jumping at {s}: {t[3:6]}, was {want}")
+            if abs(float(t[3]) - want[0]) > 1e-6 or int(t[4]) != want[1] or abs(float(t[5]) - want[2]) > 1e-4:
+                fail(f"jumping at {s}: {t[3:6]}, want {want}")
         elif kind == "fall":
-            u, got = int(t[2]), int(t[3])
-            if old_fall(u) != got:
-                fail(f"fall of {u} units: {got}, was {old_fall(u)}")
+            u, got = int(t[2]), (int(t[3]), int(t[4]))
+            if (new_fall(u, 54), new_fall(u, 117)) != got:
+                fail(f"fall of {u} units: {got}, want {(new_fall(u, 54), new_fall(u, 117))}")
+        elif kind == "height":
+            v, g, got = float(t[2]), float(t[3]), float(t[4])
+            if abs(sim_height(v, g) - got) > 1e-4:
+                fail(f"jump height for JumpZ {v} gravity {g}: {got}, want {sim_height(v, g)}")
         elif kind == "luck":
             luck = int(t[2])
             want = "".join("1" if luck > 0 and (k / 1000.0) * 200 < min(luck, 100) else "0" for k in range(601))
@@ -133,7 +149,7 @@ def main():
         elif kind == "stat" and t[2:4] != ["-1", "0"]:
             fail(f"without a Daggerfall character Agility reads {t[2]} and HasCharacter {t[3]}")
     rules = len(old_perks(0))  # 48: 39, plus skillperks 09's nine
-    want_counts = {"perk": rules * 111, "get": rules, "attr": 102, "jump": 111, "fall": 401, "luck": 9, "stat": 1, "done": 1}
+    want_counts = {"perk": rules * 111, "get": rules, "attr": 102, "jump": 111, "fall": 401, "height": 5, "luck": 9, "stat": 1, "done": 1}
     if counts != want_counts:
         fail(f"line counts {counts}, want {want_counts}")
     for b in bad[:20]:
