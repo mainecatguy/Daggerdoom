@@ -2551,7 +2551,7 @@ namespace
 
 	void DDTreadmill_TestDropTable()
 	{
-		Printf("DDLOC test: loading without Doom's world table (%d rows, %d visited places dropped)\n", int(table.size()), int(visitedSpaces.size()));
+		DD_DebugPrintf("DDLOC test: loading without Doom's world table (%d rows, %d visited places dropped)\n", int(table.size()), int(visitedSpaces.size()));
 		table.clear();
 		buckets.clear();
 		visitedSpaces.clear();
@@ -2597,8 +2597,8 @@ static void RestoreDoors(const char *place, FString text)
 	int open = -2;
 	PClass::FindFunction(&func, "DFDoorHandler", "Restore");
 	if (func) { VMValue params[] = { &text }; VMReturn ret(&open); VMCall(func, params, 1, &ret, 1); }
-	if (open >= 0) Printf("DDLOC %s: doors restored, %d open\n", place, open);
-	else Printf("DDLOC %s: the doors were recorded from another conversion; they reset\n", place);
+	if (open >= 0) DD_DebugPrintf("DDLOC %s: doors restored, %d open\n", place, open);
+	else DD_DebugPrintf("DDLOC %s: the doors were recorded from another conversion; they reset\n", place);
 }
 
 // The current dungeon's record as it stands: its cached rows, overridden by what every live actor would park as.
@@ -2657,7 +2657,7 @@ void DDTreadmill_ApplyPlace(FLevelLocals *Level, const DDPlaceKey &place, const 
 	DDPlaceKey current;
 	if (!DDTreadmill_CurrentSpace(current) || !(current == place))
 	{
-		Printf(TEXTCOLOR_ORANGE "DDLOC record of place kind %u %d:%d arrived outside that place; ignored\n", place.kind, place.mapId, place.key);
+		DD_DebugPrintf(TEXTCOLOR_ORANGE "DDLOC record of place kind %u %d:%d arrived outside that place; ignored\n", place.kind, place.mapId, place.key);
 		return;
 	}
 	const Town &t = towns[currentTown];
@@ -2676,7 +2676,7 @@ void DDTreadmill_ApplyPlace(FLevelLocals *Level, const DDPlaceKey &place, const 
 	std::sort(theirs.begin(), theirs.end());
 	if (mine == theirs)
 	{
-		Printf("DDLOC %s: Doom's cache matches Daggerfall's record (%d facts)\n", name, int(facts.size()));
+		DD_DebugPrintf("DDLOC %s: Doom's cache matches Daggerfall's record (%d facts)\n", name, int(facts.size()));
 		return;
 	}
 	// A save made in this place: its snapshot came back with the live actors (and their record ids), but the save keeps
@@ -2700,7 +2700,7 @@ void DDTreadmill_ApplyPlace(FLevelLocals *Level, const DDPlaceKey &place, const 
 				Store(FromFact(f, t));
 				stored++;
 			}
-			Printf("DDLOC %s: the save's snapshot stands (%d of the record's monsters and corpses are live); %d facts refill the cache, nothing rebuilt\n",
+			DD_DebugPrintf("DDLOC %s: the save's snapshot stands (%d of the record's monsters and corpses are live); %d facts refill the cache, nothing rebuilt\n",
 				name, live, stored);
 			return;
 		}
@@ -2730,7 +2730,7 @@ void DDTreadmill_ApplyPlace(FLevelLocals *Level, const DDPlaceKey &place, const 
 		Restore(Level, r);
 		restored++;
 	}
-	Printf("DDLOC %s: rebuilt from Daggerfall's record (Doom's cache had %d rows, the record %d): removed %d, restored %d, gone %d, missing classes %d\n",
+	DD_DebugPrintf("DDLOC %s: rebuilt from Daggerfall's record (Doom's cache had %d rows, the record %d): removed %d, restored %d, gone %d, missing classes %d\n",
 		name, int(mine.size()), int(facts.size()), int(stale.size()), restored, gone, missingClassCount);
 }
 
@@ -2874,7 +2874,7 @@ void DDTreadmill_ApplyChunk(FLevelLocals *Level, int cx, int cy, const std::vect
 	}
 	quietStore = false;
 	dd_tm_records = int(table.size());
-	Printf("DDLOC O%d,%d: rebuilt from Daggerfall's record (Doom's cache had %d rows, the record %d)\n", cx, cy, int(mine.size()), int(facts.size()));
+	DD_DebugPrintf("DDLOC O%d,%d: rebuilt from Daggerfall's record (Doom's cache had %d rows, the record %d)\n", cx, cy, int(mine.size()), int(facts.size()));
 }
 
 // The overworld's terrain sectors are rewritten from Daggerfall's height map on every load (Resume -> PrepareLevel), so

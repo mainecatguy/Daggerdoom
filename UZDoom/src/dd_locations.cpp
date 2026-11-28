@@ -26,6 +26,7 @@
 #include "gamestate.h"
 #include "g_levellocals.h"
 #include "printf.h"
+#include "playsim/dd_log.h" // [Doomerfall]
 
 void DD_SetupWait(const char *system);	// dd_setup.cpp: the arrival autosave waits for the entered place's record
 void DD_SetupDone(const char *system);
@@ -165,7 +166,7 @@ bool Report(FLevelLocals *Level, uint32_t flags, std::vector<dfb_event> &out)
 	const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
 	int kinds[4] = {};
 	CountKinds(facts, kinds);
-	Printf("DDLOC report %s%s: %d facts (%d monsters, %d corpses, %d items, %d gone), %d events, %d bytes, %.2f ms to build\n", PlaceName(place).GetChars(),
+	DD_DebugPrintf("DDLOC report %s%s: %d facts (%d monsters, %d corpses, %d items, %d gone), %d events, %d bytes, %.2f ms to build\n", PlaceName(place).GetChars(),
 		(flags & DFB_PLACE_ON_SAVE) ? " for a save" : " on leaving", int(facts.size()), kinds[0], kinds[1], kinds[2], kinds[3],
 		int(out.size() - before), int((out.size() - before) * sizeof(dfb_event)), ms);
 	return true;
@@ -189,7 +190,7 @@ void ReportChunks(FLevelLocals *Level, uint32_t flags, std::vector<dfb_event> &o
 		if (list.Len() < 120) list.AppendFormat(" O%d,%d:%d", c.cx, c.cy, int(c.facts.size()));
 	}
 	const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
-	Printf("DDLOC report %d exterior chunks%s: %d facts (%d monsters, %d corpses, %d items, %d gone), %d events, %.2f ms to build;%s\n", int(chunks.size()),
+	DD_DebugPrintf("DDLOC report %d exterior chunks%s: %d facts (%d monsters, %d corpses, %d items, %d gone), %d events, %.2f ms to build;%s\n", int(chunks.size()),
 		(flags & DFB_PLACE_ON_SAVE) ? " for a save" : " on leaving", facts, kinds[0], kinds[1], kinds[2], kinds[3], int(out.size() - before), ms, list.GetChars());
 }
 
@@ -206,7 +207,7 @@ void Pump(dfb_session *session)
 	}
 	dfb_flush(session);
 	const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
-	Printf("DDLOC sent %d events, %d still queued, %.2f ms\n", int(sent), int(outgoing.size()), ms);
+	DD_DebugPrintf("DDLOC sent %d events, %d still queued, %.2f ms\n", int(sent), int(outgoing.size()), ms);
 }
 
 void SendPlaceRequest(dfb_session *session, uint32_t generation, const DDPlaceKey &place)
@@ -223,14 +224,14 @@ void SendRequest(dfb_session *session)
 {
 	requestPending = false;
 	SendPlaceRequest(session, requestGeneration, requestPlace);
-	Printf("DDLOC asked Daggerfall for %s (request %u)\n", PlaceName(requestPlace).GetChars(), requestGeneration);
+	DD_DebugPrintf("DDLOC asked Daggerfall for %s (request %u)\n", PlaceName(requestPlace).GetChars(), requestGeneration);
 }
 
 void SendWorldRequest(dfb_session *session)
 {
 	worldPending = false;
 	SendPlaceRequest(session, worldGeneration, DDPlaceKey{ DFB_PLACE_WORLD, 0, 0 });
-	Printf("DDLOC asked Daggerfall for every exterior chunk (request %u)\n", worldGeneration);
+	DD_DebugPrintf("DDLOC asked Daggerfall for every exterior chunk (request %u)\n", worldGeneration);
 }
 
 std::vector<DDPlaceFact> Facts(const Incoming &rec)
@@ -270,13 +271,13 @@ void ApplySpace(FLevelLocals *Level)
 	if (got.kind == DFB_PLACE_DUNGEON && in.mooks >= 0) DD_MonstersSetPlan(got.mapId, in.mooks, in.plan);
 	if (!(in.header.flags & DFB_PLACE_KNOWN))
 	{
-		Printf("DDLOC Daggerfall has no record of %s; first visit\n", PlaceName(got).GetChars());
+		DD_DebugPrintf("DDLOC Daggerfall has no record of %s; first visit\n", PlaceName(got).GetChars());
 		return;
 	}
 	const std::vector<DDPlaceFact> facts = Facts(in);
 	DDTreadmill_ApplyPlace(Level, got, facts);
 	const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
-	Printf("DDLOC applied Daggerfall's record of %s: %d facts, plan %d mooks, %.2f ms\n", PlaceName(got).GetChars(), int(facts.size()), in.mooks, ms);
+	DD_DebugPrintf("DDLOC applied Daggerfall's record of %s: %d facts, plan %d mooks, %.2f ms\n", PlaceName(got).GetChars(), int(facts.size()), in.mooks, ms);
 }
 
 void ApplyWorld(FLevelLocals *Level)
@@ -296,14 +297,14 @@ void ApplyWorld(FLevelLocals *Level)
 	if (count)
 	{
 		const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
-		Printf("DDLOC applied %d exterior chunk records (%d facts): %d matched Doom's cache, %d rebuilt (%d rows stored, %d kept live, %d stale rows removed), %.2f ms\n",
+		DD_DebugPrintf("DDLOC applied %d exterior chunk records (%d facts): %d matched Doom's cache, %d rebuilt (%d rows stored, %d kept live, %d stale rows removed), %.2f ms\n",
 			count, facts, stats.matched, stats.rebuilt, stats.stored, stats.keptLive, stats.removed, ms);
 	}
 	if (worldDone)
 	{
 		worldDone = false;
 		worldWaiting = false;
-		Printf("DDLOC exterior ledger received\n");
+		DD_DebugPrintf("DDLOC exterior ledger received\n");
 	}
 }
 }
@@ -341,7 +342,7 @@ bool DD_LocationsWaiting()
 {
 	if (waiting && gametic > waitUntil)
 	{
-		Printf(TEXTCOLOR_ORANGE "DDLOC no record from Daggerfall for %s; building from Doom's cache\n", PlaceName(requestPlace).GetChars());
+		DD_DebugPrintf(TEXTCOLOR_ORANGE "DDLOC no record from Daggerfall for %s; building from Doom's cache\n", PlaceName(requestPlace).GetChars());
 		waiting = false;
 		DD_SetupDone("place");
 	}
@@ -352,7 +353,7 @@ bool DD_LocationsWorldWaiting()
 {
 	if (worldWaiting && gametic > worldWaitUntil)
 	{
-		Printf(TEXTCOLOR_ORANGE "DDLOC Daggerfall's exterior ledger did not arrive; the overworld is built from Doom's cache\n");
+		DD_DebugPrintf(TEXTCOLOR_ORANGE "DDLOC Daggerfall's exterior ledger did not arrive; the overworld is built from Doom's cache\n");
 		worldWaiting = false;
 	}
 	return worldWaiting;
@@ -459,7 +460,7 @@ bool DD_LocationsEvent(const dfb_event &e)
 		memcpy(&h, e.payload, sizeof(h));
 		Incoming *rec = current(h.generation);
 		if (!rec) return true;
-		if (rec->facts.size() != h.facts) Printf(TEXTCOLOR_RED "DDLOC record of %s%d,%d arrived with %d of %u facts\n", KindName(h.place_kind), h.map_id, h.key, int(rec->facts.size()), h.facts);
+		if (rec->facts.size() != h.facts) DD_DebugPrintf(TEXTCOLOR_RED "DDLOC record of %s%d,%d arrived with %d of %u facts\n", KindName(h.place_kind), h.map_id, h.key, int(rec->facts.size()), h.facts);
 		if (rec == &chunk)
 		{
 			if (h.place_kind == DFB_PLACE_WORLD) worldDone = true;
