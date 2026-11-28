@@ -97,13 +97,15 @@ CUSTOM_CVAR(Int, gl_fuzztype, 8, CVAR_ARCHIVE)
 // [Doomerfall] Daggerfall exteriors: actor sprites that are not fullbright (trees, flats, monsters) take Daggerfall's
 // flat daylight like the ground, instead of Doom's distance darkening (hw_flats.cpp; owner, 2026-11-27, Q&A 29/30).
 // Dynamic lights still add on top; fullbright frames, fullbright views and the fuzz style are untouched.
-// The converter's door and action models (DFDoorVisual, DFActionVisual) are marked Bright; they take the DFMesh layer's
-// light instead (hw_dfmesh.cpp Ambient: daylight outdoors, sector light / 176 inside), so a door is as dark as its wall.
+// In Daggerfall dungeons, the converter's door and action models (DFDoorVisual, DFActionVisual), marked Bright, take the
+// DFMesh layer's light instead (hw_dfmesh.cpp Ambient: sector light / 176), so a door is as dark as its wall.
 void DD_ExteriorGroundLight(FRenderState &state, ELightMode lightmode, int rel, const FColormap &cm, float alpha);	// hw_flats.cpp
 void DD_FlatBaseLight(FRenderState &state, ELightMode lightmode, float brightness, int rel, const FColormap &cm, float alpha);
 bool DD_WeatherMeshLight(float &brightness);	// playsim/dd_weather.cpp
+int DDTreadmill_Place();	// playsim/dd_treadmill.cpp: 3 is a Daggerfall dungeon
 static bool DD_MeshVisual(AActor *actor)
 {
+	if (DDTreadmill_Place() != 3) return false;	// dungeons only (towns and interiors keep them fullbright)
 	static PClass *door = PClass::FindClass("DFDoorVisual"), *action = PClass::FindClass("DFActionVisual");
 	return actor && ((door && actor->IsKindOf(door)) || (action && actor->IsKindOf(action)));
 }

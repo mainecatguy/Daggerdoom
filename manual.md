@@ -469,7 +469,7 @@ are holding is not offered for sale; switch to another gun first if you want to 
 - Dungeons are dark, as in Daggerfall: a dim glow everywhere, the dungeon's own torches and braziers, and a light you
   carry that reaches about 6 m around you. Monsters past your light and away from the dungeon's lights are hard to
   see. Muzzle flashes, explosions and the Light Amplification Visor still light things up.
-- Doors and other moving parts of a dungeon or building are as dark as the walls around them.
+- In dungeons, doors and other moving parts are as dark as the walls around them.
 - Outdoors, trees, plants and monsters take the same daylight as the ground: they do not get darker with distance.
   At night and in snow everything outdoors is as dim as the ground.
 

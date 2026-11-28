@@ -166,14 +166,19 @@ void DD_LightsSetCity(bool on)
 }
 
 // A save was loaded: its lamps are in whatever state they were saved in.
+namespace
+{
+int appliedDungeon = -1;	// the dungeon ambient and torch state last applied, or -1 after a new map or a load
+}
+
 void DD_LightsReset()
 {
 	appliedCity = -1;
+	appliedDungeon = -1;	// sectors and the torch come back as saved; TickDungeon applies the current settings again
 }
 
 namespace
 {
-int appliedDungeon = -1;	// the dungeon ambient and torch state last applied, or -1 after a new map or a load
 
 // Daggerfall Unity lights its dungeons with a dark ambient (PlayerAmbientLight.DungeonAmbientLight, 0.12) and the
 // player's torch (EnablePlayerTorch: on in every dungeon unless the torch comes from items, which is off by default;
@@ -218,7 +223,9 @@ void TickDungeon(FLevelLocals *Level, int place)
 void DD_LightsTick(FLevelLocals *Level)
 {
 	static int lastTime = 0;
-	if (Level->maptime < lastTime || Level->maptime <= 1) appliedCity = appliedDungeon = -1;	// a new map or a load: lamps may be in any state
+	if (Level->maptime < lastTime || Level->maptime <= 1) appliedCity = -1;	// a new map or a load: lamps may be in any state
+	// A new map or a load (also DD_LightsReset). Not every tic while the arrival freeze holds the map at maptime 1.
+	if (Level->maptime < lastTime || (Level->maptime <= 1 && lastTime > 1)) appliedDungeon = -1;
 	lastTime = Level->maptime;
 	TickDungeon(Level, DDTreadmill_Place());
 	const int want = *dd_lights && CityLightsOn() ? 1 : 0;
