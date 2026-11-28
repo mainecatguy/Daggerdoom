@@ -935,6 +935,13 @@ int DD_BridgeSheetValue(int index)
 	return s && index >= 0 && index < DFB_SHEET_INTS ? s[index] : -1;
 }
 
+// The damage bonus DD_BridgeDamageBonus applies to the player's hits, in 1/10000ths, for ZScript (Actor.DD_DamageBonusBp),
+// so a flat bonus added after it can scale as base damage does. 0 with no session.
+int DD_BridgeDamageBonusBp()
+{
+	return session ? std::max(int(peerState.damage_bonus_bp), -10000) : 0;
+}
+
 // Daggerfall's falling damage exemptions for ZScript (Actor.DD_PlayerFlags): DFB_PLF_* from its last published state,
 // 0 with no session.
 int DD_BridgePlayerFlags()

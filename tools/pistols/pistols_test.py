@@ -19,7 +19,7 @@ from save_handshake_test import Event, DfState  # noqa: E402
 IWAD = Path(r"D:\dev\DoomDaggerfall\GameResources\wads\DOOM.WAD")
 MODS = Path(r"D:\dev\DoomDaggerfall\GameMods")
 DRLA = ["DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3"]
-SHEET_INTS, SHEET_FORMAT_VERSION = 194, 12
+SHEET_INTS, SHEET_FORMAT_VERSION = 203, 13
 POOL = {189: 100, 190: 500}
 FRAG = {191: 3, 192: 3300, 193: 5}
 RULES = {  # must match RuleOf in pistols_test.zs

@@ -903,6 +903,14 @@ DEFINE_ACTION_FUNCTION(AActor, DD_PlayerFlags)
 	ACTION_RETURN_INT(DD_BridgePlayerFlags());
 }
 
+int DD_BridgeDamageBonusBp(); // [Doomerfall] dd_bridge.cpp
+
+DEFINE_ACTION_FUNCTION(AActor, DD_DamageBonusBp)
+{
+	PARAM_PROLOGUE;
+	ACTION_RETURN_INT(DD_BridgeDamageBonusBp());
+}
+
 // Why does this exist twice?
 DEFINE_ACTION_FUNCTION_NATIVE(AActor, GetSpawnHealth, SpawnHealth)
 {

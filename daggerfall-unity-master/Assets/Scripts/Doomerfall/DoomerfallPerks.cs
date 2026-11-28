@@ -56,10 +56,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             new Perk("Pistols", 75, "Pistols reload 60% faster. (Planned: Deadeye, slow-firing pistols will deal more damage. This part does not work yet.)", true),
             new Perk("Pistols", 100, "Shrapnel: every pistol hit bursts into 3 fragments that fly on behind the enemy, each doing a third of the hit's damage. A fragment swerves into an enemy close to its path.", true),
 
-            new Perk("Automatics", 25, "Burst fire: the first 3 shots of a burst do 30% more damage. The bonus comes back 0.3 seconds after you stop firing.", true),
-            new Perk("Automatics", 50, "Every second shot from an automatic weapon uses no ammo.", true),
-            new Perk("Automatics", 75, "Each hit from an automatic weapon makes the enemy take 1% more damage from everything, up to 15%. It never wears off.", true),
-            new Perk("Automatics", 100, "Automatic weapons use only 1 ammo for every 4 shots.", true),
+            new Perk("Automatics", 25, "Burst fire: the first 3 shots of a burst do 30% more damage. The bonus comes back 0.3 seconds after you stop firing. Every third shot from an automatic weapon uses no ammo.", true),
+            new Perk("Automatics", 50, "Every second shot from an automatic weapon uses no ammo. Each automatic gets a bonus by how fast it fires: slow guns (4 or more tics between shots, like the Battle Rifle) do 25 more damage per bullet and each bullet passes through one more enemy; medium guns (3 tics) do 7 more damage and pass through one more enemy; fast guns (1-2 tics) have a 10% chance per shot to fire an extra bullet for free.", true),
+            new Perk("Automatics", 75, "Each hit from an automatic weapon makes the enemy take 1% more damage from everything, up to 15%. It never wears off. Each hit also slows the enemy's movement by 5% more, up to 40%; the slow fades away over 5 seconds after the last hit.", true),
+            new Perk("Automatics", 100, "Automatic weapons use only 1 ammo for every 4 shots. Each hit now makes the enemy take 2% more damage from everything, up to 30% in total.", true),
 
             new Perk("Explosives", 25, "Your own explosions hurt you 95% less.", true),
             new Perk("Explosives", 50, "Explosives do extra damage to the enemy they hit directly."),

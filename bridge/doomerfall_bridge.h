@@ -326,8 +326,8 @@ typedef struct dfb_face
 } dfb_face;
 
 #define DFB_SHEET_SLOT   0u
-#define DFB_SHEET_FORMAT_VERSION 12 /* 3: skill slots 4-6 are the gun skills, 7-12 unused; 4: slot 7 is Pistols; 5: slot 8 is Rifles; 6: slots 9-10 are Energy Weapons and Melee; 7: Automatics perk rules; 8: Explosives perk rules; 9: Shotguns perk rules; 10: Energy Weapons perk rules; 11: Energy Weapons burn rules; 12: Pistols perk rules */
-#define DFB_SHEET_INTS   194
+#define DFB_SHEET_FORMAT_VERSION 13 /* 3: skill slots 4-6 are the gun skills, 7-12 unused; 4: slot 7 is Pistols; 5: slot 8 is Rifles; 6: slots 9-10 are Energy Weapons and Melee; 7: Automatics perk rules; 8: Explosives perk rules; 9: Shotguns perk rules; 10: Energy Weapons perk rules; 11: Energy Weapons burn rules; 12: Pistols perk rules; 13: Automatics bands, free shot, suppression */
+#define DFB_SHEET_INTS   203
 #define DFB_SHEET_FORMAT 0    /* DFB_SHEET_FORMAT_VERSION */
 #define DFB_SHEET_EPOCH  1
 #define DFB_SHEET_VALID  2    /* 1 when this describes the current, fully loaded character */
@@ -423,6 +423,17 @@ typedef struct dfb_face
 #define DFB_SHEET_PIST_FRAGMENTS       191  /* shrapnel: each pistol hit bursts into this many fragments behind the enemy ... */
 #define DFB_SHEET_PIST_FRAGMENT_BP     192  /* ... each dealing this much of the hit's damage, in 1/10000ths ... */
 #define DFB_SHEET_PIST_FRAGMENT_TURN   193  /* ... turning to an enemy within this many degrees of its path */
+/* More Automatics rules (skillperks 09). A gun's band is its own base tics between shots (4+ slow, 3 middle, 1-2 fast);
+   Doom knows each gun's band, Daggerfall decides what each band gets. 0 means that rule is off. */
+#define DFB_SHEET_AUTO_FREE_EVERY      194  /* every this many-th shot spends no ammo (skill 25-49: 3) */
+#define DFB_SHEET_AUTO_SLOW_DAMAGE     195  /* slow band: each bullet gets this much base damage ... */
+#define DFB_SHEET_AUTO_SLOW_PEN        196  /* ... and passes through this many more enemies */
+#define DFB_SHEET_AUTO_MID_DAMAGE      197  /* middle band: the same two */
+#define DFB_SHEET_AUTO_MID_PEN         198
+#define DFB_SHEET_AUTO_FAST_EXTRA_BP   199  /* fast band: each shot's chance of one extra free bullet, in 1/10000ths */
+#define DFB_SHEET_AUTO_SLOW_HIT_BP     200  /* suppression: each hit slows the enemy's movement by this much more ... */
+#define DFB_SHEET_AUTO_SLOW_MAX_BP     201  /* ... up to this much ... */
+#define DFB_SHEET_AUTO_SLOW_FADE_MS    202  /* ... fading evenly to nothing over this long after the last hit */
 
 /* Daggerfall screens Doom can ask for. Add new menus here. */
 #define DFB_UI_NONE        0u

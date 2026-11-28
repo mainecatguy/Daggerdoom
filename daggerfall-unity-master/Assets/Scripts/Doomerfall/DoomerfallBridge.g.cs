@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x37251a22f2b40a03UL;
+        public const ulong SchemaHash = 0x5ad81bd27980ec62UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -202,8 +202,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint FACES_MAX = 3;  // Daggerfall's HUD shows at most three faces
         public const uint FACE_MAX_SIDE = 64;
         public const uint SHEET_SLOT = 0;
-        public const int SHEET_FORMAT_VERSION = 12;  // 3: skill slots 4-6 are the gun skills, 7-12 unused; 4: slot 7 is Pistols; 5: slot 8 is Rifles; 6: slots 9-10 are Energy Weapons and Melee; 7: Automatics perk rules; 8: Explosives perk rules; 9: Shotguns perk rules; 10: Energy Weapons perk rules; 11: Energy Weapons burn rules; 12: Pistols perk rules
-        public const int SHEET_INTS = 194;
+        public const int SHEET_FORMAT_VERSION = 13;  // 3: skill slots 4-6 are the gun skills, 7-12 unused; 4: slot 7 is Pistols; 5: slot 8 is Rifles; 6: slots 9-10 are Energy Weapons and Melee; 7: Automatics perk rules; 8: Explosives perk rules; 9: Shotguns perk rules; 10: Energy Weapons perk rules; 11: Energy Weapons burn rules; 12: Pistols perk rules; 13: Automatics bands, free shot, suppression
+        public const int SHEET_INTS = 203;
         public const int SHEET_FORMAT = 0;  // DFB_SHEET_FORMAT_VERSION
         public const int SHEET_EPOCH = 1;
         public const int SHEET_VALID = 2;  // 1 when this describes the current, fully loaded character
@@ -285,6 +285,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const int SHEET_PIST_FRAGMENTS = 191;  // shrapnel: each pistol hit bursts into this many fragments behind the enemy ...
         public const int SHEET_PIST_FRAGMENT_BP = 192;  // ... each dealing this much of the hit's damage, in 1/10000ths ...
         public const int SHEET_PIST_FRAGMENT_TURN = 193;  // ... turning to an enemy within this many degrees of its path
+        public const int SHEET_AUTO_FREE_EVERY = 194;  // every this many-th shot spends no ammo (skill 25-49: 3)
+        public const int SHEET_AUTO_SLOW_DAMAGE = 195;  // slow band: each bullet gets this much base damage ...
+        public const int SHEET_AUTO_SLOW_PEN = 196;  // ... and passes through this many more enemies
+        public const int SHEET_AUTO_MID_DAMAGE = 197;  // middle band: the same two
+        public const int SHEET_AUTO_MID_PEN = 198;
+        public const int SHEET_AUTO_FAST_EXTRA_BP = 199;  // fast band: each shot's chance of one extra free bullet, in 1/10000ths
+        public const int SHEET_AUTO_SLOW_HIT_BP = 200;  // suppression: each hit slows the enemy's movement by this much more ...
+        public const int SHEET_AUTO_SLOW_MAX_BP = 201;  // ... up to this much ...
+        public const int SHEET_AUTO_SLOW_FADE_MS = 202;  // ... fading evenly to nothing over this long after the last hit
         public const uint UI_NONE = 0;
         public const uint UI_TRAVEL_MAP = 1;
         public const uint UI_INVENTORY = 2;

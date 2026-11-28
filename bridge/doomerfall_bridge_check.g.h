@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x37251a22f2b40a03ULL
+#define DFB_SCHEMA_HASH 0x5ad81bd27980ec62ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -202,8 +202,8 @@ static_assert((DFB_FACES_FORMAT_VERSION) == (1u), DFB_STALE);
 static_assert((DFB_FACES_MAX) == (3u), DFB_STALE);
 static_assert((DFB_FACE_MAX_SIDE) == (64u), DFB_STALE);
 static_assert((DFB_SHEET_SLOT) == (0u), DFB_STALE);
-static_assert((DFB_SHEET_FORMAT_VERSION) == (12), DFB_STALE);
-static_assert((DFB_SHEET_INTS) == (194), DFB_STALE);
+static_assert((DFB_SHEET_FORMAT_VERSION) == (13), DFB_STALE);
+static_assert((DFB_SHEET_INTS) == (203), DFB_STALE);
 static_assert((DFB_SHEET_FORMAT) == (0), DFB_STALE);
 static_assert((DFB_SHEET_EPOCH) == (1), DFB_STALE);
 static_assert((DFB_SHEET_VALID) == (2), DFB_STALE);
@@ -285,6 +285,15 @@ static_assert((DFB_SHEET_PIST_POOL_REFILL_MS) == (190), DFB_STALE);
 static_assert((DFB_SHEET_PIST_FRAGMENTS) == (191), DFB_STALE);
 static_assert((DFB_SHEET_PIST_FRAGMENT_BP) == (192), DFB_STALE);
 static_assert((DFB_SHEET_PIST_FRAGMENT_TURN) == (193), DFB_STALE);
+static_assert((DFB_SHEET_AUTO_FREE_EVERY) == (194), DFB_STALE);
+static_assert((DFB_SHEET_AUTO_SLOW_DAMAGE) == (195), DFB_STALE);
+static_assert((DFB_SHEET_AUTO_SLOW_PEN) == (196), DFB_STALE);
+static_assert((DFB_SHEET_AUTO_MID_DAMAGE) == (197), DFB_STALE);
+static_assert((DFB_SHEET_AUTO_MID_PEN) == (198), DFB_STALE);
+static_assert((DFB_SHEET_AUTO_FAST_EXTRA_BP) == (199), DFB_STALE);
+static_assert((DFB_SHEET_AUTO_SLOW_HIT_BP) == (200), DFB_STALE);
+static_assert((DFB_SHEET_AUTO_SLOW_MAX_BP) == (201), DFB_STALE);
+static_assert((DFB_SHEET_AUTO_SLOW_FADE_MS) == (202), DFB_STALE);
 static_assert((DFB_UI_NONE) == (0u), DFB_STALE);
 static_assert((DFB_UI_TRAVEL_MAP) == (1u), DFB_STALE);
 static_assert((DFB_UI_INVENTORY) == (2u), DFB_STALE);
