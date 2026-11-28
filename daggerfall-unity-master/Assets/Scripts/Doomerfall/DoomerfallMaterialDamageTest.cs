@@ -2,7 +2,7 @@
 // harness (tools/ammo/ammo.py material) can show that the drawn gun's material scales the player's damage by the
 // owner's table and multiplies with the loaded ammo's bonus. Gives shells a stand-in ammo bonus of +25%, and once the
 // starting gun is adopted onto a hotkey, adds an Iron Shotgun on key 3, a Daedric Shotgun on key 4, and an Ebony DRLA
-// Blaster (no reserve ammo) on key 5.
+// Blaster (no reserve ammo) on key 5, and a Daedric Chainsaw (a melee weapon) on key 6.
 using System;
 using DaggerfallWorkshop.Game.Items;
 using UnityEngine;
@@ -53,6 +53,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             Give(items, hotkeys, 3, "Shotgun", WeaponMaterialTypes.Iron);
             Give(items, hotkeys, 4, "Shotgun", WeaponMaterialTypes.Daedric);
             Give(items, hotkeys, 5, "RLBlasterPickup", WeaponMaterialTypes.Ebony); // A gun with no reserve ammo.
+            Give(items, hotkeys, 6, "Chainsaw", WeaponMaterialTypes.Daedric); // A melee weapon: it has a material too.
+            bridge.LogLine(string.Format("materialtest: names: Iron \"{0}\", Steel \"{1}\"",
+                DoomerfallDoomItem.GunName(WeaponMaterialTypes.Iron, "Pistol"), DoomerfallDoomItem.GunName(WeaponMaterialTypes.Steel, "Pistol")));
         }
 
         // For the ammo-only tests (-dfequiptest, -dfchangeammotest): every Doom gun held becomes Steel (0%), so the damage

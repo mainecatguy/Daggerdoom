@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0xb4fd9d40ac446792UL;
+        public const ulong SchemaHash = 0x063e698129fba6ebUL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -118,7 +118,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_SNEAK_HITS = 168;  // UZ to DF; the player landed this many hits on unaware enemies; payload: dfb_sneak_hits
         public const ushort KIND_AMMO = 171;  // UZ to DF; status is Doom's count; request is the last AMMO_ADD Doom applied
         public const ushort KIND_AMMO_ADD = 172;  // DF to UZ; status is a signed 32-bit delta to add (Doom's count stops at 0)
-        public const ushort KIND_AMMO_READY = 173;  // UZ to DF; the ready weapon changed; cls is the reserve ammo class it uses, or empty for none
+        public const ushort KIND_AMMO_READY = 173;  // UZ to DF; the ready weapon changed; cls is the reserve ammo class it uses, or empty for none; status is DFB_AMMO_READY_* bits
+        public const uint AMMO_READY_MELEE = 1;  // the ready weapon is a melee weapon (the fist, a chainsaw), or there is none
+        public const uint AMMO_READY_FIST = 2;  // the ready weapon is the fist, or there is none: no Daggerfall item is up, so no weapon material bonus
         public const ushort KIND_AMMO_TAKE = 174;  // UZ to DF; the player touched a tiered ammo pickup; cls is the reserve class, status the rounds, request the tier (0 Regular to 9 Daedric)
         public const ushort KIND_AREA_LEVEL_REQUEST = 175;  // UZ to DF; request is a map pixel, y * 1000 + x; Daggerfall answers with AREA_LEVEL
         public const ushort KIND_AREA_LEVEL = 176;  // DF to UZ; request is the map pixel, status the area level there (Doom rolls ammo drop tiers with it)

@@ -14,7 +14,7 @@ change:   (-dfchangeammotest) draws a DRLA pistol with 10 in its magazine, press
           Daggerfall, Steel loads), spends every loaded round (Silver loads by itself), and autosaves.
 changeload: loads that autosave and checks that Silver is still loaded.
 material: (-dfmaterialtest) an Iron and a Daedric Shotgun on keys 3 and 4, shells a stand-in +25%: hits for 1000 with
-          each, back and forth, and with fists; checks the weapon material bonus (Iron -10%, Daedric +60%) multiplies
+          each, back and forth, with fists, an Ebony Blaster, a Daedric Chainsaw (melee) and hotkey 1's fist; checks the weapon material bonus (Iron -10%, Daedric +60%) multiplies
           with the ammo bonus, and that fists are unscaled. Autosaves with the Daedric gun up.
 materialload: loads that autosave and checks the Daedric bonus again.
 sizes:    touches small and large pickups of each type at several tiers, and monster drops; each must give stock
@@ -42,14 +42,14 @@ argv, sys.argv = sys.argv, sys.argv[:1]
 import install  # noqa: E402  (only for its registry isolation)
 sys.argv = argv
 
-REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\verify-ammoname-stage")  # Was review\shop-ammo (left locked by two test games), earlier review\ammosizefix, earlier review\ammo, ammo-pickup, ammo-equip, ammo-tiers, ammo-change, weapon-material-damage, then ammosize, for earlier ammo runs.
+REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\weaponmaterials-stage")  # Was review\verify-ammoname-stage, earlier review\shop-ammo (left locked by two test games), earlier review\ammosizefix, earlier review\ammo, ammo-pickup, ammo-equip, ammo-tiers, ammo-change, weapon-material-damage, then ammosize, for earlier ammo runs.
 SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\runtime-dungeons")  # Data and sprite package (the runtime dungeon run).
 CACHE_SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\ammosizefix") / "data" / "cache"  # The town cache with the test door.
 BUILD = Path(r"D:\dev\DoomDaggerfall-build")
-UZ_BUILD = BUILD / "verify-ammoname" / "uzdoom" / "Release"  # Integration's latest engine build (earlier runs: the *-ammosize and *-items trees).
+UZ_BUILD = BUILD / "weaponmaterials" / "uzdoom" / "Release"  # The latest engine build (earlier runs: the verify-ammoname, *-ammosize and *-items trees).
 SOUND = BUILD / "uzdoom-launcher" / "Release"
-BRIDGE_DLL = BUILD / "verify-ammoname" / "bridge" / "Release" / "doomerfall_bridge.dll"
-LAUNCHER = BUILD / "verify-ammoname" / "launcher" / "Release" / "doomerfall-launcher.exe"
+BRIDGE_DLL = BUILD / "weaponmaterials" / "bridge" / "Release" / "doomerfall_bridge.dll"
+LAUNCHER = BUILD / "weaponmaterials" / "launcher" / "Release" / "doomerfall-launcher.exe"
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
 MODS = GAME.parent / "GameMods"
@@ -119,6 +119,23 @@ def assemble():
     subprocess.check_call([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), str(REVIEW / "doomerfall.pk3")])
     subprocess.check_call([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), "--drla", str(REVIEW / "doomerfall-drla.pk3")])
     print("assembled", REVIEW)
+
+
+BONUS = re.compile(r"(\d+) -> (\d+) \((-?\d+) bp\)(?: backstab x([\d.]+))?$")
+
+
+def bonus_matches(scaled, expect):
+    """The bridge's hit line against the expected "base -> dealt (bp)". Since backstab (2026-11-25) the line may end
+    "backstab xN" on an unaware target: then the bp must still match exactly and the damage dealt must be the expected
+    bonus times that backstab factor. Expected None (no bonus) also accepts a 0 bp line that only backstab scaled."""
+    got = BONUS.match(scaled) if scaled else None
+    if expect is None:
+        return scaled is None or bool(got and int(got.group(3)) == 0)
+    want = BONUS.match(expect)
+    if not got or not want or got.group(1) != want.group(1) or got.group(3) != want.group(3):
+        return False
+    backstab = float(got.group(4)) if got.group(4) else 1.0
+    return abs(int(got.group(2)) - int(want.group(2)) * backstab) <= 1.5
 
 
 def counts_doom(body):
@@ -211,13 +228,17 @@ def run(name):
         if material:  # Ammo +25% times weapon: Iron 1.25 x 0.9 = 1.125, Daedric 1.25 x 1.6 = 2.0 (adding would give 1.15 and 1.85).
             iron, daedric = "1000 -> 1125 (1250 bp)", "1000 -> 2000 (10000 bp)"
             want = {"iron": iron, "daedric": daedric, "iron again": iron, "melee": None, "daedric again": daedric, "loaded": daedric,
-                    "blaster": "1000 -> 1400 (4000 bp)"}  # Ebony +40%, no reserve ammo so no ammo bonus.
-            # The starting gun's material was rolled at adoption. Expected value assumes its ammo has no stand-in bonus
+                    "blaster": "1000 -> 1400 (4000 bp)",  # Ebony +40%, no reserve ammo so no ammo bonus.
+                    "chainsaw": "1000 -> 1600 (6000 bp)", "fist key": None}  # Daedric Chainsaw (melee, no ammo) +60%; hotkey 1's fist none.
+            # The starting gun is Iron (owner, 2026-11-27). Expected value assumes its ammo has no stand-in bonus
             # (true unless DRLA X starts the player with a shotgun).
             m = re.search(r'adopted Doom\'s "(\S+)" into Daggerfall\'s inventory, material (\w+)', df_body)
             if m:
                 mod = {"Iron": -1, "Steel": 0, "Silver": 0, "Elven": 1, "Dwarven": 2, "Mithril": 3, "Adamantium": 3, "Ebony": 4, "Orcish": 5, "Daedric": 6}[m.group(2)]
-                print("starting gun", m.group(1), "material", m.group(2))
+                print("starting gun", m.group(1), "material", m.group(2), "PASS" if m.group(2) == "Iron" else "FAIL (starter guns are Iron)")
+            n = re.search(r'materialtest: names: Iron "([^"]*)", Steel "([^"]*)"', df_body)
+            if n:
+                print("names: Iron %r, Steel %r %s" % (n.group(1), n.group(2), "PASS" if "Iron" not in n.group(1) and n.group(2).startswith("Steel ") else "FAIL"))
                 want["start gun"] = None if mod == 0 else "1000 -> %d (%d bp)" % (1000 + mod * 100, mod * 1000)
         scaled, hits, dealt = None, 0, {}
         for line in read(console).splitlines():
@@ -229,7 +250,7 @@ def run(name):
                 label, weapon, ammo, lost = m.groups()
                 hits += 1
                 expect = want.get(label) if change or material else want.get(ammo)
-                ok = scaled == expect
+                ok = bonus_matches(scaled, expect)
                 if scaled:
                     dealt[label] = int(scaled.split("->")[1].split()[0])
                 print("hit", label, weapon, ammo, "bridge", scaled or "unscaled", "expected", expect or "unscaled", "lost", lost, "PASS" if ok else "FAIL")

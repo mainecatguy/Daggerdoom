@@ -411,6 +411,16 @@ description from the arsenal's own notes, and every gun shows its material and w
 - "Types: none" means the gun belongs to no weapon skill yet.
 - A gun's types appear once its picture has loaded in the inventory. Until then the description shows only its name.
 
+### Weapon materials
+
+Every Doom weapon you can carry is made of a Daggerfall material, from Iron up to Daedric, and its material changes
+the damage it does: Iron -10%, Steel and Silver no change, up to Daedric +60%. This includes melee weapons such as a
+chainsaw. Only your fists have no material.
+
+- An Iron weapon goes by its plain name, such as "Pistol". Every other material comes first, such as "Steel Pistol".
+  Info still shows "Material: Iron".
+- The guns a new character starts with are always Iron, like Daggerfall's starting gear.
+
 ## No shields (for now)
 
 Shields are out of the game until they work in Doom's combat. Shops don't sell them, enemies and treasure don't
