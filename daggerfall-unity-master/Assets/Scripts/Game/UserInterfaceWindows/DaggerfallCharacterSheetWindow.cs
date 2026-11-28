@@ -432,6 +432,8 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             }
         }
 
+        public bool DoomerfallTryClose() { return CheckIfDoneLeveling(); } // Doomerfall: the journal's travel closes the sheet as Exit does
+
         bool CheckIfDoneLeveling()
         {
             if (leveling)

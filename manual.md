@@ -437,6 +437,9 @@ you only on a fresh install. Doom stays frozen while either is open.
 
 - The character sheet works as in Daggerfall. Its **Spellbook**, **Inventory** and **Logbook** buttons open those windows
   on top of it, and closing them takes you back to the sheet.
+- Clicking a quest's place in the logbook (from the sheet, from **J**, or from the sheet that opens when you level up)
+  and answering Yes closes the menu and opens fast travel on that place, as if you had pressed the fast travel key.
+  As with that key, you cannot travel from indoors. On a level-up sheet, spend your bonus points first.
 - The spellbook works as in Daggerfall: browse your spells and their effects, sort, rename and delete them. Backspace,
   Escape or **Exit** closes it.
 - You need a spellbook in your inventory. Without one, you are told "You have no spellbook!"
