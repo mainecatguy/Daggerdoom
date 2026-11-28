@@ -23,7 +23,7 @@ from save_handshake_test import Event, DfState  # noqa: E402
 IWAD = Path(r"D:\dev\DoomDaggerfall\GameResources\wads\DOOM.WAD")
 MODS = Path(r"D:\dev\DoomDaggerfall\GameMods")
 DRLA = ["DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3"]
-SHEET_INTS, SHEET_FORMAT_VERSION = 194, 12
+SHEET_INTS, SHEET_FORMAT_VERSION = 203, 13
 STATS_LIVE, SKILLS_BASE, SKILLS_LIVE = 24, 32, 67
 SHOTGUNS, EXPLOSIVES = 4, 6
 SHEETS = {"e49": (49, 0, 50), "e50": (50, 0, 50), "e100": (100, 0, 100), "s74": (0, 74, 50), "s75": (0, 75, 50),

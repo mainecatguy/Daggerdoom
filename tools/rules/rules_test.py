@@ -26,7 +26,8 @@ def old_perks(skill):
           200 if skill >= 100 else 100 if skill >= 75 else 0, 3000 if skill >= 100 else 1500 if skill >= 75 else 0]  # skillperks 09
     # Explosives
     chain = skill >= 100
-    v += [6000 * c // 100, 9900 if skill >= 75 else 9500 if skill >= 25 else 0, 0, 2500 if chain else 0, 128 if chain else 0]
+    v += [6000 * c // 100, 9900 if skill >= 75 else 9500 if skill >= 25 else 0, 5000 if skill >= 50 else 0,  # perknumbers 01: Explosives 50 +50%
+          2500 if chain else 0, 128 if chain else 0]
     # Shotguns
     most, knock = skill >= 100, skill >= 75
     v += [7500 * c // 100, 3500 if skill >= 25 else 0, 10000 if most else 5000 if skill >= 50 else 0,
