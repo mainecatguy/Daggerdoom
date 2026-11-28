@@ -130,10 +130,21 @@ static partial class Program
     {
         double step = PlayerScale.Step;
         var text = new StringBuilder("Failure cases: bad area / tier area, map units^2 (contact | climb | levitation | unreached)\n");
+        var places = new StringBuilder();
         void Row(string name, FSample[] set, Func<FSample, bool> kind, Func<FSample, bool> bad)
         {
             var area = new double[4]; var all = new double[4];
-            foreach (var x in set) if (kind(x)) { all[x.Tier] += x.Area; if (bad(x)) area[x.Tier] += x.Area; }
+            var where = new Dictionary<(int, int, int), double>(); // reached-tier bad area by 64-unit cell
+            foreach (var x in set)
+                if (kind(x))
+                {
+                    all[x.Tier] += x.Area;
+                    if (!bad(x)) continue;
+                    area[x.Tier] += x.Area;
+                    if (x.Tier < 3) { var key = ((int)Math.Floor(x.X / 64), (int)Math.Floor(x.Y / 64), (int)Math.Floor(x.Z / 64)); where[key] = where.GetValueOrDefault(key) + x.Area; }
+                }
+            places.Append($"  {name}:").Append(string.Concat(where.OrderByDescending(kv => kv.Value).Take(6)
+                .Select(kv => FormattableString.Invariant($" {kv.Key.Item1 * 64 + 32},{kv.Key.Item2 * 64 + 32},{kv.Key.Item3 * 64 + 32} ({kv.Value:F0})")))).Append('\n');
             text.Append($"  {name,-22}");
             for (int t = 0; t < 4; t++)
             {
@@ -145,7 +156,7 @@ static partial class Program
         Row("walkable top missing", mesh, x => x.NZ >= FidSteepZ, x => x.Error < -step);
         Row("phantom wall", coll, x => Math.Abs(x.NZ) < WallNormalZ, x => x.Error > 4);
         Row("invisible ledge", coll, x => x.NZ >= FidSteepZ, x => x.Error > step);
-        return text.Append('\n').ToString();
+        return text.Append("Largest places per case (64-unit cells, centre x,y,z and bad area; contact, climb and levitation tiers):\n").Append(places).Append('\n').ToString();
     }
 
     delegate bool FidAdmit(ref FSample s);

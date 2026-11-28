@@ -1233,6 +1233,7 @@ class DFCityHandler : EventHandler
                 foreach (var (px, py) in Probes)
                 {
                     int i = (int)Math.Floor((px - x0) / cell), j = (int)Math.Floor((py - y0) / cell), c = i + j * W;
+                    if (i < 0 || j < 0 || i >= W || j >= H) continue; // the point is in another site's raster
                     string spans = hits[c] == null ? "none" : string.Join(" ", hits[c].Select(h => FormattableString.Invariant($"{h.lo:F0}..{h.hi:F0}")));
                     Console.WriteLine($"PROBE {px},{py} cell {i},{j}: raster {(before[c] == short.MinValue ? "solid" : "open floor " + before[c])}, final {(floor[c] == short.MinValue ? "void" : "open")}, surfaces {spans}");
                 }
