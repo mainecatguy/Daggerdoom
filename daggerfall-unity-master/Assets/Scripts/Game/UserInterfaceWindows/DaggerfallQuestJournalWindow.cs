@@ -356,6 +356,8 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             if (messageBoxButton == DaggerfallMessageBox.MessageBoxButtons.Yes && findPlace != null)
             {
                 Debug.LogFormat("Finding location {0} in region {1}", findPlace.SiteDetails.locationName, findPlace.SiteDetails.regionName);
+                if (Doomerfall.DoomerfallUi.TravelThroughDoom(this, findPlace)) // Doomerfall: closes the menu and opens Doom's fast travel
+                    return;
                 this.CloseWindow();
                 DaggerfallUI.Instance.DfTravelMapWindow.GotoPlace(findPlace);
                 DaggerfallUI.PostMessage(DaggerfallUIMessages.dfuiOpenTravelMapWindow);

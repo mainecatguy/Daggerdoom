@@ -90,7 +90,7 @@ extern "C" {
 #define DFB_KIND_NEWGAME       22  /* DF to UZ; a character is made and Daggerfall is held at its start; payload: dfb_new_game */
 #define DFB_KIND_NEWGAME_ARRIVED 23 /* UZ to DF; the payload's first 8 bytes are 1 when Doom is in the same place, 0 if it could not get there */
 #define DFB_KIND_NEWGAME_GO    24  /* DF to UZ; Daggerfall started its quests and clock, so both games run */
-#define DFB_KIND_UI_ASK        25  /* DF to UZ; Daggerfall opened a window by itself, such as a quest message, and is paused behind it; Doom opens DFB_UI_DAGGERFALL when it can; payload: dfb_ui_command */
+#define DFB_KIND_UI_ASK        25  /* DF to UZ; Daggerfall opened a window by itself, such as a quest message, and is paused behind it; Doom opens DFB_UI_DAGGERFALL when it can; with ui_id DFB_UI_TRAVEL_MAP, sent once after the journal's travel button closed the menu, Doom opens its fast travel as its key does; payload: dfb_ui_command */
 
 /* World items. Daggerfall owns them: it lists what is in the current space and performs every pickup. */
 #define DFB_KIND_ITEMS_BEGIN   40  /* DF to UZ; starts one full list for a space; payload: dfb_world_items */

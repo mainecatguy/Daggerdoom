@@ -245,7 +245,7 @@ void PublishPosition()
 
 void HandleUiState(const dfb_event &e);
 void HandleUiResult(const dfb_event &e);
-void HandleUiAsk();
+void HandleUiAsk(const dfb_event &e);
 void HandleTravel(const dfb_event &e);
 void HandleSaveReply(const dfb_event &e);
 void HandleLoadReady(const dfb_event &e);
@@ -292,7 +292,7 @@ void HandleEvent(const dfb_event &e, int64_t now)
 		HandleUiResult(e);
 		break;
 	case DFB_KIND_UI_ASK:
-		HandleUiAsk();
+		HandleUiAsk(e);
 		break;
 	case DFB_KIND_TRAVEL:
 		HandleTravel(e);
@@ -576,10 +576,32 @@ void HandleUiResult(const dfb_event &e)
 	Log("ui: fast travel to %s at map pixel %d,%d", body.name, body.map_pixel_x, body.map_pixel_y);
 }
 
-// Daggerfall opened a window by itself, such as a quest message, and is paused behind it. It asks again until shown.
-void HandleUiAsk()
+// Daggerfall's travel map, as the fast travel key opens it. Daggerfall's own indoor check cannot see this: its hidden
+// player waits outside the door Doom used.
+void OpenFastTravel()
 {
+	if (ownState.world_context != DFB_WORLD_EXTERIOR)
+	{
+		Printf(PRINT_HIGH, "You cannot travel from indoors.\n");
+		Log("ui: open refused, indoors");
+		return;
+	}
+	OpenUi(DFB_UI_TRAVEL_MAP);
+}
+
+// Daggerfall opened a window by itself, such as a quest message, and is paused behind it. It asks again until shown.
+// Or the journal's travel button closed its menu and asks once for Doom's fast travel, which Doom then opens as K does.
+void HandleUiAsk(const dfb_event &e)
+{
+	dfb_ui_command body;
+	memcpy(&body, e.payload, sizeof(body));
 	if (uiState != UiClosed || !UiCanOpen()) return;
+	if (body.ui_id == DFB_UI_TRAVEL_MAP)
+	{
+		Log("ui: Daggerfall asked for fast travel to a place found in its journal");
+		OpenFastTravel();
+		return;
+	}
 	Log("ui: Daggerfall asked to show a window it opened by itself");
 	OpenUi(DFB_UI_DAGGERFALL);
 }
@@ -1052,10 +1074,10 @@ bool DD_BridgeNetEvent(const char *name)
 	}
 	if (inventory || window) // Character sheet, spellbook, status and skills: Daggerfall's own windows, with its own refusals.
 	{
-		OpenUi(inventory ? DFB_UI_INVENTORY : window, inventory ? 0 : ownState.world_context); // The sheet's journal travels only from outdoors.
+		OpenUi(inventory ? DFB_UI_INVENTORY : window, inventory ? 0 : ownState.world_context);
 		return true;
 	}
-	if (journal) // Daggerfall refuses travel from the journal's map unless Doom is outdoors, as below.
+	if (journal) // Travel from the journal closes it and comes back as fast travel (HandleUiAsk).
 	{
 		OpenUi(DFB_UI_JOURNAL, ownState.world_context);
 		return true;
@@ -1070,14 +1092,7 @@ bool DD_BridgeNetEvent(const char *name)
 		OpenUi(DFB_UI_TRANSPORT, ownState.world_context | (OnGround() ? 0 : DFB_TRANSPORT_AIRBORNE));
 		return true;
 	}
-	// Daggerfall's own indoor check cannot see this: its hidden player waits outside the door Doom used.
-	if (ownState.world_context != DFB_WORLD_EXTERIOR)
-	{
-		Printf(PRINT_HIGH, "You cannot travel from indoors.\n");
-		Log("ui: open refused, indoors");
-		return true;
-	}
-	OpenUi(DFB_UI_TRAVEL_MAP);
+	OpenFastTravel();
 	return true;
 }
 

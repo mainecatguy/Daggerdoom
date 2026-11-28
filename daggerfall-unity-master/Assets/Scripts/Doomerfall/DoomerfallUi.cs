@@ -211,7 +211,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         const float TravelSettleSeconds = 20f;
         const int OpenWaitFrames = 30;
         const int MaxPendingReadbacks = 3;
-        const float AskSettleSeconds = 0.25f, AskRepeatSeconds = 1f;
+        const float AskSettleSeconds = 0.25f, AskRepeatSeconds = 1f, JournalPlaceSeconds = 3f;
 
         static DoomerfallUi instance;
 
@@ -226,6 +226,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         uint closeReason;
         ulong openGameSeconds;  // Daggerfall's clock when the menu opened, to tell a rest or loiter at the close
         bool traveled;
+        Questing.Place journalPlace; // The journal's travel button closed the menu; Doom's fast travel opens on this place.
+        float journalPlaceUntil;
         int waitFrames, hudFrames, pending, surfaceWidth, surfaceHeight, basisWidth, basisHeight;
         uint frameId;
         byte[] pixels;
@@ -349,6 +351,21 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bridge.LogLine("ui: Daggerfall opened " + top.GetType().Name + " by itself, asking Doom to show it");
         }
 
+        // Asked once, right after the close. Doom opens its fast travel as its key does, with its own refusals (indoors,
+        // through a door). If it does not, the place is forgotten, so a later travel key opens the plain map.
+        void AskForFastTravel()
+        {
+            journalPlaceUntil = Time.realtimeSinceStartup + JournalPlaceSeconds;
+            var e = new DfbEvent
+            {
+                kind = Dfb.KIND_UI_ASK,
+                tic = (uint)Time.frameCount,
+                uiCommand = new DfbUiCommand { uiId = Dfb.UI_TRAVEL_MAP },
+            };
+            bridge.Send(ref e);
+            bridge.LogLine("ui: asked Doom for fast travel to the journal's place");
+        }
+
         public void OnOpen(uint id, uint doomContext)
         {
             if (openId != 0)
@@ -370,19 +387,19 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             string message = id == Dfb.UI_INVENTORY ? DaggerfallUIMessages.dfuiOpenInventoryWindow : DaggerfallUIMessages.dfuiOpenTravelMapWindow;
             if (creating)
                 message = null; // The wizard is opened below, once input is routed to it.
+            // Travel to a quest's place from the journal, or the character sheet's Logbook, closes the menu and comes
+            // back as Doom's fast travel (TravelThroughDoom).
             if (id == Dfb.UI_JOURNAL)
-            {
-                // Clicking a quest's place opens the travel map. Doom follows that travel only from outdoors, as with K.
                 message = DaggerfallUIMessages.dfuiOpenQuestJournalWindow;
-                showingTravelMap = doomContext == Dfb.WORLD_EXTERIOR;
-            }
             // Daggerfall's own windows, opened as its keys open them; the spellbook keeps Daggerfall's checks (SpellbookRefused).
             if (id == Dfb.UI_CHARACTER)
-            {
-                // Its Logbook button opens the journal, so travel from there follows the journal's rule.
                 message = DaggerfallUIMessages.dfuiOpenCharacterSheetWindow;
-                showingTravelMap = doomContext == Dfb.WORLD_EXTERIOR;
+            if (journalPlace != null && id == Dfb.UI_TRAVEL_MAP && Time.realtimeSinceStartup < journalPlaceUntil)
+            {
+                DaggerfallUI.Instance.DfTravelMapWindow.GotoPlace(journalPlace); // The travel map opens on it and asks to travel there.
+                bridge.LogLine("ui: fast travel opened on the journal's place " + journalPlace.SiteDetails.locationName);
             }
+            journalPlace = null;
             if (id == Dfb.UI_SPELLBOOK)
             {
                 message = DaggerfallUIMessages.dfuiOpenSpellBookWindow;
@@ -539,14 +556,25 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 instance.closeReason = Dfb.UI_REASON_RESULT;
         }
 
-        /// <summary>The journal's travel map is open while Doom is indoors, where Doom cannot follow a journey.
-        /// Says so the way Doom's travel key does, and returns true so the travel map does not start one.</summary>
-        public static bool RefuseJournalTravel()
+        /// <summary>The journal's "find this place" was answered Yes inside a Doom menu: from the journal key, the character
+        /// sheet's Logbook, or the sheet Daggerfall opens for a level-up. The menu closes and Doom then opens its fast travel,
+        /// which keeps both engines in step, on that place (owner, 2026-11-27, Q&A item 53). A level-up sheet with points
+        /// left keeps the menu open with Daggerfall's own message, as its Exit button does. Returns false outside a menu.</summary>
+        public static bool TravelThroughDoom(UserInterfaceWindow journal, Questing.Place place)
         {
-            if (!instance || (instance.openId != Dfb.UI_JOURNAL && instance.openId != Dfb.UI_CHARACTER) || instance.showingTravelMap)
+            if (!instance || instance.openId == 0)
                 return false;
-            DaggerfallUI.MessageBox("You cannot travel from indoors.");
-            instance.bridge.LogLine("ui: travel from the journal refused, Doom is indoors");
+            journal.CloseWindow();
+            var sheet = DaggerfallUI.UIManager.TopWindow as DaggerfallCharacterSheetWindow;
+            if (sheet != null && !sheet.DoomerfallTryClose())
+            {
+                instance.bridge.LogLine("ui: travel from the journal waits, the level-up points are not spent");
+                return true;
+            }
+            instance.journalPlace = place;
+            instance.closeReason = Dfb.UI_REASON_RESULT;
+            instance.bridge.LogLine("ui: travel from the journal to " + place.SiteDetails.locationName + ", closing menu " + instance.openId);
+            DaggerfallUI.Instance.PopToHUD();
             return true;
         }
 
@@ -624,6 +652,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
             SendState(Dfb.UI_CLOSED, reason, id, flags);
             bridge.LogLine("ui: menu " + id + " closed, reason " + reason);
+            if (journalPlace != null)
+                AskForFastTravel();
             if (reason != Dfb.UI_REASON_REFUSED)
                 LogWorldState("after");
         }

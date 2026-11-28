@@ -60,7 +60,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const ushort KIND_NEWGAME = 22;  // DF to UZ; a character is made and Daggerfall is held at its start; payload: dfb_new_game
         public const ushort KIND_NEWGAME_ARRIVED = 23;  // UZ to DF; the payload's first 8 bytes are 1 when Doom is in the same place, 0 if it could not get there
         public const ushort KIND_NEWGAME_GO = 24;  // DF to UZ; Daggerfall started its quests and clock, so both games run
-        public const ushort KIND_UI_ASK = 25;  // DF to UZ; Daggerfall opened a window by itself, such as a quest message, and is paused behind it; Doom opens DFB_UI_DAGGERFALL when it can; payload: dfb_ui_command
+        public const ushort KIND_UI_ASK = 25;  // DF to UZ; Daggerfall opened a window by itself, such as a quest message, and is paused behind it; Doom opens DFB_UI_DAGGERFALL when it can; with ui_id DFB_UI_TRAVEL_MAP, sent once after the journal's travel button closed the menu, Doom opens its fast travel as its key does; payload: dfb_ui_command
         public const ushort KIND_ITEMS_BEGIN = 40;  // DF to UZ; starts one full list for a space; payload: dfb_world_items
         public const ushort KIND_ITEM = 41;  // DF to UZ; one pile in that list; payload: dfb_world_item
         public const ushort KIND_ITEMS_END = 42;  // DF to UZ; the list is complete, and anything not in it is gone; payload: dfb_world_items
