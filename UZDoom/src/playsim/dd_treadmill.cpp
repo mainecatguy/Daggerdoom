@@ -1466,6 +1466,7 @@ namespace
 	std::unordered_map<int, std::vector<DDNatureFlat>> natureCache;	// key north * WORLD_W + px
 	std::unordered_map<int64_t, std::vector<TObjPtr<AActor *>>> natureActors;	// by overworld chunk
 	std::vector<TObjPtr<AActor *>> townNature;
+	bool townNatureWinter;	// [Doomerfall] the season townNature was laid out in
 	int natureSpawned;
 
 	void LayoutNature(int px, int north, std::vector<DDNatureFlat> &out);
@@ -1621,12 +1622,22 @@ namespace
 	void SpawnTownNature(FLevelLocals *Level, const Town &t)
 	{
 		townNature.clear();
+		townNatureWinter = DDTownCache::IsWinter();
 		if (t.space || t.rects.empty()) return;
 		int x0 = std::numeric_limits<int>::max(), x1 = std::numeric_limits<int>::min(), y0 = x0, y1 = x1;
 		for (const TileRect &r : t.rects) { x0 = std::min(x0, r.x0); x1 = std::max(x1, r.x1); y0 = std::min(y0, r.y0); y1 = std::max(y1, r.y1); }
 		natureSpawned = 0;
 		SpawnNature(Level, x0 - t.margin, x1 + t.margin, y0 - t.margin, y1 + t.margin, &t, townNature);
 		DD_DebugPrintf("DDNATURE town %s flats=%d\n", t.map.GetChars(), natureSpawned);
+	}
+
+	// [Doomerfall] Daggerfall's season changed while on a town map (its first season line often comes after the town
+	// loaded): the town's wilderness flats take the new season's set now, as the overworld's and the distant view's do.
+	void RefreshTownNature(FLevelLocals *Level, const Town &t)
+	{
+		for (auto &ptr : townNature)
+			if (AActor *mo = ptr.Get()) mo->Destroy();
+		SpawnTownNature(Level, t);
 	}
 
 	// Fresh entry to a generated location: its billboards and gates. Saves restore these as ordinary actors.
@@ -3225,6 +3236,7 @@ void DDTreadmill_Tick(FLevelLocals *Level)
 		TickTownDoors(Level, pmo);
 		const Town &t = towns[currentTown];
 		if (!t.space && runtimeTowns) RefreshTownSeason(Level, t.group);
+		if (!t.space && townNatureWinter != DDTownCache::IsWinter()) RefreshTownNature(Level, t);
 		if (t.space && t.spaceId >= DUNGEON_SPACE && DD_BridgeHasSession()) DD_MonstersTick(Level);
 		if (t.space) return;	// Interiors and dungeons are left through their doors.
 		const double tx = (pmo->X() / DOOM_PER_DF + t.originX) / 256, ty = (pmo->Y() / DOOM_PER_DF + t.originY) / 256;
