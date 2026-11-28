@@ -1,0 +1,36 @@
+# Collision fidelity starting set (owner, 2026-11-27). Fixed so runs compare like with like: do not edit without the owner.
+# Main quest dungeons (--list-main), then one dungeon of each dungeon type: the first of that type that
+# --list-dungeon-types prints (MAPS.BSA region order). Columns: map id, then a label for reading.
+#701948302	main: Dragontail Mountains/Scourg Barrow
+#43196334	main: Isle of Balfiera/Direnni Tower
+#728811286	main: Wrothgarian Mountains/Shedungent
+#9570447	main: Daggerfall/Castle Necromoghan
+#187853213	main: Daggerfall/Privateer's Hold
+#1291010263	main: Daggerfall/Daggerfall
+#2352284	main: Betony/Tristore Laboratory
+#6634853	main: Sentinel/Sentinel
+#83032363	main: Wayrest/Woodborne Hall
+#630439035	main: Wayrest/Wayrest
+#19021260	main: Orsinium Area/Orsinium
+#1001	main: High Rock sea coast/Mantellan Crux
+#207828842	main: Menevia/Lysandus' Tomb
+#336619236	main: Ykalon/Castle Llugwych
+#2484750	Crypt: Alik'r Desert/Ruins of The Caorchom Farmstead
+#6681069	DesecratedTemple: Alik'r Desert/Ruins of The F'igta Farmstead
+#8779219	RuinedCastle: Alik'r Desert/Maorn's Guard
+#11926957	Cemetery: Alik'r Desert/The Tombs of Klerd
+#18223327	GiantStronghold: Alik'r Desert/Groleten
+#26614955	ScorpionNest: Alik'r Desert/Ruins of The Ghach Farmstead
+#30810229	NaturalCave: Alik'r Desert/Ruins of Mhurp Orchard
+#37106662	Coven: Alik'r Desert/Ruins of Merim's Guard
+#50744174	OrcStronghold: Alik'r Desert/Sekbith
+#70673223	HumanStronghold: Alik'r Desert/Tower Dasen
+#75917092	Mine: Alik'r Desert/The Flor Pit
+#80113160	DragonsDen: Alik'r Desert/Ruins of Rlold'kern Tower
+#109479287	VampireHaunt: Alik'r Desert/Ruins of The Vluctten Farmstead
+#124161500	Prison: Alik'r Desert/The Hold of Slachke
+#271011060	BarbarianStronghold: Alik'r Desert/Vellen's Hold
+#322404132	Laboratory: Alik'r Desert/Krovt's Hold
+#50644300	VolcanicCaves: Dragontail Mountains/The Demodoth Cave
+#107290433	HarpyNest: Dragontail Mountains/The Sashirdon Nest
+#307622560	SpiderNest: Dragontail Mountains/Norlogod's Nest
