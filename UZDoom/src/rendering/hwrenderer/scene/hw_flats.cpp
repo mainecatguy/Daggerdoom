@@ -306,15 +306,19 @@ void HWFlat::DrawFloodPlanes(HWDrawInfo *di, FRenderState &state)
 //==========================================================================
 bool DD_WeatherMeshLight(float &brightness);
 
-void DD_ExteriorGroundLight(FRenderState &state, ELightMode lightmode, int rel, const FColormap &cm, float alpha)
+void DD_FlatBaseLight(FRenderState &state, ELightMode lightmode, float brightness, int rel, const FColormap &cm, float alpha)
 {
-	float daylight;
-	if (!DD_WeatherMeshLight(daylight)) return;
-	const float b = std::clamp(daylight + rel / 255.f, 0.f, 1.f);
+	const float b = std::clamp(brightness + rel / 255.f, 0.f, 1.f);
 	const PalEntry c = cm.LightColor;
 	state.SetColorAlpha(PalEntry(uint8_t(c.r * b), uint8_t(c.g * b), uint8_t(c.b * b)), alpha, cm.Desaturation);
 	if (isSoftwareLighting(lightmode)) state.SetSoftLightLevel(255);
 	state.SetLightParms(1.f, 0.f);
+}
+
+void DD_ExteriorGroundLight(FRenderState &state, ELightMode lightmode, int rel, const FColormap &cm, float alpha)
+{
+	float daylight;
+	if (DD_WeatherMeshLight(daylight)) DD_FlatBaseLight(state, lightmode, daylight, rel, cm, alpha);
 }
 
 //==========================================================================

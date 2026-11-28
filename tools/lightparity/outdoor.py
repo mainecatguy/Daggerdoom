@@ -101,8 +101,8 @@ def run_case(args, name, lines):
     with open(os.path.join(out, "lp.cfg"), "w", newline="\n") as f:
         f.write(f'wait 70; dd_tm_warp "{args.spot}"; wait {args.settle}; netevent lp_place; wait 10; '
                 f'netevent lp_view 0; wait 30; screenshot "{shots["ahead"]}"; wait 5; '
-                f'netevent lp_light; netevent lp_view 1; wait 30; screenshot "{shots["lit"]}"; wait 5; '
-                f'give infrared; wait 10; screenshot "{shots["amp"]}"; wait 5; quit\n')
+                f'netevent lp_light; wait 5; netevent lp_view 1; wait 60; screenshot "{shots["lit"]}"; wait 10; '
+                f'give infrared; wait 60; screenshot "{shots["amp"]}"; wait 5; quit\n')
     with open(os.path.join(out, "lp.ini"), "w", newline="\n") as f:
         f.write("[GlobalSettings]\nqueryiwad=false\nvid_fullscreen=false\nwin_maximized=false\nvid_defwidth=960\nvid_defheight=540\n")
     log = os.path.join(out, "log-lp.txt")

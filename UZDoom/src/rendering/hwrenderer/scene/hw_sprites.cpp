@@ -97,10 +97,26 @@ CUSTOM_CVAR(Int, gl_fuzztype, 8, CVAR_ARCHIVE)
 // [Doomerfall] Daggerfall exteriors: actor sprites that are not fullbright (trees, flats, monsters) take Daggerfall's
 // flat daylight like the ground, instead of Doom's distance darkening (hw_flats.cpp; owner, 2026-11-27, Q&A 29/30).
 // Dynamic lights still add on top; fullbright frames, fullbright views and the fuzz style are untouched.
+// The converter's door and action models (DFDoorVisual, DFActionVisual) are marked Bright; they take the DFMesh layer's
+// light instead (hw_dfmesh.cpp Ambient: daylight outdoors, sector light / 176 inside), so a door is as dark as its wall.
 void DD_ExteriorGroundLight(FRenderState &state, ELightMode lightmode, int rel, const FColormap &cm, float alpha);	// hw_flats.cpp
+void DD_FlatBaseLight(FRenderState &state, ELightMode lightmode, float brightness, int rel, const FColormap &cm, float alpha);
+bool DD_WeatherMeshLight(float &brightness);	// playsim/dd_weather.cpp
+static bool DD_MeshVisual(AActor *actor)
+{
+	static PClass *door = PClass::FindClass("DFDoorVisual"), *action = PClass::FindClass("DFActionVisual");
+	return actor && ((door && actor->IsKindOf(door)) || (action && actor->IsKindOf(action)));
+}
 static bool DD_SpriteDaylight(HWDrawInfo *di, AActor *actor, bool fullbright, const FRenderStyle &style)
 {
 	return actor && !fullbright && !di->isFullbrightScene() && style.BlendOp != STYLEOP_Shadow;
+}
+static void DD_SpriteLight(FRenderState &state, HWDrawInfo *di, AActor *actor, int rel, const FColormap &cm, float alpha)
+{
+	if (!DD_MeshVisual(actor)) { DD_ExteriorGroundLight(state, di->lightmode, rel, cm, alpha); return; }
+	float b;
+	if (!DD_WeatherMeshLight(b)) b = std::min(1.f, actor->Sector->lightlevel / 176.f);
+	DD_FlatBaseLight(state, di->lightmode, b, rel, cm, alpha);
 }
 
 void HWSprite::DrawSprite(HWDrawInfo *di, FRenderState &state, bool translucent)
@@ -220,7 +236,7 @@ void HWSprite::DrawSprite(HWDrawInfo *di, FRenderState &state, bool translucent)
 	}
 
 	if (!foglayer) SetFog(state, di->Level, di->lightmode, foglevel, rel, di->isFullbrightScene(), &Colormap, additivefog);
-	if (!foglayer && DD_SpriteDaylight(di, actor, fullbright, RenderStyle)) DD_ExteriorGroundLight(state, di->lightmode, rel, Colormap, trans);	// [Doomerfall]
+	if (!foglayer && DD_SpriteDaylight(di, actor, fullbright, RenderStyle)) DD_SpriteLight(state, di, actor, rel, Colormap, trans);	// [Doomerfall]
 	if (foglayer)
 	{
 		state.EnableFog(false);
@@ -272,7 +288,7 @@ void HWSprite::DrawSprite(HWDrawInfo *di, FRenderState &state, bool translucent)
 			if (!foglayer)
 			{
 				SetFog(state, di->Level, di->lightmode, thislight, rel, di->isFullbrightScene(), &thiscm, additivefog);
-				if (DD_SpriteDaylight(di, actor, fullbright, RenderStyle)) DD_ExteriorGroundLight(state, di->lightmode, rel, thiscm, trans);	// [Doomerfall]
+				if (DD_SpriteDaylight(di, actor, fullbright, RenderStyle)) DD_SpriteLight(state, di, actor, rel, thiscm, trans);	// [Doomerfall]
 			}
 			SetSplitPlanes(state, *topplane, *lowplane);
 		}
@@ -1256,6 +1272,7 @@ void HWSprite::Process(HWDrawInfo *di, AActor* thing, sector_t * sector, area_t 
 	fullbright = (thing->flags5 & MF5_BRIGHT) ||
 		((thing->renderflags & RF_FULLBRIGHT) && (!texture || !texture->isFullbrightDisabled()));
 
+	if (fullbright && DD_MeshVisual(thing)) fullbright = false;	// [Doomerfall] lit like the DFMesh layer (DD_SpriteLight)
 	if (fullbright)	lightlevel = 255;
 	else lightlevel = RescaleLightLevel(thing->GetLightLevel(rendersector));
 
