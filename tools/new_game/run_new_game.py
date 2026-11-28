@@ -84,7 +84,7 @@ def doom_window(launcher_log):
 def key(hwnd, vk):
     scan = user32.MapVirtualKeyW(vk, 0)
     user32.PostMessageW(hwnd, WM_KEYDOWN, vk, 1 | (scan << 16))
-    time.sleep(0.07)
+    time.sleep(0.6)  # Held across several Daggerfall frames: on a private desktop it can run at about 4 frames a second.
     user32.PostMessageW(hwnd, WM_KEYUP, vk, 1 | (scan << 16) | (3 << 30))
     time.sleep(0.15)
 

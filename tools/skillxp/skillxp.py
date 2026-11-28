@@ -205,4 +205,106 @@ def check():
     print("-norun exit", code)
 
 
-{"unity": unity, "assemble": assemble, "run": run, "check": check}[sys.argv[1]]()
+FLOW = REVIEW.parent / "skillxp-flow"
+
+
+def flow():
+    """Skill XP in a real New Game (-dfflow) session, as the play folder runs, which run's -dfsynctest character skips:
+    copies the assembled review folder (this worktree's builds) without the DRLA patch (run_new_game.py stops on any
+    "Script error" line, and DRLA prints some), makes a character through run_new_game.py create, and after arrival
+    flow_harness.zs hurts Barons as the player. Passes when Daggerfall's log shows Skill XP added three times."""
+    FLOW.mkdir(parents=True, exist_ok=True)
+    for name in ("uzdoom", "dfu", "data"):
+        if (FLOW / name).exists():
+            shutil.rmtree(FLOW / name)
+        shutil.copytree(REVIEW / name, FLOW / name, ignore=shutil.ignore_patterns("PortableAppdata", "work"))
+    for name in ("doomerfall-launcher.exe", "dfitems.pk3", "doomerfall.pk3"):
+        shutil.copy2(REVIEW / name, FLOW / name)
+    (FLOW / "doomerfall-drla.pk3").unlink(missing_ok=True)
+    harness = FLOW / "flow-harness.pk3"
+    with zipfile.ZipFile(harness, "w") as z:
+        z.writestr("zscript.txt", (HERE / "flow_harness.zs").read_text())
+        z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "SXFlowHarness" }\n')
+    # The whole driver runs on quiet_run's private desktop (--inside-quiet), where it can find Doom's window to click.
+    out = FLOW / "flow-driver.txt"
+    with open(out, "w") as f:
+        # --user-desktop (flow --user-desktop): on the private desktop Daggerfall ran at about 4 frames a second and the
+        # wizard's first confirm box never closed (runs on 2026-11-28 before 7 AM, when AGENTS.md relaxes the rule).
+        where = ["--user-desktop"] if "--user-desktop" in sys.argv else []
+        code = subprocess.call([sys.executable, QUIET, *where, "--timeout", "200", "--", sys.executable, str(REPO / "tools" / "new_game" / "run_new_game.py"),
+                                "create", "--review", str(FLOW), "--inside-quiet", "--uz-flag", "-file", "--uz-flag", str(harness),
+                                "--wait-df", "skillxp: +*3", "--limit", "160"], stdin=subprocess.DEVNULL, stdout=f, stderr=subprocess.STDOUT)
+    print(read(out)[-1500:])
+    run = FLOW / "test-run"
+    print("run_new_game exit", code)
+    for line in read(run / "log-create.txt").splitlines():
+        if line.startswith("SXFLOW") or "Script error" in line:
+            print("uz", line[:200])
+    for path, tag in ((run / "create-uz.log", "uzlog"), (run / "create-df.log", "dflog")):
+        lines = [l for l in read(path).splitlines() if "skillxp" in l or "new game:" in l]
+        print(f"{tag}: {sum('skillxp' in l for l in lines)} skillxp lines")
+        for line in lines[:12]:
+            print(tag, line[:200])
+
+
+def flowload():
+    """Skill XP in a -dfflow session started from a real save, as the owner plays (the New Game wizard driver in flow
+    stalls with current builds): this worktree's builds from the assembled review folder, DRLA, Doom's -loadgame of the
+    find-NPC stage's save (as tools/quest_npcs), and flow_harness.zs hurting Barons as the player after the load."""
+    FLOW.mkdir(parents=True, exist_ok=True)
+    stage = Path(r"D:\dev\DoomDaggerfall-loop\review\findnpc-stage")
+    # The save's own stage data (converter, cache, runtime package): with the older looklabel data Doom stopped after the load.
+    for name, source in (("uzdoom", REVIEW / "uzdoom"), ("dfu", REVIEW / "dfu"), ("data", stage / "data")):
+        if (FLOW / name).exists():
+            shutil.rmtree(FLOW / name)
+        shutil.copytree(source, FLOW / name, ignore=shutil.ignore_patterns("PortableAppdata", "work"))
+    for name in ("doomerfall-launcher.exe", "dfitems.pk3", "doomerfall.pk3", "doomerfall-drla.pk3"):
+        shutil.copy2(REVIEW / name, FLOW / name)
+    runs = FLOW / "load-run"
+    shutil.rmtree(runs, ignore_errors=True)
+    (runs / "saves").mkdir(parents=True)
+    shutil.copy2(Path(r"D:\dev\DoomDaggerfall-loop\review\findnpc-stage\run\saves\save18.zds"), runs / "saves" / "start.zds")
+    harness = runs / "flow-harness.pk3"
+    with zipfile.ZipFile(harness, "w") as z:
+        z.writestr("zscript.txt", (HERE / "flow_harness.zs").read_text())
+        z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "SXFlowHarness" }\n')
+    uz_log, df_log, console, launcher = runs / "uz.log", runs / "df.log", runs / "log-flow.txt", runs / "launcher.log"
+    data = FLOW / "data"
+    uz = ["-noactivate", "-dfflow", "-config", str(runs / "flow.ini"), "-savedir", str(runs / "saves"), "-dfbridgelog", str(uz_log), "-nosound",
+          "-ddtowncache", str(data / "cache"), "-ddconverter", str(data / "converter" / "DungeonConverter.exe"), "-ddarena2", str(GAME / "DAGGER" / "ARENA2"),
+          "+logfile", "flow", "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1",
+          # Loaded from Doom's console 20 s in, as a player loads from the title once Daggerfall is ready behind it.
+          # -loadgame at startup raced Daggerfall's flow boot, which then set its menu phase and Doom froze the level.
+          "+vid_lowerinbackground", "0", "+wait 700;load start.zds"]
+    df = ["-dfflow", str(GAME / "DAGGER"), "-dfbridgelog", str(df_log), "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
+    command = [sys.executable, QUIET, "--timeout", "170", "--", str(FLOW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
+               "--uzdoom", str(FLOW / "uzdoom" / "uzdoom.exe"), "--dfu", str(FLOW / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
+               "--uzdoom-cwd", str(runs), "--log", str(launcher)]
+    for mod in [MODS / n for n in DRLA] + [data / n for n in DATA] + [FLOW / "dfitems.pk3", FLOW / "doomerfall.pk3", FLOW / "doomerfall-drla.pk3", harness]:
+        command += ["--mod", str(mod)]
+    for arg in uz:
+        command += ["--uzdoom-arg", arg]
+    for arg in df:
+        command += ["--dfu-arg", arg]
+    proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    end = time.time() + 165
+    while time.time() < end and proc.poll() is None:
+        if "SXFLOWDONE" in read(console) or any(k in read(console) for k in FATAL):
+            time.sleep(2)
+            break
+        time.sleep(1)
+    if proc.poll() is None:
+        subprocess.call(["taskkill", "/F", "/T", "/PID", str(proc.pid)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        proc.wait()
+    for line in read(console).splitlines():
+        if line.startswith("SXFLOW") or any(k in line for k in FATAL):
+            print("uz", line[:200])
+    sent = [l for l in read(uz_log).splitlines() if "skillxp:" in l]
+    got = [l for l in read(df_log).splitlines() if "skillxp:" in l or "flow:" in l or "load" in l.split(" ", 1)[-1][:5]]
+    print(f"uzlog skillxp lines {len(sent)}")
+    print("\n".join("uzlog " + l[:200] for l in sent[:8]))
+    print(f"dflog skillxp lines {sum('skillxp:' in l for l in got)}")
+    print("\n".join("dflog " + l[:200] for l in got[:14]))
+
+
+{"unity": unity, "assemble": assemble, "run": run, "check": check, "flow": flow, "flowload": flowload}[sys.argv[1]]()

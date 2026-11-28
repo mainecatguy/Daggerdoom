@@ -100,7 +100,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         internal static void OnEvent(DoomerfallBridge owner, uint xp, int skill, uint uses)
         {
             PlayerEntity player = GameManager.HasInstance ? GameManager.Instance.PlayerEntity : null;
-            if (player == null || DoomerfallNewGame.HoldsNewCharacter)
+            // HoldingCharacter, not HoldsNewCharacter: the latter is true for a whole -dfflow session (every real game
+            // started from Doom's New Game or Load), which dropped all Skill XP in play.
+            if (player == null || DoomerfallNewGame.HoldingCharacter)
                 return;
             if (xp > 0)
                 player.SkillXp = (int)Math.Min((long)player.SkillXp + Math.Min(xp, 1000000u), int.MaxValue);
