@@ -36,6 +36,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         /// <summary>True in a flow session. StartGameBehaviour then waits for Doom before starting the game.</summary>
         public static bool HoldsNewCharacter { get { return instance != null; } }
 
+        /// <summary>True only while a finished new character is held, waiting for Doom to arrive (CharacterPlaced to
+        /// OnArrived). Unlike HoldsNewCharacter, false during normal play in a flow session.</summary>
+        public static bool HoldingCharacter { get { return instance != null && instance.holding; } }
+
         /// <summary>Daggerfall's enemies stay out of a Doomerfall start, because Doom owns the monsters.</summary>
         public static bool ImportEnemies { get { return instance == null; } }
 
