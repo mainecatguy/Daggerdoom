@@ -31,6 +31,7 @@
 
 #include "a_dynlight.h"
 #include "dd_lootrng.h" // [Doomerfall]
+#include "dd_shotsource.h" // [Doomerfall]
 #include "a_keys.h"
 #include "a_morph.h"
 #include "a_sharedglobal.h"
@@ -5579,6 +5580,7 @@ void ConstructActor(AActor *actor, const DVector3 &pos, bool SpawningMapThing)
 	actor->UpdateWaterLevel (false);
 	DD_LootInherit(actor); // [Doomerfall] no-op unless a fixed loot roll is running
 	DD_SpawnerHandoff(actor); // [Doomerfall] no-op unless a DRLA spawner holding a placed monster's id made it
+	DD_ShotSourceSpawned(actor); // [Doomerfall] which actor spawned it; no-op outside bridge sessions
 	if (!SpawningMapThing)
 	{
 		actor->CallBeginPlay ();
@@ -5823,6 +5825,7 @@ void AActor::CallPostBeginPlay()
 {
 	if (DD_LootVanish(this)) return; // [Doomerfall] a summoned monster's drop is removed before anyone sees it
 	DDLootScope lootScope(this); // [Doomerfall] fixed loot
+	DDShotScope shotScope(this); // [Doomerfall] shot parent (dd_shotsource.cpp)
 	Super::CallPostBeginPlay();
 	Level->localEventManager->WorldThingSpawned(this);
 }
@@ -7101,6 +7104,7 @@ DEFINE_ACTION_FUNCTION(AActor, SpawnPuff)
 
 AActor *P_SpawnBlood (const DVector3 &pos1, DAngle dir, int damage, AActor *originator)
 {
+	DDShotScope shotScope(nullptr); // [Doomerfall] no shot parent for spawns here (dd_shotsource.cpp)
 	AActor *th = nullptr;
 	PClassActor *bloodcls = originator->GetBloodType();
 	DVector3 pos = pos1;
@@ -7215,6 +7219,7 @@ DEFINE_ACTION_FUNCTION(AActor, SpawnBlood)
 
 void P_BloodSplatter (const DVector3 &pos, AActor *originator, DAngle hitangle)
 {
+	DDShotScope shotScope(nullptr); // [Doomerfall] no shot parent for spawns here (dd_shotsource.cpp)
 	PClassActor *bloodcls = originator->GetBloodType(1);
 
 	int bloodtype = cl_bloodtype;
@@ -7254,6 +7259,7 @@ void P_BloodSplatter (const DVector3 &pos, AActor *originator, DAngle hitangle)
 
 void P_BloodSplatter2 (const DVector3 &pos, AActor *originator, DAngle hitangle)
 {
+	DDShotScope shotScope(nullptr); // [Doomerfall] no shot parent for spawns here (dd_shotsource.cpp)
 	PClassActor *bloodcls = originator->GetBloodType(2);
 
 	int bloodtype = cl_bloodtype;
@@ -7307,6 +7313,7 @@ DEFINE_ACTION_FUNCTION(AActor, BloodSplatter)
 
 void P_RipperBlood (AActor *mo, AActor *bleeder)
 {
+	DDShotScope shotScope(nullptr); // [Doomerfall] no shot parent for spawns here (dd_shotsource.cpp)
 	PClassActor *bloodcls = bleeder->GetBloodType();
 
 	double xo = pr_ripperblood.Random2() / 16.;

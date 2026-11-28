@@ -316,6 +316,7 @@ EXTERN_CVAR (Int, fraglimit)
 
 void DD_BridgeMonsterDied(AActor *mo); // [Doomerfall]
 #include "dd_lootrng.h" // [Doomerfall]
+#include "dd_shotsource.h" // [Doomerfall]
 
 void AActor::Die (AActor *source, AActor *inflictor, int dmgflags, FName MeansOfDeath)
 {
@@ -800,6 +801,7 @@ void AActor::CallDie(AActor *source, AActor *inflictor, int dmgflags, FName Mean
 {
 	DD_LootDied(this); // [Doomerfall] fixed loot: zero unless it has a Daggerfall id
 	DDLootScope lootScope(this);
+	DDShotScope shotScope(this); // [Doomerfall] shot parent (dd_shotsource.cpp)
 	IFVIRTUAL(AActor, Die)
 	{
 		VMValue params[] = { (DObject*)this, source, inflictor, dmgflags, MeansOfDeath.GetIndex() };
@@ -1581,6 +1583,7 @@ static int DamageMobj (AActor *target, AActor *inflictor, AActor *source, int da
 
 static int DoDamageMobj(AActor *target, AActor *inflictor, AActor *source, int damage, FName mod, int flags, DAngle angle)
 {
+	DDShotScope shotScope(nullptr); // [Doomerfall] no shot parent for spawns here (dd_shotsource.cpp)
 	// [ZZ] event handlers need the result.
 	bool needevent = true;
 	int realdamage = DamageMobj(target, inflictor, source, damage, mod, flags, angle, needevent);
@@ -1610,6 +1613,7 @@ DEFINE_ACTION_FUNCTION(AActor, DamageMobj)
 
 int P_DamageMobj(AActor *target, AActor *inflictor, AActor *source, int damage, FName mod, int flags, DAngle angle)
 {
+	DDShotScope shotScope(nullptr); // [Doomerfall] no shot parent for spawns here (dd_shotsource.cpp)
 	IFVIRTUALPTR(target, AActor, DamageMobj)
 	{
 		VMValue params[7] = { target, inflictor, source, damage, mod.GetIndex(), flags, angle.Degrees() };

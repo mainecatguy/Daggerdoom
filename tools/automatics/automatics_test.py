@@ -195,8 +195,11 @@ def analyse(name, lines, checks, held=False):
     helpers = [l for l in lines if "AUTOTEST helper" in l]
     if name == "drla":
         check("DRLA recoil/reload helper actors appeared while firing", any("trigger=1" in l for l in helpers), helpers[:3])
-    counted = [l for l in lines if re.search(r"(automatics: projectile|shots: tag) \S*Recoil", l)]
-    check(f"no helper actor counted as a shot or tagged ({len(helpers)} spawned)", not counted, counted[:3])
+    # A helper may hold a carrier tag (DoomerfallShots: not a shot, it only passes the held gun on to what the helper
+    # spawns; Tag and Find ignore it), never a shot tag, and is never counted as a burst shot.
+    counted = [l for l in lines if re.search(r"automatics: projectile \S*Recoil", l)
+               or (re.search(r"shots: tag \S*Recoil", l) and not l.rstrip().endswith(" carrier"))]
+    check(f"no helper actor counted as a shot or given a shot tag ({len(helpers)} spawned)", not counted, counted[:3])
     sources(name, lines, check)
     return cases
 
