@@ -532,7 +532,8 @@ class DFDoorCheck : EventHandler
 			p.A_SetSize(10.5, p.height); // the real game's width (overworld.pk3, ddruntime.pk3); stock Doom's 16 is not a game setup
 			Console.Printf("DTSTART doors=%d nodes=%d radius=%.2f height=%.1f", rows.Size(), nodeX.Size(), p.radius, p.height);
 			parking = p.pos;
-			widthImp = Actor.Spawn("DoomImp", parking, NO_REPLACE);
+			class<Actor> kind = CVar.FindCVar("dt_monster").GetString(); // DoomImp unless a check asks for another
+			widthImp = Actor.Spawn(kind, parking, NO_REPLACE);
 			if (widthImp) { widthImp.Deactivate(null); widthImp.bNOGRAVITY = true; widthImp.bSOLID = false; }
 			ClosedChecks(p);
 			p.SetOrigin(parking, false);
