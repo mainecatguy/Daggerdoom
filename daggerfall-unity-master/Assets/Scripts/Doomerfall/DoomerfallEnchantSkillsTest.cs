@@ -121,9 +121,48 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             {
                 DFCareer.Skills s = (DFCareer.Skills)e.ClassicParam;
                 yield return LiveCheck("marked " + Name(s), new[] { e }, s);
+                InfoCheck("ring", ItemBuilder.CreateItem(ItemGroups.Jewellery, (int)Jewellery.Ring), e, s);
+                InfoCheck("amulet", ItemBuilder.CreateItem(ItemGroups.Jewellery, (int)Jewellery.Amulet), e, s);
+                InfoCheck("clothing", ItemBuilder.CreateRandomClothing(P.Gender, P.Race), e, s);
             }
 
             Log(string.Format("DONE passed {0} failed {1}", passed, failed));
+        }
+
+        // An item carrying only a marked power (stored as a custom enchantment, no classic powers): its %mpw list and its
+        // info popup text (ItemHelper.GetItemInfo, expanded as the inventory's popup does) must name the skill.
+        void InfoCheck(string kind, DaggerfallUnityItem item, EnchantmentSettings power, DFCareer.Skills skill)
+        {
+            string what = string.Format("marked {0} {1} info", Name(skill), kind);
+            try
+            {
+                item.SetEnchantments(new[] { power }, P);
+                item.IdentifyItem();
+                string mpw = string.Join(" | ", item.GetMacroDataSource().MagicPowers(DaggerfallConnect.Arena2.TextFile.Formatting.Nothing)
+                    .Where(t => !string.IsNullOrEmpty(t.text)).Select(t => t.text).ToArray());
+                Check(what + " %mpw", mpw.Contains(Name(skill)), mpw);
+                string info = Popup(item);
+                // Control: the same kind of item with a classic power (Enhances Medical). Where Daggerfall's popup lists
+                // classic powers, it must list the marked one too; where it lists none, it must still open.
+                DaggerfallUnityItem control = ItemBuilder.CreateItem(item.ItemGroup, item.TemplateIndex);
+                control.SetEnchantments(new[] { Legacy((short)DFCareer.Skills.Medical) }, P);
+                control.IdentifyItem();
+                bool listsPowers = Popup(control).Contains(Name(DFCareer.Skills.Medical));
+                Check(what + " popup", listsPowers ? info.Contains(Name(skill)) : info.Length > 0,
+                    (listsPowers ? "classic powers listed; " : "this popup lists no powers, classic or marked; ") + info);
+            }
+            catch (Exception ex)
+            {
+                Check(what, false, ex.GetType().Name + ": " + ex.Message);
+            }
+        }
+
+        // The inventory's info popup text: ItemHelper.GetItemInfo, expanded with the item as the macro source.
+        static string Popup(DaggerfallUnityItem item)
+        {
+            DaggerfallConnect.Arena2.TextFile.Token[] tokens = ItemHelper.GetItemInfo(item, DaggerfallUnity.Instance.TextProvider);
+            DaggerfallWorkshop.Utility.MacroHelper.ExpandMacros(ref tokens, item);
+            return string.Join(" | ", tokens.Where(t => !string.IsNullOrEmpty(t.text)).Select(t => t.text).ToArray());
         }
 
         static EnchantmentSettings Legacy(short param)
