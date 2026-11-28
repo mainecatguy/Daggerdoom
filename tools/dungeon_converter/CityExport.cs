@@ -163,7 +163,8 @@ static partial class Program
             if (ddtPath != null)
             {
                 scene.WriteRuntimeEntry(ddtPath, wad, town.ToString(), mapName);
-                File.Delete(wad);
+                if (args.Contains("--fidelity")) File.WriteAllText(Path.Combine(outDir, slug + ".gates.txt"), string.Join("\n", scene.GatePlacements) + "\n"); // the door check reads the map, doors and gates
+                else File.Delete(wad);
             }
             else scene.WritePackage(package, location, metadata, town.ToString(), mapName);
 
@@ -176,7 +177,7 @@ static partial class Program
                 $"sectors {map.Sectors} (city {map.CitySectors}, terrain {map.TerrainSectors}) lines {map.Lines} vertices {map.Vertices}\nstart {map.StartX},{map.StartY}\nwad {(File.Exists(wad) ? new FileInfo(wad).Length / 1024 : 0)} KiB\nmesh package {new FileInfo(package).Length / 1024} KiB\nconvert time {clock.ElapsedMilliseconds} ms\n");
             File.WriteAllText(Path.Combine(outDir, slug + ".stats.txt"), report);
             Console.WriteLine(report);
-            if (args.Contains("--fidelity")) File.WriteAllText(Path.Combine(outDir, slug + ".tops.txt"), Collision.TopSamples(rasters, 300));
+            if (args.Contains("--fidelity")) { File.WriteAllText(Path.Combine(outDir, slug + ".tops.txt"), Collision.TopSamples(rasters, 300)); File.WriteAllText(Path.Combine(outDir, slug + ".doors.txt"), string.Join("\n", scene.DoorLines) + "\n"); }
             if (args.Contains("--fidelity")) { string fidelity = Collision.Fidelity(rasters, scene.Colliders, scene.ColliderOwners); File.WriteAllText(Path.Combine(outDir, slug + ".fidelity.txt"), fidelity); Console.Write(fidelity); }
             if (ddtPath != null) return 0; // A missing prop is reported above and does not stop the player from entering.
             return scene.BadTextures == 0 && scene.Missing == 0 && heightsPass ? 0 : 1;
