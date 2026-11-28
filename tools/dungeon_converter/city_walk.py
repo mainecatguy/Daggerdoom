@@ -11,6 +11,8 @@ import sys
 
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 UZDOOM = r"D:\dev\DoomDaggerfall-build\uzdoom-mesh\Release\uzdoom.exe"
+if not os.path.exists(UZDOOM):
+    UZDOOM = r"D:\dev\DoomDaggerfall-build\uzdoom\Release\uzdoom.exe"
 IWAD = r"D:\dev\DoomDaggerfall\GameResources\wads\DOOM2.WAD"
 
 ZSCRIPT = """version "4.10"
@@ -95,6 +97,7 @@ parser.add_argument("dir")
 parser.add_argument("--routes", default="north,east,south,west")
 parser.add_argument("--seconds", type=int, default=30)
 parser.add_argument("--slug", default="daggerfall_city")
+parser.add_argument("--no-mesh", action="store_true", help="load only the collision map (the walk already ignores gate leaves)")
 parser.add_argument("--resume", default="", help="start routes at a waypoint, as name=index,name=index, to keep each launch short")
 args = parser.parse_args()
 resume = {k: v for k, v in (pair.split("=") for pair in args.resume.split(",") if pair)}
@@ -131,7 +134,7 @@ for name in args.routes.split(","):
     if os.path.exists(log):
         os.remove(log)
     command = [sys.executable, QUIET, "--timeout", str(args.seconds + 15), "--cwd", work, "--", UZDOOM,
-               "-iwad", IWAD, "-file", os.path.join(base, args.slug + ".wad"), os.path.join(base, args.slug + "_mesh.pk3"), harness,
+               "-iwad", IWAD, "-file", os.path.join(base, args.slug + ".wad")] + ([] if args.no_mesh else [os.path.join(base, args.slug + "_mesh.pk3")]) + [harness,
                "-config", os.path.join(work, "doom.ini"), "-noactivate", "-nosound", "-nomonsters", "-skill", "3",
                "+vid_fullscreen", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0",
                "+logfile", name, "+map", "MAP01", "+exec", "run.cfg"]

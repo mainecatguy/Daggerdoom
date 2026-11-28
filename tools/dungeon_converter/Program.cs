@@ -76,7 +76,7 @@ static partial class Program
         if (args.Contains("--world")) return WorldTerrain.RunExport(args); // shared height data for the overworld and town maps
         if (args.Contains("--runtime-assets")) return City.RuntimeAssets(args); // the shared package for locations converted during play
         if (IsRuntimeDungeonGroup(args)) return RunRuntimeDungeon(args); // RuntimeDungeon.cs: one dungeon for the running game
-        if (args.Contains("--city") || args.Contains("--group")) return City.Run(args); // cities have their own pipeline in CityExport.cs
+        if (args.Contains("--city") || args.Contains("--group") || args.Contains("--find-group")) return City.Run(args); // cities have their own pipeline in CityExport.cs
         string name = null, outDir = null, arena2 = @"D:\dev\DoomDaggerfall\GameResources\DAGGER\ARENA2";
         if (args.Contains("--list-water")) return ListWater(arena2);
         if (args.Contains("--pickup-lean-survey")) return PickupLeanSurvey(Array.IndexOf(args, "--arena2") is int pa && pa >= 0 ? args[pa + 1] : arena2); // PickupExport.cs
@@ -98,6 +98,8 @@ static partial class Program
             else if (args[a] == "--world-scale") PlayerScale.DoomUnitsPerDaggerfallUnit = double.Parse(args[++a], CultureInfo.InvariantCulture);
             else if (args[a] == "--daggerfall-player") PlayerScale.DaggerfallBody = true; // opt-in: scaled Daggerfall body and <slug>_player.pk3
             else if (args[a] == "--parity") parityDir = args[++a]; // writes the Doom test lump, or compares if doom_flood.txt exists there
+            else if (args[a] == "--fidelity") fidelityDir = args[++a]; // test only: collision fidelity metric (Fidelity.cs)
+            else if (args[a] == "--fidelity-cache") fidelityCache = args[++a]; // its cached Daggerfall side, per dungeon
             else if (args[a] == "--debug-row") debugRow = args[++a];
             else if (args[a] == "--debug-line") debugLine = args[++a]; // x0,y0,x1,y1,z0,z1: raw hits, spans, and faces along a line
             else if (args[a] == "--audit-points") a += 2;
@@ -182,6 +184,7 @@ static partial class Program
         File.WriteAllText(Path.Combine(outDir, slug + ".points.txt"), points);
         WriteWaterProbes(outDir, slug, nodes[start]);
         if (PlayerScale.DaggerfallBody) PlayerScale.WritePackage(outDir, slug);
+        if (fidelityDir != null) return RunFidelity(Path.Combine(outDir, slug + ".wad"), slug, entrance);
         if (parityDir != null) return RunParity(parityDir, entrance);
         WriteStats(Path.Combine(outDir, slug + ".stats.txt"), name, location, nodes, edges, start, walled, mapStats);
         File.AppendAllText(Path.Combine(outDir, slug + ".stats.txt"), fitReport);

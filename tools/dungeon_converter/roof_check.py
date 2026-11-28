@@ -14,6 +14,8 @@ import sys
 
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 UZDOOM = r"D:\dev\DoomDaggerfall-build\uzdoom-mesh\Release\uzdoom.exe"
+if not os.path.exists(UZDOOM):
+    UZDOOM = r"D:\dev\DoomDaggerfall-build\uzdoom\Release\uzdoom.exe"
 IWAD = r"D:\dev\DoomDaggerfall\GameResources\wads\DOOM2.WAD"
 
 ZSCRIPT = """version "4.10"
@@ -146,6 +148,8 @@ parser.add_argument("dir")
 parser.add_argument("--slug", default="daggerfall_city")
 parser.add_argument("--drops", type=int, default=40)
 parser.add_argument("--map", default="MAP01")
+parser.add_argument("--no-mesh", action="store_true", help="load only the collision map")
+parser.add_argument("--timeout", type=int, default=30)
 args = parser.parse_args()
 base = os.path.abspath(args.dir)
 work = os.path.join(base, "roofcheck")
@@ -164,8 +168,8 @@ with open(os.path.join(work, "run.cfg"), "w", newline="\n") as f:
 log = os.path.join(work, "log-roof.txt")
 if os.path.exists(log):
     os.remove(log)
-command = [sys.executable, QUIET, "--timeout", "30", "--cwd", work, "--", UZDOOM, "-iwad", IWAD,
-           "-file", os.path.join(base, args.slug + ".wad"), os.path.join(base, args.slug + "_mesh.pk3"), harness,
+command = [sys.executable, QUIET, "--timeout", str(args.timeout), "--cwd", work, "--", UZDOOM, "-iwad", IWAD,
+           "-file", os.path.join(base, args.slug + ".wad")] + ([] if args.no_mesh else [os.path.join(base, args.slug + "_mesh.pk3")]) + [harness,
            "-config", os.path.join(work, "doom.ini"), "-noactivate", "-nosound", "-nomonsters", "-skill", "3",
            "+vid_fullscreen", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0",
            "+logfile", "roof", "+map", args.map, "+exec", "run.cfg"]

@@ -84,6 +84,7 @@ static partial class Program
             {
                 roofPlane = new int[W * H];
                 Array.Fill(roofPlane, -1);
+                insideBuilding = new bool[W * H];
                 var bestZ = new double[W * H];
                 Array.Fill(bestZ, double.MinValue);
                 var byOwner = new Dictionary<int, List<int>>();
@@ -175,6 +176,7 @@ static partial class Program
                         int gi = q % lw + li0, gj = q / lw + lj0;
                         if (gi < 0 || gj < 0 || gi >= W || gj >= H) continue;
                         int g = gi + gj * W;
+                        insideBuilding[g] = true;
                         if (floor[g] != short.MinValue) { OpenFootprintCells++; continue; } // streets, doorways, and arches stay open
                         if (plane[q] < 0)
                         {
