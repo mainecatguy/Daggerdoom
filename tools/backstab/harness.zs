@@ -177,6 +177,7 @@ class BSHarness : StaticEventHandler
 		// back to back: the real gun, one click aimed away (it hears it), then turned to it and a second click
 		case 23:
 			Reset(true);
+			{ let w = players[0].ReadyWeapon; if (w && w.Ammo1) w.Ammo1.Amount = max(w.Ammo1.Amount, w.Ammo1.MaxAmount); } // a full magazine
 			p.angle = aim + 90;
 			timer = -60;
 			wait = mon.health;
