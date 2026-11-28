@@ -8,6 +8,7 @@ and data made by this checkout's converter (scripts/play/install.py make_data) i
 --rates also passes -dfshoplevelrates (1,000 weapon smith and armorer shelves at several levels).
 --ledger passes -dfshopledgertest and prints its lines (shops 5).
 --lots passes -dfshoplotstest and prints its lines (shops 7).
+--identity passes -dfshopidentitytest and prints its lines (shops 6: survey of shop identities).
 --buildinglevels passes -dfbuildingleveltest and prints its lines: the level inside each building entered (shop levels 4).
 --review DIR assembles into or runs from another demo folder; assemble copies the data from the default folder if DIR has none.
 """
@@ -139,7 +140,8 @@ class SLDemoStart : StaticEventHandler
     if kind == "GeneralStore":
         about = ("rem Shop shelves roll at the shop's level. Town start with DRLA, facing a general store. Go in and Use a shelf.\r\n"
                  "rem Daggerfall writes the shop's level for each restock to play\\df.log (\"shop restock: ... at shop level N\").\r\n"
-                 "rem Shelves are a ledger: each day cheap goods sell off fast and pricey goods slowly, and new deliveries top the shelves up.\r\n"
+                 "rem Shelves are a ledger: each day cheap goods sell off fast and pricey goods slowly. Each shop has a fixed identity (lean,\r\n"
+                 "rem breadth, trickle or big-delivery rhythm, regular suppliers); goods arrive on its delivery days, Doom ammo daily.\r\n"
                  "rem Sell something to the shopkeeper: it goes on a shelf. Rest a few days and look again (play\\df.log has \"shop ledger:\" lines).\r\n")
     else:
         about = (f"rem Houses and guild halls roll loot at a level from their own quality. Town start with DRLA, facing a {kind}.\r\n"
@@ -154,7 +156,7 @@ class SLDemoStart : StaticEventHandler
         newline="")
 
 
-def run(name, building, rates, stock_mods, building_levels=False, nth=0, ledger=False, lots=False):
+def run(name, building, rates, stock_mods, building_levels=False, nth=0, ledger=False, lots=False, identity=False):
     runs = REVIEW / "run" / name
     if runs.exists():
         shutil.rmtree(runs)
@@ -167,11 +169,11 @@ def run(name, building, rates, stock_mods, building_levels=False, nth=0, ledger=
         z.writestr("zscript.txt", text)
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "SMHarness" }\n')
     uz = ["-noactivate", "-nosound", "-noautoload", "-dfbridgelog", str(uz_log), "+logfile", name, "+wipetype", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0"]
-    df = ["-dfbridgelog", str(df_log), "-dfshoptest", "-screen-width", "640", "-screen-height", "360"] + (["-dfshoplevelrates"] if rates else []) + (["-dfshopledgertest"] if ledger else []) + (["-dfshoplotstest"] if lots else [])
+    df = ["-dfbridgelog", str(df_log), "-dfshoptest", "-screen-width", "640", "-screen-height", "360"] + (["-dfshoplevelrates"] if rates else []) + (["-dfshopledgertest"] if ledger else []) + (["-dfshoplotstest"] if lots else []) + (["-dfshopidentitytest"] if identity else [])
     if building_levels:
         df += ["-dfbuildingleveltest", str(runs / "buildings.log")]
     args = launch_args(runs, uz, df, stock_mods) + ["--mod", str(harness), "--minimized", "--log", str(runs / "launcher.log")]
-    timeout = 600 if (ledger or lots) else 120
+    timeout = 600 if (ledger or lots or identity) else 120
     proc = subprocess.Popen([sys.executable, QUIET, "--timeout", str(timeout), "--", str(REVIEW / "doomerfall-launcher.exe")] + args,
                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     reason, end = "timeout", time.time() + timeout + 3
@@ -179,7 +181,7 @@ def run(name, building, rates, stock_mods, building_levels=False, nth=0, ledger=
         time.sleep(0.25)
         body = read(console)
         dflog = read(df_log)
-        if "NDDONE" in body and (not rates or "shoplevelrates: done" in dflog) and (not ledger or "shopledger: done" in dflog or "shopledger: FAILED" in dflog) and (not lots or "shoplots: done" in dflog or "shoplots: FAILED" in dflog):
+        if "NDDONE" in body and (not rates or "shoplevelrates: done" in dflog) and (not ledger or "shopledger: done" in dflog or "shopledger: FAILED" in dflog) and (not lots or "shoplots: done" in dflog or "shoplots: FAILED" in dflog) and (not identity or "shopidentity: done" in dflog or "shopidentity: FAILED" in dflog):
             reason = "route finished"
             time.sleep(1)
             break
@@ -194,7 +196,7 @@ def run(name, building, rates, stock_mods, building_levels=False, nth=0, ledger=
         if re.match(r"ND[A-Z]+ ", line) or any(k in line for k in FATAL):
             print(line[:190])
     for line in read(df_log).splitlines():
-        if re.search(r"shop restock:|interior layout:|shoplevelrates:|shopledger:|shop ledger:|shoplots:|items: (restored|closed)|shoptest: (Weapon|General|window|bought)|error", line):
+        if re.search(r"shop restock:|interior layout:|shoplevelrates:|shopledger:|shop ledger:|shoplots:|shopidentity:|items: (restored|closed)|shoptest: (Weapon|General|window|bought)|error", line):
             print("df", line[:1500])
     for line in read(runs / "buildings.log").splitlines():
         print("df", line[:1500])
@@ -213,6 +215,7 @@ ap.add_argument("--stock-mods", action="store_true")
 ap.add_argument("--buildinglevels", action="store_true")
 ap.add_argument("--ledger", action="store_true", help="also pass -dfshopledgertest (shops 5: months of simulated restocks)")
 ap.add_argument("--lots", action="store_true", help="also pass -dfshoplotstest (shops 7: lot and exception survey)")
+ap.add_argument("--identity", action="store_true", help="also pass -dfshopidentitytest (shops 6: survey of shop identities)")
 ap.add_argument("--nth", type=int, default=0, help="which door of that building type (0 = first), for run and the demo")
 ap.add_argument("--demo-building", default="GeneralStore", help="assemble: building type the demo starts facing")
 ap.add_argument("--review", help="demo folder to assemble into or run from (default: the shop shelves demo)")
@@ -223,4 +226,4 @@ if args.review:
 if args.command == "assemble":
     assemble()
 else:
-    run(args.name, args.building, args.rates, args.stock_mods, args.buildinglevels, args.nth, args.ledger, args.lots)
+    run(args.name, args.building, args.rates, args.stock_mods, args.buildinglevels, args.nth, args.ledger, args.lots, args.identity)
