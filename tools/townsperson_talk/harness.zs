@@ -76,7 +76,7 @@ class TTHarness : StaticEventHandler
 			else if (timer <= 20) StandBefore(p, folk[talked], 48, timer == 1);
 			if (timer == 20)
 			{
-				// The last one is used crouching (Doom's Use sends Steal then): a townsperson must still just talk.
+				// The last one is used crouching (Doom's Use sends Steal then): Daggerfall's pickpocket attempt.
 				bool crouch = talked == PEOPLE - 1;
 				if (crouch) players[0].crouchfactor = 0.5;
 				Console.Printf("TTPRESS townsperson %d%s", talked, crouch ? " crouching" : "");

@@ -11,8 +11,11 @@
 // same person again continues Daggerfall's "same talk partner" rules and its rolls for that person. The stand-ins
 // belong to the game in progress: they are dropped when a game starts and when a load begins.
 //
-// Use on a townsperson always talks, crouching or not. Pickpocketing townspeople (Daggerfall's Steal on a wanderer)
-// is not part of this feature and stays off.
+// Use on a townsperson talks. Crouching Use (Steal) pickpockets them through Daggerfall's own Steal on a wanderer: once
+// per person (the stand-in keeps Daggerfall's PickpocketByPlayerAttempted), with its reach, roll, Pickpocket tally,
+// gold, and on a failure its Pickpocketing crime and city guards. Outdoors those guards are not relayed to Doom yet
+// (DoomerfallGuards relays interior guards only), so none appear. A stand-in, and with it the "already tried" mark, is
+// dropped on a load, a new game, or once MaxStandIns exist.
 
 using System.Collections.Generic;
 using DaggerfallWorkshop.Game.Entity;
@@ -87,10 +90,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (!sync.LoadRunning && GameManager.HasInstance && sync.InGame && !GameManager.IsGamePaused)
             {
                 if ((id >> 61) == Dfb.TOWNSPERSON_TAG)
-                {
                     mobile = StandIn(id);
-                    activateMode = PlayerActivateModes.Grab; // talk only; townsperson pickpocketing is not enabled
-                }
                 else
                     npc = DoomerfallNpcs.FindNpc(id);
                 name = npc ? npc.DisplayName : mobile ? mobile.NameNPC : "none";
@@ -127,7 +127,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             };
             bridge.Send(ref e);
             bridge.LogLine(string.Format("talk: use {0} on {1:x16} ({2}, {3:F2} m): {4}{5}, status {6}{7}", request, id, activateMode,
-                meters, name, mobile ? (mode == Dfb.TAKE_STEAL ? " (townsperson, crouching: talks)" : " (townsperson)") : "", status, status == Dfb.NPC_USE_REFUSED ? RefusedBecause() : ""));
+                meters, name, mobile ? (mode == Dfb.TAKE_STEAL ? " (townsperson, crouching: pickpocket)" : " (townsperson)") : "", status, status == Dfb.NPC_USE_REFUSED ? RefusedBecause() : ""));
         }
 
         static void Activate(StaticNPC npc, MobilePersonNPC mobile, PlayerActivateModes mode, float meters)
@@ -135,7 +135,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (npc)
                 GameManager.Instance.PlayerActivate.DoomerfallUseNpc(npc, mode, meters);
             else
-                GameManager.Instance.PlayerActivate.DoomerfallTalkToMobileNpc(mobile, meters);
+                GameManager.Instance.PlayerActivate.DoomerfallUseMobileNpc(mobile, mode, meters);
         }
 
         // The stand-in for a living townsperson of the current town, or null.

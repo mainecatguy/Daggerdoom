@@ -156,6 +156,10 @@ extern "C" {
 /* Climbing. Doom runs the climb with the DFB_SHEET_CLIMB_* chances and reports each skill roll it made. */
 #define DFB_KIND_CLIMB_USES    170  /* UZ to DF; Daggerfall tallies this many Climbing skill uses; payload: dfb_climb_uses */
 
+/* Running. Doom reports the game time the player spent running (Daggerfall's rule: the run key held while moving);
+   Daggerfall turns that time into Running skill uses at its own rate. */
+#define DFB_KIND_RUN_TIME      169  /* UZ to DF; the player ran this many Doom tics (35 a second); payload: dfb_run_time */
+
 /* Reserve ammo. Daggerfall holds it as stacked inventory items; Doom's ammo inventory is the live counter that guns
    spend. Doom reports each count when it changes, and Daggerfall sends its own changes (drops, trades, piles) as
    numbered deltas. Payloads: dfb_doom_item, cls is Doom's ammo class (Clip, Shell, RocketAmmo, Cell). */
@@ -717,6 +721,12 @@ typedef struct dfb_skill_xp
 	uint32_t uses;        /* uses of that skill since the last event */
 	uint32_t pad;
 } dfb_skill_xp;
+
+typedef struct dfb_run_time
+{
+	uint32_t tics;        /* game tics spent running since the last event */
+	uint32_t pad;
+} dfb_run_time;
 
 typedef struct dfb_npc_use
 {

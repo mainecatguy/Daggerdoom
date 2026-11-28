@@ -15,6 +15,7 @@ check: DOOM.WAD E1M1 with no bridge, stock and with the DRLA set.
       instead; relock picks it and then relocks it with action 20. Every take run also locks a door that starts unlocked
       with action 16. load checks both doors after the load and after leaving and coming back.
 --root is a folder made by scripts/play/install.py (default: the review demo folder). Logs go to <root>/test.
+--skilllog (needs a Daggerfall Unity build with DoomerfallSkillBasicsTest) logs the skill tallies to <root>/test/<tag>-skills.log.
 """
 import re
 import shutil
@@ -100,6 +101,8 @@ def run(name):
     df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
     if name == "take":
         df.append("-dflocktest")
+    if "--skilllog" in sys.argv:  # tools/skillbasics: Daggerfall logs each Lockpicking tally to <runs>/<tag>-skills.log
+        df += ["-dfskillbasicstest", str(runs / f"{tag}-skills.log")]
     timeout = 130 if name == "take" else 60 if name == "entry" else 150
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(ROOT / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                "--uzdoom", str(ROOT / "uzdoom" / "uzdoom.exe"), "--dfu", str(ROOT / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),

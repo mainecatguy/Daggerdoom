@@ -83,6 +83,7 @@ int64_t DD_ResyncStartNs();
 bool DD_ResyncFreeze(FLevelLocals *Level);
 void DD_TownsfolkDied(dfb_session *session, AActor *mo);
 void DD_ClimbFrame(dfb_session *session);
+void DD_RunningFrame(dfb_session *session, uint32_t worldContext); // dd_running.cpp
 void DD_FacesFrame(dfb_session *session);
 bool DD_ClimbNetEvent(dfb_session *session, const char *name);
 bool DD_SkillXpNetEvent(dfb_session *session, const char *name); // dd_skillxp.cpp
@@ -2794,6 +2795,7 @@ void DD_BridgeFrame()
 	DD_NpcsFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
 	DD_TownsfolkFrame(session, ownState.world_context);
 	DD_ClimbFrame(session);
+	DD_RunningFrame(session, ownState.world_context);
 	DD_FacesFrame(session);
 	DD_GuardsFrame(session, ownState.world_context, ownState.space_valid != 0, ownState.space_target);
 	DD_DoorsFrame(ownState.world_context, ownState.space_valid != 0, ownState.space_target);
