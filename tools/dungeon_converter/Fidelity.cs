@@ -55,6 +55,11 @@ static partial class Program
         double dfSeconds = clock.Elapsed.TotalSeconds;
         if (double.IsNaN(entrance.Z) && df.Legal.Length > 0) entrance = new V3(df.Legal[0].x, df.Legal[0].y, df.Legal[0].z); // the flood's seed comes first
         var map = FidMap.Read(wadPath);
+        if (FidExterior)
+        {
+            double zTop = tris.Max(t => Math.Max(t.A.Z, Math.Max(t.B.Z, t.C.Z))) + 8, zBottom = tris.Min(t => Math.Min(t.A.Z, Math.Min(t.B.Z, t.C.Z))) - 8;
+            map.Beyond = (x, y) => meshGrid.VerticalHit(new V3(x, y, zTop), -1, zTop - zBottom) != 0; // any face below: inside Daggerfall's world
+        }
         // Samples are kept in proportion to their tier's weight, each then standing for more area, so the score stays
         // unbiased. Selection hashes the lattice index (faces) or the position (collision), so variants compare alike.
         var coll = map.Samples(FidStep, (ref FSample s) =>
@@ -804,6 +809,8 @@ static partial class Program
         const double BandH = 8, BandW = 64;
         int maxXb;
 
+        public Func<double, double, bool> Beyond; // exteriors: true where Daggerfall has a face at (x, y)
+
         public static FidMap Read(string wadPath)
         {
             var bytes = File.ReadAllBytes(wadPath);
@@ -1048,11 +1055,14 @@ static partial class Program
             Span<double> flo = stackalloc double[16], fhi = stackalloc double[16], blo = stackalloc double[16], bhi = stackalloc double[16];
             Span<int> p1 = stackalloc int[16], p2 = stackalloc int[16];
             int front = l.Front >= 0 && !sectors[l.Front].Control ? l.Front : -1, back = l.Back >= 0 && !sectors[l.Back].Control ? l.Back : -1;
-            // Outdoors every cell has a sector, so a one-sided line is the converted map's outer edge, not an object.
-            if (FidExterior && (front < 0 || back < 0)) return;
+            // Outdoors a one-sided line with no Daggerfall face beyond it is the converted map's outer edge (past the
+            // walkable terrain), not an object. A one-sided line with ground or a model beyond it is measured.
+            bool edgeCandidate = FidExterior && Beyond != null && (front < 0) != (back < 0);
+            double outX = front < 0 ? rx : -rx, outY = front < 0 ? ry : -ry;
             for (int k = 0; k < pieces; k++)
             {
                 double f = (k + 0.5) / pieces, x = l.AX + dx * f, y = l.AY + dy * f;
+                if (edgeCandidate && !Beyond(x + outX * 12, y + outY * 12)) continue;
                 int nf = Free(front, x, y, flo, fhi, p1, p2), nb = Free(back, x, y, blo, bhi, p1, p2);
                 // Wall where one side is open and the other solid.
                 Emit(flo, fhi, nf, blo, bhi, nb, x, y, rx, ry, clsFront, piece, step, admit, into);
