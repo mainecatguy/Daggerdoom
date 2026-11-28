@@ -32,7 +32,7 @@ def main():
     uz = ["-config", "%HERE%water\\uzdoom.ini", "-savedir", "%HERE%water\\saves", "-dfbridgelog", "%HERE%water\\uz.log",
           "-ddtowncache", "%DATA%\\cache", "-ddconverter", "%DATA%\\converter\\DungeonConverter.exe", "-ddarena2", GAME + "\\DAGGER\\ARENA2",
           "-skill", "3", "+map", "DDOVER01", "+vid_fullscreen", "0", "+i_pauseinbackground", "0"]
-    df = ["-dfbridgelog", "%HERE%water\\df.log", "-dfsynctest", GAME + "\\DAGGER", "-screen-fullscreen", "0", "-screen-width", "1280",
+    df = ["-dfbridgelog", "%HERE%water\\df.log", "-dfsynctest", GAME + "\\DAGGER", "-dfswimtest", "-screen-fullscreen", "0", "-screen-width", "1280",
           "-screen-height", "800"]
     args = ["--nodraw", "--uzdoom", "%HERE%uzdoom\\uzdoom.exe", "--dfu", "%HERE%dfu\\DaggerfallUnity.exe", "--iwad", GAME + "\\wads\\DOOM2.WAD"]
     for m in mods:
@@ -46,8 +46,9 @@ def main():
     bat = "@echo off\n" + NOTES + 'set "HERE=%~dp0"\nset "DATA=%HERE%data"\nif not exist "%HERE%water\\saves" mkdir "%HERE%water\\saves"\n' \
         + f'start "" "%HERE%doomerfall-launcher.exe" {q}\n'
     full = os.path.join(play, "play-full.bat")
-    if not os.path.exists(full):
-        os.replace(os.path.join(play, "play.bat"), full)  # the install's full game stays one click away
+    current = os.path.join(play, "play.bat")
+    if os.path.exists(current) and "swimdemo" not in open(current).read():
+        os.replace(current, full)  # the install's full game (fresh after each install) stays one click away
     with open(os.path.join(play, "play.bat"), "w", newline="\r\n") as f:
         f.write(bat)
     print("wrote", os.path.join(play, "play.bat"), "(the full game is play-full.bat)")

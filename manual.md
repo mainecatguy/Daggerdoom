@@ -264,8 +264,8 @@ Daggerfall's own, in the wilderness and in towns.
 - Your view drops to the water line, and you move at **25% of your speed, plus 1% for every 2 points of Swimming**
   (75% at Swimming 100).
 - You cannot jump or rest while swimming. The transport menu works as on land.
-- Daggerfall's rules for time in the water are meant to apply: every game minute of swimming practises Swimming, and
-  on a failed Swimming roll it costs extra fatigue (never for Argonians). This is not yet confirmed in play.
+- Every game minute of swimming practises Swimming. On a failed Swimming roll that minute costs four times the usual
+  fatigue (never for Argonians), so swimming with a low Swimming skill tires you quickly.
 - You cannot dive outdoors, so you never run out of breath there, as in Daggerfall.
 - With **Water Walking** you walk on the water at full speed. Shallow water and docks are walked on, not swum.
 

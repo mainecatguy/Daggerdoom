@@ -9,7 +9,11 @@ DDOVER01, DRLA, Daggerfall's sync test character) with swim_probe.zs. Checks:
   - while in the water Daggerfall tallies Swimming (skill uses rise) and breath stays unchanged (no drowning outdoors);
   - back on land swimming ends and the eye height is restored.
 
-usage: run_swim_test.py <play folder> <run dir> [--water DX DY] [--stay TICS]   (the run folder is deleted and recreated)"""
+Daggerfall gets -dfswimtest, so its per-minute rules (Swimming tally, fatigue) run as in a started game.
+
+usage: run_swim_test.py <play folder> <run dir> [--water DX DY] [--stay TICS] [--map MAP]   (the run folder is deleted and recreated)
+  overworld: the defaults (DDOVER01, the sea 14,000 units west of the start)
+  town map:  --map DDT09183 --water 29103 -19876   (the same sea spot, inside Daggerfall city's group map)"""
 import argparse, os, re, shutil, subprocess, sys, zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
