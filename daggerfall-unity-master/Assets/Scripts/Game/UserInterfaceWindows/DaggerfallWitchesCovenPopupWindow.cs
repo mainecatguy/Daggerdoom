@@ -135,7 +135,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
             int level = GameManager.Instance.PlayerEntity.Level;     // Not a proper guild so rank = player level
 
             // Select a quest at random from appropriate pool
-            offeredQuest = GameManager.Instance.QuestListsManager.GetGuildQuest(FactionFile.GuildGroups.Witches, MembershipStatus.Nonmember, factionId, reputation, level);
+            using (WorldLevel.ForQuestGiver()) offeredQuest = GameManager.Instance.QuestListsManager.GetGuildQuest(FactionFile.GuildGroups.Witches, MembershipStatus.Nonmember, factionId, reputation, level);
             if (offeredQuest != null)
             {
                 // Log offered quest

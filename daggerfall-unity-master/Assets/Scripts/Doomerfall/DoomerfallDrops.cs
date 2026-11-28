@@ -54,6 +54,35 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return TestAreaLevel() >= 0 ? Clamped(0) : Clamped(DoomerfallAreaLevels.ForCurrentDanger());
         }
 
+        /// <summary>
+        /// WorldLevel's quest reward provider in a bridge session, used only while a quest giver builds the quest it
+        /// offers (WorldLevel.ForQuestGiver): the level of the location the player is in, which is the giver's town (or
+        /// temple, tavern or other place). A shop, house or guild hall's own level never applies. Away from any
+        /// location, the danger level where the player is. Never the player's level.
+        /// </summary>
+        internal static int QuestRewardLevel()
+        {
+            if (TestAreaLevel() >= 0)
+                return Clamped(0);
+            GameManager game = GameManager.Instance;
+            if (game != null && game.PlayerGPS != null && game.PlayerGPS.HasCurrentLocation)
+            {
+                int level = QuestRewardLevelAt(game.PlayerGPS.CurrentLocation);
+                if (level > 0)
+                    return level;
+            }
+            return Clamped(DoomerfallAreaLevels.ForCurrentDanger());
+        }
+
+        /// <summary>The quest reward level of a location: its town level for a town (at least 5, 10, 15 or 20 by class), else its area level; 1 to 30, 0 if unknown.</summary>
+        internal static int QuestRewardLevelAt(in DFLocation location)
+        {
+            DoomerfallAreaLevels.Level level;
+            if (!DoomerfallAreaLevels.ForLocation(location, out level) || level.Place <= 0)
+                return 0;
+            return Clamped(level.Place);
+        }
+
         // The -dfarealevel test override wins (callers skip the lookup then); otherwise 1 to 30, 1 if unknown.
         static int Clamped(int level)
         {

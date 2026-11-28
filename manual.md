@@ -612,6 +612,25 @@ Daggerfall. Press **Use (E)** on them to talk, hand over quest items, or collect
 them, or sends them somewhere else, they disappear from that spot. Items a quest leaves lying in a building do not show
 up yet.
 
+### Quest rewards
+
+Gold and magic items a quest pays depend on the level of the place where you took the quest, not on your own level.
+By that place's level, a gold quest pays about:
+
+| Place level | Gold |
+|---|---|
+| 1 | 130 to 225 |
+| 5 | 400 to 675 |
+| 10 | 790 to 1,350 |
+| 15 | 1,050 to 1,800 |
+| 18 and up | 1,300 to 2,250 |
+
+Within each range, the region's prices raise or lower it. Towns have minimum levels: a village is at least level 5, a
+hamlet at least 10, a city at least 15 and a capital at least 20, but a town in dangerous country can be higher, and
+then pays by its higher level. Temples, taverns and other places outside towns can be any level. Guild quests still
+pay by your rank in the guild. For now, a quest that starts by itself (the next step of a longer quest, or one that
+comes by letter) pays the top amount, as before.
+
 ## Entering a place
 
 - When you go through a door into or out of a dungeon or building, or walk out of a town, the game pauses until the
