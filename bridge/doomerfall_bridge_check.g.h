@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x17f0520c4bec4ea8ULL
+#define DFB_SCHEMA_HASH 0x78dda9fd889e3192ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -195,6 +195,8 @@ static_assert((DFB_HPF_VALID) == (1u), DFB_STALE);
 static_assert((DFB_HPF_DEAD) == (2u), DFB_STALE);
 static_assert((DFB_PLF_SLOWFALL) == (1u), DFB_STALE);
 static_assert((DFB_PLF_OUTDOOR_WATER) == (2u), DFB_STALE);
+static_assert((DFB_PLF_WATER_WALKING) == (4u), DFB_STALE);
+static_assert((DFB_UZM_SWIMMING) == (1u), DFB_STALE);
 static_assert((DFB_FACES_SLOT) == (1u), DFB_STALE);
 static_assert((DFB_FACES_FORMAT_VERSION) == (1u), DFB_STALE);
 static_assert((DFB_FACES_MAX) == (3u), DFB_STALE);
@@ -1052,8 +1054,10 @@ static_assert(offsetof(dfb_uz_state, space_valid) == 112, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_uz_state::space_valid), uint32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_uz_state, town_map) == 116, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_uz_state::town_map), uint32_t>::value, DFB_STALE);
-static_assert(offsetof(dfb_uz_state, reserved) == 120, DFB_STALE);
-static_assert(std::is_same<decltype(dfb_uz_state::reserved), uint8_t[136]>::value, DFB_STALE);
+static_assert(offsetof(dfb_uz_state, player_motion) == 120, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_uz_state::player_motion), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_uz_state, reserved) == 124, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_uz_state::reserved), uint8_t[132]>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_stats) == 56, DFB_STALE);
 static_assert(offsetof(dfb_stats, sent) == 0, DFB_STALE);

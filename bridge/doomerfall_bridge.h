@@ -287,7 +287,9 @@ extern "C" {
 #define DFB_HPF_VALID 1u  /* dfb_df_state.hp_current and hp_max describe a live Daggerfall player */
 #define DFB_HPF_DEAD  2u  /* Daggerfall reports the player dead */
 #define DFB_PLF_SLOWFALL      1u  /* dfb_df_state.player_flags: a Slowfall effect is active, so a fall starts over each frame (AcrobatMotor.ApplyGravity) */
-#define DFB_PLF_OUTDOOR_WATER 2u  /* the player is outdoors over a water tile (PlayerTileMapIndex 0), where a landing does no damage (AcrobatMotor.CheckFallingDamage) */
+#define DFB_PLF_OUTDOOR_WATER 2u  /* the player is outdoors over a water tile (PlayerTileMapIndex 0), where a landing does no damage (AcrobatMotor.CheckFallingDamage); on the ground there, Doom's player swims (DFB_UZM_SWIMMING) */
+#define DFB_PLF_WATER_WALKING 4u  /* a Water Walking effect is active, so outdoor water is walked on, not swum in (PlayerMotor.GetOnExteriorWaterMethod) */
+#define DFB_UZM_SWIMMING      1u  /* dfb_uz_state.player_motion: Doom's player swims on Daggerfall's outdoor water (on the ground over a water tile, no Water Walking); Daggerfall sets IsPlayerSwimming from it */
 
 /* Character sheet. Daggerfall writes this bulk slot as a flat array of DFB_SHEET_INTS int32 values whenever one
    changes, and Doom only reads it. Each group is indexed in Daggerfall's own enum order. "Base" excludes active
@@ -999,7 +1001,7 @@ typedef struct dfb_df_state
 	/* The player's damage bonus, which Daggerfall tabulates (gamedesign/damage.md): 1/10000ths over base damage, so 0
 	   is none and 10000 is +100%. Doom multiplies the damage the player deals by 1 + bp / 10000. */
 	int32_t damage_bonus_bp;
-	uint32_t player_flags;     /* DFB_PLF_*: Daggerfall's falling damage exemptions, which Doom applies to its falls */
+	uint32_t player_flags;     /* DFB_PLF_*: Daggerfall's falling damage exemptions and outdoor water state, which Doom applies to its falls and swimming */
 	uint8_t reserved[DFB_STATE_BYTES - 56];
 } dfb_df_state;
 
@@ -1030,7 +1032,8 @@ typedef struct dfb_uz_state
 	int32_t space_target;     /* the target of the door event for this space */
 	uint32_t space_valid;     /* 0 outdoors and between maps */
 	uint32_t town_map;        /* 1 outdoors on a generated town's own Doom map, 0 elsewhere (overworld, indoors, between maps) */
-	uint8_t reserved[DFB_STATE_BYTES - 120];
+	uint32_t player_motion;   /* DFB_UZM_* */
+	uint8_t reserved[DFB_STATE_BYTES - 124];
 } dfb_uz_state;
 
 typedef struct dfb_stats

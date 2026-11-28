@@ -903,6 +903,14 @@ DEFINE_ACTION_FUNCTION(AActor, DD_PlayerFlags)
 	ACTION_RETURN_INT(DD_BridgePlayerFlags());
 }
 
+bool DD_BridgeOutdoorSwimming(); // [Doomerfall] dd_bridge.cpp
+
+DEFINE_ACTION_FUNCTION(AActor, DD_OutdoorSwimming)
+{
+	PARAM_PROLOGUE;
+	ACTION_RETURN_BOOL(DD_BridgeOutdoorSwimming());
+}
+
 // Why does this exist twice?
 DEFINE_ACTION_FUNCTION_NATIVE(AActor, GetSpawnHealth, SpawnHealth)
 {
