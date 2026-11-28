@@ -347,6 +347,18 @@ def build(header):
             BINDINGS: generate_cs(constants, structs, functions, used, digest)}
 
 
+def version_mismatch(generated):
+    """Names both protocol versions when the C# bindings on disk were generated for another one."""
+    if not BINDINGS.exists():
+        return ""
+    pattern = r"PROTOCOL_VERSION = (\d+);"
+    built = re.search(pattern, BINDINGS.read_text(encoding="utf-8"))
+    wanted = re.search(pattern, generated)
+    if not built or not wanted or built.group(1) == wanted.group(1):
+        return ""
+    return " (protocol version mismatch: header %s, generated bindings %s)" % (wanted.group(1), built.group(1))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--check", action="store_true", help="fail if the generated files are out of date")
@@ -364,7 +376,8 @@ def main():
             if current != content:
                 stale.append(path.relative_to(ROOT).as_posix())
         if stale:
-            print("bridge bindings are STALE: %s" % ", ".join(stale), file=sys.stderr)
+            print("bridge bindings are STALE%s: %s" % (version_mismatch(outputs[BINDINGS]), ", ".join(stale)),
+                  file=sys.stderr)
             print("doomerfall_bridge.h changed. Run: python bridge/generate_bindings.py", file=sys.stderr)
             return 1
         print("bridge bindings are up to date")
