@@ -173,9 +173,16 @@ void SetFlight(AActor *pmo, bool on)
 	else { pmo->flags2 &= ~MF2_FLY; pmo->flags &= ~MF_NOGRAVITY; }
 }
 
+// Every flight ends here or in TickMove, and both report it as a flew event, which the run summary lists.
+void FlewEvent(AActor *pmo, const char *result)
+{
+	Event("flew", FStringf("\"result\":\"%s\",\"from\":[%.1f,%.1f,%.1f],\"to\":[%.1f,%.1f,%.1f]", result, move.start.X, move.start.Y, move.start.Z,
+		pmo->X(), pmo->Y(), pmo->Z()).GetChars());
+}
+
 void EndJob(AActor *pmo, const char *result)
 {
-	if (move.active && move.fly && pmo) SetFlight(pmo, false);
+	if (move.active && move.fly && pmo) { SetFlight(pmo, false); FlewEvent(pmo, result ? result : "ended"); }
 	if (move.active && result) Reply(move.id, FStringf("\"done\":true,\"result\":\"%s\"", result).GetChars());
 	move.active = false;
 }
@@ -298,8 +305,7 @@ void TickMove(FLevelLocals *Level, AActor *pmo)
 	FString flew = move.fly ? FStringf(",\"flew\":true,\"fly_from\":[%.1f,%.1f,%.1f],\"goal_z\":%.1f", move.start.X, move.start.Y, move.start.Z, move.goalZ) : FString();
 	Reply(move.id, FStringf("\"done\":true,\"result\":\"%s\",\"honest\":true%s,\"dist\":%.1f,\"tics\":%d,\"travelled\":%.1f,%s", result, flew.GetChars(), d,
 		now - move.startTic, (pmo->Pos() - move.start).Length(), Where(pmo).GetChars()).GetChars());
-	if (move.fly) Event("flew", FStringf("\"result\":\"%s\",\"from\":[%.1f,%.1f,%.1f],\"to\":[%.1f,%.1f,%.1f]", result, move.start.X, move.start.Y, move.start.Z,
-		pmo->X(), pmo->Y(), pmo->Z()).GetChars());
+	if (move.fly) FlewEvent(pmo, result);
 }
 }
 

@@ -241,7 +241,7 @@ def goto(x, y, z, seconds):
             takeoff = (wx, wy, wz)
             for attempt in range(0 if segment["fly"] else 2):  # Stuck once: press Use (a closed door on the route), retry.
                 # The walk up to a flight ends close beside the ledge.
-                job = command(["move_to", str(wx), str(wy), "12" if last or plan.get("needs_levitation") else "20", left])
+                job = command(["move_to", str(wx), str(wy), "12" if plan.get("needs_levitation") else ("24" if last else "20"), left])
                 done = await_line(lambda o: o.get("id") == job.get("id") and o.get("done"), max(1, end - time.time()) + 2) if job.get("ok") else job
                 if attempt or not done or done.get("result") != "stuck":
                     break
