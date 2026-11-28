@@ -100,6 +100,9 @@ class ExpPerkTest : EventHandler
 	// it away so what the player loses is what the perk let through.
 	void StripArmor(Actor mo)
 	{
+		// DRLA's random class can be the Demolitionist (RadiusDamageFactor 0: immune to all splash, own rockets too),
+		// which would hide the self-splash cases. Give it the normal factor.
+		if (mo.RadiusDamageFactor != 1) { Console.Printf("EXPTEST radius factor %.2f -> 1", mo.RadiusDamageFactor); mo.RadiusDamageFactor = 1; }
 		Array<Inventory> gone;
 		for (let i = mo.Inv; i; i = i.Inv)
 		{

@@ -86,7 +86,9 @@ def run(play, out):
                     ng.SURFACE[:] = [int(size[-1][0]), int(size[-1][1])]
                 ng.click(hwnd, 160, 100)
                 clicked = opened
-            if "PAIRED pack end 2 " in text and len(re.findall(r"PAIRED end \d+ skill=100\b", text)) >= 1:
+            # A whole cycle at 100: one that started at 100 (a cycle started at 75 can end after the skill rose).
+            whole100 = any(f"PAIRED end {n} skill=100" in text for n in re.findall(r"PAIRED start (\d+) skill=100\b", text))
+            if "PAIRED pack end 2 " in text and whole100:
                 break
     finally:
         subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True)

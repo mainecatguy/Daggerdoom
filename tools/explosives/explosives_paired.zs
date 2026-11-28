@@ -181,6 +181,9 @@ class ExpPairHarness : EventHandler
 		if (!ender) { ender = new("ExpPairTicEnd"); ender.ChangeStatNum(101); ender.h = self; }
 		if (!mo || mo.health <= 0 || level.maptime < 140 || Actor.DD_SheetValue(2) != 1) return;
 		int skill = Actor.DD_SheetSkill(6);
+		// DRLA's random class can be the Demolitionist (RadiusDamageFactor 0: immune to its own splash), which would
+		// hide the own-splash cut. Give it the normal factor.
+		if (mo.RadiusDamageFactor != 1) { Console.Printf("PAIRED radius factor %.2f -> 1", mo.RadiusDamageFactor); mo.RadiusDamageFactor = 1; }
 		if (level.maptime % 5 == 0) RemoveHostiles(mo);
 		if (phase >= 10) { PackTick(p); return; }
 		if (!target)
