@@ -44,10 +44,10 @@ The initial scope is stationary and passive NPCs, including wanderers, that foll
 - [NPC quest givers](backlog/npc-quest-givers.md): Run real quest offers and turn-ins.
 - [Hostile NPC sprites](backlog/hostile-npc-sprites.md): Choose visuals for NPCs that fight.
 - [NPC self defense with one Doom bot](backlog/npc-self-defense-doom-bot.md): Hostile NPCs use one bot template.
-- [Sync wandering NPCs](backlog/sync-wandering-npcs.md): Add real wandering and decide what must sync.
 
 ## Overworld and towns
 
+- [Hidden world radius](backlog/hidden-world-radius.md): Follow Doom's loaded area; compatible with distant LODs.
 - [Distant town view](backlog/distant-town-view.md): Show real towns from outside their playable area.
 - [Town gates follow day and night](backlog/town-gates-follow-day-and-night.md): Gates follow Daggerfall's time cycle.
 - [Identify and sort problem location groups](backlog/identify-and-sort-problem-location-groups.md): List and rank locations that do not fit one map.

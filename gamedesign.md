@@ -55,6 +55,13 @@ The player can be superhumanly powerful, whether as a space marine, a wizard or 
 
 Systems have inputs and outputs, and they are allowed to interact with each other. We generally favor making the game more like the immersive sim genre of games which leans heavily on this concept, and eventually more like an extremely systems-heavy roguelike like Cataclysm Dark Days Ahead if time and interest permits (owner, 2026-11-27).
 
+## Daggerfall menus look like Daggerfall (design rule)
+
+A Daggerfall menu shown in Doomerfall looks like Daggerfall (fonts, case, painted buttons) and takes texture packs
+exactly as Daggerfall Unity would, as if Daggerfall Unity were running: replacement textures and fonts apply the same
+way (owner, 2026-11-27: "If a menu is a daggerfall menu, it should look like daggerfall and support texture packs in
+the same way as daggerfall." "Replacement textures should be handled as if DF Unity was running.").
+
 ## Maps
 
 On Daggerfall maps, only Daggerfall's automap is shown. Doom's automap is never shown there. Doom's automap is used only on a map that comes from Doom, which will only be possible through the Oblivion gates system, not yet built (owner, 2026-11-24).

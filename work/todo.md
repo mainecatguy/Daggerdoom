@@ -15,87 +15,70 @@ Merged work is recorded in `CHANGELOG.md`, not here. Items waiting on owner inpu
 
 ## Ready
 
-### Top priority
+### Top priority (owner, 2026-11-28)
 
-- `findnpc` 01 (`work/queue/findnpc/01.opus.find-npc-by-name.md`), approved by the owner, 2026-11-27, top priority
-  for debugging: type an NPC's name or pick a quest NPC; an on-screen chevron points to their building or to them until
-  the area changes.
+- `mapgen` 01 (`work/queue/mapgen/01.opus.shared-map-generator-proposal.md`), approved by the owner, 2026-11-28:
+  research and proposal for one shared generator for towns, dungeon exteriors, interiors and dungeons.
+- `loadprofile` 01 (`work/queue/loadprofile/01.opus.profile-conversion-load-times.md`), approved by the owner,
+  2026-11-28: profile why dungeon and town conversion are slow; worst stages, why, and the offending code blocks.
+
+Merging: ask the owner before every merge (owner, 2026-11-28: "talk to me first before merging").
 
 ### Verified, waiting for the next merge
 
-- `skillbasics` 03 (`agent/skillbasics-20261127-194856`): Backstabbing, up to 5x damage to unaware enemies. Merge
-  checks: DD_BackstabHeard runs for every actor per noise alert (early return for non-monsters); the heard history is
-  not saved, so a loaded monster that heard the player counts as alerted.
-- `attributes` 08 (`agent/attributes-20261127-194930`): Strength and Agility gun damage by weapon type, Agility dodge
-  removed, Luck 5x super crit. Built multiplying; leave it (owner, 2026-11-27), `damagestacking` 01 reviews it.
-- `outdoorwater` 01 (`agent/outdoorwater-20261127-193328`): outdoor sea and lakes swim and drown as in Daggerfall.
+Batches 13-17 merged 2026-11-28 (see CHANGELOG.md; batches 15-17 landed as 7e11cf8d). New lanes start from
+`integration`. Waiting for batch 18:
+
+- `netcommand` 01 (`agent/netcommand-20261128-093130`, built on busyheartbeat): Doom's "Unknown net command" crash after a long
+  frozen save fixed; lands the busyheartbeat work (saves wait out Daggerfall). Verified 2026-11-28. Its test script killed every
+  Daggerfall Unity (crashed the owner's game); fixed in a48bf820.
+- `weaponmods` 01 (`agent/weaponmods-20261128-092715`): weapon mod packs in shops and loot at about 1/25 the rate of guns. Verified
+  2026-11-28; a used, unfitted pack moves to Doom's ownership (question with the PO).
+- `automaticspop` 01 (`agent/automaticspop-20261128-085803`): small explosion graphic on Automatics slow-band hits.
+  Verified 2026-11-28.
+- `gizmos` 01 (`agent/gizmos-20261128-085547`): DRLA X gizmos at about 2% of Doom pickup spots and in treasure piles.
+  Verified 2026-11-28. Merge check: compare the pile rate with weapon mods' rate once `weaponmods` 01 lands.
+- `interiordoors` 01 (`agent/interiordoors-20261128-064918`): report on whether interior doors exist and can lock.
+  Verified 2026-11-28; its question is with the PO.
+- `ammoprices` 01 (`agent/ammoprices-20261128-065910`): Regular ammo 3x its base reference, higher tiers by the table.
+  Verified 2026-11-28.
+- `luckdrops` 01 (`agent/luckdrops-20261128-064906`): Luck's extra ammo follows the dungeon pickup mix; guard kills
+  roll, seeded per guard. Verified 2026-11-28.
+- `encounters` 09 (`agent/encounters-20261128-073309`): local war rooms rigged like Civil War, asleep until the player
+  opens the door. Verified 2026-11-28 with a paired run.
+- `randomencounters` 01, dungeon part (`agent/randomencounters-20261128-072945`): rest ambushes in dungeons as mook
+  packs at area level (rest_ambush 9/9). The outdoor and reputation-guard parts went to
+  `work/refinement/randomencounters-01.md`. Merge check: the ambush plan takes 0.3-0.45 s on Doom's main thread after
+  rest.
 
 ### Skills (rules in `work/backlog/skills-in-doom.md`)
 
-- `skillperks` 09 (`work/queue/skillperks/09.opus.automatics-bands-and-tuning.md`), approved by the owner, 2026-11-27:
-  Automatics 25 ammo skip, 50 band bonuses, 75 suppression slow, 100 stack +2% per hit to +30% (one ammo per 4 shots stays).
-- `enchantgunskills` 01 (`work/queue/enchantgunskills/01.opus.gun-skill-enchantments.md`), approved by the owner,
-  2026-11-27: gun-skill powers in the item maker; dead language enchantments spread deterministically to other skills.
+- `shotgunpush` 01 (`work/queue/shotgunpush/01.opus.shotgun-knockback-by-true-fire-rate.md`), approved by the owner,
+  2026-11-27, answered 2026-11-28: knockback about 10/20 ft extra at Shotguns 75/100. Continue from its branch. Medium priority (owner, 2026-11-28),
+  unless shotguns turn out broken.
 - Tutorial: when the Doomerfall tutorial is made (backlog, after the game is complete), it must explain buying skills
   with Skill XP.
 
 ### Movement and maps
 
-- `collisionmetric` 01 (`work/queue/collisionmetric/01.opus.collision-fidelity-metric.md`), approved by the owner,
-  2026-11-27: the collision fidelity metric that gates all converter collision changes.
-- `collisionshape` 01 (`work/queue/collisionshape/01.opus.grid-shape-refactor.md`), approved by the owner,
-  2026-11-27: grid-shape refactor (byte-identical output), then better grid shapes judged by the metric. After
-  `collisionmetric` 01.
 
 ### Bugs and small features
 
-- `sheettravel` 01 (`work/queue/sheettravel/01.opus.travel-from-sheet-closes-menu.md`), approved by the owner,
-  2026-11-27: travel from the logbook closes the menu and opens normal fast travel. (Running.)
-- `rulepattern` 01 (`work/queue/rulepattern/01.opus.one-rule-pattern.md`), approved by the owner, 2026-11-27: Daggerfall
-  sends the sheet, Doom applies rules in one shared place. (Running.)
-- `gunsource` 01 (`work/queue/gunsource/01.opus.exact-gun-source-hook.md`), approved by the owner, 2026-11-27: exact
-  engine hook for which gun fired a spawned projectile. (Running.)
-- `weaponvalues` 02 (`work/queue/weaponvalues/02.opus.rescale-gun-values-and-material-weight.md`), approved by the
-  owner, 2026-11-27: rescale gun values so legendaries cost 2x a base weapon; material changes gun weight.
-- `pickuplean` 01 (`work/queue/pickuplean/01.opus.health-leans-per-dungeon.md`), approved by the owner, 2026-11-27:
-  health pickups lean per dungeon like ammo.
-- `lightparity` 01 (`work/queue/lightparity/01.opus.light-like-daggerfall.md`), approved by the owner, 2026-11-27:
-  dungeons as dark as Daggerfall Unity; outdoor sprites and monsters in flat daylight.
-- `shotgunpush` 01 (`work/queue/shotgunpush/01.opus.shotgun-knockback-by-true-fire-rate.md`), approved by the owner,
-  2026-11-27: shotgun knockback by true base fire rate (^1.2); Shotguns 100 gets another 35% faster reload.
-- `perknumbers` 01 (`work/queue/perknumbers/01.opus.perk-numbers-batch.md`), approved by the owner, 2026-11-27:
-  send the owner's numbers for Explosives 50, Inpulsa chain blasts and Shotgun slams.
-- `jumpfollowup` 01 (`work/queue/jumpfollowup/01.opus.fall-damage-curve-and-air-jumps.md`), approved by the owner,
-  2026-11-27: fall damage safe height 1.5x jump height; mid-air jumps train Jumping.
-- `weaponmaterials` 01 (`work/queue/weaponmaterials/01.opus.doom-weapon-material-tidy.md`), approved by the owner,
-  2026-11-27: Iron starter guns, no "Iron" in Doom weapon names, melee weapons get materials.
-- `lockpickshops` 01 (`work/queue/lockpickshops/01.opus.where-lockpicks-come-from.md`), approved by the owner,
-  2026-11-27: lockpicks at pawn shops, general stores, sometimes other traders and in Daggerfall-engine loot.
-- `qafly` 01 (`work/queue/qafly/01.opus.qa-bot-flies.md`), approved by the owner, 2026-11-27: the QA bot can fly where
-  only levitation would reach, until Levitate exists.
-- `questgold` 01 (`work/queue/questgold/01.opus.quest-gold-by-area-level.md`), approved by the owner, 2026-11-27:
-  quest rewards follow the area level instead of a fixed level 20.
-- `hitboxcheck` 01 (`work/queue/hitboxcheck/01.sonnet.verify-monster-hitboxes.md`), approved by the owner, 2026-11-27:
-  verify narrowed monsters keep full-size hitboxes and narrow only to squeeze through.
 
 ### Shops and encounters
 
-- `shoplevels` 08 (`work/queue/shoplevels/held/08.opus.interior-quality-danger-and-armor-split.md`), approved by the
+- `shoplevels` 08 (`work/queue/shoplevels/08.opus.interior-quality-danger-and-armor-split.md`), approved by the
   owner, 2026-11-27: interiors take danger and loot from the building's quality (in and outside towns); leather and
   chain split Iron's slot, outside the stock limit.
-- `encounters` 09 (`work/queue/encounters/09.opus.local-war-rooms.md`), approved by the owner, 2026-11-27: local war
-  rooms rigged like Civil War, asleep until the player opens the door.
-- `passiveguards` 01 (`work/queue/passiveguards/01.opus.passive-guard-bots.md`), approved by the owner, 2026-11-27:
-  passive castle markers and friendly entities become passive Doom guard bots that look like Daggerfall's guard.
 - `outdoorguards` 01 (`work/queue/outdoorguards/01.opus.outdoor-guard-bots.md`), approved by the owner, 2026-11-27:
   crimes outdoors (failed pickpocket, a shot watchman) bring guard bots Doom can see, as indoor guards do.
-- `randomencounters` 01 (`work/queue/randomencounters/01.opus.random-encounter-packs.md`), approved by the owner,
-  2026-11-27: Daggerfall's random encounters (rest ambushes, reputation guards) as mook packs at area level.
 - `questfoes` 01 (`work/queue/questfoes/01.opus.quest-foe-packs.md`), approved by the owner, 2026-11-27: quest foes in
   town buildings and quest ambushes as mook packs.
 
 ### Held until a condition is met (may start without asking once it is)
 
+- `townoverhangs` 01 (`work/queue/townoverhangs/held/01.opus.town-overhang-3d-floors.md`): solid tops for town
+  overhangs. Held until the owner reads the `mapgen` 01 proposal, which may solve it another way.
 - `daynight` first-town season (owner, 2026-11-26: when weekly and current usage are both at or below 10%): in a
   winter save the first town after launch loads in summer textures, because Doom builds it before Daggerfall sends the
   season. Options in `work/notes/20261126-145333.md`.
@@ -107,8 +90,8 @@ Merged work is recorded in `CHANGELOG.md`, not here. Items waiting on owner inpu
 
 ### Downtime work (owner, 2026-11-26: "Lower priority, but do during downtime")
 
-- `automaticspop` 01 (`work/queue/automaticspop/01.opus.slow-band-pop-graphic.md`), approved by the owner,
-  2026-11-27, low priority: the small explosion graphic on Automatics slow-band hits. After `skillperks` 09.
+- `skillconverter` 01 (`work/queue/skillconverter/01.opus.convert-out-of-date-skills.md`), approved by the owner,
+  2026-11-27, low priority: convert out-of-date character sheets on load so old saves never break.
 - `gunenchantments` 01 (`work/queue/gunenchantments/01.opus.gun-enchantments.md`), approved by the owner, 2026-11-27,
   low priority: guns accept weapon enchantments; damage enchantments use a 90x pool (3x per hit). After `enchantgunskills` 01.
 - `enchantedguns` 01 (`work/queue/enchantedguns/01.opus.enchanted-gun-names.md`), approved by the owner, 2026-11-27:
@@ -119,6 +102,8 @@ Merged work is recorded in `CHANGELOG.md`, not here. Items waiting on owner inpu
 
 ### Lowest priority (owner, 2026-11-27)
 
+- `monsterdps` 01 (`work/queue/monsterdps/01.opus.monster-dps.md`), approved by the owner, very low priority
+  (2026-11-27): measure monster DPS against an erratically strafing player and price them by the square-law rule.
 - `attributes` 05 (`work/queue/attributes/held/05.opus.speed-scales-climbing.md`), approved by the owner, 2026-11-27,
   lowest priority: Speed scales climbing.
 - `attributes` 07 (`work/queue/attributes/held/07.sonnet.attribute-help-from-rules.md`), approved by the owner,
