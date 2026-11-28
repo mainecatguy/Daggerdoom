@@ -6,10 +6,10 @@
 // items in Doom.
 //
 // Item mix (owner, 2026-11-26): clips 30%, shells 25%, health 30%, rockets 10%, cells 3%, powerups 2% on average. Each
-// dungeon leans toward one kind of ammo by a fixed amount taken from its loot identity (the loot seed of its map id, as
-// Daggerfall's LootSeed builds it), so some dungeons are full of shells or rockets. The lean kind is drawn with the base
-// odds and blended into the base ammo mix, so the average over many dungeons stays the base mix. Health keeps its 30%
-// and powerups their 2% in every dungeon: the owner wants health restricted, not piled up in some dungeons.
+// dungeon leans toward one kind (health or one kind of ammo; owner, 2026-11-27: health leans too) by a fixed amount
+// taken from its loot identity (the loot seed of its map id, as Daggerfall's LootSeed builds it), so some dungeons are
+// full of shells, rockets or health, and the others have less of it. The lean kind is drawn with the base odds and
+// blended into the base mix, so the average over many dungeons stays the base mix. Powerups keep their 2% everywhere.
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -21,13 +21,15 @@ static partial class Program
     public const int PickupStimpackType = 31640, PickupClipType = 31641, PickupShellsType = 31642, PickupRocketsType = 31643,
         PickupCellsType = 31644, PickupBerserkType = 31645, PickupBlurType = 31646, PickupVisorType = 31647,
         PickupSoulsphereType = 31648, PickupMegasphereType = 31649, PickupInvulnerabilityType = 31650;
-    // Ammo kinds a dungeon can lean toward, with the owner's base odds in percent.
+    // Kinds a dungeon can lean toward, with the owner's base odds in percent. Health is first so a health lean is drawn
+    // apart from the ammo kinds (see PickupLean).
     static readonly (int type, string name, double odds)[] PickupKinds =
     {
+        (PickupStimpackType, "health", 30),
         (PickupClipType, "clips", 30), (PickupShellsType, "shells", 25), (PickupRocketsType, "rockets", 10), (PickupCellsType, "cells", 3),
     };
-    const double PickupHealthShare = 0.30, PickupPowerupShare = 0.02;
-    static readonly double PickupAmmoShare = 1 - PickupHealthShare - PickupPowerupShare;
+    const double PickupPowerupShare = 0.02;
+    static readonly double PickupLeanShare = 1 - PickupPowerupShare; // Health and ammo together.
     // Powerups (owner approved, 2026-11-26): Berserk, Partial Invisibility and the Light Amplification Visor about a
     // quarter each, Soulsphere 15%, Megasphere and Invulnerability 5% each.
     static readonly (int type, string name, double odds)[] PickupPowerups =
@@ -48,7 +50,7 @@ static partial class Program
     const ulong PickupSalt = 0x5049434B55505331UL; // Keeps the placement seed apart from encounter seeds.
 
     static ulong pickupPlace;             // The dungeon's identity for placement, from its map id.
-    static double[] pickupWeights;        // This dungeon's share of each PickupKinds entry; they sum to PickupAmmoShare.
+    static double[] pickupWeights;        // This dungeon's share of each PickupKinds entry; they sum to PickupLeanShare.
     static int pickupLeanKind;            // Index in PickupKinds, for reports.
     static double pickupLeanStrength;
     static readonly List<int> pickupRoomCounts = new List<int>(); // Pickups in each room of the last map, for reports.
@@ -66,18 +68,26 @@ static partial class Program
     {
         ulong h = (ulong)(uint)LootSeedOf(LootSeedDoomPickupLean, mapId);
         double total = PickupKinds.Sum(k => k.odds);
-        double pick = PickupUnit(PickupMix(h, 1)) * total;
+        // Health (index 0) with its base odds from its own roll; otherwise the ammo kind from the same roll as before
+        // health could lean, so every dungeon that still leans to ammo keeps its kind and strength. Overall each kind is
+        // the lean kind with its base odds, so the average stays the base mix.
         leanKind = PickupKinds.Length - 1;
-        for (int k = 0; k < PickupKinds.Length; k++)
+        if (PickupUnit(PickupMix(h, 3)) < PickupKinds[0].odds / total)
+            leanKind = 0;
+        else
         {
-            if (pick < PickupKinds[k].odds) { leanKind = k; break; }
-            pick -= PickupKinds[k].odds;
+            double pick = PickupUnit(PickupMix(h, 1)) * (total - PickupKinds[0].odds);
+            for (int k = 1; k < PickupKinds.Length; k++)
+            {
+                if (pick < PickupKinds[k].odds) { leanKind = k; break; }
+                pick -= PickupKinds[k].odds;
+            }
         }
         double v = PickupUnit(PickupMix(h, 2));
         strength = PickupLeanMax * v * v * v;
         var weights = new double[PickupKinds.Length];
         for (int k = 0; k < weights.Length; k++)
-            weights[k] = PickupAmmoShare * ((1 - strength) * PickupKinds[k].odds / total + (k == leanKind ? strength : 0));
+            weights[k] = PickupLeanShare * ((1 - strength) * PickupKinds[k].odds / total + (k == leanKind ? strength : 0));
         return weights;
     }
 
@@ -100,12 +110,10 @@ static partial class Program
 
     static double PickupUnit(ulong h) => (h >> 11) * (1.0 / (1UL << 53));
 
-    // One item for a spot: a uniform roll through the health share, this dungeon's ammo weights, then the powerup share.
+    // One item for a spot: a uniform roll through this dungeon's health and ammo weights, then the powerup share.
     static int PickupType(ulong roll)
     {
         double u = PickupUnit(roll);
-        if (u < PickupHealthShare) return PickupStimpackType;
-        u -= PickupHealthShare;
         for (int k = 0; k < PickupKinds.Length; k++)
         {
             if (u < pickupWeights[k]) return PickupKinds[k].type;
@@ -120,7 +128,7 @@ static partial class Program
         return PickupPowerups[PickupPowerups.Length - 1].type;
     }
 
-    static string PickupName(int type) => type == PickupStimpackType ? "health" : PickupKinds.Concat(PickupPowerups).First(k => k.type == type).name;
+    static string PickupName(int type) => PickupKinds.Concat(PickupPowerups).First(k => k.type == type).name;
 
     // --pickup-lean-survey: every dungeon's fixed lean and expected mix, and the average over all of them.
     static int PickupLeanSurvey(string arena2)
@@ -128,6 +136,8 @@ static partial class Program
         var maps = new DaggerfallConnect.Arena2.MapsFile(System.IO.Path.Combine(arena2, "MAPS.BSA"), DaggerfallConnect.FileUsage.UseMemory, true);
         var sum = new double[PickupKinds.Length];
         var leans = new int[PickupKinds.Length];
+        var strongLeans = new int[PickupKinds.Length];
+        var health = new List<double>();
         int count = 0, strong = 0;
         for (int r = 0; r < maps.RegionCount; r++)
         {
@@ -142,14 +152,20 @@ static partial class Program
                 for (int k = 0; k < w.Length; k++) sum[k] += w[k];
                 count++;
                 leans[kind]++;
-                if (strength > 0.4) strong++;
+                if (strength > 0.4) { strong++; strongLeans[kind]++; }
+                health.Add(w[0]);
                 Console.WriteLine(FormattableString.Invariant($"LEAN {loc.MapTableData.MapId} {region.Name}/{region.MapNames[l]} {PickupKinds[kind].name} {strength:F2} ")
                     + string.Join(" ", w.Select((x, k) => FormattableString.Invariant($"{PickupKinds[k].name}={x:P1}"))));
             }
         }
         Console.WriteLine($"dungeons {count}, lean strength over 0.4: {strong}");
-        Console.WriteLine("average " + string.Join(" ", sum.Select((x, k) => FormattableString.Invariant($"{PickupKinds[k].name}={x / count:P2}"))) + FormattableString.Invariant($" health={PickupHealthShare:P2} powerups={PickupPowerupShare:P2}"));
+        health.Sort();
+        double At(double q) => health[Math.Min(health.Count - 1, (int)(q * health.Count))];
+        Console.WriteLine(FormattableString.Invariant($"health share min {health[0]:P1} p10 {At(0.1):P1} median {At(0.5):P1} p90 {At(0.9):P1} p99 {At(0.99):P1} max {health[^1]:P1}; ")
+            + FormattableString.Invariant($"over 45%: {health.Count(x => x > 0.45)}, under 20%: {health.Count(x => x < 0.20)}"));
+        Console.WriteLine("strong leans by kind " + string.Join(" ", strongLeans.Select((x, k) => $"{PickupKinds[k].name}={x}")));
         Console.WriteLine("lean kinds " + string.Join(" ", leans.Select((x, k) => $"{PickupKinds[k].name}={x}")));
+        Console.WriteLine("average " + string.Join(" ", sum.Select((x, k) => FormattableString.Invariant($"{PickupKinds[k].name}={x / count:P2}"))) + FormattableString.Invariant($" powerups={PickupPowerupShare:P2}"));
         return 0;
     }
 

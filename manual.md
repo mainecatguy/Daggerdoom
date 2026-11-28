@@ -460,7 +460,7 @@ the gun.
 
 Health, ammo and powerups lie around only in dungeons, about one or two per room. Houses, shops and other buildings
 have none: rest to heal. Across all dungeons about 3 in 10 pickups are health, 3 in 10 bullets, a quarter shells, 1 in
-10 rockets and a few energy cells, but each dungeon has its own leaning: some are full of shells, a few are rocket or
+10 rockets and a few energy cells, but each dungeon has its own leaning: some are full of shells or health and others short on health, a few are rocket or
 cell caches. About 1 pickup in 50 is a powerup: Berserk, Partial Invisibility or a Light Amplification Visor, more
 rarely a Soulsphere, and very rarely a Megasphere or Invulnerability. A dungeon's leaning is the same in every game.
 
