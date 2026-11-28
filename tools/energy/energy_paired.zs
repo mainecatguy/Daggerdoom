@@ -89,8 +89,8 @@ class EnPairHarness : EventHandler
 			mo.angle = dir;
 			t = 0; lost = 0; nearLost = 0; shots = 0; missiles = 0; speedSum = 0; cycle++;
 			Console.Printf("PAIRED start %d skill=%d dmg=%d splash=%d radius=%d speed=%d burn=%d convert=%d burst=%d burstradius=%d", cycle,
-				Actor.DD_SheetSkill(9), Actor.DD_SheetValue(173), Actor.DD_SheetValue(174), Actor.DD_SheetValue(175), Actor.DD_SheetValue(176),
-				Actor.DD_SheetValue(177), Actor.DD_SheetValue(178), Actor.DD_SheetValue(179), Actor.DD_SheetValue(180));
+				Actor.DD_SheetSkill(9), DoomerfallRules.Get(18), DoomerfallRules.Get(19), DoomerfallRules.Get(20), DoomerfallRules.Get(21),
+				DoomerfallRules.Get(22), DoomerfallRules.Get(23), DoomerfallRules.Get(24), DoomerfallRules.Get(25));
 			return;
 		}
 		t++;

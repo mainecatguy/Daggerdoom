@@ -90,7 +90,7 @@ class DoomerfallJumpTest : StaticEventHandler
 			if (t < 3 || !Grounded(mo)) { if (t > 400) { phase = 6; t = 0; } return; }
 			if (t < Settle) return;
 			double fell = maxZ - mo.pos.z;
-			int expect = DoomerfallJump.FallImmune(lv) ? 0 : DoomerfallJump.FallDamage(fell);
+			int expect = DoomerfallRules.FallImmune(lv) ? 0 : DoomerfallRules.FallDamage(fell);
 			Console.Printf("JUMPTEST drop level=%d fell=%.1f falldamage=%d expected=%d hp=%d->%d", lv, fell, damage, expect, hpBefore, p.health);
 			mo.GiveBody(1000);
 			phase = (lv == 0 || lv == 75) ? 5 : 6; t = 0;
@@ -115,7 +115,7 @@ class DoomerfallJumpTest : StaticEventHandler
 			if (!Grounded(mo) && t < 400) return;
 			if (t < 75 + Settle) return;
 			double fell = ledgeHigh - mo.pos.z;
-			int expect = DoomerfallJump.FallImmune(lv) ? 0 : DoomerfallJump.FallDamage(fell);
+			int expect = DoomerfallRules.FallImmune(lv) ? 0 : DoomerfallRules.FallDamage(fell);
 			Console.Printf("JUMPTEST ledge level=%d fell=%.1f falldamage=%d expected=%d hp=%d->%d", lv, fell, damage, expect, hpBefore, p.health);
 			mo.GiveBody(1000);
 			phase = 6; t = 0;

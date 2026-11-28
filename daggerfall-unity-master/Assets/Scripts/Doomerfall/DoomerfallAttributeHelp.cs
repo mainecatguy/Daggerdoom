@@ -3,12 +3,12 @@
 // Only in a bridge session, where the rules apply; elsewhere the popup is Daggerfall's alone.
 //
 // The text mirrors the rules where they are built. Keep it in step when a rule changes:
-//   Strength   mods/doomerfall/src/zscript/DoomerfallAttributes.zs   melee damage x (1 + STR / 100)
+//   Strength   mods/doomerfall/src/zscript/DoomerfallRules.zs        melee damage x (1 + STR / 100)
 //   Willpower  UZDoom/src/dd_bridge.cpp DD_BridgeWillpowerDamage      Doom combat/environment damage taken x (300 - WIL) / 250, last (not Daggerfall's own damage)
-//   Agility    mods/doomerfall/src/zscript/DoomerfallAgility.zs      reload/switch x (1 + 0.4 AGI / 100), evade 15% AGI / 100
+//   Agility    mods/doomerfall/src/zscript/DoomerfallRules.zs        reload/switch x (1 + 0.4 AGI / 100), evade 15% AGI / 100
 //   Endurance  DoomerfallEndurance.MaxHealth                         50 + END + (level - 1) x END / 15
-//   Speed      mods/doomerfall/src/zscript/DoomerfallAttributes.zs   move speed x (0.75 + SPD / 200)
-//   Luck       mods/doomerfall/src/zscript/DoomerfallAmmo.zs WorldThingDied  each monster death: Luck / 2 % chance (0-50%) to drop one ammo pickup
+//   Speed      mods/doomerfall/src/zscript/DoomerfallRules.zs        move speed x (0.75 + SPD / 200)
+//   Luck       mods/doomerfall/src/zscript/DoomerfallRules.zs LuckAmmoDrop  each monster death: Luck / 2 % chance (0-50%) to drop one ammo pickup
 // All use the live value (fortify and drain count). Every one but Endurance counts values above 100 as 100.
 
 using System;

@@ -1,6 +1,6 @@
 // Plasma burn, the Energy Weapons skill's burn perks (work/backlog/skills-in-doom.md, Energy Weapons; perks card 08).
-// Daggerfall decides the numbers from the live skill (DoomerfallEnergyRules.cs, DFB_SHEET_ENERGY_BURN_* ...); this
-// applies them through the general burn system (DoomerfallBurn.zs, card 07). DoomerfallEnergy calls Hit for each
+// Doom's shared rules turn the live skill from Daggerfall's character sheet into the numbers (DoomerfallRules.zs,
+// EnergyBurn* ...); this applies them through the general burn system (DoomerfallBurn.zs, card 07). DoomerfallEnergy calls Hit for each
 // direct hit of an Energy Weapons gun's shots (not an explosion, not the perk's splash, not this file's burst).
 //
 //   25+   the hit enemy burns for BurnBp of the hit's damage over 3 s, stacking without limit.
@@ -11,11 +11,10 @@
 //         spread but never chain by themselves. Never the player.
 class DoomerfallEnergyBurn play
 {
-	// DFB_SHEET_* indices; must match bridge/doomerfall_bridge.h.
-	const EnergyBurnBp = 177;
-	const EnergyConvertBp = 178;
-	const EnergyBurstBp = 179;
-	const EnergyBurstRadius = 180;
+	const EnergyBurnBp = DoomerfallRules.EnergyBurnBp;
+	const EnergyConvertBp = DoomerfallRules.EnergyConvertBp;
+	const EnergyBurstBp = DoomerfallRules.EnergyBurstBp;
+	const EnergyBurstRadius = DoomerfallRules.EnergyBurstRadius;
 
 	static void Hit(Actor victim, Actor src, int damage)
 	{

@@ -131,13 +131,13 @@ class WillPaired : StaticEventHandler
 		{             // (the player survives); then Thing_Destroy on the player must still kill
 			if (will != 75) { src = 8; return; }
 			if (tics == 1 || tics == 2 * HpWait + 1) mo.GiveBody(1000);
-			if (tics == HpWait) { hpBefore = mo.health; mo.TakeInventory("DoomerfallAgilityEffects", 1); mo.DamageMobj(null, null, mo.health, 'Slime'); } // no Agility dodge
+			if (tics == HpWait) { hpBefore = mo.health; mo.TakeInventory("DoomerfallAttributeEffects", 1); mo.DamageMobj(null, null, mo.health, 'Slime'); } // no Agility dodge
 			if (tics == 2 * HpWait) Console.Printf("WILLENV will=%d before=%d after=%d", will, hpBefore, mo.health);
 			if (tics >= 3 * HpWait)
 			{
 				Console.Printf("WILLKILL will=%d hp=%d tic=%d", will, mo.health, gametic);
 				mo.ChangeTid(31337);
-				mo.TakeInventory("DoomerfallAgilityEffects", 1); // no Agility dodge; re-given next tic
+				mo.TakeInventory("DoomerfallAttributeEffects", 1); // no Agility dodge; re-given next tic
 				mo.A_CallSpecial(133, 31337); // Thing_Destroy (tid 31337), not extreme: damage = health
 				src = 8;
 			}

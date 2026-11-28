@@ -1,5 +1,5 @@
-// The Shotguns skill in Doom (the Shotguns perks card). Daggerfall decides the rules from the live skill and sends them
-// in the character sheet (DFB_SHEET_SHOT_*, DoomerfallShotgunsRules.cs); Doom applies them to guns whose skill is
+// The Shotguns skill in Doom (the Shotguns perks card). Daggerfall sends the live skill in the character sheet; Doom's
+// shared rules (DoomerfallRules.zs, Shot*) turn it into the numbers below, and this applies them to guns whose skill is
 // Shotguns (DoomerfallWeaponCategory.SkillSlotOf): stock Doom's Shotgun and Super Shotgun, or a DRLA shotgun. Without a
 // Daggerfall character every rule reads off, so a Doom-only game is unchanged.
 //
@@ -23,24 +23,23 @@
 // tic it is fired, so it is the held gun's; a projectile pellet carries the tag of the gun that fired it.
 class DoomerfallShotguns : StaticEventHandler
 {
-	// DFB_SHEET_* indices; must match bridge/doomerfall_bridge.h.
-	const SheetValid = 2;
-	const SkillShotguns = 4;
-	const ShotDamageBp = 167;
-	const ShotReloadBp = 168;
-	const ShotPelletBp = 169;
-	const ShotKnockBp = 170;
-	const ShotSlamDamage = 171;
-	const ShotCollideDamage = 172;
+	const SkillShotguns = DoomerfallRules.SkillShotguns;
+	const ShotDamageBp = DoomerfallRules.ShotDamageBp;
+	const ShotReloadBp = DoomerfallRules.ShotReloadBp;
+	const ShotPelletBp = DoomerfallRules.ShotPelletBp;
+	const ShotKnockBp = DoomerfallRules.ShotKnockBp;
+	const ShotSlamDamage = DoomerfallRules.ShotSlamDamage;
+	const ShotCollideDamage = DoomerfallRules.ShotCollideDamage;
 
 	const BaseKnock = 16.;     // Units per tic at strength 10000 with every pellet hitting a 100-mass enemy.
 	const RefPellets = 14.;    // A DRLA Double Shotgun blast: the full effect.
 	const StaggerSpeed = 4.;   // Shoves at least this fast stagger.
 	const FlightTics = 35;     // Watch a knocked enemy this long for a slam.
 
+	// A perk rule's value (DoomerfallRules.Get: Doom applies the rule to Daggerfall's character sheet), 0 if off.
 	clearscope static int Rule(int index)
 	{
-		return max(0, Actor.DD_SheetValue(index));
+		return DoomerfallRules.Get(index);
 	}
 
 	clearscope static bool IsShotgun(Weapon w)
@@ -110,7 +109,7 @@ class DoomerfallShotguns : StaticEventHandler
 		hitPellets.Clear();
 		Fly();
 
-		if (Actor.DD_SheetValue(SheetValid) != 1) return; // Rules come from Daggerfall's character only.
+		if (!DoomerfallRules.HasCharacter()) return; // Rules come from Daggerfall's character only.
 		for (int i = 0; i < MAXPLAYERS; i++)
 		{
 			let mo = playeringame[i] ? players[i].mo : null;

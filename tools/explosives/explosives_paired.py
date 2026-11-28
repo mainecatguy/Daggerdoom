@@ -9,7 +9,7 @@ usage: explosives_paired.py <play folder> assemble <base play folder> <uzdoom bu
             skill to each value in turn and opens a perk window at 25, 50, 75 and 100, which the script clicks shut.
             The Doom harness (explosives_paired.zs) fires DRLA's Rocket Launcher at a target in cycles, and once at
             skill 100 at a pack (a baron among imps) to see the chain and the frame times.
-Checks: the rules Doom read match Daggerfall's skill (DoomerfallExplosivesRules.cs); every hit carries the damage
+Checks: the rules Doom read match Daggerfall's skill (DoomerfallRules.zs); every hit carries the damage
 bonus; the player's own splash is cut by 95% / 99% from 25 / 75; at 100 the pack dies with chained blasts that never
 hurt the player, and every playsim tic of the chain fits in one tic (28.6 ms). Wrap the whole script in quiet_run.py.
 Output goes to <play folder>/../explosives-paired.

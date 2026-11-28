@@ -26,7 +26,7 @@ DRLA = ["DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.
 SHEET_INTS, SHEET_FORMAT_VERSION = 181, 11
 RULES = {  # 173 damage, 174/175 splash bp/radius, 176 speed
     "off": {}, "dmg": {173: 5000}, "splash": {174: 2000, 175: 64}, "speed25": {176: 1500}, "speed": {176: 6000},
-    # 177 burn, 178 convert, 179/180 burst bp/radius (DoomerfallEnergyRules.cs at skills 25/50/75/100)
+    # 177 burn, 178 convert, 179/180 burst bp/radius (DoomerfallRules.zs at skills 25/50/75/100)
     "burn25": {177: 5000}, "burn50": {177: 10000, 178: 2000}, "burn75": {177: 12500, 178: 4000},
     "burn100": {177: 15000, 178: 4000, 179: 4000, 180: 128}}
 RULES["stress"] = RULES["burn100"]

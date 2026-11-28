@@ -49,8 +49,8 @@ class AutoPairHarness : EventHandler
 			target = Actor.Spawn("AutoPairTarget", mo.Vec3Angle(120, mo.angle, 0));
 			t = 0; shots = 0; hits = 0; ammoStart = AmmoNow(p); cycle++;
 			Console.Printf("PAIRED start %d skill=%d dmg=%d burstbp=%d burstn=%d per=%d sunder=%d/%d", cycle, Actor.DD_SheetSkill(5),
-				Actor.DD_SheetValue(155), Actor.DD_SheetValue(156), Actor.DD_SheetValue(157), Actor.DD_SheetValue(159),
-				Actor.DD_SheetValue(160), Actor.DD_SheetValue(161));
+				DoomerfallRules.Get(0), DoomerfallRules.Get(1), DoomerfallRules.Get(2), DoomerfallRules.Get(4),
+				DoomerfallRules.Get(5), DoomerfallRules.Get(6));
 			return;
 		}
 		if (t < 72)

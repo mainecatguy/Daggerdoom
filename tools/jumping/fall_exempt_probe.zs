@@ -45,7 +45,7 @@ class DoomerfallFallExemptTest : StaticEventHandler
 		if (t < Settle) return false;
 		double fell = topZ - mo.pos.z;
 		Console.Printf("FALLTEST %s fell=%.1f falldamage=%d rule=%d flags_at_drop=%d flags_now=%d hp=%d->%d", what, fell, damage,
-			DoomerfallJump.FallDamage(fell), flagsAtDrop, Actor.DD_PlayerFlags(), hpBefore, p.health);
+			DoomerfallRules.FallDamage(fell), flagsAtDrop, Actor.DD_PlayerFlags(), hpBefore, p.health);
 		mo.GiveBody(1000);
 		return true;
 	}

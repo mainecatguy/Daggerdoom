@@ -1,0 +1,127 @@
+"""Doom's shared rules (mods/doomerfall/src/zscript/DoomerfallRules.zs) give the same numbers as the formulas they
+replaced: Daggerfall's perk rule files (DoomerfallAutomaticsRules.cs, DoomerfallExplosivesRules.cs,
+DoomerfallShotgunsRules.cs, DoomerfallEnergyRules.cs before 2026-11-27, ported below line for line), and the old Doom
+formulas in DoomerfallAttributes.zs, DoomerfallAgility.zs and DoomerfallJump.zs.
+
+usage: python quiet_run.py --timeout 120 -- python tools/rules/rules_test.py <uzdoom.exe> <work folder>
+Runs DOOM.WAD E1M1 with doomerfall.pk3 and a harness that prints every rule over its whole input range, no bridge.
+"""
+import re, subprocess, sys, time, zipfile
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[2]
+IWAD = Path(r"D:\dev\DoomDaggerfall\GameResources\wads\DOOM.WAD")
+BAD = re.compile(r'Script error|zscript\S*, line \d+|\bFatal error|VM execution aborted', re.I)
+
+
+def old_perks(skill):
+    """The four C# Fill(values, skill) methods, in DoomerfallRules.ERule order (the old sheet slots 155-180)."""
+    c = 0 if skill < 0 else 100 if skill > 100 else skill
+    v = []
+    # Automatics
+    burst = skill >= 25
+    v += [6000 * c // 100, 3000 if burst else 0, 3 if burst else 0, 300 if burst else 0,
+          4 if skill >= 100 else 2 if skill >= 50 else 1, 100 if skill >= 75 else 0, 1500 if skill >= 75 else 0]
+    # Explosives
+    chain = skill >= 100
+    v += [6000 * c // 100, 9900 if skill >= 75 else 9500 if skill >= 25 else 0, 0, 2500 if chain else 0, 128 if chain else 0]
+    # Shotguns
+    most, knock = skill >= 100, skill >= 75
+    v += [7500 * c // 100, 3500 if skill >= 25 else 0, 10000 if most else 5000 if skill >= 50 else 0,
+          20000 if most else 10000 if knock else 0, 400 if most else 200 if knock else 0, 0]
+    # Energy Weapons
+    lv = c // 25
+    v += [5000 * c // 100, 2000 if skill >= 25 else 0, 64 if skill >= 25 else 0, 1500 * (c // 25),
+          [0, 5000, 10000, 12500, 15000][lv], [0, 0, 2000, 4000, 4000][lv], 4000 if lv == 4 else 0, 128 if lv == 4 else 0]
+    return v
+
+
+def old_attr(v):
+    return (1.0 if v < 0 else 1.0 + v / 100.0, 1.0 if v < 0 else 0.75 + v / 200.0,
+            0.0 if v <= 0 else 0.40 * v / 100.0, 0.0 if v <= 0 else 0.15 * v / 100.0)
+
+
+def old_jump(s):
+    k = max(0, min(100, s))
+    return 1.0 + k / 100.0 + (0.25 if k >= 25 else 0.0), 2 if s >= 100 else 1 if s >= 50 else 0, 1 if s >= 75 else 0
+
+
+def old_fall(units):
+    m = units / 30.0
+    return int(5.0 * (m - 5.0)) if m > 5.0 else 0
+
+
+def main():
+    exe, work = Path(sys.argv[1]), Path(sys.argv[2])
+    work.mkdir(parents=True, exist_ok=True)
+    mod = work / "doomerfall.pk3"
+    subprocess.run([sys.executable, str(REPO / "scripts" / "doomerfall" / "build_pk3.py"), str(mod)], check=True)
+    harness = work / "rulestest.pk3"
+    with zipfile.ZipFile(harness, "w") as z:
+        z.write(Path(__file__).with_name("rules_test.zs"), "zscript.txt")
+        z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "RulesTest" }\n')
+    out = work / "rules.out"
+    args = [str(exe), "-iwad", str(IWAD), "-file", str(mod), str(harness), "-config", str(work / "rules.ini"), "-nosound",
+            "-noautoload", "-noactivate", "-stdout", "-nomonsters", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1",
+            "+vid_lowerinbackground", "0", "+vid_fullscreen", "0", "-width", "320", "-height", "200", "+map", "E1M1"]
+    with open(out, "wb") as f:
+        p = subprocess.Popen(args, cwd=work, stdout=f, stderr=subprocess.STDOUT)
+        deadline = time.monotonic() + 30
+        try:
+            while p.poll() is None and time.monotonic() < deadline:
+                time.sleep(0.2)
+                text = out.read_text(errors="replace")
+                if "RULESTEST done" in text or BAD.search(text):
+                    break
+        finally:
+            if p.poll() is None:
+                p.kill()
+                p.wait()
+    lines = out.read_text(errors="replace").splitlines()
+    bad, counts = [l for l in lines if BAD.search(l)][:5], {}
+    def fail(msg):
+        bad.append(msg)
+    for l in lines:
+        t = l.split()
+        if len(t) < 2 or t[0] != "RULESTEST":
+            continue
+        kind = t[1]
+        counts[kind] = counts.get(kind, 0) + 1
+        if kind == "perk":
+            r, s, got = map(int, t[2:5])
+            if old_perks(s)[r] != got:
+                fail(f"perk rule {r} at skill {s}: {got}, was {old_perks(s)[r]}")
+        elif kind == "get" and int(t[3]) != 0:
+            fail(f"rule {t[2]} is {t[3]} without a Daggerfall character")
+        elif kind == "attr":
+            v = int(t[2])
+            if any(abs(float(a) - b) > 1e-6 for a, b in zip(t[3:7], old_attr(v))):
+                fail(f"attributes at {v}: {t[3:7]}, was {old_attr(v)}")
+        elif kind == "jump":
+            s = int(t[2])
+            want = old_jump(s)
+            if abs(float(t[3]) - want[0]) > 1e-6 or int(t[4]) != want[1] or int(t[5]) != want[2]:
+                fail(f"jumping at {s}: {t[3:6]}, was {want}")
+        elif kind == "fall":
+            u, got = int(t[2]), int(t[3])
+            if old_fall(u) != got:
+                fail(f"fall of {u} units: {got}, was {old_fall(u)}")
+        elif kind == "luck":
+            luck = int(t[2])
+            want = "".join("1" if luck > 0 and (k / 1000.0) * 200 < min(luck, 100) else "0" for k in range(601))
+            if t[3] != want:
+                fail(f"luck {luck}: drop pattern differs")
+        elif kind == "stat" and t[2:4] != ["-1", "0"]:
+            fail(f"without a Daggerfall character Agility reads {t[2]} and HasCharacter {t[3]}")
+    want_counts = {"perk": 26 * 111, "get": 26, "attr": 102, "jump": 111, "fall": 401, "luck": 9, "stat": 1, "done": 1}
+    if counts != want_counts:
+        fail(f"line counts {counts}, want {want_counts}")
+    for b in bad[:20]:
+        print("FAIL", b)
+    print(f"{sum(counts.values())} values compared")
+    print("RESULT", "FAIL" if bad else "PASS")
+    return 1 if bad else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -123,7 +123,7 @@ class AgiPaired : StaticEventHandler
 		{
 			let w = p.ReadyWeapon;
 			let psp = p.FindPSprite(PSP_WEAPON);
-			bool inReload = psp && psp.CurState && DoomerfallAgilityEffects.IsReloadLabel(Actor.DD_StateLabel(psp.CurState));
+			bool inReload = psp && psp.CurState && DoomerfallAttributeEffects.IsReloadLabel(Actor.DD_StateLabel(psp.CurState));
 			if (w && (p.WeaponState & WF_WEAPONREADY) && !inReload && mo.CountInv(w.AmmoType1) > 0) { reloadTics = tics; Report(p, agi); }
 			else if (tics > Timeout) { reloadTics = -1; Report(p, agi); }
 		}
@@ -164,13 +164,13 @@ class AgiPaired : StaticEventHandler
 		Vector3 far = mo.Pos + (0, 0, 4000);
 		let dummy = Actor.Spawn("AgiDummy", far, NO_REPLACE);
 		let attacker = Actor.Spawn("AgiDummy", far + (64, 0, 0), NO_REPLACE);
-		dummy.GiveInventory("DoomerfallAgilityEffects", 1);
+		dummy.GiveInventory("DoomerfallAttributeEffects", 1);
 		int evade = Misses(dummy, attacker, Hits);
 		int self = Misses(dummy, dummy, Never);
 		int none = Misses(dummy, null, Never);
 		int tele = Misses(dummy, attacker, Never, 'Telefrag');
 		Console.Printf("AGI agi=%d item=%d weapon=%s switch=%d reload=%d evade=%d of=%d self=%d null=%d tele=%d",
-			agi, mo.FindInventory("DoomerfallAgilityEffects") ? 1 : 0, p.ReadyWeapon ? p.ReadyWeapon.GetClassName() : 'none',
+			agi, mo.FindInventory("DoomerfallAttributeEffects") ? 1 : 0, p.ReadyWeapon ? p.ReadyWeapon.GetClassName() : 'none',
 			switchTics, reloadTics, evade, Hits, self, none, tele);
 		dummy.Destroy();
 		attacker.Destroy();

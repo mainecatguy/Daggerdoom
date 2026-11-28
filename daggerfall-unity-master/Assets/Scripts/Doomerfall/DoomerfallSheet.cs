@@ -206,10 +206,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             values[Dfb.SHEET_CLIMB_CHANCE + Dfb.CLIMB_CONTINUE] = FormulaHelper.CalculateClimbingChance(player, 50);
             values[Dfb.SHEET_CLIMB_CHANCE + Dfb.CLIMB_REGAIN] = FormulaHelper.CalculateClimbingChance(player, 20);
             values[Dfb.SHEET_CLIMB_ENHANCED] = player.IsEnhancedClimbing ? 1 : 0;
-            DoomerfallAutomaticsRules.Fill(values, player);
-            DoomerfallExplosivesRules.Fill(values, player);
-            DoomerfallShotgunsRules.Fill(values, player);
-            DoomerfallEnergyRules.Fill(values, player);
+            // Gun skill perk rules are Doom's (DoomerfallRules.zs): it applies them to the skills above, so their slots
+            // (DFB_SHEET_AUTO_* to DFB_SHEET_ENERGY_*) stay 0.
         }
 
         // The checksum lets a test compare this line with Doom's copy of the same version.

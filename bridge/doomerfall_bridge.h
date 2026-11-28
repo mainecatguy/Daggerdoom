@@ -373,8 +373,12 @@ typedef struct dfb_face
 #define DFB_CLIMB_GRASP    1   /* grab a wall while airborne; base 40 */
 #define DFB_CLIMB_CONTINUE 2   /* keep climbing; base 50 */
 #define DFB_CLIMB_REGAIN   3   /* regain a hold while slipping; base 20 */
-/* Automatics skill rules (work/backlog/skills-in-doom.md), from the live Automatics skill. Daggerfall decides
-   them and Doom applies them to guns whose skill is Automatics. 0 means that rule is off. */
+/* Slots 155-180: gun skill perk rules. Reserved: Daggerfall leaves them 0. Daggerfall sends the character sheet and
+   Doom applies the rules (architecture.md, "Character sheet and rules"): Doom computes these numbers from the skills
+   above (mods/doomerfall/src/zscript/DoomerfallRules.zs, in this order). The Doom-only perk tests' fake Daggerfall
+   (tools/automatics, explosives, shotguns, energy) still writes hand-picked rule sets here, and their harness hands
+   them to Doom's rules in place of the computed ones. 0 means that rule is off.
+   Automatics (work/backlog/skills-in-doom.md), from the live Automatics skill. */
 #define DFB_SHEET_AUTO_DAMAGE_BP      155  /* damage bonus in 1/10000ths (+0% to +60% by skill) */
 #define DFB_SHEET_AUTO_BURST_BP       156  /* burst fire: this much more damage ... */
 #define DFB_SHEET_AUTO_BURST_SHOTS    157  /* ... on the first this many shots of a burst ... */
@@ -382,23 +386,20 @@ typedef struct dfb_face
 #define DFB_SHEET_AUTO_SHOTS_PER_AMMO 159  /* one ammo per this many shots; 1 or 0 is normal use */
 #define DFB_SHEET_AUTO_SUNDER_BP      160  /* each hit makes the enemy take this much more damage from all sources ... */
 #define DFB_SHEET_AUTO_SUNDER_MAX_BP  161  /* ... permanently, up to this much */
-/* Explosives skill rules (work/backlog/skills-in-doom.md), from the live Explosives skill. Daggerfall decides them and
-   Doom applies them to shots from guns whose skill is Explosives. 0 means that rule is off. */
+/* Explosives (work/backlog/skills-in-doom.md), from the live Explosives skill. */
 #define DFB_SHEET_EXPL_DAMAGE_BP      162  /* damage bonus in 1/10000ths (+0% to +60% by skill) */
 #define DFB_SHEET_EXPL_SELF_CUT_BP    163  /* the player's own splash damage is cut by this much (95% at 25, 99% at 75) */
 #define DFB_SHEET_EXPL_DIRECT_BP      164  /* more damage to the enemy a shot hits directly (50; amount open, so 0) */
 #define DFB_SHEET_EXPL_CHAIN_BP       165  /* an enemy the explosives kill explodes for this much of its maximum health ... */
 #define DFB_SHEET_EXPL_CHAIN_RADIUS   166  /* ... in this radius (map units), each chained generation at half the last */
-/* Shotguns skill rules (work/backlog/skills-in-doom.md), from the live Shotguns skill. Daggerfall decides them and
-   Doom applies them to guns whose skill is Shotguns. 0 means that rule is off. */
+/* Shotguns (work/backlog/skills-in-doom.md), from the live Shotguns skill. */
 #define DFB_SHEET_SHOT_DAMAGE_BP      167  /* damage bonus in 1/10000ths (+0% to +75% by skill) */
 #define DFB_SHEET_SHOT_RELOAD_BP      168  /* reloads take this much less time, in 1/10000ths */
 #define DFB_SHEET_SHOT_PELLET_BP      169  /* this many more pellets per shot, in 1/10000ths */
 #define DFB_SHEET_SHOT_KNOCK_BP       170  /* knockback strength, 10000 = the 75 perk's */
 #define DFB_SHEET_SHOT_SLAM_DAMAGE    171  /* most extra damage an enemy knocked into a wall takes */
 #define DFB_SHEET_SHOT_COLLIDE_DAMAGE 172  /* most damage a knocked enemy and what it hits each take */
-/* Energy Weapons skill rules (work/backlog/skills-in-doom.md), from the live Energy Weapons skill. Daggerfall decides
-   them and Doom applies them to shots from guns whose skill is Energy Weapons. 0 means that rule is off. */
+/* Energy Weapons (work/backlog/skills-in-doom.md), from the live Energy Weapons skill. */
 #define DFB_SHEET_ENERGY_DAMAGE_BP    173  /* damage bonus in 1/10000ths (+0% to +50% by skill) */
 #define DFB_SHEET_ENERGY_SPLASH_BP    174  /* a hit that is not an explosion also deals this much of its damage ... */
 #define DFB_SHEET_ENERGY_SPLASH_RADIUS 175 /* ... to every other enemy within this many map units */
