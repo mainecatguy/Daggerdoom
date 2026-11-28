@@ -6,7 +6,9 @@
 //      for Actor.DD_OutdoorSwimming;
 //   3. measures the speed and eye height there, and tries to jump;
 //   4. stays in the water for StayTics, so Daggerfall's game minutes pass (Swimming tallies, fatigue);
-//   5. goes back to the start and checks swimming ended and the eye height came back.
+//   5. walks (thrust, no teleport) from the water towards the start, logging where swimming stops against Daggerfall's
+//      water flag ("shore"), then walks back from dry land onto the same spot, logging where it starts ("shorein");
+//   6. goes back to the start and checks swimming ended and the eye height came back.
 // Lines: "SWIMTEST <name> ...", "SWIMTEST done".
 class DoomerfallSwimTest : StaticEventHandler
 {
@@ -152,9 +154,49 @@ class DoomerfallSwimTest : StaticEventHandler
 					lastWater = wf; lastSwim = sw; if (!sw && !wf) dryTic = t;
 				}
 				if (to.Length() < 64 || (dryTic > 0 && !sw && !wf && t - dryTic > 70)) walked = true;
+				if (walked && dryTic > 0) { phase = 6; t = 0; lastWater = wf; lastSwim = sw; Console.Printf("SWIMTEST walkin from %.0f %.0f", mo.pos.x, mo.pos.y); }
 				return;
 			}
 			if (!walked) { MoveTo(mo, start.xy); walked = true; t = 2; }
+			BackOnLand(p, mo);
+		}
+		if (phase == 6) // walk from dry land back into the water, no teleport
+		{
+			Vector2 to = anchor.xy - mo.pos.xy; // where it swam before (the spot may sit on a water tile's corner)
+			int wf = Actor.DD_PlayerFlags() & 2;
+			bool sw = Actor.DD_OutdoorSwimming();
+			if (wf != lastWater || sw != lastSwim)
+			{
+				Console.Printf("SWIMTEST shorein t=%d at %.0f %.0f df_water=%d swimming=%d", t, mo.pos.x, mo.pos.y, wf / 2, sw);
+				lastWater = wf; lastSwim = sw;
+				if (sw && wf) dryTic = t;
+			}
+			if (sw && wf && t - dryTic > 35) // in the water and swimming for a second
+			{
+				Console.Printf("SWIMTEST walkedin at %.0f %.0f swimming=%d df_water=%d", mo.pos.x, mo.pos.y, sw, wf / 2);
+				phase = 7; t = 0; MoveTo(mo, start.xy);
+				return;
+			}
+			if (t % 70 == 1)
+				Console.Printf("SWIMTEST walkin t=%d at %.0f %.0f z-floor=%.1f vel=%.2f %.2f to=%.0f", t, mo.pos.x, mo.pos.y, mo.pos.z - mo.floorz, mo.vel.x, mo.vel.y, to.Length());
+			if (t > 35 * 60) { Console.Printf("SWIMTEST walkin never swam"); phase = 7; t = 0; MoveTo(mo, start.xy); return; }
+			if (to.Length() > 1)
+			{
+				double fm, sm, fr, mf;
+				[fm, sm] = mo.TweakSpeeds(Walk, 0);
+				[fr, mf] = mo.GetFriction();
+				mo.vel.xy *= clamp(to.Length() / 48, 0, 1); // slows down near the spot instead of overshooting it
+				if (mo.pos.z <= mo.floorz) mo.ForwardThrust(fm * mo.Speed / 256 * mf * clamp(to.Length() / 48, 0.05, 1), atan2(to.y, to.x));
+			}
+			else mo.vel.xy = (0, 0);
+			return;
+		}
+		if (phase == 7) BackOnLand(p, mo);
+	}
+
+	void BackOnLand(PlayerInfo p, PlayerPawn mo)
+	{
+		{
 			if (t < 70 || (Actor.DD_OutdoorSwimming() && t < 35 * 30)) return; // Daggerfall follows a teleport within seconds
 			Console.Printf("SWIMTEST back speed_ok eye=%.2f land_eye=%.2f swimming=%d flags=%d hp=%d", p.viewheight, landEye,
 				Actor.DD_OutdoorSwimming(), Actor.DD_PlayerFlags(), p.health);

@@ -13,6 +13,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
     {
         static bool applied; // IsPlayerSwimming was set from Doom's report and not cleared yet
 
+        // Doom's player swims on outdoor water: what PlayerMotor.OnExteriorWater == Swimming means while Daggerfall's
+        // own motor runs. Read by the Regeneration: In Water career special (PassiveSpecialsEffect).
+        internal static bool Swimming { get { return applied; } }
+
         // Runs every frame after the peer state is read. Allocates nothing except the log line on a change.
         public static void Apply(DoomerfallBridge bridge, bool inGame, ref DfbUzState peer)
         {
@@ -30,9 +34,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 applied = swimming;
                 Entity.PlayerEntity player = GameManager.Instance.PlayerEntity;
                 if (player != null)
-                    bridge.LogLine(string.Format("swim state: swimming {0} Swimming skill {1} uses {2} fatigue {3} breath {4} time {5}", swimming ? 1 : 0,
+                    bridge.LogLine(string.Format("swim state: swimming {0} Swimming skill {1} uses {2} fatigue {3} breath {4} time {5} health {6}", swimming ? 1 : 0,
                         player.Skills.GetLiveSkillValue(DFCareer.Skills.Swimming), player.SkillUses[(int)DFCareer.Skills.Swimming],
-                        player.CurrentFatigue, player.CurrentBreath, DaggerfallUnity.Instance.WorldTime.Now.ToClassicDaggerfallTime()));
+                        player.CurrentFatigue, player.CurrentBreath, DaggerfallUnity.Instance.WorldTime.Now.ToClassicDaggerfallTime(), player.CurrentHealth));
             }
         }
     }

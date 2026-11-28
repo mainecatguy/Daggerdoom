@@ -266,6 +266,7 @@ Daggerfall's own, in the wilderness and in towns.
 - You cannot jump or rest while swimming. The transport menu works as on land.
 - Every game minute of swimming practises Swimming. On a failed Swimming roll that minute costs four times the usual
   fatigue (never for Argonians), so swimming with a low Swimming skill tires you quickly.
+- A class with **Regeneration: In Water** heals 1 health every 4 game minutes while swimming.
 - You cannot dive outdoors, so you never run out of breath there, as in Daggerfall.
 - With **Water Walking** you walk on the water at full speed. Shallow water and docks are walked on, not swum.
 

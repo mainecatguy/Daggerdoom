@@ -13,8 +13,9 @@ NOTES = """rem Doomerfall outdoor swimming demo. You start in the overworld and 
 rem Try: walk towards the shore and back. In the water the view drops to the water line, you move at 25%% + Swimming/2 %%
 rem of your speed, and Jump does nothing. On land the view comes back. You never run out of breath outdoors (as in Daggerfall).
 rem The full game is play-full.bat (New Game): Privateer's Hold is on an island, so the sea is a short walk from its door.
-rem This demo uses Daggerfall's test character without a running Daggerfall game, so its per-minute rules (Swimming
-rem practice, swimming fatigue) only run in play-full.bat.
+rem Daggerfall's per-minute rules run here as in a real game: each game minute in the water practises Swimming and,
+rem on a failed Swimming roll, costs four times the usual fatigue. The test character starts at 60 health with
+rem Regeneration: In Water, so it heals 1 health every 4 game minutes while swimming, and not on land.
 """
 
 

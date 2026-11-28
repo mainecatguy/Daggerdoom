@@ -117,6 +117,13 @@ def check(lines, swim):
         fails.append(f"jumped in the water: {jump.strip() or 'no jump line'}")
     if not back or num(r"swimming=(\d)", back, int) != 0 or abs(num(r" eye=([\d.]+)", back) - num(r"land_eye=([\d.]+)", back)) > 0.01:
         fails.append(f"back on land: {back.strip() or 'no back line'}")
+    # Walked from dry land into the water (no teleport): swimming starts, and never before Daggerfall's tile is water.
+    walkin = [l for l in lines if "SWIMTEST shorein" in l]
+    if "SWIMTEST walkedin" not in text:
+        fails.append("did not swim after walking from land into the water")
+    for l in walkin:
+        if num(r"swimming=(\d)", l, int) == 1 and num(r"df_water=(\d)", l, int) != 1:
+            fails.append(f"swam before Daggerfall's tile was water: {l.strip()}")
     on = [l for l in swim if "swimming 1" in l]
     off = [l for l in swim if "swimming 0" in l]
     if not on or not off:
@@ -138,6 +145,11 @@ def check(lines, swim):
             fails.append("Swimming was not tallied in the water")
         if b1 != b0:
             fails.append("breath changed outdoors")
+        # The test character has Regeneration: In Water (1 health every 4 game minutes, PassiveSpecialsEffect).
+        h0, h1 = num(r"health (-?\d+)", on[0], int), num(r"health (-?\d+)", off[-1], int)
+        print(f"Daggerfall: health {h0} -> {h1} while swimming (Regeneration: In Water)")
+        if h0 is None or h1 is None or (t1 - t0 >= 8 and h1 <= h0):
+            fails.append("Regeneration: In Water did not heal while swimming")
     for f in fails:
         print("FAIL", f)
     print("SWIM TEST", ("PASS" + (f" ({', '.join(notes)})" if notes else "")) if not fails else "FAIL")
