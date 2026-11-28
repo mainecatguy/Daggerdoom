@@ -116,6 +116,7 @@ struct NoiseTarget
 	int soundblocks;
 };
 static TArray<NoiseTarget> NoiseList(128);
+void DD_BackstabHeard(AActor *actor, AActor *soundtarget); // [Doomerfall] records hearing; inactive outside a bridge session
 
 static void NoiseMarkSector(sector_t *sec, AActor *soundtarget, bool splash, AActor *emitter, int soundblocks, double maxdist)
 {
@@ -136,6 +137,7 @@ static void NoiseMarkSector(sector_t *sec, AActor *soundtarget, bool splash, AAc
 		if (actor != soundtarget && (!splash || !(actor->flags4 & MF4_NOSPLASHALERT)) &&
 			(!maxdist || (actor->Distance2D(emitter) <= maxdist)))
 		{
+			DD_BackstabHeard(actor, soundtarget); // [Doomerfall] before LastHeard changes
 			actor->LastHeard = soundtarget;
 		}
 	}

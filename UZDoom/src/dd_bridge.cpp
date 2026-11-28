@@ -85,7 +85,7 @@ void DD_TownsfolkDied(dfb_session *session, AActor *mo);
 void DD_ClimbFrame(dfb_session *session);
 void DD_RunningFrame(dfb_session *session, uint32_t worldContext); // dd_running.cpp
 void DD_BackstabFrame(dfb_session *session); // dd_backstab.cpp
-double DD_BackstabFactor(AActor *player, AActor *target, int32_t backstabBp); // dd_backstab.cpp
+double DD_BackstabFactor(AActor *player, AActor *target, AActor *inflictor, int32_t backstabBp); // dd_backstab.cpp
 void DD_FacesFrame(dfb_session *session);
 bool DD_ClimbNetEvent(dfb_session *session, const char *name);
 bool DD_GuardsEvent(const dfb_event &e);
@@ -1230,13 +1230,13 @@ bool DD_BridgeHpHit(player_t *player, int damage)
 // P_DamageMobj, next to the source's DamageMultiply: the damage the bridged player deals to anything but itself,
 // times Daggerfall's damage bonus (dfb_df_state.damage_bonus_bp), and on a hit to an unaware enemy also times its
 // backstab element (backstab_bonus_bp, dd_backstab.cpp). Unchanged with no session or no bonus that applies.
-int DD_BridgeDamageBonus(AActor *source, AActor *target, int damage)
+int DD_BridgeDamageBonus(AActor *source, AActor *target, AActor *inflictor, int damage)
 {
 	const int32_t bp = peerState.damage_bonus_bp, backstabBp = peerState.backstab_bonus_bp;
 	if (!session || damage <= 0 || !source || source == target ||
 		!HpIsBridgedPlayer(source->player) || source->player->mo != source)
 		return damage;
-	const double backstab = DD_BackstabFactor(source, target, backstabBp); // counts sneak hits even at x1 (skill 0)
+	const double backstab = DD_BackstabFactor(source, target, inflictor, backstabBp); // counts sneak hits even at x1 (skill 0)
 	if (bp == 0 && backstab == 1.0) return damage;
 	const int scaled = std::max(1, int(damage * (1.0 + std::max(bp, -10000) / 10000.0) * backstab));
 	static int logged;

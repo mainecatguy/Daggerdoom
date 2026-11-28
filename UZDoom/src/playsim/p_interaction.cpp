@@ -1088,7 +1088,7 @@ static int hasBuddha(player_t *player)
 // Returns the amount of damage actually inflicted upon the target, or -1 if
 // the damage was cancelled.
 bool DD_BridgeHpHit(player_t *player, int damage); // [Doomerfall] false outside a bridge session
-int DD_BridgeDamageBonus(AActor *source, AActor *target, int damage); // [Doomerfall] damage unchanged outside a bridge session
+int DD_BridgeDamageBonus(AActor *source, AActor *target, AActor *inflictor, int damage); // [Doomerfall] damage unchanged outside a bridge session
 int DD_BridgeWillpowerDamage(player_t *player, int damage, bool keep); // [Doomerfall] damage unchanged outside a bridge session
 bool DD_KillCall; // [Doomerfall] true only during Thing_Destroy's kill (p_lnspec.cpp), so Willpower leaves it lethal
 bool DD_TownsfolkRefuseDamage(AActor *target, AActor *source); // [Doomerfall] dd_townsfolk.cpp
@@ -1234,7 +1234,7 @@ static int DamageMobj (AActor *target, AActor *inflictor, AActor *source, int da
 			if (damage > 0 && source != NULL)
 			{
 				damage = int(damage * source->DamageMultiply);
-				damage = DD_BridgeDamageBonus(source, target, damage); // [Doomerfall] Daggerfall's damage bonus; unchanged at 0
+				damage = DD_BridgeDamageBonus(source, target, inflictor, damage); // [Doomerfall] Daggerfall's damage bonus; unchanged at 0
 
 				// Handle active damage modifiers (e.g. PowerDamage)
 				if (damage > 0 && !(flags & DMG_NO_ENHANCE))

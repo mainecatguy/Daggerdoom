@@ -185,19 +185,23 @@ def run_one(skill, stock_mods, bonus=None):
     for l in [l for l in uz.splitlines() if "damage bonus:" in l][:14]:
         print("   uz:", l.split("damage bonus: ", 1)[1][:150])
     expect = 1 + 4 * min(max(skill, 0), 100) / 100
-    ok = reason == "route finished" and all(k in hits for k in ("unaware", "alerted", "volley", "heard", "infight", "hitscan"))
+    ok = reason == "route finished" and all(k in hits for k in ("unaware", "alerted", "volley", "infight", "hitscan", "heardbefore", "heardtwice", "ownnoise", "ownflight"))
     if ok:
         base = hits["alerted"][1]                       # base damage x the rest of the damage bonus
         ratio = hits["unaware"][1] / base if base else 0
         hs_ratio = hits["hitscan"][1] / (base * 20 / 100) if base else 0
         print(f"   expected multiplier x{expect:g}; unaware {hits['unaware'][1]} / alerted {base} = x{ratio:.3f}; "
-              f"volley {hits['volley'][1]} (3 x unaware = {3 * hits['unaware'][1]}); heard {hits['heard'][1]}; infight {hits['infight'][1]}; "
-              f"hitscan x{hs_ratio:.3f}; real gun: {hits.get('fire', ('', 'none'))[1]} health lost")
+              f"volley {hits['volley'][1]} (3 x unaware = {3 * hits['unaware'][1]}); infight {hits['infight'][1]}; "
+              f"hitscan x{hs_ratio:.3f}; heard before {hits['heardbefore'][1]}, heard before + own noise {hits['heardtwice'][1]}, "
+              f"own noise only {hits['ownnoise'][1]}, own noise 6 tics before {hits['ownflight'][1]}; real gun: {hits.get('fire', ('', 'none'))[1]} health lost")
         print(f"   Doom sent {sent} sneak hits; Daggerfall tallied {total} Backstabbing uses (expected {sent * USES_PER_SNEAK_HIT}); "
               f"published backstab bp {published}")
         ok = (not bonus or base == round(100 * bonus)) and abs(ratio - expect) <= 0.02 and hits["infight"][1] == base and hits["volley"][1] == 3 * hits["unaware"][1] \
-            and hits["heard"][1] == hits["unaware"][1] and abs(hs_ratio - expect) <= 0.06 \
-            and hits["unaware"][2] == "no-target" and hits["unaware"][3] == "target-player" and hits["alerted"][2] == "target-player" and sent >= 5 and total == sent * USES_PER_SNEAK_HIT  # 4 harness sneak hits + the real gun's first bullet
+            and abs(hs_ratio - expect) <= 0.06 \
+            and hits["heardbefore"][1] == base and hits["heardtwice"][1] == base \
+            and hits["ownnoise"][1] == hits["unaware"][1] and hits["ownflight"][1] == hits["unaware"][1] \
+            and all(hits[k][2] == "no-target+heard" for k in ("heardbefore", "heardtwice", "ownnoise", "ownflight")) \
+            and hits["unaware"][2] == "no-target" and hits["unaware"][3] == "target-player" and hits["alerted"][2] == "target-player" and sent >= 6 and total == sent * USES_PER_SNEAK_HIT  # 5 harness sneak hits + the real gun's first bullet
     kinds = sorted({l[:150] for l in read(REVIEW / "dfu" / "PortableAppdata" / "Player.log").splitlines() if "Exception" in l})
     print("   Player.log exception kinds:", len(kinds), *kinds[:3])
     print("   RESULT", "PASS" if ok else "FAIL")
