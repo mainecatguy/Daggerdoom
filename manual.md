@@ -483,7 +483,8 @@ It works as in Daggerfall:
 You cannot rest:
 
 - with **hostile monsters nearby**: any monster that is after you and can see you, or any monster within about 12 metres, even one
-  that has not noticed you. Daggerfall tells you enemies are nearby. Kill them or get away first.
+  that has not noticed you. Hostile city guards count too. Daggerfall tells you enemies are nearby. Kill them or get away
+  first: once the ones near you are dead, you can rest, even with more of the pack alive farther off.
 - while **falling, climbing or swimming**.
 - **outdoors inside a town's walls** (camping in town is a crime, and the guards come), or **inside a building**
   unless you rented a room there, own it, or belong to a guild that lets members rest in its hall.

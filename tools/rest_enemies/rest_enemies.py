@@ -1,6 +1,6 @@
 """Rest refuses only while living hostile Doom monsters or guard bots are near (Daggerfall's 12 m, 360 Doom units).
 
-usage: rest_enemies.py assemble <source review folder> | run fresh | run load | check
+usage: rest_enemies.py assemble <source review folder> | run fresh | run load | run dungeon | check
 assemble builds review\\rest-enemies from a paired review folder (data, dfitems.pk3, portable Daggerfall Unity) with this
 checkout's UZDoom (D:\\dev\\DoomDaggerfall-build\\uzdoom-quiet), launcher, bridge, Daggerfall Unity build and
 doomerfall.pk3, and writes the demo play.bat.
@@ -10,8 +10,10 @@ the near one killed: rest opens (the far one is past 12 m). Into the Gothway tav
 guards killed: rest opens. Then an autosave.
 run load: loads that autosave in a fresh launch: rest opens beside the dead guards; a ZombieMan 120 units away: refused;
 killed: opens.
-Each case presses Doom's rest key (netevent df_rest) as a player does, reads Doom's count and Daggerfall's top window,
-and presses the key again to close what opened.
+run dungeon: into Privateer's Hold; after 8 s with its packs alive, Daggerfall's answer must match Doom's count; every
+monster killed: rest opens (Daggerfall's hidden enemies and spawners there no longer refuse it).
+Each case runs the rest key's command (netevent df_rest, through -ddqa), reads Doom's count and Daggerfall's top
+window, and presses the rest key in Doom's window to close what opened, as a player does.
 check runs DOOM.WAD E1M1 with no bridge, stock and with DRLA, and -norun.
 """
 import re
@@ -32,8 +34,17 @@ tc.REVIEW = REVIEW
 BUILD = tc.BUILD
 QUIET, GAME, MODS, DRLA, FATAL = tc.QUIET, tc.GAME, tc.MODS, tc.DRLA, tc.FATAL
 REST_KEY = 0x5A  # Z, bound to netevent df_rest
-EXPECT = {"near": True, "neardead": False, "guard": True, "guarddead": False, "loaded": False, "loadednear": True, "loadeddead": False}
+# True: refused; False: the rest window opens; None: Daggerfall's answer must match Doom's count.
+EXPECT = {"fresh": {"near": True, "neardead": False, "guard": True, "guarddead": False},
+          "load": {"loaded": False, "loadednear": True, "loadeddead": False},
+          "dungeon": {"dungeonalive": None, "dungeondead": False}}
 read = tc.read
+
+
+def dungeon_door():
+    """Privateer's Hold's door row in town (x y z nx ny in fields 3-7), as tools/monster_deaths picks it."""
+    rows = tc.lumps(REVIEW / "data" / "cache" / f"T{tc.GROUP:05d}.ddt")["DDDOORS"].decode().splitlines()
+    return next(l.split() for l in rows if l.startswith("1 187853213"))
 
 
 def assemble(source):
@@ -95,7 +106,8 @@ def run(mode):
     inbox.write_text("")
     harness = runs / "harness.pk3"
     with zipfile.ZipFile(harness, "w") as z:
-        z.writestr("zscript.txt", (HERE / "harness.zs").read_text().replace("@MODE@", mode).replace("@DOOR@", ", ".join(tc.tavern_door()[3:8])))
+        z.writestr("zscript.txt", (HERE / "harness.zs").read_text().replace("@MODE@", mode).replace("@DOOR@", ", ".join(tc.tavern_door()[3:8]))
+                    .replace("@DDOOR@", ", ".join(dungeon_door()[3:8])))
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "REHarness" }\n')
     console, uz_log, df_log, views = runs / "log-console.txt", runs / "uz.log", runs / "df.log", runs / "views.log"
     uz = ["-ddqa", str(inbox.parent), "-noactivate", "-nosound", "-noautoload", "-file", str(harness), "+logfile", "console", "+wipetype", "0",
@@ -108,11 +120,11 @@ def run(mode):
         resume = saves / "resume.zds"
         shutil.copy2(newest, resume)
         uz += ["-dfloadtest", "resume:" + str(resume), "+dd_ui_test_hold", "1"]
-    else:
+    elif mode == "fresh":
         for old in saves.glob("*.zds"):
             old.unlink()
-    df = ["-dfmute", "-dfresttest", str(views), "-dfguardtest"] + ([] if mode == "load" else ["-dftownhour", "12", "-dfresttestroom"])
-    timeout = 150 if mode == "load" else 220
+    df = ["-dfmute", "-dfresttest", str(views)] + (["-dfguardtest", "-dftownhour", "12", "-dfresttestroom"] if mode == "fresh" else [])
+    timeout = 220 if mode == "fresh" else 150
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--"] + tc.launch_args(runs, uz, df, True)
     command = [str(saves) if a == str(runs / "saves") else a for a in command]
     proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -148,20 +160,26 @@ def run(mode):
             if doom is None:
                 doom = window_driver(runs)
             uz_at, df_at, views_at = len(read(uz_log)), len(read(df_log)), len(read(views))
-            doom.press(REST_KEY)
+            # Opened by the rest key's own command; a posted key reaches Doom only once its menu has the input.
+            with open(inbox, "a") as f:
+                f.write(f"r{sent} con netevent df_rest\n")
             count = wait(uz_log, r"rest: (\d+) hostile monsters near \((\d+) see the player\)([^\n]*)", 8, uz_at)
             asked = wait(df_log, r"rest: Doom asks to rest, monsters near (\w+)", 8, df_at)
             top = wait(views, r"top (DaggerfallRestWindow|DaggerfallMessageBox)", 8, views_at)
             refused = asked and asked.group(1) == "True"
             shown = top.group(1) if top else None
-            want = EXPECT[label]
+            want = EXPECT[mode][label]
+            if want is None:
+                want = bool(count) and count.group(1) != "0"
             ok = bool(count and asked and top) and refused == want and shown == ("DaggerfallMessageBox" if want else "DaggerfallRestWindow")
             results.append((ok, label))
             print("CASE", "pass" if ok else "FAIL", f"{label}: Doom counted {count.group(0) if count else None}; Daggerfall monsters near {asked.group(1) if asked else None}, "
                   f"showed {shown} (want {'refused' if want else 'rest window'})")
             time.sleep(0.5)
             doom.press(REST_KEY)
-            wait(uz_log, r"ui: closed", 6, uz_at)
+            if not wait(uz_log, r"ui: closed", 6, uz_at):
+                doom.press(0x1B)
+                print("  ", label, "the rest key did not close the window; Escape closed it:", bool(wait(uz_log, r"ui: closed", 4, uz_at)))
             time.sleep(0.5)
             with open(inbox, "a") as f:
                 f.write(f"n{sent} con netevent re_next\n")
@@ -177,7 +195,12 @@ def run(mode):
     for line in read(df_log).splitlines():
         if "rest:" in line or "guards:" in line or "exception" in line.lower():
             print("DF", line[:220])
-    missing = [l for l in EXPECT if l.startswith("loaded") == (mode == "load") and l not in handled]
+    if mode == "fresh":
+        far = re.search(r"REFAR alive 1, ([\d.]+) units away", read(console))
+        ok = bool(far) and 360 < float(far.group(1)) < 900
+        results.append((ok, "far"))
+        print("CASE", "pass" if ok else "FAIL", f"far: a living, unaware monster between 12 m and the old 30 m stood by during 'neardead' ({far.group(0) if far else None})")
+    missing = [l for l in EXPECT[mode] if l not in handled]
     bad = sum(not ok for ok, _ in results) + len(missing)
     print(f"RESULT rest_enemies {mode}: {len(results) - sum(not ok for ok, _ in results)} passed, {bad} failed" + (f" (never reached: {missing})" if missing else ""))
 
@@ -206,7 +229,7 @@ if __name__ == "__main__":
     command = argv[1] if len(argv) > 1 else ""
     if command == "assemble" and len(argv) > 2:
         assemble(Path(argv[2]))
-    elif command == "run" and len(argv) > 2 and argv[2] in ("fresh", "load"):
+    elif command == "run" and len(argv) > 2 and argv[2] in EXPECT:
         run(argv[2])
     elif command == "check":
         check()

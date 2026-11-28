@@ -7,6 +7,7 @@ version "4.14"
 class REHarness : StaticEventHandler
 {
 	static const double DOORDATA[] = { @DOOR@ };
+	static const double DDOOR[] = { @DDOOR@ };	// Privateer's Hold's door in town
 	const LIMIT = 35 * 200;
 	int phase, timer, waiting;
 	bool next;
@@ -35,15 +36,16 @@ class REHarness : StaticEventHandler
 	}
 
 	// A ZombieMan at the given distance from the player, in the first direction where it fits. Null if none fits.
-	Actor Place(PlayerPawn p, double dist, String tag)
+	Actor Place(PlayerPawn p, double dist, String tag, bool hidden = false)
 	{
-		for (int i = 0; i < 16; i++)
+		for (int i = 0; i < 16 * 5; i++)
 		{
-			double a = p.angle + i * 22.5;
-			vector3 at = (p.pos.xy + Actor.AngleToVector(a, dist), p.pos.z);
+			double a = p.angle + (i % 16) * 22.5;
+			double d = dist * (1 + (i / 16) * 0.25);	// farther rings when nothing fits
+			vector3 at = (p.pos.xy + Actor.AngleToVector(a, d), p.pos.z);
 			let mo = Actor.Spawn("ZombieMan", at);
 			if (!mo) continue;
-			if (mo.TestMobjLocation())
+			if (mo.TestMobjLocation() && !(hidden && mo.CheckSight(p)))
 			{
 				mo.angle = a + 180;
 				Console.Printf("REPLACE %s at %.1f %.1f, %.1f units from the player", tag, mo.pos.x, mo.pos.y, mo.Distance3D(p));
@@ -63,6 +65,16 @@ class REHarness : StaticEventHandler
 		return n;
 	}
 
+	static int Living(PlayerPawn p, double range)
+	{
+		let it = ThinkerIterator.Create("Actor");
+		Actor mo;
+		int n = 0;
+		while (mo = Actor(it.Next()))
+			if (mo.bIsMonster && !mo.bFriendly && mo.health > 0 && mo.Distance3D(p) <= range) n++;
+		return n;
+	}
+
 	static Actor Guard()
 	{
 		for (int i = 1; i < MAXPLAYERS; i++)
@@ -78,6 +90,7 @@ class REHarness : StaticEventHandler
 		p.bNOTARGET = true;
 		players[0].cheats |= CF_GODMODE;
 		timer++;
+		if (farOne && farOne.health > 0) { farOne.target = null; farOne.vel = (0, 0, farOne.vel.z); }
 		if (timer > LIMIT) { Console.Printf("REDONE timeout phase %d", phase); phase = 99; return; }
 		if (waiting)
 		{
@@ -91,17 +104,21 @@ class REHarness : StaticEventHandler
 		{
 		case 0:
 			if (level.maptime < 8 || CVar.FindCVar("dd_sync_df_phase").GetInt() != 3 || timer < 420) break;
-			phase = mode == "load" ? 20 : 1;
+			phase = mode == "load" ? 20 : mode == "dungeon" ? 40 : 1;
 			timer = 0;
 			break;
 		case 1:	// Town: one monster within 12 m, one at about 20 m out of sight.
 			nearOne = Place(p, 160, "near");
-			farOne = Place(p, 600, "far");
+			// Kept unaware (its target is cleared every tic, below) and held in place: a monster past 12 m that has not
+			// noticed the player must not count (the old 900-unit check counted it).
+			farOne = Place(p, 500, "far");
+			if (farOne) farOne.Speed = 0;
 			if (!nearOne) { Console.Printf("REDONE no spot for the near monster"); phase = 99; break; }
 			Now("near");
 			break;
 		case 2:
 			if (timer == 1) { nearOne.DamageMobj(p, p, 1000000, 'None', DMG_FORCED); Console.Printf("REKILL near, health %d, far alive %d", nearOne.health, farOne && farOne.health > 0); }
+			if (timer == 69 && farOne) Console.Printf("REFAR alive %d, %.1f units away, sees the player %d", farOne.health > 0, farOne.Distance3D(p), farOne.CheckSight(p));
 			if (timer < 70) break;
 			Now("neardead");
 			break;
@@ -148,6 +165,38 @@ class REHarness : StaticEventHandler
 			Now("loadeddead");
 			break;
 		case 23:
+			Console.Printf("REDONE ok");
+			phase = 99;
+			break;
+		case 40:	// Into Privateer's Hold (MAP01), as tools/monster_deaths does.
+			if (level.MapName ~== "MAP01") { Console.Printf("REDUNGEON in"); phase = 41; timer = 0; break; }
+			if (timer < 20) break;
+			p.SetOrigin((DDOOR[0] + DDOOR[3] * 48, DDOOR[1] + DDOOR[4] * 48, DDOOR[2]), false);
+			p.vel = (0, 0, 0);
+			p.angle = atan2(-DDOOR[4], -DDOOR[3]);
+			if (timer == 40) CVar.FindCVar("dd_tm_use").SetInt(1);
+			if (timer > 35 * 30) { Console.Printf("REDONE dungeon door did not open"); phase = 99; }
+			break;
+		case 41:	// Let the packs come in, then ask with them alive.
+			if (timer < 35 * 8) break;
+			Console.Printf("REMONSTERS %d living hostile, %d within 360 units", Living(p, 1e9), Living(p, 360));
+			Now("dungeonalive");
+			break;
+		case 42:	// Clear the level, as a player who killed everything around them.
+			if (timer == 1)
+			{
+				let it = ThinkerIterator.Create("Actor");
+				Actor mo;
+				int n = 0;
+				while (mo = Actor(it.Next()))
+					if (mo.bIsMonster && !mo.bFriendly && mo.health > 0) { mo.DamageMobj(p, p, 1000000, 'None', DMG_FORCED); n++; }
+				Console.Printf("REKILL dungeon %d", n);
+			}
+			if (timer < 70) break;
+			Console.Printf("REMONSTERS %d living hostile, %d within 360 units", Living(p, 1e9), Living(p, 360));
+			Now("dungeondead");
+			break;
+		case 43:
 			Console.Printf("REDONE ok");
 			phase = 99;
 			break;
