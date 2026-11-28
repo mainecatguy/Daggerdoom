@@ -1,7 +1,7 @@
 """Town look-back, paired: the town map side of town_lookback.py with Daggerfall Unity running through the launcher.
 
-Daggerfall Unity's paired test start (-dfsynctest) is the City of Daggerfall, so this covers that town. It loads the
-town map DDT09183 paired, stands at the look point town_lookback.py used (its town map coordinates, read from that
+Daggerfall Unity starts at its -dfsynctest town, and position sync then moves it to wherever Doom is, so any town map
+works. It loads the town map (--map, default DDT09183, the City of Daggerfall; Ruins of Gaerhart Manor is DDT06187) paired, stands at the look point town_lookback.py used (its town map coordinates, read from that
 run's log), facing out, and records the nature flat actors and the distant view's flats. These are compared with the
 overworld list from the unpaired run's log, which is the wilderness view of the same spot.
 
@@ -35,7 +35,7 @@ class LookBackPaired : StaticEventHandler
 	override void WorldTick()
 	{
 		let p = players[0].mo;
-		if (!p || level.MapName != "DDT09183") return;
+		if (!p || level.MapName != "@MAP@") return;
 		timer++;
 		if (timer < @WAIT@) return;
 		p.vel = (0, 0, 0);
@@ -73,7 +73,8 @@ class LookBackPaired : StaticEventHandler
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--exe", default=str(REVIEW / "uzdoom" / "uzdoom.exe"))
-    ap.add_argument("--unpaired", required=True, help="town_lookback.py output folder for the City of Daggerfall")
+    ap.add_argument("--unpaired", required=True, help="town_lookback.py output folder for the same town")
+    ap.add_argument("--map", default="DDT09183")
     ap.add_argument("--out", default=r"D:\dev\DoomDaggerfall-build\townlookback-tests\city-paired")
     ap.add_argument("--yaw", default="180")
     ap.add_argument("--radius", type=float, default=20 * 192.0)
@@ -88,7 +89,7 @@ def main():
     x, y = re.search(r"player=([-\d.]+),([-\d.]+)", town_line).groups()
     harness = out / "lookback-paired.pk3"
     text = (ZS.replace("@X@", x).replace("@Y@", y).replace("@YAW@", a.yaw + ".0").replace("@RADIUS@", str(a.radius))
-            .replace("@WAIT@", str(a.wait)).replace("@OUT@", out.resolve().as_posix()))
+            .replace("@WAIT@", str(a.wait)).replace("@MAP@", a.map).replace("@OUT@", out.resolve().as_posix()))
     with zipfile.ZipFile(harness, "w") as z:
         z.writestr("zscript.txt", text)
         z.writestr("mapinfo.txt", 'gameinfo { addeventhandlers = "LookBackPaired" }\n')
@@ -99,7 +100,7 @@ def main():
         command += ["--mod", str(mod)]
     uz = ["-config", str(out / "uzdoom.ini"), "-dfbridgelog", str(out / "uz.log"), "-skill", "3", "-ddhorizontest",
           "-ddtowncache", str(out / "cache"), "-ddconverter", str(data / "converter" / "DungeonConverter.exe"),
-          "-ddarena2", str(GAME / "DAGGER" / "ARENA2"), "+map", "DDT09183", "-noautoload", "+logfile", "console", "+wipetype", "0",
+          "-ddarena2", str(GAME / "DAGGER" / "ARENA2"), "+map", a.map, "-noautoload", "+logfile", "console", "+wipetype", "0",
           "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+dd_debugmessages", "0",
           "+enablescriptscreenshot", "1", "+screenshot_type", "png", "+screenshot_dir", str(out), "+screenblocks", "12", "+r_drawplayersprites", "0",
           "+vid_scalemode", "5", "+vid_scale_customwidth", "1280", "+vid_scale_customheight", "720"]
