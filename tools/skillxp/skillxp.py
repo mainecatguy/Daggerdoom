@@ -3,8 +3,8 @@
 usage: skillxp.py unity | assemble | run | check
 unity: builds Daggerfall Unity (windowed, through quiet_run).
 assemble: copies this worktree's builds (tools/skillxp/build_native.py, unity) and data into the review folder.
-run: in the town by Privateer's Hold with DRLA. harness.zs hurts a Baron of Hell, two zombies and a townsperson as the
-player for far more than their health; the bridge's -dfuitest then opens the skills menu through the command its key
+run: in the town by Privateer's Hold with DRLA. harness.zs first fires the player's own gun at four Demons for 20 s,
+then hurts a Baron of Hell, two zombies, five Cyberdemons and a townsperson as the player for far more than their health; the bridge's -dfuitest then opens the skills menu through the command its key
 is bound to (netevent df_skills, menu 15). Daggerfall's -dfskillxptest (DoomerfallSkillXpTest.cs) logs that menu with
 its perk lines and the Skill XP earned, opens the character sheet and clicks its SKILLS button, buys points with BUY
 POINT (with logged test XP once the earned XP is spent) until a level-up, lets the sheet level up, then saves with
@@ -31,10 +31,12 @@ sys.argv = argv
 REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\skill-menu")
 SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\looklabel")  # Data, converter, cache, item and sprite packages.
 BUILD = Path(r"D:\dev\DoomDaggerfall-build")
-UZ_BUILD = BUILD / "uzdoom-items" / "Release"
+# Build folders configured from D:\dev\DoomDaggerfall-loop\worktree (the loop's worktree; CMAKE_HOME_DIRECTORY in each
+# CMakeCache.txt). The skillmenu lane used uzdoom-items, bridge-ammopile and launcher-ammopile from lane-items.
+UZ_BUILD = BUILD / "hitboxcheck" / "Release"
 SOUND = BUILD / "uzdoom-launcher" / "Release"
-BRIDGE_DLL = BUILD / "bridge-ammopile" / "Release" / "doomerfall_bridge.dll"
-LAUNCHER = BUILD / "launcher-ammopile" / "Release" / "doomerfall-launcher.exe"
+BRIDGE_DLL = BUILD / "poisonrules-bridge" / "Release" / "doomerfall_bridge.dll"
+LAUNCHER = BUILD / "poisonrules-launcher" / "Release" / "doomerfall-launcher.exe"
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
 MODS = GAME.parent / "GameMods"
@@ -145,7 +147,7 @@ def run():
           "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{GROUP:05d}"]
     df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), "-dfskillxptest", str(test), "-dftownhour", "12",
           "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "400"]
-    command = [sys.executable, QUIET, "--timeout", "260", "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
+    command = [sys.executable, QUIET, "--timeout", "300", "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
                "--uzdoom-cwd", str(d), "--log", str(launcher)]
     for mod in [MODS / n for n in DRLA] + [REVIEW / "data" / n for n in DATA] + [REVIEW / "dfitems.pk3", REVIEW / "doomerfall.pk3", REVIEW / "doomerfall-drla.pk3", harness]:
@@ -155,7 +157,7 @@ def run():
     for arg in df:
         command += ["--dfu-arg", arg]
     proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    end = time.time() + 250
+    end = time.time() + 290
     while time.time() < end and proc.poll() is None:
         if "SXDONE" in read(test) or any(k in read(console) for k in FATAL):
             time.sleep(3)
