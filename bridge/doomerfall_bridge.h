@@ -160,6 +160,10 @@ extern "C" {
    Daggerfall turns that time into Running skill uses at its own rate. */
 #define DFB_KIND_RUN_TIME      169  /* UZ to DF; the player ran this many Doom tics (35 a second); payload: dfb_run_time */
 
+/* Backstabbing. Doom applies dfb_df_state.backstab_bonus_bp to the player's hits on unaware enemies and reports how
+   many such hits landed (all of one attack's hits on one enemy in one tic are one hit); Daggerfall tallies the uses. */
+#define DFB_KIND_SNEAK_HITS    168  /* UZ to DF; the player landed this many hits on unaware enemies; payload: dfb_sneak_hits */
+
 /* Reserve ammo. Daggerfall holds it as stacked inventory items; Doom's ammo inventory is the live counter that guns
    spend. Doom reports each count when it changes, and Daggerfall sends its own changes (drops, trades, piles) as
    numbered deltas. Payloads: dfb_doom_item, cls is Doom's ammo class (Clip, Shell, RocketAmmo, Cell). */
@@ -729,6 +733,12 @@ typedef struct dfb_run_time
 	uint32_t pad;
 } dfb_run_time;
 
+typedef struct dfb_sneak_hits
+{
+	uint32_t hits;        /* hits on unaware enemies since the last event */
+	uint32_t pad;
+} dfb_sneak_hits;
+
 typedef struct dfb_npc_use
 {
 	uint64_t id;          /* the NPC id, as in dfb_npc */
@@ -1025,7 +1035,10 @@ typedef struct dfb_df_state
 	   is none and 10000 is +100%. Doom multiplies the damage the player deals by 1 + bp / 10000. */
 	int32_t damage_bonus_bp;
 	uint32_t player_flags;     /* DFB_PLF_*: Daggerfall's falling damage exemptions, which Doom applies to its falls */
-	uint8_t reserved[DFB_STATE_BYTES - 56];
+	/* The backstab element of the damage bonus (Backstabbing skill), in the same units as damage_bonus_bp. Doom
+	   multiplies it in, on top of damage_bonus_bp, only on the player's hits on unaware enemies. */
+	int32_t backstab_bonus_bp;
+	uint8_t reserved[DFB_STATE_BYTES - 60];
 } dfb_df_state;
 
 /* State half written by UZDoom (S-UZ). */

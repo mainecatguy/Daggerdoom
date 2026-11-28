@@ -31,7 +31,7 @@ Your level comes from your skills, as in Daggerfall. Not every skill can be trai
 - **Fighting trains the skill of the weapon you use.** Every 250 damage you deal with a weapon counts as one use of
   its skill (Shotguns, Automatics, Explosives, Pistols, Energy Weapons, Melee, or Hand-to-Hand for your fists).
   Dodging and the magic schools do not improve from fighting yet.
-- **Climbing** counts each climb, and so does **Running** (see below). What you do in Daggerfall's own windows counts
+- **Climbing** counts each climb, and so do **Running** and **Backstabbing** (see below). What you do in Daggerfall's own windows counts
   as in Daggerfall, such as **Etiquette** and **Streetwise** when talking to people, **Mercantile** when buying and
   selling, **Pickpocket**, **Medical** when resting, and **Lockpicking** (see Talking, trading and stealing).
 - You can also **buy** skill points with **Skill XP** (see "Skill XP and the Skills menu"). Bought points count
@@ -42,6 +42,18 @@ Your level comes from your skills, as in Daggerfall. Not every skill can be trai
 move. Walking, standing still, holding Run without moving, or running straight into a wall does not count (sliding
 along a wall does, because you are still moving). Time with the game paused never counts, and neither does time spent
 with **Horse** or **Cart** chosen in the transport menu. Running does not make you faster in Doom yet.
+
+**Backstabbing** makes your hits on enemies that have not noticed you hit harder: normal damage at skill 0, rising
+evenly to **five times** the damage at skill 100 (three times at 50). It works with every weapon, guns included, and
+stacks with your other damage bonuses (ammo and weapon material). An enemy has noticed you once it is after you, is
+fighting anything else, or has heard you: any noise you made before this attack (an earlier shot, for example) puts it on
+alert, even if it has not found you yet. Only the noise you make in the first second after you start the attack
+does not count, and that second includes any spin-up: a weapon that spins up for most of a second gets only the rest
+of that second of firing. Noise after that first second does count, even in the same held burst. A reload in the
+middle of a burst is not a fresh start, and a new shot after your weapon is ready again is a new attack, so an enemy
+that heard the earlier shot is alert. This way a loud gun can still land a sneak shot on an enemy that had not heard
+you before. Your first hit wakes it up, so the bonus is for the opening hit: every pellet of one shotgun blast that lands together counts, the next
+shot does not. Each such sneak hit also practises Backstabbing, ten times as much as a hit practises a weapon skill in Daggerfall.
 
 Skills only go up, and a new level is only granted, when time passes: when you **rest** (see Resting) or **fast
 travel**. Daggerfall checks your skills at most once every 6 game hours.

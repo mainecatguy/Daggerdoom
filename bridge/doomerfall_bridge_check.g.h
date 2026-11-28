@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x65dc0a36851459beULL
+#define DFB_SCHEMA_HASH 0x7aaae3aef0a52d89ULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -105,6 +105,7 @@ static_assert((DFB_GUN_SELECT) == (3u), DFB_STALE);
 static_assert((DFB_GUN_FIST) == (4u), DFB_STALE);
 static_assert((DFB_KIND_CLIMB_USES) == (170), DFB_STALE);
 static_assert((DFB_KIND_RUN_TIME) == (169), DFB_STALE);
+static_assert((DFB_KIND_SNEAK_HITS) == (168), DFB_STALE);
 static_assert((DFB_KIND_AMMO) == (171), DFB_STALE);
 static_assert((DFB_KIND_AMMO_ADD) == (172), DFB_STALE);
 static_assert((DFB_KIND_AMMO_READY) == (173), DFB_STALE);
@@ -678,6 +679,12 @@ static_assert(std::is_same<decltype(dfb_run_time::tics), uint32_t>::value, DFB_S
 static_assert(offsetof(dfb_run_time, pad) == 4, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_run_time::pad), uint32_t>::value, DFB_STALE);
 
+static_assert(sizeof(dfb_sneak_hits) == 8, DFB_STALE);
+static_assert(offsetof(dfb_sneak_hits, hits) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_sneak_hits::hits), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_sneak_hits, pad) == 4, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_sneak_hits::pad), uint32_t>::value, DFB_STALE);
+
 static_assert(sizeof(dfb_npc_use) == 24, DFB_STALE);
 static_assert(offsetof(dfb_npc_use, id) == 0, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_npc_use::id), uint64_t>::value, DFB_STALE);
@@ -1023,8 +1030,10 @@ static_assert(offsetof(dfb_df_state, damage_bonus_bp) == 48, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_df_state::damage_bonus_bp), int32_t>::value, DFB_STALE);
 static_assert(offsetof(dfb_df_state, player_flags) == 52, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_df_state::player_flags), uint32_t>::value, DFB_STALE);
-static_assert(offsetof(dfb_df_state, reserved) == 56, DFB_STALE);
-static_assert(std::is_same<decltype(dfb_df_state::reserved), uint8_t[200]>::value, DFB_STALE);
+static_assert(offsetof(dfb_df_state, backstab_bonus_bp) == 56, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_df_state::backstab_bonus_bp), int32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_df_state, reserved) == 60, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_df_state::reserved), uint8_t[196]>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_uz_state) == 256, DFB_STALE);
 static_assert(offsetof(dfb_uz_state, publish_seq) == 0, DFB_STALE);
