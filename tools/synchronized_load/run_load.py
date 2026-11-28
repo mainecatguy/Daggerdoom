@@ -40,8 +40,6 @@ def stop(proc):
     if proc.poll() is None:
         subprocess.call(["taskkill", "/F", "/T", "/PID", str(proc.pid)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         proc.wait()
-    subprocess.call(["taskkill", "/F", "/IM", "DaggerfallUnity.exe", "/FI", "MODULES eq doomerfall_bridge.dll"],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def play(name, mode, save, keep=False):

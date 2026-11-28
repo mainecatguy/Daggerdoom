@@ -108,8 +108,6 @@ while time.time() < end:
 if proc.poll() is None:
     subprocess.call(["taskkill", "/F", "/T", "/PID", str(proc.pid)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     proc.wait()
-    subprocess.call(["taskkill", "/F", "/IM", "DaggerfallUnity.exe", "/FI", f"MODULES eq doomerfall_bridge.dll"],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 print("stopped:", reason)
 for path, keys in ((uz_log, ("save", "Save")), (df_log, ("save ", "error", "sync test: entered", "plain save test", "load test"))):
