@@ -106,10 +106,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         /// <summary>
         /// Fills one shelf for one day. classic is the shop's classic Daggerfall delivery without Doom ammo and the horse
-        /// and cart (the regular-supply lot draws from it). room is the shelf's free share. Returns a one-line summary.
+        /// and cart (the regular-supply lot draws from it). room is the shelf's free share. deliveryDay is false on a day
+        /// outside the shop's delivery rhythm (Shops 6): then only a one-off exception shipment can arrive, and an exception
+        /// window changes only the deliveries inside it. Returns a one-line summary.
         /// </summary>
         internal static string Fill(ItemCollection shelf, PlayerGPS.DiscoveredBuilding building, List<DaggerfallUnityItem> classic,
-            int room, int shelfIndex, int location, int day, int level, Place place)
+            int room, int shelfIndex, int location, int day, int level, Place place, bool deliveryDay = true)
         {
             Load();
             StringBuilder summary = new StringBuilder();
@@ -118,7 +120,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bool gunsRolled = false;
             Rec ex = ExceptionFor(location, building.buildingKey, building.buildingType, day, place);
             bool firstDay = Mod(day, WindowDays) == 0;
-            if (ex != null && (ex.Get("mode") == "window" || (firstDay && shelfIndex == 0)))
+            if (ex != null && (ex.Get("mode") == "window" ? deliveryDay : firstDay && shelfIndex == 0))
             {
                 Lot lot = MakeException(ex, building, level, Mathf.Max(1, room), location, day);
                 if (lot != null)
@@ -128,6 +130,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         return summary.ToString();
                 }
             }
+            if (!deliveryDay)
+                return summary.ToString();
             for (int n = 0; n < LotsPerDelivery && room > 0; n++)
             {
                 string template = PickTemplate(building.buildingType);
