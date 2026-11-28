@@ -104,6 +104,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 wealthBefore = Player.GetGoldAmount();
                 countBefore = Player.Items.Count;
                 DaggerfallUnityItem item = mode == "Buy" ? Cheapest(Filtered(trade, "remoteItemsFiltered")) : null;
+                if (mode == "Buy" && trade.MerchantItems != null) // weaponvalues 02: the shelf's Doom guns and their prices
+                    for (int i = 0; i < trade.MerchantItems.Count; i++)
+                        if (trade.MerchantItems.GetItem(i) is DoomerfallDoomItem)
+                            Log(string.Format("shelf Doom gun \"{0}\": value {1}, {2} kg, shop price {3}", trade.MerchantItems.GetItem(i).LongName, trade.MerchantItems.GetItem(i).value,
+                                trade.MerchantItems.GetItem(i).weightInKg, FormulaHelper.CalculateCost(trade.MerchantItems.GetItem(i).value, Shop(trade).quality, trade.MerchantItems.GetItem(i).ConditionPercentage)));
                 // The player's list shows one tab at a time, so look through each tab as a player would.
                 foreach (DaggerfallInventoryWindow.TabPages tab in Enum.GetValues(typeof(DaggerfallInventoryWindow.TabPages)))
                 {

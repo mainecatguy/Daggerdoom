@@ -211,6 +211,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             foreach (DaggerfallUnityItem i in lots.Where(s => s.lot.shop == DFLocation.BuildingTypes.WeaponSmith).SelectMany(s => s.lot.items))
                 if (i is DoomerfallDoomItem) { top = Math.Max(top, i.value); }
             Log(string.Format("most valuable Doom gun stocked: {0} gold", top));
+            Log("sample shelf guns (value, kg, price at quality " + Quality + "): " + string.Join(", ", lots.SelectMany(s => s.lot.items).OfType<DoomerfallDoomItem>().Take(12)
+                .Select(g => string.Format("{0} {1}/{2} {3}, {4} kg, {5} gold", g.LongName, DoomerfallWeaponValues.Find(g.DoomClass).tier, g.Material, g.value, g.weightInKg,
+                    Formulas.FormulaHelper.CalculateCost(g.value, Quality, g.ConditionPercentage))).ToArray()));
             // Shop guns come from DoomerfallDoomItem.Create: a gun material each, priced by DoomerfallWeaponValues.
             List<DoomerfallDoomItem> stockedGuns = lots.SelectMany(s => s.lot.items).OfType<DoomerfallDoomItem>().ToList();
             int priced = stockedGuns.Count(g => DoomerfallWeaponValues.Find(g.DoomClass) != null && g.value == DoomerfallWeaponValues.ValueOf(DoomerfallWeaponValues.Find(g.DoomClass), g.Material));
