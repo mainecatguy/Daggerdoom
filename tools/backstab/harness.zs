@@ -28,7 +28,7 @@ version "4.14"
 class BSHarness : StaticEventHandler
 {
 	const BASE = 100;
-	int wait, step, timer, delay;
+	int wait, step, timer, delay, shotAt;
 	bool started, done;
 	Actor mon, other;
 	double aim;
@@ -115,10 +115,15 @@ class BSHarness : StaticEventHandler
 			Console.Printf("BSSTART angle %.1f mon %s", aim, mon.GetClassName());
 			return;
 		}
+		if (step == 24) // b2b, waiting: turned away until 10 tics after the first click's shot, then back toward it
+		{
+			if (!shotAt && !(players[0].WeaponState & WF_WEAPONREADY)) { shotAt = level.maptime; Console.Printf("BSNOTE b2b first shot at %d", shotAt); }
+			if (shotAt && level.maptime - shotAt >= 10) p.angle = aim;
+		}
 		if (++timer < delay) return;
 		timer = 0;
 		delay = 10;
-		if (step != 24 || timer > -45) p.angle = aim; // b2b: turned away for its first 15 tics
+		p.angle = aim;
 		p.pitch = 0;
 		switch (step++)
 		{
