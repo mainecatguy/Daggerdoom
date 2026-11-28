@@ -38,6 +38,8 @@
 #include "m_argv.h"
 #include "menu.h"
 #include "d_player.h"
+#include "b_bot.h"
+#include "dd_guards.h"
 #include "gamedata/g_mapinfo.h"
 #include "p_local.h"
 #include "playsim/dd_treadmill.h"
@@ -1033,11 +1035,11 @@ static bool OnGround()
 }
 
 // What Daggerfall's rest checks would see if its world were the one shown (DaggerfallUI's rest message,
-// GameManager.AreEnemiesNearby while resting): a live hostile monster that targets the player and sees them, or
-// any within Daggerfall's 12 m resting distance; and whether the player stands on the ground, out of deep water.
+// GameManager.AreEnemiesNearby while resting): a live hostile monster or guard bot that targets the player and sees
+// them, or any within Daggerfall's 12 m resting distance; and whether the player stands on the ground, out of deep water.
 static uint32_t RestState()
 {
-	constexpr double RestingDistance = 12 * 75.0; // Daggerfall's metres, at the Doom maps' 75 units per metre
+	constexpr double RestingDistance = 12 * 30.0; // Daggerfall's 12 m: 40 Daggerfall units per metre, Doom maps at 75% scale
 	AActor *pmo = players[consoleplayer].mo;
 	if (!pmo) return DFB_REST_NOT_GROUNDED;
 	uint32_t state = 0;
@@ -1047,8 +1049,11 @@ static uint32_t RestState()
 	auto it = primaryLevel->GetThinkerIterator<AActor>();
 	while (AActor *mo = it.Next())
 	{
-		if (!(mo->flags3 & MF3_ISMONSTER) || mo->health <= 0 || (mo->flags & (MF_FRIENDLY | MF_CORPSE)) || DD_IsDrlaSpawner(mo)) continue;
-		const bool sees = mo->target == pmo && P_CheckSight(mo, pmo, SF_IGNOREVISIBILITY);
+		// A guard bot (dd_guards.cpp) is a hostile player pawn, not a monster; it hunts the player through its bot's enemy.
+		const bool guard = mo != pmo && mo->player && mo->player->mo == mo && mo->player->Bot && DD_IsGuardBot(mo);
+		if (!guard && !(mo->flags3 & MF3_ISMONSTER)) continue;
+		if (mo->health <= 0 || (mo->flags & (MF_FRIENDLY | MF_CORPSE)) || DD_IsDrlaSpawner(mo)) continue;
+		const bool sees = (guard ? mo->player->Bot->enemy == pmo : mo->target == pmo) && P_CheckSight(mo, pmo, SF_IGNOREVISIBILITY);
 		if (!sees && (mo->Pos() - pmo->Pos()).Length() > RestingDistance) continue;
 		near++;
 		seeing += sees;
