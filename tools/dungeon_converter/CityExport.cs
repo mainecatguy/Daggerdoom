@@ -72,6 +72,8 @@ static partial class Program
             ListBoardPositions = args.Contains("--list-board-positions");
             string ddtPath = Arg("--ddt", null);
             if (args.Contains("--list-buildings")) return ListBuildings(groupId, arena2);
+            if (args.Contains("--find-group")) return FindGroups(Arg("--find-group", ""), arena2);
+            Collision.LegacyVoid = args.Contains("--legacy-void");
             if (groupId >= SpaceBase) return RunInterior(groupId, ddtPath, outDir, arena2);
             if (groupId >= 0) mapName = RuntimeMapName(groupId);
             if ((cityName == null && groupId < 0) || outDir == null) { Console.Error.WriteLine("usage: --city <name> [--region <name>] --out <dir>, or --group <id> --ddt <file> --out <work dir>"); return 2; }
@@ -144,6 +146,7 @@ static partial class Program
             foreach (var raster in rasters) raster.Rasterize(scene.Colliders, scene.ColliderOwners);
             var collision = rasters[0];
             var map = Collision.Build(rasters, bx0, bx1, by0, by1);
+            string heights = Collision.HeightCheck(rasters, out bool heightsPass);
             string slug = new string(cityName.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant() + "_city";
             string wad = Path.Combine(outDir, slug + ".wad");
             WriteWad(wad, map.Text, "", mapName);
@@ -160,7 +163,8 @@ static partial class Program
             if (ddtPath != null)
             {
                 scene.WriteRuntimeEntry(ddtPath, wad, town.ToString(), mapName);
-                File.Delete(wad);
+                if (args.Contains("--fidelity")) File.WriteAllText(Path.Combine(outDir, slug + ".gates.txt"), string.Join("\n", scene.GatePlacements) + "\n"); // the door check reads the map, doors and gates
+                else File.Delete(wad);
             }
             else scene.WritePackage(package, location, metadata, town.ToString(), mapName);
 
@@ -169,11 +173,14 @@ static partial class Program
                 $"models {scene.Models} missing {scene.Missing} gates {scene.Gates}\nmesh triangles {scene.Triangles} batches {scene.BatchCount} textures unreadable {scene.BadTextures}\nbillboards {scene.Flats.Count}\n" +
                 $"raster {collision.W}x{collision.H} at {rasterCell} units\nopen cells {collision.OpenCells} solid cells {collision.SolidCells} removed unreachable {collision.RemovedCells} kept regions {collision.KeptRegions}\nouter edge reachable from start {collision.ReachesEdge}\n" +
                 $"buildings {rasters.Sum(q => q.Buildings)} roof cells {rasters.Sum(q => q.RoofCells)} sloped {rasters.Sum(q => q.SlopedRoofCells)} filled from a neighbor {rasters.Sum(q => q.FilledRoofCells)} flat fallback {rasters.Sum(q => q.FallbackRoofCells)} open inside footprint {rasters.Sum(q => q.OpenFootprintCells)} no roof inside footprint {rasters.Sum(q => q.NoRoofCells)}\n" +
+                $"model-top cells {rasters.Sum(q => q.TopCells)} restored unreachable floor {rasters.Sum(q => q.RestoredCells)} roofs lowered to the model {rasters.Sum(q => q.ClampedRoofCells)}\n{heights}\n" +
                 $"sectors {map.Sectors} (city {map.CitySectors}, terrain {map.TerrainSectors}) lines {map.Lines} vertices {map.Vertices}\nstart {map.StartX},{map.StartY}\nwad {(File.Exists(wad) ? new FileInfo(wad).Length / 1024 : 0)} KiB\nmesh package {new FileInfo(package).Length / 1024} KiB\nconvert time {clock.ElapsedMilliseconds} ms\n");
             File.WriteAllText(Path.Combine(outDir, slug + ".stats.txt"), report);
             Console.WriteLine(report);
+            if (args.Contains("--fidelity")) { File.WriteAllText(Path.Combine(outDir, slug + ".tops.txt"), Collision.TopSamples(rasters, 300)); File.WriteAllText(Path.Combine(outDir, slug + ".doors.txt"), string.Join("\n", scene.DoorLines) + "\n"); }
+            if (args.Contains("--fidelity")) { string fidelity = Collision.Fidelity(rasters, scene.Colliders, scene.ColliderOwners); File.WriteAllText(Path.Combine(outDir, slug + ".fidelity.txt"), fidelity); Console.Write(fidelity); }
             if (ddtPath != null) return 0; // A missing prop is reported above and does not stop the player from entering.
-            return scene.BadTextures == 0 && scene.Missing == 0 ? 0 : 1;
+            return scene.BadTextures == 0 && scene.Missing == 0 && heightsPass ? 0 : 1;
         }
 
         public static string RuntimeMapName(int group) => "DDT" + group.ToString("D5", CultureInfo.InvariantCulture);
@@ -1161,6 +1168,7 @@ class DFCityHandler : EventHandler
             public void Rasterize(List<(V3 a, V3 b, V3 c)> triangles, List<int> owners)
             {
                 var hits = new List<(float lo, float hi)>[W * H];
+                var overhangs = new List<(float lo, float hi)>[W * H]; // roof spans the raster ignores for blocking; they still count toward a column's top
                 Span<(double x, double y, double z)> poly = new (double, double, double)[12], next = new (double, double, double)[12];
                 // A building's ground is its lowest point, or the street when the model is sunk into it.
                 var ground = new double[owners.Count == 0 ? 0 : owners.Max() + 1];
@@ -1168,6 +1176,9 @@ class DFCityHandler : EventHandler
                 for (int t = 0; t < triangles.Count; t++)
                     if (owners[t] >= 0) ground[owners[t]] = Math.Min(ground[owners[t]], Math.Min(triangles[t].a.Z, Math.Min(triangles[t].b.Z, triangles[t].c.Z)));
                 for (int o = 0; o < ground.Length; o++) ground[o] = Math.Max(ground[o], baseZ);
+                ownerGround = ground;
+                columnTop = new float[W * H];
+                Array.Fill(columnTop, float.MinValue);
                 var sides = new Dictionary<int, HashSet<int>>();
                 for (int t = 0; t < triangles.Count; t++)
                 {
@@ -1189,13 +1200,14 @@ class DFCityHandler : EventHandler
                             if (n == 0) continue;
                             double lo = double.MaxValue, hi = double.MinValue;
                             for (int k = 0; k < n; k++) { lo = Math.Min(lo, poly[k].z); hi = Math.Max(hi, poly[k].z); }
+                            columnTop[i + j * W] = Math.Max(columnTop[i + j * W], (float)hi);
                             if (side)
                             {
                                 if (!sides.TryGetValue(owner, out var set)) sides[owner] = set = new HashSet<int>();
                                 set.Add(i + j * W);
                             }
                             // A roof overhang above step height must not block the player at the wall below it.
-                            if (owner >= 0 && !vertical && lo > ground[owner] + Step) continue;
+                            if (owner >= 0 && !vertical && lo > ground[owner] + Step) { (overhangs[i + j * W] ??= new List<(float, float)>(2)).Add(((float)lo, (float)hi)); continue; }
                             (hits[i + j * W] ??= new List<(float, float)>(4)).Add(((float)lo, (float)hi));
                         }
                 }
@@ -1217,6 +1229,7 @@ class DFCityHandler : EventHandler
                 var before = (short[])floor.Clone();
                 KeepReachable();
                 BuildRoofs(triangles, owners, sides);
+                FillVoid(hits, overhangs, before);
                 foreach (var (px, py) in Probes)
                 {
                     int i = (int)Math.Floor((px - x0) / cell), j = (int)Math.Floor((py - y0) / cell), c = i + j * W;
