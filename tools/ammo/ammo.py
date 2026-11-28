@@ -121,6 +121,23 @@ def assemble():
     print("assembled", REVIEW)
 
 
+BONUS = re.compile(r"(\d+) -> (\d+) \((-?\d+) bp\)(?: backstab x([\d.]+))?$")
+
+
+def bonus_matches(scaled, expect):
+    """The bridge's hit line against the expected "base -> dealt (bp)". Since backstab (2026-11-25) the line may end
+    "backstab xN" on an unaware target: then the bp must still match exactly and the damage dealt must be the expected
+    bonus times that backstab factor. Expected None (no bonus) also accepts a 0 bp line that only backstab scaled."""
+    got = BONUS.match(scaled) if scaled else None
+    if expect is None:
+        return scaled is None or bool(got and int(got.group(3)) == 0)
+    want = BONUS.match(expect)
+    if not got or not want or got.group(1) != want.group(1) or got.group(3) != want.group(3):
+        return False
+    backstab = float(got.group(4)) if got.group(4) else 1.0
+    return abs(int(got.group(2)) - int(want.group(2)) * backstab) <= 1.5
+
+
 def counts_doom(body):
     last = [l for l in body.splitlines() if l.startswith("AMCOUNT final")]
     return dict(re.findall(r"(\w+)=(\d+)", last[-1])) if last else {}
@@ -233,7 +250,7 @@ def run(name):
                 label, weapon, ammo, lost = m.groups()
                 hits += 1
                 expect = want.get(label) if change or material else want.get(ammo)
-                ok = scaled == expect
+                ok = bonus_matches(scaled, expect)
                 if scaled:
                     dealt[label] = int(scaled.split("->")[1].split()[0])
                 print("hit", label, weapon, ammo, "bridge", scaled or "unscaled", "expected", expect or "unscaled", "lost", lost, "PASS" if ok else "FAIL")
