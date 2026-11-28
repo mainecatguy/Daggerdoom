@@ -28,3 +28,5 @@ server noarchive int dd_carbine_test = 0;
 // Log every gun perk event instead of the first 200 of each (zscript/DoomerfallAutomatics.zs, DoomerfallEnergy.zs,
 // zscript/DoomerfallExplosives.zs). Logging only.
 server noarchive bool dd_perklog = false;
+// Test only (+set dd_ruletest 1): lets a tools/ harness hand DoomerfallRules a hand-picked perk rule set.
+server noarchive bool dd_ruletest = false;

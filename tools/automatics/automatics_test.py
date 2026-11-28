@@ -73,7 +73,7 @@ def launch(exe, work, files, peer, name, timeout, extra=()):
     args = [str(exe), "-iwad", str(IWAD), "-file", *map(str, files), "-config", str(work / f"{name}.ini"), "-nosound",
             "-noautoload", "-noactivate", "-stdout", "-nomonsters", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1",
             "+vid_lowerinbackground", "0", "+vid_fullscreen", "0", "-width", "320", "-height", "200", "-skill", "3",
-            "+set", "dd_perklog", "1", "+map", "E1M1", *extra]
+            "+set", "dd_perklog", "1", "+set", "dd_ruletest", "1", "+map", "E1M1", *extra]
     if peer:
         args += ["-dfbridge", peer.id, "-dfbridgelog", str(work / f"{name}-bridge.log")]
     asked = set()

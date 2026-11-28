@@ -116,14 +116,15 @@ class DoomerfallRules : StaticEventHandler
 		RuleCount
 	};
 
-	// Set only by test harnesses under tools/ (a hand-picked rule set in place of the character's).
+	// Set only by test harnesses under tools/ (a hand-picked rule set in place of the character's), and used only when
+	// the game was started with +set dd_ruletest 1.
 	bool testRules;
 	int testRule[RuleCount];
 
 	// A perk rule's value for the current character, or 0 (off) without one.
 	clearscope static int Get(int rule)
 	{
-		let h = DoomerfallRules(StaticEventHandler.Find("DoomerfallRules"));
+		let h = dd_ruletest ? DoomerfallRules(StaticEventHandler.Find("DoomerfallRules")) : null;
 		if (h && h.testRules) return rule >= 0 && rule < RuleCount ? h.testRule[rule] : 0;
 		int skill = Actor.DD_SheetSkill(SkillOf(rule));
 		return skill < 0 ? 0 : Compute(rule, skill);
