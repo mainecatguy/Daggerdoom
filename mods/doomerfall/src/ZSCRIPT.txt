@@ -2,6 +2,7 @@ version "3.3"
 
 #include "zscript/DoomerfallLog.zs"
 #include "zscript/DoomerfallText.zs"
+#include "zscript/DoomerfallCorpses.zs"
 #include "zscript/DoomerfallDamageNumbers.zs"
 #include "zscript/DoomerfallSwfMenu.zs"
 #include "zscript/DoomerfallTweenMenu.zs"

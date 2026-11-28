@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <type_traits>
 
-#define DFB_SCHEMA_HASH 0x85806f546dfdbd46ULL
+#define DFB_SCHEMA_HASH 0xc9d15aea39f4422dULL
 #define DFB_STALE "bridge bindings are stale: run python bridge/generate_bindings.py"
 
 static_assert((DFB_MAGIC) == (0x42464444u), DFB_STALE);
@@ -161,6 +161,8 @@ static_assert((DFB_KIND_TOWNSPERSON) == (65), DFB_STALE);
 static_assert((DFB_KIND_TOWNSFOLK_END) == (66), DFB_STALE);
 static_assert((DFB_KIND_TOWNSPERSON_DEATH) == (67), DFB_STALE);
 static_assert((DFB_KIND_TOWNSFOLK_REQUEST) == (68), DFB_STALE);
+static_assert((DFB_KIND_TOWNSFOLK_CORPSE) == (71), DFB_STALE);
+static_assert((DFB_KIND_CORPSE_PLACE) == (70), DFB_STALE);
 static_assert((DFB_KIND_GUARD_SPAWN) == (160), DFB_STALE);
 static_assert((DFB_KIND_GUARD_DEATH) == (161), DFB_STALE);
 static_assert((DFB_GUARD_TAG) == (4u), DFB_STALE);
@@ -912,6 +914,40 @@ static_assert(offsetof(dfb_townsperson, facing) == 32, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_townsperson::facing), float>::value, DFB_STALE);
 static_assert(offsetof(dfb_townsperson, z) == 36, DFB_STALE);
 static_assert(std::is_same<decltype(dfb_townsperson::z), float>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_corpse) == 32, DFB_STALE);
+static_assert(offsetof(dfb_corpse, id) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_corpse::id), uint64_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_corpse, generation) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_corpse::generation), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_corpse, archive) == 12, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_corpse::archive), uint16_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_corpse, record) == 14, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_corpse::record), uint16_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_corpse, x) == 16, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_corpse::x), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_corpse, y) == 20, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_corpse::y), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_corpse, z) == 24, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_corpse::z), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_corpse, pad) == 28, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_corpse::pad), float>::value, DFB_STALE);
+
+static_assert(sizeof(dfb_corpse_place) == 40, DFB_STALE);
+static_assert(offsetof(dfb_corpse_place, id) == 0, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_corpse_place::id), uint64_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_corpse_place, x) == 8, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_corpse_place::x), double>::value, DFB_STALE);
+static_assert(offsetof(dfb_corpse_place, y) == 16, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_corpse_place::y), double>::value, DFB_STALE);
+static_assert(offsetof(dfb_corpse_place, z) == 24, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_corpse_place::z), float>::value, DFB_STALE);
+static_assert(offsetof(dfb_corpse_place, space) == 28, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_corpse_place::space), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_corpse_place, creature) == 32, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_corpse_place::creature), uint32_t>::value, DFB_STALE);
+static_assert(offsetof(dfb_corpse_place, reserved) == 36, DFB_STALE);
+static_assert(std::is_same<decltype(dfb_corpse_place::reserved), uint32_t>::value, DFB_STALE);
 
 static_assert(sizeof(dfb_townsperson_death) == 24, DFB_STALE);
 static_assert(offsetof(dfb_townsperson_death, id) == 0, DFB_STALE);

@@ -2,7 +2,7 @@
 // DFB_KIND_GUARD_SPAWN for each. This puts a hostile UZDoom bot in a free player slot for each one: Doomguy's pawn
 // with one random vanilla weapon (never the BFG), drawn with the Daggerfall guard's sprite (archive 399). The guard id
 // lives in the pawn's ddRecordId, so dd_guards.h can tell guard bots apart; the bot code hunts players with them.
-// A guard bot never respawns: its slot is freed and its body stays. All guard bots leave at a level change.
+// A guard bot never respawns: its slot is freed and Daggerfall keeps its corpse (dd_townsfolk.cpp). All guard bots leave at a level change.
 // Nothing here runs until Daggerfall sends a guard.
 
 #include <cinttypes>
@@ -29,6 +29,7 @@
 #include "playsim/dd_log.h" // [Doomerfall]
 
 bool DD_MobileSprite(AActor *mo, int archive, int base, double facing, AActor *camera);
+void DD_CorpseFell(dfb_session *session, AActor *mo, uint64_t id, bool interior, double worldX, double worldZ);
 void P_UnPredictClient();
 
 static FRandom pr_ddguard("DDGuard");
@@ -166,12 +167,11 @@ int RecordsFor(AActor *mo)
 	return mo->Vel.XY().LengthSquared() > 0.25 ? MoveRecords : IdleRecord;
 }
 
-// A dead guard keeps its body, drawn with Daggerfall's guard corpse, and gives its slot back.
+// A dead guard's pawn is hidden behind the Daggerfall corpse laid at its death, and gives its slot back.
 void Bury(FLevelLocals *Level, int slot)
 {
 	AActor *body = players[slot].mo;
-	FTextureID corpse = TexMan.CheckForTexture("dfmesh/a380r01.png", ETextureType::Any, FTextureManager::TEXMAN_TryAny | FTextureManager::TEXMAN_ForceLookup);
-	if (corpse.isValid()) { body->picnum = corpse; body->renderflags &= ~RF_XFLIP; }
+	body->renderflags |= RF_INVISIBLE;	// DD_CorpseFell laid Daggerfall's corpse in its place
 	// Nothing may keep pointing at the slot once it is reset, or its next think reads a player with no pawn.
 	auto it = Level->GetThinkerIterator<AActor>();
 	while (AActor *mo = it.Next())
@@ -231,6 +231,7 @@ void DD_GuardsFrame(dfb_session *, uint32_t context, bool inSpace, int32_t targe
 void DD_GuardDied(dfb_session *session, AActor *mo)
 {
 	if ((mo->ddRecordId >> 61) != DFB_GUARD_TAG) return;
+	DD_CorpseFell(session, mo, mo->ddRecordId, true, 0, 0);	// guards are only relayed inside buildings
 	const dfb_guard_death death{ mo->ddRecordId };
 	dfb_event e{};
 	e.kind = DFB_KIND_GUARD_DEATH;

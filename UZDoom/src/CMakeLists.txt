@@ -838,6 +838,7 @@ set (PCH_SOURCES
 	playsim/dd_towncache.cpp # [Doomerfall]
 	playsim/dd_lights.cpp # [Doomerfall]
 	playsim/dd_weather.cpp # [Doomerfall]
+	playsim/dd_dftextures.cpp # [Doomerfall]
 	playsim/dd_log.cpp # [Doomerfall]
 	playsim/p_user.cpp
 	rendering/r_utility.cpp
@@ -1287,7 +1288,7 @@ list( REMOVE_ITEM GAME_NONPCH_SOURCES ${PCH_SOURCES} )
 add_executable( zdoom MACOSX_BUNDLE ${GAME_SOURCES} )
 
 # Doomerfall bridge. Inactive unless UZDoom is started with -dfbridge.
-set( DOOMERFALL_BRIDGE_SOURCES dd_bridge.cpp dd_bridge_test.cpp dd_arrival_test.cpp dd_items.cpp dd_info.cpp dd_look.cpp dd_findnpc.cpp dd_monsters.cpp dd_locations.cpp dd_encounter_placer.cpp dd_encounter_test.cpp dd_npcs.cpp dd_townsfolk.cpp dd_resync.cpp dd_climb.cpp dd_backstab.cpp dd_skillxp.cpp dd_doors.cpp dd_setup.cpp dd_loading.cpp dd_loading_test.cpp dd_guards.cpp dd_faces.cpp dd_facetest.cpp dd_qa.cpp dd_lootrng.cpp dd_shotsource.cpp ../../bridge/doomerfall_bridge.cpp dd_running.cpp )
+set( DOOMERFALL_BRIDGE_SOURCES dd_bridge.cpp dd_bridge_test.cpp dd_arrival_test.cpp dd_items.cpp dd_info.cpp dd_look.cpp dd_findnpc.cpp dd_monsters.cpp dd_locations.cpp dd_encounter_placer.cpp dd_encounter_test.cpp dd_npcs.cpp dd_townsfolk.cpp dd_resync.cpp dd_climb.cpp dd_backstab.cpp dd_skillxp.cpp dd_doors.cpp dd_setup.cpp dd_loading.cpp dd_loading_test.cpp dd_guards.cpp dd_creatures.cpp dd_faces.cpp dd_facetest.cpp dd_qa.cpp dd_lootrng.cpp dd_shotsource.cpp ../../bridge/doomerfall_bridge.cpp dd_running.cpp )
 target_sources( zdoom PRIVATE ${DOOMERFALL_BRIDGE_SOURCES} )
 set_source_files_properties( ${DOOMERFALL_BRIDGE_SOURCES} PROPERTIES SKIP_PRECOMPILE_HEADERS TRUE )
 include( ../../bridge/BridgeBindings.cmake )

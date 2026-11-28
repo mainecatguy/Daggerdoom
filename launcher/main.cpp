@@ -426,6 +426,16 @@ int Run(Options options)
 		Log(L"bridge session " + wideId);
 	}
 
+	// Daggerfall Unity's loose texture pack folder (<exe>_Data\StreamingAssets\Textures), so Doom draws Daggerfall's
+	// people and corpses with the same replacements (UZDoom/src/playsim/dd_dftextures.cpp).
+	{
+		std::wstring exe = options.dfu.substr(options.dfu.find_last_of(L"\\/") + 1);
+		const size_t dot = exe.find_last_of(L'.');
+		if (dot != std::wstring::npos) exe.resize(dot);
+		options.uzdoomArgs.push_back(L"-ddtextures");
+		options.uzdoomArgs.push_back(ParentDir(options.dfu) + L"\\" + exe + L"_Data\\StreamingAssets\\Textures");
+	}
+
 	// Daggerfall runs on a desktop nobody sees, because Unity shows and activates its window on start whatever
 	// it is asked, and in play Doom shows Daggerfall's UI and reads all input. So only Doom's window ever appears.
 	// Test mode also keeps both games silent, and UZDoom minimized here, so it renders as before.

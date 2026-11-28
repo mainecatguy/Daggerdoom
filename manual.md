@@ -616,3 +616,7 @@ words painted into the menu pictures (such as the character sheet's headings and
   building they are in when you are outside, or at the NPC when you share their building or dungeon, with the name and
   distance (at the screen edge when off screen). Someone in another place is named in text with the place and
   building. It clears when you change area or search again.
+
+## The dead stay dead
+
+A townsperson you kill in town dies with Daggerfall's blood splash and, as in Daggerfall, leaves no body. They stay dead when you leave and come back and after you save and load, and killing one is still murder. (A town watchman is different: as in Daggerfall, attacking one turns them into the city watch, and outdoors that watch does not come after you in Doom yet, so the watchman just vanishes.) City guards who come into a building after you leave a body when killed, as in Daggerfall, and the body stays there when you leave and come back and after you save and load.
