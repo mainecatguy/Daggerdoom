@@ -147,17 +147,31 @@ class AttrPaired : StaticEventHandler
 				wForced = true;
 			}
 			if (!Ready(p, wc) || !(p.WeaponState & WF_WEAPONREADY)) return;
-			// Newest items come first in the chain (AddInventory): mid recorder, effects item, raw recorder.
+			// The raw recorder must come before the effects item and the mid recorder right after it. The effects item is
+			// left alone (re-giving it, as an earlier version did, made the railgun land no hit): the raw recorder goes
+			// to the head of the chain (AddInventory), and the mid recorder is spliced in right behind the effects item.
 			let fx = mo.FindInventory("DoomerfallAttributeEffects");
 			if (!fx) return;
-			fx.Destroy();
-			let old = mo.FindInventory("AttrRawRecorder");
-			if (old) old.Destroy();
-			old = mo.FindInventory("AttrMidRecorder");
-			if (old) old.Destroy();
-			mo.GiveInventory("AttrMidRecorder", 1);
-			mo.GiveInventory("DoomerfallAttributeEffects", 1);
-			mo.GiveInventory("AttrRawRecorder", 1);
+			if (!mo.FindInventory("AttrRawRecorder")) mo.GiveInventory("AttrRawRecorder", 1);
+			if (!mo.FindInventory("AttrMidRecorder"))
+			{
+				mo.GiveInventory("AttrMidRecorder", 1);
+				let m = mo.Inv; // just added, so at the head
+				if (m is "AttrMidRecorder" && m != fx)
+				{
+					mo.Inv = m.Inv;
+					m.Inv = fx.Inv;
+					fx.Inv = m;
+				}
+			}
+			int rawPos = -1, fxPos = -1, midPos = -1, n = 0;
+			for (Inventory it = mo.Inv; it; it = it.Inv, n++)
+			{
+				if (it is "AttrRawRecorder") rawPos = n;
+				else if (it == fx) fxPos = n;
+				else if (it is "AttrMidRecorder") midPos = n;
+			}
+			if (!(rawPos < fxPos && midPos == fxPos + 1)) return; // order not as needed: wait (stuck check reports)
 			bleeder = Actor.Spawn("AttrBleeder", mo.Vec3Angle(mo.radius + 40, mo.Angle), NO_REPLACE);
 			bleeder.GiveInventory("AttrPostRecorder", 1);
 			mo.Pitch = 0;
