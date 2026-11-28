@@ -32,6 +32,32 @@ class AttrRwDummy : Actor
 	}
 }
 
+// Napalm measurement: on the player around the effects item (raw before it, mid after it), so each ground-fire hit's
+// damage is seen before and after the attribute rules. A hit whose damage the rules raise is a crit (Strength and
+// Agility are 50 there, so their factor is 1).
+class AttrRwRaw : Inventory
+{
+	Default { +INVENTORY.UNDROPPABLE +INVENTORY.UNTOSSABLE Inventory.MaxAmount 1; }
+	override void ModifyDamage(int damage, Name damageType, out int newdamage, bool passive, Actor inflictor, Actor source, int flags, double angle)
+	{
+		let h = AttrRework(StaticEventHandler.Find("AttrRework"));
+		if (!passive && h && source && source == h.napDummy) h.napRaw = damage;
+	}
+}
+
+class AttrRwMid : Inventory
+{
+	Default { +INVENTORY.UNDROPPABLE +INVENTORY.UNTOSSABLE Inventory.MaxAmount 1; }
+	override void ModifyDamage(int damage, Name damageType, out int newdamage, bool passive, Actor inflictor, Actor source, int flags, double angle)
+	{
+		let h = AttrRework(StaticEventHandler.Find("AttrRework"));
+		if (passive || !h || !source || source != h.napDummy || h.napRaw <= 0) return;
+		h.napHits++;
+		if (damage > h.napRaw) h.napCrits++;
+		h.napRaw = 0;
+	}
+}
+
 class AttrRework : StaticEventHandler
 {
 	const SettleTics = 8;
@@ -176,6 +202,7 @@ class AttrRework : StaticEventHandler
 		if (step == n + 2) { Dodge(p, a); step++; return; }
 		if (step == n + 3) { if (l > 50 || l == 50) StartBurn(mo); step++; return; }
 		if (step == n + 4) { if (burners.Size() && ++burnWait < BurnWaitTics) return; EndBurn(l); step++; return; }
+		if (step == n + 5) { if (l >= 100 && HaveDrla() && !NapalmTick(p, l)) return; step++; return; }
 		Console.Printf("ATTRRW measured str=%d agi=%d luck=%d drla=%d item=%d", s, a, l, HaveDrla(), mo.FindInventory("DoomerfallAttributeEffects") ? 1 : 0);
 		step = -1;
 	}
@@ -284,6 +311,74 @@ class AttrRework : StaticEventHandler
 			p.health = hp;
 		}
 		Console.Printf("ATTRRW dodge %d hits=%d evaded=%d modzero=%d agiitem=%d", a, realHits, evaded, zero, mo.FindInventory("DoomerfallAgilityEffects") ? 1 : 0);
+	}
+
+	// DRLA's napalm ground fire (RLNapalmFire, which A_Explodes from its Spawn loop): NapalmFires fires, one at a time,
+	// spawned by the player holding the Napalm Launcher and tagged by DoomerfallShots' real rule, each on the floor
+	// next to a dummy for NapalmTics; every tic's loss is one sample. Prints, when done:
+	//   ATTRRW napalm luck ticks=<n> crits=<n above 3x the median> base=<median>
+	const NapalmFires = 8;
+	const NapalmTics = 50;
+	int napIndex, napTic, napLast, napCheats, napTagged, napRaw, napHits, napCrits;
+	Actor napFire, napDummy;
+	Array<int> napTicks;
+	bool NapalmTick(PlayerInfo p, int l)
+	{
+		let mo = p.mo;
+		if (napFire || napDummy)
+		{
+			if (napDummy) { int lost = napLast - napDummy.Health; napLast = napDummy.Health; if (lost > 0) napTicks.Push(lost); }
+			if (++napTic < NapalmTics) return false;
+			if (napFire) napFire.Destroy();
+			if (napDummy) napDummy.Destroy();
+			p.cheats = napCheats;
+			napIndex++;
+		}
+		if (napIndex >= NapalmFires)
+		{
+			Console.Printf("ATTRRW napalm %d ticks=%d crits=%d base=%d tagged=%d of %d", l, napHits, napCrits, Median(napTicks), napTagged, NapalmFires);
+			napHits = 0;
+			napCrits = 0;
+			mo.TakeInventory("AttrRwRaw", 1);
+			mo.TakeInventory("AttrRwMid", 1);
+			napTagged = 0;
+			napIndex = 0;
+			napTicks.Clear();
+			return true;
+		}
+		if (!mo.FindInventory("AttrRwRaw"))
+		{
+			// Newest items come first in the chain: raw recorder, effects item, mid recorder.
+			let fx = mo.FindInventory("DoomerfallAttributeEffects");
+			if (fx) fx.Destroy();
+			mo.GiveInventory("AttrRwMid", 1);
+			mo.GiveInventory("DoomerfallAttributeEffects", 1);
+			mo.GiveInventory("AttrRwRaw", 1);
+		}
+		let w = Hold(p, Cls("RLNapalmLauncher"));
+		bool down = p.attackdown;
+		p.attackdown = true;
+		String fcn = "RLNapalmFire";
+		class<Actor> fc = fcn;
+		napFire = fc ? Actor.Spawn(fc, mo.Vec3Angle(mo.radius + 8, mo.Angle, 8), NO_REPLACE) : null;
+		if (napFire)
+		{
+			napFire.target = mo;
+			let tg = DoomerfallShots.Tag(napFire);
+			if (tg && tg.shooter == mo) napTagged++;
+		}
+		p.attackdown = down;
+		if (w) Release(p);
+		if (!napFire) { napIndex = NapalmFires; return false; }
+		vector3 at = mo.Vec3Angle(mo.radius + 60, mo.Angle);
+		napFire.SetOrigin((at.xy, mo.floorz), false);
+		napFire.Vel = (0, 0, 0);
+		napDummy = Actor.Spawn("AttrRwDummy", at + (12, 0, 0), NO_REPLACE);
+		napLast = napDummy.Health;
+		napTic = 0;
+		napCheats = p.cheats;
+		p.cheats |= CF_GODMODE; // the fire is next to the player
+		return false;
 	}
 
 	void StartBurn(Actor mo)

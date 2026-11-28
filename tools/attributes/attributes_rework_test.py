@@ -47,6 +47,7 @@ LUCKL = re.compile(r"ATTRRW luck (-?\d+) (-?\d+) (-?\d+) (\w+) hits=(\d+) crits=
 BLAST = re.compile(r"ATTRRW blast (-?\d+) blasts=(\d+) allcrit=(\d+) nocrit=(\d+) mixed=(\d+)")
 BURN = re.compile(r"ATTRRW burn (-?\d+) ticks=(\d+) crits=(\d+)")
 DODGE = re.compile(r"ATTRRW dodge (-?\d+) hits=(\d+) evaded=(\d+) modzero=(\d+) agiitem=(\d)")
+NAPALM = re.compile(r"ATTRRW napalm (-?\d+) ticks=(\d+) crits=(\d+) base=-?\d+ tagged=(\d+) of (\d+)")
 MEASURED = re.compile(r"ATTRRW measured str=(-?\d+) agi=(-?\d+) luck=(-?\d+) drla=(\d) item=(\d)")
 
 
@@ -184,6 +185,12 @@ def analyse(name, lines, check, drla, configs=CONFIGS, order=ORDER, paired=False
     for m in map(BURN.search, lines):
         if m:
             check(name, f"Luck {m.group(1)}: burn ticks never crit ({m.group(3)} of {m.group(2)})", m.group(3) == "0" and int(m.group(2)) > 100)
+    nap = [m for m in map(NAPALM.search, lines) if m]
+    if drla:
+        check(name, "napalm ground fire measured at Luck 100, every fire tagged as the launcher's shot",
+              bool(nap) and all(int(m.group(2)) >= 20 and m.group(4) == m.group(5) for m in nap), [m.group(0) for m in nap])
+        for m in nap:
+            check(name, f"Luck {m.group(1)}: napalm ground-fire ticks never crit ({m.group(3)} of {m.group(2)})", m.group(3) == "0")
     luck_lines = [m for m in map(LUCKL.search, lines) if m]
     check(name, "Luck measured at 50 and 100 for pistol and fists", len(luck_lines) >= 4)
     check(name, "burn measured", any(BURN.search(l) for l in lines))

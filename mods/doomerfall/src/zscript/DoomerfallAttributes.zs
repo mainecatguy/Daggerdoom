@@ -171,6 +171,20 @@ class DoomerfallAttributeEffects : Inventory
 		return kind == AttackMelee;
 	}
 
+	// A blast Luck may roll for: the exploding actor is in its Death, XDeath or Crash states (a shot exploding, as
+	// ExplodeMissile puts it there). Lingering fire (DRLA's napalm and plasma ground fire) explodes again and again
+	// from its Spawn loop, so it is damage over time and never rolls; nor do explosion actors that blast from Spawn.
+	static bool ShotBlast(Actor a)
+	{
+		if (!a || !a.CurState) return false;
+		return InSeq(a, a.FindState("Death")) || InSeq(a, a.FindState("XDeath")) || InSeq(a, a.FindState("Crash"));
+	}
+
+	static bool InSeq(Actor a, State s)
+	{
+		return s && a.InStateSequence(a.CurState, s);
+	}
+
 	// Luck: whether this hit is a super crit. An explosion (DMG_EXPLOSION, one P_RadiusAttack) rolls once per exploding
 	// actor per tic, so all its targets share the roll.
 	bool LuckyHit(Actor inflictor, int flags)
@@ -180,6 +194,7 @@ class DoomerfallAttributeEffects : Inventory
 		if (chance <= 0) return false;
 		if (flags & DMG_EXPLOSION)
 		{
+			if (!ShotBlast(inflictor)) return false; // ground fire and other lingering explosions: damage over time
 			if (inflictor == blastInflictor && level.maptime == blastTic) return blastLucky;
 			blastInflictor = inflictor;
 			blastTic = level.maptime;
