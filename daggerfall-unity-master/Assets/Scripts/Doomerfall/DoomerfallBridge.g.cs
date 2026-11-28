@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x65dc0a36851459beUL;
+        public const ulong SchemaHash = 0x7c2bd4a30f481d56UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -140,10 +140,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const uint ENCOUNTER_LOCATION_NAME = 1;  // dfb_encounter_text.field
         public const uint ENCOUNTER_REGION_NAME = 2;
         public const uint ENCOUNTER_DUNGEON_TYPE = 3;  // the DFRegion.DungeonTypes name, such as VampireHaunt
-        public const ushort KIND_NPCS_BEGIN = 60;  // DF to UZ; starts one full list for an interior; payload: dfb_world_items
+        public const ushort KIND_NPCS_BEGIN = 60;  // DF to UZ; starts one full list for an interior or dungeon; payload: dfb_world_items
         public const ushort KIND_NPC = 61;  // DF to UZ; one NPC present in that interior; payload: dfb_npc
         public const ushort KIND_NPCS_END = 62;  // DF to UZ; the list is complete, and anyone not in it is absent; payload: dfb_world_items
         public const ushort KIND_NPCS_REQUEST = 63;  // UZ to DF; send the current list again; payload: dfb_world_items
+        public const ushort KIND_NPC_PLACED = 69;  // DF to UZ; payload: dfb_world_item, item_count unused
         public const ushort KIND_TOWNSFOLK_BEGIN = 64;  // DF to UZ; starts one full list for the town around the player; payload: dfb_townsfolk
         public const ushort KIND_TOWNSPERSON = 65;  // DF to UZ; one visible townsperson; payload: dfb_townsperson
         public const ushort KIND_TOWNSFOLK_END = 66;  // DF to UZ; the list is complete, and anyone not in it is out of sight; payload: dfb_townsfolk
@@ -438,7 +439,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         [FieldOffset(16)] public DfbTransition transition;  // TRANSITION
         [FieldOffset(16)] public DfbNewGame newGame;  // NEWGAME
         [FieldOffset(16)] public DfbWorldItems worldItems;  // ITEMS_BEGIN, ITEMS_END, ITEMS_REQUEST, MONSTERS_BEGIN, MONSTERS_END, MONSTERS_REQUEST, NPCS_BEGIN, NPCS_END, NPCS_REQUEST
-        [FieldOffset(16)] public DfbWorldItem worldItem;  // ITEM
+        [FieldOffset(16)] public DfbWorldItem worldItem;  // ITEM, NPC_PLACED
         [FieldOffset(16)] public DfbItemTake itemTake;  // ITEM_TAKE, DOOM_ITEM_ID
         [FieldOffset(16)] public DfbItemResult itemResult;  // ITEM_RESULT
         [FieldOffset(16)] public DfbWorldContainer worldContainer;  // CONTAINER

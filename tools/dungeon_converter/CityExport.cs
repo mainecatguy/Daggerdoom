@@ -13,6 +13,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using DaggerfallConnect;
 using DaggerfallConnect.Arena2;
 using DaggerfallConnect.Utility;
@@ -226,6 +227,12 @@ static partial class Program
                 }
                 foreach (var f in data.MiscFlatObjectRecords) { flatArchives.Add(f.TextureArchive); if (f.FactionID != 0) npcArchives.Add(f.TextureArchive); }
             }
+            // Quest Persons placed at quest markers wear their faction's billboard (FACTION.TXT "flat:"), which no block
+            // may name. Doom draws them from Daggerfall's NPC list (dd_npcs.cpp), so every such archive ships too.
+            string factionText = Path.Combine(arena2, "FACTION.TXT");
+            if (File.Exists(factionText))
+                foreach (Match m in Regex.Matches(File.ReadAllText(factionText), @"flat:\s*(\d+)"))
+                    if (int.TryParse(m.Groups[1].Value, out int factionArchive) && factionArchive > 0) { flatArchives.Add(factionArchive); npcArchives.Add(factionArchive); }
             flatArchives.Remove(199);
             npcArchives.Remove(199);
             // Wilderness nature, which the engine lays out around every exterior (dd_nature.cpp).

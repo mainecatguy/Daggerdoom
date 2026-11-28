@@ -498,6 +498,13 @@ These skills work as in Daggerfall and improve as you use them:
 
 Like every skill, these only go up when Daggerfall checks your skills, after a rest or fast travel (see Levelling up).
 
+### People your quests send you to
+
+When a quest tells you to meet someone in a building or a dungeon, that person stands where the quest put them, as in
+Daggerfall. Press **Use (E)** on them to talk, hand over quest items, or collect your reward. When the quest is done with
+them, or sends them somewhere else, they disappear from that spot. Items a quest leaves lying in a building do not show
+up yet.
+
 ## Entering a place
 
 - When you go through a door into or out of a dungeon or building, or walk out of a town, the game pauses until the
