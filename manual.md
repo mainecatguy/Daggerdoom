@@ -245,7 +245,8 @@ Explosives covers rocket, missile and grenade launchers, such as the stock rocke
 - **Damage:** explosive weapons do more damage as the skill rises, up to 60% more at 100, both to the enemy a rocket
   hits and to everything its blast reaches.
 - **25:** your own blasts hurt you 95% less.
-- **50:** explosives do extra damage to the enemy they hit directly. This perk does not work yet.
+- **50:** the enemy a rocket or grenade hits directly takes 50% more from that impact. The blast around it does not
+  get this bonus.
 - **75:** your own blasts hurt you 99% less.
 - **100, Inpulsa's Broken Heart:** an enemy your explosives kill explodes for a quarter of its maximum health, hurting
   everything nearby (about a rocket blast's reach). Enemies killed by that blast explode too, each time at half the

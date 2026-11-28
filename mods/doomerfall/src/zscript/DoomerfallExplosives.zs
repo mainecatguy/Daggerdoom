@@ -5,8 +5,8 @@
 //
 //   damage bonus   every hit from the gun's shots, direct or splash, does +x% to others (0 to 60%).
 //   self cut       the player's own splash from the gun's shots is cut by x% (95% at 25, 99% at 75).
-//   direct bonus   the enemy a shot hits directly takes +x% more from that impact (50; 0 until the owner sets the
-//                  amount).
+//   direct bonus   the enemy a shot hits directly takes +x% more from that impact (50: +50%, owner 2026-11-27); the
+//                  splash gets only the damage bonus.
 //   chain          Inpulsa's Broken Heart (100): a monster the gun's shots kill explodes for x% of its maximum health
 //                  in a radius; monsters those blasts kill explode at half that, and so on. The blasts never hurt a
 //                  player, and get no damage bonus. They wait in a queue and at most MaxBlastsPerTic go off in one tic,

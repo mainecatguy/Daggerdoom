@@ -62,7 +62,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             new Perk("Automatics", 100, "Automatic weapons use only 1 ammo for every 4 shots.", true),
 
             new Perk("Explosives", 25, "Your own explosions hurt you 95% less.", true),
-            new Perk("Explosives", 50, "Explosives do extra damage to the enemy they hit directly."),
+            new Perk("Explosives", 50, "The enemy your explosives hit directly takes 50% more damage from the impact.", true),
             new Perk("Explosives", 75, "Your own explosions hurt you 99% less.", true),
             new Perk("Explosives", 100, "Inpulsa's Broken Heart: enemies your explosives kill explode for a quarter of their maximum health. Those blasts chain, each at half the strength of the one before, and never hurt you.", true),
 

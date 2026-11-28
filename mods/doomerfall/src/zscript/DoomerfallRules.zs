@@ -107,9 +107,9 @@ class DoomerfallRules : StaticEventHandler
 		// Explosives
 		ExplDamageBp,        // damage bonus, +0% to +60% by skill
 		ExplSelfCutBp,       // the player's own splash damage is cut by this much: 95% at 25, 99% at 75
-		ExplDirectBp,        // 50: more damage to the enemy a shot hits directly (amount open, so 0)
-		ExplChainBp,         // 100: an enemy the explosives kill explodes for this much of its maximum health ...
-		ExplChainRadius,     // ... in this radius (map units, a Doom rocket's, an engineering pick)
+		ExplDirectBp,        // 50: +50% damage to the enemy a shot hits directly (impact only, not splash)
+		ExplChainBp,         // 100: an enemy the explosives kill explodes for this much (25%) of its maximum health ...
+		ExplChainRadius,     // ... in this radius (128, a Doom rocket's, with Doom's falloff; owner, Q&A items 12-13)
 		// Shotguns
 		ShotDamageBp,        // damage bonus, +0% to +75% by skill
 		ShotReloadBp,        // 25: reloads take this much less time (35%; 100's amount is open, so it stays)
@@ -184,7 +184,7 @@ class DoomerfallRules : StaticEventHandler
 
 		case ExplDamageBp:       return 6000 * s / 100;
 		case ExplSelfCutBp:      return skill >= 75 ? 9900 : skill >= 25 ? 9500 : 0;
-		case ExplDirectBp:       return 0; // 50: the owner has not set the amount
+		case ExplDirectBp:       return skill >= 50 ? 5000 : 0; // owner, 2026-11-27 (Q&A item 11): +50%
 		case ExplChainBp:        return skill >= 100 ? 2500 : 0;
 		case ExplChainRadius:    return skill >= 100 ? 128 : 0;
 
