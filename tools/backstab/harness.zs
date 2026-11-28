@@ -118,7 +118,7 @@ class BSHarness : StaticEventHandler
 		if (++timer < delay) return;
 		timer = 0;
 		delay = 10;
-		p.angle = aim;
+		if (step != 24 || timer > -45) p.angle = aim; // b2b: turned away for its first 15 tics
 		p.pitch = 0;
 		switch (step++)
 		{
@@ -174,25 +174,34 @@ class BSHarness : StaticEventHandler
 			Console.Printf("BSSPREAD B %d", b - other.health);
 			break;
 		}
-		// DRLA's wind-up minigun
+		// back to back: the real gun, one click aimed away (it hears it), then turned to it and a second click
 		case 23:
+			Reset(true);
+			p.angle = aim + 90;
+			timer = -60;
+			wait = mon.health;
+			Console.Printf("BSPHASE b2b %s", Seen(p));
+			break;
+		case 24: Console.Printf("BSHIT b2b 0 %d before - after %s", wait - mon.health, Seen(p)); break;
+		// DRLA's wind-up minigun
+		case 25:
 		{
 			Name gunName = 'RLAssaultRifleMinigun';
 			Class<Actor> gun = gunName;
-			if (!gun) { Console.Printf("BSNOTE no DRLA minigun"); step = 26; break; }
+			if (!gun) { Console.Printf("BSNOTE no DRLA minigun"); step = 28; break; }
 			p.GiveInventory("RLAssaultRifleMinigun", 1);
 			p.GiveInventory("RLAssaultRifleMinigunClip", 200);
 			p.A_SelectWeapon("RLAssaultRifleMinigun");
 			delay = 70;
 			break;
 		}
-		case 24:
+		case 26:
 			Reset(true);
 			timer = -70;
 			wait = mon.health;
 			Console.Printf("BSPHASE minigun %s weapon %s", Seen(p), players[0].ReadyWeapon ? players[0].ReadyWeapon.GetClassName() : 'none');
 			break;
-		case 25: Console.Printf("BSHIT minigun 0 %d before - after %s", wait - mon.health, Seen(p)); break;
+		case 27: Console.Printf("BSHIT minigun 0 %d before - after %s", wait - mon.health, Seen(p)); break;
 		default: Console.Printf("BSDONE"); done = true; break;
 		}
 	}

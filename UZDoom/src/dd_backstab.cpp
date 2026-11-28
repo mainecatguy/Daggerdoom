@@ -23,7 +23,6 @@ void DD_BridgeLog(const char *text);
 
 namespace
 {
-constexpr int SpanCount = 8;
 
 bool active;              // a bridge session existed at the last frame
 uint32_t pendingHits;
@@ -41,13 +40,18 @@ TMap<const AActor *, int> firstHeard;
 const FLevelLocals *heardLevel;
 int heardMaptime;
 
-// The player's attacks: spans while the ready weapon is out of its ready state (it left A_WeaponReady to fire, wind up,
-// refire or reload) until it is ready again. One attack holds all its own noise: a wind-up's alert, the firing alert,
-// every refire of a held burst. end is -1 while it lasts.
+// The player's attacks, found from when the ready weapon was last ready. readySpans: runs of tics in which the weapon
+// was seen ready (A_WeaponReady had set WF_WEAPONREADY), newest last. The attack a noise or hit belongs to began at the
+// last moment the weapon was ready at or before it. Every way out of the ready state passes through DPSprite::SetState
+// with the flag still set (DD_BackstabWeaponReady), so a shot fired on the very first ready frame still starts its own
+// attack, and so do a weapon switch and a reload begun from the ready state.
 struct Span { int start, end; };
-Span spans[SpanCount];
+constexpr int SpanCount = 16;
+Span readySpans[SpanCount];
 int spanNext, spansKept;
-bool inAttack;
+// Only an attack's opening noise is excused: noise up to this long after the attack began (a wind-up, the first shots).
+constexpr int OpeningTics = TICRATE;
+TMap<const AActor *, int> lastHeard; // when each monster last heard the player
 
 bool Live(AActor *a)
 {
@@ -63,76 +67,79 @@ void ResetLevel(FLevelLocals *level)
 {
 	if (level == heardLevel && level->maptime >= heardMaptime) { heardMaptime = level->maptime; return; }
 	firstHeard.Clear();
+	lastHeard.Clear();
 	spansKept = spanNext = 0;
-	inAttack = false;
 	heardLevel = level;
 	heardMaptime = level->maptime;
 }
 
-// Follows the bridged player's weapon: an attack starts when the weapon is out of its ready state (setting any weapon
-// state clears WF_WEAPONREADY; A_WeaponReady sets it again) and ends when it is ready again. at: the time to stamp.
-void Sample(player_t *player, int at)
+void NoteReady(int t)
 {
-	const bool ready = !player->ReadyWeapon || (player->WeaponState & (WF_WEAPONREADY | WF_WEAPONREADYALT));
-	if (ready && inAttack)
-	{
-		spans[(spanNext + SpanCount - 1) % SpanCount].end = at;
-		inAttack = false;
-	}
-	else if (!ready && !inAttack)
-	{
-		spans[spanNext] = { at, -1 };
-		spanNext = (spanNext + 1) % SpanCount;
-		spansKept = std::min(spansKept + 1, SpanCount);
-		inAttack = true;
-	}
+	Span *last = spansKept ? &readySpans[(spanNext + SpanCount - 1) % SpanCount] : nullptr;
+	if (last && t >= last->start && t - last->end <= 1) { last->end = std::max(last->end, t); return; }
+	readySpans[spanNext] = { t, t };
+	spanNext = (spanNext + 1) % SpanCount;
+	spansKept = std::min(spansKept + 1, SpanCount);
 }
 
-// The start of the player's attack under way at time t, or -1 if the player was not attacking then.
-int AttackAt(int t)
+bool Ready(player_t *player)
+{
+	return !player->ReadyWeapon || (player->WeaponState & (WF_WEAPONREADY | WF_WEAPONREADYALT));
+}
+
+// When the attack under way at time t began: the last time at or before t that the weapon was ready, or -1 if unknown.
+int AttackStart(int t)
 {
 	for (int i = 0; i < spansKept; i++)
 	{
-		const Span &s = spans[(spanNext + SpanCount - 1 - i) % SpanCount];
-		if (s.start <= t && (s.end < 0 || t < s.end)) return s.start;
+		const Span &s = readySpans[(spanNext + SpanCount - 1 - i) % SpanCount];
+		if (s.start <= t) return std::min(s.end, t);
 	}
 	return -1;
 }
 
-// Samples the weapon now, from inside the playsim (a weapon that fires on its first frame leaves the ready state and
-// alerts or hits in the same tic).
 void SampleNow(FLevelLocals *level)
 {
 	AActor *pawn = BridgedPawn();
-	if (pawn && pawn->player && pawn->Level == level) Sample(pawn->player, level->totaltime);
+	if (pawn && pawn->player && pawn->Level == level && Ready(pawn->player)) NoteReady(level->totaltime);
 }
 }
 
-// From DD_BridgeHpThink, at the start of each player's tic (P_PlayerThink): the weapon as the previous tic left it. A
-// weapon that left its ready state during the previous tic did so at time - 1, where its first noise came from.
+// p_pspr.cpp DPSprite::SetState, before a weapon state change clears WF_WEAPONREADY: the weapon was ready until now.
+void DD_BackstabWeaponReady(player_t *player)
+{
+	if (!active || !player->mo || player->mo != BridgedPawn()) return;
+	ResetLevel(player->mo->Level);
+	NoteReady(player->mo->Level->totaltime);
+}
+
+// From DD_BridgeHpThink, at the start of each player's tic: notes a weapon left ready by the previous tic.
 void DD_BackstabTic(player_t *player)
 {
 	if (!active || !player->mo || player->mo != BridgedPawn()) return;
 	ResetLevel(player->mo->Level);
-	Sample(player, inAttack ? player->mo->Level->totaltime : player->mo->Level->totaltime - 1);
+	if (Ready(player)) NoteReady(player->mo->Level->totaltime);
 }
 
 // p_enemy.cpp NoiseMarkSector, just before a monster's LastHeard is set to soundtarget. Records when a monster starts
-// hearing the bridged player.
+// hearing the bridged player, and when it last heard the player.
 void DD_BackstabHeard(AActor *actor, AActor *soundtarget)
 {
 	if (!active || !soundtarget || soundtarget != BridgedPawn() || !actor) return;
 	ResetLevel(actor->Level);
 	SampleNow(actor->Level);
-	if (actor->LastHeard != soundtarget) firstHeard[actor] = actor->Level->totaltime;
+	const int now = actor->Level->totaltime;
+	if (actor->LastHeard != soundtarget) firstHeard[actor] = now;
+	lastHeard[actor] = now;
 }
 
 // Unaware: an enemy (a monster not friendly to the player) that has not noticed the player: it has no live target and
-// is not alerted. Alerted means it heard someone (LastHeard), with one exception: the noise of the very attack that is
-// hitting it. A gun alerts every monster in earshot when it starts firing (and some wind up with an alert first), before
-// its bullets land, so that noise is too late to count; any noise from the player before the current attack began does
-// count, however long ago it was, and so does every noise when the hit comes from no attack of the player's.
-// attackTime: when the attack's hit left the player: a projectile's spawn time, or now for an instant hit.
+// is not alerted. Alerted means it heard someone (LastHeard), with one exception: the opening noise of the very attack
+// that is hitting it (what it made in its first second: a wind-up, the opening shots). A gun alerts every monster in
+// earshot as it starts firing, before its bullets land, so that noise is too late to count. Noise from before the
+// attack began counts, however long ago, and so does noise later in a long burst or after a reload in it; a hit that
+// comes while the weapon is ready (no attack) excuses nothing.
+// attackTime: when the hit left the player: a projectile's spawn time, or now for an instant hit.
 bool DD_BackstabUnaware(AActor *player, AActor *target, int attackTime)
 {
 	if (!target || target == player || !(target->flags3 & MF3_ISMONSTER) || !Live(target)) return false;
@@ -142,8 +149,9 @@ bool DD_BackstabUnaware(AActor *player, AActor *target, int attackTime)
 	if (!Live(heard)) return true;
 	if (heard != player || target->Level != heardLevel) return false;
 	const int *since = firstHeard.CheckKey(target);
-	const int start = AttackAt(attackTime);
-	return since && start >= 0 && *since >= start; // it first heard the player during this attack
+	const int *last = lastHeard.CheckKey(target);
+	const int start = AttackStart(attackTime);
+	return since && last && start >= 0 && *since >= start && *last <= start + OpeningTics;
 }
 
 // From DD_BridgeDamageBonus, for a hit by the bridged player: the backstab factor for this hit (1 when it is not a sneak

@@ -44,8 +44,8 @@ with **Horse** or **Cart** chosen in the transport menu. Running does not make y
 evenly to **five times** the damage at skill 100 (three times at 50). It works with every weapon, guns included, and
 stacks with your other damage bonuses (ammo and weapon material). An enemy has noticed you once it is after you, is
 fighting anything else, or has heard you: any noise you made before this attack (an earlier shot, for example) puts it on
-alert, even if it has not found you yet. The noise of the attack itself does not count (including a
-weapon spinning up, and a burst you keep the trigger held for), so a loud gun can still land a
+alert, even if it has not found you yet. Only the opening noise of the attack itself does not count (a
+weapon spinning up, and its first second of firing); noise later in a long burst, or after a reload, does, so a loud gun can still land a
 sneak shot on an enemy that had not heard you before. Your first hit wakes it up, so the bonus is for the opening hit: every pellet of one shotgun blast that lands together counts, the next
 shot does not. Each such sneak hit also practises Backstabbing, ten times as much as a hit practises a weapon skill in Daggerfall.
 

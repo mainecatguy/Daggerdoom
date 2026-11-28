@@ -476,10 +476,12 @@ void DPSprite::NewTick()
 //
 //---------------------------------------------------------------------------
 
+void DD_BackstabWeaponReady(player_t *player); // [Doomerfall] inactive outside a bridge session
 void DPSprite::SetState(FState *newstate, bool pending)
 {
 	if (ID == PSP_WEAPON)
 	{ // A_WeaponReady will re-set these as needed
+		if (Owner->WeaponState & (WF_WEAPONREADY | WF_WEAPONREADYALT)) DD_BackstabWeaponReady(Owner); // [Doomerfall]
 		Owner->WeaponState &= ~(WF_WEAPONREADY | WF_WEAPONREADYALT | WF_WEAPONBOBBING | WF_WEAPONSWITCHOK | WF_WEAPONRELOADOK | WF_WEAPONZOOMOK |
 								WF_USER1OK | WF_USER2OK | WF_USER3OK | WF_USER4OK);
 	}
