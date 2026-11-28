@@ -104,7 +104,7 @@ class REHarness : StaticEventHandler
 		{
 		case 0:
 			if (level.maptime < 8 || CVar.FindCVar("dd_sync_df_phase").GetInt() != 3 || timer < 420) break;
-			phase = mode == "load" ? 20 : mode == "dungeon" ? 40 : 1;
+			phase = mode == "load" ? 20 : mode == "dungeon" ? 40 : mode == "loadguard" ? 50 : 1;
 			timer = 0;
 			break;
 		case 1:	// Town: one monster within 12 m, one at about 20 m out of sight.
@@ -197,6 +197,26 @@ class REHarness : StaticEventHandler
 			Now("dungeondead");
 			break;
 		case 43:
+			Console.Printf("REDONE ok");
+			phase = 99;
+			break;
+		case 50:	// After the load, in the tavern: guard bots do not carry over a load, so -dfguardtest calls new ones.
+		{
+			if (timer == 1) Console.Printf("RELOADED %s, guards alive %d", level.MapName, Guard() != null);
+			let g = Guard();
+			if (!g) { if (timer > 35 * 40) { Console.Printf("REDONE no guard came after the load"); phase = 99; } break; }
+			if (timer < 35 * 3) break;
+			Console.Printf("REGUARD player %d at %.1f %.1f, %.1f units from the player", g.PlayerNumber(), g.pos.x, g.pos.y, g.Distance3D(p));
+			Now("loadguard");
+			break;
+		}
+		case 51:
+			if (timer == 1) Console.Printf("REKILL guards %d", KillGuards(p));
+			if (timer < 70) break;
+			if (Guard()) { KillGuards(p); if (timer < 35 * 10) break; }
+			Now("loadguarddead");
+			break;
+		case 52:
 			Console.Printf("REDONE ok");
 			phase = 99;
 			break;

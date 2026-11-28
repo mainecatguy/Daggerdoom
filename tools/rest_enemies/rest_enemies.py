@@ -1,6 +1,6 @@
 """Rest refuses only while living hostile Doom monsters or guard bots are near (Daggerfall's 12 m, 360 Doom units).
 
-usage: rest_enemies.py assemble <source review folder> | run fresh | run load | run dungeon | check
+usage: rest_enemies.py assemble <source review folder> | run fresh | run load | run loadguard | run dungeon | check
 assemble builds review\\rest-enemies from a paired review folder (data, dfitems.pk3, portable Daggerfall Unity) with this
 checkout's UZDoom (D:\\dev\\DoomDaggerfall-build\\uzdoom-quiet), launcher, bridge, Daggerfall Unity build and
 doomerfall.pk3, and writes the demo play.bat.
@@ -10,6 +10,8 @@ the near one killed: rest opens (the far one is past 12 m). Into the Gothway tav
 guards killed: rest opens. Then an autosave.
 run load: loads that autosave in a fresh launch: rest opens beside the dead guards; a ZombieMan 120 units away: refused;
 killed: opens.
+run loadguard: loads the same autosave with -dfguardtest. Guard bots do not carry over a load (dd_guards.cpp
+DD_GuardsLeaveLevel), so newly called guards stand in: refused next to a living guard bot; guards killed: opens.
 run dungeon: into Privateer's Hold; after 8 s with its packs alive, Daggerfall's answer must match Doom's count; every
 monster killed: rest opens (Daggerfall's hidden enemies and spawners there no longer refuse it).
 Each case runs the rest key's command (netevent df_rest, through -ddqa), reads Doom's count and Daggerfall's top
@@ -37,6 +39,7 @@ REST_KEY = 0x5A  # Z, bound to netevent df_rest
 # True: refused; False: the rest window opens; None: Daggerfall's answer must match Doom's count.
 EXPECT = {"fresh": {"near": True, "neardead": False, "guard": True, "guarddead": False},
           "load": {"loaded": False, "loadednear": True, "loadeddead": False},
+          "loadguard": {"loadguard": True, "loadguarddead": False},
           "dungeon": {"dungeonalive": None, "dungeondead": False}}
 read = tc.read
 
@@ -99,8 +102,9 @@ def run(mode):
     runs = REVIEW / "run" / mode
     shutil.rmtree(runs, ignore_errors=True)
     runs.mkdir(parents=True)
-    saves = REVIEW / "run" / "saves"
+    saves = REVIEW / "run" / ("saves-dungeon" if mode == "dungeon" else "saves")  # the dungeon's autosaves stay apart
     saves.mkdir(exist_ok=True)
+    tavern = saves / "tavern.zds"  # the fresh run's save after the guards died, for both load runs
     (runs / "qa").mkdir()
     inbox = runs / "qa" / "inbox.txt"
     inbox.write_text("")
@@ -113,17 +117,17 @@ def run(mode):
     uz = ["-ddqa", str(inbox.parent), "-noactivate", "-nosound", "-noautoload", "-file", str(harness), "+logfile", "console", "+wipetype", "0",
           "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+dd_debugmessages", "0",
           "+bind", "z", "netevent df_rest"] + tc.size_args(1280, 800)
-    if mode == "load":
-        newest = max(saves.glob("auto*.zds"), key=lambda p: p.stat().st_mtime, default=None)
-        if newest is None:
-            sys.exit("no save to load")
+    if mode in ("load", "loadguard"):
+        if not tavern.exists():
+            sys.exit("no save to load: run fresh first")
         resume = saves / "resume.zds"
-        shutil.copy2(newest, resume)
+        shutil.copy2(tavern, resume)
         uz += ["-dfloadtest", "resume:" + str(resume), "+dd_ui_test_hold", "1"]
     elif mode == "fresh":
         for old in saves.glob("*.zds"):
             old.unlink()
-    df = ["-dfmute", "-dfresttest", str(views)] + (["-dfguardtest", "-dftownhour", "12", "-dfresttestroom"] if mode == "fresh" else [])
+    df = ["-dfmute", "-dfresttest", str(views)] + (["-dfguardtest", "-dftownhour", "12", "-dfresttestroom"] if mode == "fresh" else
+                                                   ["-dfguardtest"] if mode == "loadguard" else [])
     timeout = 220 if mode == "fresh" else 150
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--"] + tc.launch_args(runs, uz, df, True)
     command = [str(saves) if a == str(runs / "saves") else a for a in command]
@@ -189,6 +193,11 @@ def run(mode):
             subprocess.call(["taskkill", "/F", "/T", "/PID", str(proc.pid)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             proc.wait()
     print("stopped:", reason)
+    if mode == "fresh" and reason == "done":
+        newest = max(saves.glob("auto*.zds"), key=lambda p: p.stat().st_mtime, default=None)  # written at RESAVE, the last save
+        if newest:
+            shutil.copy2(newest, tavern)
+            print("kept", newest.name, "as", tavern.name)
     for line in read(console).splitlines():
         if line.startswith("RE") or any(k in line for k in FATAL):
             print(line[:220])
