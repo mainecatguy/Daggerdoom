@@ -13,6 +13,7 @@ using System.Collections.Generic;
 using DaggerfallConnect;
 using DaggerfallConnect.FallExe;
 using DaggerfallWorkshop.Game.Entity;
+using DaggerfallWorkshop.Game.Doomerfall;
 
 namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
 {
@@ -49,14 +50,17 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
             for (int i = 0; i < DaggerfallSkills.Count; i++)
             {
                 DFCareer.Skills skill = (DFCareer.Skills)i;
-                if (DFCareer.IsLegacyLanguageSlot((int)skill))
-                    continue; // Doomerfall: monster language slots 4-12; gun skill enchantments wait for the owner
+                if (DFCareer.IsRemovedSkill(skill))
+                    continue; // Doomerfall: unused slots 11-12
+                // Doomerfall: slots 4-10 (weapon skills) carry a marker, since classic data reads them as dead languages (DoomerfallSkillPowers)
+                bool marked = DFCareer.IsLegacyLanguageSlot(i);
                 EnchantmentSettings enchantment = new EnchantmentSettings()
                 {
                     Version = 1,
                     EffectKey = EffectKey,
                     ClassicType = EnchantmentTypes.EnhancesSkill,
                     ClassicParam = (short)i,
+                    CustomParam = marked ? DoomerfallSkillPowers.MarkerParam(skill) : null,
                     PrimaryDisplayName = GroupName,
                     SecondaryDisplayName = DaggerfallUnity.Instance.TextProvider.GetSkillName(skill),
                     EnchantCost = enchantCost,
@@ -69,8 +73,8 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
         }
 
         /// <summary>
-        /// Doomerfall: a monster language (slots 4-12; 4-6 now hold the gun skills) is not offered in the item maker, but a soul's forced
-        /// power or an old item may still name one. It keeps its classic setting and cost and has no effect.
+        /// Doomerfall: a dead monster language power (classic slots 4-12, no marker), from a soul or an old item, raises
+        /// another skill from a fixed table (DoomerfallSkillPowers.LanguageTarget). It keeps its classic setting and cost.
         /// </summary>
         public override EnchantmentSettings? GetEnchantmentSettings(EnchantmentParam param)
         {
@@ -84,17 +88,9 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
                 ClassicType = EnchantmentTypes.EnhancesSkill,
                 ClassicParam = param.ClassicParam,
                 PrimaryDisplayName = GroupName,
-                SecondaryDisplayName = RemovedLanguageName(skill),
+                SecondaryDisplayName = DaggerfallUnity.Instance.TextProvider.GetSkillName(DoomerfallSkillPowers.LanguageTarget(skill)),
                 EnchantCost = enchantCost,
             };
-        }
-
-        /// <summary>Doomerfall: the classic name of a removed monster language, marked as having no effect.</summary>
-        public static string RemovedLanguageName(DFCareer.Skills skill)
-        {
-            string[] keys = { "orcish", "harpy", "giantish", "dragonish", "nymph", "daedric", "spriggan", "centaurian", "impish" };
-            string name = TextManager.Instance.GetLocalizedText(keys[(int)skill - (int)DFCareer.Skills.Shotguns]);
-            return name + " (no effect)";
         }
 
         public override void Start(EntityEffectManager manager, DaggerfallEntityBehaviour caster = null)
@@ -106,9 +102,10 @@ namespace DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects
                 return;
 
             // Set skill mod
-            DFCareer.Skills skill = (DFCareer.Skills)EnchantmentParam.Value.ClassicParam;
-            if (DFCareer.IsLegacyLanguageSlot((int)skill))
-                return; // Doomerfall: a removed monster language; the power has no effect
+            // Doomerfall: a marked weapon skill, or a dead language's table target (DoomerfallSkillPowers)
+            DFCareer.Skills skill = DoomerfallSkillPowers.SkillOf(EnchantmentParam.Value.ClassicParam, EnchantmentParam.Value.CustomParam);
+            if (skill == DFCareer.Skills.None)
+                return;
             SetSkillMod(skill, modAmount);
         }
     }

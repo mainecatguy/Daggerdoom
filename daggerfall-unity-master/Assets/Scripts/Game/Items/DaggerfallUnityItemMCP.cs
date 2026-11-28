@@ -316,9 +316,8 @@ namespace DaggerfallWorkshop.Game.Items
                         }
                         else if (parent.legacyMagic[i].type == EnchantmentTypes.EnhancesSkill)
                         {
-                            DaggerfallConnect.DFCareer.Skills skill = (DaggerfallConnect.DFCareer.Skills)parent.legacyMagic[i].param;
-                            string skillName = DaggerfallConnect.DFCareer.IsLegacyLanguageSlot((int)skill) ? DaggerfallWorkshop.Game.MagicAndEffects.MagicEffects.EnhancesSkill.RemovedLanguageName(skill) // Doomerfall
-                                : DaggerfallUnity.Instance.TextProvider.GetSkillName(skill);
+                            DaggerfallConnect.DFCareer.Skills skill = Doomerfall.DoomerfallSkillPowers.SkillOf(parent.legacyMagic[i].param, null); // Doomerfall: dead languages raise another skill
+                            string skillName = DaggerfallUnity.Instance.TextProvider.GetSkillName(skill);
                             magicPowersTokens.Add(TextFile.CreateTextToken(firstPart + skillName));
                         }
                         else if (parent.legacyMagic[i].type == EnchantmentTypes.ImprovesTalents)
@@ -371,6 +370,7 @@ namespace DaggerfallWorkshop.Game.Items
 
                         magicPowersTokens.Add(TextFile.CreateFormatToken(format));
                     }
+                    Doomerfall.DoomerfallSkillPowers.AddMarkedPowers(parent, magicPowersTokens, format); // Doomerfall: Enhances <weapon skill>
                     return magicPowersTokens.ToArray();
                 }
             }
