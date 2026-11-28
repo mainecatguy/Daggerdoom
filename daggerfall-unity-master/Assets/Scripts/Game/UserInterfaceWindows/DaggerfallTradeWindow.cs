@@ -1049,7 +1049,8 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                             receivedLetterOfCredit = true;
                         }
                         RaiseOnTradeHandler(remoteItems.GetNumItems(), tradePrice);
-                        remoteItems.Clear();
+                        if (!Doomerfall.DoomerfallShopLedger.TakeSold(remoteItems))   // [Doomerfall] sold goods go on the shop's shelves
+                            remoteItems.Clear();
                         break;
 
                     case WindowModes.Buy:

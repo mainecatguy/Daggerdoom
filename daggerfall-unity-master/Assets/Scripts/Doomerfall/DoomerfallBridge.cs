@@ -421,6 +421,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     case Dfb.KIND_STARTER:
                         plainLoad.OnStarter(ev.doomItem.request, ev.doomItem.status, DoomerfallDoomItems.ClassOf(ev.doomItem));
                         DoomerfallStartingGun.OnStarter(ev.doomItem.request, ev.doomItem.status, DoomerfallDoomItems.ClassOf(ev.doomItem));
+                        DoomerfallShopLots.OnStarter(DoomerfallDoomItems.ClassOf(ev.doomItem));   // the gun set shops stock
                         break;
                     case Dfb.KIND_HELLO:
                         Log("hello from UZDoom (seq " + ev.seq + ")");

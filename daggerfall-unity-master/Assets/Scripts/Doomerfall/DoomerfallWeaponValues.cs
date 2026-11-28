@@ -21,13 +21,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
     {
         internal sealed class Entry
         {
-            public string weaponClass, set, kind, role, tier;
+            public string weaponClass, set, kind, role, tier, pickup; // pickup: the first world pickup class listed
             public float weightKg, share;
             public Weapons template;
             public int tierMultiplier;
         }
 
         static Dictionary<string, Entry> byClass;
+        static readonly List<Entry> all = new List<Entry>();
         static int cap;
         static readonly Dictionary<int, int> materialValue = new Dictionary<int, int>(); // (template, material) -> Daggerfall value
 
@@ -39,6 +40,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return null;
             Entry e;
             return byClass.TryGetValue(doomClass, out e) ? e : null;
+        }
+
+        // A set's weapons (as WeaponValues.txt names sets: DRLA, Doom, Heretic, Hexen, Schism), without fists, in file order.
+        internal static List<Entry> InSet(string set)
+        {
+            Load();
+            return all.FindAll(e => string.Equals(e.set, set, StringComparison.OrdinalIgnoreCase) && e.role != "unarmed");
         }
 
         // The weight Daggerfall gives a Doom item of this class (the default for items without an entry).
@@ -115,8 +123,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                             weightKg = float.Parse(f[6], CultureInfo.InvariantCulture),
                             share = float.Parse(f[7], CultureInfo.InvariantCulture),
                             template = roles[f[4]], tierMultiplier = tiers[f[5]],
+                            pickup = f[8].Split(',')[0],
                         };
                         byClass[e.weaponClass] = e;
+                        all.Add(e);
                         foreach (string pickup in f[8].Split(','))
                             if (pickup.Length > 0)
                                 byClass[pickup] = e;

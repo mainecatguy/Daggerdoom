@@ -420,6 +420,20 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         // The window is gone, so whatever it did to the container is final. Taken, added, bought, or restocked, the
         // container's contents now are what must come back after re-entry, save, and load.
+        /// <summary>Records a shop shelf the shop ledger changed outside the loot window (restock, player sale), so re-entry, save, and load keep it.</summary>
+        internal static bool RecordShelf(DaggerfallLoot loot)
+        {
+            DoomerfallItems items = FindObjectOfType<DoomerfallItems>();
+            Known known;
+            if (!items || !loot || loot.customDrop || items.ledger.piles == null || items.ledger.stocked == null || !items.roster.TryGetValue(loot.GetInstanceID(), out known))
+                return false;
+            string key = PlaceKey() + "|" + known.id.ToString("x16");
+            items.ledger.piles[key] = loot.Items.SerializeItems();
+            items.ledger.stocked[key] = loot.stockedDate;
+            items.restored.Add(loot.GetInstanceID());
+            return true;
+        }
+
         internal void WindowClosed()
         {
             if (!windowOpen)

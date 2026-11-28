@@ -1,0 +1,89 @@
+# Doomerfall shop lots (Shops 7). Read by DoomerfallShopLots.cs; edit and rebuild Daggerfall Unity.
+#
+# Each day a shop shelf (DoomerfallShopLedger) is under its share of the stock target, lots arrive until it is full.
+# A lot is a small coherent bundle rolled with Daggerfall's own item and material code. A lot is never split below its
+# core (the items that make it read as itself); items past the core are dropped when the shelf is full.
+# Records are one per line: <record> <name> key=value ... Lists are comma separated; '_' in a name is a space.
+# Item specs are <ItemGroup>:<template name> (Daggerfall's ItemEnums), <ItemGroup>:* for any template of the group,
+# or Clothing:* for one piece of clothing for the player's gender.
+
+# lot <template> core=<n> <BuildingType>=<weight> ...   Weights are relative within one shop type.
+# Pawn shops take only estate, salvage and townsfolk lots (owner).
+lot regular   core=1 WeaponSmith=64 Armorer=64 GeneralStore=72 Alchemist=85 Bookseller=85 ClothingStore=85 GemStore=85
+lot estate    core=3 WeaponSmith=8  Armorer=8  GeneralStore=6  PawnShop=40
+lot salvage   core=2 WeaponSmith=6  Armorer=6  PawnShop=25
+lot caravan   core=3 WeaponSmith=12 Armorer=12 GeneralStore=10 Alchemist=15 Bookseller=15 ClothingStore=15 GemStore=15
+lot bulk      core=4 WeaponSmith=10 Armorer=10 GeneralStore=8
+lot townsfolk core=1 GeneralStore=4 PawnShop=35
+
+# At most this many lots arrive on one shelf in one day.
+setting lots_per_delivery 8
+# Estate and salvage goods arrive worn: condition is a random percentage in this range, and value falls with it.
+setting worn_estate 55-90
+setting worn_salvage 35-80
+
+# Estate sale: one dead adventurer's kit. One material roll for the whole kit, so it matches itself. Armor is plate of
+# the kit's material, chain, leather or none. pieces = armor pieces (cuirass first), shield = % chance of a shield,
+# side = % chance of a second weapon from sides, arrows = arrow stack size (bows), magic/clothes/books = counts.
+estate warrior    weapons=Longsword,Broadsword,Claymore,Battle_Axe,War_Axe,Warhammer,Mace,Flail armor=plate pieces=2-5 shield=50 sides=Dagger,Shortsword side=40
+estate knight     weapons=Longsword,Broadsword,Mace armor=plate pieces=4-6 shield=80
+estate mercenary  weapons=Saber,Katana,Shortsword,Broadsword armor=chain pieces=2-4 shield=30 sides=Dagger,Tanto side=40
+estate archer     weapons=Short_Bow,Long_Bow armor=leather pieces=1-3 arrows=10-30 sides=Dagger,Shortsword side=70
+estate thief      weapons=Dagger,Tanto,Shortsword,Wakazashi armor=leather pieces=1-3 sides=Dagger side=40
+estate spellsword weapons=Katana,Saber,Longsword armor=chain pieces=1-2 magic=1
+estate mage       weapons=Staff,Dagger armor=none clothes=1-2 magic=1 books=1-2
+# Every estate kit may also hold: potions (count range), a book (% chance), a ring or amulet (% chance).
+setting estate_potions 0-2
+setting estate_book 40
+setting estate_jewellery 35
+
+# Salvage: battlefield and dungeon gear, each piece rolled on its own (mixed kinds and materials), all worn.
+# (Leaning to the nearest dungeon's monsters is backlog shop-salvage-lots.)
+setting salvage_items 2-4
+
+# Caravan: goods from another province, by item kind only. home = provinces where it is not foreign.
+caravan Hammerfell_blades shops=WeaponSmith,Armorer,GeneralStore home=Hammerfell count=3-6 items=Weapons:Saber,Weapons:Katana,Weapons:Dai_Katana,Weapons:Wakazashi,Weapons:Tanto
+caravan Breton_arms       shops=WeaponSmith,Armorer,GeneralStore home=HighRock count=3-6 items=Weapons:Longsword,Weapons:Broadsword,Weapons:Mace,Weapons:Flail,Armor:Kite_Shield
+caravan Nord_axes         shops=WeaponSmith,Armorer,GeneralStore count=3-6 items=Weapons:Battle_Axe,Weapons:War_Axe,Weapons:Warhammer,Armor:Round_Shield
+caravan Bosmer_bows       shops=WeaponSmith,GeneralStore count=3-5 items=Weapons:Short_Bow,Weapons:Long_Bow
+caravan Breton_plate      shops=Armorer home=HighRock count=3-5 items=Armor:Cuirass,Armor:Helm,Armor:Gauntlets,Armor:Greaves,Armor:Boots,Armor:Tower_Shield
+caravan Summerset_gems    shops=GemStore count=3-6 items=Gems:*,Jewellery:Ring,Jewellery:Amulet
+caravan Elsweyr_jewels    shops=GemStore count=3-5 items=Jewellery:*
+caravan Black_Marsh_herbs shops=Alchemist count=4-8 items=PlantIngredients1:*,PlantIngredients2:*
+caravan Morrowind_reagents shops=Alchemist count=4-8 items=CreatureIngredients1:*,CreatureIngredients2:*,MiscellaneousIngredients1:*
+caravan Summerset_silks   shops=ClothingStore count=3-6 items=Clothing:*
+caravan Imperial_books    shops=Bookseller count=3-6 items=Books:*
+
+# Province of each region (for caravans). A region not listed is in no province here.
+province Hammerfell regions=Abibon-Gora,Alik'r_Desert,Antiphyllos,Ayasofya,Bergama,Cybiades,Dak'fron,Dragontail_Mountains,Ephesus,Kairou,Kozanset,Lainlyn,Mournoth,Myrkwasa,Pothago,Santaki,Satakalaam,Sentinel,Tigonus,Totambu
+province HighRock regions=Alcaire,Anticlere,Betony,Bhoriane,Daenia,Daggerfall,Dwynnen,Gavaudon,Glenpoint,Glenumbra_Moors,Ilessan_Hills,Isle_of_Balfiera,Kambria,Koegria,Menevia,Northmoor,Orsinium_Area,Phrygias,Shalgora,Tulune,Urvaius,Wayrest,Wrothgarian_Mountains,Ykalon
+
+# Bulk lot: many identical items (one template, one material roll), as for an army being outfitted.
+# stack=1 makes one stack of count (arrows); otherwise count separate items.
+bulk arrows   shops=WeaponSmith,GeneralStore count=30-50 stack=1 items=Weapons:Arrow
+bulk crate    shops=WeaponSmith,Armorer count=6-10 items=Weapons:Dagger,Weapons:Shortsword,Weapons:Broadsword,Weapons:Longsword,Weapons:Mace,Weapons:War_Axe
+bulk helms    shops=Armorer,WeaponSmith count=6-8 items=Armor:Helm,Armor:Buckler,Armor:Round_Shield
+bulk supplies shops=GeneralStore count=6-10 items=UselessItems2:Torch,UselessItems2:Candle,UselessItems2:*
+
+# Townsfolk: one odd item someone in town sold off (a wedding band, a lone helmet).
+townsfolk items=Jewellery:Ring,Jewellery:Amulet,Jewellery:Bracelet,Armor:Helm,Armor:Buckler,Paintings:*,Books:*,ReligiousItems:*,Clothing:*,Weapons:Dagger,Gems:*
+
+# Doom guns (guns enabled only). A shop whose Daggerfall stock includes weapons rolls this many Doom guns in each
+# regular-supply lot from the loaded mod's guns (Resources/Doomerfall/WeaponValues.txt; any set, at the tier the file
+# gives it), each tier rolled first by gun_tier_weights, a gun picked evenly within it, and then kept with Daggerfall's own stock rule: the gun's rarity must not exceed the shop's quality, and it stocks with
+# chance (weapon chance of the shop) x 5 x (21 - rarity) / 100. Rarity comes from the gun's tier.
+setting gun_rolls 3
+# Tier weights common,uncommon,rare,veryrare,legendary: the tier is rolled first (falling by tier), then a gun in it.
+setting gun_tier_weights 60,30,20,10,6
+gunrarity common=4 uncommon=8 rare=12 veryrare=16 legendary=20
+
+# Rare exceptions: a small fixed share of deliveries breaks the shop's pattern. Each building's days are cut into
+# windows of window_days; a window is an exception window with chance share (the same in every game, from the
+# building and the window number, never from the player). once = one shipment on the window's first day, on the
+# first shelf; window = every delivery in the window, on every shelf. An exception lot arrives even on a full shelf.
+# Plate and archery shipments wait on Shops 6 shop identity (owner question).
+setting exception_share 0.04
+setting exception_window_days 7
+exception pawngun shops=PawnShop     mode=once   core=2 guns=1
+exception siege   shops=GeneralStore mode=window core=1
+exception onekind shops=WeaponSmith  mode=window core=1 village=1

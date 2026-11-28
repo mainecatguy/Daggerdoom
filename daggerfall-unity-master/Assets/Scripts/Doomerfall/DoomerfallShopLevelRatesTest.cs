@@ -7,6 +7,7 @@
 using System;
 using System.Collections.Generic;
 using DaggerfallConnect;
+using DaggerfallWorkshop.Game.Formulas;
 using DaggerfallWorkshop.Game.Items;
 using UnityEngine;
 
@@ -77,19 +78,28 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             GameObject holder = new GameObject("Doomerfall shop level rates test");
             DaggerfallLoot shelf = holder.AddComponent<DaggerfallLoot>();
             int classic = 0, modded = 0, any = 0, magic = 0;
-            long items = 0;
+            long items = 0, totalRolls = 0;
+            double expected = 0;
             int seen = -1;
             for (int n = 0; n < Shelves; n++)
             {
                 using (new WorldLevel.Scope(level))
                 {
                     seen = WorldLevel.Current;
-                    shelf.StockShopShelf(new PlayerGPS.DiscoveredBuilding { buildingType = type, quality = Quality });
+                    // One fresh classic delivery per sample with the approved material odds, as the shop ledger rolls it
+                    // (StockShopShelf on a reused shelf would go to the ledger and not restock again the same day).
+                    shelf.Items.Clear();
+                    FormulaHelper.DoomerfallMaterialRoll = DoomerfallDrops.RollMaterial;
+                    try { shelf.AddShopDelivery(new PlayerGPS.DiscoveredBuilding { buildingType = type, quality = Quality }, shelf.Items); }
+                    finally { FormulaHelper.DoomerfallMaterialRoll = null; }
                 }
                 bool c = false, m = false;
+                int rolls = 0;   // weapons (not arrows) and plate armor: each took one approved material roll
                 for (int i = 0; i < shelf.Items.Count; i++)
                 {
                     DaggerfallUnityItem item = shelf.Items.GetItem(i);
+                    if ((item.ItemGroup == ItemGroups.Weapons && item.TemplateIndex != (int)Weapons.Arrow) || (item.ItemGroup == ItemGroups.Armor && item.nativeMaterialValue >= 0x0200))
+                        rolls++;
                     bool daedric = (item.ItemGroup == ItemGroups.Weapons && item.nativeMaterialValue == (int)WeaponMaterialTypes.Daedric)
                         || (item.ItemGroup == ItemGroups.Armor && item.nativeMaterialValue == (int)ArmorMaterialTypes.Daedric);
                     bool custom = (item.ItemGroup == ItemGroups.Weapons && customWeapons.Contains(item.TemplateIndex))
@@ -100,11 +110,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     else if (daedric) c = true;
                 }
                 items += shelf.Items.Count;
+                totalRolls += rolls;
+                expected += 1 - Math.Pow(1 - DoomerfallDrops.DaedricChance(level), rolls);
                 if (c) classic++;
                 if (m) modded++;
                 if (c || m) any++;
             }
             Destroy(holder);
+            Log(string.Format("{0} level {1}: {2:F2} material rolls per shelf (weapons and plate armor); expected Daedric shelves from those rolls at the approved {3:P2} per roll: {4:F1}%",
+                type, level, (double)totalRolls / Shelves, DoomerfallDrops.DaedricChance(level), 100.0 * expected / Shelves));
             Log(string.Format("{0} level {1} (current inside scope {2}): {3} shelves, Daedric classic {4:F1}%, modded {5:F1}%, any {6:F1}%, {7:F1} items per shelf, {8} magic items",
                 type, level, seen, Shelves, 100.0 * classic / Shelves, 100.0 * modded / Shelves, 100.0 * any / Shelves, (double)items / Shelves, magic));
         }
