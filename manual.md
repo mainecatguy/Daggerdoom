@@ -30,9 +30,14 @@ Your level comes from your skills, as in Daggerfall. Not every skill can be trai
 
 - **Fighting in Doom does not train any skill yet.** Weapon skills, Hand-to-Hand, Critical Strike, Dodging and the
   magic schools do not improve from combat or spells cast in Doom.
-- What does count today: **Climbing** (each climb), and what you do in Daggerfall's own windows, such as
+- What does count today: **Climbing** (each climb), **Running** (see below), and what you do in Daggerfall's own windows, such as
   **Etiquette** and **Streetwise** when talking to people, **Mercantile** when buying and selling, **Pickpocket**,
   **Medical** when resting, and **Lockpicking** (see Talking, trading and stealing).
+
+**Running** improves the more time you spend running, as in Daggerfall but one and a half times as fast: about
+5 practice uses per second of running. Running means holding **Run** (or having **Always Run** on) while you actually
+move. Walking, standing still, holding Run without moving, or pushing against a wall does not count, and neither does
+time spent with **Horse** or **Cart** chosen in the transport menu. Running does not make you faster in Doom yet.
 
 Skills only go up, and a new level is only granted, when time passes: when you **rest** (see Resting) or **fast
 travel**. Daggerfall checks your skills at most once every 6 game hours.
