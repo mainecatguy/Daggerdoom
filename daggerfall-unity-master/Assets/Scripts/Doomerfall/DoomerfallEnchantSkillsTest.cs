@@ -141,15 +141,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 string mpw = string.Join(" | ", item.GetMacroDataSource().MagicPowers(DaggerfallConnect.Arena2.TextFile.Formatting.Nothing)
                     .Where(t => !string.IsNullOrEmpty(t.text)).Select(t => t.text).ToArray());
                 Check(what + " %mpw", mpw.Contains(Name(skill)), mpw);
-                string info = Popup(item);
-                // Control: the same kind of item with a classic power (Enhances Medical). Where Daggerfall's popup lists
-                // classic powers, it must list the marked one too; where it lists none, it must still open.
-                DaggerfallUnityItem control = ItemBuilder.CreateItem(item.ItemGroup, item.TemplateIndex);
-                control.SetEnchantments(new[] { Legacy((short)DFCareer.Skills.Medical) }, P);
-                control.IdentifyItem();
-                bool listsPowers = Popup(control).Contains(Name(DFCareer.Skills.Medical));
-                Check(what + " popup", listsPowers ? info.Contains(Name(skill)) : info.Length > 0,
-                    (listsPowers ? "classic powers listed; " : "this popup lists no powers, classic or marked; ") + info);
+                // The inventory's info popup (DaggerfallInventoryWindow.ShowInfoPopup): a first box from GetItemInfo, then,
+                // when legacyMagic is not null, a second box (TEXT.RSC 1016) listing the powers. The second must name the skill.
+                string first = Expand(ItemHelper.GetItemInfo(item, DaggerfallUnity.Instance.TextProvider), item);
+                Check(what + " popup first box", first.Length > 0, first);
+                bool second = item.legacyMagic != null;
+                string powers = second ? Expand(DaggerfallUnity.Instance.TextProvider.GetRSCTokens(1016), item) : "";
+                Check(what + " popup powers box", second && powers.Contains(Name(skill)), second ? powers : "no powers box (legacyMagic null)");
             }
             catch (Exception ex)
             {
@@ -157,10 +155,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             }
         }
 
-        // The inventory's info popup text: ItemHelper.GetItemInfo, expanded with the item as the macro source.
-        static string Popup(DaggerfallUnityItem item)
+        // Message box text: tokens expanded with the item as the macro source, as SetTextTokens(tokens, item) does.
+        static string Expand(DaggerfallConnect.Arena2.TextFile.Token[] tokens, DaggerfallUnityItem item)
         {
-            DaggerfallConnect.Arena2.TextFile.Token[] tokens = ItemHelper.GetItemInfo(item, DaggerfallUnity.Instance.TextProvider);
             DaggerfallWorkshop.Utility.MacroHelper.ExpandMacros(ref tokens, item);
             return string.Join(" | ", tokens.Where(t => !string.IsNullOrEmpty(t.text)).Select(t => t.text).ToArray());
         }
