@@ -263,7 +263,9 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 if (c[1] == 0 && level == 30)
                 {
                     top = mean;
-                    verdict = (mean >= 0.7 && mean <= 1.4 && any >= 0.5 ? "PASS" : "FAIL") + " best smith target (about one Daedric piece, usually there): ";
+                    // Owner, 2026-11-27 (orchestrator note on this card): keep the approved numbers as built; about 7-8 Daedric
+                    // pieces at a level-30 top smith is good enough for now. The earlier "about one" target is not met.
+                    verdict = (mean >= 6 && mean <= 9.5 && any >= 0.9 ? "PASS" : "FAIL") + " best smith target (owner: about 7-8 Daedric pieces at a level-30 top smith is good enough for now): ";
                 }
                 if (c[1] == 0 && level == 20) top20 = mean;
                 Log(string.Format("{0}{1} level {2} ({3} shops x 90 days, {4} shelves, stock target {5}{6}): {7:F2} Daedric pieces on the shelves per shop-day, at least one on {8:P0} of shop-days; {9:F2} new Daedric arrivals per shop per month; stocked goods per day mean {10:F1} (min {11}, max {12}); trickle shops {13:F1}, big-delivery shops {14:F1} goods and {15:F2} Daedric; newly arrived weapons {16:F2}% Daedric ({17} of {18}; approved odds {19:F2}%)",

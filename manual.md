@@ -356,6 +356,14 @@ few are big depots and some are nearly empty. Better shops stock more. Regular a
 10 a rocket and 10 a cell, before the shop's own prices. Weapon smiths also sometimes stock higher tiers, in packs of
 80 bullets, 20 shells, 8 rockets or 100 cells.
 
+**Every shop has its own character, the same in every game.** Some are specialists that mostly carry a few kinds of
+goods (but never only those), others are generalists with a bit of everything. Some get a small delivery every few
+days; others get one big delivery on a fixed day each week, fortnight or month, and their shelves thin out in between,
+so it pays to learn when your favourite smith restocks. Most deliveries come from the shop's two or three regular
+suppliers, with a new one now and then. Ammo is restocked every day whatever the shop's delivery days. Goods nobody buys
+stay on the shelf: cheap things sell to other customers within days, expensive pieces such as Daedric weapons can stay
+for months.
+
 Regular ammo has no material, so it goes by its plain name: Bullets, Shells, Rockets, Energy Cells. Every other tier
 puts its material first, such as Silver Bullets.
 

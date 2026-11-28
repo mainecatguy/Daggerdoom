@@ -186,6 +186,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             int location = 7000 + level * 10 + count;
             DoomerfallShopIdentity id = DoomerfallShopIdentity.For(location, new PlayerGPS.DiscoveredBuilding { buildingType = DFLocation.BuildingTypes.WeaponSmith, quality = quality, buildingKey = BuildingKey });
             long sum = 0, ammoSum = 0;
+            int ammoRounds = 0, ammoOver = 0, dayMax = 0;
             HashSet<DaggerfallUnityItem> known = new HashSet<DaggerfallUnityItem>();
             for (int d = 1; d <= Days; d++)
             {
@@ -197,7 +198,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     for (int i = 0; i < s.Items.Count; i++)
                     {
                         DaggerfallUnityItem item = s.Items.GetItem(i);
-                        if (item is DoomerfallAmmoItem) ammo++;
+                        if (item is DoomerfallAmmoItem)
+                        {
+                            ammo++;
+                            int limit = AmmoDayMax((DoomerfallAmmoItem)item, quality);
+                            if (d > WarmUp) { ammoRounds = Mathf.Max(ammoRounds, item.stackCount); dayMax = Mathf.Max(dayMax, limit); if (item.stackCount > limit) ammoOver++; }
+                        }
                         else if (known.Add(item) && d > Days - 30) lateArrivals++;
                     }
                 }
@@ -217,6 +223,21 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             Log(string.Format("{0} stock size: weapon smith level {1}, quality {2}, {3} shelves, target {4} (cap {5} with rounding), {12} every {13} days: on {14} delivery days stocked goods at least {15} (need {16}); all days {6}-{7}, mean {8:F1}; Doom ammo stacks (outside the target, first shelf) mean {9:F1}, max {10}; {11} new non-ammo items in the last 30 days",
                 pass ? "PASS" : "FAIL", level, quality, count, target, cap, min, max, (double)sum / n, (double)ammoSum / n, ammoMax, lateArrivals,
                 id.Big ? "big delivery" : "trickle", id.Interval, deliveryDays, deliveryDays > 0 ? deliveryMin : 0, target * 3 / 4));
+            // Doom ammo is topped up to the day's amount, not added: no stack ever exceeds the most one day can deliver.
+            Log(string.Format("{0} ammo top-up: after day {1}, {2} Doom ammo stack-days over the most one day can deliver; largest stack {3} (largest one-day maximum {4})",
+                ammoRounds > 0 && ammoOver == 0 ? "PASS" : "FAIL", WarmUp, ammoOver, ammoRounds, dayMax));
+        }
+
+        /// <summary>The largest stack one day's delivery can bring (DoomerfallAmmoTiers.StockShop): Regular is the shop's
+        /// fixed amount x 1.15 at most, a higher tier 2 shop packs.</summary>
+        static int AmmoDayMax(DoomerfallAmmoItem item, int quality)
+        {
+            int type = item.AmmoType;
+            if (item.Tier != DoomerfallAmmoTiers.Regular)
+                return 2 * DoomerfallAmmoTiers.Stack(type);
+            int mapID = GameManager.HasInstance && GameManager.Instance.PlayerGPS != null ? GameManager.Instance.PlayerGPS.CurrentMapID : 0;
+            float[] expected = DoomerfallShopAmmo.Expected(DFLocation.BuildingTypes.WeaponSmith, quality, mapID, BuildingKey);
+            return DoomerfallShopAmmo.Round(type, expected[type] * 1.15f);
         }
 
         /// <summary>Replays DoomerfallShopLedger's sell-off for one day (same seed, same roll order) without touching the shelf.</summary>

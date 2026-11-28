@@ -30,7 +30,13 @@ sys.argv = argv
 
 REVIEW = DEFAULT_REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\shop-shelf-levels")
 BUILD = Path(r"D:\dev\DoomDaggerfall-build")
-UZ_BUILD, BRIDGE_BUILD, LAUNCHER_BUILD = BUILD / "uzdoom-shoplvl" / "Release", BUILD / "bridge-shoplvl" / "Release", BUILD / "launcher-shoplvl" / "Release"
+
+def build_dirs(tag):
+    """Build dirs BUILD/{uzdoom,bridge,launcher}-TAG (--build-tag; another checkout may own the default)."""
+    return BUILD / f"uzdoom-{tag}" / "Release", BUILD / f"bridge-{tag}" / "Release", BUILD / f"launcher-{tag}" / "Release"
+
+
+UZ_BUILD, BRIDGE_BUILD, LAUNCHER_BUILD = build_dirs("shoplvl")
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
 MODS = GAME.parent / "GameMods"
@@ -173,7 +179,7 @@ def run(name, building, rates, stock_mods, building_levels=False, nth=0, ledger=
     if building_levels:
         df += ["-dfbuildingleveltest", str(runs / "buildings.log")]
     args = launch_args(runs, uz, df, stock_mods) + ["--mod", str(harness), "--minimized", "--log", str(runs / "launcher.log")]
-    timeout = 600 if (ledger or lots or identity) else 120
+    timeout = max(120, 450 * (ledger + lots + identity))   # each survey takes up to about 5 minutes
     proc = subprocess.Popen([sys.executable, QUIET, "--timeout", str(timeout), "--", str(REVIEW / "doomerfall-launcher.exe")] + args,
                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     reason, end = "timeout", time.time() + timeout + 3
@@ -220,7 +226,9 @@ ap.add_argument("--nth", type=int, default=0, help="which door of that building 
 ap.add_argument("--demo-building", default="GeneralStore", help="assemble: building type the demo starts facing")
 ap.add_argument("--review", help="demo folder to assemble into or run from (default: the shop shelves demo)")
 ap.add_argument("--fresh-data", action="store_true", help="assemble: remake the data even if present")
+ap.add_argument("--build-tag", default="shoplvl", help="assemble: use the builds in BUILD/{uzdoom,bridge,launcher}-TAG")
 args = ap.parse_args()
+UZ_BUILD, BRIDGE_BUILD, LAUNCHER_BUILD = build_dirs(args.build_tag)
 if args.review:
     REVIEW = Path(args.review)
 if args.command == "assemble":
