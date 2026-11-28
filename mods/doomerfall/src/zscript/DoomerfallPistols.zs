@@ -12,7 +12,8 @@
 //                  has no reload, so nothing changes for it.
 //   bonus pool     every pistol shot spends the whole pool, hit or miss (owner, 2026-11-27): a bullet that hits in the
 //                  tic it is fired gets it added to its damage after the multipliers (Deadeye does not multiply it); a
-//                  miss wastes it. It refills from empty in the rule's time.
+//                  projectile pistol's shot carries what it spent to its first hit; a miss wastes it. It refills from
+//                  empty in the rule's time.
 //   carry-through  when a pistol hit kills, the damage beyond the kill (minus the victim's health after the hit) goes on
 //                  along the shot's line to the next shootable thing behind the corpse, and so on while damage remains.
 //   shrapnel       every pistol hit and every carry-through hit bursts into fragments behind the enemy, forking in a V,
@@ -401,6 +402,9 @@ class DoomerfallPistolsPerks : Inventory
 	Array<int> scoutMult;
 	int poolAmmo;      // the held pistol's ammo last tic: a drop is a shot, which spends the pool
 	Weapon poolGun;
+	Array<Actor> flying;    // projectiles carrying the pool their shot spent ...
+	Array<int> flyingBonus; // ... this much (0 once a hit took it)
+	Array<int> flyingIdle;  // tics since it stopped being a missile
 
 	Weapon trackedGun;
 	State lastState;
@@ -443,11 +447,17 @@ class DoomerfallPistolsPerks : Inventory
 		if (!gun) return;
 		int scout = ScoutOf(gun);
 		double m = DoomerfallPistols.Multiplier(scout);
-		int bonus = int(pool);
+		// A bullet (puff) or a projectile hitting inside the firing action takes the live pool. A projectile in flight takes
+		// what its shot spent (once: its first hit), never the pool that refilled after it was fired.
+		int bonus = 0;
+		bool live = inflictor.bIsPuff || inflictor.GetAge() == 0;
+		int k = live ? flying.Size() : flying.Find(inflictor);
+		if (live) bonus = int(pool);
+		else if (k < flying.Size()) { bonus = flyingBonus[k]; flyingBonus[k] = 0; }
 		if (m == 1 && bonus <= 0) return;
 		// The pool is flat, added after the multipliers (Deadeye does not multiply it, owner 2026-11-27).
 		newdamage = max(1, int(round(damage * m))) + bonus;
-		pool -= bonus;
+		if (live) pool -= bonus;
 		DoomerfallPistols.Log(String.Format("hit %s with %s: %d -> %d (x%.3f scout %d, pool +%d)", source ? source.GetClassName() : 'None',
 			inflictor.GetClassName(), damage, newdamage, m, scout, bonus));
 	}
@@ -462,9 +472,18 @@ class DoomerfallPistolsPerks : Inventory
 		// after the weapon fired this tic, so a bullet's hit has already taken it.
 		let held = owner && owner.player ? owner.player.ReadyWeapon : null;
 		int ammoNow = DoomerfallPistols.IsPistol(held) ? AmmoNow(held) : 0;
+		// A projectile pistol's shot carries what it spent to its first hit (CarryPool); a bullet that missed wastes it.
+		for (int i = flying.Size() - 1; i >= 0; i--)
+		{
+			let f = flying[i];
+			if (f && (f.bMissile || ++flyingIdle[i] < TICRATE) && flyingBonus[i] > 0) continue;
+			flying.Delete(i); flyingBonus.Delete(i); flyingIdle.Delete(i);
+		}
 		if (held == poolGun && ammoNow < poolAmmo && pool >= 1)
 		{
-			DoomerfallPistols.Log(String.Format("shot %s spent pool %d", held.GetClassName(), int(pool)));
+			let shot = CarryPool(int(pool));
+			DoomerfallPistols.Log(String.Format("shot %s spent pool %d%s", held.GetClassName(), int(pool),
+				shot ? " carried by " .. shot.GetClassName() : ""));
 			pool = 0;
 		}
 		poolGun = DoomerfallPistols.IsPistol(held) ? held : null;
@@ -525,6 +544,21 @@ class DoomerfallPistolsPerks : Inventory
 		}
 		lastState = psp.CurState;
 		lastTics = psp.Tics;
+	}
+
+	// The projectile the player's pistol fired this tic, if any, takes the spent pool with it to its first hit (up to a
+	// second after it stops flying: a delayed explosion still counts; a miss loses it).
+	Actor CarryPool(int bonus)
+	{
+		let it = ThinkerIterator.Create("Actor", Thinker.STAT_DEFAULT);
+		Actor a;
+		while (a = Actor(it.Next()))
+		{
+			if (!a.bMissile || a.target != owner || a.GetAge() > 0 || flying.Find(a) < flying.Size()) continue;
+			flying.Push(a); flyingBonus.Push(bonus); flyingIdle.Push(0);
+			return a;
+		}
+		return null;
 	}
 
 	int AmmoNow(Weapon w)

@@ -24,7 +24,7 @@ SHEET_INTS, SHEET_FORMAT_VERSION = 194, 12
 POOL = {189: 100, 190: 500}
 FRAG = {191: 3, 192: 3300, 193: 250}
 RATE = {181: 25000, 182: 15000, 185: 3, 186: 8}
-SCOUT = {"Pistol": 8, "RLPistol": 8, "RLHandcannon": 8, "RLMarksmanPistol": 2}  # tools/pistols/scout_scale.py
+SCOUT = {"Pistol": 8, "RLPistol": 8, "RLHandcannon": 8, "RLMarksmanPistol": 2, "RLPlasmaPistol": 8}  # tools/pistols/scout_scale.py
 RULES = {  # must match RuleOf in pistols_test.zs
     "off": {}, "spray": RATE, "mult": {**RATE, 183: 15000, 184: 30000},
     "multpool": {**RATE, 183: 15000, 184: 30000, **POOL}, "reload": {187: 2000}, "reload60": {187: 6000},

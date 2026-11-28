@@ -41,7 +41,7 @@ class PistPerkTest : EventHandler
 	override void OnRegister()
 	{
 		static const String c[] = { "off", "spray", "mult", "multpool", "reload", "reload60", "pool", "carry", "frag", "turn", "carryfrag" };
-		static const String g[] = { "Pistol", "RLPistol", "RLHandcannon", "RLMarksmanPistol" };
+		static const String g[] = { "Pistol", "RLPistol", "RLHandcannon", "RLMarksmanPistol", "RLPlasmaPistol" };
 		for (int i = 0; i < c.Size(); i++) cfgs.Push(c[i]);
 		for (int i = 0; i < g.Size(); i++) { class<Actor> k = g[i]; if (k) guns.Push(g[i]); else Console.Printf("PISTTEST absent %s", g[i]); }
 	}
@@ -190,6 +190,8 @@ class PistPerkTest : EventHandler
 		case 2: // select the gun
 		{
 			if (gun >= guns.Size()) { cfg++; phase = 0; break; }
+			// The projectile pistol is for the pool only: its first hit gets what its shot spent.
+			if (guns[gun] == "RLPlasmaPistol" && c != "pool" && c != "multpool") { gun++; break; }
 			class<Weapon> k = guns[gun];
 			mo.GiveInventory(k, 1);
 			heldGun = Weapon(mo.FindInventory(k));
@@ -207,7 +209,7 @@ class PistPerkTest : EventHandler
 				Console.Printf("PISTTEST case %s %s cat=%s slot=%d scout=%d", c, guns[gun], DoomerfallWeaponCategory.Label(first),
 					DoomerfallWeaponCategory.SkillSlotOf(heldGun), DoomerfallPistols.ScoutOf(heldGun.GetClass()));
 				bool killA = c == "carry" || c == "carryfrag";
-				target = Place(64, killA ? 20 : 1000000);
+				target = Place(guns[gun] == "RLPlasmaPistol" ? 400 : 64, killA ? 20 : 1000000); // a projectile flies a while
 				phase = LineSet(c) ? 10 : 4;
 				shot = 0; fireTic = -1; hits = lost = 0; placed = false; wait = 0;
 			}
@@ -223,7 +225,8 @@ class PistPerkTest : EventHandler
 			}
 			if (fireTic < 0 && (p.WeaponState & WF_WEAPONREADY))
 			{
-				Fill(p, heldGun);
+				// No refill here: a magazine refilled in the tic the gun fires hides the shot's ammo drop (which spends
+				// the pool). The case set-up filled it; 5 shots fit every sample gun's magazine.
 				hits = 0; lost = 0;
 				Console.Printf("PISTTEST fire tic=%d", level.maptime);
 				mo.angle = c == "multpool" && shot == 0 ? dirAngle + 180 : dirAngle; // a miss
