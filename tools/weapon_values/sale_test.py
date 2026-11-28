@@ -2,7 +2,7 @@
 
 usage: sale_test.py assemble | run NAME --building TYPE [--group N] | check
 
-assemble  builds review/weapon-values from the staged integration build (review/magicmenu-stage: UZDoom, launcher,
+assemble  builds review/weaponvalues-02 from the staged integration build (review/batch10-stage: UZDoom, launcher,
           bridge, town data) plus this checkout's Daggerfall Unity build and Doomerfall PK3s, and writes play.bat.
 run       walks into the first building of TYPE (WeaponSmith, PawnShop, GeneralStore...) in town group N (default the
           city 9183, which has a weaponsmith and pawn shops; 7154 has only a general store) with both
@@ -28,8 +28,8 @@ argv, sys.argv = sys.argv, sys.argv[:1]
 import install  # noqa: E402  (only for its registry isolation)
 sys.argv = argv
 
-REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\weapon-values")
-SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\magicmenu-stage")
+REVIEW = Path(r"D:\dev\DoomDaggerfall-loop\review\weaponvalues-02")
+SOURCE = Path(r"D:\dev\DoomDaggerfall-loop\review\batch10-stage")
 QUIET = r"D:\dev\DoomDaggerfall\scripts\overnight\quiet_run.py"
 GAME = Path(r"D:\dev\DoomDaggerfall\GameResources")
 MODS = GAME.parent / "GameMods"
@@ -133,7 +133,8 @@ class WVDemoStart : StaticEventHandler
     dagger = GAME / "DAGGER"
     (REVIEW / "play.bat").write_text(
         "@echo off\r\n"
-        "rem Doom weapons have a gold value and a weight. You start in a city facing its weaponsmith, with DRLA. The city has pawn shops too.\r\n"
+        "rem weaponvalues 02: Doom gun prices are a fifth of before (a legendary costs 2x its Daggerfall base weapon), and a gun's weight follows its\r\n"
+        "rem material as a Daggerfall weapon's does (Steel and Daedric x1.25, Dwarven x0.75, Ebony x0.5). You start in a city facing its weaponsmith, with DRLA.\r\n"
         "rem Pick up a Doom gun (or use the one you have), go in with Use, Use the shopkeeper and choose Sell: Doom guns are listed with their price.\r\n"
         "rem Info (Q) on a gun in the inventory shows its weight. Pawn shops, armorers and general stores buy them too. The gun you are holding is not offered.\r\n"
         "rem E is Interact, Q is Info, I opens the inventory, K opens fast travel.\r\n"
@@ -169,7 +170,9 @@ def run(name, building, group):
           "-ddtowncache", str(data / "cache"), "-ddconverter", str(data / "converter" / "DungeonConverter.exe"), "-ddarena2", str(GAME / "DAGGER" / "ARENA2"),
           "+logfile", name, "+vid_fullscreen", "0", "+wipetype", "0", "+i_pauseinbackground", "0", "+vid_activeinbackground", "1", "+vid_lowerinbackground", "0", "+map", f"DDT{group:05d}"]
     df = ["-dfbridgelog", str(df_log), "-dfsynctest", str(GAME / "DAGGER"), "-dfshoptest", "-dfshopdoomgun", "-screen-fullscreen", "0", "-screen-width", "640", "-screen-height", "360"]
-    timeout = 150  # a city interior may be converted on first entry
+    if args.lots:  # also run the shop-lots survey (DoomerfallShopLotsTest), which logs stocked Doom guns and their prices
+        df.append("-dfshoplotstest")
+    timeout = 450 if args.lots else 150  # a city interior may be converted on first entry; the survey takes up to ~5 minutes
     command = [sys.executable, QUIET, "--timeout", str(timeout), "--", str(REVIEW / "doomerfall-launcher.exe"), "--minimized", "--nodraw",
                "--uzdoom", str(REVIEW / "uzdoom" / "uzdoom.exe"), "--dfu", str(REVIEW / "dfu" / "DaggerfallUnity.exe"), "--iwad", str(GAME / "wads" / "DOOM2.WAD"),
                "--uzdoom-cwd", str(runs), "--log", str(launcher)]
@@ -184,7 +187,7 @@ def run(name, building, group):
     while time.time() < end and proc.poll() is None:
         time.sleep(0.25)
         body = read(console)
-        if "NDDONE" in body:
+        if ("shoplots: done" in read(df_log)) if args.lots else ("NDDONE" in body):
             reason = "route finished"
             time.sleep(1)
             break
@@ -199,7 +202,7 @@ def run(name, building, group):
         if re.match(r"ND[A-Z]+ ", line) or any(k in line for k in FATAL):
             print(line[:190])
     for line in read(df_log).splitlines():
-        if re.search(r"shoptest:|doomitems: take|error", line):
+        if re.search(r"shoptest:|shoplots: (most|sample|PASS|FAIL)|doomitems: take|error", line):
             print("df", line[:320])
     kinds = sorted({l[:150] for l in read(REVIEW / "dfu" / "PortableAppdata" / "Player.log").splitlines() if "Exception" in l or "WeaponValues" in l})
     print("Player.log exception kinds:", len(kinds))
@@ -227,6 +230,7 @@ ap.add_argument("command", choices=("assemble", "run", "check"))
 ap.add_argument("name", nargs="?", default="t")
 ap.add_argument("--building", default="WeaponSmith")
 ap.add_argument("--group", type=int, default=GROUP)
+ap.add_argument("--lots", action="store_true")
 args = ap.parse_args()
 if args.command == "assemble":
     assemble()

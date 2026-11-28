@@ -2,8 +2,8 @@
 // own handlers, so a minimized test can prove the route. The first merchant menu picks Sell, later ones pick Talk.
 // A Sell window sells one item, the first Buy window (a shelf) buys the cheapest one, both confirmed with Daggerfall's
 // own Yes. Any other window (such as the private property question) is closed. Gold and inventory are logged.
-// With -dfshopdoomgun, the first merchant menu first gives the player Doom guns (DRLA's pistol, shotgun and BFG, one
-// Daedric) and logs their value, weight and this shop's price; the Sell window then sells a Doom gun only. In any
+// With -dfshopdoomgun, the first merchant menu first gives the player Doom guns (DRLA's pistol, shotgun, an Iron and a
+// Daedric BFG 9000 and a Daedric BFG Infinity) and logs Daggerfall's Dai-Katana at Iron and Daedric, then logs their value, weight and this shop's price; the Sell window then sells a Doom gun only. In any
 // other shop than a real weaponsmith or pawn shop it then opens two more Sell windows priced and filtered as those
 // and sells a Doom gun in each. The test character's regions never had Daggerfall's price roll, so it sets the region's
 // price adjustment to a typical 900 (as DoomerfallShopAmmoTest does); 0 would price everything at the minimum.
@@ -104,6 +104,11 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 wealthBefore = Player.GetGoldAmount();
                 countBefore = Player.Items.Count;
                 DaggerfallUnityItem item = mode == "Buy" ? Cheapest(Filtered(trade, "remoteItemsFiltered")) : null;
+                if (mode == "Buy" && trade.MerchantItems != null) // weaponvalues 02: the shelf's Doom guns and their prices
+                    for (int i = 0; i < trade.MerchantItems.Count; i++)
+                        if (trade.MerchantItems.GetItem(i) is DoomerfallDoomItem)
+                            Log(string.Format("shelf Doom gun \"{0}\": value {1}, {2} kg, shop price {3}", trade.MerchantItems.GetItem(i).LongName, trade.MerchantItems.GetItem(i).value,
+                                trade.MerchantItems.GetItem(i).weightInKg, FormulaHelper.CalculateCost(trade.MerchantItems.GetItem(i).value, Shop(trade).quality, trade.MerchantItems.GetItem(i).ConditionPercentage)));
                 // The player's list shows one tab at a time, so look through each tab as a player would.
                 foreach (DaggerfallInventoryWindow.TabPages tab in Enum.GetValues(typeof(DaggerfallInventoryWindow.TabPages)))
                 {
@@ -224,12 +229,23 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             PlayerGPS gps = GameManager.Instance.PlayerGPS;
             if (gps.HasCurrentLocation && Player.RegionData[gps.CurrentRegionIndex].PriceAdjustment == 0)
                 Player.RegionData[gps.CurrentRegionIndex].PriceAdjustment = 900;
-            foreach (string cls in new[] { "RLShotgunPickup", "RLPistolPickup", "RLBFG9000Pickup" }) // the first is sold first
+            // weaponvalues 02: an Iron and a Daedric copy of one gun, and a Daedric legendary, beside Daggerfall's own
+            // Dai-Katana (the superweapon role's base weapon) at both materials, to compare weight and value.
+            foreach (WeaponMaterialTypes m in new[] { WeaponMaterialTypes.Iron, WeaponMaterialTypes.Daedric })
             {
+                DaggerfallUnityItem daiKatana = ItemBuilder.CreateWeapon(Weapons.Dai_Katana, m);
+                Log(string.Format("Daggerfall {0}: value {1}, {2} kg, shop price {3} at quality {4}", daiKatana.LongName, daiKatana.value, daiKatana.weightInKg,
+                    FormulaHelper.CalculateCost(daiKatana.value, quality, daiKatana.ConditionPercentage), quality));
+            }
+            string[] classes = { "RLShotgunPickup", "RLPistolPickup", "RLBFG9000Pickup", "RLBFG9000Pickup", "RLBFGInfinityPickup" }; // the first is sold first
+            WeaponMaterialTypes?[] materials = { null, null, WeaponMaterialTypes.Iron, WeaponMaterialTypes.Daedric, WeaponMaterialTypes.Daedric };
+            for (int i = 0; i < classes.Length; i++)
+            {
+                string cls = classes[i];
                 DoomerfallDoomItem gun = DoomerfallDoomItem.Create(cls, Dfb.DOOM_ITEM_GUN);
-                if (cls == "RLBFG9000Pickup")
+                if (materials[i].HasValue)
                 {
-                    gun.Material = WeaponMaterialTypes.Daedric;
+                    gun.Material = materials[i].Value;
                     DoomerfallWeaponValues.Apply(gun);
                 }
                 Player.Items.AddItem(gun);

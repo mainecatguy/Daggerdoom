@@ -37,6 +37,16 @@ KINDS = {
     "spell": 0.5, "grenade": 1.0, "flamethrower": 9.0,
 }
 TIERS = {"common": 1, "uncommon": 2, "rare": 3, "veryrare": 6, "legendary": 10}
+# Every value x SCALE (owner 2026-11-27, Q&A item 37): a legendary costs 2x its base Daggerfall weapon; proportions stay.
+SCALE = 2 / TIERS["legendary"]
+# Daggerfall's weapon weight by material (ItemBuilder.weightMultipliersByMaterial, quarters), Iron..Daedric.
+WEIGHT_QUARTERS = [4, 5, 4, 4, 3, 4, 4, 2, 4, 5]
+
+
+def material_weight(kg, material):
+    """ItemBuilder.CalculateWeightForMaterial, for the notes table (the game calls Daggerfall's own)."""
+    q = int(kg * 4) * WEIGHT_QUARTERS[material] / 4
+    return round(q) / 4  # Python and Mathf.Round both round halves to even
 DRLA_TIERS = {"standard": "common", "exotic": "uncommon", "superior": "rare", "unique": "veryrare",
               "demonic": "legendary", "legendary": "legendary",
               # Assemblies (made from mod packs, not DRLA rarity tiers): Constrained call, see notes.
@@ -194,8 +204,12 @@ def main():
         "# script's tables (or this file by hand) and rebuild Daggerfall Unity. Read by DoomerfallWeaponValues.cs.",
         "#",
         "# value = base price of the role's Daggerfall weapon x Daggerfall's material rule (x3 x 1..512, Iron..Daedric)",
-        "#         x the tier multiplier x share. A Doom item without a material (not a gun) counts as Iron.",
-        "# weight is in kilograms and does not change with material.",
+        "#         x the tier multiplier x share x scale, at least 1. A Doom item without a material (not a gun) counts as Iron.",
+        "# weight is the Iron weight in kilograms. A gun of another material changes it by Daggerfall's weapon material rule.",
+        "#",
+        "# scale <factor>: every value x this. Owner (2026-11-27): a legendary (x10) costs 2x its base Daggerfall weapon of the",
+        "# same material, so 2 / 10 = 0.2; the tiers keep their proportions.",
+        "scale {:g}".format(SCALE),
         "#",
         "# cap <gold>: largest value any Doom weapon may have before shop pricing (0 = no cap). Daggerfall shops pay",
         "# with letters of credit and have no gold limit, so no cap is set.",
@@ -222,8 +236,8 @@ def main():
         t = ["", "| Set | Weapon | Kind | Role (Daggerfall base) | Tier | Weight kg | Sprite px x scale | Iron | Steel | Ebony | Daedric |",
              "|---|---|---|---|---|---:|---:|---:|---:|---:|---:|"]
         for e in out:
-            base = prices[ROLES[e["role"]]] * TIERS[e["tierName"]] * e["share"]
-            v = lambda m: "{:,}".format(int(round(base * 3 * m)))
+            base = prices[ROLES[e["role"]]] * TIERS[e["tierName"]] * e["share"] * SCALE
+            v = lambda m: "{:,}".format(max(1, int(round(base * 3 * m))))
             t.append("| {} | {} | {} | {} ({}) | {} | {:g} | {} | {} | {} | {} | {} |".format(
                 e["set"], e["class"], e["kind"], e["role"], ROLES[e["role"]].replace("_", " "), e["tierName"], e["weight"],
                 int(usable_area(e)) or "-", v(mats[0]), v(mats[1]), v(mats[7]), v(mats[9])))
