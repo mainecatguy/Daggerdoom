@@ -55,21 +55,33 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         }
 
         /// <summary>
-        /// WorldLevel's quest reward provider in a bridge session: quests are given in the giver's town, where the
-        /// player is when the quest starts, so rewards roll at that place's level (the level the travel map shows:
-        /// the town level for a town, else its area level). A shop, house or guild hall's own level never applies.
-        /// Away from any location, the danger level where the player is. Never the player's level.
+        /// WorldLevel's quest reward provider in a bridge session: rewards roll at the level of the location the player
+        /// is in when the quest starts. For a quest taken from a giver that is the giver's town (or temple, tavern or
+        /// other place). A quest started by another quest's "start quest"/"run quest", or by a letter, starts wherever
+        /// the player is then. A shop, house or guild hall's own level never applies. Away from any location, the
+        /// danger level where the player is. Never the player's level.
         /// </summary>
         internal static int QuestRewardLevel()
         {
             if (TestAreaLevel() >= 0)
                 return Clamped(0);
             GameManager game = GameManager.Instance;
-            DoomerfallAreaLevels.Level level;
-            if (game != null && game.PlayerGPS != null && game.PlayerGPS.HasCurrentLocation
-                && DoomerfallAreaLevels.ForLocation(game.PlayerGPS.CurrentLocation, out level) && level.Place > 0)
-                return Clamped(level.Place);
+            if (game != null && game.PlayerGPS != null && game.PlayerGPS.HasCurrentLocation)
+            {
+                int level = QuestRewardLevelAt(game.PlayerGPS.CurrentLocation);
+                if (level > 0)
+                    return level;
+            }
             return Clamped(DoomerfallAreaLevels.ForCurrentDanger());
+        }
+
+        /// <summary>The quest reward level of a location: the level the travel map shows (town level for a town, else its area level), 1 to 30; 0 if unknown.</summary>
+        internal static int QuestRewardLevelAt(in DFLocation location)
+        {
+            DoomerfallAreaLevels.Level level;
+            if (!DoomerfallAreaLevels.ForLocation(location, out level) || level.Place <= 0)
+                return 0;
+            return Clamped(level.Place);
         }
 
         // The -dfarealevel test override wins (callers skip the lookup then); otherwise 1 to 30, 1 if unknown.

@@ -116,7 +116,7 @@ def run(level):
         proc.wait()
     print("stopped:", reason)
     for line in read(df_log).splitlines():
-        if ("worldleveltest" in line and " area " not in line) or ("questreward:" in line and " quest " not in line) or "area level" in line or "Exception" in line or "error" in line.lower():
+        if ("worldleveltest" in line and " area " not in line) or ("questreward:" in line and " quest magic " not in line and " quest gold " not in line) or "area level" in line or "Exception" in line or "error" in line.lower():
             print("df", line[:300])
 
 
