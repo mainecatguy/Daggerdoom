@@ -7,6 +7,8 @@ version "4.14"
 //   unaware      no target, nothing heard: the backstab element applies
 //   alerted      target set to the player: none
 //   volley       no target, three hits in one tic (as a shotgun's pellets): all three get it, one sneak hit
+//   spread       two unaware monsters hit A, B, A in one tic (a blast's pellets over both): all three hits get it,
+//                two sneak hits; prints BSHIT spread <base> <A's loss> before .. after .., then BSSPREAD B <B's loss>
 //   infight      target set to another monster: it has noticed someone, so none
 //   hitscan      no target, a real hitscan shot (LineAttack) from the player: the backstab element applies
 //   heardbefore  it heard the player make a noise 50 tics earlier (more than an attack's second) and has no target:
@@ -107,6 +109,21 @@ class BSHarness : StaticEventHandler
 		case 1: mon.target = p; Hit("alerted", p); break;
 		case 2: Reset(); Hit("volley", p, 3); break;
 		case 3: Reset(); mon.target = other; Hit("infight", p); break;
+		case 14:
+		{
+			Reset();
+			other.bDormant = false;
+			other.target = null; other.LastHeard = null; other.lastenemy = null;
+			String was = Seen(p);
+			int a = mon.health, b = other.health;
+			mon.DamageMobj(p, p, BASE, 'None');
+			other.DamageMobj(p, p, BASE, 'None');
+			mon.DamageMobj(p, p, BASE, 'None');
+			other.bDormant = true;
+			Console.Printf("BSHIT spread %d %d before %s after %s", 2 * BASE, a - mon.health, was, Seen(p));
+			Console.Printf("BSSPREAD B %d", b - other.health);
+			break;
+		}
 		case 4:
 		{
 			Reset();

@@ -27,10 +27,11 @@ constexpr int AlertCount = 8;
 
 bool active;              // a bridge session existed at the last frame
 uint32_t pendingHits;
-// The enemy last hit while unaware, and the tic. Every hit of one attack lands in one tic (a shotgun's pellets, a
-// rocket's blast), and the first hit already makes the enemy notice the player (P_DamageMobj sets its target), so the
-// rest of that tic's hits on the same enemy are part of the same sneak attack. Compared only, never dereferenced.
-const AActor *sneakTarget;
+// The enemies hit while unaware in this tic. Every hit of one attack lands in one tic (a shotgun's pellets, a rocket's
+// blast), in any order across enemies (A, B, A), and the first hit already makes an enemy notice the player
+// (P_DamageMobj sets its target), so the rest of that tic's hits on each of them are part of the same sneak attack.
+// Cleared when the tic changes. Compared only, never dereferenced.
+TArray<const AActor *> sneakTargets;
 int sneakTic = -1;
 
 // Hearing, in level totaltime (the clock of AActor::SpawnTime). firstHeard: when each monster started hearing the player
@@ -112,14 +113,18 @@ bool DD_BackstabUnaware(AActor *player, AActor *target, int attackStart)
 // hit), counting each sneak hit once for Daggerfall.
 double DD_BackstabFactor(AActor *player, AActor *target, AActor *inflictor, int32_t backstabBp)
 {
-	const bool sameAttack = target == sneakTarget && gametic == sneakTic;
+	if (gametic != sneakTic)
+	{
+		sneakTargets.Clear();
+		sneakTic = gametic;
+	}
+	const bool sameAttack = sneakTargets.Find(target) < sneakTargets.Size();
 	if (!sameAttack)
 	{
 		const int now = target ? target->Level->totaltime : 0;
 		const int attackStart = inflictor && inflictor != player && !inflictor->player ? inflictor->SpawnTime : now;
 		if (!DD_BackstabUnaware(player, target, attackStart)) return 1.0;
-		sneakTarget = target;
-		sneakTic = gametic;
+		sneakTargets.Push(target);
 		pendingHits++;
 	}
 	return 1.0 + std::max(backstabBp, 0) / 10000.0;
