@@ -270,7 +270,7 @@ namespace DaggerfallWorkshop.Game.UserInterfaceWindows
                         playerEntity.FactionData.SetFlag(daedraToSummon.factionId, FactionFile.Flags.Summoned);
 
                         // Offer the quest to player.
-                        offeredQuest = GameManager.Instance.QuestListsManager.GetQuest(daedraToSummon.quest, summonerFactionData.id);
+                        using (WorldLevel.ForQuestGiver()) offeredQuest = GameManager.Instance.QuestListsManager.GetQuest(daedraToSummon.quest, summonerFactionData.id); // Doomerfall: rewards at the summoner's place
                         if (offeredQuest != null)
                         {
                             // Close menu and push DaggerfallDaedraSummoningWindow here for video and custom quest offer..

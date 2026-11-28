@@ -90,6 +90,8 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             if (menu == null)
                 yield break;
 
+            yield return EarnedPoint(menu);
+
             // Buy points of the first primary skill until a level-up is ready.
             DFCareer.Skills skill = P.GetPrimarySkills()[0];
             int levelBefore = P.Level, startValue = P.Skills.GetPermanentSkillValue(skill), earned = P.SkillXp;
@@ -169,6 +171,30 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             Log(string.Format("SXLOADED {0} pool {1} {2} {3} level {4}", done, P.SkillXp, name, P.Skills.GetPermanentSkillValue(skill), P.Level));
             yield return SecondLevel(skill, name);
             Log("SXDONE");
+        }
+
+        // One point bought with Skill XP earned from Doom's damage only (no test grant): the cheapest buyable skill,
+        // selected in the menu's list and bought with its BUY POINT button. The menu's pool line is logged around it.
+        IEnumerator EarnedPoint(DoomerfallSkillsWindow menu)
+        {
+            DFCareer.Skills cheapest = DFCareer.Skills.None;
+            for (DFCareer.Skills s = 0; s < DFCareer.Skills.Count; s++)
+                if (DoomerfallSkillXp.Buyable(s) && DoomerfallSkillXp.Capped(P, s) == null &&
+                    (cheapest == DFCareer.Skills.None || DoomerfallSkillXp.Price(P, s) < DoomerfallSkillXp.Price(P, cheapest)))
+                    cheapest = s;
+            ListBox list = Find<ListBox>(menu.NativePanel, l => true);
+            string name = DaggerfallUnity.Instance.TextProvider.GetSkillName(cheapest);
+            for (int i = 0; i < list.Count; i++)
+                if (list.GetItem(i).textLabel.Text.EndsWith("  " + name))
+                    list.SelectIndex(i);
+            yield return null;
+            LogMenu("SXEARNEDMENU");
+            int pool = P.SkillXp, price = DoomerfallSkillXp.Price(P, cheapest), before = P.Skills.GetPermanentSkillValue(cheapest);
+            Find<Button>(menu.NativePanel, b => b.Label.Text == "BUY POINT").TriggerMouseClick();
+            yield return null;
+            LogMenu("SXEARNEDAFTER");
+            Log(string.Format("SXEARNEDPOINT {0} {1} -> {2}, price {3}, pool {4} -> {5}, earned only {6}", name, before,
+                P.Skills.GetPermanentSkillValue(cheapest), price, pool, P.SkillXp, pool >= price));
         }
 
         // While the sheet is leveling (stat rollout showing), its SKILLS button must not open the menu, so a purchase

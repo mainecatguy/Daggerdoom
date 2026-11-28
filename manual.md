@@ -339,10 +339,12 @@ Pistols covers pistols, such as the stock pistol, the Pistol, the Handcannon and
 
 ## Falling and jumping
 
-In Daggerfall's world, falls hurt, by Daggerfall's own rule:
+In Daggerfall's world, falls hurt:
 
-- A fall is measured from where you left the ground to where you land. The first **5 metres** are free; every metre
-  past that costs **5 HP**. A 9 metre drop costs 20 HP, a 15 metre drop 50 HP. Armor does not help.
+- A fall is measured from where you left the ground to where you land. A fall up to **1.5 times your jump height** is
+  free; every metre past that costs **5 HP**. The better you jump, the farther you can fall: the free fall is 1.8 m at
+  Jumping 0, 2.6 m at 25, 3.1 m at 50, 3.5 m at 75 and 3.9 m at 100. A 9 metre drop costs 36 HP at Jumping 0 and
+  25 HP at 100. Armor does not help.
 - A jump that lands where it started never hurts, however high it goes, double and triple jumps included.
 - Grabbing a wall while climbing starts the fall over from there.
 - Landing outdoors on a sea or lake tile never hurts, as in Daggerfall.
@@ -355,11 +357,10 @@ Your **Jumping** skill (the permanent value on your character sheet) changes how
 - **25:** a sudden boost of 25% more height on top of that (so at 100 your jumps are 2.25 times as high).
 - **50:** double jump. Press Jump again in mid-air to jump once more, as strong as a jump from the ground. You can
   also use it after walking off an edge.
-- **75:** falling no longer hurts you.
 - **100:** triple jump. You can jump twice in mid-air.
 
-Below 75, Jumping does not lower falling damage yet. Jumping does not train by jumping in Doom yet; train it at a
-guild.
+Higher jumps also mean longer safe falls (above). Every jump trains Jumping, as in Daggerfall: each jump from the
+ground and each double or triple jump in mid-air counts once.
 
 ## Swimming outdoors
 
@@ -410,6 +411,16 @@ description from the arsenal's own notes, and every gun shows its material and w
   skill.
 - "Types: none" means the gun belongs to no weapon skill yet.
 - A gun's types appear once its picture has loaded in the inventory. Until then the description shows only its name.
+
+### Weapon materials
+
+Every Doom weapon you can carry is made of a Daggerfall material, from Iron up to Daedric, and its material changes
+the damage it does: Iron -10%, Steel and Silver no change, up to Daedric +60%. This includes melee weapons such as a
+chainsaw. Only your fists have no material.
+
+- An Iron weapon goes by its plain name, such as "Pistol". Every other material comes first, such as "Steel Pistol".
+  Info still shows "Material: Iron".
+- The guns a new character starts with are always Iron, like Daggerfall's starting gear.
 
 ## No shields (for now)
 
@@ -566,7 +577,8 @@ Some dungeon doors are locked. Look at one: it reads **Locked.**, or "This is a 
 A door you have picked open reads **Door**.
 
 - Press **Use (E)** on a locked door while you carry **lockpicks** (shown in your inventory, 25 gold each at general
-  stores and pawn shops, and sometimes in treasure or on human enemies; every new character starts with a few) to start
+  stores and pawn shops on most days, now and then at weapon smiths and armorers, and sometimes in treasure or on
+  enemies that carry gold, such as bandits, orcs and undead; every new character starts with a few) to start
   lockpicking. Press **Fire** when the gold chevron is over the white arc. Your Lockpicking skill and your level make
   the arc wider and the chevron slower, as Daggerfall's lockpicking chance would.
 - A **hit** opens the door and keeps your pick. A **miss** breaks one pick. Each attempt trains Lockpicking, and you may
@@ -599,6 +611,25 @@ When a quest tells you to meet someone in a building or a dungeon, that person s
 Daggerfall. Press **Use (E)** on them to talk, hand over quest items, or collect your reward. When the quest is done with
 them, or sends them somewhere else, they disappear from that spot. Items a quest leaves lying in a building do not show
 up yet.
+
+### Quest rewards
+
+Gold and magic items a quest pays depend on the level of the place where you took the quest, not on your own level.
+By that place's level, a gold quest pays about:
+
+| Place level | Gold |
+|---|---|
+| 1 | 130 to 225 |
+| 5 | 400 to 675 |
+| 10 | 790 to 1,350 |
+| 15 | 1,050 to 1,800 |
+| 18 and up | 1,300 to 2,250 |
+
+Within each range, the region's prices raise or lower it. Towns have minimum levels: a village is at least level 5, a
+hamlet at least 10, a city at least 15 and a capital at least 20, but a town in dangerous country can be higher, and
+then pays by its higher level. Temples, taverns and other places outside towns can be any level. Guild quests still
+pay by your rank in the guild. For now, a quest that starts by itself (the next step of a longer quest, or one that
+comes by letter) pays the top amount, as before.
 
 ## Entering a place
 

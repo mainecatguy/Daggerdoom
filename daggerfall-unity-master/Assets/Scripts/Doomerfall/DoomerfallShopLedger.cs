@@ -79,7 +79,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                     Random.InitState(Seed(location, building.buildingKey, day, shelfIndex));
                     SellOff(shelf.Items);
                     if (shelfIndex == 0 && (!fresh || day == today))
-                        DailyAmmo(shelf, building);
+                        DailyAmmo(shelf, building, location, day);
                     LastLots = Deliver(shelf, building, identity, share, shelfIndex, location, day, level, place);
                 }
             }
@@ -163,14 +163,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 items.RemoveItem(item);
         }
 
-        /// <summary>Items on a shelf that count against its share of the stock target: everything except Doom ammo and the horse and cart.</summary>
+        /// <summary>Items on a shelf that count against its share of the stock target: everything except Doom ammo, lockpicks, and the horse and cart.</summary>
         internal static int Stocked(ItemCollection items)
         {
             int n = 0;
             for (int i = 0; i < items.Count; i++)
             {
                 DaggerfallUnityItem item = items.GetItem(i);
-                if (!(item is DoomerfallAmmoItem) && item.ItemGroup != ItemGroups.Transportation)
+                if (!(item is DoomerfallAmmoItem) && !(item is DoomerfallLockpickItem) && item.ItemGroup != ItemGroups.Transportation)
                     n++;
             }
             return n;
@@ -179,14 +179,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         /// <summary>Most delivery rolls pooled for one shelf delivery, before the shop's lean picks from them.</summary>
         const int MaxPoolRolls = 6;
 
-        // Doom ammo sits outside the stock target and arrives every day whatever the shop's rhythm: one ammo delivery per
+        // Doom ammo and lockpicks sit outside the stock target and arrive every day whatever the shop's rhythm: one delivery per
         // building, on its first shelf, which also keeps a general store's one horse and one cart.
-        static void DailyAmmo(DaggerfallLoot shelf, PlayerGPS.DiscoveredBuilding building)
+        static void DailyAmmo(DaggerfallLoot shelf, PlayerGPS.DiscoveredBuilding building, int location, int day)
         {
             ItemCollection ammo = new ItemCollection();
             DoomerfallAmmoTiers.StockShop(building, ammo);
             for (int i = 0; i < ammo.Count; i++)
                 TopUpAmmo(shelf.Items, ammo.GetItem(i));
+            DoomerfallLockpick.DailyStock(shelf.Items, building, location, day);   // its own seed stream
             if (building.buildingType == DFLocation.BuildingTypes.GeneralStore)
                 foreach (Transportation t in new[] { Transportation.Horse, Transportation.Small_cart })
                     if (!shelf.Items.Contains(ItemGroups.Transportation, (int)t))
@@ -221,7 +222,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 for (int i = 0; i < roll.Count; i++)
                 {
                     DaggerfallUnityItem item = roll.GetItem(i);
-                    if (!(item is DoomerfallAmmoItem) && item.ItemGroup != ItemGroups.Transportation)
+                    if (!(item is DoomerfallAmmoItem) && !(item is DoomerfallLockpickItem) && item.ItemGroup != ItemGroups.Transportation)
                         pool.Add(item);
                 }
             }

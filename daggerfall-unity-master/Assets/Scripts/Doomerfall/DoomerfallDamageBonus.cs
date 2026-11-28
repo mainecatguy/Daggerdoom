@@ -41,7 +41,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         // The material bonus of the gun Daggerfall has drawn, while Doom holds it ready, as a fraction (-0.1 is -10%).
         // Daggerfall's own modifier (GetWeaponMaterialModifier, -1 Iron to +6 Daedric) times 10 percent, as its to-hit
-        // bonus is. 0 with no drawn gun, mid-swap, or while Doom holds fists or another melee weapon.
+        // bonus is. 0 with no drawn gun, mid-swap, or while Doom holds the fist. A drawn chainsaw counts (owner, 2026-11-27).
         double WeaponMaterialBonus()
         {
             DoomerfallDoomItem gun = Ammo != null ? Ammo.UpGun : null;

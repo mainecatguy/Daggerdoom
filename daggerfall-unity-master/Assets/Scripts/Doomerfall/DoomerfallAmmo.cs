@@ -245,14 +245,16 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             bridge.LogLine("ammo: after load Daggerfall holds" + Totals() + "; " + SaveTiers());
         }
 
-        // DFB_KIND_AMMO_READY: Doom's ready weapon changed and uses this reserve ammo ("" for none). Doom sends status 1
-        // when the ready weapon is a melee weapon such as fists, or none.
+        // DFB_KIND_AMMO_READY: Doom's ready weapon changed and uses this reserve ammo ("" for none). Status holds
+        // DFB_AMMO_READY_MELEE (a melee weapon such as the fist or a chainsaw, or none) and DFB_AMMO_READY_FIST (the fist,
+        // or none: no Daggerfall item is up).
         internal bool ReadyMelee { get { return readyMelee; } } // Doom's last ready report: fists or another melee weapon, or none.
 
-        internal void OnReady(string cls, bool melee)
+        internal void OnReady(string cls, uint status)
         {
             readyType = string.IsNullOrEmpty(cls) ? -1 : TypeOfClass(cls);
-            readyMelee = melee;
+            readyMelee = (status & Dfb.AMMO_READY_MELEE) != 0;
+            readyFist = (status & Dfb.AMMO_READY_FIST) != 0;
             readySeq++;
             tellWanted = true;
             bridge.LogLine(string.Format("ammo: Doom's ready gun uses {0}", readyType >= 0 ? Types[readyType].doomClass : "no reserve ammo"));
@@ -266,15 +268,17 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 
         internal int ReadyType { get { return readyType; } }
         bool readyMelee = true; // Doom's ready weapon is fists (or another melee weapon), or there is none yet.
+        bool readyFist = true;  // Doom's ready weapon is the fist, or there is none yet.
 
-        // The gun Daggerfall has drawn, once Doom reports it ready. Null mid-swap, with no drawn gun, or while Doom holds
-        // fists or another melee weapon. A gun without reserve ammo (DRLA's Blaster) counts.
+        // The Doom weapon Daggerfall has drawn, once Doom reports it ready. Null mid-swap, with no drawn gun, or while Doom
+        // holds the fist. A gun without reserve ammo (DRLA's Blaster) and a melee weapon such as a chainsaw count: each
+        // has a material (owner, 2026-11-27); only the fist has none.
         internal DoomerfallDoomItem UpGun
         {
             get
             {
                 DoomerfallHotkeys hotkeys = DoomerfallHotkeys.Instance;
-                if (hotkeys == null || hotkeys.SwapInFlight || readyMelee || !boundReady || boundGun != hotkeys.ActiveGun)
+                if (hotkeys == null || hotkeys.SwapInFlight || readyFist || !boundReady || boundGun != hotkeys.ActiveGun)
                     return null;
                 return boundGun;
             }

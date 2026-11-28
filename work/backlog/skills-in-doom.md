@@ -93,7 +93,12 @@ Future (owner, 2026-11-26): "tag automatic weapons that do not cause explosions 
 treated by whichever skill is higher." For example, a non-exploding automatic energy gun is also an Automatic.
 
 ## Jumping
-In todo: `work/queue/skillperks/01.opus.jumping.md` (adds fall damage first).
+Built (skillperks 01, then jumpfollowup 01): jump height +1% per point, +25% from 25; double jump at 50, triple at
+100 (also after walking off an edge). Falling damage (owner, 2026-11-27, Q&A item 6, curve chosen in jumpfollowup 01):
+a fall up to 1.5 times the current jump height is free, then 5 HP per metre past it (Daggerfall's rate), so the safe
+fall grows with the jump: 1.8 m at Jumping 0, 2.6 m at 25, 3.1 m at 50, 3.5 m at 75, 3.9 m at 100 (Doom's default
+JumpZ). The old Jumping 75 perk (no falling damage) is gone, so 75 has no perk now. Every jump, from the ground or in
+mid-air, is one Jumping use (Daggerfall's rate). Rules: `mods/doomerfall/src/zscript/DoomerfallRules.zs`.
 
 ## Other skills (placeholders, owner is detailing)
 

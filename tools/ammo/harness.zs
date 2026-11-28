@@ -403,7 +403,15 @@ class AMHarness : EventHandler
 			break;
 		case 85: // An Ebony Blaster: no reserve ammo, but a gun, so it gets its material bonus.
 			if (timer == 1) EventHandler.SendNetworkEvent("dd_hotkey:5");
-			if (timer == 245) { Hit("blaster", 1000); phase = 84; timer = 0; }
+			if (timer == 245) { Hit("blaster", 1000); phase = 86; timer = 0; }
+			break;
+		case 86: // A Daedric Chainsaw: a melee weapon, but a Daggerfall item with a material, so it gets its bonus (owner, 2026-11-27).
+			if (timer == 1) EventHandler.SendNetworkEvent("dd_hotkey:6");
+			if (timer == 245) { Hit("chainsaw", 1000); phase = 87; timer = 0; }
+			break;
+		case 87: // Hotkey 1 raises the fist with the chainsaw still the active gun: the fist has no material.
+			if (timer == 1) EventHandler.SendNetworkEvent("dd_hotkey:1");
+			if (timer == 245) { Hit("fist key", 1000); phase = 84; timer = 0; }
 			break;
 		case 84:
 			if (timer == 1) EventHandler.SendNetworkEvent("dd_hotkey:4");

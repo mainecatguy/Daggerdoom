@@ -18,7 +18,7 @@ def factor(s):
 
 def launch(uz, run, name, mode, skill, extra):
     pk3 = os.path.join(run, name + ".pk3")
-    text = open(os.path.join(HERE, "jumpz_saveload.zs")).read().replace("@MODE@", mode).replace("@SKILL@", str(skill))
+    text = open(os.path.join(HERE, "jumpz_saveload.zs")).read().replace("@MODE@", mode).replace("@SKILL@", str(skill)).replace("@OLDFACTOR@", "1.7")
     with zipfile.ZipFile(pk3, "w") as z:
         z.writestr("zscript/probe.zs", text)
         z.writestr("ZSCRIPT.txt", 'version "4.14"\n#include "zscript/probe.zs"\n')
@@ -77,6 +77,17 @@ def main():
         save = os.path.basename(max(saves, key=os.path.getmtime))
         for skill in (100, 0, 50, 75):
             check(f"load{skill}", launch(uz, run, f"load{skill}", "load", skill, ["-loadgame", save]), skill)
+    for old in glob.glob(os.path.join(run, "saves", "*.zds")):
+        os.remove(old)
+    launch(uz, run, "oldsave", "oldsave", 50, ["+map", "MAP01"])
+    saves = glob.glob(os.path.join(run, "saves", "*.zds"))
+    if not saves:
+        print("no old-formula save written")
+        ok = False
+    else:
+        save = os.path.basename(max(saves, key=os.path.getmtime))
+        for skill in (0, 50, 100):
+            check(f"oldload{skill}", launch(uz, run, f"oldload{skill}", "load", skill, ["-loadgame", save]), skill)
     print("JUMPZ SAVELOAD PASS" if ok else "JUMPZ SAVELOAD FAIL")
     sys.exit(0 if ok else 1)
 

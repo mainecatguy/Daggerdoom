@@ -57,6 +57,9 @@ def launch(name, iwad, files, mapname, limit=30):
 
 
 ph = [os.path.join(args.ph, "privateershold" + s) for s in (".wad", "_mesh.pk3", "_doors.pk3")]
+runtime = os.path.abspath(os.path.join(args.ph, "ddruntime.pk3"))  # newer conversions share the door runtime
+if os.path.exists(runtime):
+    ph.insert(0, runtime)
 cases = (("e1m1_stock", "DOOM.WAD", [MOD, HARNESS], "E1M1", False),
          ("e1m1_drla", "DOOM.WAD", [*DRLA, MOD, HARNESS], "E1M1", False),
          ("ph_stock", "DOOM2.WAD", [*ph, MOD, HARNESS], "MAP01", True),

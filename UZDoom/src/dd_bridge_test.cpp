@@ -2,6 +2,7 @@
 // load, death, and HP paths of dd_bridge.cpp and log what happened; the tools under tools/ and bridge/test read the log.
 //   -dfbridgetestpause ext|game|menu   bridge/test/real_games_test.py
 //   -dfhptest basic|monsters           tools/hp_sync
+//   -dfhptest poison|poisonhit         tools/poison_rules
 //   -dfsavetest file|autoN             tools/synchronized_save, bridge/test (the fault injection -dfsavetestfail stays in dd_bridge.cpp)
 //   -dfloadtest mode:file              tools/synchronized_load and many paired tests ("resume" loads a save, then the route continues)
 //   -dfnewgametest once|twice|escape          tools/new_game, tools/demo_combined/walk.py, tools/reported_location
@@ -40,7 +41,7 @@ FARG_ADVANCED(dfplainloadtest, "Doomerfall", "once", "Bridge test only: runs dd_
 FARG_ADVANCED(dfbridgetestpause, "Doomerfall", "ext|game|menu", "Bridge test only: enters a pause state for six seconds.");
 FARG_ADVANCED(dfsavetest, "Doomerfall", "file|autoN", "Save test only: makes one synchronized save to this file, or N real autosaves, then quits.");
 FARG_ADVANCED(dfloadtest, "Doomerfall", "mode:file", "Load test only: cycle, death, menu, bad, newgame, again, restart, or resume, using this save file.");
-FARG_ADVANCED(dfhptest, "Doomerfall", "basic|monsters", "HP sync test only: scripts hits, heals, and a lethal hit.");
+FARG_ADVANCED(dfhptest, "Doomerfall", "basic|monsters|poison|poisonhit", "HP sync test only: scripts hits, heals, and a lethal hit (poison modes: lethal poison at low HP).");
 
 EXTERN_CVAR(Int, dd_ui_test_hold)
 void DD_BridgeLog(const char *text);
@@ -108,6 +109,39 @@ void HpTestLog(const char *what)
 		v.hpSent, v.hpApplied);
 }
 
+// -dfhptest poison|poisonhit (tools/poison_rules): ZDoom-style poison (P_PoisonMobj, through P_DamageMobj), then a
+// low-HP player is poisoned Hexen-style: "poison" by P_PoisonPlayer, ticking 1 per 16 tics; "poisonhit" by one
+// lethal P_PoisonDamage in a tic. The player must die only once Daggerfall reports death.
+bool poisonDeathLogged;
+
+void RunPoisonTest(int64_t now)
+{
+	const player_t &p = players[consoleplayer];
+	if (hpTestStep >= 6 && !poisonDeathLogged && p.playerstate != PST_LIVE)
+	{
+		poisonDeathLogged = true;
+		HpTestLog("poison: player died");
+		hpTestStep = 7;
+		hpTestNextNs = now + 1500000000LL;
+		return;
+	}
+	if (hpTestStep == 1 || hpTestStep == 3 || hpTestStep == 5)
+	{
+		hpTestPending = 100 + hpTestStep; // Done at the next player tic by DD_BridgeTestTic.
+		return;
+	}
+	switch (hpTestStep)
+	{
+	case 0: HpTestLog("poison: start"); break;
+	case 2: HpTestLog("poison: after ZDoom-style poison"); break;
+	case 4: HpTestLog("poison: at low hp"); break;
+	case 6: if (now > hpTestNextNs + 15000000000LL) { HpTestLog("poison: no death within 15 s"); hpTestStep = 7; } return;
+	case 7: HpTestLog("poison: finished"); hpTestStep = -1; C_DoCommand("quit"); return;
+	}
+	hpTestStep++;
+	hpTestNextNs = now + 600000000LL;
+}
+
 void RunHpTest(int64_t now)
 {
 	if (!hpTestMode || hpTestStep < 0 || gamestate != GS_LEVEL || !v.hpValid || !players[consoleplayer].mo) return;
@@ -116,6 +150,7 @@ void RunHpTest(int64_t now)
 	if (now < hpTestNextNs) return;
 	const bool settled = v.hpApplied >= v.hpSent;
 	if (!settled && now < hpTestNextNs + 3000000000LL) return; // Wait for Daggerfall to confirm the last step.
+	if (!strncmp(hpTestMode, "poison", 6)) { RunPoisonTest(now); return; }
 	if (!strcmp(hpTestMode, "monsters"))
 	{
 		if (hpTestStep == 0)
@@ -520,8 +555,22 @@ void DD_BridgeTestTic()
 		snprintf(note, sizeof(note), "after a lethal hit of 500 (same tic), player alive=%d", p.playerstate == PST_LIVE);
 		HpTestLog(note);
 		break;
+	case 101: P_PoisonMobj(mo, mo, nullptr, 2, 6, 2, NAME_Poison); HpTestLog("poison: ZDoom-style poison 2 every 2 tics for 6"); break;
+	case 103:
+		DD_BridgeTestView(v);
+		if (v.hpCurrent > 4) DD_BridgeTestHit(v.hpCurrent - 4, "poison test setup");
+		HpTestLog("poison: set Daggerfall hp to 4 (same tic)");
+		break;
+	case 105:
+		if (!strcmp(hpTestMode, "poisonhit")) P_PoisonDamage(&p, nullptr, 50, true);
+		else P_PoisonPlayer(&p, nullptr, nullptr, 100);
+		snprintf(note, sizeof(note), "poison: %s (same tic), player alive=%d", !strcmp(hpTestMode, "poisonhit") ?
+			"one Hexen poison hit of 50" : "Hexen poison 100", p.playerstate == PST_LIVE);
+		HpTestLog(note);
+		break;
 	}
-	hpTestStep = hpTestPending + 1;
+	const bool longWait = hpTestPending == 7 || hpTestPending == 101; // Let Daggerfall report death / poison finish.
+	hpTestStep = hpTestPending % 100 + 1;
 	hpTestPending = 0;
-	hpTestNextNs = dfb_now_ns() + (hpTestStep == 8 ? 1500000000LL : 600000000LL);
+	hpTestNextNs = dfb_now_ns() + (longWait ? 1500000000LL : 600000000LL);
 }

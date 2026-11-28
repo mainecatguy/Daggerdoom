@@ -19,8 +19,10 @@ Game design rules for how damage is calculated. Owner decisions are dated. Propo
   the ammo rules (owner, 2026-11-24): Daggerfall's to-hit bonus (material modifier x 10) read as percent damage.
   Iron -10%, Steel and Silver 0%, Elven +10%, Dwarven +20%, Mithril and Adamantium +30%, Ebony +40%, Orcish +50%,
   Daedric +60%. It multiplies with the ammo bonus and any other bonus.
-- It follows the gun Daggerfall has drawn while Doom holds it ready. Fists and other weapons without a material get
-  none.
+- It follows the gun Daggerfall has drawn while Doom holds it ready. Melee Doom weapons such as a chainsaw have a
+  material and get its bonus like any other weapon; only the fist has no material and gets none (owner, 2026-11-27).
+- Starter Doom guns are Iron, and an Iron Doom weapon goes by its plain name ("Pistol", not "Iron Pistol")
+  (owner, 2026-11-27).
 
 ## Ammo tags
 

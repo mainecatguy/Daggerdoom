@@ -140,6 +140,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             WorldLevel.BuildingProvider = building => DoomerfallShopShelves.LayoutLevel(building, Log);   // interior loot piles roll at the building's level
             WorldLevel.DangerProvider = DoomerfallDrops.CurrentDangerLevel;   // enemies indoors keep the place's danger, not the building's wealth
             WorldLevel.DungeonProvider = DoomerfallDrops.DungeonWorldLevel;
+            WorldLevel.QuestRewardProvider = DoomerfallDrops.QuestRewardLevel;   // quest rewards roll at the giver's town level
             FormulaHelper.DoomerfallMaterialRoll = DoomerfallDrops.RollMaterial;   // approved material odds for all loot
             WorldLevel.ShopProvider = building => DoomerfallShopShelves.Level(building, Log);   // shelves roll at the shop's level
             ownSize = (uint)Marshal.SizeOf(typeof(DfbDfState));
@@ -522,7 +523,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                         ammo.OnReport(ev.doomItem.request, ev.doomItem.status, DoomerfallDoomItems.ClassOf(ev.doomItem));
                         break;
                     case Dfb.KIND_AMMO_READY:
-                        ammo.OnReady(DoomerfallDoomItems.ClassOf(ev.doomItem), ev.doomItem.status == 1);
+                        ammo.OnReady(DoomerfallDoomItems.ClassOf(ev.doomItem), ev.doomItem.status);
                         break;
                     case Dfb.KIND_AMMO_TAKE:
                         ammo.OnTake(DoomerfallDoomItems.ClassOf(ev.doomItem), (int)ev.doomItem.request, ev.doomItem.status);
@@ -646,6 +647,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             WorldLevel.BuildingProvider = null;
             WorldLevel.DangerProvider = null;
             WorldLevel.DungeonProvider = null;
+            WorldLevel.QuestRewardProvider = null;
             FormulaHelper.DoomerfallMaterialRoll = null;
             DoomerfallRest.End();
             DoomerfallSkillXp.End();

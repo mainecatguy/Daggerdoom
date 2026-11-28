@@ -1089,7 +1089,7 @@ static int hasBuddha(player_t *player)
 
 // Returns the amount of damage actually inflicted upon the target, or -1 if
 // the damage was cancelled.
-bool DD_BridgeHpHit(player_t *player, int damage); // [Doomerfall] false outside a bridge session
+bool DD_BridgeHpHit(player_t *player, int damage, const char *source = "damage"); // [Doomerfall] false outside a bridge session
 int DD_BridgeDamageBonus(AActor *source, AActor *target, AActor *inflictor, int damage); // [Doomerfall] damage unchanged outside a bridge session
 int DD_BridgeWillpowerDamage(player_t *player, int damage, bool keep); // [Doomerfall] damage unchanged outside a bridge session
 bool DD_KillCall; // [Doomerfall] true only during Thing_Destroy's kill (p_lnspec.cpp), so Willpower leaves it lethal
@@ -1884,6 +1884,10 @@ void P_PoisonDamage (player_t *player, AActor *source, int damage, bool playPain
 	{ // Try to use some inventory health
 		P_AutoUseHealth(player, damage - player->health+1);
 	}
+	player->attacker = source; // [Doomerfall] moved up from below the health change; nothing between reads it
+	// [Doomerfall] In a bridge session Daggerfall owns HP and death: the poison hit is reported like any other hit
+	// (DD_BridgeHpHit in P_DamageMobj) and Doom's health and death are left alone. Only the pain state below runs.
+	if (!DD_BridgeHpHit(player, damage, "poison")) {
 	player->health -= damage; // mirror mobj health here for Dave
 	if (player->health < 50 && !deathmatch)
 	{
@@ -1893,7 +1897,6 @@ void P_PoisonDamage (player_t *player, AActor *source, int damage, bool playPain
 	{
 		player->health = 0;
 	}
-	player->attacker = source;
 
 	//
 	// do the damage
@@ -1925,6 +1928,7 @@ void P_PoisonDamage (player_t *player, AActor *source, int damage, bool playPain
 			return;
 		}
 	}
+	} // [Doomerfall]
 	if (!(target->Level->time&63) && playPainSound)
 	{
 		FState *painstate = target->FindState(NAME_Pain, player->poisonpaintype);

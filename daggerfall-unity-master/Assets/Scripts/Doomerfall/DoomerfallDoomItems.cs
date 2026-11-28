@@ -100,6 +100,13 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             return item;
         }
 
+        // A starter Doom gun: a new character's kit, the pistol a converted save gets, or a gun Doom's new game gave. Fixed at
+        // Iron, like Daggerfall's starting gear (owner, 2026-11-27).
+        internal static DoomerfallDoomItem CreateStarter(string doomClass)
+        {
+            return Create(doomClass, Dfb.DOOM_ITEM_GUN, 0, (int)WeaponMaterialTypes.Iron);
+        }
+
         // The material roll of a new gun. Seeded (lootSeed nonzero), it leaves Unity's shared generator as it was.
         internal static WeaponMaterialTypes RollMaterial(int lootSeed)
         {
@@ -109,9 +116,12 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 return DoomerfallDrops.RollMaterial(WorldLevel.Current);
         }
 
-        // A gun's inventory name: "<material> <Doom name>".
+        // A gun's inventory name: "<material> <Doom name>", except that an Iron one has the plain Doom name: "Pistol", not
+        // "Iron Pistol" (owner, 2026-11-27). The info box still says "Material: Iron".
         internal static string GunName(WeaponMaterialTypes material, string doomClass)
         {
+            if (material == WeaponMaterialTypes.Iron)
+                return DoomerfallDoomItems.NameFor(doomClass);
             return DaggerfallUnity.Instance.TextProvider.GetWeaponMaterialName(material) + " " + DoomerfallDoomItems.NameFor(doomClass);
         }
 

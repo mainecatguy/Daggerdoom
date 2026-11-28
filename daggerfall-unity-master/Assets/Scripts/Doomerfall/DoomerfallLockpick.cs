@@ -2,10 +2,15 @@
 // bridge session: Register is called by DoomerfallBridge, and every hook below does nothing until it has run.
 //
 // 25 gold, 0.1 kg, stackable. Daggerfall owns the item and the count. Sources (owner's rules, my counts and odds):
-// - General stores and pawn shops stock a stack at most restocks (StockShop, called from DaggerfallLoot.StockShopShelf).
-// - Treasure piles and human class enemies may hold a few (AddLoot, called from LootTables.GenerateLoot and from
-//   EnemyEntity for EntityTypes.EnemyClass only). Monsters never do, whatever their loot table. The roll restores the
-//   random state, so it never shifts a seeded roll.
+// - Shops (owner, 2026-11-27: "Pawn shops, general goods traders, occasionally other traders"). In a bridge session
+//   the shop ledger tops up a lockpick stack every day, like Doom ammo and outside the stock target, so picks never
+//   crowd out other goods (DailyStock, called from DoomerfallShopLedger). Pawn shops and general stores carry them on
+//   most visits, weapon smiths and armorers (metalworkers, the fitting other traders) now and then. The classic shop
+//   delivery (StockShop) only adds them outside the ledger.
+// - Daggerfall-engine loot: treasure piles, human class enemies, and monsters whose Daggerfall loot table carries gold
+//   may hold a few (AddLoot, called from LootTables.GenerateLoot and EnemyEntity). Animals and other monsters with no
+//   gold in their table never do. Every roll is seeded from the seeded state it runs in and leaves that state as it
+//   was, so it never shifts or correlates with a seeded roll.
 // - Every new character starts with StartCount picks, and a class with Lockpicking among its primary or major skills
 //   (the burglar types) with BurglarCount.
 // No Thieves Guild sales (owner, 2026-11-25).
@@ -67,11 +72,15 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         internal const float WeightKg = 0.1f;
         internal const int Price = 25;
 
-        // My numbers within the owner's rules.
+        // My numbers within the owner's rules. Shop chances are per day before the quality scale (0.55x at quality 1 to
+        // 1.5x at 20, at most 95%). A stack sells off at 50% a day (DoomerfallShopLedger.SellChance), so a shop with a
+        // daily chance p has picks on about 2p/(1+p) of visits: about 82% of mid-quality general stores, 89% of pawn
+        // shops, and 15% of weapon smiths and armorers.
         internal const int StartCount = 3, BurglarCount = 8;
-        const int GeneralStoreChance = 70, PawnShopChance = 80;  // percent per restock, before the quality scale
-        const int LootChance = 8;                                 // percent per loot roll that carries gold
+        const int GeneralStoreChance = 70, PawnShopChance = 80, MetalworkerChance = 8;
+        const int LootChance = 8;                                 // percent per enemy or treasure pile that may hold them
         const int LootMax = 3;                                    // a find holds 1 to LootMax picks
+        const long LootSalt = 0x4c50434b;                         // "LPCK": the lockpick rolls' own seed stream
 
         static bool registered;
         static Texture2D texture;
@@ -181,30 +190,115 @@ namespace DaggerfallWorkshop.Game.Doomerfall
                 || career.MajorSkill1 == l || career.MajorSkill2 == l || career.MajorSkill3 == l;
         }
 
-        // A shop shelf being restocked.
+        // Daily percent chance for a shop type at a quality; 0 for shops that never carry picks.
+        internal static int ShopChance(DFLocation.BuildingTypes buildingType, int quality)
+        {
+            int chance;
+            switch (buildingType)
+            {
+                case DFLocation.BuildingTypes.GeneralStore: chance = GeneralStoreChance; break;
+                case DFLocation.BuildingTypes.PawnShop: chance = PawnShopChance; break;
+                case DFLocation.BuildingTypes.WeaponSmith:
+                case DFLocation.BuildingTypes.Armorer: chance = MetalworkerChance; break;
+                default: return 0;
+            }
+            return Mathf.Min(95, Mathf.RoundToInt(chance * (0.5f + Mathf.Clamp(quality, 1, 20) / 20f)));
+        }
+
+        // A full stack for the shop type: general stores and pawn shops 5-15, metalworkers 1-5.
+        static int StackSize(DFLocation.BuildingTypes buildingType)
+        {
+            bool main = buildingType == DFLocation.BuildingTypes.GeneralStore || buildingType == DFLocation.BuildingTypes.PawnShop;
+            return main ? UnityEngine.Random.Range(5, 16) : UnityEngine.Random.Range(1, 6);
+        }
+
+        // A classic shop delivery outside the shop ledger. In a ledger session DailyStock stocks picks instead, so they
+        // never enter the delivery pool the ledger picks the stocked goods from.
         internal static void StockShop(DFLocation.BuildingTypes buildingType, int quality, ItemCollection items)
+        {
+            if (!registered || items == null || WorldLevel.ShopProvider != null)
+                return;
+            if (UnityEngine.Random.Range(0, 100) < ShopChance(buildingType, quality))
+                items.AddItem(new DoomerfallLockpickItem(StackSize(buildingType)));
+        }
+
+        // One shop day in the ledger (its first shelf). Seeded from the shop and the day only, on its own stream, and
+        // Unity's generator is left as it was, so the ledger's own rolls are unchanged. The day's stack tops up a stack
+        // already there rather than adding to it, as Doom ammo does.
+        internal static void DailyStock(ItemCollection items, PlayerGPS.DiscoveredBuilding building, int location, int day)
         {
             if (!registered || items == null)
                 return;
-            int chance = buildingType == DFLocation.BuildingTypes.GeneralStore ? GeneralStoreChance
-                : buildingType == DFLocation.BuildingTypes.PawnShop ? PawnShopChance : 0;
+            int chance = ShopChance(building.buildingType, building.quality);
             if (chance <= 0)
                 return;
-            chance = Mathf.Min(95, Mathf.RoundToInt(chance * (0.5f + Mathf.Clamp(quality, 1, 20) / 20f)));
-            if (UnityEngine.Random.Range(0, 100) < chance)
-                items.AddItem(new DoomerfallLockpickItem(UnityEngine.Random.Range(5, 16)));
+            UnityEngine.Random.State saved = UnityEngine.Random.state;
+            int count = 0;
+            try
+            {
+                UnityEngine.Random.InitState(LootSeed.Of(LootSalt, null, location, building.buildingKey, day));
+                if (UnityEngine.Random.Range(0, 100) < chance)
+                    count = StackSize(building.buildingType);
+            }
+            finally
+            {
+                UnityEngine.Random.state = saved;
+            }
+            if (count <= 0)
+                return;
+            for (int i = 0; i < items.Count; i++)
+            {
+                DaggerfallUnityItem stack = items.GetItem(i);
+                if (stack is DoomerfallLockpickItem)
+                {
+                    stack.stackCount = Mathf.Max(stack.stackCount, count);
+                    return;
+                }
+            }
+            items.AddItem(new DoomerfallLockpickItem(count));
         }
 
-        // A treasure pile (LootTables.GenerateLoot) or a human class enemy (EnemyEntity) just rolled its loot. Monsters
-        // never call this. The random state is restored afterwards, so seeded rolls that follow stay the same.
+        // True for an enemy that may carry picks: a human class enemy, or a monster whose Daggerfall loot table carries
+        // gold (orcs, centaurs, giants, undead, daedra and the like; not rats, spiders, or other animals).
+        internal static bool CarriesPicks(EntityTypes entityType, string lootTableKey)
+        {
+            if (entityType == EntityTypes.EnemyClass)
+                return true;
+            if (entityType != EntityTypes.EnemyMonster || string.IsNullOrEmpty(lootTableKey))
+                return false;
+            LootChanceMatrix matrix = LootTables.GetMatrix(lootTableKey);
+            return matrix.key == lootTableKey && matrix.MaxGold > 0;
+        }
+
+        // An enemy (EnemyEntity) just rolled its loot.
+        internal static void AddEnemyLoot(EntityTypes entityType, string lootTableKey, ItemCollection items)
+        {
+            if (registered && CarriesPicks(entityType, lootTableKey))
+                AddLoot(items);
+        }
+
+        // A treasure pile (LootTables.GenerateLoot) or an enemy (AddEnemyLoot) just rolled its loot. The roll seeds its
+        // own stream from the current generator state (the place's loot seed during a seeded roll) and then puts that
+        // state back, so seeded rolls that follow stay the same and are not correlated with this one.
         internal static void AddLoot(ItemCollection items)
         {
             if (!registered || items == null)
                 return;
             UnityEngine.Random.State state = UnityEngine.Random.state;
-            bool add = Dice100.SuccessRoll(LootChance);
-            int count = UnityEngine.Random.Range(1, LootMax + 1);
-            UnityEngine.Random.state = state;
+            bool add;
+            int count;
+            try
+            {
+                // The next value the seeded roll would draw, hashed: a fixed fact of the seed that the hash decorrelates.
+                int next = UnityEngine.Random.Range(0, 1 << 30);
+                UnityEngine.Random.InitState(LootSeed.Of(LootSalt, null, next));
+                add = Dice100.SuccessRoll(LootChance);
+                count = UnityEngine.Random.Range(1, LootMax + 1);
+            }
+            finally
+            {
+                UnityEngine.Random.state = state;
+            }
             if (add)
                 items.AddItem(new DoomerfallLockpickItem(count));
         }

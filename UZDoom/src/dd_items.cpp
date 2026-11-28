@@ -653,14 +653,18 @@ void ReportAmmo()
 	if (!player->mo || player->playerstate != PST_LIVE || player->health <= 0) return;
 	const int ready = ReadyAmmo(player);
 	// Also on any new ready weapon, so Daggerfall knows when a gun it handed over is up (each gun remembers its own
-	// loaded tier). The pointer is only compared. Status 1 means the ready weapon is a melee weapon (fists) or none,
-	// which gets no weapon material bonus in Daggerfall; 0 is a gun, with or without reserve ammo (DRLA's Blaster).
+	// loaded tier). The pointer is only compared. Status DFB_AMMO_READY_MELEE: a melee weapon (fist, chainsaw) or none;
+	// DFB_AMMO_READY_FIST: the fist (stock or DRLA's RLFist) or none, which is no Daggerfall item and gets no weapon
+	// material bonus. A chainsaw is a Daggerfall item with a material (owner, 2026-11-27); 0 is a gun.
 	static const void *sentReadyWeapon;
 	if (ready != sentReadyAmmo || player->ReadyWeapon != sentReadyWeapon)
 	{
 		sentReadyWeapon = player->ReadyWeapon;
+		static const FName fist("Fist"), drlaFist("RLFist");
+		const PClass *readyCls = player->ReadyWeapon ? player->ReadyWeapon->GetClass() : nullptr;
 		const bool melee = !player->ReadyWeapon || (player->ReadyWeapon->IntVar(NAME_WeaponFlags) & WIF_MELEEWEAPON);
-		SendDoomItem(DFB_KIND_AMMO_READY, 0, melee ? 1 : 0, ready >= 0 ? AmmoClasses[ready] : "");
+		const bool isFist = !readyCls || DescendsFrom(readyCls, fist) || DescendsFrom(readyCls, drlaFist);
+		SendDoomItem(DFB_KIND_AMMO_READY, 0, (melee ? DFB_AMMO_READY_MELEE : 0) | (isFist ? DFB_AMMO_READY_FIST : 0), ready >= 0 ? AmmoClasses[ready] : "");
 		Printf(PRINT_LOG, "doomitems: ready weapon %s uses %s\n", player->ReadyWeapon ? player->ReadyWeapon->GetClass()->TypeName.GetChars() : "none",
 			ready >= 0 ? AmmoClasses[ready] : "no reserve ammo");
 		sentReadyAmmo = ready;

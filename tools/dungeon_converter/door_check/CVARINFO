@@ -1,0 +1,2 @@
+// The monster the doorway check walks through each open door (monster=). tools/monster_width/hitbox_check.py changes it.
+server noarchive string dt_monster = "DoomImp";

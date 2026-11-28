@@ -46,16 +46,62 @@ namespace DaggerfallWorkshop.Game
             }
         }
 
-        /// <summary>Doomerfall: quest rewards are unscaled and treat the player as this level (owner, 2026-11-24).</summary>
-        public const int DoomerfallQuestRewardLevel = 20;
+        /// <summary>Doomerfall sets this in a bridge session: the area level of the place where a quest is being given (the giver's town), or 0 if unknown.</summary>
+        public static Func<int> QuestRewardProvider;
 
         /// <summary>
-        /// The level quest rewards (magic items, gold) are rolled for. Fixed in a Doomerfall session, the player's level
-        /// otherwise. Which quests are offered still follows the player's level and never comes here.
+        /// Doomerfall: the reward level of a quest no giver offers (started by another quest, a letter or a timer),
+        /// kept from the earlier fixed rule (owner, 2026-11-24) until the owner decides those cases.
+        /// </summary>
+        public const int DoomerfallUnplacedQuestRewardLevel = 20;
+
+        static int questGiver;
+
+        /// <summary>
+        /// The level quest rewards (magic items, gold) are rolled for. In a Doomerfall session: for a quest a giver
+        /// offers (inside ForQuestGiver), the area level of the giver's place (owner, 2026-11-27); for any other
+        /// quest, DoomerfallUnplacedQuestRewardLevel. Never the player's level. Outside Doomerfall, the player's level.
+        /// Which quests are offered still follows the player's level and never comes here.
         /// </summary>
         public static int QuestReward
         {
-            get { return UsesAreaLevel ? DoomerfallQuestRewardLevel : GameManager.Instance.PlayerEntity.Level; }
+            get
+            {
+                if (!UsesAreaLevel)
+                    return GameManager.Instance.PlayerEntity.Level;
+                if (scoped > 0)
+                    return scoped;
+                if (questGiver <= 0)
+                    return DoomerfallUnplacedQuestRewardLevel;
+                int level = QuestRewardProvider != null ? QuestRewardProvider() : 0;
+                return level > 0 ? level : Current;
+            }
+        }
+
+        /// <summary>Scope around a quest giver building the quest it offers: its rewards roll at the giver's place.</summary>
+        public static GiverScope ForQuestGiver()
+        {
+            return new GiverScope(true);
+        }
+
+        public struct GiverScope : IDisposable
+        {
+            bool open;
+
+            public GiverScope(bool open)
+            {
+                this.open = open;
+                if (open)
+                    questGiver++;
+            }
+
+            public void Dispose()
+            {
+                if (!open)
+                    return;
+                open = false;
+                questGiver--;
+            }
         }
 
         /// <summary>

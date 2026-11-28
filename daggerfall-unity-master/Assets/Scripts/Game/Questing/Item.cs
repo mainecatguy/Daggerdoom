@@ -337,7 +337,7 @@ namespace DaggerfallWorkshop.Game.Questing
             if (itemClass == (int)ItemGroups.MagicItems)
             {
                 Entity.PlayerEntity playerEntity = GameManager.Instance.PlayerEntity;
-                result = ItemBuilder.CreateRegularMagicItem(itemSubClass, WorldLevel.QuestReward, playerEntity.Gender, playerEntity.Race); // Doomerfall: fixed reward level
+                result = ItemBuilder.CreateRegularMagicItem(itemSubClass, WorldLevel.QuestReward, playerEntity.Gender, playerEntity.Race); // Doomerfall: giver's area level
             }
             // Handle books
             else if (itemClass == (int)ItemGroups.Books)
@@ -392,7 +392,7 @@ namespace DaggerfallWorkshop.Game.Questing
             {
                 Entity.PlayerEntity playerEntity = GameManager.Instance.PlayerEntity;
 
-                int playerMod = (WorldLevel.QuestReward / 2) + 1; // Doomerfall: fixed reward level
+                int playerMod = (WorldLevel.QuestReward / 2) + 1; // Doomerfall: giver's area level
                 int factionMod = 50;
                 IGuild guild = null;
                 if (ParentQuest.FactionId != 0)
