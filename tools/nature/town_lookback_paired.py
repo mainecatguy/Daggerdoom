@@ -77,7 +77,7 @@ def main():
     ap.add_argument("--out", default=r"D:\dev\DoomDaggerfall-build\townlookback-tests\city-paired")
     ap.add_argument("--yaw", default="180")
     ap.add_argument("--radius", type=float, default=20 * 192.0)
-    ap.add_argument("--wait", type=int, default=35 * 12, help="tics on the town map before standing at the look point")
+    ap.add_argument("--wait", type=int, default=35 * 30, help="tics on the town map before standing at the look point (Daggerfall's season reaches the town within it)")
     a = ap.parse_args()
     out, unpaired = Path(a.out), Path(a.unpaired)
     out.mkdir(parents=True, exist_ok=True)
@@ -140,12 +140,24 @@ def main():
         print("RESULT: incomplete (see", console, ")")
         return
     print(f"ring town: complete={ring[0]} flats within radius {len(ring[1])}")
+    # Daggerfall's date sets the season, so the paired town may use another climate archive (dfflat/F<archive>R<record>)
+    # than the unpaired overworld. Positions and records do not depend on it: compare by record, and require one archive
+    # for the town map's actors and its distant view.
+    def archive(f):
+        return re.sub(r"r\d+\.png$", "", f[3])
+    def record(fs):
+        return [(f[0], f[1], f[2], f[3][-7:]) for f in fs]
+    archives = {"overworld": sorted({archive(f) for f in over_flats["over"]}), "town actors": sorted({archive(f) for f in town_flats["town"]}),
+                "town distant view": sorted({archive(f) for f in ring[1]})}
+    print("climate archives:", archives)
+    one_archive = len(set(archives["town actors"]) | set(archives["town distant view"])) == 1
+    over_r, town_r = record(over_flats["over"]), record(town_flats["town"] + ring[1])
     for r in (4, 6, 10, 20):
-        no, nt, ng, miss, extra, dz = tl.compare(over_flats["over"], town_flats["town"] + ring[1], r * 192.0)
+        no, nt, ng, miss, extra, dz = tl.compare(over_r, town_r, r * 192.0)
         print(f"paired town map (actors + distant view) vs unpaired overworld, within {r:2d} tiles: overworld {no}, town map {nt}, "
-              f"same sprite within 1 unit {ng}, missing {len(miss)}, extra {len(extra)}, worst height difference {dz:.2f}")
-    no, nt, ng, miss, extra, dz = tl.compare(over_flats["over"], town_flats["town"] + ring[1], a.radius)
-    print("RESULT:", "PASS" if not miss and not extra and dz < 1.0 and ring[0] else "FAIL")
+              f"same record within 1 unit {ng}, missing {len(miss)}, extra {len(extra)}, worst height difference {dz:.2f}")
+    no, nt, ng, miss, extra, dz = tl.compare(over_r, town_r, a.radius)
+    print("RESULT:", "PASS" if not miss and not extra and dz < 1.0 and ring[0] and one_archive else "FAIL")
 
 
 if __name__ == "__main__":
