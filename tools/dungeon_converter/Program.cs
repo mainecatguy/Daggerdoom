@@ -76,7 +76,7 @@ static partial class Program
         if (args.Contains("--world")) return WorldTerrain.RunExport(args); // shared height data for the overworld and town maps
         if (args.Contains("--runtime-assets")) return City.RuntimeAssets(args); // the shared package for locations converted during play
         if (IsRuntimeDungeonGroup(args)) return RunRuntimeDungeon(args); // RuntimeDungeon.cs: one dungeon for the running game
-        if (args.Contains("--city") || args.Contains("--group")) return City.Run(args); // cities have their own pipeline in CityExport.cs
+        if (args.Contains("--city") || args.Contains("--group") || args.Contains("--find-group")) return City.Run(args); // cities have their own pipeline in CityExport.cs
         string name = null, outDir = null, arena2 = @"D:\dev\DoomDaggerfall\GameResources\DAGGER\ARENA2";
         if (args.Contains("--list-water")) return ListWater(arena2);
         if (args.Contains("--pickup-lean-survey")) return PickupLeanSurvey(Array.IndexOf(args, "--arena2") is int pa && pa >= 0 ? args[pa + 1] : arena2); // PickupExport.cs
