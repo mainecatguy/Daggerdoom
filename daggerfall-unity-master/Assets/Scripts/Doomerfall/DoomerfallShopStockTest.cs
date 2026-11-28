@@ -19,6 +19,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             DoomerfallShopLedgerTest.Attach(owner);       // -dfshopledgertest
             DoomerfallShopLotsTest.Attach(owner);         // -dfshoplotstest
             DoomerfallShopIdentityTest.Attach(owner);     // -dfshopidentitytest
+            DoomerfallLockpickSurveyTest.Attach(owner);   // -dflockpicksurvey
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-dfshoptest") >= 0)
                 owner.gameObject.AddComponent<DoomerfallShopStockTest>().bridge = owner;
         }

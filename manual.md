@@ -577,7 +577,8 @@ Some dungeon doors are locked. Look at one: it reads **Locked.**, or "This is a 
 A door you have picked open reads **Door**.
 
 - Press **Use (E)** on a locked door while you carry **lockpicks** (shown in your inventory, 25 gold each at general
-  stores and pawn shops, and sometimes in treasure or on human enemies; every new character starts with a few) to start
+  stores and pawn shops on most days, now and then at weapon smiths and armorers, and sometimes in treasure or on
+  enemies that carry gold, such as bandits, orcs and undead; every new character starts with a few) to start
   lockpicking. Press **Fire** when the gold chevron is over the white arc. Your Lockpicking skill and your level make
   the arc wider and the chevron slower, as Daggerfall's lockpicking chance would.
 - A **hit** opens the door and keeps your pick. A **miss** breaks one pick. Each attempt trains Lockpicking, and you may
