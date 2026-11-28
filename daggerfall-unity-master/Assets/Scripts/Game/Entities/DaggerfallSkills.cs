@@ -446,20 +446,20 @@ namespace DaggerfallWorkshop.Game.Entity
                     return DFCareer.Stats.Personality;
                 case DFCareer.Skills.Jumping:
                     return DFCareer.Stats.Strength;
-                // Doomerfall gun skills (governing stats are a provisional engineering choice)
+                // Doomerfall gun skills: governing stats set by the owner (2026-11-27, gun skill governing attributes)
                 case DFCareer.Skills.Shotguns:
                     return DFCareer.Stats.Strength;
                 case DFCareer.Skills.Automatics:
                     return DFCareer.Stats.Agility;
                 case DFCareer.Skills.Explosives:
-                    return DFCareer.Stats.Intelligence;
+                    return DFCareer.Stats.Strength;
                 case DFCareer.Skills.Pistols:
                     return DFCareer.Stats.Agility;
                 case DFCareer.Skills.Rifles:
                     return DFCareer.Stats.Agility;
-                case DFCareer.Skills.EnergyWeapons: // Doomerfall placeholder, like Explosives
-                    return DFCareer.Stats.Intelligence;
-                case DFCareer.Skills.Melee: // Doomerfall placeholder, like Daggerfall's Axe and Blunt Weapon
+                case DFCareer.Skills.EnergyWeapons:
+                    return DFCareer.Stats.Agility;
+                case DFCareer.Skills.Melee:
                     return DFCareer.Stats.Strength;
                 case DFCareer.Skills.Centaurian:
                     return DFCareer.Stats.Intelligence;
