@@ -3,15 +3,16 @@ version "4.10"
 // Test harness for the Pistols perks (tools/pistols/pistols_test.py). Not part of the game.
 // For each rule set it asks the fake Daggerfall peer for that sheet ("PISTTEST want <cfg>"), waits until Doom reads it,
 // then for each sample gun:
-//   fire sets (off, reload, reload60, pool): 5 shots at a close target that never moves, logging each
+//   fire sets (off, spray, mult, multpool, reload, reload60, pool; multpool's first shot is fired away from the target): 5 shots at a close target that never moves, logging each
 //     shot's hits, damage and the tics from the trigger until the gun is ready again; then, for a gun with a magazine,
 //     a reload from an empty magazine, timed the same way.
 //   line sets (carry, frag, turn, carryfrag): one shot at target A 64 units ahead. When A is first hit, the harness
 //     places the other targets along the shot's real line (the perk deals carry-through and fragments a tick later):
 //       carry      A (20 health) and B (30 health) die, C (huge) behind them takes what is left.
-//       frag       A huge; B straight behind (the middle fragment), C on the +15 degree fork (a side fragment).
-//       turn       A huge; D 4 degrees off the middle line (the middle fragment turns to it), E 7.5 degrees off both
-//                  the middle and the side lines (outside the 5 degree turn: nothing hits it).
+//       frag       A huge; B straight behind as far as the clear line allows (the middle fragment, no range limit),
+//                  C on the +15 degree fork (a side fragment: the V is 30 degrees).
+//       turn       A huge; D 2 degrees off the middle line (the middle fragment locks on to it), E 7.5 degrees off both
+//                  the middle and the side lines (outside the 2.5 degree lock-on: nothing hits it).
 //       carryfrag  A (20 health) dies; B (huge) straight behind takes the carry-through and A's middle fragment.
 //     Each target logs what it lost.
 
@@ -34,12 +35,12 @@ class PistPerkTest : EventHandler
 	Array<String> extraName;
 	Array<int> extraLost;
 	Vector3 spot;
-	double dirAngle;
+	double dirAngle, clear;
 	bool spotFound, placed;
 
 	override void OnRegister()
 	{
-		static const String c[] = { "off", "reload", "reload60", "pool", "carry", "frag", "turn", "carryfrag" };
+		static const String c[] = { "off", "spray", "mult", "multpool", "reload", "reload60", "pool", "carry", "frag", "turn", "carryfrag" };
 		static const String g[] = { "Pistol", "RLPistol", "RLHandcannon", "RLMarksmanPistol" };
 		for (int i = 0; i < c.Size(); i++) cfgs.Push(c[i]);
 		for (int i = 0; i < g.Size(); i++) { class<Actor> k = g[i]; if (k) guns.Push(g[i]); else Console.Printf("PISTTEST absent %s", g[i]); }
@@ -50,15 +51,22 @@ class PistPerkTest : EventHandler
 	// Sheet values 181..193 for each rule set; must match RULES in pistols_test.py.
 	static int RuleOf(String c, int idx)
 	{
+		bool rate = c == "spray" || c == "mult" || c == "multpool";
+		if (idx == 181) return rate ? 25000 : 0;
+		if (idx == 182) return rate ? 15000 : 0;
+		if (idx == 183) return c == "mult" || c == "multpool" ? 15000 : 0;
+		if (idx == 184) return c == "mult" || c == "multpool" ? 30000 : 0;
+		if (idx == 185) return rate ? 3 : 0;
+		if (idx == 186) return rate ? 8 : 0;
 		if (idx == 187) return c == "reload" ? 2000 : c == "reload60" ? 6000 : 0;
 		if (idx == 188) return c == "carry" || c == "carryfrag" ? 1 : 0;
-		bool pool = c == "pool" || c == "carry" || c == "carryfrag";
+		bool pool = c == "pool" || c == "multpool" || c == "carry" || c == "carryfrag";
 		if (idx == 189) return pool ? 100 : 0;
 		if (idx == 190) return pool ? 500 : 0;
 		bool frag = c == "frag" || c == "turn" || c == "carryfrag";
 		if (idx == 191) return frag ? 3 : 0;
 		if (idx == 192) return frag ? 3300 : 0;
-		if (idx == 193) return frag ? 5 : 0;
+		if (idx == 193) return frag ? 250 : 0;
 		return 0;
 	}
 
@@ -103,8 +111,8 @@ class PistPerkTest : EventHandler
 		Console.Printf("PISTTEST line yaw %.2f pitch %.2f", yaw, pitch);
 		if (c == "carry") { AddExtra("B", at + dir * 64, 30); AddExtra("C", at + dir * 128, 1000000); }
 		else if (c == "carryfrag") AddExtra("B", at + dir * 200, 1000000);
-		else if (c == "frag") { AddExtra("B", far + Dir(yaw, pitch) * 120, 1000000); AddExtra("C", far + Dir(yaw + 15, pitch) * 140, 1000000); }
-		else if (c == "turn") { AddExtra("D", far + Dir(yaw + 4, pitch) * 150, 1000000, "PistTestThin"); AddExtra("E", far + Dir(yaw - 7.5, pitch) * 180, 1000000, "PistTestThin"); }
+		else if (c == "frag") { AddExtra("B", far + Dir(yaw, pitch) * max(120, clear - 200), 1000000); AddExtra("C", far + Dir(yaw + 15, pitch) * 140, 1000000); }
+		else if (c == "turn") { AddExtra("D", far + Dir(yaw + 2, pitch) * 150, 1000000, "PistTestThin"); AddExtra("E", far + Dir(yaw - 7.5, pitch) * 180, 1000000, "PistTestThin"); }
 	}
 
 	static Vector3 Dir(double yaw, double pitch) { return (cos(yaw) * cos(pitch), sin(yaw) * cos(pitch), -sin(pitch)); }
@@ -139,6 +147,7 @@ class PistPerkTest : EventHandler
 			mo.LineTrace(a, 2000, 0, TRF_THRUACTORS, 32, 0, 0, d);
 			if (d.Distance > best) { best = d.Distance; dirAngle = a; }
 		}
+		clear = best;
 		spot = mo.pos;
 		spotFound = best >= 450;
 		Console.Printf("PISTTEST spot angle %.0f clear %.0f", dirAngle, best);
@@ -195,8 +204,8 @@ class PistPerkTest : EventHandler
 				mo.SetOrigin(spot, false); mo.vel = (0, 0, 0); mo.angle = dirAngle; mo.pitch = 0;
 				int first, second;
 				[first, second] = DoomerfallWeaponCategory.Both(heldGun);
-				Console.Printf("PISTTEST case %s %s cat=%s slot=%d", c, guns[gun], DoomerfallWeaponCategory.Label(first),
-					DoomerfallWeaponCategory.SkillSlotOf(heldGun));
+				Console.Printf("PISTTEST case %s %s cat=%s slot=%d scout=%d", c, guns[gun], DoomerfallWeaponCategory.Label(first),
+					DoomerfallWeaponCategory.SkillSlotOf(heldGun), DoomerfallPistols.ScoutOf(heldGun.GetClass()));
 				bool killA = c == "carry" || c == "carryfrag";
 				target = Place(64, killA ? 20 : 1000000);
 				phase = LineSet(c) ? 10 : 4;
@@ -217,6 +226,7 @@ class PistPerkTest : EventHandler
 				Fill(p, heldGun);
 				hits = 0; lost = 0;
 				Console.Printf("PISTTEST fire tic=%d", level.maptime);
+				mo.angle = c == "multpool" && shot == 0 ? dirAngle + 180 : dirAngle; // a miss
 				mo.FireWeapon(null);
 				fireTic = level.maptime; shot++;
 			}

@@ -7,7 +7,8 @@ harness (pistols_test.zs) asks for. The perk code logs what it changed (+set dd_
   stock    doomerfall.pk3 only: the stock Pistol.
   drla     play_drlax.bat's DRLA set: RLPistol, RLHandcannon, RLMarksmanPistol (and the stock Pistol).
   nobridge doomerfall.pk3 only, no bridge session: nothing changes.
-The fire-rate multipliers are not built (open), so they are not tested.
+Fire-rate multipliers: each gun's DRLA Scout multiplier (stock Pistol, RLPistol, RLHandcannon 8 = slowest; RLMarksmanPistol
+2 = beyond the fastest, 3) sets its place on the scale.
 """
 import ctypes as C, math, re, struct, subprocess, sys, time, uuid, zipfile
 from pathlib import Path
@@ -21,20 +22,24 @@ MODS = Path(r"D:\dev\DoomDaggerfall\GameMods")
 DRLA = ["DoomRL_Arsenal_1.1.5.pk3", "DoomRL_Monsters_Beta_7.3.pk3", "drlax_1.2b.pk3"]
 SHEET_INTS, SHEET_FORMAT_VERSION = 194, 12
 POOL = {189: 100, 190: 500}
-FRAG = {191: 3, 192: 3300, 193: 5}
+FRAG = {191: 3, 192: 3300, 193: 250}
+RATE = {181: 25000, 182: 15000, 185: 3, 186: 8}
+SCOUT = {"Pistol": 8, "RLPistol": 8, "RLHandcannon": 8, "RLMarksmanPistol": 2}  # tools/pistols/scout_scale.py
 RULES = {  # must match RuleOf in pistols_test.zs
-    "off": {}, "reload": {187: 2000}, "reload60": {187: 6000},
+    "off": {}, "spray": RATE, "mult": {**RATE, 183: 15000, 184: 30000},
+    "multpool": {**RATE, 183: 15000, 184: 30000, **POOL}, "reload": {187: 2000}, "reload60": {187: 6000},
     "pool": POOL, "carry": {188: 1, **POOL}, "frag": FRAG, "turn": FRAG, "carryfrag": {188: 1, **POOL, **FRAG}}
 BAD = re.compile(r'Script error, "(doomerfall|pisttest)\.pk3|(doomerfall|pisttest)\.pk3:zscript\S*, line \d+|\bFatal error|VM execution aborted|not implemented for', re.I)
-CASE = re.compile(r"PISTTEST case (\w+) (\w+) cat=(\w+) slot=(-?\d+)")
+CASE = re.compile(r"PISTTEST case (\w+) (\w+) cat=(\w+) slot=(-?\d+) scout=(\d+)")
 SHOT = re.compile(r"PISTTEST shot (\w+) (\w+) n=(\d+) hits=(\d+) lost=(\d+) cycle=(\d+)")
 RELOAD = re.compile(r"PISTTEST reload (\w+) (\w+) tics=(\d+) mag=(-?\d+)")
 LINE = re.compile(r"PISTTEST line (\w+) (\w+) hitsA=(\d+) lostA=(\d+)(.*)")
 DMG = re.compile(r"PISTTEST damage (\w) (\d+) inflictor (\S+) health (-?\d+)")
-HIT = re.compile(r"pistols: hit (\S+) with (\S+): (\d+) -> (\d+) \(pool \+(\d+)\)")
+HIT = re.compile(r"pistols: hit (\S+) with (\S+): (\d+) -> (\d+) \(x([\d.]+) scout (\d+), pool \+(\d+)\)")
 RFRAME = re.compile(r"pistols: reload (\S+) frame (\d+) -> (\d+) tics")
 CARRY = re.compile(r"pistols: carry (\S+) -> (\S+) damage (\d+)")
 FRAGL = re.compile(r"pistols: fragment (\S+) -> (\S+) damage (\d+) of (\d+)( turned)?")
+SPENT = re.compile(r"pistols: shot (\S+) spent pool (\d+)")
 TIC = re.compile(r"PISTTEST fire tic=(\d+)")
 OUT = []  # every check line, also written to <work folder>/result.txt
 
@@ -110,7 +115,7 @@ def split_cases(lines):
     for l in lines:
         if m := CASE.search(l):
             cur = (m.group(1), m.group(2))
-            cases[cur] = {"cat": m.group(3), "slot": int(m.group(4)), "lines": []}
+            cases[cur] = {"cat": m.group(3), "slot": int(m.group(4)), "scout": int(m.group(5)), "lines": []}
         elif "PISTTEST end" in l or "PISTTEST want" in l:
             cur = None
         elif cur:
@@ -131,6 +136,17 @@ def shots_of(lines):
     return out
 
 
+def want_mult(cfg, scout):
+    """Both fire-rate multipliers for a gun's Scout multiplier on the 3 (fast) .. 8 (slow) scale."""
+    if cfg not in ("spray", "mult", "multpool"):
+        return 1.0
+    t = min(1.0, max(0.0, (scout - 3) / 5))
+    m = 2.5 + (1.5 - 2.5) * t
+    if cfg != "spray":
+        m *= 1.5 + (3.0 - 1.5) * t
+    return m
+
+
 def r33(x):
     return max(1, int(math.floor(x * 0.33 + 0.5)))
 
@@ -147,36 +163,60 @@ def analyse(name, lines, checks, report):
           [l for l in lines if re.search(r"PISTTEST (stuck|noselect|timeout)", l)][:3])
     base = {}
     for (cfg, gun), c in split_cases(lines).items():
-        tag = f"{cfg} {gun} ({c['cat']}, slot {c['slot']})"
+        tag = f"{cfg} {gun} ({c['cat']}, slot {c['slot']}, scout x{c['scout']})"
         check(f"{tag}: reads as Pistols (slot 7)", c["slot"] == 7)
+        check(f"{tag}: Scout multiplier as DRLA's ({SCOUT.get(gun)})", c["scout"] == SCOUT.get(gun))
         L = c["lines"]
         perk = [l for l in L if "pistols:" in l]
         hl = [HIT.search(l) for l in perk if HIT.search(l)]
-        if cfg in ("off", "reload", "reload60", "pool"):
+        if cfg in ("off", "spray", "mult", "multpool", "reload", "reload60", "pool"):
             shots = shots_of(L)
             hits = [int(m.group(4)) for m, _, _ in shots]
             lost = sum(int(m.group(5)) for m, _, _ in shots)
             cycles = [int(m.group(6)) for m, _, _ in shots]
             rl = [RELOAD.search(l) for l in L if RELOAD.search(l)]
-            check(f"{tag}: 5 shots hit", len(shots) == 5 and all(h > 0 for h in hits), len(shots))
+            if cfg == "multpool":
+                miss = shots[0] if shots else None
+                spent = [SPENT.search(l) for l in (miss[1] if miss else []) if SPENT.search(l)]
+                check(f"{tag}: the first shot misses and still spends the full pool", miss and int(miss[0].group(4)) == 0
+                      and len(spent) == 1 and spent[0].group(2) == "100", (miss[0].group(0) if miss else None, [x.group(0) for x in spent]))
+                report.append(f"{gun} multpool: miss " + (spent[0].group(0).replace("pistols: ", "") if spent else "spent nothing"))
+                check(f"{tag}: 4 later shots hit", len(shots) == 5 and all(h > 0 for h in hits[1:]), len(shots))
+            else:
+                check(f"{tag}: 5 shots hit", len(shots) == 5 and all(h > 0 for h in hits), len(shots))
             if cfg == "off":
                 base[gun] = {"cycle": cycles, "reload": int(rl[0].group(3)) if rl else None}
                 check(f"{tag}: no perk activity with every rule off", not [l for l in perk], perk[:3])
                 report.append(f"{gun}: trigger-to-ready {cycles}"
                               + (f", empty-magazine reload {base[gun]['reload']} tics" if rl else ", no reload"))
+            if cfg in ("spray", "mult", "multpool"):
+                m = want_mult(cfg, SCOUT.get(gun, 0))
+                bad = []
+                for h in hl:
+                    d, nd, bonus = int(h.group(3)), int(h.group(4)), int(h.group(7))
+                    if abs(float(h.group(5)) - m) > 0.002 or int(h.group(6)) != SCOUT.get(gun) \
+                            or nd != max(1, int(math.floor(d * m + 0.5))) + bonus or (bonus != 0) != (cfg == "multpool"):
+                        bad.append(h.group(0))
+                n_hits = sum(hits)
+                ok = hl and not bad and len(hl) == n_hits and sum(int(h.group(4)) for h in hl) == lost
+                what = "x%.3f, then + the pool unmultiplied" % m if cfg == "multpool" else "x%.3f" % m
+                check(f"{tag}: every hit {what}; the target lost what the code logged", ok, (bad[:3], len(hl), n_hits, lost))
+                report.append(f"{gun} {cfg}: x{m:.3f}, " + ", ".join(f"{h.group(3)}->{h.group(4)}" + (f" (+{h.group(7)})" if cfg == "multpool" else "") for h in hl[:5]))
+                if cfg != "multpool":
+                    check(f"{tag}: the gun fires no faster ({cycles} vs off {base.get(gun, {}).get('cycle')})", cycles == base.get(gun, {}).get("cycle"))
             if cfg == "pool":
                 bad, prev = [], None
                 for (m, buf, tic) in shots:
                     for h in [HIT.search(l) for l in buf if HIT.search(l)]:
-                        bonus = int(h.group(5))
+                        bonus = int(h.group(7))
                         gap = tic - prev if prev is not None else 999
                         want = min(100, gap * 100 / 17.5)
-                        if not (want - 6 <= bonus <= 100) or int(h.group(4)) != int(h.group(3)) + bonus:
+                        if not (want - 6 <= bonus <= 100) or int(h.group(4)) != int(h.group(3)) + bonus or h.group(5) != "1.000":
                             bad.append(f"gap {gap} bonus {bonus} ({h.group(3)} -> {h.group(4)})")
                         prev = tic
-                ok = hl and not bad and len(hl) == sum(hits) and sum(int(h.group(4)) for h in hl) == lost and int(hl[0].group(5)) == 100
+                ok = hl and not bad and len(hl) == sum(hits) and sum(int(h.group(4)) for h in hl) == lost and int(hl[0].group(7)) == 100
                 check(f"{tag}: first hit +100, each later hit + what refilled since the last (100 per 0.5 s)", ok, (bad[:3], len(hl), lost))
-                report.append(f"{gun} pool: bonuses {[int(h.group(5)) for h in hl]}")
+                report.append(f"{gun} pool: bonuses {[int(h.group(7)) for h in hl]}")
             if cfg in ("reload", "reload60"):
                 share_want = 0.2 if cfg == "reload" else 0.6
                 b = base.get(gun, {})
@@ -231,7 +271,7 @@ def analyse(name, lines, checks, report):
             f = r33(hit)
             turned = [x for x in fl if x.group(5)]
             ok = len(fl) == 3 and got.get("D") == f and got.get("E") == 0 and len(turned) == 1 and turned[0].group(2) == "PistTestThin"
-            check(f"{tag}: the middle fragment turns into D (4 degrees off), E (7.5 degrees off every line) untouched", ok,
+            check(f"{tag}: the middle fragment locks on to D (2 degrees off), E (7.5 degrees off every line, outside 2.5) untouched", ok,
                   ([x.group(0) for x in fl], got))
             report.append(f"{gun} turn: fragments {[x.group(2) + (' turned' if x.group(5) else '') for x in fl]}, D {got.get('D')}, E {got.get('E')}")
         elif cfg == "carryfrag":

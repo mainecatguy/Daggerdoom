@@ -275,18 +275,25 @@ Energy Weapons covers plasma, laser and BFG guns, such as the stock Plasma Rifle
 
 Pistols covers pistols, such as the stock pistol, the Pistol, the Handcannon and the Marksman Pistol. Rifles never count.
 
-- **25:** pistols reload 20% faster.
+- **25:** pistols deal more damage the faster they fire: x2.5 for the fastest pistols, down to x1.5 for the slowest.
+  Pistols reload 20% faster.
 - **50:** pistols reload 40% faster. **Overkill:** when a pistol shot kills an enemy, the damage left over goes on through
   the body into the next enemy behind it, and on again if that one dies too, until the damage runs out. **Bonus
-  damage:** your next pistol shot does 100 extra damage if it hits; a miss wastes it. The bonus refills in half a
-  second, so a pistol that fires a little slower than that gets it on every shot.
-- **75:** pistols reload 60% faster.
-- **100: Shrapnel.** Every pistol hit, and every overkill hit, bursts into 3 fragments that fly on behind the enemy in a
-  V, each doing a third of that hit's damage. A fragment never hurts the enemy it came out of, and fragments do not
-  burst again or carry overkill. A fragment swerves into an enemy that is almost in its path.
+  damage:** every pistol shot uses up a 100-damage bonus, added to its damage if it hits; a miss wastes it. The bonus
+  refills in half a second, so a pistol that fires a little slower than that gets it on every shot.
+- **75: Deadeye.** Pistols deal more damage the slower they fire: x1.5 for the fastest pistols, up to x3 for the
+  slowest. This multiplies with the skill 25 bonus, but not with the 100-damage bonus, which is always just 100.
+  Pistols reload 60% faster.
+- **100: Shrapnel.** Every pistol hit, and every overkill hit, bursts into 3 fragments that fan out behind the enemy in a
+  30-degree V, each doing a third of that hit's damage, however far they fly. A fragment never hurts the enemy it came
+  out of, and fragments do not burst again or carry overkill. A fragment locks on to an enemy that is almost exactly in
+  its path. Fragment hits make a smaller splash than a bullet, because they are weaker.
+- **Fast and slow pistols** are the same as for the Doom Roguelike Arsenal's Scout class. The slowest are the stock
+  pistol, the Pistol, the Handcannon, revolvers and most plasma and laser pistols; the Combat Pistol and Storm pistols
+  are a little faster; the Shredder Pistol is in the middle; the Plasma Uzi is nearly the fastest; the Marksman Pistol
+  counts as the fastest. With both multipliers, a slow pistol does x4.5 damage and the fastest do x3.75.
 - Overkill and fragments fly level from where the shot hit, and stop at walls like bullets.
 - The stock Doom pistol has no reload, so the faster reloads do nothing for it; everything else works with it.
-- Planned but not working yet: fast-firing pistols will deal more damage at 25, and slow-firing pistols more at 75.
 - These only work in the Daggerfall world, and your current skill counts.
 
 ## Falling and jumping

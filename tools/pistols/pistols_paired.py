@@ -31,15 +31,16 @@ MAP = sys.argv[3] if len(sys.argv) > 3 and sys.argv[2] == "run" else "MAP01"
 STEPS = "20,26,50,75,100,20,26,50,75,100"
 CARRY = re.compile(r"pistols: carry (\S+) -> (\S+) damage (\d+)")
 FRAG = re.compile(r"pistols: fragment (\S+) -> (\S+) damage (\d+) of (\d+)( turned)?")
-HIT = re.compile(r"pistols: hit (\S+) with (\S+): (\d+) -> (\d+) \(pool \+(\d+)\)")
+HIT = re.compile(r"pistols: hit (\S+) with (\S+): (\d+) -> (\d+) \(x([\d.]+) scout (\d+), pool \+(\d+)\)")
 
 
 def rules(skill):
     """DoomerfallPistolsRules.Fill, sheet 181..193."""
     steps = (skill >= 75) + (skill >= 50) + (skill >= 25)
-    s50, s100 = skill >= 50, skill >= 100
-    return [0, 0, 0, 0, 0, 0, 2000 * steps,
-            1 if s50 else 0, 100 if s50 else 0, 500 if s50 else 0, 3 if s100 else 0, 3300 if s100 else 0, 5 if s100 else 0]
+    s25, s50, s75, s100 = skill >= 25, skill >= 50, skill >= 75, skill >= 100
+    return [25000 if s25 else 0, 15000 if s25 else 0, 15000 if s75 else 0, 30000 if s75 else 0, 3 if s25 else 0, 8 if s25 else 0,
+            2000 * steps, 1 if s50 else 0, 100 if s50 else 0, 500 if s50 else 0, 3 if s100 else 0, 3300 if s100 else 0,
+            250 if s100 else 0]
 
 
 def r33(x):
@@ -128,18 +129,26 @@ def analyse(out, text, dft, fatal):
         want = rules(s)
         check("Doom read Daggerfall's rules for the skill", c["read"] == want, f"skill {s}: read {c['read']} want {want}")
         hit = e["hit"]
-        line = f"skill {s}: hit {hit}" + (f" (pool +{c['hit'][0].group(5)})" if c["hit"] else "") + f", A {e['A']}, B {e['B']}, C {e['C']}"
+        line = f"skill {s}: hit {hit}" + (f" (x{c['hit'][0].group(5)}, pool +{c['hit'][0].group(7)})" if c["hit"] else "") + f", A {e['A']}, B {e['B']}, C {e['C']}"
         line += "; " + "; ".join(x.group(0).replace("pistols: ", "") for x in c["carry"] + c["frag"])
         report.append(line)
-        if s < 50:
-            check("below 50: no pool, no carry-through, no fragments", not c["hit"] and not c["carry"] and not c["frag"] and e["B"] == 0, line)
+        # DRLA Pistol: Scout x8, the slow end: x1.5 from 25, x1.5 * x3 = x4.5 from 75.
+        mult = 4.5 if s >= 75 else 1.5 if s >= 25 else 1.0
+        h0 = c["hit"][0] if len(c["hit"]) == 1 else None
+        rated = h0 is not None and abs(float(h0.group(5)) - mult) < 0.002 and h0.group(6) == "8"             and int(h0.group(4)) == max(1, int(int(h0.group(3)) * mult + 0.5)) + int(h0.group(7)) and int(h0.group(4)) == hit
+        if s < 25:
+            check("below 25: no multiplier, no pool, no carry-through, no fragments", not c["hit"] and not c["carry"] and not c["frag"] and e["B"] == 0, line)
             continue
-        pooled = len(c["hit"]) == 1 and c["hit"][0].group(5) == "100" and int(c["hit"][0].group(4)) == hit
+        if s < 50:
+            check("25: the hit x1.5 (DRLA Pistol, slow), no pool, no carry-through, no fragments",
+                  rated and h0.group(7) == "0" and not c["carry"] and not c["frag"] and e["B"] == 0, line)
+            continue
+        pooled = rated and h0.group(7) == "100"
         left = hit - 20
         ok = pooled and len(c["carry"]) >= 1 and int(c["carry"][0].group(3)) == left and c["carry"][0].group(2) == "PistPairTarget"
         if s < 100:
             ok = ok and not c["frag"] and e["B"] == left and e["C"] == 0
-            check("50 and 75: +100 pool, A dies, B takes exactly what was left, no fragments", ok, line)
+            check("50 and 75: x1.5 / x4.5 then +100 pool, A dies, B takes exactly what was left, no fragments", ok, line)
         else:
             fromA = [x for x in c["frag"] if int(x.group(4)) == hit]
             fromB = [x for x in c["frag"] if int(x.group(4)) == left]

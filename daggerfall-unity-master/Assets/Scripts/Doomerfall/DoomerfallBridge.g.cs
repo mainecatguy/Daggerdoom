@@ -8,7 +8,7 @@ namespace DaggerfallWorkshop.Game.Doomerfall
 {
     static class Dfb
     {
-        public const ulong SchemaHash = 0x37251a22f2b40a03UL;
+        public const ulong SchemaHash = 0xdb1139796d249ab1UL;
 
         public const uint MAGIC = 0x42464444;  // "DDFB"
         public const uint PROTOCOL_VERSION = 7;
@@ -272,19 +272,19 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         public const int SHEET_ENERGY_CONVERT_BP = 178;  // a direct hit first turns this much of the enemy's burn into instant damage
         public const int SHEET_ENERGY_BURST_BP = 179;  // that converted damage bursts out, setting enemies nearby burning for this ...
         public const int SHEET_ENERGY_BURST_RADIUS = 180;  // ... much of it, within this many map units (0: no burst)
-        public const int SHEET_PIST_RESERVED_1 = 181;
-        public const int SHEET_PIST_RESERVED_2 = 182;
-        public const int SHEET_PIST_RESERVED_3 = 183;
-        public const int SHEET_PIST_RESERVED_4 = 184;
-        public const int SHEET_PIST_RESERVED_5 = 185;
-        public const int SHEET_PIST_RESERVED_6 = 186;
+        public const int SHEET_PIST_SPRAY_FAST_BP = 181;  // skill 25 damage multiplier for the fastest pistols, in 1/10000ths ...
+        public const int SHEET_PIST_SPRAY_SLOW_BP = 182;  // ... and for the slowest
+        public const int SHEET_PIST_DEADEYE_FAST_BP = 183;  // skill 75 Deadeye multiplier for the fastest pistols, in 1/10000ths ...
+        public const int SHEET_PIST_DEADEYE_SLOW_BP = 184;  // ... and for the slowest (multiplies with the skill 25 one; not the pool)
+        public const int SHEET_PIST_SCALE_FAST = 185;  // the DRLA Scout multiplier that counts as the fastest pistol (3) ...
+        public const int SHEET_PIST_SCALE_SLOW = 186;  // ... and as the slowest (8); a gun outside counts as the nearer end
         public const int SHEET_PIST_RELOAD_BP = 187;  // reloads take this much less time, in 1/10000ths (20/40/60%)
         public const int SHEET_PIST_CARRY = 188;  // 1: a killing hit's leftover damage carries on to the next enemy behind
         public const int SHEET_PIST_POOL = 189;  // bonus damage pool size, spent by each pistol shot (added to its hit) ...
         public const int SHEET_PIST_POOL_REFILL_MS = 190;  // ... refilling from empty in this long
         public const int SHEET_PIST_FRAGMENTS = 191;  // shrapnel: each pistol hit bursts into this many fragments behind the enemy ...
         public const int SHEET_PIST_FRAGMENT_BP = 192;  // ... each dealing this much of the hit's damage, in 1/10000ths ...
-        public const int SHEET_PIST_FRAGMENT_TURN = 193;  // ... turning to an enemy within this many degrees of its path
+        public const int SHEET_PIST_FRAGMENT_TURN_CDEG = 193;  // ... locking on to an enemy within this many 1/100ths of a degree of its path
         public const uint UI_NONE = 0;
         public const uint UI_TRAVEL_MAP = 1;
         public const uint UI_INVENTORY = 2;
