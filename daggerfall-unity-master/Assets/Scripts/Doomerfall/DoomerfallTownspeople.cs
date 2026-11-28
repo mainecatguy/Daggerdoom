@@ -451,13 +451,14 @@ namespace DaggerfallWorkshop.Game.Doomerfall
         }
 
         // Doom reports where a Daggerfall person's body fell, just before the death itself. Daggerfall decides the
-        // corpse: a townsperson lies as the human corpse, except a guard, who becomes the city watch instead
-        // (ApplyCrime); a city guard lies as its own enemy corpse (guardCorpse, from DoomerfallGuards); a Daggerfall
-        // creature shown in Doom (creature = its MobileTypes value + 1) lies as that creature's corpse.
+        // corpse, as Daggerfall Unity does: a townsperson leaves none (it vanishes after the blood splash; a guard
+        // townsperson becomes the city watch instead, ApplyCrime); a city guard lies as its own enemy corpse (from
+        // DoomerfallGuards); a Daggerfall creature shown in Doom (creature = its MobileTypes value + 1) lies as that
+        // creature's corpse.
         internal void OnCorpsePlace(ulong id, double x, double y, float z, uint space, uint creature, DoomerfallGuards guards)
         {
             string key = id.ToString("x16");
-            int archive = DoomerfallCorpses.HumanArchive, record = DoomerfallCorpses.HumanRecord;
+            int archive, record;
             if (creature != 0)
             {
                 if (!DoomerfallCorpses.CreatureCorpse((int)creature - 1, out archive, out record))
@@ -469,11 +470,10 @@ namespace DaggerfallWorkshop.Game.Doomerfall
             else if ((id >> 61) == Dfb.TOWNSPERSON_TAG)
             {
                 TownPerson p = FindPersonAnyState(id);
-                if (p != null && p.guard)
-                {
-                    bridge.LogLine("corpse: " + key + " was a guard, who becomes the city watch and leaves no corpse");
-                    return;
-                }
+                bridge.LogLine("corpse: " + key + (p != null && p.guard
+                    ? " was a guard, who becomes the city watch and leaves no corpse"
+                    : " was a townsperson, who leaves no corpse in Daggerfall"));
+                return;
             }
             else if ((id >> 61) == Dfb.GUARD_TAG)
                 guards.CorpseOf(id, out archive, out record);

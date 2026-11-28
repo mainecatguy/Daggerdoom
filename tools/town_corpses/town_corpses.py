@@ -1,11 +1,12 @@
-"""Daggerfall townspeople and guards leave corpses in Doom, drawn from Daggerfall's own files at run time.
+"""Daggerfall guards and creatures leave corpses in Doom, drawn from Daggerfall's own files at run time; townspeople
+die with Daggerfall's blood splash and leave none, as in Daggerfall Unity.
 
 usage: town_corpses.py assemble <source review folder> | run NAME (kill | creature | guard | load | guardload | guardreload) [--pack] | check
 assemble builds review\\town-corpses from a paired review folder (data, dfitems.pk3, portable Daggerfall Unity) with
 this checkout's UZDoom (D:\\dev\\DoomDaggerfall-build\\uzdoom-corpses), launcher, bridge, Daggerfall Unity build and
 doomerfall.pk3, and writes the demo play.bat.
 run kill: town start with DRLA; kill the nearest townsperson (test only), screenshots before, during the blood splash
-and of the corpse, leave town and walk back, list the corpses again, autosave.
+and of the spot (no corpse expected), leave town and walk back, list the corpses again, autosave.
 run creature: as kill, but spawn a Daggerfall rat (test only), watch its images, kill it.
 run guard: the same at noon with Daggerfall's -dfguardtest: enter the Gothway tavern, kill one of the guard bots
 Daggerfall sends in, screenshots, go out and back in, list the corpses again, autosave.
@@ -133,11 +134,12 @@ def write_demo():
     line = " ".join(f'"{a}"' if " " in a or "\\" in a else a for a in command).replace(str(REVIEW) + "\\", "%HERE%")
     (REVIEW / "play.bat").write_text(
         "@echo off\r\n"
-        "rem Townspeople leave corpses. Town start with DRLA in a 1280x800 window.\r\n"
-        "rem Shoot a townsperson: Daggerfall's blood splash plays and Daggerfall's corpse stays where they fell. Daggerfall\r\n"
-        "rem counts it as murder and calls the guards. Walk out of town and back, or save and load: the corpse is still there.\r\n"
-        "rem Kill a guard inside a building: the same. The images come from Daggerfall's own files, so a texture pack\r\n"
-        "rem image in dfu\\DaggerfallUnity_Data\\StreamingAssets\\Textures (for example 380_1-0.png) shows in Doom too.\r\n"
+        "rem Daggerfall deaths and corpses. Town start with DRLA in a 1280x800 window.\r\n"
+        "rem Shoot a townsperson: Daggerfall's blood splash plays and, as in Daggerfall, no corpse is left. Daggerfall\r\n"
+        "rem counts it as murder and calls the guards. Walk out of town and back, or save and load: they stay dead.\r\n"
+        "rem Kill a guard inside a building: its corpse stays where it fell, also after leaving and returning or a save and load.\r\n"
+        "rem The images come from Daggerfall's own files, so a texture pack image in\r\n"
+        "rem dfu\\DaggerfallUnity_Data\\StreamingAssets\\Textures (for example 380_1-0.png, the guard corpse) shows in Doom too.\r\n"
         "set \"HERE=%~dp0\"\r\n"
         "if not exist \"%HERE%play\" mkdir \"%HERE%play\"\r\n"
         f"start \"\" {line}\r\n", newline="")
