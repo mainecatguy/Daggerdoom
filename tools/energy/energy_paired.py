@@ -9,7 +9,7 @@ usage: energy_paired.py <play folder> assemble <base play folder> <uzdoom build 
   run       Daggerfall (its city save) with Doom on MAP01, -dfperktest EnergyWeapons -dfperksteps 20,26,50,75,100 twice.
             The Doom harness (energy_paired.zs) fires DRLA's Plasma Rifle 3 times per cycle at a target with a monster
             beside it.
-Checks: Doom read the rules DoomerfallEnergyRules.cs gives for each skill; every hit gets the skill's damage bonus; the
+Checks: Doom read the rules DoomerfallRules.zs gives for each skill; every hit gets the skill's damage bonus; the
 projectiles fly at the skill's speed; from 25 the neighbour takes splash, below 25 it takes nothing; Daggerfall showed
 the 25/50/75/100 perk text with all of each level's effects, burn included; hits burn for the level's share (50/100/125/150%),
 from 50 later hits convert 20% / 40% of the burn, at 100 conversions burst into the neighbour. Wrap the whole script in quiet_run.py.

@@ -424,14 +424,14 @@ class DoomerfallAmmoTiers : StaticEventHandler
 	// ---- Luck (owner 2026-11-27, replacing card attributes/04's extra-drop rule) ---------------------------------
 	// Every monster death has a Luck/2 percent chance to drop ammo (0% at Luck 0, 50% at Luck 100; Luck above 100 counts
 	// as 100; no chance without Luck), whoever killed it. Daggerfall sends live Luck with the character sheet
-	// (DD_SheetStat). Only a death with a fixed loot seed rolls: a monster Daggerfall placed, not a summoned or revived
+	// (DD_SheetStat); the chance is Doom's shared rule (DoomerfallRules.LuckAmmoDrop). Only a death with a fixed loot seed rolls: a monster Daggerfall placed, not a summoned or revived
 	// one, which drops nothing (dd_lootrng). Town guards are player pawns, not monsters, and never roll. The roll is a
 	// hash of that seed with its own salt, so it draws from no random stream, and the pickup is spawned on the next
 	// WorldTick, outside the death's loot scope, so the monster's own loot is untouched. The same kill gets the same
 	// number every game. The drop is exactly one pickup, half a small one (a monster's
 	// dropped clip), of a type picked evenly from the four by the same hash, its tier from the area level's usual odds.
 	// No jackpot: Luck decides only whether ammo drops at all.
-	const LuckStat = 7; // DFCareer.Stats.Luck
+	const LuckStat = DoomerfallRules.StatLuck;
 	const LuckSalt = 0x4c75636b;
 
 	override void WorldThingDied(WorldEvent e)
@@ -445,7 +445,7 @@ class DoomerfallAmmoTiers : StaticEventHandler
 		if (luck <= 0) return;
 		int seed = Mix(Mix(0x011c9dc5, lootSeed), LuckSalt);
 		double roll = Unit(seed, 1);
-		bool drop = roll * 200 < min(luck, 100);
+		bool drop = DoomerfallRules.LuckAmmoDrop(luck, roll);
 		DDLog.Debug(String.Format("DFAMMO luck kill %s luck %d roll %.4f %s", mo.GetClassName(), luck, roll, drop ? "drop" : "none"));
 		if (!drop) return;
 		int type = min(3, int(Unit(seed, 2) * 4));

@@ -8,7 +8,7 @@ usage: automatics_paired.py <play folder> assemble <base play folder> <uzdoom bu
   run       Daggerfall city with -dfperktest Automatics -dfperksteps 20,26,50,75,100: Daggerfall sets the Automatics
             skill to each value in turn and opens a perk window at 25, 50, 75 and 100, which the script clicks shut.
             The Doom harness (automatics_paired.zs) fires DRLA's Chaingun at a target in cycles and logs each one.
-Checks, per cycle: the rules Doom read match Daggerfall's skill (DoomerfallAutomaticsRules.cs); every hit carries the
+Checks, per cycle: the rules Doom read match Daggerfall's skill (DoomerfallRules.zs); every hit carries the
 right factor (damage bonus, and the burst bonus on shots 1-3); ammo use follows one ammo per 1, 2 or 4 shots; the probe
 hit shows the sunder stacks. Wrap the whole script in quiet_run.py. Output goes to <play folder>/../automatics-paired.
 """

@@ -1,12 +1,12 @@
-// The Explosives skill in Doom (work/backlog/skills-in-doom.md, Explosives). Daggerfall decides the rules from the
-// live skill and sends them in the character sheet (DFB_SHEET_EXPL_*, DoomerfallExplosivesRules.cs); Doom applies them
+// The Explosives skill in Doom (work/backlog/skills-in-doom.md, Explosives). Daggerfall sends the live skill in the
+// character sheet; Doom's shared rules (DoomerfallRules.zs, Expl*) turn it into the numbers below, and this applies them
 // to shots from a gun whose skill is Explosives (DoomerfallWeaponCategory.SkillSlotOf), such as stock Doom's or DRLA's
 // rocket launcher. Without a Daggerfall character every rule reads off, so a Doom-only game is unchanged.
 //
 //   damage bonus   every hit from the gun's shots, direct or splash, does +x% to others (0 to 60%).
 //   self cut       the player's own splash from the gun's shots is cut by x% (95% at 25, 99% at 75).
-//   direct bonus   the enemy a shot hits directly takes +x% more from that impact (50; Daggerfall sends 0 until the
-//                  owner sets the amount).
+//   direct bonus   the enemy a shot hits directly takes +x% more from that impact (50; 0 until the owner sets the
+//                  amount).
 //   chain          Inpulsa's Broken Heart (100): a monster the gun's shots kill explodes for x% of its maximum health
 //                  in a radius; monsters those blasts kill explode at half that, and so on. The blasts never hurt a
 //                  player, and get no damage bonus. They wait in a queue and at most MaxBlastsPerTic go off in one tic,
@@ -18,20 +18,19 @@
 // guns' shots, the chain blasts and anything else get nothing. Fractional damage rounds with the chance of the fraction.
 class DoomerfallExplosives : StaticEventHandler
 {
-	// DFB_SHEET_* indices; must match bridge/doomerfall_bridge.h.
-	const SheetValid = 2;
-	const SkillExplosives = 6;
-	const ExplDamageBp = 162;
-	const ExplSelfCutBp = 163;
-	const ExplDirectBp = 164;
-	const ExplChainBp = 165;
-	const ExplChainRadius = 166;
+	const SkillExplosives = DoomerfallRules.SkillExplosives;
+	const ExplDamageBp = DoomerfallRules.ExplDamageBp;
+	const ExplSelfCutBp = DoomerfallRules.ExplSelfCutBp;
+	const ExplDirectBp = DoomerfallRules.ExplDirectBp;
+	const ExplChainBp = DoomerfallRules.ExplChainBp;
+	const ExplChainRadius = DoomerfallRules.ExplChainRadius;
 
 	const MaxBlastsPerTic = 16;
 
+	// A perk rule's value (DoomerfallRules.Get: Doom applies the rule to Daggerfall's character sheet), 0 if off.
 	clearscope static int Rule(int index)
 	{
-		return max(0, Actor.DD_SheetValue(index));
+		return DoomerfallRules.Get(index);
 	}
 
 	// damage * factor, rounding the fraction up with its chance; at least minimum.
@@ -117,7 +116,7 @@ class DoomerfallExplosives : StaticEventHandler
 	override void WorldTick()
 	{
 		FireBlasts();
-		if (Actor.DD_SheetValue(SheetValid) != 1) return; // Rules come from Daggerfall's character only.
+		if (!DoomerfallRules.HasCharacter()) return; // Rules come from Daggerfall's character only.
 		for (int i = 0; i < MAXPLAYERS; i++)
 		{
 			let mo = playeringame[i] ? players[i].mo : null;

@@ -1,6 +1,6 @@
 // The Energy Weapons skill in Doom (work/backlog/skills-in-doom.md, Energy Weapons; perks cards 06 and 08).
-// Daggerfall decides the rules from the live skill and sends them in the character sheet (DFB_SHEET_ENERGY_*,
-// DoomerfallEnergyRules.cs); Doom applies them to shots from a gun whose skill is Energy Weapons
+// Daggerfall sends the live skill in the character sheet; Doom's shared rules (DoomerfallRules.zs, Energy*) turn it
+// into the numbers below, and this applies them to shots from a gun whose skill is Energy Weapons
 // (DoomerfallWeaponCategory.SkillSlotOf), such as stock Doom's Plasma Rifle and BFG9000 or DRLA's plasma and laser guns.
 // Without a Daggerfall character every rule reads off, so a Doom-only game is unchanged.
 //
@@ -24,17 +24,16 @@
 // the chance of the fraction.
 class DoomerfallEnergy : StaticEventHandler
 {
-	// DFB_SHEET_* indices; must match bridge/doomerfall_bridge.h.
-	const SheetValid = 2;
-	const SkillEnergy = 9;
-	const EnergyDamageBp = 173;
-	const EnergySplashBp = 174;
-	const EnergySplashRadius = 175;
-	const EnergySpeedBp = 176;
+	const SkillEnergy = DoomerfallRules.SkillEnergy;
+	const EnergyDamageBp = DoomerfallRules.EnergyDamageBp;
+	const EnergySplashBp = DoomerfallRules.EnergySplashBp;
+	const EnergySplashRadius = DoomerfallRules.EnergySplashRadius;
+	const EnergySpeedBp = DoomerfallRules.EnergySpeedBp;
 
+	// A perk rule's value (DoomerfallRules.Get: Doom applies the rule to Daggerfall's character sheet), 0 if off.
 	clearscope static int Rule(int index)
 	{
-		return max(0, Actor.DD_SheetValue(index));
+		return DoomerfallRules.Get(index);
 	}
 
 	// damage * factor, rounding the fraction up with its chance; at least minimum.
@@ -74,7 +73,7 @@ class DoomerfallEnergy : StaticEventHandler
 
 	override void WorldTick()
 	{
-		if (Actor.DD_SheetValue(SheetValid) != 1) return; // Rules come from Daggerfall's character only.
+		if (!DoomerfallRules.HasCharacter()) return; // Rules come from Daggerfall's character only.
 		for (int i = 0; i < MAXPLAYERS; i++)
 		{
 			let mo = playeringame[i] ? players[i].mo : null;

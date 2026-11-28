@@ -181,20 +181,23 @@ class ExpPairHarness : EventHandler
 		if (!ender) { ender = new("ExpPairTicEnd"); ender.ChangeStatNum(101); ender.h = self; }
 		if (!mo || mo.health <= 0 || level.maptime < 140 || Actor.DD_SheetValue(2) != 1) return;
 		int skill = Actor.DD_SheetSkill(6);
+		// DRLA's random class can be the Demolitionist (RadiusDamageFactor 0: immune to its own splash), which would
+		// hide the own-splash cut. Give it the normal factor.
+		if (mo.RadiusDamageFactor != 1) { Console.Printf("PAIRED radius factor %.2f -> 1", mo.RadiusDamageFactor); mo.RadiusDamageFactor = 1; }
 		if (level.maptime % 5 == 0) RemoveHostiles(mo);
 		if (phase >= 10) { PackTick(p); return; }
 		if (!target)
 		{
 			if (!Ready(p)) return;
 			if (!aimed) { Aim(mo); aimed = true; }
-			if (Actor.DD_SheetValue(165) > 0 && packs < 3) { phase = 10; packTic = level.maptime; SpawnPack(p); return; }
-			near = skill != lastSkill && Actor.DD_SheetValue(163) > 0;
+			if (DoomerfallRules.Get(10) > 0 && packs < 3) { phase = 10; packTic = level.maptime; SpawnPack(p); return; }
+			near = skill != lastSkill && DoomerfallRules.Get(8) > 0;
 			lastSkill = skill;
 			mo.pitch = 0;
 			target = Actor.Spawn("ExpPairTarget", mo.Vec3Angle(near ? 100 : 240, mo.angle, 0));
 			t = 0; cycle++;
 			Console.Printf("PAIRED start %d skill=%d dmg=%d cut=%d direct=%d chain=%d radius=%d near=%d", cycle, skill,
-				Actor.DD_SheetValue(162), Actor.DD_SheetValue(163), Actor.DD_SheetValue(164), Actor.DD_SheetValue(165), Actor.DD_SheetValue(166), near);
+				DoomerfallRules.Get(7), DoomerfallRules.Get(8), DoomerfallRules.Get(9), DoomerfallRules.Get(10), DoomerfallRules.Get(11), near);
 			if (near) LogProtection(mo);
 			return;
 		}

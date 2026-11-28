@@ -87,6 +87,35 @@ Doomerfall's gameplay changes to Doom and DRLA live in our own PK3, built from `
 - Do not commit copied DRLA assets or other game data.
 - All DRLA monsters are used unchanged for now (owner, 2026-11-23). Monsters may push and move the player, because Doom owns player movement and position.
 - Possible future customization: better handling of Arch-vile resurrection. See "Handle Arch-vile resurrection" in `work/backlog.md`.
+
+## Character sheet and rules
+
+The pattern every perk and attribute follows (owner, 2026-11-27, Q&A item 45): **Daggerfall sends its character sheet
+to Doom, and Doom applies the rules based on that sheet.**
+
+- **Daggerfall sends the sheet, not rule results.** The sheet (`DFB_SHEET_*` in `bridge/doomerfall_bridge.h`, filled by
+  `DoomerfallSheet.cs`) holds the character's own values: attributes and skills (base and live), level, armor,
+  resistances, tolerances and the like. Daggerfall keeps owning them: it raises, drains, saves and loads them.
+- **Doom keeps the rule formulas in one place:** `mods/doomerfall/src/zscript/DoomerfallRules.zs`. It reads the sheet
+  and turns it into numbers: the attribute effects (Strength, Speed, Agility, Luck), the Jumping skill and falling
+  damage, and the gun skill perks (Automatics, Explosives, Shotguns, Energy Weapons). Systems that act on a rule (the
+  attribute item in `DoomerfallAttributes.zs`, `DoomerfallJump.zs`, the perk files) ask `DoomerfallRules` and hold no
+  rule numbers of their own. Agility is part of the shared attribute item, as Strength and Speed are.
+- **A new perk or attribute copies this:** read the sheet value it depends on (add it to the sheet if it is missing),
+  write its formula in `DoomerfallRules.zs`, and call it from the system that applies it. Do not compute the numbers in
+  Daggerfall and send them, and do not hard-code them in the system that applies them. Each rule says which value it
+  uses: the gun skill perks and attributes use the live value (fortify and drain count), Jumping follows the base value.
+  Without a Daggerfall character every sheet read is -1 and every rule reads "no change", so stock Doom is untouched.
+- **Exceptions, each for a reason:**
+  - Daggerfall's own moddable formulas stay in Daggerfall, which sends their results, so formula mods keep working:
+    the climbing chances (`FormulaHelper.CalculateClimbingChance`, `DFB_SHEET_CLIMB_CHANCE`) and the magic resistance
+    added to saving throws (`DFB_SHEET_MAGIC_RESIST`).
+  - A rule inside the engine's own damage path is applied in C++ (`UZDoom/src/dd_bridge.cpp`: Willpower's damage
+    reduction, `DD_BridgeWillpowerDamage`, which runs last on all damage). It reads the same sheet.
+  - Endurance's maximum HP stays in Daggerfall (`DoomerfallEndurance.MaxHealth`), because Daggerfall owns HP.
+- The sheet's old perk rule slots (155-180) are reserved and stay 0. The Doom-only perk tests still use them to hand
+  Doom a hand-picked rule set; `tools/rules/rules_test.py` checks the formulas themselves.
+
 ## State ownership: live and permanent
 
 The rule behind the engine split (owner, 2026-11-24): **UZDoom is the authority on moment-to-moment tactical state.

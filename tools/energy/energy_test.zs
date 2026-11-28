@@ -117,6 +117,7 @@ class EnPerkTest : EventHandler
 
 	override void WorldTick()
 	{
+		PerkRuleFeed.Sync();
 		PlayerInfo p = players[consoleplayer];
 		let mo = p.mo;
 		if (!mo || level.maptime < 20) return;
@@ -258,5 +259,19 @@ class EnPerkTest : EventHandler
 		int n = 0;
 		for (int i = 0; i < pack.Size(); i++) if (pack[i] && DoomerfallBurn.Burning(pack[i])) n++;
 		return n;
+	}
+}
+
+// Daggerfall sends the character sheet and Doom applies the rules (DoomerfallRules.zs), so a real character's perk rules
+// come from its skill. This test's fake Daggerfall instead writes a hand-picked rule set in the sheet's reserved perk
+// slots (155-180, in DoomerfallRules order); this hands that set to Doom's rules each tic, before the playsim uses them.
+class PerkRuleFeed play
+{
+	static void Sync()
+	{
+		let r = DoomerfallRules(StaticEventHandler.Find("DoomerfallRules"));
+		if (!r) return;
+		r.testRules = Actor.DD_SheetValue(2) == 1; // no Daggerfall character: the rules read off, as in a real game
+		for (int i = 0; i < DoomerfallRules.RuleCount; i++) r.testRule[i] = max(0, Actor.DD_SheetValue(155 + i));
 	}
 }

@@ -100,6 +100,9 @@ class ExpPerkTest : EventHandler
 	// it away so what the player loses is what the perk let through.
 	void StripArmor(Actor mo)
 	{
+		// DRLA's random class can be the Demolitionist (RadiusDamageFactor 0: immune to all splash, own rockets too),
+		// which would hide the self-splash cases. Give it the normal factor.
+		if (mo.RadiusDamageFactor != 1) { Console.Printf("EXPTEST radius factor %.2f -> 1", mo.RadiusDamageFactor); mo.RadiusDamageFactor = 1; }
 		Array<Inventory> gone;
 		for (let i = mo.Inv; i; i = i.Inv)
 		{
@@ -172,6 +175,7 @@ class ExpPerkTest : EventHandler
 
 	override void WorldTick()
 	{
+		PerkRuleFeed.Sync();
 		PlayerInfo p = players[consoleplayer];
 		let mo = p.mo;
 		if (!mo || level.maptime < 20) return;
@@ -237,5 +241,19 @@ class ExpPerkTest : EventHandler
 			gun++; phase = 0;
 			break;
 		}
+	}
+}
+
+// Daggerfall sends the character sheet and Doom applies the rules (DoomerfallRules.zs), so a real character's perk rules
+// come from its skill. This test's fake Daggerfall instead writes a hand-picked rule set in the sheet's reserved perk
+// slots (155-180, in DoomerfallRules order); this hands that set to Doom's rules each tic, before the playsim uses them.
+class PerkRuleFeed play
+{
+	static void Sync()
+	{
+		let r = DoomerfallRules(StaticEventHandler.Find("DoomerfallRules"));
+		if (!r) return;
+		r.testRules = Actor.DD_SheetValue(2) == 1; // no Daggerfall character: the rules read off, as in a real game
+		for (int i = 0; i < DoomerfallRules.RuleCount; i++) r.testRule[i] = max(0, Actor.DD_SheetValue(155 + i));
 	}
 }

@@ -1,5 +1,5 @@
-// The Automatics skill in Doom (work/backlog/skills-in-doom.md, Automatics). Daggerfall decides the rules from the
-// live skill and sends them in the character sheet (DFB_SHEET_AUTO_*, DoomerfallAutomaticsRules.cs); Doom applies them
+// The Automatics skill in Doom (work/backlog/skills-in-doom.md, Automatics). Daggerfall sends the live skill in the
+// character sheet; Doom's shared rules (DoomerfallRules.zs, Auto*) turn it into the numbers below, and this applies them
 // to hits from a gun whose skill is Automatics (DoomerfallWeaponCategory.SkillSlotOf), stock Doom's Chaingun or a DRLA
 // rapid-fire gun. Without a Daggerfall character every rule reads off, so a Doom-only game is unchanged.
 //
@@ -26,21 +26,19 @@
 // Fractional damage rounds up with the chance of the fraction, so +1% on a 5-point bullet is worth +1% on average.
 class DoomerfallAutomatics : StaticEventHandler
 {
-	// DFB_SHEET_* indices; must match bridge/doomerfall_bridge.h.
-	const SheetValid = 2;
-	const SkillAutomatics = 5;
-	const AutoDamageBp = 155;
-	const AutoBurstBp = 156;
-	const AutoBurstShots = 157;
-	const AutoBurstResetMs = 158;
-	const AutoShotsPerAmmo = 159;
-	const AutoSunderBp = 160;
-	const AutoSunderMaxBp = 161;
+	const SkillAutomatics = DoomerfallRules.SkillAutomatics;
+	const AutoDamageBp = DoomerfallRules.AutoDamageBp;
+	const AutoBurstBp = DoomerfallRules.AutoBurstBp;
+	const AutoBurstShots = DoomerfallRules.AutoBurstShots;
+	const AutoBurstResetMs = DoomerfallRules.AutoBurstResetMs;
+	const AutoShotsPerAmmo = DoomerfallRules.AutoShotsPerAmmo;
+	const AutoSunderBp = DoomerfallRules.AutoSunderBp;
+	const AutoSunderMaxBp = DoomerfallRules.AutoSunderMaxBp;
 
-	// A rule's value from Daggerfall, or 0 without a character.
+	// A perk rule's value (DoomerfallRules.Get: Doom applies the rule to Daggerfall's character sheet), 0 if off.
 	clearscope static int Rule(int index)
 	{
-		return max(0, Actor.DD_SheetValue(index));
+		return DoomerfallRules.Get(index);
 	}
 
 	clearscope static bool IsAutomatic(Weapon w)
@@ -109,7 +107,7 @@ class DoomerfallAutomatics : StaticEventHandler
 
 	override void WorldTick()
 	{
-		if (Actor.DD_SheetValue(SheetValid) != 1) return; // Rules come from Daggerfall's character only.
+		if (!DoomerfallRules.HasCharacter()) return; // Rules come from Daggerfall's character only.
 		for (int i = 0; i < MAXPLAYERS; i++)
 		{
 			let mo = playeringame[i] ? players[i].mo : null;

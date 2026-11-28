@@ -8,7 +8,7 @@ usage: shotguns_paired.py <play folder> assemble <base play folder> <uzdoom buil
             bridge DLL), plus this branch's launcher.
   run       Daggerfall (its city save) with Doom on MAP01, -dfperktest Shotguns -dfperksteps 20,26,50,75,100 twice. The Doom harness
             (shotguns_paired.zs) fires DRLA's Double Shotgun once per cycle at a target 40 units from a wall.
-Checks: Doom read the rules DoomerfallShotgunsRules.cs gives for each skill; below 75 no knockback; at 75 and 100 the
+Checks: Doom read the rules DoomerfallRules.zs gives for each skill; below 75 no knockback; at 75 and 100 the
 target is knocked, staggers and slams into the wall once for up to 200 / 400. Wrap the whole script in quiet_run.py.
 Output goes to <play folder>/../shotguns-paired.
 """

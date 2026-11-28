@@ -5,6 +5,7 @@
 //      the player's input and position.
 // Out: the player's JumpZ, extra jumps in mid-air, and falling damage (a normal Doom hit, which the bridge reports to
 //      Daggerfall, so Daggerfall applies it to its own HP).
+// The numbers are Doom's shared rules (DoomerfallRules.zs: FallDamage, JumpHeightFactor, AirJumps, FallImmune).
 // Falling damage is Daggerfall's rule (PlayerHealth.ApplyPlayerFallDamage and AcrobatMotor.CheckFallingDamage):
 // the fall is measured from where the player left the ground to where they land, and every metre past 5 costs 5 HP.
 // So a jump that lands where it started, double and triple jumps included, never hurts. Daggerfall's two exemptions
@@ -27,10 +28,8 @@ class DoomerfallJumpState
 
 class DoomerfallJump : StaticEventHandler
 {
-	const JumpingSlot = 3;         // DFCareer.Skills.Jumping
-	const UnitsPerMetre = 30.0;    // Doom maps are Daggerfall's layout at 75%, and Daggerfall has 40 units per metre
-	const FallThreshold = 5.0;     // Daggerfall: metres of fall that do no damage
-	const HPPerMetre = 5.0;        // Daggerfall: HP per metre past the threshold
+	const JumpingSlot = DoomerfallRules.SkillJumping;
+	const UnitsPerMetre = DoomerfallRules.UnitsPerMetre;
 	const SkillEvery = 8;          // tics between reads of the skill
 	const FlagSlowfall = 1;        // DFB_PLF_SLOWFALL
 	const FlagOutdoorWater = 2;    // DFB_PLF_OUTDOOR_WATER
@@ -60,22 +59,6 @@ class DoomerfallJump : StaticEventHandler
 	clearscope int JumpSkill() const { return testSkill >= 0 ? testSkill : skill; }
 	clearscope bool Active() const { return rules && JumpSkill() >= 0; }
 
-	// Jump height multiplier: linear to +100% at 100, plus a 25% spike from 25 on.
-	clearscope static double HeightFactor(int s)
-	{
-		s = clamp(s, 0, 100);
-		return 1.0 + s / 100.0 + (s >= 25 ? 0.25 : 0.0);
-	}
-	clearscope static int AirJumps(int s) { return s >= 100 ? 2 : s >= 50 ? 1 : 0; }
-	clearscope static bool FallImmune(int s) { return s >= 75; }
-
-	// Daggerfall's falling damage for a fall of this many Doom units, before the Jumping skill.
-	clearscope static int FallDamage(double units)
-	{
-		double metres = units / UnitsPerMetre;
-		return metres > FallThreshold ? int(HPPerMetre * (metres - FallThreshold)) : 0;
-	}
-
 	override void WorldTick()
 	{
 		if (level.maptime % SkillEvery == 0) skill = Actor.DD_SheetSkillBase(JumpingSlot);
@@ -104,7 +87,7 @@ class DoomerfallJump : StaticEventHandler
 			jumpZScaled[i] = false;
 			return;
 		}
-		double scale = sqrt(HeightFactor(JumpSkill()));
+		double scale = sqrt(DoomerfallRules.JumpHeightFactor(JumpSkill()));
 		if (!jumpZScaled[i])
 		{
 			// A loaded save holds the value written at the Jumping level it was saved with, which may differ from
@@ -121,7 +104,7 @@ class DoomerfallJump : StaticEventHandler
 	static bool ScaledDefault(PlayerPawn mo)
 	{
 		for (int k = 0; k <= 100; k++)
-			if (abs(mo.JumpZ - mo.default.JumpZ * sqrt(HeightFactor(k))) < 1e-6) return true;
+			if (abs(mo.JumpZ - mo.default.JumpZ * sqrt(DoomerfallRules.JumpHeightFactor(k))) < 1e-6) return true;
 		return false;
 	}
 
@@ -158,7 +141,7 @@ class DoomerfallJump : StaticEventHandler
 			if (s.airborne) Land(p, mo, s);
 			s.airborne = false;
 			s.groundZ = mo.pos.z;
-			s.airJumpsLeft = AirJumps(JumpSkill());
+			s.airJumpsLeft = DoomerfallRules.AirJumps(JumpSkill());
 			return;
 		}
 		if (!s.airborne)
@@ -174,8 +157,8 @@ class DoomerfallJump : StaticEventHandler
 	void Land(PlayerInfo p, PlayerPawn mo, DoomerfallJumpState s)
 	{
 		double fell = s.fallStartZ - mo.pos.z;
-		int damage = FallDamage(fell);
-		if (damage > 0 && FallImmune(JumpSkill()))
+		int damage = DoomerfallRules.FallDamage(fell);
+		if (damage > 0 && DoomerfallRules.FallImmune(JumpSkill()))
 		{
 			DDLog.Debug(String.Format("DFJUMP land fell=%.1f damage=0 (immune, Jumping %d)", fell, JumpSkill()));
 			return;

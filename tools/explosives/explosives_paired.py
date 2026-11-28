@@ -9,7 +9,7 @@ usage: explosives_paired.py <play folder> assemble <base play folder> <uzdoom bu
             skill to each value in turn and opens a perk window at 25, 50, 75 and 100, which the script clicks shut.
             The Doom harness (explosives_paired.zs) fires DRLA's Rocket Launcher at a target in cycles, and once at
             skill 100 at a pack (a baron among imps) to see the chain and the frame times.
-Checks: the rules Doom read match Daggerfall's skill (DoomerfallExplosivesRules.cs); every hit carries the damage
+Checks: the rules Doom read match Daggerfall's skill (DoomerfallRules.zs); every hit carries the damage
 bonus; the player's own splash is cut by 95% / 99% from 25 / 75; at 100 the pack dies with chained blasts that never
 hurt the player, and every playsim tic of the chain fits in one tic (28.6 ms). Wrap the whole script in quiet_run.py.
 Output goes to <play folder>/../explosives-paired.
@@ -86,7 +86,9 @@ def run(play, out):
                     ng.SURFACE[:] = [int(size[-1][0]), int(size[-1][1])]
                 ng.click(hwnd, 160, 100)
                 clicked = opened
-            if "PAIRED pack end 2 " in text and len(re.findall(r"PAIRED end \d+ skill=100\b", text)) >= 1:
+            # A whole cycle at 100: one that started at 100 (a cycle started at 75 can end after the skill rose).
+            whole100 = any(f"PAIRED end {n} skill=100" in text for n in re.findall(r"PAIRED start (\d+) skill=100\b", text))
+            if "PAIRED pack end 2 " in text and whole100:
                 break
     finally:
         subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True)

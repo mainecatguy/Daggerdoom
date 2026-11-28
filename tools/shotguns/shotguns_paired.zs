@@ -105,8 +105,8 @@ class ShotPairHarness : EventHandler
 			start = (target.Distance2D(mo), 0, 0);
 			t = 0; lost = 0; pain = false; cycle++;
 			Console.Printf("PAIRED start %d skill=%d dmg=%d reload=%d pellets=%d knock=%d slam=%d collide=%d", cycle, Actor.DD_SheetSkill(4),
-				Actor.DD_SheetValue(167), Actor.DD_SheetValue(168), Actor.DD_SheetValue(169), Actor.DD_SheetValue(170),
-				Actor.DD_SheetValue(171), Actor.DD_SheetValue(172));
+				DoomerfallRules.Get(12), DoomerfallRules.Get(13), DoomerfallRules.Get(14), DoomerfallRules.Get(15),
+				DoomerfallRules.Get(16), DoomerfallRules.Get(17));
 			return;
 		}
 		if (t == 2) mo.FireWeapon(null);
